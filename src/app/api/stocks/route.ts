@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: NextRequest) {
   try {
     // Verificar autenticação
-    const payload = requireAuth(request);
+    requireAuth(request);
 
     // Buscar todos os ativos ativos
     const stocks = await prisma.stock.findMany({

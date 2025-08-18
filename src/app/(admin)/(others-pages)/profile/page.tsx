@@ -4,8 +4,15 @@ import UserMetaCard from "@/components/user-profile/UserMetaCard";
 import UserInfoCard from "@/components/user-profile/UserInfoCard";
 import UserAddressCard from "@/components/user-profile/UserAddressCard";
 
+interface User {
+  id: string;
+  email?: string;
+  name?: string;
+  avatarUrl?: string;
+}
+
 export default function ProfilePage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,8 +36,8 @@ export default function ProfilePage() {
           Perfil
         </h3>
         <div className="space-y-6">
-          <UserMetaCard user={user} />
-          <UserInfoCard user={user} />
+          <UserMetaCard user={user || undefined} />
+          <UserInfoCard user={user || undefined} />
           <UserAddressCard />
         </div>
       </div>

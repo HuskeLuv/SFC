@@ -18,7 +18,7 @@ import {
   TotalRow,
   NewItemRow
 } from "@/components/cashflow";
-import { CashflowGroup, CashflowItem } from "@/types/cashflow";
+import { CashflowItem } from "@/types/cashflow";
 import { createCashflowItem } from "@/utils/cashflowUpdate";
 import { useCellEditing } from "@/hooks/useCellEditing";
 
@@ -53,46 +53,26 @@ export default function DataTableTwo() {
 
     try {
       const newItem = await createCashflowItem(groupId, row.descricao, row.significado);
-      setNewItems(prev => ({ ...prev, [newItem.id]: newItem }));
-    cancelAddingRow(groupId);
-    showAlert("success", "Linha adicionada", "A linha foi adicionada com sucesso.");
-    } catch (error) {
+      setNewItems(prev => ({ ...prev, [newItem.id]: newItem as unknown as CashflowItem }));
+      cancelAddingRow(groupId);
+      showAlert("success", "Linha adicionada", "A linha foi adicionada com sucesso.");
+    } catch {
       showAlert("error", "Erro ao adicionar", "Erro ao criar a nova linha.");
     }
   }, [newRow, cancelAddingRow, showAlert]);
 
-  const handleItemUpdate = useCallback(async (updatedItem: any) => {
+  const handleItemUpdate = useCallback(async () => {
     try {
       // Refresh the data to reflect the changes
       await refetch();
       showAlert("success", "Item atualizado", "O item foi atualizado com sucesso.");
-    } catch (error) {
+    } catch {
       showAlert("error", "Erro ao atualizar", "Erro ao atualizar o item.");
     }
   }, [refetch, showAlert]);
 
   const handleToggleEditMode = useCallback(() => {
     setGlobalEditMode(prev => !prev);
-  }, []);
-
-  // Helper function to find the group for an item
-  const findGroupForItem = useCallback((itemId: string, groups: CashflowGroup[]): CashflowGroup | undefined => {
-    const findInGroup = (group: CashflowGroup): CashflowGroup | undefined => {
-      if (group.items?.some(item => item.id === itemId)) {
-        return group;
-      }
-      for (const child of group.children || []) {
-        const found = findInGroup(child);
-        if (found) return found;
-      }
-      return undefined;
-    };
-
-    for (const group of groups) {
-      const foundGroup = findInGroup(group);
-      if (foundGroup) return foundGroup;
-    }
-    return undefined;
   }, []);
 
   if (loading) return <div className="py-8 text-center">Carregando...</div>;
@@ -177,7 +157,7 @@ export default function DataTableTwo() {
                                 
                                 {/* Renderizar novos itens criados */}
                                 {Object.entries(newItems)
-                                  .filter(([_, item]) => item.groupId === subsubgroup.id)
+                                  .filter(([, item]) => item.groupId === subsubgroup.id)
                                   .map(([itemId, item]) => (
                                     <NewItemRow
                                       key={itemId}
@@ -193,7 +173,6 @@ export default function DataTableTwo() {
                                 
                                 {!collapsed[subsubgroup.id] && addingRow[subsubgroup.id] && (
                                   <AddRowForm
-                                    groupId={subsubgroup.id}
                                     newRow={newRow[subsubgroup.id] || { descricao: "", significado: "", percentTotal: 0 }}
                                     onUpdateField={(field, value) => updateNewRow(subsubgroup.id, field, value)}
                                     onSave={() => handleSaveRow(subsubgroup.id)}
@@ -222,7 +201,7 @@ export default function DataTableTwo() {
                             
                             {/* Renderizar novos itens criados */}
                             {Object.entries(newItems)
-                              .filter(([_, item]) => item.groupId === subgroup.id)
+                              .filter(([, item]) => item.groupId === subgroup.id)
                               .map(([itemId, item]) => (
                                 <NewItemRow
                                   key={itemId}
@@ -238,7 +217,6 @@ export default function DataTableTwo() {
                             
                             {addingRow[subgroup.id] && (
                               <AddRowForm
-                                groupId={subgroup.id}
                                 newRow={newRow[subgroup.id] || { descricao: "", significado: "", percentTotal: 0 }}
                                 onUpdateField={(field, value) => updateNewRow(subgroup.id, field, value)}
                                 onSave={() => handleSaveRow(subgroup.id)}
@@ -269,7 +247,7 @@ export default function DataTableTwo() {
                     
                     {/* Renderizar novos itens criados */}
                     {Object.entries(newItems)
-                      .filter(([_, item]) => item.groupId === group.id)
+                      .filter(([, item]) => item.groupId === group.id)
                       .map(([itemId, item]) => (
                         <NewItemRow
                           key={itemId}
@@ -285,7 +263,6 @@ export default function DataTableTwo() {
                     
                     {addingRow[group.id] && (
                       <AddRowForm
-                        groupId={group.id}
                         newRow={newRow[group.id] || { descricao: "", significado: "", percentTotal: 0 }}
                         onUpdateField={(field, value) => updateNewRow(group.id, field, value)}
                         onSave={() => handleSaveRow(group.id)}

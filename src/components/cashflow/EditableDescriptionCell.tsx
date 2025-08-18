@@ -19,7 +19,6 @@ export const EditableDescriptionCell: React.FC<EditableDescriptionCellProps> = (
   onSave,
   onCancel,
   isEditing,
-  onStartEdit,
   className = "",
   globalEditMode = false
 }) => {

@@ -20,7 +20,6 @@ export const EditableCell: React.FC<EditableCellProps> = ({
   onSave,
   onCancel,
   isEditing,
-  onStartEdit,
   type = "text",
   className = "",
   placeholder = "",

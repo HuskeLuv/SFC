@@ -4,15 +4,13 @@ import { NewRowData } from "@/types/cashflow";
 import { ActionButtons } from "./ActionButtons";
 
 interface AddRowFormProps {
-  groupId: string;
   newRow: NewRowData;
-  onUpdateField: (field: keyof NewRowData, value: any) => void;
+  onUpdateField: (field: keyof NewRowData, value: string | number) => void;
   onSave: () => void;
   onCancel: () => void;
 }
 
 export const AddRowForm: React.FC<AddRowFormProps> = ({ 
-  groupId, 
   newRow, 
   onUpdateField, 
   onSave, 

@@ -21,7 +21,11 @@ export async function PATCH(request: NextRequest) {
 
     if (field === 'descricao' || field === 'significado' || field === 'percentTotal') {
       // Update item fields
-      const updateData: any = {};
+      const updateData: {
+        descricao?: string;
+        significado?: string;
+        percentTotal?: number;
+      } = {};
       if (field === 'descricao') updateData.descricao = value;
       if (field === 'significado') updateData.significado = value;
       if (field === 'percentTotal') updateData.percentTotal = parseFloat(value);

@@ -5,14 +5,12 @@ import Label from "@/components/form/Label";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import Link from "next/link";
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -45,7 +43,7 @@ export default function SignUpForm() {
         return;
       }
       window.location.href = '/profile';
-    } catch (err) {
+    } catch {
       setError("Erro ao registrar. Tente novamente.");
     } finally {
       setLoading(false);

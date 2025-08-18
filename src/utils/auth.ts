@@ -16,7 +16,7 @@ export function verifyJWT(request: NextRequest): JWTPayload | null {
 
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
     return payload;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

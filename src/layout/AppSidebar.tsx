@@ -7,21 +7,15 @@ import { useSidebar } from "../context/SidebarContext";
 import {
   BoxCubeIcon,
   CalenderIcon,
-  ChatIcon,
   ChevronDownIcon,
-  DocsIcon,
   GridIcon,
   HorizontaLDots,
-  ListIcon,
-  MailIcon,
   PageIcon,
   PieChartIcon,
   PlugInIcon,
   TableIcon,
-  TaskIcon,
   UserCircleIcon,
 } from "../icons/index";
-import SidebarWidget from "./SidebarWidget";
 
 type NavItem = {
   name: string;

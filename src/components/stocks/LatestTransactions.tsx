@@ -1,6 +1,5 @@
 "use client";
 import React, { useState } from "react";
-import Image from "next/image";
 import Badge from "../ui/badge/Badge";
 import {
   Table,
@@ -10,7 +9,6 @@ import {
   TableRow,
 } from "../ui/table";
 import { useStocks } from "@/hooks/useStocks";
-import { StockTransactionWithStock } from "@/types/stocks";
 
 export default function LatestTransactions() {
   const [searchTerm, setSearchTerm] = useState('');

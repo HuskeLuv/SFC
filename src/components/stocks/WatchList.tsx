@@ -4,15 +4,13 @@ import { ArrowDownIcon, ArrowUpIcon } from "../../icons";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { MoreDotIcon } from "@/icons";
-import Image from "next/image";
 import { useStocks } from "@/hooks/useStocks";
 import { WatchlistItem } from "@/types/stocks";
 import AddToWatchlistModal from "./AddToWatchlistModal";
 
 const WatchlistItemComponent: React.FC<{
   item: WatchlistItem;
-  onRemove: (stockId: string) => void;
-}> = ({ item, onRemove }) => {
+}> = ({ item }) => {
   const { stock } = item;
   const priceData = stock.priceData;
   
@@ -82,7 +80,7 @@ const WatchlistItemComponent: React.FC<{
 export default function WatchList() {
   const [isOpen, setIsOpen] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const { watchlist, removeFromWatchlist, loading, error } = useStocks();
+  const { watchlist, loading, error } = useStocks();
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -91,13 +89,6 @@ export default function WatchList() {
   function closeDropdown() {
     setIsOpen(false);
   }
-
-  const handleRemoveFromWatchlist = async (stockId: string) => {
-    const success = await removeFromWatchlist(stockId);
-    if (success) {
-      closeDropdown();
-    }
-  };
 
   if (loading) {
     return (
@@ -183,7 +174,6 @@ export default function WatchList() {
                 <WatchlistItemComponent
                   key={item.id}
                   item={item}
-                  onRemove={handleRemoveFromWatchlist}
                 />
               ))}
             </div>

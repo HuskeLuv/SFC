@@ -73,7 +73,7 @@ export default function TablesPage() {
       if (!res.ok) throw new Error("Erro ao salvar nova entrada");
       setNewRow(null);
       fetchCashflow();
-    } catch (e) {
+    } catch {
       setError("Erro ao salvar nova entrada");
     } finally {
       setSaving(false);
@@ -105,7 +105,7 @@ export default function TablesPage() {
       setEditingId(null);
       setEditRow(null);
       fetchCashflow();
-    } catch (e) {
+    } catch {
       setError("Erro ao salvar edição");
     } finally {
       setSaving(false);
@@ -122,7 +122,7 @@ export default function TablesPage() {
       });
       if (!res.ok) throw new Error("Erro ao excluir entrada");
       fetchCashflow();
-    } catch (e) {
+    } catch {
       setError("Erro ao excluir entrada");
     } finally {
       setSaving(false);
@@ -401,7 +401,7 @@ export default function TablesPage() {
 
       {cashflow.length === 0 && !newRow && (
         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-          Nenhuma entrada encontrada. Clique em "Adicionar Entrada" para começar.
+          Nenhuma entrada encontrada. Clique em &quot;Adicionar Entrada&quot; para começar.
         </div>
       )}
     </div>

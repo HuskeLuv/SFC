@@ -32,7 +32,7 @@ export async function fetchB3Stocks(): Promise<B3StockData[]> {
     // Processar os dados da API da B3
     // A estrutura pode variar, então vamos adaptar conforme necessário
     if (Array.isArray(data)) {
-      return data.map((item: any) => ({
+      return data.map((item: { ticker?: string; symbol?: string; code?: string; companyName?: string; name?: string; company?: string; sector?: string; industry?: string; subsector?: string; subIndustry?: string; segment?: string; market?: string }) => ({
         ticker: item.ticker || item.symbol || item.code || '',
         companyName: item.companyName || item.name || item.company || '',
         sector: item.sector || item.industry || '',
@@ -46,7 +46,7 @@ export async function fetchB3Stocks(): Promise<B3StockData[]> {
     
     // Se não for um array, tentar extrair de outra estrutura
     if (data.data && Array.isArray(data.data)) {
-      return data.data.map((item: any) => ({
+      return data.data.map((item: { ticker?: string; symbol?: string; code?: string; companyName?: string; name?: string; company?: string; sector?: string; industry?: string; subsector?: string; subIndustry?: string; segment?: string; market?: string }) => ({
         ticker: item.ticker || item.symbol || item.code || '',
         companyName: item.companyName || item.name || item.company || '',
         sector: item.sector || item.industry || '',

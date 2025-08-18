@@ -125,7 +125,16 @@ export default function AnalyticsBarChart() {
             Analytics de visitantes dos últimos 30 dias
           </span>
         </div>
-        <ChartTab />
+        <ChartTab
+          tabs={[
+            { label: "7D", value: "7d" },
+            { label: "30D", value: "30d" },
+            { label: "90D", value: "90d" },
+            { label: "1A", value: "1y" },
+          ]}
+          activeTab="30d"
+          onTabChange={() => {}}
+        />
       </div>
       <div className="max-w-full overflow-x-auto custom-scrollbar">
         <div className="-ml-5 min-w-[1300px] xl:min-w-full pl-2">

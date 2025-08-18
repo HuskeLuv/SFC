@@ -28,7 +28,7 @@ export const useAuth = () => {
         setUser(null);
         setError('Não autenticado');
       }
-    } catch (err) {
+    } catch {
       setUser(null);
       setError('Erro ao verificar autenticação');
     } finally {

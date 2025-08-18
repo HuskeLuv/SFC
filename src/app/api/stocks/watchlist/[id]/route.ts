@@ -5,9 +5,10 @@ import { prisma } from '@/lib/prisma';
 // DELETE - Remover ativo do watchlist
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: stockId } = await params;
     const payload = requireAuth(request);
 
     const user = await prisma.user.findUnique({
@@ -17,8 +18,6 @@ export async function DELETE(
     if (!user) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
-
-    const { id: stockId } = params;
 
     // Verificar se o item existe no watchlist do usuário
     const watchlistItem = await prisma.watchlist.findUnique({

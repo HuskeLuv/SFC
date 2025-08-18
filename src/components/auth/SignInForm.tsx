@@ -38,7 +38,7 @@ export default function SignInForm() {
         return;
       }
       window.location.href = "/profile";
-    } catch (err) {
+    } catch {
       setError("Erro ao entrar. Tente novamente.");
     } finally {
       setLoading(false);

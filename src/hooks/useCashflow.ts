@@ -60,12 +60,13 @@ export const useCollapsibleState = () => {
   const cancelAddingRow = useCallback((groupId: string) => {
     setAddingRow(prev => ({ ...prev, [groupId]: false }));
     setNewRow(prev => {
-      const { [groupId]: _, ...rest } = prev;
-      return rest;
+      const newState = { ...prev };
+      delete newState[groupId];
+      return newState;
     });
   }, []);
 
-  const updateNewRow = useCallback((groupId: string, field: keyof NewRowData, value: any) => {
+  const updateNewRow = useCallback((groupId: string, field: keyof NewRowData, value: string | number) => {
     setNewRow(prev => ({
       ...prev,
       [groupId]: { ...prev[groupId], [field]: value }

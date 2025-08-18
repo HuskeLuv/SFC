@@ -1,9 +1,11 @@
+import { CashflowItem } from '@/types/cashflow';
+
 export async function updateCashflowValue(
   itemId: string, 
   field: string, 
   value: string | number, 
   monthIndex?: number
-): Promise<any> {
+): Promise<CashflowItem> {
   const response = await fetch('/api/cashflow/values', {
     method: 'PATCH',
     headers: {
@@ -30,7 +32,7 @@ export async function createCashflowItem(
   groupId: string,
   descricao: string,
   significado?: string
-): Promise<any> {
+): Promise<{ id: string; [key: string]: unknown }> {
   const response = await fetch('/api/cashflow/items', {
     method: 'POST',
     headers: {

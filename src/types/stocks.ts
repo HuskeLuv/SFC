@@ -1,4 +1,4 @@
-import { Stock, Watchlist, Portfolio, StockTransaction } from '@prisma/client';
+import { Stock, Watchlist, Portfolio } from '@prisma/client';
 import { StockPriceData } from '@/utils/stockData';
 
 export interface StockWithPrice extends Stock {

@@ -131,7 +131,16 @@ export default function TrafficStats() {
           </Dropdown>
         </div>
       </div>
-      <ChartTab />
+      <ChartTab
+        tabs={[
+          { label: "7D", value: "7d" },
+          { label: "30D", value: "30d" },
+          { label: "90D", value: "90d" },
+          { label: "1A", value: "1y" },
+        ]}
+        activeTab="30d"
+        onTabChange={() => {}}
+      />
       <div>
         {/* <!-- Stats item --> */}
         <div className="flex items-end justify-between py-5">

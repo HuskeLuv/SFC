@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useStocks } from '@/hooks/useStocks';
 
 interface AddToWatchlistModalProps {
@@ -13,7 +13,7 @@ export default function AddToWatchlistModal({ isOpen, onClose }: AddToWatchlistM
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const { stocks, addToWatchlist, loading } = useStocks();
+  const { stocks, addToWatchlist } = useStocks();
 
   const filteredStocks = stocks.filter(stock =>
     stock.ticker.toLowerCase().includes(searchTerm.toLowerCase()) ||

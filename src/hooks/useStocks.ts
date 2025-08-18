@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { StockPriceData, fetchStockPrices } from '@/utils/stockData';
+import { fetchStockPrices } from '@/utils/stockData';
 import {
   StockWithPrice,
   WatchlistItem,
@@ -34,11 +34,11 @@ export const useStocks = () => {
       setStocks(data);
       
       // Buscar dados de preço para os ativos
-      const tickers = data.map((stock: any) => stock.ticker);
+      const tickers = data.map((stock: { ticker: string }) => stock.ticker);
       const priceData = await fetchStockPrices(tickers);
       
       // Combinar dados dos ativos com preços
-      const stocksWithPrices = data.map((stock: any) => {
+      const stocksWithPrices = data.map((stock: { ticker: string; [key: string]: unknown }) => {
         const price = priceData.find(p => p.ticker === stock.ticker);
         return { ...stock, priceData: price };
       });

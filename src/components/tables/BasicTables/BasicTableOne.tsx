@@ -1,7 +1,8 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import Spreadsheet from "react-spreadsheet";
 import { tableData1, months } from "./mockTableData";
+import { Matrix, CellBase } from "react-spreadsheet";
 
 // Helper to parse currency string to number
 const parseCurrency = (value: string) => {
@@ -78,11 +79,22 @@ export const BasicTableOne = () => {
 
   const [data, setData] = useState(initialData);
 
+  const handleDataChange = useCallback((newData: Matrix<CellBase<unknown>>) => {
+    // Convert the newData to the expected format and update state
+    const convertedData = newData.map(row => 
+      row.map(cell => ({
+        value: cell?.value?.toString() || '',
+        readOnly: cell?.readOnly || false
+      }))
+    );
+    setData(convertedData);
+  }, []);
+
   return (
     <div className="w-full">
       <Spreadsheet
         data={data}
-        onChange={setData}
+        onChange={handleDataChange}
         className="custom-spreadsheet"
       />
       <style>{`
