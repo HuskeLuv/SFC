@@ -18,7 +18,12 @@ export async function POST(req: NextRequest) {
     
     const hashed = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { email, password: hashed, name },
+      data: { 
+        email, 
+        password: hashed, 
+        name,
+        // Não definimos avatarUrl - o sistema usará iniciais automaticamente
+      },
     });
     
     // Criar estrutura de cashflow para o novo usuário

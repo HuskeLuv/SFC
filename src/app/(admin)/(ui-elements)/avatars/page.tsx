@@ -1,6 +1,7 @@
 import ComponentCard from "@/components/common/ComponentCard";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Avatar from "@/components/ui/avatar/Avatar";
+import AvatarExample from "@/components/ui/avatar/AvatarExample";
 import { Metadata } from "next";
 import React from "react";
 
@@ -15,8 +16,12 @@ export default function AvatarPage() {
     <div>
       <PageBreadcrumb pageTitle="Avatar" />
       <div className="space-y-5 sm:space-y-6">
-        <ComponentCard title="Default Avatar">
-          {/* Default Avatar (No Status) */}
+        <ComponentCard title="Sistema Inteligente - Demonstração">
+          <AvatarExample />
+        </ComponentCard>
+
+        <ComponentCard title="Avatar com Imagem">
+          {/* Avatar with Image */}
           <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
             <Avatar src="/images/user/user-01.jpg" size="xsmall" />
             <Avatar src="/images/user/user-01.jpg" size="small" />
@@ -26,98 +31,103 @@ export default function AvatarPage() {
             <Avatar src="/images/user/user-01.jpg" size="xxlarge" />
           </div>
         </ComponentCard>
-        <ComponentCard title="Avatar with online indicator">
+
+        <ComponentCard title="Avatar com Iniciais (Automático)">
+          {/* Avatar with Initials - automatically generated */}
+          <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
+            <Avatar name="Wellington Santos" size="xsmall" />
+            <Avatar name="Wellington Santos" size="small" />
+            <Avatar name="Wellington Santos" size="medium" />
+            <Avatar name="Wellington Santos" size="large" />
+            <Avatar name="Wellington Santos" size="xlarge" />
+            <Avatar name="Wellington Santos" size="xxlarge" />
+          </div>
+        </ComponentCard>
+
+        <ComponentCard title="Diferentes Usuários com Iniciais">
+          {/* Different users with initials */}
+          <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
+            <Avatar name="João Silva" size="medium" />
+            <Avatar name="Maria Costa" size="medium" />
+            <Avatar name="Pedro Oliveira" size="medium" />
+            <Avatar name="Ana Santos" size="medium" />
+            <Avatar name="Carlos Lima" size="medium" />
+          </div>
+        </ComponentCard>
+
+        <ComponentCard title="Avatar com Indicador de Status">
+          {/* Avatar with status indicator */}
           <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
             <Avatar
-              src="/images/user/user-01.jpg"
-              size="xsmall"
-              status="online"
-            />
-            <Avatar
-              src="/images/user/user-01.jpg"
-              size="small"
-              status="online"
-            />
-            <Avatar
-              src="/images/user/user-01.jpg"
+              name="Wellington Santos"
               size="medium"
               status="online"
             />
             <Avatar
-              src="/images/user/user-01.jpg"
-              size="large"
-              status="online"
+              name="João Silva"
+              size="medium"
+              status="offline"
             />
             <Avatar
-              src="/images/user/user-01.jpg"
-              size="xlarge"
-              status="online"
+              name="Maria Costa"
+              size="medium"
+              status="busy"
             />
             <Avatar
-              src="/images/user/user-01.jpg"
-              size="xxlarge"
-              status="online"
+              name="Pedro Oliveira"
+              size="medium"
+              status="none"
             />
           </div>
         </ComponentCard>
-        <ComponentCard title="Avatar with Offline indicator">
+
+        <ComponentCard title="Avatar com Imagem e Status">
+          {/* Avatar with image and status */}
           <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
             <Avatar
               src="/images/user/user-01.jpg"
-              size="xsmall"
-              status="offline"
+              size="medium"
+              status="online"
             />
             <Avatar
-              src="/images/user/user-01.jpg"
-              size="small"
-              status="offline"
-            />
-            <Avatar
-              src="/images/user/user-01.jpg"
+              src="/images/user/user-02.jpg"
               size="medium"
               status="offline"
             />
             <Avatar
-              src="/images/user/user-01.jpg"
-              size="large"
-              status="offline"
-            />
-            <Avatar
-              src="/images/user/user-01.jpg"
-              size="xlarge"
-              status="offline"
-            />
-            <Avatar
-              src="/images/user/user-01.jpg"
-              size="xxlarge"
-              status="offline"
+              src="/images/user/user-03.jpg"
+              size="medium"
+              status="busy"
             />
           </div>
-        </ComponentCard>{" "}
-        <ComponentCard title="Avatar with busy indicator">
-          <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
-            <Avatar
-              src="/images/user/user-01.jpg"
-              size="xsmall"
-              status="busy"
-            />
-            <Avatar src="/images/user/user-01.jpg" size="small" status="busy" />
-            <Avatar
-              src="/images/user/user-01.jpg"
-              size="medium"
-              status="busy"
-            />
-            <Avatar src="/images/user/user-01.jpg" size="large" status="busy" />
-            <Avatar
-              src="/images/user/user-01.jpg"
-              size="xlarge"
-              status="busy"
-            />
-            <Avatar
-              src="/images/user/user-01.jpg"
-              size="xxlarge"
-              status="busy"
-            />
+        </ComponentCard>
+
+        <ComponentCard title="Sistema Inteligente - Avatar Misto">
+          {/* Mixed avatars - some with images, some with initials */}
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+              O sistema automaticamente escolhe entre imagem e iniciais baseado na disponibilidade
+            </p>
+            <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
+              <Avatar
+                src="/images/user/user-01.jpg"
+                name="Usuário com Imagem"
+                size="medium"
+              />
+              <Avatar
+                name="Usuário Sem Imagem"
+                size="medium"
+              />
+              <Avatar
+                src="/images/user/user-02.jpg"
+                name="Outro com Imagem"
+                size="medium"
+              />
+              <Avatar
+                name="Wellington Santos"
+                size="medium"
+              />
+            </div>
           </div>
         </ComponentCard>
       </div>

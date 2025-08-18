@@ -1,9 +1,11 @@
 import Image from "next/image";
 import React from "react";
+import { generateInitials, getAvatarColorClass, shouldShowInitials } from "@/utils/avatarUtils";
 
 interface AvatarProps {
-  src: string; // URL of the avatar image
+  src?: string; // URL of the avatar image (optional now)
   alt?: string; // Alt text for the avatar
+  name?: string; // User's name for generating initials
   size?: "xsmall" | "small" | "medium" | "large" | "xlarge" | "xxlarge"; // Avatar size
   status?: "online" | "offline" | "busy" | "none"; // Status indicator
 }
@@ -15,6 +17,15 @@ const sizeClasses = {
   large: "h-12 w-12 max-w-12",
   xlarge: "h-14 w-14 max-w-14",
   xxlarge: "h-16 w-16 max-w-16",
+};
+
+const textSizeClasses = {
+  xsmall: "text-xs",
+  small: "text-sm",
+  medium: "text-sm",
+  large: "text-base",
+  xlarge: "text-lg",
+  xxlarge: "text-xl",
 };
 
 const statusSizeClasses = {
@@ -35,20 +46,32 @@ const statusColorClasses = {
 const Avatar: React.FC<AvatarProps> = ({
   src,
   alt = "User Avatar",
+  name = "User",
   size = "medium",
   status = "none",
 }) => {
+  const showInitials = shouldShowInitials(src);
+  const initials = generateInitials(name);
+  const colorClass = getAvatarColorClass(name);
+
   return (
-    <div className={`relative  rounded-full ${sizeClasses[size]}`}>
-      {/* Avatar Image */}
-      <Image
-        width="0"
-        height="0"
-        sizes="100vw"
-        src={src}
-        alt={alt}
-        className="object-cover w-full rounded-full"
-      />
+    <div className={`relative rounded-full ${sizeClasses[size]}`}>
+      {showInitials ? (
+        // Avatar with Initials
+        <div className={`flex items-center justify-center w-full h-full rounded-full ${colorClass}`}>
+          <span className={`font-medium ${textSizeClasses[size]}`}>{initials}</span>
+        </div>
+      ) : (
+        // Avatar with Image
+        <Image
+          width="0"
+          height="0"
+          sizes="100vw"
+          src={src!}
+          alt={alt}
+          className="object-cover w-full h-full rounded-full"
+        />
+      )}
 
       {/* Status Indicator */}
       {status !== "none" && (
