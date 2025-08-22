@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   // Configurações para resolver problemas de build no Vercel
   experimental: {
     // Configurações experimentais válidas para Next.js 15
+    optimizePackageImports: ["lucide-react", "tailwind-merge"],
   },
   
   // Configurações de build
