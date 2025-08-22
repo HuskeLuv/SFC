@@ -7,7 +7,7 @@ import React from "react";
 export const metadata: Metadata = {
   title: "",
   description:
-    "This is Next.js Spinners page for TailAdmin - Next.js Tailwind CSS Admin Dashboard Template",
+    "",
 };
 
 export default function Ribbons() {
