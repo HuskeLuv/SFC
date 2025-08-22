@@ -7,9 +7,8 @@ import UpcomingSchedule from "@/components/crm/UpcomingSchedule";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Dashboard CRM",
-  description:
-    "Esta é a página do Dashboard",
+  title: "",
+  description: "",
 };
 
 export default function Crm() {

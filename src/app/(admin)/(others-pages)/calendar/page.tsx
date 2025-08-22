@@ -4,8 +4,8 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Calendário",
-  description: "Calendário",
+  title: "",
+  description: "",
   // other metadata
 };
 export default function page() {

@@ -7,7 +7,7 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gráfico de Linhas",
+  title: "",
   description:
     "Gráfico de Linhas",
 };

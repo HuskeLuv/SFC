@@ -9,10 +9,8 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title:
-    "Dashboard SaaS",
-  description:
-    "Esta é a página do Dashboard SaaS",
+  title: "",
+  description: "",
 };
 
 export default function SaaS() {

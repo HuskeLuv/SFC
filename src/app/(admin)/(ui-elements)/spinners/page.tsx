@@ -9,7 +9,7 @@ import { Metadata } from "next";
 import SpinnerOne from "./SpinnerOne";
 
 export const metadata: Metadata = {
-  title: "Next.js Spinners | TailAdmin - Next.js Dashboard Template",
+  title: "",
   description:
     "This is Next.js Spinners page for TailAdmin - Next.js Tailwind CSS Admin Dashboard Template",
 };

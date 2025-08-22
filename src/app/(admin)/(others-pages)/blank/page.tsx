@@ -3,8 +3,8 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Página em branco",
-  description: "Página em branco",
+  title: "",
+  description: "",
 };
 
 export default function BlankPage() {

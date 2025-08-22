@@ -5,7 +5,7 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Mensagens",
+  title: "",
   description:
     "Esta é a página de Mensagens",
   // other metadata

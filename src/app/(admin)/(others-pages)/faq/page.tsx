@@ -6,7 +6,7 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Perguntas Frequentess",
+  title: "",
   description:
     "Esta é a página de Perguntas Frequentes",
 };

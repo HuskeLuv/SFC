@@ -4,7 +4,7 @@ import { Metadata } from "next";
 import TaskList from "@/components/task/task-list/TaskList";
 
 export const metadata: Metadata = {
-  title: "Lista de Tarefas",
+  title: "",
   description:
     "Lista de Tarefas",
   // other metadata

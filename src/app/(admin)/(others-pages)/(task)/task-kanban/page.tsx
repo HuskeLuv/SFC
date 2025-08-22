@@ -7,7 +7,7 @@ import React from "react";
 export const metadata: Metadata = {
   title:
     "Tarefas",
-  description: "Tarefas",
+  description: "",
 };
 
 export default function TaskKanban() {

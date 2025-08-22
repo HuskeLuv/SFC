@@ -6,8 +6,8 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gráfico de Barras",
-  description: "Gráfico de Barras",
+  title: "",
+  description: "",
 };
 
 export default function page() {

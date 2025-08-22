@@ -6,7 +6,7 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Gráfico de Pizza",
+  title: "",
   description:
     "Gráfico de Pizza",
 };

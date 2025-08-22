@@ -11,9 +11,8 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Dashboard de Analytics",
-  description:
-    "Esta é a página do Dashboard de Analytics",
+  title: "",
+  description: "",
 };
 
 export default function Analytics() {
