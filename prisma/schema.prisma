@@ -177,3 +177,43 @@ model StockTransaction {
   
   @@map("stock_transactions")
 }
+
+// ===== EXTERNAL DATA MODELS =====
+
+// Ativos da B3 (ações, FII, ETF, BDR etc.)
+model Asset {
+  id        String   @id @default(uuid())
+  ticker    String   @unique // Código do ativo (ex: PETR4, VALE3)
+  nome      String   // Nome do ativo/empresa
+  tipo      String?  // Tipo: ação, FII, ETF, BDR etc.
+  setor     String?  // Setor da empresa
+  status    String   @default("ativo") // ativo/inativo
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([ticker])
+  @@index([status])
+  @@map("assets")
+}
+
+// Enum para status das instituições
+enum InstitutionStatus {
+  ATIVA
+  INATIVA
+}
+
+// Instituições financeiras (corretoras e bancos de investimento)
+model Institution {
+  id        String            @id @default(cuid())
+  codigo    String            @unique // Código identificador da instituição
+  nome      String            // Nome da instituição
+  cnpj      String?           // CNPJ da instituição (opcional)
+  status    InstitutionStatus @default(ATIVA)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  
+  @@index([codigo])
+  @@index([cnpj])
+  @@index([status])
+  @@map("institutions")
+}
