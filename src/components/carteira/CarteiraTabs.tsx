@@ -1,13 +1,16 @@
 "use client";
 import React, { useState } from "react";
 import AlocacaoAtivosTable from "./AlocacaoAtivosTable";
+import ReservaEmergenciaTable from "./ReservaEmergenciaTable";
+import RendaFixaTable from "./RendaFixaTable";
+import ReservaOportunidadeTable from "./ReservaOportunidadeTable";
 import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCarteiraHistorico";
 import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarteiraInvestimentos";
 import ComponentCard from "@/components/common/ComponentCard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import AddInvestmentSidebar from "./AddInvestmentSidebar";
-import Badge from "@/components/ui/badge/Badge";
-import { DollarLineIcon, ShootingStarIcon, PieChartIcon, BoxIconLine, PlusIcon } from "@/icons";
+import { PlusIcon } from "@/icons";
+import { useReservaEmergencia } from "@/hooks/useReservaEmergencia";
 import { useCarteira } from "@/hooks/useCarteira";
 
 interface TabButtonProps {
@@ -48,46 +51,28 @@ const TabContent: React.FC<TabContentProps> = ({ isActive, children }) => {
 };
 
 // Componente para metric cards da carteira consolidada
-interface CarteiraMetricCardProps {
+interface CarteiraConsolidadaMetricCardProps {
   title: string;
   value: string;
-  icon: React.ReactNode;
-  change: string;
-  changeDirection: "up" | "down";
+  color?: "primary" | "success" | "warning" | "error";
 }
 
-const CarteiraMetricCard: React.FC<CarteiraMetricCardProps> = ({
+const CarteiraConsolidadaMetricCard: React.FC<CarteiraConsolidadaMetricCardProps> = ({
   title,
   value,
-  icon,
-  change,
-  changeDirection,
+  color = "primary",
 }) => {
+  const colorClasses = {
+    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
+    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
+    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
+    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+  };
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/[0.05] dark:bg-white/[0.03]">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/10">
-            {icon}
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              {title}
-            </p>
-            <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {value}
-            </p>
-          </div>
-        </div>
-        <div className="text-right">
-          <Badge
-            color={changeDirection === "up" ? "success" : "error"}
-            size="sm"
-          >
-            {change}
-          </Badge>
-        </div>
-      </div>
+    <div className={`rounded-lg p-4 ${colorClasses[color]}`}>
+      <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
+      <p className="text-xl font-semibold">{value}</p>
     </div>
   );
 };
@@ -97,7 +82,7 @@ const BlankPage: React.FC<{ title: string }> = ({ title }) => {
   return (
     <div className="flex flex-col items-center justify-center py-16 space-y-4">
       <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-        <BoxIconLine className="w-8 h-8 text-gray-400" />
+        <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded"></div>
       </div>
       <div className="text-center">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
@@ -110,6 +95,7 @@ const BlankPage: React.FC<{ title: string }> = ({ title }) => {
     </div>
   );
 };
+
 
 const tabs = [
   { id: "consolidada", label: "Carteira Consolidada" },
@@ -132,6 +118,7 @@ export default function CarteiraTabs() {
   const [activeTab, setActiveTab] = useState("consolidada");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { resumo, loading, error, formatCurrency, formatPercentage, refetch } = useCarteira();
+  const { data: reservaEmergenciaData } = useReservaEmergencia();
 
   if (loading) {
     return <LoadingSpinner text="Carregando dados da carteira..." />;
@@ -165,8 +152,6 @@ export default function CarteiraTabs() {
     );
   }
 
-  const rentabilidadeAnterior = resumo.rentabilidade * 0.8; // Simulated
-  const variacao = resumo.rentabilidade - rentabilidadeAnterior;
 
   return (
     <div>
@@ -209,41 +194,32 @@ export default function CarteiraTabs() {
         <div className="p-6">
           {/* Carteira Consolidada */}
           <TabContent id="consolidada" isActive={activeTab === "consolidada"}>
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Grid de Cards de Métricas */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 xl:grid-cols-4">
-                <CarteiraMetricCard
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                <CarteiraConsolidadaMetricCard
                   title="Saldo Bruto"
                   value={formatCurrency(resumo.saldoBruto)}
-                  icon={<DollarLineIcon />}
-                  change={formatPercentage(resumo.rentabilidade)}
-                  changeDirection={resumo.rentabilidade >= 0 ? "up" : "down"}
                 />
-                <CarteiraMetricCard
+                <CarteiraConsolidadaMetricCard
                   title="Valor Aplicado"
                   value={formatCurrency(resumo.valorAplicado)}
-                  icon={<BoxIconLine />}
-                  change={formatPercentage(variacao)}
-                  changeDirection={variacao >= 0 ? "up" : "down"}
+                  color="primary"
                 />
-                <CarteiraMetricCard
+                <CarteiraConsolidadaMetricCard
                   title="Rentabilidade"
                   value={formatPercentage(resumo.rentabilidade)}
-                  icon={<ShootingStarIcon />}
-                  change={formatPercentage(Math.abs(variacao))}
-                  changeDirection={variacao >= 0 ? "up" : "down"}
+                  color={resumo.rentabilidade >= 0 ? "success" : "error"}
                 />
-                <CarteiraMetricCard
+                <CarteiraConsolidadaMetricCard
                   title="Meta de Patrimônio"
                   value={formatCurrency(resumo.metaPatrimonio)}
-                  icon={<PieChartIcon />}
-                  change={`${((resumo.saldoBruto / resumo.metaPatrimonio) * 100).toFixed(1)}%`}
-                  changeDirection="up"
+                  color="warning"
                 />
               </div>
 
               {/* Grid de Gráficos */}
-              <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
                 <div className="xl:col-span-8">
                   <ComponentCard title="Histórico de Patrimônio">
                     <LineChartCarteiraHistorico data={resumo.historicoPatrimonio} />
@@ -261,8 +237,28 @@ export default function CarteiraTabs() {
             </div>
           </TabContent>
 
+          {/* Reserva de Emergência */}
+          <TabContent id="reserva-emergencia" isActive={activeTab === "reserva-emergencia"}>
+            <ReservaEmergenciaTable
+              ativos={reservaEmergenciaData.ativos}
+              saldoInicioMes={reservaEmergenciaData.saldoInicioMes}
+              rendimento={reservaEmergenciaData.rendimento}
+              rentabilidade={reservaEmergenciaData.rentabilidade}
+            />
+          </TabContent>
+
+          {/* Reserva de Oportunidade */}
+          <TabContent id="reserva-oportunidade" isActive={activeTab === "reserva-oportunidade"}>
+            <ReservaOportunidadeTable />
+          </TabContent>
+
+          {/* Renda Fixa & Fundos */}
+          <TabContent id="renda-fixa" isActive={activeTab === "renda-fixa"}>
+            <RendaFixaTable />
+          </TabContent>
+
           {/* Outras tabs - páginas em branco */}
-          {tabs.slice(1).map((tab) => (
+          {tabs.slice(2).filter(tab => tab.id !== "renda-fixa" && tab.id !== "reserva-oportunidade").map((tab) => (
             <TabContent key={tab.id} id={tab.id} isActive={activeTab === tab.id}>
               <BlankPage title={tab.label} />
             </TabContent>

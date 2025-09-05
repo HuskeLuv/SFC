@@ -64,18 +64,104 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Histórico baseado no valor aplicado (sem simulação)
+    // Buscar transações de ações para gerar histórico real
+    const stockTransactions = await prisma.stockTransaction.findMany({
+      where: { userId: user.id },
+      orderBy: { date: 'asc' },
+    });
+
+    // Buscar investimentos em cashflow para gerar histórico real
+    const cashflowInvestments = await prisma.cashflowItem.findMany({
+      where: {
+        group: { userId: user.id },
+        isInvestment: true,
+        isActive: true,
+      },
+      include: {
+        valores: true,
+      },
+    });
+
+    // Gerar histórico baseado nas transações reais
     const historicoPatrimonio = [];
-    const hoje = new Date();
-    for (let i = 11; i >= 0; i--) {
-      const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-      // Usar valor aplicado como base, sem variações
-      const valor = valorAplicado;
+    
+    if (stockTransactions.length > 0 || cashflowInvestments.length > 0) {
+      // Criar mapa de datas e valores acumulados
+      const patrimonioPorData = new Map<number, number>();
       
-      historicoPatrimonio.push({
-        data: data.getTime(),
-        valor: Math.round(valor * 100) / 100,
+      // Processar transações de ações
+      let patrimonioAcoes = 0;
+      stockTransactions.forEach(transaction => {
+        if (transaction.type === 'compra') {
+          patrimonioAcoes += transaction.total;
+        } else if (transaction.type === 'venda') {
+          patrimonioAcoes -= transaction.total;
+        }
+        
+        const dataKey = new Date(transaction.date.getFullYear(), transaction.date.getMonth(), 1).getTime();
+        patrimonioPorData.set(dataKey, (patrimonioPorData.get(dataKey) || 0) + patrimonioAcoes);
       });
+      
+      // Processar investimentos em cashflow
+      let patrimonioCashflow = 0;
+      cashflowInvestments.forEach(investment => {
+        const totalValor = investment.valores.reduce((sum, valor) => sum + valor.valor, 0);
+        patrimonioCashflow += totalValor;
+        
+        // Usar data de vencimento se disponível, senão usar data atual
+        const dataReferencia = investment.dataVencimento || new Date();
+        const dataKey = new Date(dataReferencia.getFullYear(), dataReferencia.getMonth(), 1).getTime();
+        patrimonioPorData.set(dataKey, (patrimonioPorData.get(dataKey) || 0) + patrimonioCashflow);
+      });
+      
+      // Converter para array e ordenar por data
+      const historicoArray = Array.from(patrimonioPorData.entries())
+        .map(([data, valor]) => ({ data, valor: Math.round(valor * 100) / 100 }))
+        .sort((a, b) => a.data - b.data);
+      
+      // Se não há transações, usar valor atual
+      if (historicoArray.length === 0) {
+        historicoArray.push({
+          data: new Date().getTime(),
+          valor: Math.round(valorAplicado * 100) / 100,
+        });
+      }
+      
+      // Adicionar pontos intermediários para suavizar o gráfico
+      const hoje = new Date();
+      const primeiroAporte = new Date(Math.min(...historicoArray.map(h => h.data)));
+      
+      // Adicionar ponto inicial (antes do primeiro aporte)
+      historicoPatrimonio.push({
+        data: new Date(primeiroAporte.getFullYear(), primeiroAporte.getMonth() - 1, 1).getTime(),
+        valor: 0,
+      });
+      
+      // Adicionar pontos do histórico real
+      historicoArray.forEach(ponto => {
+        historicoPatrimonio.push(ponto);
+      });
+      
+      // Adicionar ponto atual se não for o último
+      const mesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1).getTime();
+      const ultimoMesHistorico = Math.max(...historicoArray.map(h => h.data));
+      
+      if (mesAtual > ultimoMesHistorico) {
+        historicoPatrimonio.push({
+          data: mesAtual,
+          valor: Math.round(valorAplicado * 100) / 100,
+        });
+      }
+    } else {
+      // Se não há transações, mostrar linha plana com valor atual
+      const hoje = new Date();
+      for (let i = 11; i >= 0; i--) {
+        const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        historicoPatrimonio.push({
+          data: data.getTime(),
+          valor: Math.round(valorAplicado * 100) / 100,
+        });
+      }
     }
 
     // Buscar investimentos categorizados por tipo
