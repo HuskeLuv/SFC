@@ -5,15 +5,11 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import {
-  BoxCubeIcon,
   CalenderIcon,
   ChevronDownIcon,
   DollarLineIcon,
   GridIcon,
   HorizontaLDots,
-  PageIcon,
-  PieChartIcon,
-  PlugInIcon,
   TableIcon,
   UserCircleIcon,
 } from "../icons/index";
@@ -67,77 +63,9 @@ const navItems: NavItem[] = [
     icon: <TableIcon />,
     path: "/data-tables",
   },
-  {
-    name: "Pages",
-    icon: <PageIcon />,
-    subItems: [
-      //{ name: "File Manager", path: "/file-manager", pro: false },
-      //{ name: "Pricing Tables", path: "/pricing-tables", pro: false },
-      //{ name: "Faqs", path: "/faq", pro: false },
-      { name: "Blank Page", path: "/blank", pro: false },
-      { name: "404 Erro", path: "/error-404", pro: false },
-      { name: "500 Erro", path: "/error-500", pro: false },
-      { name: "503 Erro", path: "/error-503", pro: false },
-      { name: "Em Breve", path: "/coming-soon", pro: false },
-      { name: "Manutenção", path: "/maintenance", pro: false },
-      { name: "Successo", path: "/success", pro: false },
-    ],
-  },
 ];
 
-const othersItems: NavItem[] = [
-  {
-    icon: <PieChartIcon />,
-    name: "Gráficos",
-    subItems: [
-      { name: "Gráfico de Linhas", path: "/line-chart", pro: false },
-      { name: "Gráfico de Barras", path: "/bar-chart", pro: false },
-      { name: "Gráfico de Pizza", path: "/pie-chart", pro: false },
-    ],
-  },
-  {
-    icon: <BoxCubeIcon />,
-    name: "UI Elements",
-    subItems: [
-      { name: "Alerts", path: "/alerts", pro: false },
-      { name: "Avatar", path: "/avatars", pro: false },
-      { name: "Badge", path: "/badge", pro: false },
-      { name: "Breadcrumb", path: "/breadcrumb", pro: false },
-      { name: "Buttons", path: "/buttons", pro: false },
-      { name: "Buttons Group", path: "/buttons-group", pro: false },
-      { name: "Cards", path: "/cards", pro: false },
-      { name: "Carousel", path: "/carousel", pro: false },
-      { name: "Dropdowns", path: "/dropdowns", pro: false },
-      { name: "Images", path: "/images", pro: false },
-      { name: "Links", path: "/links", pro: false },
-      { name: "List", path: "/list", pro: false },
-      { name: "Modals", path: "/modals", pro: false },
-      { name: "Notification", path: "/notifications", pro: false },
-      { name: "Pagination", path: "/pagination", pro: false },
-      { name: "Popovers", path: "/popovers", pro: false },
-      { name: "Progressbar", path: "/progress-bar", pro: false },
-      { name: "Ribbons", path: "/ribbons", pro: false },
-      { name: "Spinners", path: "/spinners", pro: false },
-      { name: "Tabs", path: "/tabs", pro: false },
-      { name: "Tooltips", path: "/tooltips", pro: false },
-      { name: "Videos", path: "/videos", pro: false },
-    ],
-  },
-  {
-    icon: <PlugInIcon />,
-    name: "Autenticação",
-    subItems: [
-      { name: "Login", path: "/signin", pro: false },
-      { name: "Registre-se", path: "/signup", pro: false },
-      { name: "Redefinir senha", path: "/reset-password", pro: false },
-      {
-        name: "Verificação em duas etapas",
-        path: "/two-step-verification",
-        pro: false,
-      },
-    ],
-  },
-];
+const othersItems: NavItem[] = [];
 
 const supportItems: NavItem[] = [
   /*{
