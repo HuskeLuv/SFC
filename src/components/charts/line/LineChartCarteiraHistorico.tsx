@@ -94,6 +94,14 @@ export default function LineChartCarteiraHistorico({ data: historicoData }: Line
           colors: "#64748B",
           fontSize: "12px",
         },
+        formatter: (val: string) => {
+          const date = new Date(val);
+          const months = [
+            'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+            'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+          ];
+          return `${months[date.getMonth()]} ${date.getFullYear()}`;
+        },
       },
     },
     yaxis: {
@@ -116,6 +124,14 @@ export default function LineChartCarteiraHistorico({ data: historicoData }: Line
     tooltip: {
       x: {
         format: "MMM yyyy",
+        formatter: (val: number) => {
+          const date = new Date(val);
+          const months = [
+            'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+          ];
+          return `${months[date.getMonth()]} ${date.getFullYear()}`;
+        },
       },
       y: {
         formatter: (val: number) => {
@@ -165,4 +181,4 @@ export default function LineChartCarteiraHistorico({ data: historicoData }: Line
       </div>
     </div>
   );
-} 
+}

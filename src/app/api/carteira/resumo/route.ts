@@ -39,13 +39,8 @@ export async function GET(request: NextRequest) {
     // Calcular totais do portfolio de ações
     const stocksTotalInvested = portfolio.reduce((sum, item) => sum + item.totalInvested, 0);
     
-    // Para valor atual das ações, vamos usar uma variação simulada baseada no investido
-    // Em um sistema real, você integraria com uma API de cotações
-    const stocksCurrentValue = portfolio.reduce((sum, item) => {
-      // Simulando variação entre -10% e +25% para cada ação
-      const variation = 0.95 + (Math.random() * 0.4); // 0.95 a 1.35
-      return sum + (item.totalInvested * variation);
-    }, 0);
+    // Usar valor investido como valor atual (sem variação simulada)
+    const stocksCurrentValue = stocksTotalInvested;
 
     // Calcular totais dos outros investimentos
     const otherInvestmentsTotalInvested = investments.reduce((sum, item) => {
@@ -53,8 +48,8 @@ export async function GET(request: NextRequest) {
       return sum + totalValores;
     }, 0);
 
-    // Para outros investimentos, simular variação mais conservadora
-    const otherInvestmentsCurrentValue = otherInvestmentsTotalInvested * (1.02 + (Math.random() * 0.08)); // 2% a 10%
+    // Usar valor investido como valor atual (sem variação simulada)
+    const otherInvestmentsCurrentValue = otherInvestmentsTotalInvested;
 
     // Totais consolidados
     const valorAplicado = stocksTotalInvested + otherInvestmentsTotalInvested;
@@ -69,15 +64,13 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Histórico simulado dos últimos 12 meses
+    // Histórico baseado no valor aplicado (sem simulação)
     const historicoPatrimonio = [];
     const hoje = new Date();
     for (let i = 11; i >= 0; i--) {
       const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-      const baseValue = valorAplicado * 0.7; // Valor base há 12 meses
-      const crescimento = (12 - i) * 0.08; // 8% de crescimento médio por mês
-      const variacao = (Math.random() - 0.5) * 0.1; // ±5% de variação aleatória
-      const valor = baseValue * (1 + crescimento + variacao);
+      // Usar valor aplicado como base, sem variações
+      const valor = valorAplicado;
       
       historicoPatrimonio.push({
         data: data.getTime(),
@@ -105,7 +98,7 @@ export async function GET(request: NextRequest) {
       rendaFixaFundos: 0,
       fimFia: 0,
       fiis: 0,
-      acoes: stocksCurrentValue, // Valor real das ações do portfolio
+      acoes: 0,
       stocks: 0,
       reits: 0,
       etfs: 0,
@@ -113,6 +106,53 @@ export async function GET(request: NextRequest) {
       previdenciaSeguros: 0,
       opcoes: 0,
     };
+
+    // Categorizar portfolio baseado no tipo do ativo
+    for (const item of portfolio) {
+      // Buscar o Asset correspondente para obter o tipo
+      const asset = await prisma.asset.findUnique({
+        where: { ticker: item.stock.ticker }
+      });
+
+      const valorAtual = item.totalInvested; // Usar valor investido sem variação
+      
+      if (asset) {
+        const tipo = asset.tipo?.toLowerCase() || '';
+        
+        switch (tipo) {
+          case 'ação':
+          case 'acao':
+            categorias.acoes += valorAtual;
+            break;
+          case 'fii':
+            categorias.fiis += valorAtual;
+            break;
+          case 'etf':
+            categorias.etfs += valorAtual;
+            break;
+          case 'bdr':
+            categorias.stocks += valorAtual;
+            break;
+          case 'reit':
+            categorias.reits += valorAtual;
+            break;
+          default:
+            // Se não conseguir determinar o tipo, usar heurística baseada no ticker
+            if (item.stock.ticker.includes('11')) {
+              categorias.fiis += valorAtual; // FIIs geralmente terminam em 11
+            } else {
+              categorias.acoes += valorAtual; // Assumir ação por padrão
+            }
+        }
+      } else {
+        // Se não encontrar o asset, usar heurística baseada no ticker
+        if (item.stock.ticker.includes('11')) {
+          categorias.fiis += valorAtual; // FIIs geralmente terminam em 11
+        } else {
+          categorias.acoes += valorAtual; // Assumir ação por padrão
+        }
+      }
+    }
 
     // Categorizar investimentos baseado na descrição/categoria
     categorizedInvestments.forEach(investment => {
@@ -292,4 +332,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

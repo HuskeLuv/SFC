@@ -1,0 +1,208 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  events    Event[]
+  dashboard DashboardData[]
+  cashflows Cashflow[]
+  cashflowGroups CashflowGroup[]
+  // Stocks
+  watchlists Watchlist[]
+  portfolios Portfolio[]
+  stockTransactions StockTransaction[]
+}
+
+model Event {
+  id        String   @id @default(uuid())
+  title     String
+  date      DateTime
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model DashboardData {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  metric    String
+  value     Float
+}
+
+model Cashflow {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  data            DateTime
+  tipo            String   // "Receita" ou "Despesa"
+  categoria       String
+  descricao       String
+  valor           Float
+  forma_pagamento String
+  pago            Boolean
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CashflowGroup {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  name      String
+  type      String   // "Entradas" or "Despesas" - explicitly track the type
+  parentId  String?  // Para subgrupos
+  parent    CashflowGroup? @relation("ParentGroup", fields: [parentId], references: [id])
+  children  CashflowGroup[] @relation("ParentGroup")
+  items     CashflowItem[]
+  order     Int
+  percentTotal Float? // Percentual do grupo
+  observacoes String? // Observações/comentários
+  isActive  Boolean  @default(true) // Status ativo/inativo
+}
+
+model CashflowItem {
+  id            String   @id @default(uuid())
+  groupId       String
+  group         CashflowGroup @relation(fields: [groupId], references: [id])
+  descricao     String
+  significado   String?
+  rank          Int?
+  percentTotal  Float?
+  valores       CashflowValue[]
+  order         Int
+  categoria     String? // Categoria do item
+  formaPagamento String? // Forma de pagamento
+  status        String? // Status: 'pago', 'pendente', 'recebido'
+  dataVencimento DateTime? // Data de vencimento
+  observacoes   String? // Observações/comentários
+  isActive      Boolean @default(true) // Status ativo/inativo
+  isInvestment  Boolean @default(false) // Se é um item de investimento
+}
+
+model CashflowValue {
+  id        String   @id @default(uuid())
+  itemId    String
+  item      CashflowItem @relation(fields: [itemId], references: [id])
+  mes       Int      // 0 = Jan, 11 = Dez
+  valor     Float
+  dataPagamento DateTime? // Data efetiva do pagamento
+  status    String? // Status específico do mês: 'pago', 'pendente', 'recebido'
+  observacoes String? // Observações do mês
+}
+
+// ===== CONSOLIDATED ASSETS MODULE =====
+
+// Ativos consolidados (ações, FII, ETF, BDR, REIT, etc.)
+model Asset {
+  id          String   @id @default(uuid())
+  ticker      String   @unique // Código do ativo (ex: PETR4, VALE3, HGLG11)
+  nome        String   // Nome do ativo/empresa
+  tipo        String?  // Tipo: ação, FII, ETF, BDR, REIT, stock, etc.
+  setor       String?  // Setor da empresa
+  subsector   String?  // Subsetor (opcional)
+  segment     String?  // Segmento (opcional)
+  status      String   @default("ativo") // ativo/inativo
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relacionamentos
+  watchlists Watchlist[]
+  portfolios Portfolio[]
+  transactions StockTransaction[]
+  
+  @@index([ticker])
+  @@index([status])
+  @@index([tipo])
+  @@map("assets")
+}
+
+// Lista de observação do usuário
+model Watchlist {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  assetId   String   // Mudança: usar assetId em vez de stockId
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  addedAt   DateTime @default(now())
+  notes     String?  // Observações do usuário
+  
+  @@unique([userId, assetId])
+  @@map("watchlists")
+}
+
+// Portfolio do usuário (ativos que possui)
+model Portfolio {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  assetId   String   // Mudança: usar assetId em vez de stockId
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  quantity  Int      // Quantidade de ativos
+  avgPrice  Float    // Preço médio de compra
+  totalInvested Float // Total investido
+  lastUpdate DateTime @default(now())
+  
+  @@unique([userId, assetId])
+  @@map("portfolios")
+}
+
+// Histórico de transações (compras e vendas)
+model StockTransaction {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  assetId   String   // Mudança: usar assetId em vez de stockId
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  type      String   // "compra" ou "venda"
+  quantity  Int      // Quantidade de ativos
+  price     Float    // Preço por ativo
+  total     Float    // Valor total da transação
+  date      DateTime // Data da transação
+  fees      Float?   // Taxas da operação
+  notes     String?  // Observações
+  createdAt DateTime @default(now())
+  
+  @@map("stock_transactions")
+}
+
+// ===== EXTERNAL DATA MODELS =====
+
+// Enum para status das instituições
+enum InstitutionStatus {
+  ATIVA
+  INATIVA
+}
+
+// Instituições financeiras (corretoras e bancos de investimento)
+model Institution {
+  id        String            @id @default(cuid())
+  codigo    String            @unique // Código identificador da instituição
+  nome      String            // Nome da instituição
+  cnpj      String?           // CNPJ da instituição (opcional)
+  status    InstitutionStatus @default(ATIVA)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  
+  @@index([codigo])
+  @@index([cnpj])
+  @@index([status])
+  @@map("institutions")
+}

@@ -5,7 +5,7 @@ import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCartei
 import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarteiraInvestimentos";
 import ComponentCard from "@/components/common/ComponentCard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
-import AddInvestmentSidebar from "./AddInvestmentSidebar";
+import AddInvestmentModal from "./AddInvestmentModal";
 import Badge from "@/components/ui/badge/Badge";
 import { DollarLineIcon, ShootingStarIcon, PieChartIcon, BoxIconLine, PlusIcon } from "@/icons";
 import { useCarteira } from "@/hooks/useCarteira";
@@ -130,7 +130,7 @@ const tabs = [
 
 export default function CarteiraTabs() {
   const [activeTab, setActiveTab] = useState("consolidada");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { resumo, loading, error, formatCurrency, formatPercentage, refetch } = useCarteira();
 
   if (loading) {
@@ -181,7 +181,7 @@ export default function CarteiraTabs() {
           </p>
         </div>
         <button
-          onClick={() => setIsSidebarOpen(true)}
+          onClick={() => setIsModalOpen(true)}
           className="flex items-center space-x-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
         >
           <PlusIcon className="w-4 h-4" />
@@ -270,14 +270,14 @@ export default function CarteiraTabs() {
         </div>
       </div>
 
-      {/* Sidebar para adicionar investimento */}
-      <AddInvestmentSidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
+      {/* Modal para adicionar investimento */}
+      <AddInvestmentModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         onSuccess={() => {
           refetch(); // Recarrega os dados da carteira
         }}
       />
     </div>
   );
-}
+} 
