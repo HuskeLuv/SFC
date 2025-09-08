@@ -4,6 +4,12 @@ import AlocacaoAtivosTable from "./AlocacaoAtivosTable";
 import ReservaEmergenciaTable from "./ReservaEmergenciaTable";
 import RendaFixaTable from "./RendaFixaTable";
 import ReservaOportunidadeTable from "./ReservaOportunidadeTable";
+import FimFiaTable from "./FimFiaTable";
+import FiiTable from "./FiiTable";
+import AcoesTable from "./AcoesTable";
+import StocksTable from "./StocksTable";
+import ReitTable from "./ReitTable";
+import EtfTable from "./EtfTable";
 import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCarteiraHistorico";
 import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarteiraInvestimentos";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -106,8 +112,8 @@ const tabs = [
   { id: "fiis", label: "FII's" },
   { id: "acoes", label: "Ações" },
   { id: "stocks", label: "Stocks" },
-  { id: "reits", label: "REIT's" },
-  { id: "etfs", label: "ETF's" },
+  { id: "reit", label: "REIT's" },
+  { id: "etf", label: "ETF's" },
   { id: "moedas-criptos", label: "Moedas, Criptomoedas & outros" },
   { id: "previdencia", label: "Previdência & Seguros" },
   { id: "opcoes", label: "Opções" },
@@ -257,8 +263,38 @@ export default function CarteiraTabs() {
             <RendaFixaTable />
           </TabContent>
 
+          {/* FIM/FIA */}
+          <TabContent id="fim-fia" isActive={activeTab === "fim-fia"}>
+            <FimFiaTable />
+          </TabContent>
+
+          {/* FIIs */}
+          <TabContent id="fiis" isActive={activeTab === "fiis"}>
+            <FiiTable />
+          </TabContent>
+
+          {/* Ações */}
+          <TabContent id="acoes" isActive={activeTab === "acoes"}>
+            <AcoesTable />
+          </TabContent>
+
+          {/* Stocks */}
+          <TabContent id="stocks" isActive={activeTab === "stocks"}>
+            <StocksTable />
+          </TabContent>
+
+          {/* REIT */}
+          <TabContent id="reit" isActive={activeTab === "reit"}>
+            <ReitTable />
+          </TabContent>
+
+          {/* ETF's */}
+          <TabContent id="etf" isActive={activeTab === "etf"}>
+            <EtfTable />
+          </TabContent>
+
           {/* Outras tabs - páginas em branco */}
-          {tabs.slice(2).filter(tab => tab.id !== "renda-fixa" && tab.id !== "reserva-oportunidade").map((tab) => (
+          {tabs.slice(2).filter(tab => tab.id !== "renda-fixa" && tab.id !== "reserva-oportunidade" && tab.id !== "fim-fia" && tab.id !== "fiis" && tab.id !== "acoes" && tab.id !== "stocks" && tab.id !== "reit" && tab.id !== "etf").map((tab) => (
             <TabContent key={tab.id} id={tab.id} isActive={activeTab === tab.id}>
               <BlankPage title={tab.label} />
             </TabContent>

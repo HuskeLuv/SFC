@@ -5,8 +5,27 @@ import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { MoreDotIcon } from "@/icons";
 import { useStocks } from "@/hooks/useStocks";
-import { WatchlistItem } from "@/types/stocks";
+// Removido import de WatchlistItem - usando interface local
 import AddToWatchlistModal from "./AddToWatchlistModal";
+
+interface WatchlistItem {
+  id: string;
+  ticker: string;
+  companyName: string;
+  sector: string;
+  notes?: string;
+  addedAt: Date;
+  stock: {
+    ticker: string;
+    companyName: string;
+    priceData?: {
+      current: number;
+      currentPrice: number;
+      change: number;
+      changePercent: number;
+    };
+  };
+}
 
 const WatchlistItemComponent: React.FC<{
   item: WatchlistItem;

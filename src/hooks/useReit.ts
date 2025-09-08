@@ -1,87 +1,8 @@
 import { useState, useEffect } from 'react';
-import { CarteiraStockData, CarteiraStockAtivo, CarteiraStockSecao } from '@/types/carteiraStocks';
+import { ReitData, ReitAtivo, ReitSecao } from '@/types/reit';
 
-// Hook original para compatibilidade com componentes existentes
-export const useStocks = () => {
-  return {
-    stocks: [
-      { id: '1', ticker: 'AAPL', companyName: 'Apple Inc.', sector: 'Technology' },
-      { id: '2', ticker: 'MSFT', companyName: 'Microsoft Corporation', sector: 'Technology' },
-      { id: '3', ticker: 'GOOGL', companyName: 'Alphabet Inc.', sector: 'Technology' },
-      { id: '4', ticker: 'TSLA', companyName: 'Tesla, Inc.', sector: 'Consumer' },
-      { id: '5', ticker: 'AMZN', companyName: 'Amazon.com, Inc.', sector: 'Consumer' },
-      { id: '6', ticker: 'META', companyName: 'Meta Platforms, Inc.', sector: 'Technology' },
-      { id: '7', ticker: 'NVDA', companyName: 'NVIDIA Corporation', sector: 'Technology' },
-      { id: '8', ticker: 'JNJ', companyName: 'Johnson & Johnson', sector: 'Healthcare' },
-      { id: '9', ticker: 'JPM', companyName: 'JPMorgan Chase & Co.', sector: 'Financials' },
-      { id: '10', ticker: 'V', companyName: 'Visa Inc.', sector: 'Financials' }
-    ],
-    portfolio: [
-      {
-        stockId: '1',
-        ticker: 'AAPL',
-        companyName: 'Apple Inc.',
-        quantity: 10,
-        averagePrice: 150.00,
-        currentPrice: 175.50,
-        totalValue: 1755.00,
-        totalGain: 255.00,
-        totalGainPercentage: 17.0
-      }
-    ],
-    transactions: [
-      {
-        id: '1',
-        stock: { ticker: 'AAPL', companyName: 'Apple Inc.' },
-        type: 'buy',
-        quantity: 10,
-        price: 150.00,
-        date: new Date(),
-        total: 1500.00
-      }
-    ],
-    watchlist: [
-      {
-        id: '1',
-        ticker: 'AAPL',
-        companyName: 'Apple Inc.',
-        sector: 'Technology',
-        notes: 'Tech stock',
-        addedAt: new Date(),
-        stock: {
-          ticker: 'AAPL',
-          companyName: 'Apple Inc.',
-          priceData: {
-            current: 175.50,
-            currentPrice: 175.50,
-            change: 5.50,
-            changePercent: 3.23
-          }
-        }
-      }
-    ],
-    loading: false,
-    error: null,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
-    addTransaction: async (transaction: any) => true,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    addToWatchlist: async (ticker: string, notes: string) => true,
-    getPortfolioStats: () => ({ 
-      totalValue: 0, 
-      totalGain: 0, 
-      totalGainPercentage: 0, 
-      totalInvested: 0,
-      currentValue: 0,
-      totalReturn: 0,
-      totalReturnPercentage: 0,
-      returnPercent: 0,
-      totalQuantity: 0
-    })
-  };
-};
-
-export const useCarteiraStocks = () => {
-  const [data, setData] = useState<CarteiraStockData | null>(null);
+export const useReit = () => {
+  const [data, setData] = useState<ReitData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,19 +11,19 @@ export const useCarteiraStocks = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/carteira/stocks', {
+      const response = await fetch('/api/carteira/reit', {
         method: 'GET',
         credentials: 'include',
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao carregar dados Stocks');
+        throw new Error('Erro ao carregar dados REIT');
       }
 
       const responseData = await response.json();
       setData(responseData);
     } catch (err) {
-      console.error('Erro ao buscar dados Stocks:', err);
+      console.error('Erro ao buscar dados REIT:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
@@ -127,14 +48,14 @@ export const useCarteiraStocks = () => {
     });
   };
 
-  const calculateAtivoValues = (ativo: Partial<CarteiraStockAtivo>, totalCarteiraStocks: number, totalCarteiraGeral: number): CarteiraStockAtivo => {
+  const calculateAtivoValues = (ativo: Partial<ReitAtivo>, totalCarteiraReit: number, totalCarteiraGeral: number): ReitAtivo => {
     const quantidade = ativo.quantidade || 0;
     const precoAquisicao = ativo.precoAquisicao || 0;
     const cotacaoAtual = ativo.cotacaoAtual || 0;
     
     const valorTotal = quantidade * precoAquisicao;
     const valorAtualizado = quantidade * cotacaoAtual;
-    const riscoPorAtivo = totalCarteiraStocks > 0 ? (valorAtualizado / totalCarteiraStocks) * 100 : 0;
+    const riscoPorAtivo = totalCarteiraReit > 0 ? (valorAtualizado / totalCarteiraReit) * 100 : 0;
     const percentualCarteira = totalCarteiraGeral > 0 ? (valorAtualizado / totalCarteiraGeral) * 100 : 0;
     const objetivo = ativo.objetivo || 0;
     const quantoFalta = objetivo - percentualCarteira;
@@ -145,8 +66,7 @@ export const useCarteiraStocks = () => {
       id: ativo.id || '',
       ticker: ativo.ticker || '',
       nome: ativo.nome || '',
-      sector: ativo.sector || 'other',
-      industryCategory: ativo.industryCategory || '',
+      setor: ativo.setor || 'other',
       quantidade,
       precoAquisicao,
       valorTotal,
@@ -164,7 +84,7 @@ export const useCarteiraStocks = () => {
     };
   };
 
-  const calculateSecaoValues = (secao: CarteiraStockSecao, totalCarteiraStocks: number, totalCarteiraGeral: number): CarteiraStockSecao => {
+  const calculateSecaoValues = (secao: ReitSecao, totalCarteiraReit: number, totalCarteiraGeral: number): ReitSecao => {
     const totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     const totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
     const totalValorAtualizado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
@@ -193,7 +113,7 @@ export const useCarteiraStocks = () => {
 
   const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     try {
-      const response = await fetch('/api/carteira/stocks/objetivo', {
+      const response = await fetch('/api/carteira/reit/objetivo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +138,7 @@ export const useCarteiraStocks = () => {
 
   const updateCotacao = async (ativoId: string, novaCotacao: number) => {
     try {
-      const response = await fetch('/api/carteira/stocks/cotacao', {
+      const response = await fetch('/api/carteira/reit/cotacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
