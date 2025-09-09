@@ -68,26 +68,6 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
     }
   };
 
-  const getTipoColor = (nome: string) => {
-    const tipo = nome.toLowerCase();
-    const colors = {
-      'casa': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      'apartamento': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
-      'terreno': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300',
-      'carro': 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
-      'moto': 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300',
-      'joias': 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300',
-      'quadro': 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-300',
-      'relogio': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300',
-    };
-    
-    for (const [key, color] of Object.entries(colors)) {
-      if (tipo.includes(key)) {
-        return color;
-      }
-    }
-    return colors.casa; // default
-  };
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">

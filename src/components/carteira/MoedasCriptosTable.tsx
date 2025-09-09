@@ -89,15 +89,6 @@ const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
     }
   };
 
-  const getTipoColor = (tipo: string) => {
-    const colors = {
-      'moeda': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      'criptomoeda': 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300',
-      'metal': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300',
-      'outro': 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300',
-    };
-    return colors[tipo as keyof typeof colors] || colors.outros;
-  };
 
   const getIndiceColor = (indice: string) => {
     const colors = {

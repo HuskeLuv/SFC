@@ -128,7 +128,7 @@ export default function PieChartMoedasCriptosAtivo({ data }: PieChartMoedasCript
         },
       ],
     }),
-    [chartData.labels, isDarkMode]
+    [chartData.labels, isDarkMode, data]
   );
 
   if (!data || data.length === 0) {

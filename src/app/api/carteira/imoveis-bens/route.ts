@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Mock data para demonstração
 const mockData = {
@@ -140,7 +140,7 @@ const mockData = {
   },
 };
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Simula delay de rede
     await new Promise(resolve => setTimeout(resolve, 500));

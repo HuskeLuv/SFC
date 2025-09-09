@@ -128,7 +128,7 @@ export default function PieChartPrevidenciaSegurosAtivo({ data }: PieChartPrevid
         },
       ],
     }),
-    [chartData.labels, isDarkMode]
+    [chartData.labels, isDarkMode, data]
   );
 
   if (!data || data.length === 0) {
