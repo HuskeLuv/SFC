@@ -10,6 +10,10 @@ import AcoesTable from "./AcoesTable";
 import StocksTable from "./StocksTable";
 import ReitTable from "./ReitTable";
 import EtfTable from "./EtfTable";
+import MoedasCriptosTable from "./MoedasCriptosTable";
+import PrevidenciaSegurosTable from "./PrevidenciaSegurosTable";
+import OpcoesTable from "./OpcoesTable";
+import ImoveisBensTable from "./ImoveisBensTable";
 import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCarteiraHistorico";
 import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarteiraInvestimentos";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -293,8 +297,28 @@ export default function CarteiraTabs() {
             <EtfTable />
           </TabContent>
 
+          {/* Moedas, Criptomoedas & Outros */}
+          <TabContent id="moedas-criptos" isActive={activeTab === "moedas-criptos"}>
+            <MoedasCriptosTable />
+          </TabContent>
+
+          {/* Previdência & Seguros */}
+          <TabContent id="previdencia" isActive={activeTab === "previdencia"}>
+            <PrevidenciaSegurosTable />
+          </TabContent>
+
+          {/* Opções */}
+          <TabContent id="opcoes" isActive={activeTab === "opcoes"}>
+            <OpcoesTable />
+          </TabContent>
+
+          {/* Imóveis & Bens */}
+          <TabContent id="imoveis" isActive={activeTab === "imoveis"}>
+            <ImoveisBensTable />
+          </TabContent>
+
           {/* Outras tabs - páginas em branco */}
-          {tabs.slice(2).filter(tab => tab.id !== "renda-fixa" && tab.id !== "reserva-oportunidade" && tab.id !== "fim-fia" && tab.id !== "fiis" && tab.id !== "acoes" && tab.id !== "stocks" && tab.id !== "reit" && tab.id !== "etf").map((tab) => (
+          {tabs.slice(2).filter(tab => tab.id !== "renda-fixa" && tab.id !== "reserva-oportunidade" && tab.id !== "fim-fia" && tab.id !== "fiis" && tab.id !== "acoes" && tab.id !== "stocks" && tab.id !== "reit" && tab.id !== "etf" && tab.id !== "moedas-criptos" && tab.id !== "previdencia" && tab.id !== "opcoes" && tab.id !== "imoveis").map((tab) => (
             <TabContent key={tab.id} id={tab.id} isActive={activeTab === tab.id}>
               <BlankPage title={tab.label} />
             </TabContent>

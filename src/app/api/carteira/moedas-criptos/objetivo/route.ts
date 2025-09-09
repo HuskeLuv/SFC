@@ -1,0 +1,38 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { ativoId, objetivo } = body;
+
+    if (!ativoId || objetivo === undefined) {
+      return NextResponse.json(
+        { error: 'ativoId e objetivo são obrigatórios' },
+        { status: 400 }
+      );
+    }
+
+    if (objetivo < 0 || objetivo > 100) {
+      return NextResponse.json(
+        { error: 'Objetivo deve estar entre 0 e 100' },
+        { status: 400 }
+      );
+    }
+
+    // Aqui você faria a atualização no banco de dados
+    // Por enquanto, apenas simula o sucesso
+    console.log(`Atualizando objetivo do ativo ${ativoId} para ${objetivo}%`);
+
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Objetivo atualizado com sucesso' 
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar objetivo:', error);
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
+  }
+}
+
