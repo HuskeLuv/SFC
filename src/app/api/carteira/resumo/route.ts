@@ -197,13 +197,13 @@ export async function GET(request: NextRequest) {
     for (const item of portfolio) {
       // Buscar o Asset correspondente para obter o tipo
       const asset = await prisma.asset.findUnique({
-        where: { ticker: item.stock.ticker }
+        where: { symbol: item.stock.ticker }
       });
 
       const valorAtual = item.totalInvested; // Usar valor investido sem variação
       
       if (asset) {
-        const tipo = asset.tipo?.toLowerCase() || '';
+        const tipo = asset.type?.toLowerCase() || '';
         
         switch (tipo) {
           case 'ação':
@@ -333,7 +333,7 @@ export async function GET(request: NextRequest) {
       saldoBruto: Math.round(saldoBruto * 100) / 100,
       valorAplicado: Math.round(valorAplicado * 100) / 100,
       rentabilidade: Math.round(rentabilidade * 100) / 100,
-      metaPatrimonio: metaPatrimonio?.value || 500000,
+      metaPatrimonio: metaPatrimonio?.value || 0,
       historicoPatrimonio,
       distribuicao,
       portfolioDetalhes: {

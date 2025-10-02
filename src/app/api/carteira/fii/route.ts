@@ -1,154 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
 import { FiiData, FiiAtivo, FiiSecao } from '@/types/fii';
 
-// Dados mockados para demonstração
-const mockFiiAtivos: FiiAtivo[] = [
-  // FOF (Fundos de Fundos)
-  {
-    id: '1',
-    ticker: 'FOF11',
-    nome: 'Fundo de Fundos XP',
-    mandato: 'Estratégico',
-    segmento: 'hibrido',
-    quantidade: 1000,
-    precoAquisicao: 95.50,
-    valorTotal: 95500,
-    cotacaoAtual: 98.75,
-    valorAtualizado: 98750,
-    riscoPorAtivo: 12.5,
-    percentualCarteira: 15.2,
-    objetivo: 20.0,
-    quantoFalta: 4.8,
-    necessidadeAporte: 31000,
-    rentabilidade: 3.4,
-    tipo: 'fof',
-    observacoes: 'Fundo de fundos diversificado'
-  },
-  {
-    id: '2',
-    ticker: 'FOF12',
-    nome: 'Fundo de Fundos BTG',
-    mandato: 'Tático',
-    segmento: 'logistica',
-    quantidade: 500,
-    precoAquisicao: 102.30,
-    valorTotal: 51150,
-    cotacaoAtual: 105.80,
-    valorAtualizado: 52900,
-    riscoPorAtivo: 6.7,
-    percentualCarteira: 8.1,
-    objetivo: 10.0,
-    quantoFalta: 1.9,
-    necessidadeAporte: 12300,
-    rentabilidade: 3.4,
-    tipo: 'fof',
-    observacoes: 'Foco em logística'
-  },
-  // TVM (Títulos e Valores Mobiliários)
-  {
-    id: '3',
-    ticker: 'TVM11',
-    nome: 'Títulos e Valores Mobiliários',
-    mandato: 'Estratégico',
-    segmento: 'escritorios',
-    quantidade: 2000,
-    precoAquisicao: 88.90,
-    valorTotal: 177800,
-    cotacaoAtual: 92.15,
-    valorAtualizado: 184300,
-    riscoPorAtivo: 23.4,
-    percentualCarteira: 28.3,
-    objetivo: 25.0,
-    quantoFalta: -3.3,
-    necessidadeAporte: -21200,
-    rentabilidade: 3.7,
-    tipo: 'tvm',
-    observacoes: 'Escritórios corporativos'
-  },
-  // IJOL (Imóveis para Juros e Outros)
-  {
-    id: '4',
-    ticker: 'IJOL11',
-    nome: 'Imóveis para Juros e Outros',
-    mandato: 'Especulativo',
-    segmento: 'shoppings',
-    quantidade: 1500,
-    precoAquisicao: 76.40,
-    valorTotal: 114600,
-    cotacaoAtual: 79.20,
-    valorAtualizado: 118800,
-    riscoPorAtivo: 15.0,
-    percentualCarteira: 18.2,
-    objetivo: 15.0,
-    quantoFalta: -3.2,
-    necessidadeAporte: -20800,
-    rentabilidade: 3.7,
-    tipo: 'ijol',
-    observacoes: 'Shoppings centers'
-  },
-  // Híbrido
-  {
-    id: '5',
-    ticker: 'HGLG11',
-    nome: 'HGLG Logística',
-    mandato: 'Estratégico',
-    segmento: 'logistica',
-    quantidade: 800,
-    precoAquisicao: 125.60,
-    valorTotal: 100480,
-    cotacaoAtual: 131.25,
-    valorAtualizado: 105000,
-    riscoPorAtivo: 13.3,
-    percentualCarteira: 16.1,
-    objetivo: 18.0,
-    quantoFalta: 1.9,
-    necessidadeAporte: 12300,
-    rentabilidade: 4.5,
-    tipo: 'hibrido',
-    observacoes: 'Logística premium'
-  },
-  // Renda
-  {
-    id: '6',
-    ticker: 'BCFF11',
-    nome: 'BCFF Renda',
-    mandato: 'Tático',
-    segmento: 'residencial',
-    quantidade: 1200,
-    precoAquisicao: 89.75,
-    valorTotal: 107700,
-    cotacaoAtual: 93.40,
-    valorAtualizado: 112080,
-    riscoPorAtivo: 14.2,
-    percentualCarteira: 17.2,
-    objetivo: 12.0,
-    quantoFalta: -5.2,
-    necessidadeAporte: -33800,
-    rentabilidade: 4.1,
-    tipo: 'renda',
-    observacoes: 'Residencial de alto padrão'
-  }
-];
+// Funções auxiliares para cores
+function getSegmentColor(tipo: string): string {
+  const colors: { [key: string]: string } = {
+    'fof': '#3B82F6',
+    'tvm': '#10B981',
+    'ijol': '#F59E0B',
+    'hibrido': '#8B5CF6',
+    'renda': '#EF4444'
+  };
+  return colors[tipo] || '#6B7280';
+}
 
-function calculateFiiData(): FiiData {
+function getAtivoColor(ticker: string): string {
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16', '#F97316'];
+  const index = ticker.charCodeAt(0) % colors.length;
+  return colors[index];
+}
+
+async function calculateFiiData(userId: string): Promise<FiiData> {
+  // Buscar portfolio do usuário com ativos do tipo "fii"
+  const portfolio = await prisma.portfolio.findMany({
+    where: { 
+      userId,
+      asset: {
+        type: 'fii'
+      }
+    },
+    include: {
+      asset: true
+    }
+  });
+
+  // Converter para formato FiiAtivo
+  const fiiAtivos: FiiAtivo[] = portfolio.map(item => {
+    const valorTotal = item.totalInvested;
+    const valorAtualizado = item.totalInvested; // Usar valor investido como atual
+    const rentabilidade = 0; // Sem variação por enquanto
+    
+    return {
+      id: item.id,
+      ticker: item.asset.symbol,
+      nome: item.asset.name,
+      mandato: 'Estratégico', // Padrão
+      segmento: 'outros', // Asset não tem segmento
+      quantidade: item.quantity,
+      precoAquisicao: item.avgPrice,
+      valorTotal,
+      cotacaoAtual: item.avgPrice, // Usar preço médio como cotação atual
+      valorAtualizado,
+      riscoPorAtivo: 0, // Calcular depois
+      percentualCarteira: 0, // Calcular depois
+      objetivo: 0, // Sem objetivo por enquanto
+      quantoFalta: 0, // Calcular depois
+      necessidadeAporte: 0, // Calcular depois
+      rentabilidade,
+      tipo: 'fof', // Padrão
+      observacoes: null,
+      dataUltimaAtualizacao: item.lastUpdate
+    };
+  });
+
   // Calcular totais gerais
-  const totalQuantidade = mockFiiAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
-  const totalValorAplicado = mockFiiAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-  const totalValorAtualizado = mockFiiAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-  const totalObjetivo = mockFiiAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
-  const totalQuantoFalta = mockFiiAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-  const totalNecessidadeAporte = mockFiiAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
-  const totalRisco = mockFiiAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-  const rentabilidadeMedia = mockFiiAtivos.length > 0 
-    ? mockFiiAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / mockFiiAtivos.length 
+  const totalQuantidade = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+  const totalValorAplicado = fiiAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+  const totalValorAtualizado = fiiAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+  const totalObjetivo = fiiAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+  const totalQuantoFalta = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
+  const totalNecessidadeAporte = fiiAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+  const totalRisco = fiiAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
+  const rentabilidadeMedia = fiiAtivos.length > 0 
+    ? fiiAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / fiiAtivos.length 
     : 0;
 
-  // Agrupar por tipo
+  // Agrupar por tipo (todos como 'fof' por enquanto)
   const secoes: FiiSecao[] = [
     {
       tipo: 'fof',
-      nome: 'FOF (Fundos de Fundos)',
-      ativos: mockFiiAtivos.filter(ativo => ativo.tipo === 'fof'),
+      nome: 'Fundos de Fundos (FOF)',
+      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'fof'),
       totalQuantidade: 0,
       totalValorAplicado: 0,
       totalValorAtualizado: 0,
@@ -161,8 +94,8 @@ function calculateFiiData(): FiiData {
     },
     {
       tipo: 'tvm',
-      nome: 'TVM (Títulos e Valores Mobiliários)',
-      ativos: mockFiiAtivos.filter(ativo => ativo.tipo === 'tvm'),
+      nome: 'Títulos e Valores Mobiliários (TVM)',
+      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'tvm'),
       totalQuantidade: 0,
       totalValorAplicado: 0,
       totalValorAtualizado: 0,
@@ -175,8 +108,8 @@ function calculateFiiData(): FiiData {
     },
     {
       tipo: 'ijol',
-      nome: 'IJOL (Imóveis para Juros e Outros)',
-      ativos: mockFiiAtivos.filter(ativo => ativo.tipo === 'ijol'),
+      nome: 'Imóveis para Juros e Outros (IJOL)',
+      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'ijol'),
       totalQuantidade: 0,
       totalValorAplicado: 0,
       totalValorAtualizado: 0,
@@ -190,7 +123,7 @@ function calculateFiiData(): FiiData {
     {
       tipo: 'hibrido',
       nome: 'Híbrido',
-      ativos: mockFiiAtivos.filter(ativo => ativo.tipo === 'hibrido'),
+      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'hibrido'),
       totalQuantidade: 0,
       totalValorAplicado: 0,
       totalValorAtualizado: 0,
@@ -204,7 +137,7 @@ function calculateFiiData(): FiiData {
     {
       tipo: 'renda',
       nome: 'Renda',
-      ativos: mockFiiAtivos.filter(ativo => ativo.tipo === 'renda'),
+      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'renda'),
       totalQuantidade: 0,
       totalValorAplicado: 0,
       totalValorAtualizado: 0,
@@ -232,60 +165,43 @@ function calculateFiiData(): FiiData {
       : 0;
   });
 
-  // Calcular alocação por segmento
-  const segmentos = [...new Set(mockFiiAtivos.map(ativo => ativo.segmento))];
-  const alocacaoSegmento = segmentos.map((segmento, index) => {
-    const ativosSegmento = mockFiiAtivos.filter(ativo => ativo.segmento === segmento);
-    const valor = ativosSegmento.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-    const percentual = totalValorAtualizado > 0 ? (valor / totalValorAtualizado) * 100 : 0;
-    
-    const cores = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#6B7280'];
-    
-    return {
-      segmento: segmento.charAt(0).toUpperCase() + segmento.slice(1),
-      valor,
-      percentual,
-      cor: cores[index % cores.length]
-    };
-  });
-
-  // Calcular alocação por ativo
-  const alocacaoAtivo = mockFiiAtivos.map((ativo, index) => {
-    const percentual = totalValorAtualizado > 0 ? (ativo.valorAtualizado / totalValorAtualizado) * 100 : 0;
-    const cores = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#6B7280', '#EC4899', '#14B8A6'];
-    
-    return {
-      ticker: ativo.ticker,
-      valor: ativo.valorAtualizado,
-      percentual,
-      cor: cores[index % cores.length]
-    };
-  });
-
-  // Calcular tabela auxiliar
-  const tabelaAuxiliar = mockFiiAtivos.map(ativo => ({
-    ticker: ativo.ticker,
-    nome: ativo.nome,
-    cotacaoAtual: ativo.cotacaoAtual,
-    necessidadeAporte: ativo.necessidadeAporte,
-    loteAproximado: ativo.necessidadeAporte > 0 ? Math.ceil(ativo.necessidadeAporte / ativo.cotacaoAtual) : 0
-  }));
-
   // Calcular resumo
   const resumo = {
     necessidadeAporteTotal: totalNecessidadeAporte,
-    caixaParaInvestir: 15000, // Mock
-    saldoInicioMes: totalValorAtualizado - (totalValorAtualizado - totalValorAplicado),
+    caixaParaInvestir: 0, // Sem caixa por enquanto
+    saldoInicioMes: totalValorAtualizado,
+    valorAtualizado: totalValorAtualizado,
     rendimento: totalValorAtualizado - totalValorAplicado,
     rentabilidade: totalValorAplicado > 0 ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100 : 0
   };
 
+  // Calcular alocação por segmento
+  const alocacaoSegmento = secoes.map(secao => ({
+    name: secao.nome,
+    value: secao.totalValorAtualizado,
+    color: getSegmentColor(secao.tipo)
+  }));
+
+  // Calcular alocação por ativo
+  const alocacaoAtivo = fiiAtivos.map(ativo => ({
+    name: ativo.ticker,
+    value: ativo.valorAtualizado,
+    color: getAtivoColor(ativo.ticker)
+  }));
+
+  // Tabela auxiliar (dados adicionais)
+  const tabelaAuxiliar = fiiAtivos.map(ativo => ({
+    ticker: ativo.ticker,
+    nome: ativo.nome,
+    quantidade: ativo.quantidade,
+    valorAplicado: ativo.valorTotal,
+    valorAtualizado: ativo.valorAtualizado,
+    rentabilidade: ativo.rentabilidade
+  }));
+
   return {
     resumo,
     secoes,
-    alocacaoSegmento,
-    alocacaoAtivo,
-    tabelaAuxiliar,
     totalGeral: {
       quantidade: totalQuantidade,
       valorAplicado: totalValorAplicado,
@@ -296,17 +212,30 @@ function calculateFiiData(): FiiData {
       quantoFalta: totalQuantoFalta,
       necessidadeAporte: totalNecessidadeAporte,
       rentabilidade: rentabilidadeMedia
-    }
+    },
+    alocacaoSegmento,
+    alocacaoAtivo,
+    tabelaAuxiliar
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const data = calculateFiiData();
+    const payload = requireAuth(request);
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    }
+
+    const data = await calculateFiiData(user.id);
     
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Erro ao buscar dados FIIs:', error);
+    console.error('Erro ao buscar dados FII:', error);
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

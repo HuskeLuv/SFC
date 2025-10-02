@@ -7,17 +7,17 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    let institutions;
+    let emissores;
 
     if (search) {
-      institutions = await prisma.institution.findMany({
+      emissores = await prisma.emissor.findMany({
         where: {
           AND: [
-            { status: 'ATIVA' },
+            { status: 'ATIVO' },
             {
               OR: [
                 { nome: { contains: search, mode: 'insensitive' } },
-                { codigo: { contains: search, mode: 'insensitive' } },
+                { tipo: { contains: search, mode: 'insensitive' } },
               ],
             },
           ],
@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
         orderBy: { nome: 'asc' },
       });
     } else {
-      institutions = await prisma.institution.findMany({
-        where: { status: 'ATIVA' },
+      emissores = await prisma.emissor.findMany({
+        where: { status: 'ATIVO' },
         take: limit,
         orderBy: { nome: 'asc' },
       });
@@ -35,17 +35,17 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      institutions: institutions.map(inst => ({
-        id: inst.id,
-        nome: inst.nome,
-        codigo: inst.codigo,
-        status: inst.status,
+      emissores: emissores.map(emissor => ({
+        id: emissor.id,
+        nome: emissor.nome,
+        tipo: emissor.tipo,
+        status: emissor.status,
       })),
-      count: institutions.length,
+      count: emissores.length,
     });
 
   } catch (error) {
-    console.error('Erro ao buscar instituições:', error);
+    console.error('Erro ao buscar emissores:', error);
     return NextResponse.json(
       { 
         success: false,

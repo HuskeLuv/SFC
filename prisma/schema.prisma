@@ -134,8 +134,10 @@ model Watchlist {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  stockId   String
-  stock     Stock    @relation(fields: [stockId], references: [id])
+  stockId   String?  // Pode ser null para compatibilidade
+  stock     Stock?   @relation(fields: [stockId], references: [id])
+  assetId   String?  // Nova referência para Asset
+  asset     Asset?   @relation(fields: [assetId], references: [id])
   addedAt   DateTime @default(now())
   notes     String?  // Observações do usuário
   
@@ -148,14 +150,17 @@ model Portfolio {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  stockId   String
-  stock     Stock    @relation(fields: [stockId], references: [id])
+  stockId   String?  // Pode ser null para compatibilidade
+  stock     Stock?   @relation(fields: [stockId], references: [id])
+  assetId   String?  // Nova referência para Asset
+  asset     Asset?   @relation(fields: [assetId], references: [id])
   quantity  Int      // Quantidade de ações
   avgPrice  Float    // Preço médio de compra
   totalInvested Float // Total investido
   lastUpdate DateTime @default(now())
   
   @@unique([userId, stockId])
+  @@unique([userId, assetId])
   @@map("portfolios")
 }
 
@@ -164,8 +169,10 @@ model StockTransaction {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  stockId   String
-  stock     Stock    @relation(fields: [stockId], references: [id])
+  stockId   String?  // Pode ser null para compatibilidade
+  stock     Stock?   @relation(fields: [stockId], references: [id])
+  assetId   String?  // Nova referência para Asset
+  asset     Asset?   @relation(fields: [assetId], references: [id])
   type      String   // "compra" ou "venda"
   quantity  Int      // Quantidade de ações
   price     Float    // Preço por ação
@@ -180,19 +187,24 @@ model StockTransaction {
 
 // ===== EXTERNAL DATA MODELS =====
 
-// Ativos da B3 (ações, FII, ETF, BDR etc.)
+// Ativos consolidados (ações, FII, ETF, BDR, REIT, criptos, etc.)
 model Asset {
   id        String   @id @default(uuid())
-  ticker    String   @unique // Código do ativo (ex: PETR4, VALE3)
-  nome      String   // Nome do ativo/empresa
-  tipo      String?  // Tipo: ação, FII, ETF, BDR etc.
-  setor     String?  // Setor da empresa
-  status    String   @default("ativo") // ativo/inativo
-  createdAt DateTime @default(now())
+  symbol    String   @unique // Código do ativo (ex: PETR4, VALE3, BTC, ETH)
+  name      String   // Nome do ativo (ex: Petrobras PN, Vale ON, Bitcoin)
+  type      String   // Tipo: "stock", "etf", "fii", "bdr", "crypto"
+  currency  String   // Moeda: "BRL", "USD"
+  source    String   @default("brapi") // Fonte dos dados
   updatedAt DateTime @updatedAt
   
-  @@index([ticker])
-  @@index([status])
+  // Relacionamentos
+  watchlists Watchlist[]
+  portfolios Portfolio[]
+  transactions StockTransaction[]
+  
+  @@index([symbol])
+  @@index([type])
+  @@index([source])
   @@map("assets")
 }
 

@@ -1,180 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
 import { AcaoData, AcaoAtivo, AcaoSecao } from '@/types/acoes';
 
-// Dados mockados para demonstração
-const mockAcoesAtivos: AcaoAtivo[] = [
-  // Value (Ações de Valor)
-  {
-    id: '1',
-    ticker: 'PETR4',
-    nome: 'Petróleo Brasileiro S.A.',
-    setor: 'energia',
-    subsetor: 'Petróleo e Gás',
-    quantidade: 1000,
-    precoAquisicao: 28.50,
-    valorTotal: 28500,
-    cotacaoAtual: 32.75,
-    valorAtualizado: 32750,
-    riscoPorAtivo: 15.2,
-    percentualCarteira: 12.8,
-    objetivo: 15.0,
-    quantoFalta: 2.2,
-    necessidadeAporte: 17200,
-    rentabilidade: 14.9,
-    estrategia: 'value',
-    observacoes: 'Petrobras - ação de valor'
-  },
-  {
-    id: '2',
-    ticker: 'VALE3',
-    nome: 'Vale S.A.',
-    setor: 'materiais',
-    subsetor: 'Mineração',
-    quantidade: 500,
-    precoAquisicao: 65.80,
-    valorTotal: 32900,
-    cotacaoAtual: 72.40,
-    valorAtualizado: 36200,
-    riscoPorAtivo: 16.8,
-    percentualCarteira: 14.2,
-    objetivo: 12.0,
-    quantoFalta: -2.2,
-    necessidadeAporte: -17600,
-    rentabilidade: 10.0,
-    estrategia: 'value',
-    observacoes: 'Vale - mineração'
-  },
-  // Growth (Ações de Crescimento)
-  {
-    id: '3',
-    ticker: 'MGLU3',
-    nome: 'Magazine Luiza S.A.',
-    setor: 'consumo',
-    subsetor: 'Comércio',
-    quantidade: 2000,
-    precoAquisicao: 12.30,
-    valorTotal: 24600,
-    cotacaoAtual: 15.80,
-    valorAtualizado: 31600,
-    riscoPorAtivo: 14.7,
-    percentualCarteira: 12.4,
-    objetivo: 18.0,
-    quantoFalta: 5.6,
-    necessidadeAporte: 14300,
-    rentabilidade: 28.5,
-    estrategia: 'growth',
-    observacoes: 'Magazine Luiza - crescimento'
-  },
-  {
-    id: '4',
-    ticker: 'WEGE3',
-    nome: 'WEG S.A.',
-    setor: 'industria',
-    subsetor: 'Equipamentos Industriais',
-    quantidade: 300,
-    precoAquisicao: 45.60,
-    valorTotal: 13680,
-    cotacaoAtual: 52.30,
-    valorAtualizado: 15690,
-    riscoPorAtivo: 7.3,
-    percentualCarteira: 6.1,
-    objetivo: 8.0,
-    quantoFalta: 1.9,
-    necessidadeAporte: 4850,
-    rentabilidade: 14.7,
-    estrategia: 'growth',
-    observacoes: 'WEG - equipamentos industriais'
-  },
-  // Risk (Ações de Risco)
-  {
-    id: '5',
-    ticker: 'B3SA3',
-    nome: 'B3 S.A. - Brasil, Bolsa, Balcão',
-    setor: 'financeiro',
-    subsetor: 'Serviços Financeiros',
-    quantidade: 800,
-    precoAquisicao: 8.90,
-    valorTotal: 7120,
-    cotacaoAtual: 11.25,
-    valorAtualizado: 9000,
-    riscoPorAtivo: 4.2,
-    percentualCarteira: 3.5,
-    objetivo: 5.0,
-    quantoFalta: 1.5,
-    necessidadeAporte: 3850,
-    rentabilidade: 26.4,
-    estrategia: 'risk',
-    observacoes: 'B3 - bolsa de valores'
-  },
-  {
-    id: '6',
-    ticker: 'CVCB3',
-    nome: 'CVC Brasil Operadora e Agência de Viagens S.A.',
-    setor: 'consumo',
-    subsetor: 'Turismo',
-    quantidade: 1500,
-    precoAquisicao: 3.20,
-    valorTotal: 4800,
-    cotacaoAtual: 2.85,
-    valorAtualizado: 4275,
-    riscoPorAtivo: 2.0,
-    percentualCarteira: 1.7,
-    objetivo: 3.0,
-    quantoFalta: 1.3,
-    necessidadeAporte: 3300,
-    rentabilidade: -10.9,
-    estrategia: 'risk',
-    observacoes: 'CVC - turismo (especulativa)'
-  }
-];
+async function calculateAcoesData(userId: string): Promise<AcaoData> {
+  // Buscar portfolio do usuário com ativos do tipo "stock"
+  const portfolio = await prisma.portfolio.findMany({
+    where: { 
+      userId,
+      asset: {
+        type: 'stock'
+      }
+    },
+    include: {
+      asset: true
+    }
+  });
 
-function calculateAcoesData(): AcaoData {
+  // Converter para formato AcaoAtivo
+  const acoesAtivos: AcaoAtivo[] = portfolio.map(item => {
+    const valorTotal = item.totalInvested;
+    const valorAtualizado = item.totalInvested; // Usar valor investido como atual
+    const rentabilidade = 0; // Sem variação por enquanto
+    
+    return {
+      id: item.id,
+      ticker: item.asset.symbol,
+      nome: item.asset.name,
+      setor: 'outros', // Asset não tem setor
+      subsetor: '',
+      quantidade: item.quantity,
+      precoAquisicao: item.avgPrice,
+      valorTotal,
+      cotacaoAtual: item.avgPrice, // Usar preço médio como cotação atual
+      valorAtualizado,
+      riscoPorAtivo: 0, // Calcular depois
+      percentualCarteira: 0, // Calcular depois
+      objetivo: 0, // Sem objetivo por enquanto
+      quantoFalta: 0, // Calcular depois
+      necessidadeAporte: 0, // Calcular depois
+      rentabilidade,
+      estrategia: 'value', // Padrão
+      observacoes: null,
+      dataUltimaAtualizacao: item.lastUpdate
+    };
+  });
+
   // Calcular totais gerais
-  const totalQuantidade = mockAcoesAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
-  const totalValorAplicado = mockAcoesAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-  const totalValorAtualizado = mockAcoesAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-  const totalObjetivo = mockAcoesAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
-  const totalQuantoFalta = mockAcoesAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-  const totalNecessidadeAporte = mockAcoesAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
-  const totalRisco = mockAcoesAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-  const rentabilidadeMedia = mockAcoesAtivos.length > 0 
-    ? mockAcoesAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / mockAcoesAtivos.length 
+  const totalQuantidade = acoesAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+  const totalValorAplicado = acoesAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+  const totalValorAtualizado = acoesAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+  const totalObjetivo = acoesAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+  const totalQuantoFalta = acoesAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
+  const totalNecessidadeAporte = acoesAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+  const totalRisco = acoesAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
+  const rentabilidadeMedia = acoesAtivos.length > 0 
+    ? acoesAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / acoesAtivos.length 
     : 0;
 
-  // Agrupar por estratégia
+  // Agrupar por estratégia (todos como 'value' por enquanto)
   const secoes: AcaoSecao[] = [
     {
       estrategia: 'value',
-      nome: 'Value (Ações de Valor)',
-      ativos: mockAcoesAtivos.filter(ativo => ativo.estrategia === 'value'),
-      totalQuantidade: 0,
-      totalValorAplicado: 0,
-      totalValorAtualizado: 0,
-      totalPercentualCarteira: 0,
-      totalRisco: 0,
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: 0
-    },
-    {
-      estrategia: 'growth',
-      nome: 'Growth (Ações de Crescimento)',
-      ativos: mockAcoesAtivos.filter(ativo => ativo.estrategia === 'growth'),
-      totalQuantidade: 0,
-      totalValorAplicado: 0,
-      totalValorAtualizado: 0,
-      totalPercentualCarteira: 0,
-      totalRisco: 0,
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: 0
-    },
-    {
-      estrategia: 'risk',
-      nome: 'Risk (Ações de Risco)',
-      ativos: mockAcoesAtivos.filter(ativo => ativo.estrategia === 'risk'),
+      nome: 'Ações',
+      ativos: acoesAtivos,
       totalQuantidade: 0,
       totalValorAplicado: 0,
       totalValorAtualizado: 0,
@@ -205,8 +94,8 @@ function calculateAcoesData(): AcaoData {
   // Calcular resumo
   const resumo = {
     necessidadeAporteTotal: totalNecessidadeAporte,
-    caixaParaInvestir: 25000, // Mock
-    saldoInicioMes: totalValorAtualizado - (totalValorAtualizado - totalValorAplicado),
+    caixaParaInvestir: 0, // Sem caixa por enquanto
+    saldoInicioMes: totalValorAtualizado,
     valorAtualizado: totalValorAtualizado,
     rendimento: totalValorAtualizado - totalValorAplicado,
     rentabilidade: totalValorAplicado > 0 ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100 : 0
@@ -229,9 +118,19 @@ function calculateAcoesData(): AcaoData {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const data = calculateAcoesData();
+    const payload = requireAuth(request);
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    }
+
+    const data = await calculateAcoesData(user.id);
     
     return NextResponse.json(data);
   } catch (error) {

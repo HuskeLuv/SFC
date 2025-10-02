@@ -104,10 +104,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     }
   };
 
-  const filteredOptions = options.filter((option) =>
-    option.label.toLowerCase().includes(value.toLowerCase()) ||
-    (option.subtitle && option.subtitle.toLowerCase().includes(value.toLowerCase()))
-  );
+  // Não filtrar no frontend - a busca é feita na API
+  const filteredOptions = options;
 
   return (
     <div className={`relative ${className}`}>

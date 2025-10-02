@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { ApexOptions } from "apexcharts";
 
 // Componente wrapper para o ReactApexChart
-const ApexChartWrapper = ({ options, series, type, height }: {
+const ApexChartWrapper = React.memo(({ options, series, type, height }: {
   options: ApexOptions;
   series: Array<{ name: string; data: number[][] }>;
   type: string;
@@ -35,7 +35,9 @@ const ApexChartWrapper = ({ options, series, type, height }: {
   }
 
   return <Chart options={options} series={series} type={type} height={height} />;
-};
+});
+
+ApexChartWrapper.displayName = 'ApexChartWrapper';
 
 interface LineChartCarteiraHistoricoProps {
   data: Array<{

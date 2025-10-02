@@ -230,25 +230,25 @@ export default function ImoveisBensTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         <ImoveisBensMetricCard
           title="Valor Total Aquisições"
-          value={formatCurrency(data.resumo.valorTotalAquisicoes)}
+          value={formatCurrency(data?.resumo?.valorTotalAquisicoes)}
         />
         <ImoveisBensMetricCard
           title="Valor Total Melhorias"
-          value={formatCurrency(data.resumo.valorTotalMelhorias)}
+          value={formatCurrency(data?.resumo?.valorTotalMelhorias)}
           color="warning"
         />
         <ImoveisBensMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data.resumo.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado)}
         />
         <ImoveisBensMetricCard
           title="Rendimento"
-          value={formatCurrency(data.resumo.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento)}
           color="success"
         />
         <ImoveisBensMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.resumo.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade)}
           color="success"
         />
       </div>
@@ -295,7 +295,7 @@ export default function ImoveisBensTable() {
               </tr>
             </thead>
             <tbody>
-              {data.ativos.map((ativo) => (
+              {data?.ativos?.map((ativo) => (
                 <ImoveisBensTableRow
                   key={ativo.id}
                   ativo={ativo}
@@ -304,7 +304,7 @@ export default function ImoveisBensTable() {
                   formatNumber={formatNumber}
                   onUpdateValorAtualizado={handleUpdateValorAtualizado}
                 />
-              ))}
+              )) || []}
 
               {/* Linha de totalização */}
               <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
@@ -314,19 +314,19 @@ export default function ImoveisBensTable() {
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
-                  {formatNumber(data.totalGeral.quantidade)}
+                  {formatNumber(data?.totalGeral?.quantidade)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(data.totalGeral.valorAplicado)}
+                  {formatCurrency(data?.totalGeral?.valorAplicado)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(data.totalGeral.valorAtualizado)}
+                  {formatCurrency(data?.totalGeral?.valorAtualizado)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right">
                   <Badge color="primary" size="sm">
-                    {formatPercentage(data.totalGeral.risco)}
+                    {formatPercentage(data?.totalGeral?.risco)}
                   </Badge>
                 </td>
                 <td className="px-2 py-2 text-xs text-right">
@@ -334,10 +334,10 @@ export default function ImoveisBensTable() {
                 </td>
                 <td className="px-2 py-2 text-xs text-right">
                   <Badge 
-                    color={data.totalGeral.rentabilidade >= 0 ? "success" : "error"} 
+                    color={data?.totalGeral?.rentabilidade >= 0 ? "success" : "error"} 
                     size="sm"
                   >
-                    {formatPercentage(data.totalGeral.rentabilidade)}
+                    {formatPercentage(data?.totalGeral?.rentabilidade)}
                   </Badge>
                 </td>
               </tr>

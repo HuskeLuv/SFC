@@ -109,18 +109,27 @@ export const useCarteiraStocks = () => {
     }
   };
 
-  const formatCurrency = (value: number): string => {
+  const formatCurrency = (value: number | undefined | null): string => {
+    if (value === undefined || value === null || isNaN(value)) {
+      return '$0.00';
+    }
     return value.toLocaleString('en-US', {
       style: 'currency',
       currency: 'USD',
     });
   };
 
-  const formatPercentage = (value: number): string => {
+  const formatPercentage = (value: number | undefined | null): string => {
+    if (value === undefined || value === null || isNaN(value)) {
+      return '0.00%';
+    }
     return `${value.toFixed(2)}%`;
   };
 
-  const formatNumber = (value: number): string => {
+  const formatNumber = (value: number | undefined | null): string => {
+    if (value === undefined || value === null || isNaN(value)) {
+      return '0';
+    }
     return value.toLocaleString('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,

@@ -19,23 +19,112 @@ export async function POST(request: NextRequest) {
       instituicaoId,
       assetId,
       dataCompra,
+      dataInicio,
       quantidade,
       cotacaoUnitaria,
+      cotacaoCompra,
+      valorAplicado,
+      valorInvestido,
       taxaCorretagem = 0,
       valorTotal,
-      observacoes
+      observacoes,
+      moeda,
+      nomePersonalizado,
+      precoUnitario,
+      emissorId,
+      periodo,
+      taxaJurosAnual,
+      percentualCDI,
+      indexador
     } = await request.json();
 
-    // Validações
-    if (!tipoAtivo || !instituicaoId || !assetId || !dataCompra || !quantidade || !cotacaoUnitaria) {
+    // Validações básicas
+    if (!tipoAtivo || !instituicaoId || !assetId) {
       return NextResponse.json({ 
-        error: 'Campos obrigatórios: tipoAtivo, instituicaoId, assetId, dataCompra, quantidade, cotacaoUnitaria' 
+        error: 'Campos obrigatórios: tipoAtivo, instituicaoId, assetId' 
       }, { status: 400 });
     }
 
-    if (quantidade <= 0 || cotacaoUnitaria <= 0) {
+    // Validações específicas por tipo de ativo
+    if (tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca") {
+      if (!dataInicio || !valorAplicado) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para este tipo: dataInicio, valorAplicado' 
+        }, { status: 400 });
+      }
+    } else if (tipoAtivo === "criptoativo") {
+      if (!dataCompra || !quantidade || !cotacaoCompra) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para este tipo: dataCompra, quantidade, cotacaoCompra' 
+        }, { status: 400 });
+      }
+    } else if (tipoAtivo === "moeda") {
+      if (!dataCompra || !moeda || !cotacaoCompra || !valorInvestido) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para este tipo: dataCompra, moeda, cotacaoCompra, valorInvestido' 
+        }, { status: 400 });
+      }
+    } else if (tipoAtivo === "personalizado") {
+      if (!dataInicio || !nomePersonalizado || !quantidade || !precoUnitario) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para este tipo: dataInicio, nomePersonalizado, quantidade, precoUnitario' 
+        }, { status: 400 });
+      }
+    } else if (tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
+      if (!dataInicio || !emissorId || !periodo || !valorAplicado || !taxaJurosAnual) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para este tipo: dataInicio, emissorId, periodo, valorAplicado, taxaJurosAnual' 
+        }, { status: 400 });
+      }
+    } else if (tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
+      if (!dataCompra || !valorInvestido) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para este tipo: dataCompra, valorInvestido' 
+        }, { status: 400 });
+      }
+    } else if (tipoAtivo === "fii") {
+      if (!dataCompra || !quantidade || !cotacaoUnitaria) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para este tipo: dataCompra, quantidade, cotacaoUnitaria' 
+        }, { status: 400 });
+      }
+    } else {
+      // Para ações, BDRs, ETFs, REITs, etc.
+      if (!dataCompra || !quantidade || !cotacaoUnitaria) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para este tipo: dataCompra, quantidade, cotacaoUnitaria' 
+        }, { status: 400 });
+      }
+    }
+
+    // Validações de valores positivos específicas por tipo
+    if ((tipoAtivo === "acao" || tipoAtivo === "bdr" || tipoAtivo === "fii") && (quantidade <= 0 || cotacaoUnitaria <= 0)) {
       return NextResponse.json({ 
         error: 'Quantidade e cotação unitária devem ser maiores que zero' 
+      }, { status: 400 });
+    }
+    
+    if (tipoAtivo === "criptoativo" && (quantidade <= 0 || cotacaoCompra <= 0)) {
+      return NextResponse.json({ 
+        error: 'Quantidade e cotação de compra devem ser maiores que zero' 
+      }, { status: 400 });
+    }
+    
+    if (tipoAtivo === "personalizado" && (quantidade <= 0 || precoUnitario <= 0)) {
+      return NextResponse.json({ 
+        error: 'Quantidade e preço unitário devem ser maiores que zero' 
+      }, { status: 400 });
+    }
+    
+    if ((tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca" || tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") && valorAplicado <= 0) {
+      return NextResponse.json({ 
+        error: 'Valor aplicado deve ser maior que zero' 
+      }, { status: 400 });
+    }
+    
+    if ((tipoAtivo === "moeda" || tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") && valorInvestido <= 0) {
+      return NextResponse.json({ 
+        error: 'Valor investido deve ser maior que zero' 
       }, { status: 400 });
     }
 
@@ -57,55 +146,62 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
     }
 
-    // Buscar ou criar Stock correspondente ao Asset
-    let stock = await prisma.stock.findUnique({
-      where: { ticker: asset.ticker },
-    });
+    // Calcular valor total baseado no tipo de ativo
+    let valorCalculado = 0;
+    let quantidadeFinal = 0;
+    let precoFinal = 0;
+    const dataFinal = dataCompra || dataInicio;
 
-    if (!stock) {
-      // Criar novo Stock baseado no Asset
-      stock = await prisma.stock.create({
-        data: {
-          ticker: asset.ticker,
-          companyName: asset.nome,
-          sector: asset.setor || null,
-          isActive: true,
-        },
-      });
+    if (tipoAtivo === "acao" || tipoAtivo === "bdr" || tipoAtivo === "fii") {
+      valorCalculado = (quantidade * cotacaoUnitaria) + (taxaCorretagem || 0);
+      quantidadeFinal = quantidade;
+      precoFinal = cotacaoUnitaria;
+    } else if (tipoAtivo === "criptoativo") {
+      valorCalculado = quantidade * cotacaoCompra;
+      quantidadeFinal = quantidade;
+      precoFinal = cotacaoCompra;
+    } else if (tipoAtivo === "personalizado") {
+      valorCalculado = quantidade * precoUnitario;
+      quantidadeFinal = quantidade;
+      precoFinal = precoUnitario;
+    } else if (tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca" || tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
+      valorCalculado = valorAplicado;
+      quantidadeFinal = 1; // Para contas e renda fixa, consideramos como 1 unidade
+      precoFinal = valorAplicado;
+    } else if (tipoAtivo === "moeda" || tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
+      valorCalculado = valorInvestido;
+      quantidadeFinal = 1; // Para investimentos fixos, consideramos como 1 unidade
+      precoFinal = valorInvestido;
     }
 
-    // Calcular valor total se não fornecido
-    const valorCalculado = (quantidade * cotacaoUnitaria) + (taxaCorretagem || 0);
     const valorFinal = valorTotal || valorCalculado;
 
-    // Criar transação de compra
+    // Criar transação de compra usando Asset diretamente
     const transacao = await prisma.stockTransaction.create({
       data: {
         userId: user.id,
-        stockId: stock.id, // Usar o ID do Stock, não do Asset
+        assetId: asset.id, // Usar o ID do Asset diretamente
         type: 'compra',
-        quantity: quantidade,
-        price: cotacaoUnitaria,
+        quantity: quantidadeFinal,
+        price: precoFinal,
         total: valorFinal,
-        date: new Date(dataCompra),
+        date: new Date(dataFinal),
         fees: taxaCorretagem || 0,
         notes: observacoes || null,
       },
     });
 
-    // Atualizar ou criar portfolio
-    const portfolioExistente = await prisma.portfolio.findUnique({
+    // Atualizar ou criar portfolio usando Asset
+    const portfolioExistente = await prisma.portfolio.findFirst({
       where: {
-        userId_stockId: {
-          userId: user.id,
-          stockId: stock.id, // Usar o ID do Stock
-        },
+        userId: user.id,
+        assetId: asset.id, // Usar o ID do Asset
       },
     });
 
     if (portfolioExistente) {
       // Atualizar portfolio existente
-      const novaQuantidade = portfolioExistente.quantity + quantidade;
+      const novaQuantidade = portfolioExistente.quantity + quantidadeFinal;
       const novoTotalInvestido = portfolioExistente.totalInvested + valorFinal;
       const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
 
@@ -123,9 +219,9 @@ export async function POST(request: NextRequest) {
       await prisma.portfolio.create({
         data: {
           userId: user.id,
-          stockId: stock.id, // Usar o ID do Stock
-          quantity: quantidade,
-          avgPrice: cotacaoUnitaria,
+          assetId: asset.id, // Usar o ID do Asset
+          quantity: quantidadeFinal,
+          avgPrice: precoFinal,
           totalInvested: valorFinal,
           lastUpdate: new Date(),
         },

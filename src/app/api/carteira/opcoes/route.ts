@@ -1,193 +1,59 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
 
-// Mock data para demonstração
-const mockData = {
-  resumo: {
-    necessidadeAporteTotal: 15000.00,
-    caixaParaInvestir: 25000.00,
-    saldoInicioMes: 80000.00,
-    valorAtualizado: 95000.00,
-    rendimento: 15000.00,
-    rentabilidade: 18.75,
-  },
-  secoes: [
-    {
-      nome: "PUT",
-      tipo: "put" as const,
-      ativos: [
-        {
-          id: "put-petrobras-1",
-          nome: "PETR4 25.00 PUT JAN/25",
-          compraVenda: "venda" as const,
-          vencimento: "2025-01-17",
-          quantidade: 1000.00,
-          precoAquisicao: 2.50,
-          valorTotal: 2500.00,
-          cotacaoAtual: 1.80,
-          valorAtualizado: 1800.00,
-          riscoPorAtivo: 25.5,
-          percentualCarteira: 1.89,
-          objetivo: 2.0,
-          quantoFalta: 0.11,
-          necessidadeAporte: 200.00,
-          rentabilidade: -28.00,
-          observacoes: "Opção de venda PETROBRAS com strike 25.00",
-        },
-        {
-          id: "put-vale-1",
-          nome: "VALE3 60.00 PUT FEV/25",
-          compraVenda: "venda" as const,
-          vencimento: "2025-02-21",
-          quantidade: 500.00,
-          precoAquisicao: 3.20,
-          valorTotal: 1600.00,
-          cotacaoAtual: 2.40,
-          valorAtualizado: 1200.00,
-          riscoPorAtivo: 22.8,
-          percentualCarteira: 1.26,
-          objetivo: 1.5,
-          quantoFalta: 0.24,
-          necessidadeAporte: 150.00,
-          rentabilidade: -25.00,
-          observacoes: "Opção de venda VALE com strike 60.00",
-        },
-        {
-          id: "put-itau-1",
-          nome: "ITUB4 35.00 PUT MAR/25",
-          compraVenda: "venda" as const,
-          vencimento: "2025-03-20",
-          quantidade: 800.00,
-          precoAquisicao: 1.80,
-          valorTotal: 1440.00,
-          cotacaoAtual: 1.20,
-          valorAtualizado: 960.00,
-          riscoPorAtivo: 18.2,
-          percentualCarteira: 1.01,
-          objetivo: 1.0,
-          quantoFalta: -0.01,
-          necessidadeAporte: 0.00,
-          rentabilidade: -33.33,
-          observacoes: "Opção de venda ITAÚ com strike 35.00",
-        },
-      ],
-      totalQuantidade: 2300.00,
-      totalValorAplicado: 5540.00,
-      totalValorAtualizado: 3960.00,
-      totalRisco: 22.2,
-      totalPercentualCarteira: 4.17,
-      totalObjetivo: 4.5,
-      totalQuantoFalta: 0.33,
-      totalNecessidadeAporte: 350.00,
-      rentabilidadeMedia: -28.78,
-    },
-    {
-      nome: "CALL",
-      tipo: "call" as const,
-      ativos: [
-        {
-          id: "call-petrobras-1",
-          nome: "PETR4 30.00 CALL JAN/25",
-          compraVenda: "compra" as const,
-          vencimento: "2025-01-17",
-          quantidade: 2000.00,
-          precoAquisicao: 1.50,
-          valorTotal: 3000.00,
-          cotacaoAtual: 2.20,
-          valorAtualizado: 4400.00,
-          riscoPorAtivo: 30.5,
-          percentualCarteira: 4.63,
-          objetivo: 5.0,
-          quantoFalta: 0.37,
-          necessidadeAporte: 1000.00,
-          rentabilidade: 46.67,
-          observacoes: "Opção de compra PETROBRAS com strike 30.00",
-        },
-        {
-          id: "call-vale-1",
-          nome: "VALE3 70.00 CALL FEV/25",
-          compraVenda: "compra" as const,
-          vencimento: "2025-02-21",
-          quantidade: 1500.00,
-          precoAquisicao: 2.80,
-          valorTotal: 4200.00,
-          cotacaoAtual: 4.10,
-          valorAtualizado: 6150.00,
-          riscoPorAtivo: 28.8,
-          percentualCarteira: 6.47,
-          objetivo: 6.0,
-          quantoFalta: -0.47,
-          necessidadeAporte: 0.00,
-          rentabilidade: 46.43,
-          observacoes: "Opção de compra VALE com strike 70.00",
-        },
-        {
-          id: "call-bradesco-1",
-          nome: "BBDC4 25.00 CALL MAR/25",
-          compraVenda: "compra" as const,
-          vencimento: "2025-03-20",
-          quantidade: 1000.00,
-          precoAquisicao: 1.20,
-          valorTotal: 1200.00,
-          cotacaoAtual: 1.80,
-          valorAtualizado: 1800.00,
-          riscoPorAtivo: 25.2,
-          percentualCarteira: 1.89,
-          objetivo: 2.0,
-          quantoFalta: 0.11,
-          necessidadeAporte: 200.00,
-          rentabilidade: 50.00,
-          observacoes: "Opção de compra BRADESCO com strike 25.00",
-        },
-        {
-          id: "call-magalu-1",
-          nome: "MGLU3 15.00 CALL ABR/25",
-          compraVenda: "compra" as const,
-          vencimento: "2025-04-17",
-          quantidade: 3000.00,
-          precoAquisicao: 0.80,
-          valorTotal: 2400.00,
-          cotacaoAtual: 1.20,
-          valorAtualizado: 3600.00,
-          riscoPorAtivo: 35.5,
-          percentualCarteira: 3.79,
-          objetivo: 4.0,
-          quantoFalta: 0.21,
-          necessidadeAporte: 400.00,
-          rentabilidade: 50.00,
-          observacoes: "Opção de compra MAGALU com strike 15.00",
-        },
-      ],
-      totalQuantidade: 7500.00,
-      totalValorAplicado: 10800.00,
-      totalValorAtualizado: 15950.00,
-      totalRisco: 30.0,
-      totalPercentualCarteira: 16.79,
-      totalObjetivo: 17.0,
-      totalQuantoFalta: 0.21,
-      totalNecessidadeAporte: 1600.00,
-      rentabilidadeMedia: 47.78,
-    },
-  ],
-  totalGeral: {
-    quantidade: 9800.00,
-    valorAplicado: 16340.00,
-    valorAtualizado: 19910.00,
-    risco: 26.1,
-    objetivo: 21.5,
-    quantoFalta: -0.54,
-    necessidadeAporte: 1950.00,
-    rentabilidade: 21.85,
-  },
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Simula delay de rede
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const payload = requireAuth(request);
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    }
+
+    // Buscar portfolio do usuário com ativos do tipo correspondente
+    const portfolio = await prisma.portfolio.findMany({
+      where: { 
+        userId: user.id,
+        asset: {
+          type: 'opcao'
+        }
+      },
+      include: {
+        asset: true
+      }
+    });
+
+    // Retornar dados vazios por enquanto
+    const data = {
+      resumo: {
+        necessidadeAporteTotal: 0,
+        caixaParaInvestir: 0,
+        saldoInicioMes: 0,
+        valorAtualizado: 0,
+        rendimento: 0,
+        rentabilidade: 0
+      },
+      secoes: [],
+      totalGeral: {
+        quantidade: 0,
+        valorAplicado: 0,
+        valorAtualizado: 0,
+        percentualCarteira: 0,
+        risco: 0,
+        objetivo: 0,
+        quantoFalta: 0,
+        necessidadeAporte: 0,
+        rentabilidade: 0
+      }
+    };
     
-    return NextResponse.json(mockData);
+    return NextResponse.json(data);
   } catch (error) {
-    console.error('Erro ao buscar dados de opções:', error);
+    console.error('Erro ao buscar dados Opções:', error);
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -195,3 +61,30 @@ export async function GET() {
   }
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { ativoId, objetivo, cotacao } = body;
+
+    if (!ativoId) {
+      return NextResponse.json(
+        { error: 'Parâmetro obrigatório: ativoId' },
+        { status: 400 }
+      );
+    }
+
+    // Simular delay de rede
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Dados atualizados com sucesso' 
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar dados Opções:', error);
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
+  }
+}

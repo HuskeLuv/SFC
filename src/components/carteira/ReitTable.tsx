@@ -446,30 +446,30 @@ export default function ReitTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <ReitMetricCard
           title="Necessidade de Aporte Total"
-          value={formatCurrency(data.resumo.necessidadeAporteTotal)}
+          value={formatCurrency(data?.resumo?.necessidadeAporteTotal)}
           color="warning"
         />
         <ReitMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data.resumo.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir)}
           color="success"
         />
         <ReitMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data.resumo.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes)}
         />
         <ReitMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data.resumo.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado)}
         />
         <ReitMetricCard
           title="Rendimento"
-          value={formatCurrency(data.resumo.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento)}
           color="success"
         />
         <ReitMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.resumo.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade)}
           color="success"
         />
       </div>
@@ -522,7 +522,7 @@ export default function ReitTable() {
               </tr>
             </thead>
             <tbody>
-              {data.secoes.map((secao) => (
+              {data?.secoes?.map((secao) => (
                 <ReitSection
                   key={secao.estrategia}
                   secao={secao}
@@ -534,7 +534,7 @@ export default function ReitTable() {
                   onUpdateObjetivo={handleUpdateObjetivo}
                   onUpdateCotacao={handleUpdateCotacao}
                 />
-              ))}
+              )) || []}
 
               {/* Linha de totalização */}
               <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
@@ -543,19 +543,19 @@ export default function ReitTable() {
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
-                  {formatNumber(data.totalGeral.quantidade)}
+                  {formatNumber(data?.totalGeral?.quantidade)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(data.totalGeral.valorAplicado)}
+                  {formatCurrency(data?.totalGeral?.valorAplicado)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(data.totalGeral.valorAtualizado)}
+                  {formatCurrency(data?.totalGeral?.valorAtualizado)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right">
                   <Badge color="primary" size="sm">
-                    {formatPercentage(data.totalGeral.risco)}
+                    {formatPercentage(data?.totalGeral?.risco)}
                   </Badge>
                 </td>
                 <td className="px-2 py-2 text-xs text-right">
@@ -563,28 +563,28 @@ export default function ReitTable() {
                 </td>
                 <td className="px-2 py-2 text-xs text-right">
                   <Badge color="primary" size="sm">
-                    {formatPercentage(data.totalGeral.objetivo)}
+                    {formatPercentage(data?.totalGeral?.objetivo)}
                   </Badge>
                 </td>
                 <td className="px-2 py-2 text-xs text-right">
                   <Badge 
-                    color={data.totalGeral.quantoFalta > 0 ? "warning" : data.totalGeral.quantoFalta < 0 ? "success" : "primary"} 
+                    color={data?.totalGeral?.quantoFalta > 0 ? "warning" : data?.totalGeral?.quantoFalta < 0 ? "success" : "primary"} 
                     size="sm"
                   >
-                    {formatPercentage(data.totalGeral.quantoFalta)}
+                    {formatPercentage(data?.totalGeral?.quantoFalta)}
                   </Badge>
                 </td>
                 <td className="px-2 py-2 text-xs text-right font-bold">
-                  <span className={data.totalGeral.necessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
-                    {formatCurrency(data.totalGeral.necessidadeAporte)}
+                  <span className={data?.totalGeral?.necessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
+                    {formatCurrency(data?.totalGeral?.necessidadeAporte)}
                   </span>
                 </td>
                 <td className="px-2 py-2 text-xs text-right">
                   <Badge 
-                    color={data.totalGeral.rentabilidade >= 0 ? "success" : "error"} 
+                    color={data?.totalGeral?.rentabilidade >= 0 ? "success" : "error"} 
                     size="sm"
                   >
-                    {formatPercentage(data.totalGeral.rentabilidade)}
+                    {formatPercentage(data?.totalGeral?.rentabilidade)}
                   </Badge>
                 </td>
               </tr>
@@ -616,7 +616,7 @@ export default function ReitTable() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.tabelaAuxiliar.map((item, index) => (
+                  {data?.tabelaAuxiliar?.map((item, index) => (
                     <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
                       <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
                         {item.ticker}
@@ -641,7 +641,7 @@ export default function ReitTable() {
         </div>
         <div className="xl:col-span-6">
           <ComponentCard title="Distribuição por Ativo">
-            <PieChartReitAtivo data={data.alocacaoAtivo} />
+            <PieChartReitAtivo data={data?.alocacaoAtivo} />
           </ComponentCard>
         </div>
       </div>

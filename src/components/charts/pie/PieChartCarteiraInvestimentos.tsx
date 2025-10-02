@@ -3,7 +3,7 @@ import React, { useMemo, useEffect, useState } from "react";
 import { ApexOptions } from "apexcharts";
 
 // Componente wrapper para o ReactApexChart
-const ApexChartWrapper = ({ options, series, type, width, height }: {
+const ApexChartWrapper = React.memo(({ options, series, type, width, height }: {
   options: ApexOptions;
   series: number[];
   type: string;
@@ -36,7 +36,9 @@ const ApexChartWrapper = ({ options, series, type, width, height }: {
   }
 
   return <Chart options={options} series={series} type={type} width={width} height={height} />;
-};
+});
+
+ApexChartWrapper.displayName = 'ApexChartWrapper';
 
 interface PieChartCarteiraInvestimentosProps {
   distribuicao: {
@@ -91,7 +93,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   // Mocked dark mode state (replace with actual context/state if applicable)
   const isDarkMode = true; // Change this to your dark mode logic
 
-  // Chart configuration using useMemo for optimization
+  // Chart configuration - memoized to prevent unnecessary re-renders
   const options: ApexOptions = useMemo(
     () => ({
       colors: [

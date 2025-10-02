@@ -18,7 +18,7 @@ import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCartei
 import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarteiraInvestimentos";
 import ComponentCard from "@/components/common/ComponentCard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
-import AddInvestmentSidebar from "./AddInvestmentSidebar";
+import AddAssetWizard from "./AddAssetWizard";
 import { PlusIcon } from "@/icons";
 import { useReservaEmergencia } from "@/hooks/useReservaEmergencia";
 import { useCarteira } from "@/hooks/useCarteira";
@@ -326,8 +326,8 @@ export default function CarteiraTabs() {
         </div>
       </div>
 
-      {/* Sidebar para adicionar investimento */}
-      <AddInvestmentSidebar
+      {/* Wizard para adicionar ativo */}
+      <AddAssetWizard
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onSuccess={() => {
