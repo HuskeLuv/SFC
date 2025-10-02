@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const tipo = searchParams.get('tipo') || '';
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    const whereClause: any = {};
+    const whereClause: Record<string, any> = {};
 
     // Filtrar por tipo se especificado
     if (tipo) {

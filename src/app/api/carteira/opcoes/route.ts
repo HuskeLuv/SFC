@@ -15,17 +15,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar portfolio do usuário com ativos do tipo correspondente
-    const portfolio = await prisma.portfolio.findMany({
-      where: { 
-        userId: user.id,
-        asset: {
-          type: 'opcao'
-        }
-      },
-      include: {
-        asset: true
-      }
-    });
+    // const portfolio = await prisma.portfolio.findMany({
+    //   where: { 
+    //     userId: user.id,
+    //     asset: {
+    //       type: 'opcao'
+    //     }
+    //   },
+    //   include: {
+    //     asset: true
+    //   }
+    // });
 
     // Retornar dados vazios por enquanto
     const data = {
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { ativoId, objetivo, cotacao } = body;
+    const { ativoId } = body;
 
     if (!ativoId) {
       return NextResponse.json(
