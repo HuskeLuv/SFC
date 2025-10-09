@@ -36,15 +36,17 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   });
 
   // Converter para formato FiiAtivo
-  const fiiAtivos: FiiAtivo[] = portfolio.map(item => {
-    const valorTotal = item.totalInvested;
-    const valorAtualizado = item.totalInvested; // Usar valor investido como atual
-    const rentabilidade = 0; // Sem variação por enquanto
-    
-    return {
-      id: item.id,
-      ticker: item.asset.symbol,
-      nome: item.asset.name,
+  const fiiAtivos: FiiAtivo[] = portfolio
+    .filter(item => item.asset) // Filtrar apenas itens com asset
+    .map(item => {
+      const valorTotal = item.totalInvested;
+      const valorAtualizado = item.totalInvested; // Usar valor investido como atual
+      const rentabilidade = 0; // Sem variação por enquanto
+      
+      return {
+        id: item.id,
+        ticker: item.asset!.symbol,
+        nome: item.asset!.name,
       mandato: 'Estratégico', // Padrão
       segmento: 'outros', // Asset não tem segmento
       quantidade: item.quantity,
@@ -59,7 +61,7 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
       necessidadeAporte: 0, // Calcular depois
       rentabilidade,
       tipo: 'fof', // Padrão
-      observacoes: null,
+      observacoes: undefined,
       dataUltimaAtualizacao: item.lastUpdate
     };
   });
@@ -177,16 +179,18 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
 
   // Calcular alocação por segmento
   const alocacaoSegmento = secoes.map(secao => ({
-    name: secao.nome,
-    value: secao.totalValorAtualizado,
-    color: getSegmentColor(secao.tipo)
+    segmento: secao.nome,
+    valor: secao.totalValorAtualizado,
+    percentual: (secao.totalValorAtualizado / totalValorAtualizado) * 100,
+    cor: getSegmentColor(secao.tipo)
   }));
 
   // Calcular alocação por ativo
   const alocacaoAtivo = fiiAtivos.map(ativo => ({
-    name: ativo.ticker,
-    value: ativo.valorAtualizado,
-    color: getAtivoColor(ativo.ticker)
+    ticker: ativo.ticker,
+    valor: ativo.valorAtualizado,
+    percentual: (ativo.valorAtualizado / totalValorAtualizado) * 100,
+    cor: getAtivoColor(ativo.ticker)
   }));
 
   // Tabela auxiliar (dados adicionais)
@@ -196,7 +200,10 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     quantidade: ativo.quantidade,
     valorAplicado: ativo.valorTotal,
     valorAtualizado: ativo.valorAtualizado,
-    rentabilidade: ativo.rentabilidade
+    rentabilidade: ativo.rentabilidade,
+    cotacaoAtual: ativo.cotacaoAtual,
+    necessidadeAporte: ativo.necessidadeAporte,
+    loteAproximado: Math.ceil(ativo.quantidade / 100) // Aproximação
   }));
 
   return {
@@ -246,7 +253,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { ativoId } = body;
+    const { ativoId, objetivo, cotacao } = body;
 
     if (!ativoId) {
       return NextResponse.json(

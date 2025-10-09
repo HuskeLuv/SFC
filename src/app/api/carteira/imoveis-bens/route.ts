@@ -28,9 +28,11 @@ export async function GET(request: NextRequest) {
     });
 
     // Converter portfolio para formato esperado
-    const imoveisBensAtivos = portfolio.map(item => ({
-      id: item.id,
-      nome: item.asset.name,
+    const imoveisBensAtivos = portfolio
+      .filter(item => item.asset) // Filtrar apenas itens com asset
+      .map(item => ({
+        id: item.id,
+        nome: item.asset!.name,
       tipo: 'outros', // Asset não tem tipo específico
       endereco: '',
       quantidade: item.quantity,
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
       quantoFalta: 0, // Calcular depois
       necessidadeAporte: 0, // Calcular depois
       rentabilidade: 0, // Sem variação por enquanto
-      observacoes: null,
+      observacoes: undefined,
       dataUltimaAtualizacao: item.lastUpdate
     }));
 

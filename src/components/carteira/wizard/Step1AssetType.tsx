@@ -33,7 +33,7 @@ export default function Step1AssetType({
         <Select
           options={TIPOS_ATIVO}
           placeholder="Selecione o tipo de ativo que deseja adicionar"
-          value={formData.tipoAtivo}
+          defaultValue={formData.tipoAtivo}
           onChange={handleTipoAtivoChange}
           className={errors.tipoAtivo ? 'border-red-500' : ''}
         />

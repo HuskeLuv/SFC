@@ -61,68 +61,69 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
 
   // Atualizar validação dos passos
   useEffect(() => {
-    const updatedSteps = steps.map((step, index) => {
-      let isValid = false;
+    const validateStep4 = (): boolean => {
+      const { tipoAtivo, dataCompra, dataInicio } = formData;
       
-      switch (step.id) {
-        case "asset-type":
-          isValid = !!formData.tipoAtivo;
-          break;
-        case "institution":
-          isValid = !!formData.instituicaoId;
-          break;
-        case "asset":
-          isValid = !!formData.assetId;
-          break;
-        case "info":
-          isValid = validateStep4();
-          break;
-        case "confirmation":
-          isValid = true; // Sempre válido no último passo
-          break;
+      // Validação básica - cada tipo terá validações específicas
+      if (tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca") {
+        return !!(dataInicio && formData.valorAplicado > 0);
       }
       
-      return { ...step, isValid };
-    });
-    
-    setSteps(updatedSteps);
+      if (tipoAtivo === "criptoativo") {
+        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoCompra > 0);
+      }
+      
+      if (tipoAtivo === "moeda") {
+        return !!(dataCompra && formData.moeda && formData.cotacaoCompra > 0 && formData.valorInvestido > 0);
+      }
+      
+      if (tipoAtivo === "personalizado") {
+        return !!(dataInicio && formData.nomePersonalizado && formData.quantidade > 0 && formData.precoUnitario > 0);
+      }
+      
+      if (tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
+        return !!(dataInicio && formData.emissorId && formData.periodo && formData.valorAplicado > 0 && formData.taxaJurosAnual > 0);
+      }
+      
+      if (tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
+        return !!(dataCompra && formData.valorInvestido > 0);
+      }
+      
+      if (tipoAtivo === "fii") {
+        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.taxaCorretagem >= 0);
+      }
+      
+      // Para ações, BDRs, ETFs, REITs, etc.
+      return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0);
+    };
+
+    setSteps(prevSteps => 
+      prevSteps.map((step) => {
+        let isValid = false;
+        
+        switch (step.id) {
+          case "asset-type":
+            isValid = !!formData.tipoAtivo;
+            break;
+          case "institution":
+            isValid = !!formData.instituicaoId;
+            break;
+          case "asset":
+            isValid = !!formData.assetId;
+            break;
+          case "info":
+            isValid = validateStep4();
+            break;
+          case "confirmation":
+            isValid = true; // Sempre válido no último passo
+            break;
+        }
+        
+        return { ...step, isValid };
+      })
+    );
   }, [formData]);
 
-  const validateStep4 = (): boolean => {
-    const { tipoAtivo, dataCompra, dataInicio } = formData;
-    
-    // Validação básica - cada tipo terá validações específicas
-    if (tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca") {
-      return !!(dataInicio && formData.valorAplicado > 0);
-    }
-    
-    if (tipoAtivo === "criptoativo") {
-      return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoCompra > 0);
-    }
-    
-    if (tipoAtivo === "moeda") {
-      return !!(dataCompra && formData.moeda && formData.cotacaoCompra > 0 && formData.valorInvestido > 0);
-    }
-    
-    if (tipoAtivo === "personalizado") {
-      return !!(dataInicio && formData.nomePersonalizado && formData.quantidade > 0 && formData.precoUnitario > 0);
-    }
-    
-    if (tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
-      return !!(dataInicio && formData.emissorId && formData.periodo && formData.valorAplicado > 0 && formData.taxaJurosAnual > 0);
-    }
-    
-    if (tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
-      return !!(dataCompra && formData.valorInvestido > 0);
-    }
-    
-    if (tipoAtivo === "fii") {
-      return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.taxaCorretagem >= 0);
-    }
-    
-    // Para ações, BDRs, ETFs, REITs, etc.
-    return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0);
-  };
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {

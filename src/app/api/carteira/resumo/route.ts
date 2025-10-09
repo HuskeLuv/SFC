@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { fetchQuotes } from '@/services/brapiQuote';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
       where: { userId: user.id },
       include: {
         stock: true,
+        asset: true,
       },
     });
 
@@ -36,11 +38,40 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Buscar cotações atuais dos ativos no portfolio
+    const symbols = portfolio
+      .map(item => {
+        if (item.asset) {
+          return item.asset.symbol;
+        } else if (item.stock) {
+          return item.stock.ticker;
+        }
+        return null;
+      })
+      .filter((symbol): symbol is string => symbol !== null);
+
+    const quotes = await fetchQuotes(symbols);
+
     // Calcular totais do portfolio de ações
     const stocksTotalInvested = portfolio.reduce((sum, item) => sum + item.totalInvested, 0);
     
-    // Usar valor investido como valor atual (sem variação simulada)
-    const stocksCurrentValue = stocksTotalInvested;
+    // Calcular valor atual usando cotações da brapi.dev
+    let stocksCurrentValue = 0;
+    for (const item of portfolio) {
+      const symbol = item.asset?.symbol || item.stock?.ticker;
+      if (symbol) {
+        const currentPrice = quotes.get(symbol);
+        if (currentPrice) {
+          // Valor atual = quantidade * cotação atual
+          stocksCurrentValue += item.quantity * currentPrice;
+        } else {
+          // Se não conseguir a cotação, usar valor investido como fallback
+          stocksCurrentValue += item.totalInvested;
+        }
+      } else {
+        stocksCurrentValue += item.totalInvested;
+      }
+    }
 
     // Calcular totais dos outros investimentos
     const otherInvestmentsTotalInvested = investments.reduce((sum, item) => {
@@ -142,15 +173,21 @@ export async function GET(request: NextRequest) {
         historicoPatrimonio.push(ponto);
       });
       
-      // Adicionar ponto atual se não for o último
+      // Adicionar ponto atual com valor atualizado (usando cotações)
       const mesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1).getTime();
       const ultimoMesHistorico = Math.max(...historicoArray.map(h => h.data));
       
       if (mesAtual > ultimoMesHistorico) {
         historicoPatrimonio.push({
           data: mesAtual,
-          valor: Math.round(valorAplicado * 100) / 100,
+          valor: Math.round(saldoBruto * 100) / 100, // Usar saldo bruto com cotações atuais
         });
+      } else {
+        // Se o último ponto já é do mês atual, atualizá-lo com valor real
+        const ultimoIndice = historicoPatrimonio.findIndex(p => p.data === mesAtual);
+        if (ultimoIndice !== -1) {
+          historicoPatrimonio[ultimoIndice].valor = Math.round(saldoBruto * 100) / 100;
+        }
       }
     } else {
       // Se não há transações, mostrar linha plana com valor atual
@@ -195,12 +232,19 @@ export async function GET(request: NextRequest) {
 
     // Categorizar portfolio baseado no tipo do ativo
     for (const item of portfolio) {
+      const symbol = item.asset?.symbol || item.stock?.ticker;
+      if (!symbol) continue;
+      
       // Buscar o Asset correspondente para obter o tipo
-      const asset = await prisma.asset.findUnique({
-        where: { symbol: item.stock.ticker }
+      const asset = item.asset || await prisma.asset.findUnique({
+        where: { symbol }
       });
 
-      const valorAtual = item.totalInvested; // Usar valor investido sem variação
+      // Calcular valor atual com cotação
+      const currentPrice = quotes.get(symbol);
+      const valorAtual = currentPrice 
+        ? item.quantity * currentPrice 
+        : item.totalInvested; // Fallback para valor investido
       
       if (asset) {
         const tipo = asset.type?.toLowerCase() || '';
@@ -208,7 +252,14 @@ export async function GET(request: NextRequest) {
         switch (tipo) {
           case 'ação':
           case 'acao':
-            categorias.acoes += valorAtual;
+          case 'stock':
+            // Se for moeda BRL, é ação brasileira
+            if (asset.currency === 'BRL') {
+              categorias.acoes += valorAtual;
+            } else {
+              // Se for USD ou outra, é stock internacional
+              categorias.stocks += valorAtual;
+            }
             break;
           case 'fii':
             categorias.fiis += valorAtual;
@@ -222,9 +273,12 @@ export async function GET(request: NextRequest) {
           case 'reit':
             categorias.reits += valorAtual;
             break;
+          case 'crypto':
+            categorias.moedasCriptos += valorAtual;
+            break;
           default:
             // Se não conseguir determinar o tipo, usar heurística baseada no ticker
-            if (item.stock.ticker.includes('11')) {
+            if (symbol.includes('11')) {
               categorias.fiis += valorAtual; // FIIs geralmente terminam em 11
             } else {
               categorias.acoes += valorAtual; // Assumir ação por padrão
@@ -232,7 +286,7 @@ export async function GET(request: NextRequest) {
         }
       } else {
         // Se não encontrar o asset, usar heurística baseada no ticker
-        if (item.stock.ticker.includes('11')) {
+        if (symbol.includes('11')) {
           categorias.fiis += valorAtual; // FIIs geralmente terminam em 11
         } else {
           categorias.acoes += valorAtual; // Assumir ação por padrão

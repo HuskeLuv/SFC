@@ -1,57 +1,47 @@
-import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { NextResponse } from 'next/server';
+// import prisma from '@/lib/prisma';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search') || '';
-    const limit = parseInt(searchParams.get('limit') || '20');
+    // Modelo Emissor não existe no schema atual
+    // Retornar array vazio por enquanto
+    return NextResponse.json({ emissores: [] });
+    
+    // const { searchParams } = new URL(request.url);
+    // const search = searchParams.get('search') || '';
+    // const limit = parseInt(searchParams.get('limit') || '20');
 
-    let emissores;
+    // let emissores;
 
-    if (search) {
-      emissores = await prisma.emissor.findMany({
-        where: {
-          AND: [
-            { status: 'ATIVO' },
-            {
-              OR: [
-                { nome: { contains: search, mode: 'insensitive' } },
-                { tipo: { contains: search, mode: 'insensitive' } },
-              ],
-            },
-          ],
-        },
-        take: limit,
-        orderBy: { nome: 'asc' },
-      });
-    } else {
-      emissores = await prisma.emissor.findMany({
-        where: { status: 'ATIVO' },
-        take: limit,
-        orderBy: { nome: 'asc' },
-      });
-    }
+    // if (search) {
+    //   emissores = await prisma.emissor.findMany({
+    //     where: {
+    //       AND: [
+    //         { status: 'ATIVO' },
+    //         {
+    //           OR: [
+    //             { nome: { contains: search, mode: 'insensitive' } },
+    //             { tipo: { contains: search, mode: 'insensitive' } },
+    //           ],
+    //         },
+    //       ],
+    //     },
+    //     take: limit,
+    //     orderBy: { nome: 'asc' },
+    //   });
+    // } else {
+    //   emissores = await prisma.emissor.findMany({
+    //     where: { status: 'ATIVO' },
+    //     take: limit,
+    //     orderBy: { nome: 'asc' },
+    //   });
+    // }
 
-    return NextResponse.json({
-      success: true,
-      emissores: emissores.map(emissor => ({
-        id: emissor.id,
-        nome: emissor.nome,
-        tipo: emissor.tipo,
-        status: emissor.status,
-      })),
-      count: emissores.length,
-    });
-
+    // return NextResponse.json({ emissores });
   } catch (error) {
     console.error('Erro ao buscar emissores:', error);
     return NextResponse.json(
-      { 
-        success: false,
-        error: 'Erro interno do servidor',
-        message: error instanceof Error ? error.message : 'Erro desconhecido'
-      },
+      { error: 'Erro interno do servidor' },
       { status: 500 }
     );
   }

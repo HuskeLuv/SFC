@@ -13,12 +13,12 @@ async function checkData() {
     if (totalAssets > 0) {
       const sampleAssets = await prisma.asset.findMany({
         take: 5,
-        orderBy: { ticker: 'asc' }
+        orderBy: { symbol: 'asc' }
       });
       
       console.log('\n🔍 Exemplos de ativos:');
       sampleAssets.forEach(asset => {
-        console.log(`   • ${asset.ticker} - ${asset.nome} (${asset.tipo || 'N/A'}) [${asset.status}]`);
+        console.log(`   • ${asset.symbol} - ${asset.name} (${asset.type || 'N/A'}) [${asset.source}]`);
       });
     }
 
@@ -55,7 +55,7 @@ async function checkData() {
 
     // Estatísticas por tipo de ativo
     const assetTypes = await prisma.asset.groupBy({
-      by: ['tipo'],
+      by: ['type'],
       _count: {
         id: true
       },
@@ -69,24 +69,24 @@ async function checkData() {
     if (assetTypes.length > 0) {
       console.log('\n📈 Distribuição por tipo de ativo:');
       assetTypes.forEach(type => {
-        console.log(`   • ${type.tipo || 'Não especificado'}: ${type._count.id} ativos`);
+        console.log(`   • ${type.type || 'Não especificado'}: ${type._count.id} ativos`);
       });
     }
 
-    // Estatísticas por status
-    const assetStatus = await prisma.asset.groupBy({
-      by: ['status'],
-      _count: {
-        id: true
-      }
-    });
+    // Estatísticas por status (removido - campo status não existe no modelo Asset)
+    // const assetStatus = await prisma.asset.groupBy({
+    //   by: ['status'],
+    //   _count: {
+    //     id: true
+    //   }
+    // });
 
-    if (assetStatus.length > 0) {
-      console.log('\n🚦 Distribuição por status:');
-      assetStatus.forEach(status => {
-        console.log(`   • ${status.status}: ${status._count.id} ativos`);
-      });
-    }
+    // if (assetStatus.length > 0) {
+    //   console.log('\n🚦 Distribuição por status:');
+    //   assetStatus.forEach(status => {
+    //     console.log(`   • ${status.status}: ${status._count.id} ativos`);
+    //   });
+    // }
 
     console.log('\n✅ Verificação concluída!');
 

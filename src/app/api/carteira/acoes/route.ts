@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { AcaoData, AcaoAtivo, AcaoSecao } from '@/types/acoes';
+import { fetchQuotes } from '@/services/brapiQuote';
 
 async function calculateAcoesData(userId: string): Promise<AcaoData> {
-  // Buscar portfolio do usuário com ativos do tipo "stock"
+  // Buscar portfolio do usuário com ativos do tipo "stock" e moeda BRL (ações brasileiras)
   const portfolio = await prisma.portfolio.findMany({
     where: { 
       userId,
       asset: {
-        type: 'stock'
+        type: 'stock',
+        currency: 'BRL'
       }
     },
     include: {
@@ -17,34 +19,52 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     }
   });
 
+  // Buscar cotações atuais dos ativos
+  const symbols = portfolio
+    .filter(item => item.asset)
+    .map(item => item.asset!.symbol);
+  
+  const quotes = await fetchQuotes(symbols);
+
   // Converter para formato AcaoAtivo
-  const acoesAtivos: AcaoAtivo[] = portfolio.map(item => {
-    const valorTotal = item.totalInvested;
-    const valorAtualizado = item.totalInvested; // Usar valor investido como atual
-    const rentabilidade = 0; // Sem variação por enquanto
-    
-    return {
-      id: item.id,
-      ticker: item.asset.symbol,
-      nome: item.asset.name,
-      setor: 'outros', // Asset não tem setor
-      subsetor: '',
-      quantidade: item.quantity,
-      precoAquisicao: item.avgPrice,
-      valorTotal,
-      cotacaoAtual: item.avgPrice, // Usar preço médio como cotação atual
-      valorAtualizado,
-      riscoPorAtivo: 0, // Calcular depois
-      percentualCarteira: 0, // Calcular depois
-      objetivo: 0, // Sem objetivo por enquanto
-      quantoFalta: 0, // Calcular depois
-      necessidadeAporte: 0, // Calcular depois
-      rentabilidade,
-      estrategia: 'value', // Padrão
-      observacoes: null,
-      dataUltimaAtualizacao: item.lastUpdate
-    };
-  });
+  const acoesAtivos: AcaoAtivo[] = portfolio
+    .filter(item => item.asset) // Filtrar apenas itens com asset
+    .map(item => {
+      const valorTotal = item.totalInvested;
+      
+      // Buscar cotação atual da brapi
+      const cotacaoAtual = quotes.get(item.asset!.symbol) || item.avgPrice;
+      
+      // Calcular valor atualizado com cotação atual
+      const valorAtualizado = item.quantity * cotacaoAtual;
+      
+      // Calcular rentabilidade real
+      const rentabilidade = item.avgPrice > 0 
+        ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 
+        : 0;
+      
+      return {
+        id: item.id,
+        ticker: item.asset!.symbol,
+        nome: item.asset!.name,
+        setor: 'outros', // Asset não tem setor
+        subsetor: '',
+        quantidade: item.quantity,
+        precoAquisicao: item.avgPrice,
+        valorTotal,
+        cotacaoAtual,
+        valorAtualizado,
+        riscoPorAtivo: 0, // Calcular depois
+        percentualCarteira: 0, // Calcular depois
+        objetivo: 0, // Sem objetivo por enquanto
+        quantoFalta: 0, // Calcular depois
+        necessidadeAporte: 0, // Calcular depois
+        rentabilidade,
+        estrategia: 'value', // Padrão
+        observacoes: undefined,
+        dataUltimaAtualizacao: item.lastUpdate
+      };
+    });
 
   // Calcular totais gerais
   const totalQuantidade = acoesAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
@@ -92,13 +112,20 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   });
 
   // Calcular resumo
+  // Para simplificar, vamos considerar:
+  // - Saldo início do mês = valor aplicado (investido)
+  // - Valor atualizado = valor com cotação atual
+  // - Rendimento = diferença entre valor atualizado e aplicado
+  // - Rentabilidade = percentual de ganho/perda
   const resumo = {
     necessidadeAporteTotal: totalNecessidadeAporte,
     caixaParaInvestir: 0, // Sem caixa por enquanto
-    saldoInicioMes: totalValorAtualizado,
-    valorAtualizado: totalValorAtualizado,
-    rendimento: totalValorAtualizado - totalValorAplicado,
-    rentabilidade: totalValorAplicado > 0 ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100 : 0
+    saldoInicioMes: totalValorAplicado, // Valor investido (base de cálculo)
+    valorAtualizado: totalValorAtualizado, // Valor com cotação atual
+    rendimento: totalValorAtualizado - totalValorAplicado, // Ganho ou perda em R$
+    rentabilidade: totalValorAplicado > 0 
+      ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100 
+      : 0 // Percentual de ganho ou perda
   };
 
   return {
@@ -145,7 +172,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { ativoId } = body;
+    const { ativoId, objetivo, cotacao } = body;
 
     if (!ativoId) {
       return NextResponse.json(

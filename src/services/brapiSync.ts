@@ -183,32 +183,40 @@ const syncStocks = async (stocks: BrapiStock[]): Promise<SyncResult> => {
         const type = determineAssetType(stock);
         const currency = determineCurrency(type);
         
-        const result = await prisma.asset.upsert({
+        // Verificar se o ativo já existe
+        const existingAsset = await prisma.asset.findUnique({
           where: {
             symbol: stock.stock
-          },
-          update: {
-            name: stock.name || stock.stock,
-            type: type,
-            currency: currency,
-            source: 'brapi',
-            updatedAt: new Date()
-          },
-          create: {
-            symbol: stock.stock,
-            name: stock.name || stock.stock,
-            type: type,
-            currency: currency,
-            source: 'brapi'
           }
         });
-        
-        // Verificar se foi inserção ou atualização baseado na data de criação
-        const isNew = result.updatedAt.getTime() - result.createdAt?.getTime()! < 1000;
-        if (isNew) {
-          inserted++;
-        } else {
+
+        if (existingAsset) {
+          // Atualizar ativo existente
+          await prisma.asset.update({
+            where: {
+              symbol: stock.stock
+            },
+            data: {
+              name: stock.name || stock.stock,
+              type: type,
+              currency: currency,
+              source: 'brapi',
+              updatedAt: new Date()
+            }
+          });
           updated++;
+        } else {
+          // Criar novo ativo
+          await prisma.asset.create({
+            data: {
+              symbol: stock.stock,
+              name: stock.name || stock.stock,
+              type: type,
+              currency: currency,
+              source: 'brapi'
+            }
+          });
+          inserted++;
         }
         
       } catch (error) {
@@ -245,32 +253,40 @@ const syncCrypto = async (cryptos: BrapiCrypto[]): Promise<SyncResult> => {
       }
       
       try {
-        const result = await prisma.asset.upsert({
+        // Verificar se o criptoativo já existe
+        const existingCrypto = await prisma.asset.findUnique({
           where: {
             symbol: crypto.symbol
-          },
-          update: {
-            name: crypto.name || crypto.symbol,
-            type: 'crypto',
-            currency: crypto.currency || 'USD',
-            source: 'brapi',
-            updatedAt: new Date()
-          },
-          create: {
-            symbol: crypto.symbol,
-            name: crypto.name || crypto.symbol,
-            type: 'crypto',
-            currency: crypto.currency || 'USD',
-            source: 'brapi'
           }
         });
-        
-        // Verificar se foi inserção ou atualização baseado na data de criação
-        const isNew = result.updatedAt.getTime() - result.createdAt?.getTime()! < 1000;
-        if (isNew) {
-          inserted++;
-        } else {
+
+        if (existingCrypto) {
+          // Atualizar criptoativo existente
+          await prisma.asset.update({
+            where: {
+              symbol: crypto.symbol
+            },
+            data: {
+              name: crypto.name || crypto.symbol,
+              type: 'crypto',
+              currency: crypto.currency || 'USD',
+              source: 'brapi',
+              updatedAt: new Date()
+            }
+          });
           updated++;
+        } else {
+          // Criar novo criptoativo
+          await prisma.asset.create({
+            data: {
+              symbol: crypto.symbol,
+              name: crypto.name || crypto.symbol,
+              type: 'crypto',
+              currency: crypto.currency || 'USD',
+              source: 'brapi'
+            }
+          });
+          inserted++;
         }
         
       } catch (error) {

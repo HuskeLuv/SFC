@@ -9,7 +9,7 @@ import { startDailySync, setupGracefulShutdown } from './dailySync';
 
 // ================== CRON JOB INITIALIZATION ==================
 
-let cronTask: any = null;
+let cronTask: { stop: () => void } | null = null;
 
 /**
  * Inicia o cron job de sincronização

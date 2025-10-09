@@ -35,10 +35,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Converter portfolio para formato esperado
-    const etfAtivos = portfolio.map(item => ({
-      id: item.id,
-      ticker: item.asset.symbol,
-      nome: item.asset.name,
+    const etfAtivos = portfolio
+      .filter(item => item.asset) // Filtrar apenas itens com asset
+      .map(item => ({
+        id: item.id,
+        ticker: item.asset!.symbol,
+        nome: item.asset!.name,
       regiao: 'outros', // Asset não tem região
       categoria: '',
       quantidade: item.quantity,
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
       quantoFalta: 0, // Calcular depois
       necessidadeAporte: 0, // Calcular depois
       rentabilidade: 0, // Sem variação por enquanto
-      observacoes: null,
+      observacoes: undefined,
       dataUltimaAtualizacao: item.lastUpdate
     }));
 

@@ -13,42 +13,48 @@ export default function Step5Confirmation({
   onSubmit,
   loading,
 }: Step5ConfirmationProps) {
-  const getTipoAtivoLabel = (value: string) => {
+  const getTipoAtivoLabel = (value: string | number | Date | null | undefined) => {
+    if (typeof value !== 'string') return '-';
     return TIPOS_ATIVO.find(t => t.value === value)?.label || value;
   };
 
-  const getMoedaLabel = (value: string) => {
+  const getMoedaLabel = (value: string | number | Date | null | undefined) => {
+    if (typeof value !== 'string') return '-';
     return MOEDAS_FIXAS.find(m => m.value === value)?.label || value;
   };
 
-  const getIndexadorLabel = (value: string) => {
+  const getIndexadorLabel = (value: string | number | Date | null | undefined) => {
+    if (typeof value !== 'string') return '-';
     return INDEXADORES.find(i => i.value === value)?.label || value;
   };
 
-  const getPeriodoLabel = (value: string) => {
+  const getPeriodoLabel = (value: string | number | Date | null | undefined) => {
+    if (typeof value !== 'string') return '-';
     return PERIODOS.find(p => p.value === value)?.label || value;
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: string | number | Date | null | undefined) => {
+    if (typeof value !== 'number') return '-';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     }).format(value);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | number | Date | null | undefined) => {
     if (!dateString) return '-';
+    if (dateString instanceof Date) return dateString.toLocaleDateString('pt-BR');
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
-  const renderFieldValue = (label: string, value: any, formatter?: (val: any) => string) => {
+  const renderFieldValue = (label: string, value: string | number | Date | null | undefined, formatter?: (val: string | number | Date | null | undefined) => string) => {
     if (!value && value !== 0) return null;
     
     return (
       <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
         <span className="text-sm text-gray-600 dark:text-gray-400">{label}:</span>
         <span className="text-sm font-medium text-gray-900 dark:text-white">
-          {formatter ? formatter(value) : value}
+          {formatter ? formatter(value) : (value instanceof Date ? value.toLocaleDateString('pt-BR') : value)}
         </span>
       </div>
     );

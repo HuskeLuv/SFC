@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { fetchQuotes } from '@/services/brapiQuote';
 
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
@@ -35,28 +36,50 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Buscar cotações atuais dos ativos
+    const symbols = portfolio
+      .filter(item => item.asset)
+      .map(item => item.asset!.symbol);
+    
+    const quotes = await fetchQuotes(symbols);
+
     // Converter portfolio para formato esperado
-    const stocksAtivos = portfolio.map(item => ({
-      id: item.id,
-      ticker: item.asset.symbol,
-      nome: item.asset.name,
-      setor: 'outros', // Asset não tem setor
-      subsetor: '',
-      quantidade: item.quantity,
-      precoAquisicao: item.avgPrice,
-      valorTotal: item.totalInvested,
-      cotacaoAtual: item.avgPrice, // Usar preço médio como cotação atual
-      valorAtualizado: item.totalInvested,
-      riscoPorAtivo: 0, // Calcular depois
-      percentualCarteira: 0, // Calcular depois
-      objetivo: 0, // Sem objetivo por enquanto
-      quantoFalta: 0, // Calcular depois
-      necessidadeAporte: 0, // Calcular depois
-      rentabilidade: 0, // Sem variação por enquanto
-      estrategia: 'value', // Padrão
-      observacoes: null,
-      dataUltimaAtualizacao: item.lastUpdate
-    }));
+    const stocksAtivos = portfolio
+      .filter(item => item.asset) // Filtrar apenas itens com asset
+      .map(item => {
+        // Buscar cotação atual da brapi
+        const cotacaoAtual = quotes.get(item.asset!.symbol) || item.avgPrice;
+        
+        // Calcular valor atualizado com cotação atual
+        const valorAtualizado = item.quantity * cotacaoAtual;
+        
+        // Calcular rentabilidade real
+        const rentabilidade = item.avgPrice > 0 
+          ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 
+          : 0;
+
+        return {
+          id: item.id,
+          ticker: item.asset!.symbol,
+          nome: item.asset!.name,
+          setor: 'outros', // Asset não tem setor
+          subsetor: '',
+          quantidade: item.quantity,
+          precoAquisicao: item.avgPrice,
+          valorTotal: item.totalInvested,
+          cotacaoAtual,
+          valorAtualizado,
+          riscoPorAtivo: 0, // Calcular depois
+          percentualCarteira: 0, // Calcular depois
+          objetivo: 0, // Sem objetivo por enquanto
+          quantoFalta: 0, // Calcular depois
+          necessidadeAporte: 0, // Calcular depois
+          rentabilidade,
+          estrategia: 'value', // Padrão
+          observacoes: undefined,
+          dataUltimaAtualizacao: item.lastUpdate
+        };
+      });
 
     // Calcular totais gerais
     const totalQuantidade = stocksAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
@@ -104,13 +127,20 @@ export async function GET(request: NextRequest) {
     });
 
     // Calcular resumo
+    // Para simplificar, vamos considerar:
+    // - Saldo início do mês = valor aplicado (investido)
+    // - Valor atualizado = valor com cotação atual
+    // - Rendimento = diferença entre valor atualizado e aplicado
+    // - Rentabilidade = percentual de ganho/perda
     const resumo = {
       necessidadeAporteTotal: totalNecessidadeAporte,
       caixaParaInvestir: 0, // Sem caixa por enquanto
-      saldoInicioMes: totalValorAtualizado,
-      valorAtualizado: totalValorAtualizado,
-      rendimento: totalValorAtualizado - totalValorAplicado,
-      rentabilidade: totalValorAplicado > 0 ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100 : 0
+      saldoInicioMes: totalValorAplicado, // Valor investido (base de cálculo)
+      valorAtualizado: totalValorAtualizado, // Valor com cotação atual
+      rendimento: totalValorAtualizado - totalValorAplicado, // Ganho ou perda em R$
+      rentabilidade: totalValorAplicado > 0 
+        ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100 
+        : 0 // Percentual de ganho ou perda
     };
 
     // Calcular alocação por ativo

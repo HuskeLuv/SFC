@@ -35,10 +35,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Converter portfolio para formato esperado
-    const reitAtivos = portfolio.map(item => ({
-      id: item.id,
-      ticker: item.asset.symbol,
-      nome: item.asset.name,
+    const reitAtivos = portfolio
+      .filter(item => item.asset) // Filtrar apenas itens com asset
+      .map(item => ({
+        id: item.id,
+        ticker: item.asset!.symbol,
+        nome: item.asset!.name,
       setor: 'outros', // Asset não tem setor
       subsetor: '',
       quantidade: item.quantity,
@@ -53,7 +55,7 @@ export async function GET(request: NextRequest) {
       necessidadeAporte: 0, // Calcular depois
       rentabilidade: 0, // Sem variação por enquanto
       estrategia: 'value', // Padrão
-      observacoes: null,
+      observacoes: undefined,
       dataUltimaAtualizacao: item.lastUpdate
     }));
 

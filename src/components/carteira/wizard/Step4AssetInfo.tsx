@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { WizardFormData, WizardErrors, Emissor, AutocompleteOption, INDEXADORES, PERIODOS, MOEDAS_FIXAS } from "@/types/wizard";
+import React, { useEffect } from "react";
+import { WizardFormData, WizardErrors, AutocompleteOption, INDEXADORES, PERIODOS, MOEDAS_FIXAS } from "@/types/wizard";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Select from "@/components/form/Select";
@@ -20,34 +20,34 @@ export default function Step4AssetInfo({
   onFormDataChange,
   onErrorsChange,
 }: Step4AssetInfoProps) {
-  const [emissorOptions, setEmissorOptions] = useState<AutocompleteOption[]>([]);
-  const [loading, setLoading] = useState(false);
+  // const [emissorOptions, setEmissorOptions] = useState<AutocompleteOption[]>([]);
+  // const [loading, setLoading] = useState(false);
 
   // Buscar emissores para renda fixa
-  const fetchEmissores = async (search: string) => {
-    if (search.length < 2) return;
-    
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/emissores?search=${encodeURIComponent(search)}&limit=20`,
-        { credentials: 'include' }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const options: AutocompleteOption[] = data.emissores.map((emissor: Emissor) => ({
-          value: emissor.id,
-          label: emissor.nome,
-          subtitle: emissor.tipo,
-        }));
-        setEmissorOptions(options);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar emissores:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // const fetchEmissores = async (search: string) => {
+  //   if (search.length < 2) return;
+  //   
+  //   setLoading(true);
+  //   try {
+  //     const response = await fetch(
+  //       `/api/emissores?search=${encodeURIComponent(search)}&limit=20`,
+  //       { credentials: 'include' }
+  //     );
+  //     if (response.ok) {
+  //       const data = await response.json();
+  //       const options: AutocompleteOption[] = data.emissores.map((emissor: Emissor) => ({
+  //         value: emissor.id,
+  //         label: emissor.nome,
+  //         subtitle: emissor.tipo,
+  //       }));
+  //       setEmissorOptions(options);
+  //     }
+  //   } catch (error) {
+  //     console.error('Erro ao buscar emissores:', error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const handleInputChange = (field: keyof WizardFormData, value: string | number) => {
     onFormDataChange({ [field]: value });
@@ -78,7 +78,7 @@ export default function Step4AssetInfo({
       const valorCalculado = (formData.quantidade * formData.cotacaoUnitaria) + formData.taxaCorretagem;
       onFormDataChange({ valorInvestido: valorCalculado });
     }
-  }, [formData.quantidade, formData.cotacaoUnitaria, formData.taxaCorretagem, formData.tipoAtivo]);
+  }, [formData.quantidade, formData.cotacaoUnitaria, formData.taxaCorretagem, formData.tipoAtivo, onFormDataChange]);
 
   const renderFieldsByAssetType = () => {
     switch (formData.tipoAtivo) {
@@ -188,7 +188,7 @@ export default function Step4AssetInfo({
               <Select
                 options={MOEDAS_FIXAS}
                 placeholder="Selecione a moeda"
-                value={formData.moeda}
+                defaultValue={formData.moeda}
                 onChange={(value) => handleInputChange('moeda', value)}
                 className={errors.moeda ? 'border-red-500' : ''}
               />
@@ -310,7 +310,7 @@ export default function Step4AssetInfo({
                   { value: "percentual", label: "Por Variação Percentual" }
                 ]}
                 placeholder="Selecione o método"
-                value={formData.metodo}
+                defaultValue={formData.metodo}
                 onChange={(value) => handleInputChange('metodo', value)}
               />
             </div>
@@ -365,8 +365,8 @@ export default function Step4AssetInfo({
                 value={formData.emissor}
                 onChange={handleEmissorChange}
                 onSelect={handleEmissorSelect}
-                options={emissorOptions}
-                loading={loading}
+                options={[]}
+                loading={false}
                 error={!!errors.emissor}
                 hint={errors.emissor}
               />
@@ -376,7 +376,7 @@ export default function Step4AssetInfo({
               <Select
                 options={PERIODOS}
                 placeholder="Selecione o período"
-                value={formData.periodo}
+                defaultValue={formData.periodo}
                 onChange={(value) => handleInputChange('periodo', value)}
                 className={errors.periodo ? 'border-red-500' : ''}
               />
@@ -450,7 +450,7 @@ export default function Step4AssetInfo({
                 <Select
                   options={INDEXADORES}
                   placeholder="Selecione o indexador"
-                  value={formData.indexador}
+                  defaultValue={formData.indexador}
                   onChange={(value) => handleInputChange('indexador', value)}
                   className={errors.indexador ? 'border-red-500' : ''}
                 />
@@ -496,8 +496,8 @@ export default function Step4AssetInfo({
                   <input
                     type="radio"
                     name="metodo"
-                    value="cotas"
-                    checked={formData.metodo === 'cotas'}
+                    value="percentual"
+                    checked={formData.metodo === 'percentual'}
                     onChange={(e) => handleInputChange('metodo', e.target.value)}
                     className="mr-2"
                   />
@@ -575,7 +575,7 @@ export default function Step4AssetInfo({
                     type="number"
                     placeholder="Calculado automaticamente"
                     value={formData.quantidade * formData.cotacaoUnitaria}
-                    readOnly
+                    disabled
                     className="bg-gray-50 dark:bg-gray-800"
                   />
                   <p className="mt-1 text-xs text-gray-500">
@@ -653,7 +653,7 @@ export default function Step4AssetInfo({
                 type="number"
                 placeholder="Calculado automaticamente"
                 value={formData.valorInvestido}
-                readOnly
+                disabled
                 className="bg-gray-50 dark:bg-gray-800"
               />
               <p className="mt-1 text-xs text-gray-500">

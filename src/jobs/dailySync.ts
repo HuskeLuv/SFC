@@ -27,13 +27,13 @@ const executeSync = async (): Promise<void> => {
     console.log(`   • Duração: ${result.duration.toFixed(2)}s`);
     
     // Aqui você pode adicionar notificações, logs para banco, etc.
-    await logSyncResult(result);
+    await logSyncResult();
     
   } catch (error) {
     console.error('💥 Erro durante a sincronização diária:', error);
     
     // Aqui você pode adicionar notificações de erro, logs para banco, etc.
-    await logSyncError(error);
+    await logSyncError();
     
     throw error;
   }
@@ -42,7 +42,7 @@ const executeSync = async (): Promise<void> => {
 /**
  * Registra o resultado da sincronização (opcional - para auditoria)
  */
-const logSyncResult = async (result: any): Promise<void> => {
+const logSyncResult = async (): Promise<void> => {
   try {
     // Aqui você pode salvar o resultado em uma tabela de logs
     // Por exemplo, criar uma tabela sync_logs se necessário
@@ -55,7 +55,7 @@ const logSyncResult = async (result: any): Promise<void> => {
 /**
  * Registra erros da sincronização (opcional - para auditoria)
  */
-const logSyncError = async (error: any): Promise<void> => {
+const logSyncError = async (): Promise<void> => {
   try {
     // Aqui você pode salvar o erro em uma tabela de logs
     console.log('📝 Erro da sincronização registrado');
@@ -69,7 +69,7 @@ const logSyncError = async (error: any): Promise<void> => {
 /**
  * Inicia o cron job para sincronização diária
  */
-export const startDailySync = (): void => {
+export const startDailySync = () => {
   console.log('🚀 Iniciando cron job para sincronização diária...');
   console.log(`⏰ Agendado para executar: ${CRON_SCHEDULE} (todos os dias às 02:00)`);
   
@@ -86,7 +86,6 @@ export const startDailySync = (): void => {
       console.error('💥 Erro no cron job:', error);
     }
   }, {
-    scheduled: true,
     timezone: 'America/Sao_Paulo' // Timezone do Brasil
   });
   
@@ -99,7 +98,7 @@ export const startDailySync = (): void => {
 /**
  * Para o cron job
  */
-export const stopDailySync = (task: any): void => {
+export const stopDailySync = (task: { stop: () => void } | null): void => {
   if (task) {
     task.stop();
     console.log('⏹️  Cron job parado');
@@ -150,7 +149,7 @@ export const testSyncConnection = async (): Promise<boolean> => {
 /**
  * Configura o shutdown graceful
  */
-export const setupGracefulShutdown = (task: any): void => {
+export const setupGracefulShutdown = (task: { stop: () => void } | null): void => {
   const shutdown = async () => {
     console.log('🛑 Iniciando shutdown graceful...');
     

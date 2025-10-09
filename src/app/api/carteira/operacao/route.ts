@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
       emissorId,
       periodo,
       taxaJurosAnual,
-      percentualCDI,
-      indexador
+      // percentualCDI,
+      // indexador
     } = await request.json();
 
     // Validações básicas

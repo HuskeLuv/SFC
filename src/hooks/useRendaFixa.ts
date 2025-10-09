@@ -24,14 +24,10 @@ export const useRendaFixa = () => {
         },
         secoes: [],
         totalGeral: {
-          quantidade: 0,
           valorAplicado: 0,
+          aporte: 0,
+          resgate: 0,
           valorAtualizado: 0,
-          percentualCarteira: 0,
-          risco: 0,
-          objetivo: 0,
-          quantoFalta: 0,
-          necessidadeAporte: 0,
           rentabilidade: 0
         }
       };
