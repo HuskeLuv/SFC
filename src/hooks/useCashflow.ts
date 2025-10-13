@@ -10,14 +10,81 @@ export const useCashflowData = () => {
   const fetchData = useCallback(async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/cashflow", { credentials: "include" });
         
-        if (!response.ok) {
-          throw new Error("Erro ao buscar dados");
+        // Buscar dados do cashflow normal
+        const cashflowResponse = await fetch("/api/cashflow", { credentials: "include" });
+        
+        if (!cashflowResponse.ok) {
+          throw new Error("Erro ao buscar dados do cashflow");
         }
         
-        const groups = await response.json();
-        setData(groups);
+        const groups = await cashflowResponse.json();
+
+        // Buscar investimentos calculados a partir das transações
+        try {
+          const investimentosResponse = await fetch("/api/cashflow/investimentos", { 
+            credentials: "include" 
+          });
+          
+          if (investimentosResponse.ok) {
+            const investimentosData = await investimentosResponse.json();
+            
+            // Flag para garantir que só adicionamos aos investimentos uma vez
+            let investimentosJaAdicionados = false;
+            
+            // Integrar investimentos ao grupo independente de Investimentos
+            const gruposComInvestimentos = groups.map((group: CashflowGroup) => {
+              // Encontrar grupo independente de Investimentos (primeiro que encontrar sem parentId)
+              if (group.name === 'Investimentos' && !group.parentId && !investimentosJaAdicionados) {
+                
+                investimentosJaAdicionados = true;
+                
+                // SUBSTITUIR completamente os itens do grupo de Investimentos
+                // Remover TODOS os itens antigos e usar apenas os calculados
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const itensCalculados = investimentosData.investimentos.map((inv: any) => ({
+                  id: inv.id,
+                  groupId: group.id,
+                  descricao: inv.descricao,
+                  significado: inv.significado,
+                  categoria: inv.categoria,
+                  order: inv.order, // Usar ordem definida na API
+                  isActive: inv.isActive,
+                  isInvestment: inv.isInvestment,
+                  valores: inv.valores,
+                }));
+
+                // Usar APENAS os itens calculados (substituir tudo)
+                return {
+                  ...group,
+                  items: itensCalculados,
+                };
+              }
+              
+              // Remover subgrupo "Investimentos" de dentro de "Despesas" se existir
+              if (group.type === 'Despesas' && group.children) {
+                return {
+                  ...group,
+                  children: group.children.filter(
+                    (child: CashflowGroup) => !(child.name === 'Investimentos' && child.type === 'Despesas')
+                  ),
+                };
+              }
+              
+              return group;
+            });
+
+            setData(gruposComInvestimentos);
+          } else {
+            // Se falhar ao buscar investimentos, usar apenas dados normais
+            setData(groups);
+          }
+        } catch (invError) {
+          console.warn('Erro ao buscar investimentos calculados:', invError);
+          // Continuar com dados normais sem investimentos
+          setData(groups);
+        }
+        
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erro desconhecido");
       } finally {

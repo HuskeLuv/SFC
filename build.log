@@ -1,0 +1,12 @@
+nohup: ignoring input
+
+> front@2.1.2 build
+> next build
+
+   ▲ Next.js 15.2.3
+   - Environments: .env.local, .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Skipping linting
+   Checking validity of types ...

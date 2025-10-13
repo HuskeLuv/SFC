@@ -175,6 +175,7 @@ export async function POST(request: NextRequest) {
     }
 
     const valorFinal = valorTotal || valorCalculado;
+    const dataTransacao = new Date(dataFinal);
 
     // Criar transação de compra usando Asset diretamente
     const transacao = await prisma.stockTransaction.create({
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest) {
         quantity: quantidadeFinal,
         price: precoFinal,
         total: valorFinal,
-        date: new Date(dataFinal),
+        date: dataTransacao,
         fees: taxaCorretagem || 0,
         notes: observacoes || null,
       },

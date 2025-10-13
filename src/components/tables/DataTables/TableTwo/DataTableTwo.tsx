@@ -36,7 +36,6 @@ export default function DataTableTwo() {
   const { alert, showAlert } = useAlert();
   const processedData = useProcessedData(data);
   const [newItems, setNewItems] = useState<Record<string, CashflowItem>>({});
-  const [globalEditMode, setGlobalEditMode] = useState(false);
 
   // Shared editing state for all ItemRow components
   const { startEditing, stopEditing, isEditing } = useCellEditing();
@@ -65,15 +64,11 @@ export default function DataTableTwo() {
     try {
       // Refresh the data to reflect the changes
       await refetch();
-      showAlert("success", "Item atualizado", "O item foi atualizado com sucesso.");
-    } catch {
+    } catch (error) {
+      console.error('Erro ao atualizar item:', error);
       showAlert("error", "Erro ao atualizar", "Erro ao atualizar o item.");
     }
   }, [refetch, showAlert]);
-
-  const handleToggleEditMode = useCallback(() => {
-    setGlobalEditMode(prev => !prev);
-  }, []);
 
   if (loading) return <div className="py-8 text-center">Carregando...</div>;
   if (error) return <div className="py-8 text-center text-red-500">{error}</div>;
@@ -101,8 +96,6 @@ export default function DataTableTwo() {
                   groupPercentage={processedData.groupPercentages[group.id] || 0}
                   onToggleCollapse={() => toggleCollapse(group.id)}
                   onAddRow={() => startAddingRow(group.id)}
-                  onEditMode={handleToggleEditMode}
-                  isEditMode={globalEditMode}
                 />
                 
                 {!collapsed[group.id] && (
@@ -118,8 +111,6 @@ export default function DataTableTwo() {
                           groupPercentage={processedData.groupPercentages[subgroup.id] || 0}
                           onToggleCollapse={() => toggleCollapse(subgroup.id)}
                           onAddRow={() => startAddingRow(subgroup.id)}
-                          onEditMode={handleToggleEditMode}
-                          isEditMode={globalEditMode}
                         />
                         
                         {!collapsed[subgroup.id] && (
@@ -135,8 +126,6 @@ export default function DataTableTwo() {
                                   groupPercentage={processedData.groupPercentages[subsubgroup.id] || 0}
                                   onToggleCollapse={() => toggleCollapse(subsubgroup.id)}
                                   onAddRow={() => startAddingRow(subsubgroup.id)}
-                                  onEditMode={handleToggleEditMode}
-                                  isEditMode={globalEditMode}
                                 />
                                 
                                 {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item) => (
@@ -151,7 +140,6 @@ export default function DataTableTwo() {
                                     startEditing={startEditing}
                                     stopEditing={stopEditing}
                                     isEditing={isEditing}
-                                    globalEditMode={globalEditMode}
                                   />
                                 ))}
                                 
@@ -167,7 +155,6 @@ export default function DataTableTwo() {
                                       startEditing={startEditing}
                                       stopEditing={stopEditing}
                                       isEditing={isEditing}
-                                      globalEditMode={globalEditMode}
                                   />
                                 ))}
                                 
@@ -195,7 +182,6 @@ export default function DataTableTwo() {
                                 startEditing={startEditing}
                                 stopEditing={stopEditing}
                                 isEditing={isEditing}
-                                globalEditMode={globalEditMode}
                               />
                             ))}
                             
@@ -211,7 +197,6 @@ export default function DataTableTwo() {
                                   startEditing={startEditing}
                                   stopEditing={stopEditing}
                                   isEditing={isEditing}
-                                  globalEditMode={globalEditMode}
                               />
                             ))}
                             
@@ -241,7 +226,6 @@ export default function DataTableTwo() {
                         startEditing={startEditing}
                         stopEditing={stopEditing}
                         isEditing={isEditing}
-                        globalEditMode={globalEditMode}
                       />
                     ))}
                     
@@ -257,7 +241,6 @@ export default function DataTableTwo() {
                           startEditing={startEditing}
                           stopEditing={stopEditing}
                           isEditing={isEditing}
-                          globalEditMode={globalEditMode}
                       />
                     ))}
                     

@@ -4,7 +4,10 @@ import DataTableTwo from "@/components/tables/DataTables/TableTwo/DataTableTwo";
 import { useSidebar } from "@/context/SidebarContext";
 import React from "react";
 
-export default function DataTables() {
+// Metadata não pode ser exportada em componentes "use client"
+// A metadata deve ser definida no layout ou removida
+
+export default function FluxoDeCaixa() {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const isCollapsed = !(isExpanded || isHovered || isMobileOpen);
   // Só aplica max-w-[98vw] w-full quando colapsada, senão mantém largura original
@@ -18,3 +21,4 @@ export default function DataTables() {
     </div>
   );
 }
+

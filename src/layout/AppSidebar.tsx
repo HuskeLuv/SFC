@@ -59,9 +59,9 @@ const navItems: NavItem[] = [
     ],
   },*/
   {
-    name: "Tabelas",
+    name: "Fluxo de Caixa",
     icon: <TableIcon />,
-    path: "/data-tables",
+    path: "/fluxodecaixa",
   },
 ];
 

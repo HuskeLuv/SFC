@@ -1,44 +1,7 @@
 "use client";
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import { ApexOptions } from "apexcharts";
-
-// Componente wrapper para o ReactApexChart
-const ApexChartWrapper = React.memo(({ options, series, type, width, height }: {
-  options: ApexOptions;
-  series: number[];
-  type: string;
-  width: string;
-  height: string;
-}) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
-
-  useEffect(() => {
-    // Importação dinâmica do ReactApexChart apenas no client-side
-    const loadChart = async () => {
-      try {
-        const ReactApexChart = (await import("react-apexcharts")).default;
-        setChart(() => ReactApexChart);
-      } catch (error) {
-        console.error("Erro ao carregar ApexCharts:", error);
-      }
-    };
-
-    loadChart();
-  }, []);
-
-  if (!Chart) {
-    return (
-      <div className="flex items-center justify-center h-80">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
-      </div>
-    );
-  }
-
-  return <Chart options={options} series={series} type={type} width={width} height={height} />;
-});
-
-ApexChartWrapper.displayName = 'ApexChartWrapper';
+import ApexChartWrapper from "../ApexChartWrapper";
 
 interface PieChartCarteiraInvestimentosProps {
   distribuicao: {

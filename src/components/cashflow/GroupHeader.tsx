@@ -13,8 +13,6 @@ interface GroupHeaderProps {
   groupPercentage: number;
   onToggleCollapse: () => void;
   onAddRow: () => void;
-  onEditMode?: () => void;
-  isEditMode?: boolean;
 }
 
 export const GroupHeader: React.FC<GroupHeaderProps> = ({ 
@@ -24,9 +22,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   groupAnnualTotal, 
   groupPercentage,
   onToggleCollapse, 
-  onAddRow,
-  onEditMode,
-  isEditMode = false
+  onAddRow
 }) => {
   // Determinar o nível de indentação baseado na hierarquia
   const indentLevel = group.parentId ? (group.children?.length ? 2 : 3) : 1;
@@ -63,12 +59,10 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
             groupName={group.name} 
           />
           <span className={`text-xs ${indentClass} ${getGroupNameColorClass()}`}>{group.name}</span>
-          {!isCollapsed && !group.children?.length && (
+          {!isCollapsed && !group.children?.length && group.name !== 'Investimentos' && (
             <AddRowButton 
               onClick={onAddRow} 
               groupName={group.name}
-              onEditMode={onEditMode}
-              isEditMode={isEditMode}
             />
           )}
         </div>

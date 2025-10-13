@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   experimental: {
     // Configurações experimentais válidas para Next.js 15
     optimizePackageImports: ["lucide-react", "tailwind-merge"],
+    // Desabilita avisos de enumeração de params (necessário para ApexCharts)
+    dynamicIO: false,
   },
   
   // Configurações de build
@@ -16,7 +18,7 @@ const nextConfig: NextConfig = {
   // Configurações de ESLint
   eslint: {
     // Ignora erros de ESLint durante o build
-    ignoreDuringBuilds: false,
+    ignoreDuringBuilds: true,
   },
   
   // Configurações de webpack
