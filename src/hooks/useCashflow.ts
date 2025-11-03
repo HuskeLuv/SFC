@@ -289,14 +289,21 @@ export const useProcessedData = (data: CashflowGroup[]) => {
       }
     });
 
-    // Calculate general totals
+    // Calculate general totals (excluding Investimentos)
+    // Only sum top-level groups to avoid double counting (subgroups are already included in parent totals)
     const totalByMonth = Array(12).fill(0);
-    Object.entries(groupTotals).forEach(([groupId, arr]) => {
-      const group = findGroupById(groupId);
-      const isReceita = group ? isReceitaGroupByType(group.type) : false;
-      arr.forEach((v, i) => {
-        totalByMonth[i] += isReceita ? v : -v;
-      });
+    data.forEach(group => {
+      // Exclude Investimentos from total calculation
+      if (group.name === 'Investimentos') {
+        return;
+      }
+      const arr = groupTotals[group.id];
+      if (arr) {
+        const isReceita = isReceitaGroupByType(group.type);
+        arr.forEach((v, i) => {
+          totalByMonth[i] += isReceita ? v : -v;
+        });
+      }
     });
 
     const totalAnnual = totalByMonth.reduce((a, b) => a + b, 0);

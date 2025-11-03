@@ -43,10 +43,20 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   };
 
   const getGroupNameColorClass = () => {
+    if (group.name === 'Despesas') {
+      return "text-red-700 dark:text-red-300";
+    }
     const isReceita = isReceitaGroupByType(group.type);
     return isReceita 
       ? "text-green-700 dark:text-green-300" 
       : "text-blue-900 dark:text-blue-100";
+  };
+  
+  const getDisplayName = () => {
+    if (group.name === 'Investimentos') {
+      return 'Aportes/Resgastes';
+    }
+    return group.name;
   };
 
   return (
@@ -58,7 +68,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
             onClick={onToggleCollapse} 
             groupName={group.name} 
           />
-          <span className={`text-xs ${indentClass} ${getGroupNameColorClass()}`}>{group.name}</span>
+          <span className={`text-xs ${indentClass} ${getGroupNameColorClass()}`}>{getDisplayName()}</span>
           {!isCollapsed && !group.children?.length && group.name !== 'Investimentos' && (
             <AddRowButton 
               onClick={onAddRow} 
@@ -68,7 +78,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
         </div>
       </TableCell>
       <TableCell className={`px-2 py-2 text-xs font-bold text-right w-16 border border-gray-100 dark:border-white/[0.05] ${getPercentageColorClass()}`}>
-        {groupPercentage > 0 ? formatPercent(groupPercentage) : '-'}
+        {group.name === 'Investimentos' ? '-' : (groupPercentage > 0 ? formatPercent(groupPercentage) : '-')}
       </TableCell>
       {groupTotals.map((value, index) => (
         <TableCell key={index} className="px-1 py-2 text-xs font-bold text-right w-12 text-blue-900 dark:text-blue-100 border border-gray-100 dark:border-white/[0.05]">
