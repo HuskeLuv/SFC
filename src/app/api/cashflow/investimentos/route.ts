@@ -39,13 +39,31 @@ export async function GET(request: NextRequest) {
     // Mapa para rastrear tipos de ativos
     const tiposAtivos = new Set<string>();
 
+    // Obter ano atual ou do query param
+    const { searchParams } = new URL(request.url);
+    const yearParam = searchParams.get('year');
+    const targetYear = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
+    
+    // Log para debug
+    console.log(`[Cashflow Investimentos] Buscando investimentos para ano: ${targetYear}`);
+    console.log(`[Cashflow Investimentos] Total de transações encontradas: ${transacoes.length}`);
+
     // Processar cada transação
     for (const transacao of transacoes) {
       if (!transacao.asset) continue;
 
+      const transactionYear = transacao.date.getFullYear();
       const mes = transacao.date.getMonth(); // 0 = Janeiro, 11 = Dezembro
       const valor = transacao.total + (transacao.fees || 0); // Total + taxas
       const tipoAtivo = transacao.asset.type || 'outros';
+
+      // Filtrar apenas transações do ano solicitado
+      if (transactionYear !== targetYear) {
+        console.log(`[Cashflow Investimentos] Transação filtrada: ano ${transactionYear} !== ${targetYear}`);
+        continue;
+      }
+      
+      console.log(`[Cashflow Investimentos] Processando transação: ${tipoAtivo}, mês ${mes}, valor R$ ${valor}`);
 
       tiposAtivos.add(tipoAtivo);
 
@@ -103,39 +121,55 @@ export async function GET(request: NextRequest) {
     const investimentosCalculados = todasCategorias.map(tipoAtivo => {
       const valoresPorMes = investimentosPorTipo[tipoAtivo] || {};
       
-      // Criar array de valores no formato esperado pelo CashflowValue
-      const valores = Array.from({ length: 12 }, (_, mes) => {
-        const valorMes = valoresPorMes[mes] || 0;
+      // Criar array de valores no formato esperado pelo CashflowValue (novo modelo)
+      const values = Array.from({ length: 12 }, (_, month) => {
+        const valorMes = valoresPorMes[month] || 0;
         
         return {
-          id: `investimento-${tipoAtivo}-mes-${mes}`,
+          id: `investimento-${tipoAtivo}-mes-${month}-${targetYear}`,
           itemId: `investimento-${tipoAtivo}`,
-          mes,
-          valor: Math.round(valorMes * 100) / 100,
-          dataPagamento: null,
-          status: 'pago',
-          observacoes: valorMes > 0 ? `Total investido em ${tipoAtivoLabels[tipoAtivo]}` : null,
+          userId: user.id,
+          year: targetYear,
+          month, // 0-11
+          value: Math.round(valorMes * 100) / 100,
         };
       });
 
+      // Manter formato antigo para compatibilidade
+      const valores = values.map(v => ({
+        id: v.id,
+        mes: v.month,
+        valor: v.value,
+      }));
+
       // Calcular total anual
-      const totalAnual = valores.reduce((sum, v) => sum + v.valor, 0);
+      const totalAnual = values.reduce((sum, v) => sum + v.value, 0);
 
       return {
         id: `investimento-${tipoAtivo}`,
-        descricao: tipoAtivoLabels[tipoAtivo],
+        name: tipoAtivoLabels[tipoAtivo], // novo formato
+        descricao: tipoAtivoLabels[tipoAtivo], // compatibilidade
         significado: 'Calculado automaticamente',
-        categoria: tipoAtivo,
-        isInvestment: true,
-        isActive: true,
-        order: ordemCategorias[tipoAtivo] || 999,
-        valores,
+        rank: ordemCategorias[tipoAtivo] || 999, // novo formato
+        order: ordemCategorias[tipoAtivo] || 999, // compatibilidade
+        values, // novo formato
+        valores, // compatibilidade
         totalAnual: Math.round(totalAnual * 100) / 100,
       };
     });
 
-    // Ordenar por ordem definida
-    investimentosCalculados.sort((a, b) => a.order - b.order);
+    // Ordenar por ordem definida (usar rank ou order para compatibilidade)
+    investimentosCalculados.sort((a, b) => (a.rank || a.order || 999) - (b.rank || b.order || 999));
+    
+    // Log para debug
+    console.log(`[Cashflow Investimentos] Investimentos calculados: ${investimentosCalculados.length}`);
+    console.log(`[Cashflow Investimentos] Tipos de ativos com transações: ${tiposAtivos.size}`);
+    investimentosCalculados.forEach(inv => {
+      const totalAnual = inv.totalAnual || 0;
+      if (totalAnual > 0) {
+        console.log(`[Cashflow Investimentos] - ${inv.name}: R$ ${totalAnual.toFixed(2)}`);
+      }
+    });
 
     // Calcular totais por mês (todos os tipos somados)
     const totaisPorMes = Array.from({ length: 12 }, (_, mes) => {

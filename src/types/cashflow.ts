@@ -1,41 +1,37 @@
 export interface CashflowValue {
   id: string;
-  mes: number;
-  valor: number;
-  dataPagamento?: Date;
-  status?: 'pago' | 'pendente' | 'recebido';
-  observacoes?: string;
+  itemId: string;
+  userId: string;
+  year: number;
+  month: number; // 0 = Jan, 11 = Dez
+  value: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface CashflowItem {
   id: string;
-  descricao: string;
+  userId: string | null; // null = template
+  groupId: string;
+  name: string; // era descricao
   significado: string | null;
   rank: number | null;
-  percentTotal: number | null;
-  groupId: string;
-  valores: CashflowValue[];
-  categoria?: string;
-  formaPagamento?: string;
-  status?: 'pago' | 'pendente' | 'recebido';
-  dataVencimento?: Date;
-  observacoes?: string;
-  isActive: boolean;
-  isInvestment: boolean;
+  values: CashflowValue[]; // era valores
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface CashflowGroup {
   id: string;
+  userId: string | null; // null = template
   name: string;
-  type: string; // "Entradas" or "Despesas"
-  order: number;
+  type: string; // 'entrada', 'despesa' ou 'investimento'
+  parentId: string | null;
+  orderIndex: number; // era order
   items: CashflowItem[];
-  parentId?: string;
-  parent?: CashflowGroup;
   children: CashflowGroup[];
-  percentTotal?: number;
-  observacoes?: string;
-  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface AlertState {
@@ -45,9 +41,8 @@ export interface AlertState {
 }
 
 export interface NewRowData {
-  descricao: string;
+  name: string; // era descricao
   significado: string;
-  percentTotal: number;
 } 
 
 // Campos adicionais que podem ser úteis para o modelo hierárquico

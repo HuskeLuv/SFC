@@ -12,6 +12,7 @@ import {
   HorizontaLDots,
   TableIcon,
   UserCircleIcon,
+  DocsIcon,
 } from "../icons/index";
 
 type NavItem = {
@@ -42,22 +43,11 @@ const navItems: NavItem[] = [
     name: "Perfil",
     path: "/profile",
   },
-  /*{
-    name: "Task",
-    icon: <TaskIcon />,
-    subItems: [
-      { name: "List", path: "/task-list", pro: false },
-      { name: "Kanban", path: "/task-kanban", pro: false },
-    ],
-  },*/
-  /*{
-    name: "Forms",
-    icon: <ListIcon />,
-    subItems: [
-      { name: "Form Elements", path: "/form-elements", pro: false },
-      { name: "Form Layout", path: "/form-layout", pro: false },
-    ],
-  },*/
+  {
+    icon: <DocsIcon />,
+    name: "Relatórios",
+    path: "/relatorios",
+  },
   {
     name: "Fluxo de Caixa",
     icon: <TableIcon />,

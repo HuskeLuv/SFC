@@ -15,5 +15,5 @@ export const isReceitaGroup = (groupName: string): boolean => {
 
 // Simplified function that uses the explicit type field
 export const isReceitaGroupByType = (groupType: string): boolean => {
-  return groupType === "Entradas";
+  return groupType === "entrada" || groupType === "Entradas";
 }; 

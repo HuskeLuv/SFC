@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
+import { personalizeGroup, getGroupForUser } from '@/utils/cashflowPersonalization';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,48 +11,47 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
-    const { groupId, descricao, significado } = await request.json();
+    const { groupId, descricao, name, significado } = await request.json();
 
     // Validate input
-    if (!groupId || !descricao) {
+    if (!groupId || (!descricao && !name)) {
       return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
     }
 
-    // Verify the group belongs to the user
-    const group = await prisma.cashflowGroup.findFirst({
-      where: { 
-        id: groupId,
-        userId: payload.id
-      }
-    });
-
+    // Buscar grupo (pode ser template ou personalizado)
+    const group = await getGroupForUser(groupId, payload.id);
     if (!group) {
       return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
     }
 
-    // Get the highest order number in the group to set the new item's order
-    const maxOrder = await prisma.cashflowItem.findFirst({
-      where: { groupId },
-      orderBy: { order: 'desc' },
-      select: { order: true }
+    // Se grupo é template, personalizar antes de adicionar item
+    let finalGroupId = group.id;
+    if (group.userId === null) {
+      finalGroupId = await personalizeGroup(group.id, payload.id);
+    }
+
+    // Get the highest rank in the group to set the new item's rank
+    const maxRank = await prisma.cashflowItem.findFirst({
+      where: { groupId: finalGroupId },
+      orderBy: { rank: 'desc' },
+      select: { rank: true }
     });
 
-    const newOrder = (maxOrder?.order || 0) + 1;
+    const newRank = (maxRank?.rank || 0) + 1;
 
-    // Create the new item
+    // Create the new item (sempre personalizado quando criado pelo usuário)
     const newItem = await prisma.cashflowItem.create({
       data: {
-        descricao,
+        userId: payload.id, // Sempre personalizado quando criado pelo usuário
+        name: name || descricao,
         significado: significado || null,
-        groupId,
-        isActive: true,
-        isInvestment: false,
-        rank: null,
-        percentTotal: null,
-        order: newOrder
+        groupId: finalGroupId,
+        rank: newRank,
       },
       include: {
-        valores: true,
+        values: {
+          where: { userId: payload.id },
+        },
       }
     });
 

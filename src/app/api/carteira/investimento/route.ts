@@ -15,21 +15,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
-    // Buscar investimentos do usuário
-    const investimentos = await prisma.cashflowItem.findMany({
+    // Buscar investimentos do usuário (grupos tipo 'investimento')
+    // Buscar templates e personalizações
+    const investmentGroupsTemplate = await prisma.cashflowGroup.findMany({
       where: {
-        group: {
-          userId: user.id,
-        },
-        isInvestment: true,
-        isActive: true,
+        userId: null,
+        type: 'investimento',
       },
       include: {
-        valores: true,
-        group: true,
+        items: {
+          include: {
+            values: {
+              where: {
+                userId: user.id,
+              },
+            },
+          },
+        },
       },
-      orderBy: { descricao: 'asc' },
     });
+
+    const investmentGroupsCustom = await prisma.cashflowGroup.findMany({
+      where: {
+        userId: user.id,
+        type: 'investimento',
+      },
+      include: {
+        items: {
+          include: {
+            values: {
+              where: {
+                userId: user.id,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Mesclar grupos (personalizações têm prioridade)
+    const allInvestmentGroups = [...investmentGroupsCustom];
+    const templateMap = new Map(investmentGroupsTemplate.map(g => [g.name, g]));
+    investmentGroupsCustom.forEach(custom => templateMap.delete(custom.name));
+    allInvestmentGroups.push(...Array.from(templateMap.values()));
+
+    // Coletar todos os itens de investimento e ordenar por nome
+    const investimentos = allInvestmentGroups
+      .flatMap(group => group.items || [])
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     return NextResponse.json(investimentos);
     
@@ -60,16 +93,18 @@ export async function POST(request: NextRequest) {
     }
 
     const { 
-      descricao, 
-      categoria, 
+      name,
+      descricao, // compatibilidade
+      significado,
       valor, 
-      observacoes 
     } = await request.json();
 
+    const itemName = name || descricao;
+
     // Validações
-    if (!descricao || !categoria || !valor) {
+    if (!itemName || !valor) {
       return NextResponse.json({ 
-        error: 'Campos obrigatórios: descricao, categoria, valor' 
+        error: 'Campos obrigatórios: name, valor' 
       }, { status: 400 });
     }
 
@@ -82,45 +117,69 @@ export async function POST(request: NextRequest) {
       where: {
         userId: user.id,
         name: 'Investimentos',
-        type: 'Entradas',
+        type: 'investimento',
       },
     });
 
     if (!grupoInvestimentos) {
-      grupoInvestimentos = await prisma.cashflowGroup.create({
-        data: {
-          userId: user.id,
+      // Buscar template de Investimentos
+      const templateGroup = await prisma.cashflowGroup.findFirst({
+        where: {
+          userId: null,
           name: 'Investimentos',
-          type: 'Entradas',
-          order: 999,
-          isActive: true,
+          type: 'investimento',
         },
       });
+
+      if (templateGroup) {
+        // Importar função de personalização
+        const { personalizeGroup } = await import('@/utils/cashflowPersonalization');
+        const personalizedGroupId = await personalizeGroup(templateGroup.id, user.id);
+        grupoInvestimentos = await prisma.cashflowGroup.findUnique({
+          where: { id: personalizedGroupId },
+        });
+      } else {
+        // Criar grupo se não existir template
+        grupoInvestimentos = await prisma.cashflowGroup.create({
+          data: {
+            userId: user.id,
+            name: 'Investimentos',
+            type: 'investimento',
+            orderIndex: 999,
+          },
+        });
+      }
     }
+
+    // Obter maior rank do grupo
+    const maxRank = await prisma.cashflowItem.findFirst({
+      where: { groupId: grupoInvestimentos!.id },
+      orderBy: { rank: 'desc' },
+      select: { rank: true },
+    });
 
     // Criar o item de investimento
     const investimento = await prisma.cashflowItem.create({
       data: {
-        groupId: grupoInvestimentos.id,
-        descricao,
-        categoria,
-        observacoes: observacoes || null,
-        order: 1,
-        isActive: true,
-        isInvestment: true,
+        userId: user.id, // Sempre personalizado quando criado pelo usuário
+        groupId: grupoInvestimentos!.id,
+        name: itemName,
+        significado: significado || null,
+        rank: (maxRank?.rank || 0) + 1,
       },
     });
 
     // Adicionar valor para o mês atual
-    const mesAtual = new Date().getMonth(); // 0 = Janeiro, 11 = Dezembro
+    const currentYear = new Date().getFullYear();
+    const monthAtual = new Date().getMonth(); // 0 = Janeiro, 11 = Dezembro
     
     await prisma.cashflowValue.create({
       data: {
         itemId: investimento.id,
-        mes: mesAtual,
-        valor: valor,
-        status: 'aplicado',
-        observacoes: `Investimento adicionado em ${new Date().toLocaleDateString('pt-BR')}`,
+        userId: user.id,
+        year: currentYear,
+        month: monthAtual,
+        value: valor,
       },
     });
 
@@ -128,7 +187,9 @@ export async function POST(request: NextRequest) {
     const investimentoCompleto = await prisma.cashflowItem.findUnique({
       where: { id: investimento.id },
       include: {
-        valores: true,
+        values: {
+          where: { userId: user.id },
+        },
         group: true,
       },
     });

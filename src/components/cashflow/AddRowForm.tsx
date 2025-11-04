@@ -21,9 +21,9 @@ export const AddRowForm: React.FC<AddRowFormProps> = ({
       <div className="flex items-center gap-2">
       <input
           className="w-full px-1 py-0.5 rounded border border-gray-300 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white"
-        value={newRow.descricao}
-        onChange={e => onUpdateField("descricao", e.target.value)}
-        placeholder="Descrição"
+        value={newRow.name}
+        onChange={e => onUpdateField("name", e.target.value)}
+        placeholder="Nome"
         autoFocus
       />
         <ActionButtons onSave={onSave} onCancel={onCancel} />

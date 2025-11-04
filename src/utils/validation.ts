@@ -1,14 +1,11 @@
 import { NewRowData } from "@/types/cashflow";
 
 export const validateNewRow = (row: NewRowData): string | null => {
-  if (!row.descricao?.trim()) {
-    return "Descrição obrigatória.";
+  if (!row.name?.trim()) {
+    return "Nome obrigatório.";
   }
-  if (typeof row.significado !== "string") {
+  if (row.significado && typeof row.significado !== "string") {
     return "Significado inválido.";
-  }
-  if (typeof row.percentTotal !== "number" || isNaN(row.percentTotal) || row.percentTotal < 0) {
-    return "% Receita Total deve ser um número positivo.";
   }
   return null;
 }; 

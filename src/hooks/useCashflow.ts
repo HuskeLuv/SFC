@@ -12,17 +12,21 @@ export const useCashflowData = () => {
         setLoading(true);
         
         // Buscar dados do cashflow normal
+        // Novo endpoint retorna { year, groups }
         const cashflowResponse = await fetch("/api/cashflow", { credentials: "include" });
         
         if (!cashflowResponse.ok) {
           throw new Error("Erro ao buscar dados do cashflow");
         }
         
-        const groups = await cashflowResponse.json();
+        const responseData = await cashflowResponse.json();
+        // Extrair grupos e ano da resposta
+        const groups = responseData.groups || responseData; // Compatibilidade com formato antigo
+        const year = responseData.year || new Date().getFullYear(); // Ano do fluxo de caixa
 
         // Buscar investimentos calculados a partir das transações
         try {
-          const investimentosResponse = await fetch("/api/cashflow/investimentos", { 
+          const investimentosResponse = await fetch(`/api/cashflow/investimentos?year=${year}`, { 
             credentials: "include" 
           });
           
@@ -32,47 +36,130 @@ export const useCashflowData = () => {
             // Flag para garantir que só adicionamos aos investimentos uma vez
             let investimentosJaAdicionados = false;
             
-            // Integrar investimentos ao grupo independente de Investimentos
-            const gruposComInvestimentos = groups.map((group: CashflowGroup) => {
-              // Encontrar grupo independente de Investimentos (primeiro que encontrar sem parentId)
-              if (group.name === 'Investimentos' && !group.parentId && !investimentosJaAdicionados) {
-                
+            // Função auxiliar para encontrar grupo de Investimentos (recursiva)
+            const findInvestmentGroup = (groupList: CashflowGroup[]): CashflowGroup | null => {
+              for (const group of groupList) {
+                // Verificar se este grupo é o de Investimentos
+                const isInvestmentGroup = (group.name === 'Investimentos' || group.type === 'investimento');
+                if (isInvestmentGroup) {
+                  return group;
+                }
+                // Buscar recursivamente nos filhos
+                if (group.children && group.children.length > 0) {
+                  const found = findInvestmentGroup(group.children);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+            
+            // Função recursiva para encontrar e atualizar grupo de Investimentos
+            const findAndUpdateInvestmentGroup = (group: CashflowGroup): CashflowGroup => {
+              // Verificar se este grupo é o de Investimentos (top-level ou não)
+              const isInvestmentGroup = (group.name === 'Investimentos' || group.type === 'investimento');
+              
+              if (isInvestmentGroup && !investimentosJaAdicionados) {
                 investimentosJaAdicionados = true;
+                
+                console.log('[Cashflow] Grupo Investimentos encontrado:', group.id, group.name);
+                console.log('[Cashflow] Itens calculados a adicionar:', investimentosData.investimentos.length);
                 
                 // SUBSTITUIR completamente os itens do grupo de Investimentos
                 // Remover TODOS os itens antigos e usar apenas os calculados
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const itensCalculados = investimentosData.investimentos.map((inv: any) => ({
                   id: inv.id,
+                  userId: null, // Itens calculados são como templates
                   groupId: group.id,
-                  descricao: inv.descricao,
-                  significado: inv.significado,
-                  categoria: inv.categoria,
-                  order: inv.order, // Usar ordem definida na API
-                  isActive: inv.isActive,
-                  isInvestment: inv.isInvestment,
-                  valores: inv.valores,
+                  name: inv.descricao || inv.name,
+                  significado: inv.significado || null,
+                  rank: inv.order || inv.rank || null,
+                  values: inv.valores || inv.values || [],
                 }));
+
+                console.log('[Cashflow] Itens calculados mapeados:', itensCalculados.length);
 
                 // Usar APENAS os itens calculados (substituir tudo)
                 return {
                   ...group,
                   items: itensCalculados,
+                  children: group.children?.map(child => findAndUpdateInvestmentGroup(child)) || [],
                 };
               }
+              
+              // Processar filhos recursivamente
+              const updatedChildren = group.children?.map(child => findAndUpdateInvestmentGroup(child)) || [];
               
               // Remover subgrupo "Investimentos" de dentro de "Despesas" se existir
-              if (group.type === 'Despesas' && group.children) {
-                return {
-                  ...group,
-                  children: group.children.filter(
-                    (child: CashflowGroup) => !(child.name === 'Investimentos' && child.type === 'Despesas')
-                  ),
-                };
-              }
+              const filteredChildren = group.type === 'despesa' 
+                ? updatedChildren.filter(
+                    (child: CashflowGroup) => !(child.name === 'Investimentos' && child.type === 'despesa')
+                  )
+                : updatedChildren;
               
-              return group;
-            });
+              return {
+                ...group,
+                children: filteredChildren,
+              };
+            };
+            
+            // Integrar investimentos ao grupo de Investimentos (recursivamente)
+            let gruposComInvestimentos = groups.map(group => findAndUpdateInvestmentGroup(group));
+            
+            // Se não encontrou o grupo, criar um novo grupo de Investimentos no top-level
+            if (!investimentosJaAdicionados && investimentosData.investimentos.length > 0) {
+              console.warn('[Cashflow] Grupo Investimentos não encontrado! Criando novo grupo.');
+              
+              // Buscar novamente de forma simples para garantir
+              const investmentGroup = findInvestmentGroup(groups);
+              
+              if (investmentGroup) {
+                // Se encontrou mas não foi atualizado, atualizar agora
+                gruposComInvestimentos = gruposComInvestimentos.map(group => {
+                  if (group.id === investmentGroup.id || 
+                      (group.name === 'Investimentos' || group.type === 'investimento')) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const itensCalculados = investimentosData.investimentos.map((inv: any) => ({
+                      id: inv.id,
+                      userId: null,
+                      groupId: group.id,
+                      name: inv.descricao || inv.name,
+                      significado: inv.significado || null,
+                      rank: inv.order || inv.rank || null,
+                      values: inv.valores || inv.values || [],
+                    }));
+                    
+                    return {
+                      ...group,
+                      items: itensCalculados,
+                    };
+                  }
+                  return group;
+                });
+              } else {
+                // Criar novo grupo de Investimentos se não existir
+                console.warn('[Cashflow] Criando novo grupo Investimentos no top-level');
+                const novoGrupo: CashflowGroup = {
+                  id: 'investimentos-calculados',
+                  userId: null,
+                  name: 'Investimentos',
+                  type: 'investimento',
+                  orderIndex: 999,
+                  parentId: null,
+                  items: investimentosData.investimentos.map((inv: any) => ({
+                    id: inv.id,
+                    userId: null,
+                    groupId: 'investimentos-calculados',
+                    name: inv.descricao || inv.name,
+                    significado: inv.significado || null,
+                    rank: inv.order || inv.rank || null,
+                    values: inv.valores || inv.values || [],
+                  })),
+                  children: [],
+                };
+                gruposComInvestimentos.push(novoGrupo);
+              }
+            }
 
             setData(gruposComInvestimentos);
           } else {
@@ -112,17 +199,16 @@ export const useCollapsibleState = () => {
     setCollapsed(prev => ({ ...prev, [groupId]: !prev[groupId] }));
   }, []);
 
-  const startAddingRow = useCallback((groupId: string) => {
-    setAddingRow(prev => ({ ...prev, [groupId]: true }));
-    setNewRow(prev => ({ 
-      ...prev, 
-      [groupId]: {
-        descricao: "",
-        significado: "",
-        percentTotal: 0
-      }
-    }));
-  }, []);
+    const startAddingRow = useCallback((groupId: string) => {
+      setAddingRow(prev => ({ ...prev, [groupId]: true }));
+      setNewRow(prev => ({ 
+        ...prev, 
+        [groupId]: {
+          name: "",
+          significado: ""
+        }
+      }));
+    }, []);
 
   const cancelAddingRow = useCallback((groupId: string) => {
     setAddingRow(prev => ({ ...prev, [groupId]: false }));
@@ -193,13 +279,13 @@ export const useProcessedData = (data: CashflowGroup[]) => {
     // Função recursiva para processar grupos e subgrupos
     const processGroup = (group: CashflowGroup) => {
       // Calcular totais dos itens
-      if (group.items?.length) {
+      if (      group.items?.length) {
         group.items.forEach(item => {
           const itemValues = Array(12).fill(0);
-          if (item.valores?.length) {
-            item.valores.forEach(val => {
-              if (typeof val.mes === 'number' && typeof val.valor === 'number') {
-                itemValues[val.mes] = val.valor;
+          if (item.values?.length) {
+            item.values.forEach(val => {
+              if (typeof val.month === 'number' && typeof val.value === 'number') {
+                itemValues[val.month] = val.value;
               }
             });
           }

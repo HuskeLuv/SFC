@@ -1,10 +1,33 @@
 /**
  * Serviço para buscar cotações atuais de ativos via brapi.dev
+ * Usa o SDK oficial da brapi: https://brapi.dev/docs/sdks/typescript
  * Documentação: https://brapi.dev/docs
  */
 
+import Brapi from 'brapi';
+
+// ================== SDK CLIENT ==================
+
+// Instância singleton do cliente Brapi (boas práticas: reutilizar a instância)
+let brapiClient: Brapi | null = null;
+
+const getBrapiClient = (): Brapi => {
+  if (!brapiClient) {
+    const apiKey = process.env.BRAPI_API_KEY;
+    
+    brapiClient = new Brapi({
+      apiKey: apiKey || undefined,
+      maxRetries: 2, // SDK já tem retry automático
+      timeout: 60000, // 60 segundos
+    });
+  }
+  
+  return brapiClient;
+};
+
 // ================== TYPES ==================
 
+// Types exportados do SDK Brapi
 interface BrapiQuoteResult {
   symbol: string;
   shortName: string;
@@ -20,12 +43,6 @@ interface BrapiQuoteResult {
   marketCap?: number;
 }
 
-interface BrapiQuoteResponse {
-  results: BrapiQuoteResult[];
-  requestedAt: string;
-  took: string;
-}
-
 interface QuoteCache {
   [symbol: string]: {
     price: number;
@@ -39,84 +56,65 @@ interface QuoteCache {
 const CACHE_DURATION = 15 * 60 * 1000; // 15 minutos
 const quoteCache: QuoteCache = {};
 
-// Delay entre requisições para evitar rate limiting
-const REQUEST_DELAY = 500; // 500ms entre cada requisição
-
-// ================== HELPER FUNCTIONS ==================
-
-/**
- * Aguarda um tempo determinado
- */
-const sleep = (ms: number): Promise<void> => {
-  return new Promise(resolve => setTimeout(resolve, ms));
-};
+// Delay entre requisições para evitar rate limiting (reduzido pois SDK já tem retry)
+const REQUEST_DELAY = 300; // 300ms entre cada requisição
 
 // ================== API FUNCTIONS ==================
 
 /**
- * Busca cotação de um único ativo via brapi.dev
+ * Busca cotação de um único ativo via SDK brapi
  * @param symbol - Símbolo do ativo (ex: 'PETR4')
+ * @param forceRefresh - Se true, ignora cache e busca dados frescos
  * @returns Preço do ativo ou null se não encontrado
  */
-const fetchSingleQuote = async (symbol: string): Promise<number | null> => {
+const fetchSingleQuote = async (symbol: string, forceRefresh: boolean = false): Promise<number | null> => {
   if (!symbol || !symbol.trim()) {
     return null;
   }
 
   try {
-    const apiKey = process.env.BRAPI_API_KEY;
+    const client = getBrapiClient();
     
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
-    };
-    
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
+    // Buscar cotação usando o SDK
+    // O SDK permite buscar múltiplas de uma vez, mas aqui buscamos uma por vez
+    const response = await client.quote.retrieve(symbol);
 
-    const url = `https://brapi.dev/api/quote/${symbol}`;
-    
-    const response = await fetch(url, {
-      headers,
-      next: { revalidate: 900 } // Cache do Next.js por 15 minutos
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        console.warn(`Rate limit atingido para ${symbol}, aguardando...`);
-        await sleep(2000); // Aguardar 2 segundos se bater rate limit
-        return null;
-      }
-      console.error(`Erro ao buscar cotação de ${symbol}: ${response.status} - ${response.statusText}`);
-      return null;
-    }
-
-    const data: BrapiQuoteResponse = await response.json();
-
-    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
+    if (!response.results || !Array.isArray(response.results) || response.results.length === 0) {
       console.error(`Formato de resposta inesperado para ${symbol}`);
       return null;
     }
 
-    const result = data.results[0];
-    if (result.symbol && result.regularMarketPrice) {
+    const result = response.results[0];
+    if (result.symbol && result.regularMarketPrice !== undefined && result.regularMarketPrice !== null) {
+      console.log(`✅ ${symbol}: R$ ${result.regularMarketPrice.toFixed(2)} (${forceRefresh ? 'forçado' : 'SDK'})`);
       return result.regularMarketPrice;
     }
 
     return null;
 
   } catch (error) {
-    console.error(`Erro ao buscar cotação de ${symbol}:`, error);
+    // SDK já trata erros tipados (APIError, RateLimitError, etc.)
+    if (error instanceof Brapi.APIError) {
+      if (error.status === 429) {
+        console.warn(`Rate limit atingido para ${symbol}, SDK fará retry automático`);
+      } else {
+        console.error(`Erro ao buscar cotação de ${symbol}: ${error.status} - ${error.message}`);
+      }
+    } else {
+      console.error(`Erro ao buscar cotação de ${symbol}:`, error);
+    }
     return null;
   }
 };
 
 /**
- * Busca cotações de múltiplos ativos via brapi.dev (um por vez)
+ * Busca cotações de múltiplos ativos via SDK brapi
+ * O SDK permite buscar múltiplas cotações de uma vez, otimizando as requisições
  * @param symbols - Array de símbolos (ex: ['PETR4', 'VALE3', 'ITUB4'])
+ * @param forceRefresh - Se true, ignora cache e busca dados frescos da API
  * @returns Mapa de símbolo -> preço
  */
-export const fetchQuotes = async (symbols: string[]): Promise<Map<string, number>> => {
+export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = false): Promise<Map<string, number>> => {
   if (!symbols || symbols.length === 0) {
     return new Map();
   }
@@ -131,54 +129,111 @@ export const fetchQuotes = async (symbols: string[]): Promise<Map<string, number
   const quotes = new Map<string, number>();
   const now = Date.now();
 
-  // Verificar cache primeiro
+  // Se forceRefresh é true, buscar todos os símbolos
+  // Caso contrário, verificar cache primeiro
   const symbolsToFetch: string[] = [];
   
-  for (const symbol of uniqueSymbols) {
-    const cached = quoteCache[symbol];
-    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-      quotes.set(symbol, cached.price);
-    } else {
-      symbolsToFetch.push(symbol);
+  if (forceRefresh) {
+    // Forçar busca de todos os símbolos
+    symbolsToFetch.push(...uniqueSymbols);
+    console.log(`🔄 Buscando cotações frescas de ${uniqueSymbols.length} ativos usando SDK (forçado)`);
+  } else {
+    // Verificar cache primeiro
+    for (const symbol of uniqueSymbols) {
+      const cached = quoteCache[symbol];
+      if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+        quotes.set(symbol, cached.price);
+      } else {
+        symbolsToFetch.push(symbol);
+      }
     }
+
+    // Se todos estão em cache, retornar
+    if (symbolsToFetch.length === 0) {
+      console.log(`✅ Todas as ${uniqueSymbols.length} cotações vieram do cache`);
+      return quotes;
+    }
+
+    console.log(`🔍 Buscando cotações de ${symbolsToFetch.length} ativos usando SDK (${uniqueSymbols.length - symbolsToFetch.length} em cache)`);
   }
 
-  // Se todos estão em cache, retornar
-  if (symbolsToFetch.length === 0) {
-    console.log(`✅ Todas as ${uniqueSymbols.length} cotações vieram do cache`);
-    return quotes;
-  }
-
-  console.log(`🔍 Buscando cotações de ${symbolsToFetch.length} ativos (${uniqueSymbols.length - symbolsToFetch.length} em cache)`);
-
-  // Buscar cotações uma por vez com delay
-  for (let i = 0; i < symbolsToFetch.length; i++) {
-    const symbol = symbolsToFetch[i];
+  // Usar SDK para buscar múltiplas cotações de uma vez (mais eficiente)
+  // A API brapi permite buscar até 20 símbolos por requisição separados por vírgula
+  const BATCH_SIZE = 20;
+  
+  for (let i = 0; i < symbolsToFetch.length; i += BATCH_SIZE) {
+    const batch = symbolsToFetch.slice(i, i + BATCH_SIZE);
+    const symbolsString = batch.join(',');
     
     try {
-      const price = await fetchSingleQuote(symbol);
-      
-      if (price !== null) {
-        quotes.set(symbol, price);
-        
-        // Atualizar cache
-        quoteCache[symbol] = {
-          price: price,
-          timestamp: now
-        };
-        
-        console.log(`✅ ${symbol}: R$ ${price.toFixed(2)}`);
-      } else {
-        console.warn(`⚠️  Não foi possível obter cotação de ${symbol}`);
+      const client = getBrapiClient();
+      const response = await client.quote.retrieve(symbolsString);
+
+      if (response.results && Array.isArray(response.results)) {
+        for (const result of response.results) {
+          if (result.symbol && result.regularMarketPrice !== undefined && result.regularMarketPrice !== null) {
+            const price = result.regularMarketPrice;
+            quotes.set(result.symbol, price);
+            
+            // Atualizar cache sempre
+            quoteCache[result.symbol] = {
+              price: price,
+              timestamp: now
+            };
+            
+            console.log(`✅ ${result.symbol}: R$ ${price.toFixed(2)}`);
+          }
+        }
       }
       
-      // Aguardar antes da próxima requisição (exceto na última)
-      if (i < symbolsToFetch.length - 1) {
-        await sleep(REQUEST_DELAY);
+      // Verificar quais símbolos não foram retornados
+      const returnedSymbols = new Set(response.results?.map(r => r.symbol) || []);
+      const missingSymbols = batch.filter(s => !returnedSymbols.has(s));
+      
+      for (const symbol of missingSymbols) {
+        console.warn(`⚠️  Não foi possível obter cotação de ${symbol}`);
+        // Se falhou mas temos cache antigo, usar cache como fallback apenas se não for forceRefresh
+        if (!forceRefresh) {
+          const cached = quoteCache[symbol];
+          if (cached) {
+            quotes.set(symbol, cached.price);
+            console.log(`📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+          }
+        }
+      }
+      
+      // Aguardar antes do próximo batch (exceto no último)
+      if (i + BATCH_SIZE < symbolsToFetch.length) {
+        await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
       }
       
     } catch (error) {
-      console.error(`❌ Erro ao buscar cotação de ${symbol}:`, error);
+      console.error(`❌ Erro ao buscar cotações do batch:`, error);
+      
+      // Se falhou, tentar buscar um por um como fallback
+      for (const symbol of batch) {
+        try {
+          const price = await fetchSingleQuote(symbol, forceRefresh);
+          if (price !== null) {
+            quotes.set(symbol, price);
+            quoteCache[symbol] = { price, timestamp: now };
+          } else if (!forceRefresh) {
+            const cached = quoteCache[symbol];
+            if (cached) {
+              quotes.set(symbol, cached.price);
+              console.log(`📦 Usando cache antigo após erro para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+            }
+          }
+        } catch (singleError) {
+          console.error(`❌ Erro ao buscar cotação individual de ${symbol}:`, singleError);
+          if (!forceRefresh) {
+            const cached = quoteCache[symbol];
+            if (cached) {
+              quotes.set(symbol, cached.price);
+            }
+          }
+        }
+      }
     }
   }
 
@@ -207,7 +262,7 @@ export const fetchQuote = async (symbol: string): Promise<number | null> => {
 };
 
 /**
- * Busca cotações com informações detalhadas (um por vez para evitar rate limit)
+ * Busca cotações com informações detalhadas usando SDK brapi
  * @param symbols - Array de símbolos
  * @returns Array de resultados detalhados
  */
@@ -223,54 +278,52 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
   }
 
   const results: BrapiQuoteResult[] = [];
+  const client = getBrapiClient();
 
-  console.log(`🔍 Buscando cotações detalhadas de ${uniqueSymbols.length} ativos`);
+  console.log(`🔍 Buscando cotações detalhadas de ${uniqueSymbols.length} ativos usando SDK`);
 
-  // Buscar uma por vez para evitar rate limit
-  for (let i = 0; i < uniqueSymbols.length; i++) {
-    const symbol = uniqueSymbols[i];
+  // SDK permite buscar múltiplas de uma vez, processar em batches de 20
+  const BATCH_SIZE = 20;
+  
+  for (let i = 0; i < uniqueSymbols.length; i += BATCH_SIZE) {
+    const batch = uniqueSymbols.slice(i, i + BATCH_SIZE);
+    const symbolsString = batch.join(',');
     
     try {
-      const apiKey = process.env.BRAPI_API_KEY;
-      
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-      
-      if (apiKey) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
+      const response = await client.quote.retrieve(symbolsString);
+
+      if (response.results && Array.isArray(response.results)) {
+        // Converter tipos do SDK para nosso formato
+        const convertedResults: BrapiQuoteResult[] = response.results
+          .filter(r => r.symbol && r.regularMarketPrice !== null && r.regularMarketPrice !== undefined)
+          .map(r => ({
+            symbol: r.symbol!,
+            shortName: r.shortName || '',
+            longName: r.longName ?? undefined,
+            currency: r.currency || 'BRL',
+            regularMarketPrice: r.regularMarketPrice!,
+            regularMarketDayHigh: r.regularMarketDayHigh ?? undefined,
+            regularMarketDayLow: r.regularMarketDayLow ?? undefined,
+            regularMarketChange: r.regularMarketChange ?? undefined,
+            regularMarketChangePercent: r.regularMarketChangePercent ?? undefined,
+            regularMarketTime: r.regularMarketTime || new Date().toISOString(),
+            regularMarketVolume: r.regularMarketVolume ?? undefined,
+            marketCap: r.marketCap ?? undefined,
+          }));
+        results.push(...convertedResults);
       }
 
-      const url = `https://brapi.dev/api/quote/${symbol}`;
-      
-      const response = await fetch(url, {
-        headers,
-        next: { revalidate: 900 }
-      });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          console.warn(`Rate limit atingido para ${symbol}, aguardando...`);
-          await sleep(2000);
-          continue;
-        }
-        console.error(`Erro ao buscar cotação de ${symbol}: ${response.status}`);
-        continue;
-      }
-
-      const data: BrapiQuoteResponse = await response.json();
-
-      if (data.results && Array.isArray(data.results) && data.results.length > 0) {
-        results.push(data.results[0]);
-      }
-
-      // Aguardar antes da próxima requisição
-      if (i < uniqueSymbols.length - 1) {
-        await sleep(REQUEST_DELAY);
+      // Aguardar antes do próximo batch (exceto no último)
+      if (i + BATCH_SIZE < uniqueSymbols.length) {
+        await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
       }
 
     } catch (error) {
-      console.error(`Erro ao buscar cotação detalhada de ${symbol}:`, error);
+      if (error instanceof Brapi.APIError) {
+        console.error(`Erro ao buscar cotações detalhadas do batch: ${error.status} - ${error.message}`);
+      } else {
+        console.error(`Erro ao buscar cotações detalhadas do batch:`, error);
+      }
     }
   }
 

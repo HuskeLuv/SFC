@@ -2,7 +2,13 @@ import React from "react";
 import { TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { MONTHS } from "@/constants/cashflow";
 
-export const TableHeaderComponent: React.FC = () => (
+interface TableHeaderComponentProps {
+  showActionsColumn?: boolean;
+}
+
+export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({ 
+  showActionsColumn = false 
+}) => (
   <TableHeader className="border-t border-gray-100 dark:border-white/[0.05]">
     <TableRow>
       <TableCell
@@ -11,6 +17,22 @@ export const TableHeaderComponent: React.FC = () => (
       >
         <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
           Itens
+        </p>
+      </TableCell>
+      <TableCell
+        isHeader
+        className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-40"
+      >
+        <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
+          Significado
+        </p>
+      </TableCell>
+      <TableCell
+        isHeader
+        className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-16 text-center"
+      >
+        <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
+          Rank
         </p>
       </TableCell>
       <TableCell
@@ -40,6 +62,16 @@ export const TableHeaderComponent: React.FC = () => (
           Total Anual
         </p>
       </TableCell>
+      {showActionsColumn && (
+        <TableCell
+          isHeader
+          className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-8"
+        >
+          <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
+            Ações
+          </p>
+        </TableCell>
+      )}
     </TableRow>
   </TableHeader>
 ); 

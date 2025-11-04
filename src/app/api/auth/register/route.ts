@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { setupCashflowForUser } from '@/utils/cashflowSetup';
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,8 +25,8 @@ export async function POST(req: NextRequest) {
       },
     });
     
-    // Criar estrutura de cashflow para o novo usuário
-    await setupCashflowForUser(user.id);
+    // Novo usuário usa templates diretamente (userId = null)
+    // Não cria cópias físicas - personalização acontece sob demanda
     
     const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: '7d' });
     const response = NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } });

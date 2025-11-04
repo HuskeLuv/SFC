@@ -14,37 +14,39 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  avatarUrl String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  events    Event[]
-  dashboard DashboardData[]
-  cashflows Cashflow[]
-  cashflowGroups CashflowGroup[]
+  id                String             @id @default(uuid())
+  email             String             @unique
+  password          String
+  name              String
+  avatarUrl         String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  events            Event[]
+  dashboard         DashboardData[]
+  cashflows         Cashflow[]
+  cashflowGroups    CashflowGroup[]
+  cashflowItems     CashflowItem[]
+  cashflowValues    CashflowValue[]
   // Stocks
-  watchlists Watchlist[]
-  portfolios Portfolio[]
+  watchlists        Watchlist[]
+  portfolios        Portfolio[]
   stockTransactions StockTransaction[]
 }
 
 model Event {
-  id        String   @id @default(uuid())
-  title     String
-  date      DateTime
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  id     String   @id @default(uuid())
+  title  String
+  date   DateTime
+  userId String
+  user   User     @relation(fields: [userId], references: [id])
 }
 
 model DashboardData {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  metric    String
-  value     Float
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  metric String
+  value  Float
 }
 
 model Cashflow {
@@ -52,7 +54,7 @@ model Cashflow {
   userId          String
   user            User     @relation(fields: [userId], references: [id])
   data            DateTime
-  tipo            String   // "Receita" ou "Despesa"
+  tipo            String // "Receita" ou "Despesa"
   categoria       String
   descricao       String
   valor           Float
@@ -63,49 +65,56 @@ model Cashflow {
 }
 
 model CashflowGroup {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  name      String
-  type      String   // "Entradas" or "Despesas" - explicitly track the type
-  parentId  String?  // Para subgrupos
-  parent    CashflowGroup? @relation("ParentGroup", fields: [parentId], references: [id])
-  children  CashflowGroup[] @relation("ParentGroup")
-  items     CashflowItem[]
-  order     Int
-  percentTotal Float? // Percentual do grupo
-  observacoes String? // Observações/comentários
-  isActive  Boolean  @default(true) // Status ativo/inativo
+  id         String          @id @default(uuid())
+  userId     String? // null se for grupo padrão (template)
+  user       User?           @relation(fields: [userId], references: [id])
+  name       String
+  type       String // 'entrada', 'despesa' ou 'investimento'
+  parentId   String? // FK para outro grupo (subgrupo)
+  parent     CashflowGroup?  @relation("SubGroups", fields: [parentId], references: [id])
+  children   CashflowGroup[] @relation("SubGroups")
+  items      CashflowItem[]
+  orderIndex Int             @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([parentId])
 }
 
 model CashflowItem {
-  id            String   @id @default(uuid())
-  groupId       String
-  group         CashflowGroup @relation(fields: [groupId], references: [id])
-  descricao     String
-  significado   String?
-  rank          Int?
-  percentTotal  Float?
-  valores       CashflowValue[]
-  order         Int
-  categoria     String? // Categoria do item
-  formaPagamento String? // Forma de pagamento
-  status        String? // Status: 'pago', 'pendente', 'recebido'
-  dataVencimento DateTime? // Data de vencimento
-  observacoes   String? // Observações/comentários
-  isActive      Boolean @default(true) // Status ativo/inativo
-  isInvestment  Boolean @default(false) // Se é um item de investimento
+  id          String        @id @default(uuid())
+  userId      String? // null se for item padrão (template)
+  user        User?         @relation(fields: [userId], references: [id])
+  groupId     String
+  group       CashflowGroup @relation(fields: [groupId], references: [id])
+  name        String
+  significado String? // explicação opcional
+  rank        Int? // ordem de importância
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  values CashflowValue[]
+
+  @@index([groupId])
+  @@index([userId])
 }
 
 model CashflowValue {
-  id        String   @id @default(uuid())
+  id        String       @id @default(uuid())
   itemId    String
   item      CashflowItem @relation(fields: [itemId], references: [id])
-  mes       Int      // 0 = Jan, 11 = Dez
-  valor     Float
-  dataPagamento DateTime? // Data efetiva do pagamento
-  status    String? // Status específico do mês: 'pago', 'pendente', 'recebido'
-  observacoes String? // Observações do mês
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  year      Int
+  month     Int // 0 = Jan, 11 = Dez
+  value     Float
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([itemId, userId, year, month])
+  @@index([itemId])
+  @@index([userId])
 }
 
 // ===== STOCKS MODULE =====
@@ -114,51 +123,51 @@ model CashflowValue {
 model Stock {
   id          String   @id @default(uuid())
   ticker      String   @unique // Código do ativo (ex: PETR4, VALE3)
-  companyName String   // Nome da empresa
-  sector      String?  // Setor da empresa
-  subsector   String?  // Subsetor
-  segment     String?  // Segmento
+  companyName String // Nome da empresa
+  sector      String? // Setor da empresa
+  subsector   String? // Subsetor
+  segment     String? // Segmento
   isActive    Boolean  @default(true)
   lastUpdate  DateTime @default(now())
-  
+
   // Relacionamentos
-  watchlists Watchlist[]
-  portfolios Portfolio[]
+  watchlists   Watchlist[]
+  portfolios   Portfolio[]
   transactions StockTransaction[]
-  
+
   @@map("stocks")
 }
 
 // Lista de observação do usuário
 model Watchlist {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  stockId   String?  // Pode ser null para compatibilidade
-  stock     Stock?   @relation(fields: [stockId], references: [id])
-  assetId   String?  // Nova referência para Asset
-  asset     Asset?   @relation(fields: [assetId], references: [id])
-  addedAt   DateTime @default(now())
-  notes     String?  // Observações do usuário
-  
+  id      String   @id @default(uuid())
+  userId  String
+  user    User     @relation(fields: [userId], references: [id])
+  stockId String? // Pode ser null para compatibilidade
+  stock   Stock?   @relation(fields: [stockId], references: [id])
+  assetId String? // Nova referência para Asset
+  asset   Asset?   @relation(fields: [assetId], references: [id])
+  addedAt DateTime @default(now())
+  notes   String? // Observações do usuário
+
   @@unique([userId, stockId])
   @@map("watchlists")
 }
 
 // Portfolio do usuário (ações que possui)
 model Portfolio {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  stockId   String?  // Pode ser null para compatibilidade
-  stock     Stock?   @relation(fields: [stockId], references: [id])
-  assetId   String?  // Nova referência para Asset
-  asset     Asset?   @relation(fields: [assetId], references: [id])
-  quantity  Int      // Quantidade de ações
-  avgPrice  Float    // Preço médio de compra
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  stockId       String? // Pode ser null para compatibilidade
+  stock         Stock?   @relation(fields: [stockId], references: [id])
+  assetId       String? // Nova referência para Asset
+  asset         Asset?   @relation(fields: [assetId], references: [id])
+  quantity      Int // Quantidade de ações
+  avgPrice      Float // Preço médio de compra
   totalInvested Float // Total investido
-  lastUpdate DateTime @default(now())
-  
+  lastUpdate    DateTime @default(now())
+
   @@unique([userId, stockId])
   @@unique([userId, assetId])
   @@map("portfolios")
@@ -169,19 +178,19 @@ model StockTransaction {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  stockId   String?  // Pode ser null para compatibilidade
+  stockId   String? // Pode ser null para compatibilidade
   stock     Stock?   @relation(fields: [stockId], references: [id])
-  assetId   String?  // Nova referência para Asset
+  assetId   String? // Nova referência para Asset
   asset     Asset?   @relation(fields: [assetId], references: [id])
-  type      String   // "compra" ou "venda"
-  quantity  Int      // Quantidade de ações
-  price     Float    // Preço por ação
-  total     Float    // Valor total da transação
+  type      String // "compra" ou "venda"
+  quantity  Int // Quantidade de ações
+  price     Float // Preço por ação
+  total     Float // Valor total da transação
   date      DateTime // Data da transação
-  fees      Float?   // Taxas da operação
-  notes     String?  // Observações
+  fees      Float? // Taxas da operação
+  notes     String? // Observações
   createdAt DateTime @default(now())
-  
+
   @@map("stock_transactions")
 }
 
@@ -191,17 +200,17 @@ model StockTransaction {
 model Asset {
   id        String   @id @default(uuid())
   symbol    String   @unique // Código do ativo (ex: PETR4, VALE3, BTC, ETH)
-  name      String   // Nome do ativo (ex: Petrobras PN, Vale ON, Bitcoin)
-  type      String   // Tipo: "stock", "etf", "fii", "bdr", "crypto"
-  currency  String   // Moeda: "BRL", "USD"
+  name      String // Nome do ativo (ex: Petrobras PN, Vale ON, Bitcoin)
+  type      String // Tipo: "stock", "etf", "fii", "bdr", "crypto"
+  currency  String // Moeda: "BRL", "USD"
   source    String   @default("brapi") // Fonte dos dados
   updatedAt DateTime @updatedAt
-  
+
   // Relacionamentos
-  watchlists Watchlist[]
-  portfolios Portfolio[]
+  watchlists   Watchlist[]
+  portfolios   Portfolio[]
   transactions StockTransaction[]
-  
+
   @@index([symbol])
   @@index([type])
   @@index([source])
@@ -218,12 +227,12 @@ enum InstitutionStatus {
 model Institution {
   id        String            @id @default(cuid())
   codigo    String            @unique // Código identificador da instituição
-  nome      String            // Nome da instituição
-  cnpj      String?           // CNPJ da instituição (opcional)
+  nome      String // Nome da instituição
+  cnpj      String? // CNPJ da instituição (opcional)
   status    InstitutionStatus @default(ATIVA)
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
-  
+
   @@index([codigo])
   @@index([cnpj])
   @@index([status])

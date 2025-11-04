@@ -30,7 +30,7 @@ export async function updateCashflowValue(
 
 export async function createCashflowItem(
   groupId: string,
-  descricao: string,
+  name: string,
   significado?: string
 ): Promise<{ id: string; [key: string]: unknown }> {
   const response = await fetch('/api/cashflow/items', {
@@ -41,7 +41,8 @@ export async function createCashflowItem(
     credentials: 'include',
     body: JSON.stringify({
       groupId,
-      descricao,
+      name, // novo campo
+      descricao: name, // compatibilidade com API antiga
       significado
     }),
   });

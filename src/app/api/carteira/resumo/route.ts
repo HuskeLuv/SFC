@@ -24,19 +24,54 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Buscar investimentos em cashflow (isInvestment = true)
-    const investments = await prisma.cashflowItem.findMany({
+    // Buscar investimentos em cashflow (grupos tipo 'investimento')
+    // Buscar templates e personalizações
+    const investmentGroupsTemplate = await prisma.cashflowGroup.findMany({
       where: {
-        group: {
-          userId: user.id,
-        },
-        isInvestment: true,
-        isActive: true,
+        userId: null,
+        type: 'investimento',
       },
       include: {
-        valores: true,
+        items: {
+          include: {
+            values: {
+              where: {
+                userId: user.id,
+                year: new Date().getFullYear(),
+              },
+            },
+          },
+        },
       },
     });
+
+    const investmentGroupsCustom = await prisma.cashflowGroup.findMany({
+      where: {
+        userId: user.id,
+        type: 'investimento',
+      },
+      include: {
+        items: {
+          include: {
+            values: {
+              where: {
+                userId: user.id,
+                year: new Date().getFullYear(),
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Mesclar grupos (personalizações têm prioridade)
+    const allInvestmentGroups = [...investmentGroupsCustom];
+    const templateMap = new Map(investmentGroupsTemplate.map(g => [g.name, g]));
+    investmentGroupsCustom.forEach(custom => templateMap.delete(custom.name));
+    allInvestmentGroups.push(...Array.from(templateMap.values()));
+
+    // Coletar todos os itens de investimento
+    const investments = allInvestmentGroups.flatMap(group => group.items || []);
 
     // Buscar cotações atuais dos ativos no portfolio
     const symbols = portfolio
@@ -75,8 +110,8 @@ export async function GET(request: NextRequest) {
 
     // Calcular totais dos outros investimentos
     const otherInvestmentsTotalInvested = investments.reduce((sum, item) => {
-      const totalValores = item.valores.reduce((sumValores, valor) => sumValores + valor.valor, 0);
-      return sum + totalValores;
+      const totalValues = (item.values || []).reduce((sumValues, value) => sumValues + value.value, 0);
+      return sum + totalValues;
     }, 0);
 
     // Usar valor investido como valor atual (sem variação simulada)
@@ -102,16 +137,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Buscar investimentos em cashflow para gerar histórico real
-    const cashflowInvestments = await prisma.cashflowItem.findMany({
-      where: {
-        group: { userId: user.id },
-        isInvestment: true,
-        isActive: true,
-      },
-      include: {
-        valores: true,
-      },
-    });
+    // Reutilizar os grupos já buscados acima ou buscar novamente
+    const cashflowInvestments = investments;
 
     // Gerar histórico baseado nas transações reais
     const historicoPatrimonio = [];
@@ -136,11 +163,11 @@ export async function GET(request: NextRequest) {
       // Processar investimentos em cashflow
       let patrimonioCashflow = 0;
       cashflowInvestments.forEach(investment => {
-        const totalValor = investment.valores.reduce((sum, valor) => sum + valor.valor, 0);
+        const totalValor = (investment.values || []).reduce((sum, value) => sum + value.value, 0);
         patrimonioCashflow += totalValor;
         
-        // Usar data de vencimento se disponível, senão usar data atual
-        const dataReferencia = investment.dataVencimento || new Date();
+        // Usar data atual (campo dataVencimento não existe mais)
+        const dataReferencia = new Date();
         const dataKey = new Date(dataReferencia.getFullYear(), dataReferencia.getMonth(), 1).getTime();
         patrimonioPorData.set(dataKey, (patrimonioPorData.get(dataKey) || 0) + patrimonioCashflow);
       });
@@ -201,19 +228,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Buscar investimentos categorizados por tipo
-    const categorizedInvestments = await prisma.cashflowItem.findMany({
-      where: {
-        group: {
-          userId: user.id,
-        },
-        isInvestment: true,
-        isActive: true,
-      },
-      include: {
-        valores: true,
-      },
-    });
+    // Usar os investimentos já buscados acima
+    const categorizedInvestments = investments;
 
     // Inicializar contadores para cada categoria
     const categorias = {
@@ -294,34 +310,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Categorizar investimentos baseado na descrição/categoria
+    // Categorizar investimentos baseado no nome
     categorizedInvestments.forEach(investment => {
-      const totalValor = investment.valores.reduce((sum, valor) => sum + valor.valor, 0);
-      const categoria = investment.categoria?.toLowerCase() || '';
-      const descricao = investment.descricao.toLowerCase();
+      const totalValor = (investment.values || []).reduce((sum, value) => sum + value.value, 0);
+      const name = investment.name.toLowerCase();
 
-      // Lógica de categorização baseada em palavras-chave
-      if (descricao.includes('reserva') || descricao.includes('emergencia') || categoria.includes('reserva')) {
+      // Lógica de categorização baseada em palavras-chave no nome
+      if (name.includes('reserva') || name.includes('emergencia')) {
         categorias.reservaOportunidade += totalValor;
-      } else if (descricao.includes('cdb') || descricao.includes('lci') || descricao.includes('lca') || 
-                 descricao.includes('tesouro') || descricao.includes('renda fixa') || categoria.includes('renda fixa')) {
+      } else if (name.includes('cdb') || name.includes('lci') || name.includes('lca') || 
+                 name.includes('tesouro') || name.includes('renda fixa')) {
         categorias.rendaFixaFundos += totalValor;
-      } else if (descricao.includes('fim') || descricao.includes('fia') || descricao.includes('fundo') || categoria.includes('fundo')) {
+      } else if (name.includes('fim') || name.includes('fia') || name.includes('fundo')) {
         categorias.fimFia += totalValor;
-      } else if (descricao.includes('fii') || descricao.includes('imobiliario') || categoria.includes('fii')) {
+      } else if (name.includes('fii') || name.includes('imobiliario')) {
         categorias.fiis += totalValor;
-      } else if (descricao.includes('stock') || descricao.includes('exterior') || categoria.includes('exterior')) {
+      } else if (name.includes('stock') || name.includes('exterior')) {
         categorias.stocks += totalValor;
-      } else if (descricao.includes('reit') || categoria.includes('reit')) {
+      } else if (name.includes('reit')) {
         categorias.reits += totalValor;
-      } else if (descricao.includes('etf') || categoria.includes('etf')) {
+      } else if (name.includes('etf')) {
         categorias.etfs += totalValor;
-      } else if (descricao.includes('crypto') || descricao.includes('bitcoin') || descricao.includes('moeda') || 
-                 categoria.includes('crypto') || categoria.includes('moeda')) {
+      } else if (name.includes('crypto') || name.includes('bitcoin') || name.includes('moeda')) {
         categorias.moedasCriptos += totalValor;
-      } else if (descricao.includes('previdencia') || descricao.includes('seguro') || categoria.includes('previdencia')) {
+      } else if (name.includes('previdencia') || name.includes('seguro')) {
         categorias.previdenciaSeguros += totalValor;
-      } else if (descricao.includes('opcao') || descricao.includes('option') || categoria.includes('opcao')) {
+      } else if (name.includes('opcao') || name.includes('option')) {
         categorias.opcoes += totalValor;
       } else {
         // Se não se encaixa em nenhuma categoria específica, vai para renda fixa

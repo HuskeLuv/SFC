@@ -20,11 +20,29 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   });
 
   // Buscar cotações atuais dos ativos
+  // Sempre forçar busca fresca para garantir valores atualizados
   const symbols = portfolio
     .filter(item => item.asset)
     .map(item => item.asset!.symbol);
   
-  const quotes = await fetchQuotes(symbols);
+  // Forçar refresh para sempre obter cotações atualizadas da API
+  let quotes = await fetchQuotes(symbols, true);
+
+  // Verificar se símbolos críticos (PETR4, VALE3) foram encontrados
+  // Se não foram, tentar buscar novamente
+  const criticalSymbols = ['PETR4', 'VALE3'];
+  const missingCriticalSymbols = criticalSymbols.filter(symbol => 
+    symbols.includes(symbol) && !quotes.has(symbol)
+  );
+
+  if (missingCriticalSymbols.length > 0) {
+    console.log(`🔄 Tentando buscar novamente símbolos críticos: ${missingCriticalSymbols.join(', ')}`);
+    const retryQuotes = await fetchQuotes(missingCriticalSymbols, true);
+    // Adicionar resultados do retry ao mapa de cotações
+    retryQuotes.forEach((price, symbol) => {
+      quotes.set(symbol, price);
+    });
+  }
 
   // Converter para formato AcaoAtivo
   const acoesAtivos: AcaoAtivo[] = portfolio
@@ -33,7 +51,13 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       const valorTotal = item.totalInvested;
       
       // Buscar cotação atual da brapi
-      const cotacaoAtual = quotes.get(item.asset!.symbol) || item.avgPrice;
+      let cotacaoAtual = quotes.get(item.asset!.symbol);
+      
+      // Se ainda não encontrou, usar preço médio como último recurso
+      if (!cotacaoAtual) {
+        console.warn(`⚠️  Não foi possível obter cotação de ${item.asset!.symbol}, usando preço médio como fallback`);
+        cotacaoAtual = item.avgPrice;
+      }
       
       // Calcular valor atualizado com cotação atual
       const valorAtualizado = item.quantity * cotacaoAtual;

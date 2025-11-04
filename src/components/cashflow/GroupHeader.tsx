@@ -4,6 +4,8 @@ import { CashflowGroup } from "@/types/cashflow";
 import { formatCurrency, formatPercent, isReceitaGroupByType } from "@/utils/formatters";
 import { CollapseButton } from "./CollapseButton";
 import { AddRowButton } from "./AddRowButton";
+import { EditButton } from "./EditButton";
+import { SaveCancelButtons } from "./SaveCancelButtons";
 
 interface GroupHeaderProps {
   group: CashflowGroup;
@@ -13,6 +15,12 @@ interface GroupHeaderProps {
   groupPercentage: number;
   onToggleCollapse: () => void;
   onAddRow: () => void;
+  isEditing?: boolean;
+  onStartEdit?: () => void;
+  onSave?: () => void;
+  onCancel?: () => void;
+  saving?: boolean;
+  showActionsColumn?: boolean;
 }
 
 export const GroupHeader: React.FC<GroupHeaderProps> = ({ 
@@ -22,7 +30,13 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   groupAnnualTotal, 
   groupPercentage,
   onToggleCollapse, 
-  onAddRow
+  onAddRow,
+  isEditing = false,
+  onStartEdit,
+  onSave,
+  onCancel,
+  saving = false,
+  showActionsColumn = false,
 }) => {
   // Determinar o nível de indentação baseado na hierarquia
   const indentLevel = group.parentId ? (group.children?.length ? 2 : 3) : 1;
@@ -69,25 +83,44 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
             groupName={group.name} 
           />
           <span className={`text-xs ${indentClass} ${getGroupNameColorClass()}`}>{getDisplayName()}</span>
-          {!isCollapsed && !group.children?.length && group.name !== 'Investimentos' && (
+          {!isCollapsed && !group.children?.length && group.name !== 'Investimentos' && !isEditing && (
             <AddRowButton 
               onClick={onAddRow} 
               groupName={group.name}
             />
           )}
+          {!isCollapsed && !group.children?.length && group.name !== 'Investimentos' && !isEditing && onStartEdit && (
+            <EditButton onClick={onStartEdit} />
+          )}
+          {isEditing && onSave && onCancel && (
+            <SaveCancelButtons 
+              onSave={onSave} 
+              onCancel={onCancel} 
+              saving={saving}
+            />
+          )}
         </div>
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs font-bold border border-gray-100 dark:border-white/[0.05] w-40">
+        -
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs font-bold text-center border border-gray-100 dark:border-white/[0.05] w-16">
+        -
       </TableCell>
       <TableCell className={`px-2 py-2 text-xs font-bold text-right w-16 border border-gray-100 dark:border-white/[0.05] ${getPercentageColorClass()}`}>
         {group.name === 'Investimentos' ? '-' : (groupPercentage > 0 ? formatPercent(groupPercentage) : '-')}
       </TableCell>
       {groupTotals.map((value, index) => (
         <TableCell key={index} className="px-1 py-2 text-xs font-bold text-right w-12 text-blue-900 dark:text-blue-100 border border-gray-100 dark:border-white/[0.05]">
-          {value ? formatCurrency(value) : '-'}
+          {formatCurrency(value || 0)}
         </TableCell>
       ))}
       <TableCell className="px-2 py-2 text-xs font-bold text-right w-16 text-blue-900 dark:text-blue-100 border border-gray-100 dark:border-white/[0.05]">
         {formatCurrency(groupAnnualTotal)}
       </TableCell>
+      {showActionsColumn && (
+        <TableCell className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-8"></TableCell>
+      )}
     </TableRow>
   );
 }; 
