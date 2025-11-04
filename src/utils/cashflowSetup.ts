@@ -218,16 +218,14 @@ export async function setupCashflowForUser(userId: string) {
         const items = (DEFAULT_CASHFLOW_STRUCTURE.itensPorGrupo as Record<string, Array<{ descricao: string; significado?: string; rank?: number; percentTotal?: number }>>)[grupo.name] || [];
         console.log(`  📋 ${grupo.name}: ${items.length} itens`);
         
-        let itemOrder = 1;
         for (const item of items) {
           await prisma.cashflowItem.create({
             data: {
+              userId: userId,
               groupId: group.id,
-              descricao: item.descricao,
+              name: item.descricao,
               significado: item.significado || null,
               rank: item.rank || null,
-              percentTotal: item.percentTotal || null,
-              order: itemOrder++,
             },
           });
         }
@@ -281,18 +279,18 @@ export async function getUserCashflowStructure(userId: string) {
       where: { userId },
       include: {
         items: {
-          orderBy: { order: 'asc' }
+          orderBy: { rank: 'asc' }
         },
         children: {
           include: {
             items: {
-              orderBy: { order: 'asc' }
+              orderBy: { rank: 'asc' }
             }
           },
-          orderBy: { order: 'asc' }
+          orderBy: { orderIndex: 'asc' }
         }
       },
-      orderBy: { order: 'asc' }
+      orderBy: { orderIndex: 'asc' }
     });
 
     return groups;

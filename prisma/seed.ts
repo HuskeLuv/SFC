@@ -615,26 +615,26 @@ async function main() {
         for (const item of items) {
           const createdItem = await prisma.cashflowItem.create({
             data: {
+              userId: null, // Template padrão
               groupId: group.id,
-              descricao: item.descricao,
-              significado: item.significado,
-              rank: item.rank,
-              percentTotal: item.percentTotal,
-              order: itemOrder++,
+              name: item.descricao,
+              significado: item.significado || null,
+              rank: item.rank || null,
             },
           });
 
           // Criar valores mensais para cada item
           let valuesCreated = 0;
-          for (let mes = 0; mes < 12; mes++) {
-            if (item.valoresMensais[mes] > 0) {
+          const currentYear = new Date().getFullYear();
+          for (let month = 0; month < 12; month++) {
+            if (item.valoresMensais[month] > 0) {
               await prisma.cashflowValue.create({
                 data: {
                   itemId: createdItem.id,
-                  mes: mes,
-                  valor: item.valoresMensais[mes],
-                  status: 'pago',
-                  dataPagamento: new Date(2024, mes, Math.floor(Math.random() * 28) + 1),
+                  userId: 'seed-user-id', // ID temporário para seed, será substituído em produção
+                  year: currentYear,
+                  month: month,
+                  value: item.valoresMensais[month],
                 },
               });
               valuesCreated++;

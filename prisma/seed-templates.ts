@@ -236,8 +236,8 @@ async function seedTemplates() {
             userId: null, // Template padrão
             groupId: group.id,
             name: item.name,
-            significado: item.significado || null,
-            rank: item.rank || null,
+            significado: ('significado' in item && item.significado) ? item.significado : null,
+            rank: ('rank' in item && item.rank) ? item.rank : null,
           },
         });
         itemsCount++;

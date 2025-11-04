@@ -149,9 +149,9 @@ export async function GET(request: NextRequest) {
         id: `investimento-${tipoAtivo}`,
         name: tipoAtivoLabels[tipoAtivo], // novo formato
         descricao: tipoAtivoLabels[tipoAtivo], // compatibilidade
-        significado: 'Calculado automaticamente',
-        rank: ordemCategorias[tipoAtivo] || 999, // novo formato
-        order: ordemCategorias[tipoAtivo] || 999, // compatibilidade
+        significado: null, // Investimentos não têm significado
+        rank: null, // Investimentos não têm rank
+        order: ordemCategorias[tipoAtivo] || 999, // compatibilidade (usado apenas para ordenação)
         values, // novo formato
         valores, // compatibilidade
         totalAnual: Math.round(totalAnual * 100) / 100,

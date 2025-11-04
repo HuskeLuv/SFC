@@ -67,15 +67,25 @@ export const useCashflowData = () => {
                 // SUBSTITUIR completamente os itens do grupo de Investimentos
                 // Remover TODOS os itens antigos e usar apenas os calculados
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const itensCalculados = investimentosData.investimentos.map((inv: any) => ({
-                  id: inv.id,
-                  userId: null, // Itens calculados são como templates
-                  groupId: group.id,
-                  name: inv.descricao || inv.name,
-                  significado: inv.significado || null,
-                  rank: inv.order || inv.rank || null,
-                  values: inv.valores || inv.values || [],
-                }));
+                const itensCalculados = investimentosData.investimentos.map((inv: any) => {
+                  // Priorizar 'values' que é o formato novo, depois 'valores' para compatibilidade
+                  const values = inv.values || inv.valores || [];
+                  
+                  console.log(`[Cashflow] Mapeando item ${inv.name || inv.descricao}: ${values.length} valores`);
+                  if (values.length > 0) {
+                    console.log(`[Cashflow] Primeiro valor:`, values[0]);
+                  }
+                  
+                  return {
+                    id: inv.id,
+                    userId: null, // Itens calculados são como templates
+                    groupId: group.id,
+                    name: inv.descricao || inv.name,
+                    significado: null, // Investimentos não têm significado
+                    rank: null, // Investimentos não têm rank
+                    values: values,
+                  };
+                });
 
                 console.log('[Cashflow] Itens calculados mapeados:', itensCalculados.length);
 
@@ -104,7 +114,7 @@ export const useCashflowData = () => {
             };
             
             // Integrar investimentos ao grupo de Investimentos (recursivamente)
-            let gruposComInvestimentos = groups.map(group => findAndUpdateInvestmentGroup(group));
+            let gruposComInvestimentos = groups.map((group: CashflowGroup) => findAndUpdateInvestmentGroup(group));
             
             // Se não encontrou o grupo, criar um novo grupo de Investimentos no top-level
             if (!investimentosJaAdicionados && investimentosData.investimentos.length > 0) {
@@ -115,7 +125,7 @@ export const useCashflowData = () => {
               
               if (investmentGroup) {
                 // Se encontrou mas não foi atualizado, atualizar agora
-                gruposComInvestimentos = gruposComInvestimentos.map(group => {
+                gruposComInvestimentos = gruposComInvestimentos.map((group: CashflowGroup) => {
                   if (group.id === investmentGroup.id || 
                       (group.name === 'Investimentos' || group.type === 'investimento')) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -284,8 +294,11 @@ export const useProcessedData = (data: CashflowGroup[]) => {
           const itemValues = Array(12).fill(0);
           if (item.values?.length) {
             item.values.forEach(val => {
-              if (typeof val.month === 'number' && typeof val.value === 'number') {
-                itemValues[val.month] = val.value;
+              // Suportar formato novo (month/value) e formato antigo (mes/valor) para compatibilidade
+              const month = (val as any).month !== undefined ? (val as any).month : (val as any).mes;
+              const value = (val as any).value !== undefined ? (val as any).value : (val as any).valor;
+              if (typeof month === 'number' && month >= 0 && month < 12 && typeof value === 'number') {
+                itemValues[month] = value;
               }
             });
           }
