@@ -270,6 +270,8 @@ export const useProcessedData = (data: CashflowGroup[]) => {
     // Calculate section totals (Entradas and Despesas)
     let entradasTotal = 0;
     let despesasTotal = 0;
+    const entradasByMonth = Array(12).fill(0);
+    const despesasByMonth = Array(12).fill(0);
 
     // Helper function to find group by ID
     const findGroupById = (groupId: string): CashflowGroup | undefined => {
@@ -287,7 +289,10 @@ export const useProcessedData = (data: CashflowGroup[]) => {
     };
 
     // Função recursiva para processar grupos e subgrupos
-    const processGroup = (group: CashflowGroup) => {
+    const processGroup = (group: CashflowGroup, isInvestmentGroup: boolean = false) => {
+      // Verificar se este grupo é de Investimentos
+      const isInvestment = isInvestmentGroup || group.name === 'Investimentos' || group.type === 'investimento';
+      
       // Calcular totais dos itens
       if (      group.items?.length) {
         group.items.forEach(item => {
@@ -309,8 +314,18 @@ export const useProcessedData = (data: CashflowGroup[]) => {
           // Add to section totals using simplified type check
           if (isReceitaGroupByType(group.type)) {
             entradasTotal += annualTotal;
+            // Somar entradas por mês
+            itemValues.forEach((value, month) => {
+              entradasByMonth[month] += value;
+            });
           } else {
             despesasTotal += annualTotal;
+            // Somar despesas por mês apenas se NÃO for grupo de Investimentos
+            if (!isInvestment) {
+              itemValues.forEach((value, month) => {
+                despesasByMonth[month] += value;
+              });
+            }
           }
         });
       }
@@ -335,7 +350,7 @@ export const useProcessedData = (data: CashflowGroup[]) => {
       // Processar subgrupos recursivamente
       if (group.children?.length) {
         group.children.forEach(child => {
-          processGroup(child);
+          processGroup(child, isInvestment);
           // Somar totais dos subgrupos ao grupo pai
           const childTotals = groupTotals[child.id];
           if (childTotals) {
@@ -344,6 +359,8 @@ export const useProcessedData = (data: CashflowGroup[]) => {
               groupAnnualTotals[group.id] += value;
             });
           }
+          // Nota: As entradas e despesas dos subgrupos já foram somadas quando processamos os itens dos subgrupos recursivamente
+          // Não precisamos somar novamente aqui para evitar duplicação
         });
       }
     };
@@ -418,7 +435,9 @@ export const useProcessedData = (data: CashflowGroup[]) => {
       totalByMonth,
       totalAnnual,
       entradasTotal,
-      despesasTotal
+      despesasTotal,
+      entradasByMonth,
+      despesasByMonth
     };
   }, [data]);
 }; 

@@ -16,6 +16,8 @@ import {
   ItemRow,
   AddRowForm,
   TotalRow,
+  SavingsIndexRow,
+  InflationPedroRow,
   NewItemRow
 } from "@/components/cashflow";
 import { EditableItemRow } from "@/components/cashflow/EditableItemRow";
@@ -24,6 +26,7 @@ import { createCashflowItem } from "@/utils/cashflowUpdate";
 import { useCellEditing } from "@/hooks/useCellEditing";
 import { useGroupEditMode } from "@/hooks/useGroupEditMode";
 import { getAllItemsInGroup } from "@/utils/cashflowHelpers";
+import { isReceitaGroupByType } from "@/utils/formatters";
 
 export default function DataTableTwo() {
   const { data, loading, error, refetch } = useCashflowData();
@@ -226,9 +229,22 @@ export default function DataTableTwo() {
           <TableBody>
             {processedData.groups
               .filter((group) => group.name !== 'Investimentos')
-              .map((group) => (
-              <React.Fragment key={group.id}>
-                <GroupHeader
+              .map((group, groupIndex, groups) => {
+                // Verificar se este é o primeiro grupo de despesas
+                const isFirstDespesaGroup = !isReceitaGroupByType(group.type) && 
+                  groups.slice(0, groupIndex).every(g => isReceitaGroupByType(g.type));
+                
+                return (
+                <React.Fragment key={group.id}>
+                  {/* Renderizar Inflação Pedro antes do primeiro grupo de Despesas */}
+                  {isFirstDespesaGroup && (
+                    <InflationPedroRow
+                      despesasByMonth={processedData.despesasByMonth}
+                      despesasAnnual={processedData.despesasTotal}
+                      showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
+                    />
+                  )}
+                  <GroupHeader
                   group={group}
                   isCollapsed={collapsed[group.id] || false}
                   groupTotals={processedData.groupTotals[group.id] || Array(12).fill(0)}
@@ -403,13 +419,23 @@ export default function DataTableTwo() {
                     )}
                   </>
                 )}
-              </React.Fragment>
-            ))}
+                </React.Fragment>
+              );
+            })}
             
             {/* Renderizar Saldo antes de Investimentos */}
             <TotalRow
               totalByMonth={processedData.totalByMonth}
               totalAnnual={processedData.totalAnnual}
+              showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
+            />
+            
+            {/* Renderizar Índice de Poupança após o Saldo */}
+            <SavingsIndexRow
+              totalByMonth={processedData.totalByMonth}
+              entradasByMonth={processedData.entradasByMonth}
+              totalAnnual={processedData.totalAnnual}
+              entradasAnnual={processedData.entradasTotal}
               showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
             />
             
