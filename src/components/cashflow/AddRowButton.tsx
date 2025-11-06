@@ -13,10 +13,10 @@ export const AddRowButton: React.FC<AddRowButtonProps> = ({
     <button
       onClick={onClick}
       aria-label={`Adicionar linha em ${groupName}`}
-      className="rounded-full w-5 h-5 flex items-center justify-center border border-blue-700 bg-blue-600 text-white shadow hover:bg-blue-700 focus:outline-none transition-colors"
+      className="rounded-full w-6 h-6 flex items-center justify-center border border-blue-600 bg-blue-500 text-white shadow hover:bg-blue-600 focus:outline-none transition-colors"
       title={`Adicionar linha em ${groupName}`}
     >
-      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
       </svg>
     </button>

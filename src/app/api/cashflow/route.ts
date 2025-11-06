@@ -259,9 +259,40 @@ export async function GET(request: NextRequest) {
       year,
       groups: mergedGroups,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro na API cashflow:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    
+    // Tratamento específico para erros de conexão do Prisma
+    if (error?.code === 'P1001' || error?.code === 'P1000') {
+      return NextResponse.json(
+        {
+          error: 'Erro de conexão com o banco de dados',
+          message: 'Não foi possível conectar ao servidor de banco de dados. Verifique se o banco está ativo e tente novamente.',
+          code: error.code,
+        },
+        { status: 503 }
+      );
+    }
+    
+    // Tratamento para outros erros do Prisma
+    if (error?.code?.startsWith('P')) {
+      return NextResponse.json(
+        {
+          error: 'Erro no banco de dados',
+          message: error.message || 'Ocorreu um erro ao processar a requisição.',
+          code: error.code,
+        },
+        { status: 500 }
+      );
+    }
+    
+    return NextResponse.json(
+      { 
+        error: 'Erro interno do servidor',
+        message: error.message || 'Ocorreu um erro inesperado.'
+      },
+      { status: 500 }
+    );
   }
 }
 

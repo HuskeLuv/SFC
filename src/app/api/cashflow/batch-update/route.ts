@@ -16,7 +16,7 @@ import { personalizeItem, getItemForUser } from '@/utils/cashflowPersonalization
  *     name?: string,
  *     significado?: string | null,
  *     rank?: number | null,
- *     values?: Array<{ month: number; value: number }>
+ *     values?: Array<{ month: number; value: number; color?: string | null }>
  *   }>,
  *   deletes: string[]
  * }
@@ -115,7 +115,7 @@ export async function PUT(request: NextRequest) {
 
           // Atualizar valores mensais
           if (values && Array.isArray(values) && values.length > 0) {
-            for (const { month, value } of values) {
+            for (const { month, value, color } of values) {
               if (typeof month !== 'number' || month < 0 || month > 11) {
                 continue; // Ignorar meses inválidos
               }
@@ -129,11 +129,23 @@ export async function PUT(request: NextRequest) {
                 },
               });
 
+              const updateData: {
+                value: number;
+                color?: string | null;
+              } = {
+                value: parseFloat(value.toString()),
+              };
+
+              // Incluir cor se fornecida
+              if (color !== undefined) {
+                updateData.color = color;
+              }
+
               if (existingValue) {
                 // Atualizar valor existente
                 await prisma.cashflowValue.update({
                   where: { id: existingValue.id },
-                  data: { value: parseFloat(value.toString()) },
+                  data: updateData,
                 });
               } else {
                 // Criar novo valor
@@ -144,6 +156,7 @@ export async function PUT(request: NextRequest) {
                     year: currentYear,
                     month,
                     value: parseFloat(value.toString()),
+                    color: color !== undefined ? color : null,
                   },
                 });
               }

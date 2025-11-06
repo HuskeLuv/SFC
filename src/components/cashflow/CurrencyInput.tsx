@@ -7,6 +7,8 @@ interface CurrencyInputProps {
   className?: string;
   placeholder?: string;
   disabled?: boolean;
+  style?: React.CSSProperties;
+  onClick?: (e: React.MouseEvent<HTMLInputElement>) => void;
 }
 
 export const CurrencyInput: React.FC<CurrencyInputProps> = ({
@@ -15,6 +17,8 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   className = "",
   placeholder = "0,00",
   disabled = false,
+  style,
+  onClick,
 }) => {
   const [displayValue, setDisplayValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,12 +75,14 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
       onChange={handleChange}
       onBlur={handleBlur}
       onFocus={handleFocus}
+      onClick={onClick}
       placeholder={placeholder}
       disabled={disabled}
       className={`w-full px-2 py-1 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-right ${className}`}
       style={{
         appearance: "none",
         MozAppearance: "textfield",
+        ...style,
       }}
     />
   );

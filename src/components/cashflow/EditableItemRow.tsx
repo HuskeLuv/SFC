@@ -16,6 +16,8 @@ interface EditableItemRowProps {
   isEditing: boolean;
   onUpdateField: (itemId: string, field: "name" | "significado" | "rank" | "monthlyValue", value: string | number | null, monthIndex?: number) => void;
   onDeleteItem: (itemId: string) => void;
+  onApplyColor?: (itemId: string, monthIndex: number) => void;
+  isColorModeActive?: boolean;
 }
 
 export const EditableItemRow: React.FC<EditableItemRowProps> = ({
@@ -28,6 +30,8 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   isEditing,
   onUpdateField,
   onDeleteItem,
+  onApplyColor,
+  isColorModeActive = false,
 }) => {
   const isReceita = isReceitaGroupByType(group.type);
   const isInvestmentItem = group.type === 'investimento' || item.id.startsWith('investimento-');
@@ -38,6 +42,16 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
       : "text-red-600 dark:text-red-400";
   };
 
+  // Obter cores originais do item
+  const originalColors = Array(12).fill(null) as (string | null)[];
+  if (item.values) {
+    item.values.forEach((value) => {
+      if (value.month >= 0 && value.month < 12) {
+        originalColors[value.month] = value.color || null;
+      }
+    });
+  }
+  
   // Usar dados editados se disponíveis, senão usar dados originais
   const displayData = editedData || {
     id: item.id,
@@ -45,7 +59,11 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
     significado: item.significado,
     rank: item.rank,
     monthlyValues: itemTotals,
+    monthlyColors: originalColors,
   };
+  
+  // Usar cores dos dados editados se disponíveis, senão usar cores originais
+  const monthlyColors = editedData?.monthlyColors || originalColors;
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onUpdateField(item.id, "name", e.target.value);
@@ -115,21 +133,57 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
       </TableCell>
       
       {isEditing && !isInvestmentItem ? (
-        displayData.monthlyValues.map((value, index) => (
-          <TableCell key={index} className="px-1 py-2 font-normal text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-gray-400 w-12">
-            <CurrencyInput
-              value={value}
-              onChange={(newValue) => handleMonthlyValueChange(index, newValue)}
-              className="text-right"
-            />
-          </TableCell>
-        ))
+        displayData.monthlyValues.map((value, index) => {
+          const cellColor = monthlyColors[index] || null;
+          const handleCellClick = () => {
+            if (isColorModeActive && onApplyColor) {
+              onApplyColor(item.id, index);
+            }
+          };
+          
+          return (
+            <TableCell
+              key={index}
+              className={`px-1 py-2 font-normal border border-gray-100 dark:border-white/[0.05] text-xs w-12 ${
+                isColorModeActive
+                  ? "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                  : ""
+              }`}
+            >
+              <div
+                onClick={handleCellClick}
+                className={isColorModeActive ? "cursor-pointer" : ""}
+              >
+                <CurrencyInput
+                  value={value}
+                  onChange={(newValue) => handleMonthlyValueChange(index, newValue)}
+                  className="text-right"
+                  style={cellColor ? { color: cellColor } : undefined}
+                  onClick={(e) => {
+                    if (isColorModeActive && onApplyColor) {
+                      e.stopPropagation();
+                      onApplyColor(item.id, index);
+                    }
+                  }}
+                />
+              </div>
+            </TableCell>
+          );
+        })
       ) : (
-        itemTotals.map((value, index) => (
-          <TableCell key={index} className="px-1 py-2 font-normal text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-gray-400 w-12 text-right">
-            {formatCurrency(value || 0)}
-          </TableCell>
-        ))
+        itemTotals.map((value, index) => {
+          const cellColor = monthlyColors[index] || null;
+          return (
+            <TableCell
+              key={index}
+              className="px-1 py-2 font-normal text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-gray-400 w-12 text-right"
+            >
+              <span style={cellColor ? { color: cellColor } : undefined}>
+                {formatCurrency(value || 0)}
+              </span>
+            </TableCell>
+          );
+        })
       )}
       
       <TableCell className="px-2 py-2 font-semibold text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-white w-16 text-right">

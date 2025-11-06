@@ -55,6 +55,9 @@ export default function DataTableTwo() {
     getEditedItem,
     isItemDeleted,
     getChangesForGroup,
+    selectedColor,
+    setSelectedColor,
+    applyColorToCell,
   } = useGroupEditMode();
 
   const handleSaveRow = useCallback(async (groupId: string) => {
@@ -182,6 +185,8 @@ export default function DataTableTwo() {
           isEditing={true}
           onUpdateField={updateItemField}
           onDeleteItem={deleteItem}
+          onApplyColor={applyColorToCell}
+          isColorModeActive={selectedColor !== null}
         />
       );
     } else {
@@ -237,6 +242,8 @@ export default function DataTableTwo() {
                   onCancel={() => handleCancelGroupEdit(group)}
                   saving={savingGroups.has(group.id)}
                   showActionsColumn={isGroupEditing(group.id)}
+                  selectedColor={isGroupEditing(group.id) ? selectedColor : null}
+                  onColorSelect={isGroupEditing(group.id) ? setSelectedColor : undefined}
                 />
                 
                 {!collapsed[group.id] && (
@@ -258,6 +265,8 @@ export default function DataTableTwo() {
                           onCancel={() => handleCancelGroupEdit(subgroup)}
                           saving={savingGroups.has(subgroup.id)}
                           showActionsColumn={isGroupEditing(subgroup.id)}
+                          selectedColor={isGroupEditing(subgroup.id) ? selectedColor : null}
+                          onColorSelect={isGroupEditing(subgroup.id) ? setSelectedColor : undefined}
                         />
                         
                         {!collapsed[subgroup.id] && (
@@ -279,6 +288,8 @@ export default function DataTableTwo() {
                                   onCancel={() => handleCancelGroupEdit(subsubgroup)}
                                   saving={savingGroups.has(subsubgroup.id)}
                                   showActionsColumn={isGroupEditing(subsubgroup.id)}
+                                  selectedColor={isGroupEditing(subsubgroup.id) ? selectedColor : null}
+                                  onColorSelect={isGroupEditing(subsubgroup.id) ? setSelectedColor : undefined}
                                 />
                                 
                                 {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item) => 
@@ -436,6 +447,8 @@ export default function DataTableTwo() {
                           onCancel={() => handleCancelGroupEdit(subgroup)}
                           saving={savingGroups.has(subgroup.id)}
                           showActionsColumn={isGroupEditing(subgroup.id)}
+                          selectedColor={isGroupEditing(subgroup.id) ? selectedColor : null}
+                          onColorSelect={isGroupEditing(subgroup.id) ? setSelectedColor : undefined}
                         />
                         
                         {!collapsed[subgroup.id] && (
@@ -457,6 +470,8 @@ export default function DataTableTwo() {
                                   onCancel={() => handleCancelGroupEdit(subsubgroup)}
                                   saving={savingGroups.has(subsubgroup.id)}
                                   showActionsColumn={isGroupEditing(subsubgroup.id)}
+                                  selectedColor={isGroupEditing(subsubgroup.id) ? selectedColor : null}
+                                  onColorSelect={isGroupEditing(subsubgroup.id) ? setSelectedColor : undefined}
                                 />
                                 
                                 {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item) => 

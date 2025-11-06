@@ -7,6 +7,8 @@ import { AddRowButton } from "./AddRowButton";
 import { EditButton } from "./EditButton";
 import { SaveCancelButtons } from "./SaveCancelButtons";
 
+import { ColorOption } from "./ColorPickerButton";
+
 interface GroupHeaderProps {
   group: CashflowGroup;
   isCollapsed: boolean;
@@ -21,6 +23,8 @@ interface GroupHeaderProps {
   onCancel?: () => void;
   saving?: boolean;
   showActionsColumn?: boolean;
+  selectedColor?: ColorOption | null;
+  onColorSelect?: (color: ColorOption | null) => void;
 }
 
 export const GroupHeader: React.FC<GroupHeaderProps> = ({ 
@@ -37,6 +41,8 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   onCancel,
   saving = false,
   showActionsColumn = false,
+  selectedColor = null,
+  onColorSelect,
 }) => {
   // Determinar o nível de indentação baseado na hierarquia
   const indentLevel = group.parentId ? (group.children?.length ? 2 : 3) : 1;
@@ -97,6 +103,8 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
               onSave={onSave} 
               onCancel={onCancel} 
               saving={saving}
+              selectedColor={selectedColor ?? null}
+              onColorSelect={onColorSelect ?? undefined}
             />
           )}
         </div>

@@ -1,18 +1,30 @@
 import React from "react";
+import { ColorPickerButton, ColorOption } from "./ColorPickerButton";
 
 interface SaveCancelButtonsProps {
   onSave: () => void;
   onCancel: () => void;
   saving?: boolean;
+  selectedColor?: ColorOption | null;
+  onColorSelect?: (color: ColorOption | null) => void;
 }
 
 export const SaveCancelButtons: React.FC<SaveCancelButtonsProps> = ({ 
   onSave, 
   onCancel, 
-  saving = false 
+  saving = false,
+  selectedColor = null,
+  onColorSelect,
 }) => {
   return (
     <div className="flex items-center gap-2">
+      {onColorSelect && (
+        <ColorPickerButton
+          onColorSelect={onColorSelect}
+          selectedColor={selectedColor || null}
+          isColorModeActive={selectedColor !== null}
+        />
+      )}
       <button
         onClick={onSave}
         disabled={saving}

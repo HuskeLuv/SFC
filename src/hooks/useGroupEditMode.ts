@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { CashflowItem, CashflowValue } from "@/types/cashflow";
+import { ColorOption } from "@/components/cashflow/ColorPickerButton";
 
 export interface EditableItemData {
   id: string;
@@ -7,6 +8,7 @@ export interface EditableItemData {
   significado: string | null;
   rank: number | null;
   monthlyValues: number[]; // 12 valores mensais
+  monthlyColors: (string | null)[]; // 12 cores mensais (formato CSS)
 }
 
 export interface GroupEditState {
@@ -19,6 +21,7 @@ export const useGroupEditMode = () => {
   const [editingGroups, setEditingGroups] = useState<Set<string>>(new Set());
   const [editedItems, setEditedItems] = useState<Map<string, EditableItemData>>(new Map());
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
+  const [selectedColor, setSelectedColor] = useState<ColorOption | null>(null); // Cor selecionada para aplicar
 
   const startEditing = useCallback((groupId: string, items: CashflowItem[]) => {
     setEditingGroups((prev) => new Set(prev).add(groupId));
@@ -28,9 +31,11 @@ export const useGroupEditMode = () => {
     items.forEach((item) => {
       // Criar array de 12 valores mensais (0-11 para janeiro-dezembro)
       const monthlyValues = Array(12).fill(0);
+      const monthlyColors = Array(12).fill(null) as (string | null)[];
       item.values?.forEach((value: CashflowValue) => {
         if (value.month >= 0 && value.month < 12) {
           monthlyValues[value.month] = value.value;
+          monthlyColors[value.month] = value.color || null;
         }
       });
 
@@ -40,6 +45,7 @@ export const useGroupEditMode = () => {
         significado: item.significado,
         rank: item.rank,
         monthlyValues,
+        monthlyColors,
       });
     });
     
@@ -90,6 +96,9 @@ export const useGroupEditMode = () => {
       });
       return newSet;
     });
+    
+    // Limpar cor selecionada quando sair do modo de edição
+    setSelectedColor(null);
   }, []);
 
   const isEditing = useCallback((groupId: string) => {
@@ -154,9 +163,11 @@ export const useGroupEditMode = () => {
     const initialData = new Map<string, EditableItemData>();
     originalItems.forEach((item) => {
       const monthlyValues = Array(12).fill(0);
+      const monthlyColors = Array(12).fill(null) as (string | null)[];
       item.values?.forEach((value: CashflowValue) => {
         if (value.month >= 0 && value.month < 12) {
           monthlyValues[value.month] = value.value;
+          monthlyColors[value.month] = value.color || null;
         }
       });
 
@@ -166,6 +177,7 @@ export const useGroupEditMode = () => {
         significado: item.significado,
         rank: item.rank,
         monthlyValues,
+        monthlyColors,
       });
     });
     
@@ -193,6 +205,9 @@ export const useGroupEditMode = () => {
       });
       return newSet;
     });
+    
+    // Limpar cor selecionada ao cancelar
+    setSelectedColor(null);
   }, []);
 
   const getEditedItem = useCallback((itemId: string): EditableItemData | null => {
@@ -251,19 +266,42 @@ export const useGroupEditMode = () => {
         hasChanges = true;
       }
 
-      // Verificar mudanças nos valores mensais
+      // Verificar mudanças nos valores mensais e cores
       const originalValues = new Map<number, number>();
+      const originalColors = new Map<number, string | null>();
       item.values?.forEach((value: CashflowValue) => {
         if (value.month >= 0 && value.month < 12) {
           originalValues.set(value.month, value.value);
+          originalColors.set(value.month, value.color || null);
         }
       });
 
-      const valueChanges: Array<{ month: number; value: number }> = [];
+      const valueChanges: Array<{ month: number; value: number; color?: string | null }> = [];
       edited.monthlyValues.forEach((newValue, monthIndex) => {
         const originalValue = originalValues.get(monthIndex) || 0;
-        if (Math.abs(newValue - originalValue) > 0.01) {
-          valueChanges.push({ month: monthIndex, value: newValue });
+        const originalColor = originalColors.get(monthIndex) || null;
+        const newColor = edited.monthlyColors[monthIndex] || null;
+        
+        const valueChanged = Math.abs(newValue - originalValue) > 0.01;
+        const colorChanged = newColor !== originalColor;
+        
+        // Incluir na lista de mudanças se:
+        // 1. O valor mudou, OU
+        // 2. A cor mudou, OU
+        // 3. Há uma cor definida e não havia registro antes (novo registro com cor)
+        const hasOriginalValue = originalValues.has(monthIndex);
+        const shouldInclude = valueChanged || colorChanged || (newColor !== null && !hasOriginalValue);
+        
+        if (shouldInclude) {
+          const change: { month: number; value: number; color?: string | null } = {
+            month: monthIndex,
+            value: newValue,
+          };
+          // Sempre incluir a cor se ela mudou ou se há uma cor definida
+          if (colorChanged || (newColor !== null && !hasOriginalValue)) {
+            change.color = newColor;
+          }
+          valueChanges.push(change);
           hasChanges = true;
         }
       });
@@ -280,6 +318,40 @@ export const useGroupEditMode = () => {
     return changes;
   }, [editedItems, deletedItemIds]);
 
+  // Função para atualizar a cor de uma célula específica
+  const updateCellColor = useCallback((itemId: string, monthIndex: number, color: string | null) => {
+    setEditedItems((prev) => {
+      const newMap = new Map(prev);
+      const current = newMap.get(itemId);
+      
+      if (!current) return prev;
+
+      const updated: EditableItemData = { ...current };
+      updated.monthlyColors = [...updated.monthlyColors];
+      updated.monthlyColors[monthIndex] = color;
+
+      newMap.set(itemId, updated);
+      return newMap;
+    });
+  }, []);
+
+  // Função para aplicar a cor selecionada a uma célula
+  const applyColorToCell = useCallback((itemId: string, monthIndex: number) => {
+    if (!selectedColor) return;
+    
+    // Converter ColorOption para formato CSS
+    const colorMap: Record<string, string> = {
+      black: "#000000",
+      green: "#00FF00",
+      red: "#FF0000",
+      blue: "#0000FF",
+      yellow: "#FFFF00",
+    };
+    
+    const cssColor = colorMap[selectedColor] || "#000000";
+    updateCellColor(itemId, monthIndex, cssColor);
+  }, [selectedColor, updateCellColor]);
+
   return {
     startEditing,
     stopEditing,
@@ -291,6 +363,10 @@ export const useGroupEditMode = () => {
     getEditedItem,
     isItemDeleted,
     getChangesForGroup,
+    selectedColor,
+    setSelectedColor,
+    applyColorToCell,
+    updateCellColor,
   };
 };
 

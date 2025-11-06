@@ -109,6 +109,7 @@ model CashflowValue {
   year      Int
   month     Int // 0 = Jan, 11 = Dez
   value     Float
+  color     String? // Cor do texto (formato CSS: #000000, green, red, etc.)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 

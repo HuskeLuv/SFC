@@ -53,11 +53,24 @@ export const ItemRow: React.FC<ItemRowProps> = ({
       <TableCell className={`px-2 py-2 font-normal border border-gray-100 dark:border-white/[0.05] text-xs w-16 text-right ${getPercentageColorClass()}`}>
         {group.name === 'Investimentos' ? '-' : (itemPercentage > 0 ? formatPercent(itemPercentage) : '-')}
       </TableCell>
-      {itemTotals.map((value, index) => (
-        <TableCell key={index} className="px-1 py-2 font-normal text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-gray-400 w-12 text-right cursor-default">
-          {formatCurrency(value || 0)}
-        </TableCell>
-      ))}
+      {itemTotals.map((value, index) => {
+        // Obter cor do valor mensal se existir
+        // Buscar em item.values que pode vir do banco
+        // IMPORTANTE: Buscar por month (0-11) que corresponde ao índice
+        const monthlyValue = item.values?.find((v) => v.month === index);
+        const cellColor = monthlyValue?.color || null;
+        
+        return (
+          <TableCell
+            key={index}
+            className="px-1 py-2 font-normal text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-gray-400 w-12 text-right cursor-default"
+          >
+            <span style={cellColor ? { color: cellColor } : undefined}>
+              {formatCurrency(value || 0)}
+            </span>
+          </TableCell>
+        );
+      })}
       <TableCell className="px-2 py-2 font-semibold text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-white w-16 text-right">
         {formatCurrency(itemAnnualTotal)}
       </TableCell>
