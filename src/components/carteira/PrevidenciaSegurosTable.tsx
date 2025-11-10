@@ -6,6 +6,7 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import Badge from "@/components/ui/badge/Badge";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface PrevidenciaSegurosMetricCardProps {
   title: string;
@@ -370,6 +371,8 @@ const PrevidenciaSegurosSection: React.FC<PrevidenciaSegurosSectionProps> = ({
 
 export default function PrevidenciaSegurosTable() {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = usePrevidenciaSeguros();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada = necessidadeAporteMap.previdenciaSeguros ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['seguro', 'growth_fundos_prev'])
   );
@@ -412,10 +415,11 @@ export default function PrevidenciaSegurosTable() {
   if (!data) {
     return (
       <div className="space-y-4">
+        {/* Cards de resumo */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <PrevidenciaSegurosMetricCard
             title="Necessidade de Aporte Total"
-            value={formatCurrency(0)}
+            value={formatCurrency(necessidadeAporteTotalCalculada)}
             color="warning"
           />
           <PrevidenciaSegurosMetricCard
@@ -468,7 +472,7 @@ export default function PrevidenciaSegurosTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <PrevidenciaSegurosMetricCard
           title="Necessidade de Aporte Total"
-          value={formatCurrency(data.resumo.necessidadeAporteTotal)}
+          value={formatCurrency(necessidadeAporteTotalCalculada)}
           color="warning"
         />
         <PrevidenciaSegurosMetricCard

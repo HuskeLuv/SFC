@@ -18,7 +18,7 @@ export default function Step1AssetType({
   onErrorsChange,
 }: Step1AssetTypeProps) {
   const handleTipoAtivoChange = (value: string) => {
-    onFormDataChange({ tipoAtivo: value });
+    onFormDataChange({ tipoAtivo: value, ativo: "", assetId: "" });
     
     // Limpar erro quando usuário selecionar
     if (errors.tipoAtivo) {

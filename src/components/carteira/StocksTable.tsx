@@ -7,6 +7,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Badge from "@/components/ui/badge/Badge";
 import PieChartStocksAtivo from "@/components/charts/pie/PieChartStocksAtivo";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface StocksMetricCardProps {
   title: string;
@@ -354,6 +355,8 @@ const StocksSection: React.FC<StocksSectionProps> = ({
 
 export default function StocksTable() {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = useCarteiraStocks();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada = necessidadeAporteMap.stocks ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['value', 'growth', 'risk'])
   );
@@ -396,10 +399,11 @@ export default function StocksTable() {
   if (!data) {
     return (
       <div className="space-y-4">
+        {/* Cards de resumo */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <StocksMetricCard
             title="Necessidade de Aporte Total"
-            value={formatCurrency(0)}
+            value={formatCurrency(necessidadeAporteTotalCalculada)}
             color="warning"
           />
           <StocksMetricCard
@@ -452,7 +456,7 @@ export default function StocksTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <StocksMetricCard
           title="Necessidade de Aporte Total"
-          value={formatCurrency(data?.resumo?.necessidadeAporteTotal)}
+          value={formatCurrency(necessidadeAporteTotalCalculada)}
           color="warning"
         />
         <StocksMetricCard

@@ -6,6 +6,7 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import Badge from "@/components/ui/badge/Badge";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface OpcoesMetricCardProps {
   title: string;
@@ -351,6 +352,8 @@ const OpcoesSection: React.FC<OpcoesSectionProps> = ({
 
 export default function OpcoesTable() {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = useOpcoes();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada = necessidadeAporteMap.opcoes ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['put', 'call'])
   );
@@ -396,7 +399,7 @@ export default function OpcoesTable() {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <OpcoesMetricCard
             title="Necessidade de Aporte Total"
-            value={formatCurrency(0)}
+            value={formatCurrency(necessidadeAporteTotalCalculada)}
             color="warning"
           />
           <OpcoesMetricCard
@@ -449,7 +452,7 @@ export default function OpcoesTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <OpcoesMetricCard
           title="Necessidade de Aporte Total"
-          value={formatCurrency(data.resumo.necessidadeAporteTotal)}
+          value={formatCurrency(necessidadeAporteTotalCalculada)}
           color="warning"
         />
         <OpcoesMetricCard

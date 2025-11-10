@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { WizardFormData, WizardErrors, Asset, AutocompleteOption } from "@/types/wizard";
 import AutocompleteInput from "@/components/form/AutocompleteInput";
 
@@ -23,9 +23,16 @@ export default function Step3Asset({
 
   // Buscar ativos
   const fetchAssets = async (search: string) => {
-    // Permitir busca vazia para carregar todos os ativos do tipo
-    if (search.length > 0 && search.length < 2) return;
-    
+    if (!formData.tipoAtivo) {
+      setAssetOptions([]);
+      onErrorsChange({ ativo: "Selecione o tipo de ativo antes de buscar." });
+      return;
+    }
+
+    if (search.length > 0 && search.length < 2) {
+      return;
+    }
+
     setLoading(true);
     try {
       const url = `/api/assets?search=${encodeURIComponent(search)}&tipo=${formData.tipoAtivo}&limit=20`;
@@ -40,9 +47,13 @@ export default function Step3Asset({
           subtitle: asset.type,
         }));
         setAssetOptions(options);
+        if (options.length === 0) {
+          onErrorsChange({ ativo: "Nenhum ativo encontrado para o tipo selecionado." });
+        }
       }
     } catch (error) {
       console.error('Erro ao buscar ativos:', error);
+      onErrorsChange({ ativo: "Não foi possível carregar os ativos. Tente novamente." });
     } finally {
       setLoading(false);
     }
@@ -54,14 +65,18 @@ export default function Step3Asset({
       assetId: "" // Limpar assetId quando usuário digita
     });
     
-    // Fazer busca na API quando o usuário digitar
+    if (!formData.tipoAtivo) {
+      onErrorsChange({ ativo: "Selecione o tipo de ativo antes de buscar." });
+      setAssetOptions([]);
+      return;
+    }
+
     if (value.length >= 2) {
       fetchAssets(value);
     } else {
-      // Limpar opções se o usuário apagar o texto
       setAssetOptions([]);
     }
-    
+
     // Limpar erro quando usuário começar a digitar
     if (errors.ativo) {
       onErrorsChange({ ativo: undefined });
@@ -73,7 +88,15 @@ export default function Step3Asset({
       ativo: option.label,
       assetId: option.value,
     });
+    onErrorsChange({ ativo: undefined });
   };
+
+  useEffect(() => {
+    setAssetOptions([]);
+    if (formData.tipoAtivo) {
+      onErrorsChange({ ativo: undefined });
+    }
+  }, [formData.tipoAtivo]);
 
   const getPlaceholderText = () => {
     const placeholders: Record<string, string> = {

@@ -6,6 +6,7 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import Badge from "@/components/ui/badge/Badge";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface FimFiaMetricCardProps {
   title: string;
@@ -278,6 +279,8 @@ const FimFiaSection: React.FC<FimFiaSectionProps> = ({
 
 export default function FimFiaTable() {
   const { data, loading, error, formatCurrency, formatPercentage, updateObjetivo } = useFimFia();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada = necessidadeAporteMap.fimFia ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['fim', 'fia'])
   );
@@ -319,7 +322,7 @@ export default function FimFiaTable() {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <FimFiaMetricCard
             title="Necessidade de Aporte Total"
-            value={formatCurrency(0)}
+            value={formatCurrency(necessidadeAporteTotalCalculada)}
             color="warning"
           />
           <FimFiaMetricCard
@@ -372,7 +375,7 @@ export default function FimFiaTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <FimFiaMetricCard
           title="Necessidade de Aporte Total"
-          value={formatCurrency(data.resumo.necessidadeAporteTotal)}
+          value={formatCurrency(necessidadeAporteTotalCalculada)}
           color="warning"
         />
         <FimFiaMetricCard

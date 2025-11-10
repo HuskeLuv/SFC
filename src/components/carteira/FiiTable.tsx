@@ -8,6 +8,7 @@ import Badge from "@/components/ui/badge/Badge";
 import PieChartFiiSegmento from "@/components/charts/pie/PieChartFiiSegmento";
 import PieChartFiiAtivo from "@/components/charts/pie/PieChartFiiAtivo";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface FiiMetricCardProps {
   title: string;
@@ -105,7 +106,7 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
+      <td className="min-w-[220px] w-3/12 px-3 py-2 text-xs font-medium text-gray-900 dark:text-white">
         <div>
           <div className="font-semibold">{ativo.ticker}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400">{ativo.nome}</div>
@@ -126,7 +127,7 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
           {ativo.segmento.charAt(0).toUpperCase() + ativo.segmento.slice(1)}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      <td className="w-[80px] px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
         {formatNumber(ativo.quantidade)}
       </td>
       <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
@@ -258,7 +259,7 @@ const FiiSection: React.FC<FiiSectionProps> = ({
         className="bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
         onClick={onToggle}
       >
-        <td className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
+        <td className="min-w-[220px] w-3/12 px-3 py-2 text-xs font-bold text-gray-900 dark:text-white">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -273,7 +274,7 @@ const FiiSection: React.FC<FiiSectionProps> = ({
         </td>
         <td className="px-2 py-2 text-xs text-center">-</td>
         <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+        <td className="w-[80px] px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
           {formatNumber(secao.totalQuantidade)}
         </td>
         <td className="px-2 py-2 text-xs text-center">-</td>
@@ -340,6 +341,8 @@ const FiiSection: React.FC<FiiSectionProps> = ({
 
 export default function FiiTable() {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = useFii();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada = necessidadeAporteMap.fiis ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['fof', 'tvm', 'ijol', 'hibrido', 'renda'])
   );
@@ -385,7 +388,7 @@ export default function FiiTable() {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
           <FiiMetricCard
             title="Necessidade de Aporte Total"
-            value={formatCurrency(0)}
+            value={formatCurrency(necessidadeAporteTotalCalculada)}
             color="warning"
           />
           <FiiMetricCard
@@ -434,7 +437,7 @@ export default function FiiTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         <FiiMetricCard
           title="Necessidade de Aporte Total"
-          value={formatCurrency(data.resumo.necessidadeAporteTotal)}
+          value={formatCurrency(necessidadeAporteTotalCalculada)}
           color="warning"
         />
         <FiiMetricCard
@@ -464,7 +467,7 @@ export default function FiiTable() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="min-w-[220px] w-3/12 px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Nome do Ativo
                 </th>
                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -473,37 +476,37 @@ export default function FiiTable() {
                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Segmento
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="w-[80px] px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Quantidade
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Preço Médio
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Valor Total
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Cotação Atual
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Valor Atualizado
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Risco por Ativo
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   % da Carteira
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Objetivo
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Quanto Falta
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Nec. Aporte R$
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Rentabilidade
                 </th>
               </tr>
@@ -525,12 +528,12 @@ export default function FiiTable() {
 
               {/* Linha de totalização */}
               <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
+                <td className="min-w-[220px] w-3/12 px-3 py-2 text-xs font-bold text-gray-900 dark:text-white">
                   TOTAL GERAL
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                <td className="w-[80px] px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
                   {formatNumber(data.totalGeral.quantidade)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>

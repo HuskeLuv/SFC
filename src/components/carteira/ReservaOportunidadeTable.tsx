@@ -4,6 +4,7 @@ import { useReservaOportunidade } from "@/hooks/useReservaOportunidade";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import Badge from "@/components/ui/badge/Badge";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface ReservaOportunidadeMetricCardProps {
   title: string;
@@ -33,6 +34,8 @@ const ReservaOportunidadeMetricCard: React.FC<ReservaOportunidadeMetricCardProps
 
 export default function ReservaOportunidadeTable() {
   const { data, loading, error } = useReservaOportunidade();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteCalculada = necessidadeAporteMap.reservaOportunidade ?? data?.resumo?.necessidadeAporte ?? 0;
 
   const formatCurrency = (value: number): string => {
     return value.toLocaleString("pt-BR", {
@@ -68,7 +71,7 @@ export default function ReservaOportunidadeTable() {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
           <ReservaOportunidadeMetricCard
             title="Necessidade de Aporte"
-            value={formatCurrency(0)}
+            value={formatCurrency(necessidadeAporteCalculada)}
             color="warning"
           />
           <ReservaOportunidadeMetricCard
@@ -125,7 +128,7 @@ export default function ReservaOportunidadeTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         <ReservaOportunidadeMetricCard
           title="Necessidade de Aporte"
-          value={formatCurrency(data.resumo.necessidadeAporte)}
+          value={formatCurrency(necessidadeAporteCalculada)}
           color="warning"
         />
         <ReservaOportunidadeMetricCard

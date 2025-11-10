@@ -114,9 +114,12 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
                 color: isDarkMode ? "#D1D5DB" : "#667085",
                 fontSize: "12px",
                 fontWeight: "400",
-                formatter: () => {
-                  const total = Object.values(distribuicao).reduce((sum, item) => sum + item.valor, 0);
-                  return `R$ ${total.toLocaleString('pt-BR')}`;
+                formatter: (val: string) => {
+                  const numeric = Number(val);
+                  if (Number.isFinite(numeric)) {
+                    return `${numeric.toFixed(2)}%`;
+                  }
+                  return "0.00%";
                 },
               },
               total: {
@@ -125,6 +128,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
                 color: isDarkMode ? "#ffffff" : "#000000",
                 fontSize: "16px",
                 fontWeight: "bold",
+                formatter: () => "100%",
               },
             },
           },
@@ -136,13 +140,13 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
       },
       tooltip: {
         enabled: true,
-                 y: {
-            formatter: (val: number) => {
-              const total = Object.values(distribuicao).reduce((sum, item) => sum + item.valor, 0);
-              const valor = (val / 100) * total;
-              return `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-            },
+        y: {
+          formatter: (_val, opts) => {
+            const seriesValue = opts?.series?.[opts.seriesIndex] ?? 0;
+            const numeric = Number(seriesValue);
+            return Number.isFinite(numeric) ? `${numeric.toFixed(2)}%` : "0.00%";
           },
+        },
       },
       legend: {
         show: true,
@@ -204,17 +208,17 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   );
 
   const series = useMemo(() => [
-    Math.round(distribuicao.reservaOportunidade.percentual * 100) / 100,
-    Math.round(distribuicao.rendaFixaFundos.percentual * 100) / 100,
-    Math.round(distribuicao.fimFia.percentual * 100) / 100,
-    Math.round(distribuicao.fiis.percentual * 100) / 100,
-    Math.round(distribuicao.acoes.percentual * 100) / 100,
-    Math.round(distribuicao.stocks.percentual * 100) / 100,
-    Math.round(distribuicao.reits.percentual * 100) / 100,
-    Math.round(distribuicao.etfs.percentual * 100) / 100,
-    Math.round(distribuicao.moedasCriptos.percentual * 100) / 100,
-    Math.round(distribuicao.previdenciaSeguros.percentual * 100) / 100,
-    Math.round(distribuicao.opcoes.percentual * 100) / 100,
+    Number(distribuicao.reservaOportunidade.percentual.toFixed(2)),
+    Number(distribuicao.rendaFixaFundos.percentual.toFixed(2)),
+    Number(distribuicao.fimFia.percentual.toFixed(2)),
+    Number(distribuicao.fiis.percentual.toFixed(2)),
+    Number(distribuicao.acoes.percentual.toFixed(2)),
+    Number(distribuicao.stocks.percentual.toFixed(2)),
+    Number(distribuicao.reits.percentual.toFixed(2)),
+    Number(distribuicao.etfs.percentual.toFixed(2)),
+    Number(distribuicao.moedasCriptos.percentual.toFixed(2)),
+    Number(distribuicao.previdenciaSeguros.percentual.toFixed(2)),
+    Number(distribuicao.opcoes.percentual.toFixed(2)),
   ], [distribuicao]);
 
   return (

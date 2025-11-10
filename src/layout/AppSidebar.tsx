@@ -34,6 +34,11 @@ const navItems: NavItem[] = [
     path: "/carteira",
   },
   {
+    name: "Fluxo de Caixa",
+    icon: <TableIcon />,
+    path: "/fluxodecaixa",
+  },
+  {
     icon: <CalenderIcon />,
     name: "Calendário",
     path: "/calendar",
@@ -47,11 +52,6 @@ const navItems: NavItem[] = [
     icon: <DocsIcon />,
     name: "Relatórios",
     path: "/relatorios",
-  },
-  {
-    name: "Fluxo de Caixa",
-    icon: <TableIcon />,
-    path: "/fluxodecaixa",
   },
 ];
 

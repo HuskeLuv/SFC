@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
-import { useAlocacaoConfig } from "@/hooks/useAlocacaoConfig";
+import type { UseAlocacaoConfigReturn } from "@/hooks/useAlocacaoConfig";
 import EditableCell from "./EditableCell";
 import Alert from "../ui/alert/Alert";
 import ComponentCard from "../common/ComponentCard";
@@ -31,9 +31,10 @@ interface AlocacaoAtivosTableProps {
     previdenciaSeguros: { valor: number; percentual: number; };
     opcoes: { valor: number; percentual: number; };
   };
+  alocacaoConfig: UseAlocacaoConfigReturn;
 }
 
-export default function AlocacaoAtivosTable({ distribuicao }: AlocacaoAtivosTableProps) {
+export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: AlocacaoAtivosTableProps) {
   const totalCarteira = Object.values(distribuicao).reduce((sum, item) => sum + item.valor, 0);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   
@@ -47,7 +48,7 @@ export default function AlocacaoAtivosTable({ distribuicao }: AlocacaoAtivosTabl
     stopEditing,
     isEditing,
     totalTargets,
-  } = useAlocacaoConfig();
+  } = alocacaoConfig;
 
   // Mapeamento das configurações para o formato usado na tabela
   const targetConfigMap = configuracoes.reduce((acc, config) => {

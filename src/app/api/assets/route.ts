@@ -12,28 +12,28 @@ export async function GET(request: NextRequest) {
 
     // Filtrar por tipo se especificado
     if (tipo) {
-      const tipoMapping: Record<string, string> = {
-        'acao': 'stock',
-        'bdr': 'stock',
-        'fii': 'stock',
-        'etf': 'stock',
-        'reit': 'stock',
-        'debenture': 'stock',
-        'fundo': 'stock',
-        'tesouro-direto': 'stock',
-        'renda-fixa-prefixada': 'stock',
-        'renda-fixa-posfixada': 'stock',
-        'previdencia': 'stock',
-        'criptoativo': 'crypto',
-        'moeda': 'stock',
-        'personalizado': 'stock',
-        'conta-corrente': 'stock',
-        'poupanca': 'stock',
+      const tipoMapping: Record<string, string[]> = {
+        'acao': ['stock'],
+        'bdr': ['brd', 'bdr'],
+        'fii': ['fund', 'fii'],
+        'etf': ['etf'],
+        'reit': ['reit'],
+        'debenture': ['bond'],
+        'fundo': ['fund', 'funds'],
+        'tesouro-direto': ['bond'],
+        'renda-fixa-prefixada': ['bond'],
+        'renda-fixa-posfixada': ['bond'],
+        'previdencia': ['insurance'],
+        'criptoativo': ['crypto'],
+        'moeda': ['currency'],
+        'personalizado': ['custom'],
+        'conta-corrente': ['cash'],
+        'poupanca': ['cash'],
       };
-      
+
       const tipoFilter = tipoMapping[tipo];
-      if (tipoFilter) {
-        whereClause.type = tipoFilter;
+      if (tipoFilter && tipoFilter.length > 0) {
+        whereClause.type = tipoFilter.length === 1 ? tipoFilter[0] : { in: tipoFilter };
       }
     }
 

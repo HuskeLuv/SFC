@@ -100,18 +100,28 @@ export default function AddInvestmentSidebar({
 
   // Buscar ativos
   const fetchAssets = async (search: string) => {
+    if (!formData.tipoAtivo) {
+      setAssetOptions([]);
+      setErrors(prev => ({ ...prev, ativo: "Selecione o tipo de ativo antes de buscar." }));
+      return;
+    }
+
     setAssetLoading(true);
     try {
       const response = await fetch(
-        `/api/assets?search=${encodeURIComponent(search)}&limit=20`,
+        `/api/assets?search=${encodeURIComponent(search)}&limit=20&tipo=${formData.tipoAtivo}`,
         { credentials: 'include' }
       );
       if (response.ok) {
         const data = await response.json();
         setAssetOptions(data.assets);
+        if (!data.assets?.length) {
+          setErrors(prev => ({ ...prev, ativo: "Nenhum ativo encontrado para o tipo selecionado." }));
+        }
       }
     } catch (error) {
       console.error('Erro ao buscar ativos:', error);
+      setErrors(prev => ({ ...prev, ativo: "Não foi possível carregar os ativos. Tente novamente." }));
     } finally {
       setAssetLoading(false);
     }
@@ -124,7 +134,17 @@ export default function AddInvestmentSidebar({
   }, [formData.quantidade, formData.cotacaoUnitaria, formData.taxaCorretagem]);
 
   const handleInputChange = (field: keyof FormData, value: string | number) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+      ...(field === 'tipoAtivo' ? { ativo: "", assetId: "" } : {}),
+    }));
+
+    if (field === 'tipoAtivo') {
+      setAssetOptions([]);
+      setErrors(prev => ({ ...prev, ativo: undefined }));
+    }
+
     // Limpar erro do campo quando usuário começar a digitar
     if (errors[field as keyof FormErrors]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
@@ -145,6 +165,7 @@ export default function AddInvestmentSidebar({
       ativo: option.label,
       assetId: option.value,
     }));
+    setErrors(prev => ({ ...prev, ativo: undefined }));
   };
 
   const validateForm = (): boolean => {

@@ -7,13 +7,28 @@ export interface AlocacaoConfig {
   target: number;
 }
 
-export const useAlocacaoConfig = () => {
+export type AlocacaoConfigField = 'minimo' | 'maximo' | 'target';
+
+export interface UseAlocacaoConfigReturn {
+  configuracoes: AlocacaoConfig[];
+  loading: boolean;
+  error: string | null;
+  updateConfiguracao: (categoria: string, field: AlocacaoConfigField, valor: number) => void;
+  saveChanges: () => Promise<boolean>;
+  startEditing: (categoria: string, field: AlocacaoConfigField) => void;
+  stopEditing: () => void;
+  isEditing: (categoria: string, field: AlocacaoConfigField) => boolean;
+  totalTargets: number;
+  refetch: () => Promise<void>;
+}
+
+export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
   const [configuracoes, setConfiguracoes] = useState<AlocacaoConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{
     categoria: string;
-    field: 'minimo' | 'maximo' | 'target';
+    field: AlocacaoConfigField;
   } | null>(null);
 
   // Buscar configurações do servidor
@@ -66,7 +81,7 @@ export const useAlocacaoConfig = () => {
   }, []);
 
   // Atualizar uma configuração específica
-  const updateConfiguracao = useCallback((categoria: string, field: 'minimo' | 'maximo' | 'target', valor: number) => {
+  const updateConfiguracao = useCallback((categoria: string, field: AlocacaoConfigField, valor: number) => {
     const novasConfiguracoes = configuracoes.map(config => 
       config.categoria === categoria 
         ? { ...config, [field]: valor }
@@ -81,7 +96,7 @@ export const useAlocacaoConfig = () => {
   }, [configuracoes, saveConfiguracoes]);
 
   // Funções de edição
-  const startEditing = useCallback((categoria: string, field: 'minimo' | 'maximo' | 'target') => {
+  const startEditing = useCallback((categoria: string, field: AlocacaoConfigField) => {
     setEditingCell({ categoria, field });
   }, []);
 
@@ -89,7 +104,7 @@ export const useAlocacaoConfig = () => {
     setEditingCell(null);
   }, []);
 
-  const isEditing = useCallback((categoria: string, field: 'minimo' | 'maximo' | 'target') => {
+  const isEditing = useCallback((categoria: string, field: AlocacaoConfigField) => {
     return editingCell?.categoria === categoria && editingCell?.field === field;
   }, [editingCell]);
 
@@ -112,5 +127,5 @@ export const useAlocacaoConfig = () => {
     isEditing,
     totalTargets,
     refetch: fetchConfiguracoes,
-  };
+  } satisfies UseAlocacaoConfigReturn;
 }; 

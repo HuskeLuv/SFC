@@ -7,6 +7,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Badge from "@/components/ui/badge/Badge";
 import PieChartEtfAtivo from "@/components/charts/pie/PieChartEtfAtivo";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface EtfMetricCardProps {
   title: string;
@@ -355,6 +356,8 @@ const EtfSection: React.FC<EtfSectionProps> = ({
 
 export default function EtfTable() {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = useEtf();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada = necessidadeAporteMap.etfs ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['brasil', 'estados_unidos'])
   );
@@ -400,7 +403,7 @@ export default function EtfTable() {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <EtfMetricCard
             title="Necessidade de Aporte Total"
-            value={formatCurrency(0)}
+            value={formatCurrency(necessidadeAporteTotalCalculada)}
             color="warning"
           />
           <EtfMetricCard
@@ -453,7 +456,7 @@ export default function EtfTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <EtfMetricCard
           title="Necessidade de Aporte Total"
-          value={formatCurrency(data?.resumo?.necessidadeAporteTotal)}
+          value={formatCurrency(necessidadeAporteTotalCalculada)}
           color="warning"
         />
         <EtfMetricCard

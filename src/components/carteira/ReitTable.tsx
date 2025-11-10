@@ -7,6 +7,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Badge from "@/components/ui/badge/Badge";
 import PieChartReitAtivo from "@/components/charts/pie/PieChartReitAtivo";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface ReitMetricCardProps {
   title: string;
@@ -348,6 +349,8 @@ const ReitSection: React.FC<ReitSectionProps> = ({
 
 export default function ReitTable() {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = useReit();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada = necessidadeAporteMap.reits ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['value', 'growth'])
   );
@@ -390,10 +393,11 @@ export default function ReitTable() {
   if (!data) {
     return (
       <div className="space-y-4">
+        {/* Cards de resumo */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <ReitMetricCard
             title="Necessidade de Aporte Total"
-            value={formatCurrency(0)}
+            value={formatCurrency(necessidadeAporteTotalCalculada)}
             color="warning"
           />
           <ReitMetricCard
@@ -446,7 +450,7 @@ export default function ReitTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <ReitMetricCard
           title="Necessidade de Aporte Total"
-          value={formatCurrency(data?.resumo?.necessidadeAporteTotal)}
+          value={formatCurrency(necessidadeAporteTotalCalculada)}
           color="warning"
         />
         <ReitMetricCard

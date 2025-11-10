@@ -6,6 +6,7 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import Badge from "@/components/ui/badge/Badge";
 import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface RendaFixaMetricCardProps {
   title: string;
@@ -197,6 +198,8 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
 
 export default function RendaFixaTable() {
   const { data, loading, error, formatCurrency, formatPercentage } = useRendaFixa();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteCalculada = necessidadeAporteMap.rendaFixaFundos ?? data?.resumo?.necessidadeAporte ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['pos-fixada', 'prefixada', 'hibrida'])
   );
@@ -249,7 +252,7 @@ export default function RendaFixaTable() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <RendaFixaMetricCard
           title="Necessidade de Aporte"
-          value={formatCurrency(data.resumo.necessidadeAporte)}
+          value={formatCurrency(necessidadeAporteCalculada)}
           color="warning"
         />
         <RendaFixaMetricCard

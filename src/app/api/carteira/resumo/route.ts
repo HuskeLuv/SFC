@@ -268,23 +268,34 @@ export async function GET(request: NextRequest) {
         switch (tipo) {
           case 'ação':
           case 'acao':
-          case 'stock':
-            // Se for moeda BRL, é ação brasileira
+          case 'stock': {
             if (asset.currency === 'BRL') {
               categorias.acoes += valorAtual;
             } else {
-              // Se for USD ou outra, é stock internacional
               categorias.stocks += valorAtual;
             }
+            break;
+          }
+          case 'bdr':
+          case 'brd':
+            categorias.stocks += valorAtual;
             break;
           case 'fii':
             categorias.fiis += valorAtual;
             break;
+          case 'fund':
+          case 'funds': {
+            const symbolUpper = symbol.toUpperCase();
+            const nameLower = (asset.name || '').toLowerCase();
+            if (symbolUpper.endsWith('11') || nameLower.includes('fii') || nameLower.includes('imobili')) {
+              categorias.fiis += valorAtual;
+            } else {
+              categorias.fimFia += valorAtual;
+            }
+            break;
+          }
           case 'etf':
             categorias.etfs += valorAtual;
-            break;
-          case 'bdr':
-            categorias.stocks += valorAtual;
             break;
           case 'reit':
             categorias.reits += valorAtual;
@@ -292,12 +303,26 @@ export async function GET(request: NextRequest) {
           case 'crypto':
             categorias.moedasCriptos += valorAtual;
             break;
+          case 'bond':
+            categorias.rendaFixaFundos += valorAtual;
+            break;
+          case 'insurance':
+            categorias.previdenciaSeguros += valorAtual;
+            break;
+          case 'currency':
+            categorias.moedasCriptos += valorAtual;
+            break;
+          case 'cash':
+            categorias.reservaOportunidade += valorAtual;
+            break;
+          case 'custom':
+            categorias.fimFia += valorAtual;
+            break;
           default:
-            // Se não conseguir determinar o tipo, usar heurística baseada no ticker
             if (symbol.includes('11')) {
-              categorias.fiis += valorAtual; // FIIs geralmente terminam em 11
+              categorias.fiis += valorAtual;
             } else {
-              categorias.acoes += valorAtual; // Assumir ação por padrão
+              categorias.acoes += valorAtual;
             }
         }
       } else {

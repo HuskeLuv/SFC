@@ -37,7 +37,7 @@ export default function SignInForm() {
         setLoading(false);
         return;
       }
-      window.location.href = "/profile";
+      window.location.href = "/carteira";
     } catch {
       setError("Erro ao entrar. Tente novamente.");
     } finally {
@@ -49,11 +49,11 @@ export default function SignInForm() {
     <div className="flex flex-col flex-1 lg:w-1/2 w-full">
       <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
         <Link
-          href="/"
+          href="/carteira"
           className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
           <ChevronLeftIcon />
-          Voltar para o dashboard
+          Voltar para a carteira
         </Link>
       </div>
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
