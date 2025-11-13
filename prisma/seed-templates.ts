@@ -1,4 +1,3 @@
-import type { PrismaClient } from '@prisma/client';
 import { PrismaClient, ConsultantClientStatus, UserRole } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { fileURLToPath } from 'url';
