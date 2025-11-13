@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { setupUserCashflow } from '@/utils/cashflowSetup';
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
         email, 
         password: hashed, 
         name,
+        role: 'user',
         // Não definimos avatarUrl - o sistema usará iniciais automaticamente
       },
     });
@@ -28,8 +30,20 @@ export async function POST(req: NextRequest) {
     // Novo usuário usa templates diretamente (userId = null)
     // Não cria cópias físicas - personalização acontece sob demanda
     
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: '7d' });
-    const response = NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } });
+    try {
+      await setupUserCashflow({ userId: user.id });
+    } catch (setupError) {
+      console.error('Erro ao configurar cashflow para novo usuário:', setupError);
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET!,
+      { expiresIn: '7d' }
+    );
+    const response = NextResponse.json({
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    });
     response.cookies.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

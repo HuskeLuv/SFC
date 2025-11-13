@@ -6,12 +6,14 @@ import Button from "@/components/ui/button/Button";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import Link from "next/link";
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -37,7 +39,11 @@ export default function SignInForm() {
         setLoading(false);
         return;
       }
-      window.location.href = "/carteira";
+      const data = await res.json();
+      const role = data?.user?.role ?? "user";
+      const destination =
+        role === "consultant" ? "/dashboard/consultor" : "/carteira";
+      router.push(destination);
     } catch {
       setError("Erro ao entrar. Tente novamente.");
     } finally {

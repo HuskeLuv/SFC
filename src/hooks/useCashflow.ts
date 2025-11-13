@@ -370,13 +370,15 @@ export const useProcessedData = (data: CashflowGroup[]) => {
       processGroup(group);
     });
 
-    // Calculate percentages for each group
+    const receitaTotalBase = entradasTotal;
+
+    // Calculate percentages for each group usando receita como base
     Object.entries(groupAnnualTotals).forEach(([groupId, annualTotal]) => {
       const group = findGroupById(groupId);
-      
+
       if (group) {
-        const sectionTotal = isReceitaGroupByType(group.type) ? entradasTotal : despesasTotal;
-        groupPercentages[groupId] = sectionTotal > 0 ? (annualTotal / sectionTotal) * 100 : 0;
+        const base = receitaTotalBase > 0 ? receitaTotalBase : 0;
+        groupPercentages[groupId] = base > 0 ? (annualTotal / base) * 100 : 0;
       }
     });
 
@@ -400,8 +402,8 @@ export const useProcessedData = (data: CashflowGroup[]) => {
       }
 
       if (itemGroup) {
-        const sectionTotal = isReceitaGroupByType(itemGroup.type) ? entradasTotal : despesasTotal;
-        itemPercentages[itemId] = sectionTotal > 0 ? (annualTotal / sectionTotal) * 100 : 0;
+        const base = receitaTotalBase > 0 ? receitaTotalBase : 0;
+        itemPercentages[itemId] = base > 0 ? (annualTotal / base) * 100 : 0;
       }
     });
 

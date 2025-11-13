@@ -5,11 +5,19 @@ interface User {
   id: string;
   email: string;
   name: string;
+  role: 'user' | 'consultant' | 'admin';
   avatarUrl?: string;
+}
+
+interface ActingClient {
+  id: string;
+  name: string;
+  email: string;
 }
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [actingClient, setActingClient] = useState<ActingClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -23,13 +31,16 @@ export const useAuth = () => {
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
+        setActingClient(userData.actingClient ?? null);
         setError(null);
       } else {
         setUser(null);
+        setActingClient(null);
         setError('Não autenticado');
       }
     } catch {
       setUser(null);
+      setActingClient(null);
       setError('Erro ao verificar autenticação');
     } finally {
       setLoading(false);
@@ -42,6 +53,7 @@ export const useAuth = () => {
       // Limpar o cookie do token
       document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
       setUser(null);
+      setActingClient(null);
       router.push('/signin');
     } catch (err) {
       console.error('Erro ao fazer logout:', err);
@@ -66,6 +78,7 @@ export const useAuth = () => {
 
   return {
     user,
+    actingClient,
     isAuthenticated,
     isLoading,
     error,
