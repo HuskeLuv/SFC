@@ -1,9 +1,10 @@
 "use client";
-import React, { useEffect, useRef, useCallback, useState } from "react";
+import React, { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
+import { useAuth } from "@/hooks/useAuth";
 import {
   CalenderIcon,
   ChevronDownIcon,
@@ -22,7 +23,7 @@ type NavItem = {
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
-const navItems: NavItem[] = [
+const MAIN_NAV_ITEMS: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "Dashboard",
@@ -81,6 +82,23 @@ const supportItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  const dashboardPath =
+    user?.role === "consultant" ? "/dashboard/consultor" : "/stocks";
+
+  const mainNavItems = useMemo(
+    () =>
+      MAIN_NAV_ITEMS.map((item) =>
+        item.name === "Dashboard"
+          ? {
+              ...item,
+              path: dashboardPath,
+            }
+          : item,
+      ),
+    [dashboardPath],
+  );
 
   const renderMenuItems = (
     navItems: NavItem[],
@@ -224,10 +242,10 @@ const AppSidebar: React.FC = () => {
   useEffect(() => {
     // Check if the current path matches any submenu item
     let submenuMatched = false;
-    ["main", "support", "others"].forEach((menuType) => {
+    (["main", "support", "others"] as const).forEach((menuType) => {
       const items =
         menuType === "main"
-          ? navItems
+          ? mainNavItems
           : menuType === "support"
           ? supportItems
           : othersItems;
@@ -250,7 +268,7 @@ const AppSidebar: React.FC = () => {
     if (!submenuMatched) {
       setOpenSubmenu(null);
     }
-  }, [pathname, isActive]);
+  }, [pathname, isActive, mainNavItems]);
 
   useEffect(() => {
     // Set the height of the submenu items when the submenu is opened
@@ -346,7 +364,7 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
+              {renderMenuItems(mainNavItems, "main")}
             </div>
             <div>
               <h2
@@ -388,3 +406,4 @@ const AppSidebar: React.FC = () => {
 };
 
 export default AppSidebar;
+

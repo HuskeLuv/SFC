@@ -8,6 +8,7 @@ import Avatar from "../ui/avatar/Avatar";
 interface UserProfile {
   name?: string;
   email?: string;
+  role?: 'user' | 'consultant' | 'admin';
   avatarUrl?: string | null;
 }
 
