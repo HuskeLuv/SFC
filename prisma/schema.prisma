@@ -13,6 +13,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  user
+  consultant
+  admin
+}
+
+enum ConsultantClientStatus {
+  active
+  inactive
+}
+
+enum ConsultantInviteStatus {
+  pending
+  accepted
+  rejected
+}
+
 model User {
   id                String             @id @default(uuid())
   email             String             @unique
@@ -21,16 +38,74 @@ model User {
   avatarUrl         String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  role              UserRole           @default(user)
   events            Event[]
   dashboard         DashboardData[]
   cashflows         Cashflow[]
   cashflowGroups    CashflowGroup[]
   cashflowItems     CashflowItem[]
   cashflowValues    CashflowValue[]
+  consultantProfile Consultant?
+  consultancies     ClientConsultant[] @relation("ClientConsultantClients")
   // Stocks
   watchlists        Watchlist[]
   portfolios        Portfolio[]
   stockTransactions StockTransaction[]
+  notifications     Notification[]
+  consultantInvites ConsultantInvite[] @relation("UserConsultantInvites")
+}
+
+model Consultant {
+  id        String             @id @default(uuid())
+  userId    String             @unique
+  user      User               @relation(fields: [userId], references: [id])
+  clients   ClientConsultant[]
+  invites   ConsultantInvite[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model ClientConsultant {
+  id            String                   @id @default(uuid())
+  consultantId  String
+  consultant    Consultant               @relation(fields: [consultantId], references: [id])
+  clientId      String
+  client        User                     @relation("ClientConsultantClients", fields: [clientId], references: [id])
+  createdAt     DateTime                 @default(now())
+  status        ConsultantClientStatus   @default(active)
+
+  @@unique([consultantId, clientId])
+  @@index([clientId])
+}
+
+model ConsultantInvite {
+  id            String                 @id @default(uuid())
+  consultantId  String
+  consultant    Consultant             @relation(fields: [consultantId], references: [id])
+  invitedUserId String?
+  invitedUser   User?                  @relation("UserConsultantInvites", fields: [invitedUserId], references: [id])
+  email         String
+  status        ConsultantInviteStatus @default(pending)
+  token         String                 @unique
+  createdAt     DateTime               @default(now())
+  respondedAt   DateTime?
+  notifications Notification[]
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  inviteId  String?
+  invite    ConsultantInvite? @relation(fields: [inviteId], references: [id])
+
+  @@index([userId, createdAt])
 }
 
 model Event {

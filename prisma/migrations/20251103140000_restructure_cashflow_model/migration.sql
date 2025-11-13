@@ -2,10 +2,75 @@
 -- Date: 2025-11-03
 -- Description: Reestrutura modelo de Cashflow para suportar templates padrão e hierarquia escalável
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = current_schema
+    AND table_name = 'User'
+  ) THEN
+    CREATE TABLE "User" (
+      "id" TEXT NOT NULL,
+      "email" TEXT NOT NULL,
+      "password" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "avatarUrl" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+    );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = current_schema
+    AND table_name = 'CashflowGroup'
+  ) THEN
+    CREATE TABLE "CashflowGroup" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT,
+      "name" TEXT NOT NULL,
+      "type" TEXT NOT NULL DEFAULT 'Despesas',
+      "parentId" TEXT,
+      "order" INTEGER NOT NULL DEFAULT 0,
+      CONSTRAINT "CashflowGroup_pkey" PRIMARY KEY ("id")
+    );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = current_schema
+    AND table_name = 'CashflowItem'
+  ) THEN
+    CREATE TABLE "CashflowItem" (
+      "id" TEXT NOT NULL,
+      "groupId" TEXT NOT NULL,
+      "descricao" TEXT NOT NULL,
+      "significado" TEXT,
+      "rank" INTEGER,
+      "order" INTEGER NOT NULL DEFAULT 0,
+      CONSTRAINT "CashflowItem_pkey" PRIMARY KEY ("id")
+    );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = current_schema
+    AND table_name = 'CashflowValue'
+  ) THEN
+    CREATE TABLE "CashflowValue" (
+      "id" TEXT NOT NULL,
+      "itemId" TEXT NOT NULL,
+      "mes" INTEGER NOT NULL,
+      "valor" DOUBLE PRECISION NOT NULL,
+      CONSTRAINT "CashflowValue_pkey" PRIMARY KEY ("id")
+    );
+  END IF;
+END $$;
+
 -- ============================================================================
 -- STEP 1: Adicionar novos campos necessários
 -- ============================================================================
-
 -- CashflowGroup: Adicionar orderIndex (se não existir), createdAt, updatedAt
 DO $$ 
 BEGIN
@@ -32,6 +97,17 @@ ALTER TABLE "CashflowGroup" ALTER COLUMN "userId" DROP NOT NULL;
 UPDATE "CashflowGroup" SET "type" = 'entrada' WHERE "type" = 'Entradas';
 UPDATE "CashflowGroup" SET "type" = 'despesa' WHERE "type" = 'Despesas';
 UPDATE "CashflowGroup" SET "type" = 'investimento' WHERE "type" = 'Investimentos';
+
+-- CashflowGroup: Remover coluna antiga "order" após migração
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'CashflowGroup' AND column_name = 'order'
+  ) THEN
+    ALTER TABLE "CashflowGroup" DROP COLUMN "order";
+  END IF;
+END $$;
 
 -- ============================================================================
 -- STEP 2: Atualizar CashflowItem
@@ -78,6 +154,17 @@ SET "userId" = cg."userId"
 FROM "CashflowGroup" cg
 WHERE ci."groupId" = cg.id AND ci."userId" IS NULL;
 
+-- CashflowItem: Remover coluna antiga "order" após migração
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'CashflowItem' AND column_name = 'order'
+  ) THEN
+    ALTER TABLE "CashflowItem" DROP COLUMN "order";
+  END IF;
+END $$;
+
 -- ============================================================================
 -- STEP 3: Atualizar CashflowValue
 -- ============================================================================
@@ -95,6 +182,17 @@ BEGIN
     
     -- Tornar obrigatório
     ALTER TABLE "CashflowValue" ALTER COLUMN "userId" SET NOT NULL;
+  END IF;
+END $$;
+
+-- Adicionar coluna color (opcional) se não existir
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'CashflowValue' AND column_name = 'color'
+  ) THEN
+    ALTER TABLE "CashflowValue" ADD COLUMN "color" TEXT;
   END IF;
 END $$;
 

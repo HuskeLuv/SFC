@@ -1,9 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+type GlobalPrisma = {
+  prisma?: PrismaClient;
+};
 
-export const prisma =
-  globalForPrisma.prisma ||
+const globalForPrisma = globalThis as typeof globalThis & GlobalPrisma;
+
+const createPrismaClient = () =>
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     datasources: {
@@ -13,6 +16,13 @@ export const prisma =
     },
   });
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (
+  process.env.NODE_ENV !== 'production' &&
+  (!globalForPrisma.prisma || typeof (globalForPrisma.prisma as any).consultantInvite === 'undefined')
+) {
+  globalForPrisma.prisma = createPrismaClient();
+}
+
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 export default prisma; 
