@@ -22,25 +22,25 @@ async function main() {
 
     // Grupos principais e subgrupos com type field
     const grupos = [
-      { name: 'Entradas', order: 1, parentId: null, type: 'Entradas' },
-      { name: 'Entradas Fixas', order: 1, parentId: 'Entradas', type: 'Entradas' },
-      { name: 'Entradas Variáveis', order: 2, parentId: 'Entradas', type: 'Entradas' },
-      { name: 'Sem Tributação', order: 1, parentId: 'Entradas Variáveis', type: 'Entradas' },
-      { name: 'Com Tributação', order: 2, parentId: 'Entradas Variáveis', type: 'Entradas' },
-      { name: 'Despesas', order: 2, parentId: null, type: 'Despesas' },
-      { name: 'Despesas Fixas', order: 1, parentId: 'Despesas', type: 'Despesas' },
-      { name: 'Habitação', order: 1, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Transporte', order: 2, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Saúde', order: 3, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Educação', order: 4, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Animais de Estimação', order: 5, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Despesas Pessoais', order: 6, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Lazer', order: 7, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Impostos', order: 8, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Despesas Empresa', order: 9, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Planejamento Financeiro', order: 10, parentId: 'Despesas Fixas', type: 'Despesas' },
-      { name: 'Despesas Variáveis', order: 2, parentId: 'Despesas', type: 'Despesas' },
-      { name: 'Investimentos', order: 3, parentId: null, type: 'Despesas' },
+      { name: 'Entradas', order: 1, parentId: null, type: 'entrada' },
+      { name: 'Entradas Fixas', order: 1, parentId: 'Entradas', type: 'entrada' },
+      { name: 'Entradas Variáveis', order: 2, parentId: 'Entradas', type: 'entrada' },
+      { name: 'Sem Tributação', order: 1, parentId: 'Entradas Variáveis', type: 'entrada' },
+      { name: 'Com Tributação', order: 2, parentId: 'Entradas Variáveis', type: 'entrada' },
+      { name: 'Despesas', order: 2, parentId: null, type: 'despesa' },
+      { name: 'Despesas Fixas', order: 1, parentId: 'Despesas', type: 'despesa' },
+      { name: 'Habitação', order: 1, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Transporte', order: 2, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Saúde', order: 3, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Educação', order: 4, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Animais de Estimação', order: 5, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Despesas Pessoais', order: 6, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Lazer', order: 7, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Impostos', order: 8, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Despesas Empresa', order: 9, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Planejamento Financeiro', order: 10, parentId: 'Despesas Fixas', type: 'despesa' },
+      { name: 'Despesas Variáveis', order: 2, parentId: 'Despesas', type: 'despesa' },
+      { name: 'Investimentos', order: 3, parentId: null, type: 'investimento' },
     ];
 
     // Itens por grupo com valores mensais realistas
@@ -578,14 +578,14 @@ async function main() {
     console.log('📁 Criando grupos...');
     for (const grupo of grupos) {
       const groupData: any = {
-        userId: defaultUser.id,
         name: grupo.name,
         type: grupo.type,
-        order: grupo.order,
+        orderIndex: grupo.order,
+        user: { connect: { id: defaultUser.id } },
       };
       
       if (grupo.parentId && createdGroups[grupo.parentId]) {
-        groupData.parentId = createdGroups[grupo.parentId].id;
+        groupData.parent = { connect: { id: createdGroups[grupo.parentId].id } };
       }
       
       const g = await prisma.cashflowGroup.create({
@@ -611,12 +611,10 @@ async function main() {
         const items = itensPorGrupo[grupo.name] || [];
         console.log(`  📋 ${grupo.name}: ${items.length} itens`);
         
-        let itemOrder = 1;
         for (const item of items) {
           const createdItem = await prisma.cashflowItem.create({
             data: {
-              userId: null, // Template padrão
-              groupId: group.id,
+              group: { connect: { id: group.id } },
               name: item.descricao,
               significado: item.significado || null,
               rank: item.rank || null,
@@ -631,7 +629,7 @@ async function main() {
               await prisma.cashflowValue.create({
                 data: {
                   itemId: createdItem.id,
-                  userId: 'seed-user-id', // ID temporário para seed, será substituído em produção
+                  userId: defaultUser.id,
                   year: currentYear,
                   month: month,
                   value: item.valoresMensais[month],
