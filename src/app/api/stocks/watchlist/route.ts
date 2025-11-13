@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/utils/auth';
+import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 // GET - Buscar watchlist do usuário
 export async function GET(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
+    const { targetUserId } = await requireAuthWithActing(request);
 
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
+      where: { id: targetUserId },
     });
 
     if (!user) {
@@ -41,10 +41,10 @@ export async function GET(request: NextRequest) {
 // POST - Adicionar ativo ao watchlist
 export async function POST(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
+    const { targetUserId } = await requireAuthWithActing(request);
 
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
+      where: { id: targetUserId },
     });
 
     if (!user) {

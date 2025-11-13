@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
+import { requireAuthWithActing } from '@/utils/auth';
 
 /**
  * Combina templates padrão com personalizações do usuário
@@ -133,13 +133,7 @@ function mergeTemplatesWithCustomizations(
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticação
-    const token = request.cookies.get('token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
-    }
-
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
+    const { payload, targetUserId } = await requireAuthWithActing(request);
     
     // Obter ano do query param (padrão: ano atual)
     const { searchParams } = new URL(request.url);
@@ -152,7 +146,7 @@ export async function GET(request: NextRequest) {
 
     // Construir filtro de valores por ano
     const valuesFilter = {
-      userId: payload.id,
+      userId: targetUserId,
       year: year,
     };
 
@@ -207,7 +201,7 @@ export async function GET(request: NextRequest) {
     // Buscar personalizações do usuário (userId = payload.id) com hierarquia completa
     const customizations = await prisma.cashflowGroup.findMany({
       where: { 
-        userId: payload.id,
+        userId: targetUserId,
         parentId: null 
       },
       orderBy: { orderIndex: 'asc' },

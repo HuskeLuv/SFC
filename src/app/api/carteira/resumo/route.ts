@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/utils/auth';
+import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { fetchQuotes } from '@/services/brapiQuote';
 
 export async function GET(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
+    const { targetUserId } = await requireAuthWithActing(request);
 
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
+      where: { id: targetUserId },
     });
 
     if (!user) {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar portfolio de ações
     const portfolio = await prisma.portfolio.findMany({
-      where: { userId: user.id },
+      where: { userId: targetUserId },
       include: {
         stock: true,
         asset: true,
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
           include: {
             values: {
               where: {
-                userId: user.id,
+                userId: targetUserId,
                 year: new Date().getFullYear(),
               },
             },
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     const investmentGroupsCustom = await prisma.cashflowGroup.findMany({
       where: {
-        userId: user.id,
+        userId: targetUserId,
         type: 'investimento',
       },
       include: {
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
           include: {
             values: {
               where: {
-                userId: user.id,
+                userId: targetUserId,
                 year: new Date().getFullYear(),
               },
             },
@@ -125,14 +125,14 @@ export async function GET(request: NextRequest) {
     // Buscar meta de patrimônio (se existir no DashboardData)
     const metaPatrimonio = await prisma.dashboardData.findFirst({
       where: {
-        userId: user.id,
+        userId: targetUserId,
         metric: 'meta_patrimonio',
       },
     });
 
     // Buscar transações de ações para gerar histórico real
     const stockTransactions = await prisma.stockTransaction.findMany({
-      where: { userId: user.id },
+      where: { userId: targetUserId },
       orderBy: { date: 'asc' },
     });
 
@@ -457,15 +457,7 @@ export async function GET(request: NextRequest) {
 // POST para atualizar meta de patrimônio
 export async function POST(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
-
-    const user = await prisma.user.findUnique({
-      where: { id: payload.id },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
-    }
+    const { targetUserId } = await requireAuthWithActing(request);
 
     const { metaPatrimonio } = await request.json();
 
@@ -478,7 +470,7 @@ export async function POST(request: NextRequest) {
     // Criar ou atualizar meta no DashboardData
     const existingMeta = await prisma.dashboardData.findFirst({
       where: {
-        userId: user.id,
+        userId: targetUserId,
         metric: 'meta_patrimonio',
       },
     });
@@ -491,7 +483,7 @@ export async function POST(request: NextRequest) {
     } else {
       await prisma.dashboardData.create({
         data: {
-          userId: user.id,
+          userId: targetUserId,
           metric: 'meta_patrimonio',
           value: metaPatrimonio,
         },

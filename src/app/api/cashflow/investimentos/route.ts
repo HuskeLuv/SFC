@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/utils/auth';
+import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -8,10 +8,10 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
+    const { targetUserId } = await requireAuthWithActing(request);
 
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
+      where: { id: targetUserId },
     });
 
     if (!user) {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     // Buscar todas as transações de compra do usuário
     const transacoes = await prisma.stockTransaction.findMany({
       where: {
-        userId: user.id,
+        userId: targetUserId,
         type: 'compra',
       },
       include: {
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
         return {
           id: `investimento-${tipoAtivo}-mes-${month}-${targetYear}`,
           itemId: `investimento-${tipoAtivo}`,
-          userId: user.id,
+          userId: targetUserId,
           year: targetYear,
           month, // 0-11
           value: Math.round(valorMes * 100) / 100,

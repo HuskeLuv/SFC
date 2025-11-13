@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
-
-interface JWTPayload {
-  id: string;
-  email: string;
-  iat?: number;
-  exp?: number;
-}
+import type { JWTPayload } from '@/utils/auth';
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get('token')?.value;

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/utils/auth';
+import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 // GET - Buscar investimentos categorizados do usuário
 export async function GET(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
+    const { targetUserId } = await requireAuthWithActing(request);
 
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
+      where: { id: targetUserId },
     });
 
     if (!user) {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
           include: {
             values: {
               where: {
-                userId: user.id,
+                userId: targetUserId,
               },
             },
           },
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     const investmentGroupsCustom = await prisma.cashflowGroup.findMany({
       where: {
-        userId: user.id,
+        userId: targetUserId,
         type: 'investimento',
       },
       include: {
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
           include: {
             values: {
               where: {
-                userId: user.id,
+                userId: targetUserId,
               },
             },
           },
@@ -82,10 +82,10 @@ export async function GET(request: NextRequest) {
 // POST - Adicionar novo investimento categorizado
 export async function POST(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
+    const { targetUserId } = await requireAuthWithActing(request);
 
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
+      where: { id: targetUserId },
     });
 
     if (!user) {
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     // Buscar ou criar grupo de investimentos
     let grupoInvestimentos = await prisma.cashflowGroup.findFirst({
       where: {
-        userId: user.id,
+        userId: targetUserId,
         name: 'Investimentos',
         type: 'investimento',
       },
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
       if (templateGroup) {
         // Importar função de personalização
         const { personalizeGroup } = await import('@/utils/cashflowPersonalization');
-        const personalizedGroupId = await personalizeGroup(templateGroup.id, user.id);
+        const personalizedGroupId = await personalizeGroup(templateGroup.id, targetUserId);
         grupoInvestimentos = await prisma.cashflowGroup.findUnique({
           where: { id: personalizedGroupId },
         });
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
         // Criar grupo se não existir template
         grupoInvestimentos = await prisma.cashflowGroup.create({
           data: {
-            userId: user.id,
+            userId: targetUserId,
             name: 'Investimentos',
             type: 'investimento',
             orderIndex: 999,
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     // Criar o item de investimento
     const investimento = await prisma.cashflowItem.create({
       data: {
-        userId: user.id, // Sempre personalizado quando criado pelo usuário
+        userId: targetUserId, // Sempre personalizado quando criado pelo usuário
         groupId: grupoInvestimentos!.id,
         name: itemName,
         significado: significado || null,
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
     await prisma.cashflowValue.create({
       data: {
         itemId: investimento.id,
-        userId: user.id,
+        userId: targetUserId,
         year: currentYear,
         month: monthAtual,
         value: valor,
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
       where: { id: investimento.id },
       include: {
         values: {
-          where: { userId: user.id },
+          where: { userId: targetUserId },
         },
         group: true,
       },

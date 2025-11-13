@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/utils/auth';
+import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
+    const { targetUserId } = await requireAuthWithActing(request);
 
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
+      where: { id: targetUserId },
     });
 
     if (!user) {
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     // Criar transação de compra usando Asset diretamente
     const transacao = await prisma.stockTransaction.create({
       data: {
-        userId: user.id,
+        userId: targetUserId,
         assetId: asset.id, // Usar o ID do Asset diretamente
         type: 'compra',
         quantity: quantidadeFinal,
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
     // Atualizar ou criar portfolio usando Asset
     const portfolioExistente = await prisma.portfolio.findFirst({
       where: {
-        userId: user.id,
+        userId: targetUserId,
         assetId: asset.id, // Usar o ID do Asset
       },
     });
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
       // Criar novo portfolio
       await prisma.portfolio.create({
         data: {
-          userId: user.id,
+          userId: targetUserId,
           assetId: asset.id, // Usar o ID do Asset
           quantity: quantidadeFinal,
           avgPrice: precoFinal,

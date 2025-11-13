@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/utils/auth';
+import { requireAuthWithActing } from '@/utils/auth';
 
 interface AlocacaoConfig {
   categoria: string;
@@ -29,10 +29,10 @@ const defaultConfig: AlocacaoConfig[] = [
 // GET - Buscar configurações de alocação do usuário
 export async function GET(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
+    const { targetUserId } = await requireAuthWithActing(request);
     
     // Retorna configurações salvas ou defaults
-    const alocacaoConfig = userConfigurations[payload.id] || defaultConfig;
+    const alocacaoConfig = userConfigurations[targetUserId] || defaultConfig;
     
     return NextResponse.json({ configuracoes: alocacaoConfig });
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 // PUT - Atualizar configurações de alocação do usuário
 export async function PUT(request: NextRequest) {
   try {
-    const payload = requireAuth(request);
+    const { targetUserId } = await requireAuthWithActing(request);
     const { configuracoes } = await request.json();
 
     if (!configuracoes || !Array.isArray(configuracoes)) {
@@ -102,7 +102,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Salvar configurações em memória (temporário)
-    userConfigurations[payload.id] = configuracoes;
+    userConfigurations[targetUserId] = configuracoes;
 
     return NextResponse.json({ 
       success: true, 
