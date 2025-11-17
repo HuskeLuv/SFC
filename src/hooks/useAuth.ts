@@ -50,13 +50,24 @@ export const useAuth = () => {
   // Fazer logout
   const logout = useCallback(async () => {
     try {
-      // Limpar o cookie do token
-      document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      // Chamar API de logout para limpar o cookie no servidor
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      // Limpar estado local
       setUser(null);
       setActingClient(null);
+      
+      // Redirecionar para a tela de login
       router.push('/signin');
     } catch (err) {
       console.error('Erro ao fazer logout:', err);
+      // Mesmo em caso de erro, limpar o estado local e redirecionar
+      setUser(null);
+      setActingClient(null);
+      router.push('/signin');
     }
   }, [router]);
 

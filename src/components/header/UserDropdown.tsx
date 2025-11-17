@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import Avatar from "../ui/avatar/Avatar";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UserProfile {
   name?: string;
@@ -16,6 +17,7 @@ export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isFetching, setIsFetching] = useState(true);
+  const { logout } = useAuth();
 
   useEffect(() => {
     let isMounted = true;
@@ -144,13 +146,15 @@ export default function UserDropdown() {
         </div>
         <div className="py-1 border-t border-gray-200 dark:border-gray-800">
           <DropdownItem>
-            <Link
-              href="/logout"
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-              onClick={closeDropdown}
+            <button
+              onClick={() => {
+                closeDropdown();
+                logout();
+              }}
+              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               Sair
-            </Link>
+            </button>
           </DropdownItem>
         </div>
       </Dropdown>
