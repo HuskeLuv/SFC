@@ -23,8 +23,10 @@ const DashboardMetricCard: React.FC<DashboardMetricCardProps> = ({
 
   return (
     <Card>
-      <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-        {title}
+      <CardTitle>
+        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+          {title}
+        </span>
       </CardTitle>
       <p className="mt-3 text-2xl font-semibold text-gray-900 dark:text-white">
         {displayValue}

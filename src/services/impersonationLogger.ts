@@ -19,23 +19,26 @@ interface LogConsultantActionParams {
 const getIpAddress = (request: RequestWithHeaders): string | null => {
   if ('headers' in request) {
     // NextApiRequest
-    const forwarded = request.headers['x-forwarded-for'];
+    const headers = request.headers as Record<string, string | string[] | undefined>;
+    const forwarded = headers['x-forwarded-for'];
     if (forwarded) {
       const ips = Array.isArray(forwarded) ? forwarded[0] : forwarded;
       return ips.split(',')[0].trim();
     }
-    const realIp = request.headers['x-real-ip'];
+    const realIp = headers['x-real-ip'];
     if (realIp) {
       return Array.isArray(realIp) ? realIp[0] : realIp;
     }
-    return request.socket?.remoteAddress ?? null;
+    const nextApiRequest = request as { socket?: { remoteAddress?: string } };
+    return nextApiRequest.socket?.remoteAddress ?? null;
   } else {
     // NextRequest
-    const forwarded = request.headers.get('x-forwarded-for');
+    const nextRequest = request as NextRequest;
+    const forwarded = nextRequest.headers.get('x-forwarded-for');
     if (forwarded) {
       return forwarded.split(',')[0].trim();
     }
-    const realIp = request.headers.get('x-real-ip');
+    const realIp = nextRequest.headers.get('x-real-ip');
     if (realIp) {
       return realIp;
     }
@@ -49,11 +52,13 @@ const getIpAddress = (request: RequestWithHeaders): string | null => {
 const getUserAgent = (request: RequestWithHeaders): string | null => {
   if ('headers' in request) {
     // NextApiRequest
-    const userAgent = request.headers['user-agent'];
+    const headers = request.headers as Record<string, string | string[] | undefined>;
+    const userAgent = headers['user-agent'];
     return userAgent ? (Array.isArray(userAgent) ? userAgent[0] : userAgent) : null;
   } else {
     // NextRequest
-    return request.headers.get('user-agent');
+    const nextRequest = request as NextRequest;
+    return nextRequest.headers.get('user-agent');
   }
 };
 

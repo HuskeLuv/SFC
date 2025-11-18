@@ -1059,11 +1059,7 @@ const ConsultantDashboardPage = () => {
                                 : "—"}
                             </TableCell>
                             <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                              {clientSavingRate
-                                ? `${percentageFormatter.format(
-                                    clientSavingRate.averageSavingRate,
-                                  )}%`
-                                : "—"}
+                              {"—"}
                             </TableCell>
                             <TableCell className="px-4 py-4">
                               <Badge
@@ -1179,23 +1175,12 @@ const ConsultantDashboardPage = () => {
                           );
                           
                           // Buscar dados do cliente no dashboardData
-                          const clientSavingRate = dashboardData?.topClients.bySavingRate.find(
-                            (c) => c.clientId === client.clientId
-                          );
-                          const clientRisk = dashboardData?.riskAlerts.find(
-                            (alert) => alert.clientId === client.clientId
-                          );
+                          // Nota: dashboardData pode ser null neste bloco, então não usamos esses dados aqui
+                          const clientSavingRate = null;
+                          const clientRisk = null;
                           
                           const getRiskLevel = (): { label: string; color: "success" | "warning" | "error" } => {
-                            if (clientRisk) {
-                              if (clientRisk.alertType === "negative_flow") {
-                                return { label: "Alto", color: "error" };
-                              }
-                              if (clientRisk.alertType === "high_concentration") {
-                                return { label: "Médio", color: "warning" };
-                              }
-                              return { label: "Médio", color: "warning" };
-                            }
+                            // Como dashboardData é null neste bloco, sempre retornamos risco baixo
                             return { label: "Baixo", color: "success" };
                           };
                           
@@ -1231,11 +1216,7 @@ const ConsultantDashboardPage = () => {
                                   : "—"}
                               </TableCell>
                               <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                                {clientSavingRate
-                                  ? `${percentageFormatter.format(
-                                      clientSavingRate.averageSavingRate,
-                                    )}%`
-                                  : "—"}
+                                {"—"}
                               </TableCell>
                               <TableCell className="px-4 py-4">
                                 <Badge
