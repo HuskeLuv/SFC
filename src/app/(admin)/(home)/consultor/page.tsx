@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
@@ -201,7 +200,7 @@ const getStatusPresentation = (status: "active" | "inactive") => {
 };
 
 const ConsultantDashboardPage = () => {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, checkAuth, actingClient } = useAuth();
   const router = useRouter();
   const [overview, setOverview] = useState<ConsultantOverview | null>(null);
   const [clients, setClients] = useState<ClientWithDetail[]>([]);
@@ -214,6 +213,7 @@ const ConsultantDashboardPage = () => {
   const [invitationSuccess, setInvitationSuccess] = useState<string | null>(null);
   const [invitationStatuses, setInvitationStatuses] =
     useState<ConsultantInvitationSummary[]>([]);
+  const [personifyingClientId, setPersonifyingClientId] = useState<string | null>(null);
 
   const fetchOverviewAndClients = useCallback(async () => {
     try {
@@ -404,6 +404,36 @@ const ConsultantDashboardPage = () => {
   const handleRetry = () => {
     void fetchOverviewAndClients();
     void fetchInvitations();
+  };
+
+  const handlePersonifyClient = async (clientId: string) => {
+    if (!clientId || personifyingClientId === clientId) {
+      return;
+    }
+    try {
+      setPersonifyingClientId(clientId);
+      const response = await fetch("/api/consultant/acting", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ clientId }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(
+          payload?.error ?? "Não foi possível personificar o cliente.",
+        );
+      }
+
+      await checkAuth();
+      router.push("/carteira");
+    } catch (actionError) {
+      console.error("[ConsultantDashboard] acting error", actionError);
+      setPersonifyingClientId(null);
+    }
   };
 
   const isEmptyState =
@@ -774,11 +804,18 @@ const ConsultantDashboardPage = () => {
                               </Badge>
                             </TableCell>
                             <TableCell className="px-4 py-4 text-right">
-                              <Link
-                                href={`/dashboard/consultor/${client.clientId}`}
+                              <Button
+                                size="sm"
+                                onClick={() => handlePersonifyClient(client.clientId)}
+                                disabled={personifyingClientId === client.clientId || !!actingClient}
+                                aria-label="Personificar cliente"
                               >
-                                <Button size="sm">Ver cliente</Button>
-                              </Link>
+                                {personifyingClientId === client.clientId
+                                  ? "Personificando..."
+                                  : actingClient?.id === client.clientId
+                                  ? "Personificado"
+                                  : "Personificar cliente"}
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );

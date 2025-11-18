@@ -14,12 +14,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Badge from "@/components/ui/badge/Badge";
-import { Dropdown } from "@/components/ui/dropdown/Dropdown";
-import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
 import dynamic from "next/dynamic";
 import type { ApexOptions } from "apexcharts";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDownIcon } from "@/icons";
 
 type ClientSummary = {
   currentBalance: number;
@@ -306,13 +303,10 @@ const normalizeTypeLabel = (rawType?: string | null) => {
 const ClientConsultantDetailPage = () => {
   const params = useParams<{ clientId: string }>();
   const router = useRouter();
-  const { user, isLoading: authLoading, actingClient, checkAuth } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [detail, setDetail] = useState<ClientDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actingError, setActingError] = useState<string | null>(null);
-  const [isSwitchingView, setIsSwitchingView] = useState(false);
-  const [actionMenuOpen, setActionMenuOpen] = useState(false);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -367,58 +361,6 @@ const ClientConsultantDetailPage = () => {
     }
   }, [authLoading, user, router]);
 
-  const isActingOnThisClient =
-    actingClient?.id && params?.clientId
-      ? actingClient.id === params.clientId
-      : false;
-
-  const handleToggleActionMenu = () => {
-    if (isSwitchingView) {
-      return;
-    }
-    setActionMenuOpen((previous) => !previous);
-  };
-
-  const handlePersonifyNavigation = async (targetPath: string) => {
-    if (!params?.clientId) {
-      return;
-    }
-    try {
-      setIsSwitchingView(true);
-      setActingError(null);
-      if (!isActingOnThisClient) {
-        const response = await fetch("/api/consultant/acting", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ clientId: params.clientId }),
-        });
-
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          throw new Error(
-            payload?.error ?? "Não foi possível alternar para a visão do cliente.",
-          );
-        }
-
-        await checkAuth();
-      }
-
-      router.push(targetPath);
-    } catch (actionError) {
-      console.error("[ConsultantClientDetail] acting error", actionError);
-      setActingError(
-        actionError instanceof Error
-          ? actionError.message
-          : "Não foi possível alternar a visão para o cliente selecionado.",
-      );
-    } finally {
-      setIsSwitchingView(false);
-      setActionMenuOpen(false);
-    }
-  };
 
   const wealthSeries = useMemo(() => buildWealthSeries(detail), [detail]);
 
@@ -538,47 +480,6 @@ const ClientConsultantDetailPage = () => {
                 ? `Último acesso registrado em ${lastAccess}`
                 : "Sem dados no período"}
             </p>
-          </div>
-          <div className="flex flex-col gap-3 lg:items-end">
-            <div className="relative">
-              <Button
-                variant="primary"
-                className="dropdown-toggle"
-                onClick={handleToggleActionMenu}
-                endIcon={<ChevronDownIcon className="h-4 w-4" />}
-                disabled={isSwitchingView}
-                aria-label="Personificar cliente e acessar áreas"
-              >
-                {isActingOnThisClient
-                  ? "Navegar como cliente"
-                  : "Personificar cliente"}
-              </Button>
-              <Dropdown
-                isOpen={actionMenuOpen}
-                onClose={() => setActionMenuOpen(false)}
-                className="w-64"
-              >
-                <div className="flex flex-col py-2">
-                  <DropdownItem
-                    onClick={() => handlePersonifyNavigation("/fluxodecaixa")}
-                    className="text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                  >
-                    Ir para Fluxo de Caixa
-                  </DropdownItem>
-                  <DropdownItem
-                    onClick={() => handlePersonifyNavigation("/carteira")}
-                    className="text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                  >
-                    Ir para Carteira de Investimentos
-                  </DropdownItem>
-                </div>
-              </Dropdown>
-            </div>
-            {actingError ? (
-              <p className="text-sm text-red-500 dark:text-red-400">
-                {actingError}
-              </p>
-            ) : null}
           </div>
         </div>
 

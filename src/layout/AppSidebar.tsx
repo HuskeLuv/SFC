@@ -82,23 +82,31 @@ const supportItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, actingClient } = useAuth();
 
   const dashboardPath =
-    user?.role === "consultant" ? "/dashboard/consultor" : "/stocks";
+    user?.role === "consultant" && !actingClient
+      ? "/dashboard/consultor"
+      : "/stocks";
 
-  const mainNavItems = useMemo(
-    () =>
-      MAIN_NAV_ITEMS.map((item) =>
-        item.name === "Dashboard"
-          ? {
-              ...item,
-              path: dashboardPath,
-            }
-          : item,
-      ),
-    [dashboardPath],
-  );
+  const mainNavItems = useMemo(() => {
+    let items = MAIN_NAV_ITEMS.map((item) =>
+      item.name === "Dashboard"
+        ? {
+            ...item,
+            path: dashboardPath,
+          }
+        : item,
+    );
+
+    // Se estiver personificado, mostrar apenas: Dashboard, Fluxo de Caixa, Carteira e Relatórios
+    if (actingClient) {
+      const allowedItems = ["Dashboard", "Fluxo de Caixa", "Carteira", "Relatórios"];
+      items = items.filter((item) => allowedItems.includes(item.name));
+    }
+
+    return items;
+  }, [dashboardPath, actingClient]);
 
   const renderMenuItems = (
     navItems: NavItem[],

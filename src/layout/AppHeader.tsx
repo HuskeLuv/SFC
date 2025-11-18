@@ -4,7 +4,6 @@ import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
 import { useAuth } from "@/hooks/useAuth";
-import Badge from "@/components/ui/badge/Badge";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
@@ -74,33 +73,6 @@ const AppHeader: React.FC = () => {
 
   return (
     <header className="sticky top-0 flex w-full bg-white border-gray-200 z-99999 dark:border-gray-800 dark:bg-gray-900 lg:border-b">
-      {actingClient ? (
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900 dark:border-blue-900/30 dark:bg-blue-900/20 dark:text-blue-100">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200">
-              Personificação ativa
-            </span>
-            <Badge variant="light" color="primary" size="sm">
-              {actingClient.name}
-            </Badge>
-            {actingClient.email ? (
-              <span className="text-xs text-blue-700 dark:text-blue-200">
-                {actingClient.email}
-              </span>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={handleExitActing}
-          className={`inline-flex items-center justify-center rounded-lg border border-blue-300 bg-white px-3 py-1 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-800/40 dark:text-blue-100 dark:hover:bg-blue-700/40 ${
-            leavingActing ? "cursor-progress opacity-70" : ""
-          }`}
-            aria-label="Encerrar personificação"
-          >
-            {leavingActing ? "Saindo..." : "Sair da personificação"}
-          </button>
-        </div>
-      ) : null}
       <div className="flex flex-col items-center justify-between grow lg:flex-row lg:px-6">
         <div className="flex items-center justify-between w-full gap-2 px-3 py-3 border-b border-gray-200 dark:border-gray-800 sm:gap-4 lg:justify-normal lg:border-b-0 lg:px-0 lg:py-4">
           <button
@@ -227,7 +199,26 @@ const AppHeader: React.FC = () => {
             {/* <!-- Notification Menu Area --> */}
           </div>
           {/* <!-- User Area --> */}
-          <UserDropdown />
+          <div className="flex items-center gap-2">
+            {actingClient ? (
+              <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900/30">
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-200">
+                  {actingClient.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleExitActing}
+                  className={`inline-flex items-center justify-center rounded-md border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-800/40 dark:text-blue-100 dark:hover:bg-blue-700/40 ${
+                    leavingActing ? "cursor-progress opacity-70" : ""
+                  }`}
+                  aria-label="Encerrar personificação"
+                >
+                  {leavingActing ? "Saindo..." : "Sair"}
+                </button>
+              </div>
+            ) : null}
+            <UserDropdown />
+          </div>
         </div>
       </div>
     </header>
