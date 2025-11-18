@@ -244,6 +244,7 @@ export async function GET(request: NextRequest) {
 
     // Inicializar contadores para cada categoria
     const categorias = {
+      reservaEmergencia: 0,
       reservaOportunidade: 0,
       rendaFixaFundos: 0,
       fimFia: 0,
@@ -326,6 +327,12 @@ export async function GET(request: NextRequest) {
           case 'cash':
             categorias.reservaOportunidade += valorAtual;
             break;
+          case 'emergency':
+            categorias.reservaEmergencia += valorAtual;
+            break;
+          case 'opportunity':
+            categorias.reservaOportunidade += valorAtual;
+            break;
           case 'custom':
             categorias.fimFia += valorAtual;
             break;
@@ -352,7 +359,13 @@ export async function GET(request: NextRequest) {
       const name = investment.name.toLowerCase();
 
       // Lógica de categorização baseada em palavras-chave no nome
-      if (name.includes('reserva') || name.includes('emergencia')) {
+      if (name.includes('reserva') && name.includes('emergencia')) {
+        categorias.reservaEmergencia += totalValor;
+      } else if (name.includes('reserva') && name.includes('oportunidade')) {
+        categorias.reservaOportunidade += totalValor;
+      } else if (name.includes('emergencia')) {
+        categorias.reservaEmergencia += totalValor;
+      } else if (name.includes('reserva')) {
         categorias.reservaOportunidade += totalValor;
       } else if (name.includes('cdb') || name.includes('lci') || name.includes('lca') || 
                  name.includes('tesouro') || name.includes('renda fixa')) {
@@ -387,6 +400,10 @@ export async function GET(request: NextRequest) {
 
     // Distribuição por tipo de investimento com dados reais
     const distribuicao = {
+      reservaEmergencia: {
+        valor: Math.round(categorias.reservaEmergencia * 100) / 100,
+        percentual: baseValue > 0 ? Math.round((categorias.reservaEmergencia / baseValue) * 10000) / 100 : 0,
+      },
       reservaOportunidade: {
         valor: Math.round(categorias.reservaOportunidade * 100) / 100,
         percentual: baseValue > 0 ? Math.round((categorias.reservaOportunidade / baseValue) * 10000) / 100 : 0,

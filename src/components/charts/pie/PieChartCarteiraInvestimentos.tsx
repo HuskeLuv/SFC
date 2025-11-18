@@ -5,6 +5,10 @@ import ApexChartWrapper from "../ApexChartWrapper";
 
 interface PieChartCarteiraInvestimentosProps {
   distribuicao: {
+    reservaEmergencia: {
+      valor: number;
+      percentual: number;
+    };
     reservaOportunidade: {
       valor: number;
       percentual: number;
@@ -60,6 +64,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   const options: ApexOptions = useMemo(
     () => ({
       colors: [
+        "#FEE2E2", // Reserva de Emergência - Vermelho claro pastel
         "#BFDBFE", // Reserva de Oportunidade - Azul pastel
         "#A7F3D0", // Renda Fixa & Fundos - Verde pastel
         "#DDD6FE", // FIM/FIA - Roxo pastel
@@ -73,6 +78,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
         "#FBBF24", // Opções - Dourado pastel
       ],
       labels: [
+        "Reserva de Emergência",
         "Reserva de Oportunidade",
         "Renda Fixa & Fundos de Renda Fixa", 
         "FIM/FIA",
@@ -208,6 +214,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   );
 
   const series = useMemo(() => [
+    Number(distribuicao.reservaEmergencia.percentual.toFixed(2)),
     Number(distribuicao.reservaOportunidade.percentual.toFixed(2)),
     Number(distribuicao.rendaFixaFundos.percentual.toFixed(2)),
     Number(distribuicao.fimFia.percentual.toFixed(2)),

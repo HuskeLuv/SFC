@@ -2,7 +2,7 @@
 import { useCallback, useState } from "react";
 import React from "react";
 import Alert from "@/components/ui/alert/Alert";
-import { Table, TableBody } from "@/components/ui/table";
+import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { 
   useCashflowData, 
   useCollapsibleState, 
@@ -234,8 +234,17 @@ export default function DataTableTwo() {
                 const isFirstDespesaGroup = !isReceitaGroupByType(group.type) && 
                   groups.slice(0, groupIndex).every(g => isReceitaGroupByType(g.type));
                 
+                // Verificar se é um grupo principal (sem parentId)
+                const isMainGroup = !group.parentId;
+                
                 return (
                 <React.Fragment key={group.id}>
+                  {/* Adicionar espaçamento antes de grupos principais (exceto o primeiro) */}
+                  {isMainGroup && groupIndex > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                    </TableRow>
+                  )}
                   {/* Renderizar Inflação Pedro antes do primeiro grupo de Despesas */}
                   {isFirstDespesaGroup && (
                     <InflationPedroRow
@@ -438,6 +447,11 @@ export default function DataTableTwo() {
               entradasAnnual={processedData.entradasTotal}
               showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
             />
+            
+            {/* Espaçamento entre Índice de Poupança e Investimentos */}
+            <TableRow>
+              <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+            </TableRow>
             
             {/* Renderizar grupo de Investimentos após o Saldo */}
             {processedData.groups

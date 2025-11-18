@@ -87,7 +87,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
 
   return (
     <TableRow className={`hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${isEditing ? 'bg-blue-50/30 dark:bg-blue-900/20' : ''}`}>
-      <TableCell className="px-2 py-2 font-medium text-gray-800 border border-gray-100 dark:border-white/[0.05] dark:text-white text-xs w-32">
+      <TableCell className="px-2 py-2 font-medium text-gray-800 border border-black dark:border-black dark:text-white text-xs w-32 text-left">
         {isEditing && !isInvestmentItem ? (
           <input
             type="text"
@@ -100,7 +100,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         )}
       </TableCell>
       
-      <TableCell className="px-2 py-2 font-normal text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-gray-400 w-40">
+      <TableCell className="px-2 py-2 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-40">
         {isEditing && !isInvestmentItem ? (
           <input
             type="text"
@@ -114,21 +114,21 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         )}
       </TableCell>
       
-      <TableCell className="px-2 py-2 font-normal text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-gray-400 w-16 text-center">
+      <TableCell className="px-2 py-2 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-16 text-center">
         {isEditing && !isInvestmentItem ? (
           <input
             type="number"
             value={displayData.rank || ''}
             onChange={handleRankChange}
             placeholder="Rank"
-            className="w-full px-2 py-1 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-center"
+            className="w-full px-2 py-1 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
         ) : (
           <span>{displayData.rank || '-'}</span>
         )}
       </TableCell>
       
-      <TableCell className={`px-2 py-2 font-normal border border-gray-100 dark:border-white/[0.05] text-xs w-16 text-right ${getPercentageColorClass()}`}>
+      <TableCell className={`px-2 py-2 font-normal border border-black dark:border-black text-xs w-16 text-right ${getPercentageColorClass()}`}>
         {group.name === 'Investimentos' ? '-' : (itemPercentage > 0 ? formatPercent(itemPercentage) : '-')}
       </TableCell>
       
@@ -144,7 +144,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           return (
             <TableCell
               key={index}
-              className={`px-1 py-2 font-normal border border-gray-100 dark:border-white/[0.05] text-xs w-12 ${
+              className={`px-1 py-2 font-normal border border-black dark:border-black text-xs w-12 ${
                 isColorModeActive
                   ? "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
                   : ""
@@ -176,7 +176,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           return (
             <TableCell
               key={index}
-              className="px-1 py-2 font-normal text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-gray-400 w-12 text-right"
+              className="px-1 py-2 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-12 text-right"
             >
               <span style={cellColor ? { color: cellColor } : undefined}>
                 {formatCurrency(value || 0)}
@@ -186,12 +186,12 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         })
       )}
       
-      <TableCell className="px-2 py-2 font-semibold text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-white w-16 text-right">
+      <TableCell className="px-2 py-2 font-semibold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right">
         {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
       </TableCell>
       
       {isEditing && !isInvestmentItem && (
-        <TableCell className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-8 text-center">
+        <TableCell className="px-2 py-2 border border-black dark:border-black w-8 text-center">
           <DeleteItemButton onClick={() => onDeleteItem(item.id)} />
         </TableCell>
       )}

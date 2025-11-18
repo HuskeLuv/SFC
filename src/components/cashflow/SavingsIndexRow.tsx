@@ -28,16 +28,16 @@ export const SavingsIndexRow: React.FC<SavingsIndexRowProps> = ({
 
   return (
     <TableRow className="bg-gray-100 dark:bg-gray-800">
-      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-gray-100 dark:border-white/[0.05] dark:text-white text-xs w-32">
+      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-black dark:border-black dark:text-white text-xs w-32 text-left">
         Índice de Poupança
       </TableCell>
-      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-white w-40">
+      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-40">
         -
       </TableCell>
-      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-white w-16 text-center">
+      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-center">
         -
       </TableCell>
-      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-gray-100 dark:border-white/[0.05] text-xs dark:text-white w-16 text-right">
+      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right">
         -
       </TableCell>
       {totalByMonth.map((saldo, index) => {
@@ -47,7 +47,7 @@ export const SavingsIndexRow: React.FC<SavingsIndexRowProps> = ({
         return (
           <TableCell 
             key={index} 
-            className={`px-1 py-2 font-bold border border-gray-100 dark:border-white/[0.05] text-xs w-12 text-right ${
+            className={`px-1 py-2 font-bold border border-black dark:border-black text-xs w-12 text-right ${
               savingsIndex === null 
                 ? 'text-gray-500 dark:text-gray-400' 
                 : savingsIndex >= 0 
@@ -60,7 +60,7 @@ export const SavingsIndexRow: React.FC<SavingsIndexRowProps> = ({
         );
       })}
       <TableCell 
-        className={`px-2 py-2 font-bold border border-gray-100 dark:border-white/[0.05] text-xs w-16 text-right ${
+        className={`px-2 py-2 font-bold border border-black dark:border-black text-xs w-16 text-right ${
           annualSavingsIndex === null 
             ? 'text-gray-500 dark:text-gray-400' 
             : annualSavingsIndex >= 0 
@@ -71,7 +71,7 @@ export const SavingsIndexRow: React.FC<SavingsIndexRowProps> = ({
         {annualSavingsIndex === null ? '-' : formatPercent(annualSavingsIndex)}
       </TableCell>
       {showActionsColumn && (
-        <TableCell className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-8"></TableCell>
+        <TableCell className="px-2 py-2 border border-black dark:border-black w-8"></TableCell>
       )}
     </TableRow>
   );

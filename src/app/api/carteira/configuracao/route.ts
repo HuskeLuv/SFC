@@ -13,6 +13,7 @@ const userConfigurations: { [userId: string]: AlocacaoConfig[] } = {};
 
 // Configurações padrão baseadas na imagem original
 const defaultConfig: AlocacaoConfig[] = [
+  { categoria: "reservaEmergencia", minimo: 5, maximo: 15, target: 10 },
   { categoria: "reservaOportunidade", minimo: 5, maximo: 10, target: 7 },
   { categoria: "rendaFixaFundos", minimo: 25, maximo: 60, target: 30 },
   { categoria: "fimFia", minimo: 0, maximo: 10, target: 5 },

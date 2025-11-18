@@ -91,6 +91,13 @@ export async function POST(request: NextRequest) {
           error: 'Campos obrigatórios para este tipo: dataCompra, quantidade, cotacaoUnitaria' 
         }, { status: 400 });
       }
+    } else if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
+      // Para reserva de emergência e oportunidade, apenas valor e data são necessários
+      if (!dataCompra || !valorInvestido) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para este tipo: dataCompra, valorInvestido' 
+        }, { status: 400 });
+      }
     } else {
       // Para ações, BDRs, ETFs, REITs, etc.
       if (!dataCompra || !quantidade || !cotacaoUnitaria) {
@@ -125,28 +132,76 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    if ((tipoAtivo === "moeda" || tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") && valorInvestido <= 0) {
+    if ((tipoAtivo === "moeda" || tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia" || tipoAtivo === "emergency" || tipoAtivo === "opportunity") && valorInvestido <= 0) {
       return NextResponse.json({ 
         error: 'Valor investido deve ser maior que zero' 
       }, { status: 400 });
     }
 
-    // Verificar se a instituição existe
-    const instituicao = await prisma.institution.findUnique({
-      where: { id: instituicaoId },
-    });
+    // Verificar se a instituição existe ou criar uma genérica para reservas
+    let instituicao = null;
+    
+    if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
+      // Para reservas, buscar ou criar instituição genérica
+      instituicao = await prisma.institution.findFirst({
+        where: { nome: { contains: "Reserva", mode: 'insensitive' } },
+      });
 
-    if (!instituicao) {
-      return NextResponse.json({ error: 'Instituição não encontrada' }, { status: 404 });
+      if (!instituicao) {
+        // Criar instituição genérica para reservas
+        instituicao = await prisma.institution.create({
+          data: {
+            codigo: `RESERVA-${Date.now()}`,
+            nome: "Reserva",
+            status: 'ATIVA',
+          },
+        });
+      }
+    } else {
+      // Para outros tipos, buscar pelo ID fornecido
+      instituicao = await prisma.institution.findUnique({
+        where: { id: instituicaoId },
+      });
+
+      if (!instituicao) {
+        return NextResponse.json({ error: 'Instituição não encontrada' }, { status: 404 });
+      }
     }
 
-    // Verificar se o ativo existe
-    const asset = await prisma.asset.findUnique({
-      where: { id: assetId },
-    });
+    // Verificar se o ativo existe ou criar para reservas
+    let asset = null;
+    
+    // Se é reserva de emergência ou oportunidade, buscar ou criar o asset
+    if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
+      const assetSymbol = tipoAtivo === "emergency" ? "RESERVA-EMERG" : "RESERVA-OPORT";
+      const assetName = tipoAtivo === "emergency" ? "Reserva de Emergência" : "Reserva de Oportunidade";
+      
+      // Verificar se já existe um asset com esse símbolo
+      asset = await prisma.asset.findUnique({
+        where: { symbol: assetSymbol },
+      });
 
-    if (!asset) {
-      return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
+      if (!asset) {
+        // Criar novo asset para reserva
+        asset = await prisma.asset.create({
+          data: {
+            symbol: assetSymbol,
+            name: assetName,
+            type: tipoAtivo,
+            currency: 'BRL',
+            source: 'manual',
+          },
+        });
+      }
+    } else {
+      // Para outros tipos, buscar pelo ID fornecido
+      asset = await prisma.asset.findUnique({
+        where: { id: assetId },
+      });
+
+      if (!asset) {
+        return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
+      }
     }
 
     // Calcular valor total baseado no tipo de ativo
@@ -174,6 +229,11 @@ export async function POST(request: NextRequest) {
     } else if (tipoAtivo === "moeda" || tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
       valorCalculado = valorInvestido;
       quantidadeFinal = 1; // Para investimentos fixos, consideramos como 1 unidade
+      precoFinal = valorInvestido;
+    } else if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
+      // Para reserva de emergência e oportunidade
+      valorCalculado = valorInvestido;
+      quantidadeFinal = 1; // Consideramos como 1 unidade
       precoFinal = valorInvestido;
     }
 

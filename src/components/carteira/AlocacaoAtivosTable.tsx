@@ -19,6 +19,7 @@ interface AlocacaoAtivo {
 
 interface AlocacaoAtivosTableProps {
   distribuicao: {
+    reservaEmergencia: { valor: number; percentual: number; };
     reservaOportunidade: { valor: number; percentual: number; };
     rendaFixaFundos: { valor: number; percentual: number; };
     fimFia: { valor: number; percentual: number; };
@@ -63,6 +64,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
   // Mapeamento de nomes amigáveis
   const getNomeAmigavel = (categoria: string): string => {
     const nomes: { [key: string]: string } = {
+      "reservaEmergencia": "Reserva de Emergência",
       "reservaOportunidade": "Reserva Oportunidade",
       "rendaFixaFundos": "Renda Fixa & Fundos Renda Fixa",
       "fimFia": "Fundos (FIM / FIA)",
@@ -80,6 +82,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
 
   const getChaveCategoria = (nome: string): string => {
     const chaves: { [key: string]: string } = {
+      "Reserva de Emergência": "reservaEmergencia",
       "Reserva Oportunidade": "reservaOportunidade",
       "Renda Fixa & Fundos Renda Fixa": "rendaFixaFundos",
       "Fundos (FIM / FIA)": "fimFia",

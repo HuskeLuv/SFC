@@ -9,11 +9,11 @@ interface TableHeaderComponentProps {
 export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({ 
   showActionsColumn = false 
 }) => (
-  <TableHeader className="border-t border-gray-100 dark:border-white/[0.05]">
+  <TableHeader className="border-t border-black dark:border-black">
     <TableRow>
       <TableCell
         isHeader
-        className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-32"
+        className="px-2 py-2 border border-black dark:border-black w-32 text-left"
       >
         <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
           Itens
@@ -21,7 +21,7 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       </TableCell>
       <TableCell
         isHeader
-        className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-40"
+        className="px-2 py-2 border border-black dark:border-black w-40"
       >
         <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
           Significado
@@ -29,7 +29,7 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       </TableCell>
       <TableCell
         isHeader
-        className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-16 text-center"
+        className="px-2 py-2 border border-black dark:border-black w-16 text-center"
       >
         <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
           Rank
@@ -37,7 +37,7 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       </TableCell>
       <TableCell
         isHeader
-        className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-16 text-right"
+        className="px-2 py-2 border border-black dark:border-black w-16 text-right"
       >
         <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
           % Receita
@@ -47,7 +47,7 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
         <TableCell
           key={month}
           isHeader
-          className="px-1 py-2 border border-gray-100 dark:border-white/[0.05] w-12 text-right"
+          className="px-1 py-2 border border-black dark:border-black w-12 text-right"
         >
           <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
             {month}
@@ -56,7 +56,7 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       ))}
       <TableCell
         isHeader
-        className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-16 text-right"
+        className="px-2 py-2 border border-black dark:border-black w-16 text-right"
       >
         <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
           Total Anual
@@ -65,7 +65,7 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       {showActionsColumn && (
         <TableCell
           isHeader
-          className="px-2 py-2 border border-gray-100 dark:border-white/[0.05] w-8"
+          className="px-2 py-2 border border-black dark:border-black w-8"
         >
           <p className="font-medium text-gray-700 text-xs dark:text-gray-400">
             Ações

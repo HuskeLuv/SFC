@@ -10,6 +10,10 @@ export interface CarteiraResumo {
     valor: number;
   }>;
   distribuicao: {
+    reservaEmergencia: {
+      valor: number;
+      percentual: number;
+    };
     reservaOportunidade: {
       valor: number;
       percentual: number;

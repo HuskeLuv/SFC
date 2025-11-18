@@ -914,14 +914,10 @@ export const getConsolidatedAssetDistribution = async (consultantId: string): Pr
           classKey = 'Previdência & Seguros';
           break;
         case 'opportunity':
+          classKey = 'Reserva de Oportunidade';
+          break;
         case 'emergency':
-          // Reserva de Oportunidade ou Reserva de Emergência
-          if (assetType === 'opportunity') {
-            classKey = 'Reserva de Oportunidade';
-          } else {
-            // Reserva de Emergência pode ser tratada como Reserva de Oportunidade ou separada
-            classKey = 'Reserva de Oportunidade';
-          }
+          classKey = 'Reserva de Emergência';
           break;
         case 'option':
         case 'opcoes':
@@ -953,6 +949,7 @@ export const getConsolidatedAssetDistribution = async (consultantId: string): Pr
 
   // Ordem padrão dos tipos de ativos (mesma ordem do gráfico de carteira consolidada)
   const assetTypeOrder = [
+    "Reserva de Emergência",
     "Reserva de Oportunidade",
     "Renda Fixa & Fundos de Renda Fixa",
     "FIM/FIA",
