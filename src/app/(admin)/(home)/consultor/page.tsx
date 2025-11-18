@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCarteiraHistorico";
+import DashboardMetricCard from "@/components/consultor/DashboardMetricCard";
+import TopClientsCard from "@/components/consultor/TopClientsCard";
+import RiskAlertList from "@/components/consultor/RiskAlertList";
+import AportesResgatesTable from "@/components/consultor/AportesResgatesTable";
+import AssetDistributionChart from "@/components/consultor/AssetDistributionChart";
 
 type ConsultantOverview = {
   totalClients: number;
@@ -121,6 +126,69 @@ type ConsultantInvitationSummary = {
   respondedAt: string | null;
 };
 
+type DashboardData = {
+  overview: ConsultantOverview;
+  metrics: {
+    averageSavingRate: number;
+    totalDividends: number;
+    clientWithHighestPatrimony: {
+      clientId: string;
+      name: string;
+      email: string;
+      avatarUrl?: string | null;
+      patrimony: number;
+    } | null;
+  };
+  topClients: {
+    byReturn: Array<{
+      clientId: string;
+      name: string;
+      email: string;
+      avatarUrl?: string | null;
+      totalReturn: number;
+      currentBalance: number;
+    }>;
+    byPatrimony: Array<{
+      clientId: string;
+      name: string;
+      email: string;
+      avatarUrl?: string | null;
+      patrimony: number;
+    }>;
+    bySavingRate: Array<{
+      clientId: string;
+      name: string;
+      email: string;
+      avatarUrl?: string | null;
+      averageSavingRate: number;
+    }>;
+  };
+  riskAlerts: Array<{
+    clientId: string;
+    name: string;
+    email: string;
+    alertType: "negative_flow" | "high_concentration" | "no_aportes";
+    message: string;
+  }>;
+  aportesResgates: Array<{
+    clientId: string;
+    name: string;
+    email: string;
+    totalAportes: number;
+    totalResgates: number;
+    tendencia: "positive" | "negative";
+  }>;
+  assetDistribution: Array<{
+    class: string;
+    value: number;
+    percentage: number;
+  }>;
+  patrimonyEvolution: Array<{
+    month: string;
+    totalPatrimony: number;
+  }>;
+};
+
 const buildPerformanceSeries = (
   clients: ClientWithDetail[],
 ): PerformancePoint[] => {
@@ -200,8 +268,9 @@ const getStatusPresentation = (status: "active" | "inactive") => {
 };
 
 const ConsultantDashboardPage = () => {
-  const { user, isLoading: authLoading, checkAuth, actingClient } = useAuth();
+  const { user, isLoading: authLoading, checkAuth, actingClient, updateActingClient } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [overview, setOverview] = useState<ConsultantOverview | null>(null);
   const [clients, setClients] = useState<ClientWithDetail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -214,6 +283,29 @@ const ConsultantDashboardPage = () => {
   const [invitationStatuses, setInvitationStatuses] =
     useState<ConsultantInvitationSummary[]>([]);
   const [personifyingClientId, setPersonifyingClientId] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      setIsLoadingDashboard(true);
+      const response = await fetch("/api/consultant/dashboard", {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Falha ao carregar dashboard");
+      }
+
+      const payload = (await response.json()) as DashboardData;
+      setDashboardData(payload);
+      setOverview(payload.overview);
+    } catch (requestError) {
+      console.error("[ConsultantDashboard] dashboard load error", requestError);
+    } finally {
+      setIsLoadingDashboard(false);
+    }
+  }, []);
 
   const fetchOverviewAndClients = useCallback(async () => {
     try {
@@ -332,22 +424,47 @@ const ConsultantDashboardPage = () => {
     }
   };
 
+  // Usar ref para evitar múltiplas chamadas e loop infinito
+  const hasFetchedRef = React.useRef(false);
+  const lastUserIdRef = React.useRef<string | null>(null);
+  
   useEffect(() => {
     if (authLoading) {
       return;
     }
     if (!user || user.role !== "consultant") {
+      hasFetchedRef.current = false;
+      lastUserIdRef.current = null;
       return;
     }
-    void fetchOverviewAndClients();
-    void fetchInvitations();
-  }, [authLoading, user, fetchOverviewAndClients, fetchInvitations]);
+    
+    // Só buscar dados se ainda não foi buscado ou se o usuário mudou
+    const userIdChanged = lastUserIdRef.current !== user.id;
+    if (!hasFetchedRef.current || userIdChanged) {
+      hasFetchedRef.current = true;
+      lastUserIdRef.current = user.id;
+      void fetchDashboard();
+      void fetchOverviewAndClients();
+      void fetchInvitations();
+    }
+  }, [authLoading, user?.id, user?.role, fetchDashboard, fetchOverviewAndClients, fetchInvitations]);
 
   useEffect(() => {
     if (!authLoading && user && user.role !== "consultant") {
       router.replace("/carteira");
     }
   }, [authLoading, user, router]);
+
+  // Atualizar estado quando actingClient mudar (entrar ou sair da personificação)
+  useEffect(() => {
+    // Se saiu da personificação, limpar o estado de personificação em andamento
+    if (!actingClient && personifyingClientId) {
+      setPersonifyingClientId(null);
+    }
+  }, [actingClient, personifyingClientId]);
+
+  // Removido: checkAuth já é chamado no AuthContext e no AppHeader quando necessário
+  // Não precisamos chamar aqui para evitar loop infinito
 
   useEffect(() => {
     if (!isLoading && clients.length > 0) {
@@ -377,11 +494,12 @@ const ConsultantDashboardPage = () => {
   }, [performanceSeries]);
 
   const summaryCards = useMemo(() => {
-    return [
+    const baseCards = [
       {
         title: "Total de clientes",
         value: overview?.totalClients ?? 0,
         formatter: (value: number) => String(value),
+        subtitle: overview ? `${overview.totalActiveClients} clientes ativos` : undefined,
       },
       {
         title: "Patrimônio total sob consultoria",
@@ -399,7 +517,41 @@ const ConsultantDashboardPage = () => {
         formatter: (value: number) => currencyFormatter.format(value),
       },
     ];
-  }, [overview, totalInvested]);
+
+    if (dashboardData) {
+      return [
+        ...baseCards,
+        {
+          title: "% Média de Poupança dos Clientes",
+          value: dashboardData.metrics.averageSavingRate,
+          formatter: (value: number) => `${percentageFormatter.format(value)}%`,
+        },
+        {
+          title: "Maior Rentabilidade Entre Clientes",
+          value: dashboardData.topClients.byReturn[0]?.totalReturn ?? 0,
+          formatter: (value: number) => `${percentageFormatter.format(value)}%`,
+          subtitle: dashboardData.topClients.byReturn[0]
+            ? `${dashboardData.topClients.byReturn[0].name}`
+            : undefined,
+        },
+        {
+          title: "Cliente com Maior Patrimônio",
+          value: dashboardData.metrics.clientWithHighestPatrimony?.patrimony ?? 0,
+          formatter: (value: number) => currencyFormatter.format(value),
+          subtitle: dashboardData.metrics.clientWithHighestPatrimony
+            ? `${dashboardData.metrics.clientWithHighestPatrimony.name}`
+            : undefined,
+        },
+        {
+          title: "Total de Dividendos Recebidos",
+          value: dashboardData.metrics.totalDividends,
+          formatter: (value: number) => currencyFormatter.format(value),
+        },
+      ];
+    }
+
+    return baseCards;
+  }, [overview, totalInvested, dashboardData]);
 
   const handleRetry = () => {
     void fetchOverviewAndClients();
@@ -428,7 +580,36 @@ const ConsultantDashboardPage = () => {
         );
       }
 
+      // Obter o actingClient da resposta da API
+      const responseData = await response.json().catch(() => null);
+      const actingClientData = responseData?.actingClient;
+
+      // Atualizar o estado imediatamente com os dados da resposta
+      // Isso garante que o botão apareça antes mesmo do checkAuth
+      if (actingClientData) {
+        updateActingClient(actingClientData);
+      }
+
+      // Disparar evento customizado para notificar outros componentes
+      window.dispatchEvent(new CustomEvent('acting-client-changed'));
+
+      // Aguardar um pouco para garantir que o cookie seja definido no navegador
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      
+      // Atualizar o estado de autenticação para refletir a personificação
+      // Isso garante que o actingClient seja atualizado imediatamente
       await checkAuth();
+      
+      // Disparar evento novamente após checkAuth
+      window.dispatchEvent(new CustomEvent('acting-client-changed'));
+      
+      // Aguardar mais um pouco para garantir que o estado seja propagado
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      
+      // Forçar refresh da página para garantir que todos os componentes sejam atualizados
+      router.refresh();
+      
+      // Redirecionar para a carteira
       router.push("/carteira");
     } catch (actionError) {
       console.error("[ConsultantDashboard] acting error", actionError);
@@ -505,9 +686,6 @@ const ConsultantDashboardPage = () => {
       <section className="space-y-8">
         <header className="flex flex-col gap-2">
           <div>
-            <p className="text-sm font-medium text-brand-500">
-              Painel do Consultor
-            </p>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
               {user?.name ? `Olá, ${user.name}` : "Visão geral"}
             </h1>
@@ -533,25 +711,21 @@ const ConsultantDashboardPage = () => {
         {!error && (
           <>
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {isLoading
-                ? Array.from({ length: 4 }).map((_, index) => (
+              {isLoading || isLoadingDashboard
+                ? Array.from({ length: 8 }).map((_, index) => (
                     <div
                       key={index}
                       className="h-32 animate-pulse rounded-xl border border-gray-200 bg-white/60 dark:border-gray-800 dark:bg-white/[0.03]"
                     />
                   ))
                 : summaryCards.map((card) => (
-                    <Card key={card.title}>
-                      <CardTitle>{card.title}</CardTitle>
-                      <p className="mt-3 text-2xl font-semibold text-gray-900 dark:text-white">
-                        {card.formatter(card.value)}
-                      </p>
-                      {card.title === "Total de clientes" && overview && (
-                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                          {overview.totalActiveClients} clientes ativos
-                        </p>
-                      )}
-                    </Card>
+                    <DashboardMetricCard
+                      key={card.title}
+                      title={card.title}
+                      value={card.value}
+                      formatter={card.formatter}
+                      subtitle={card.subtitle}
+                    />
                   ))}
             </section>
 
@@ -703,7 +877,67 @@ const ConsultantDashboardPage = () => {
               </div>
             </section>
 
-            <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+            {/* Top 5 Clientes */}
+            {dashboardData && (
+              <section className="grid gap-6 lg:grid-cols-3">
+                <TopClientsCard
+                  title="Top 5 - Maior Rentabilidade"
+                  clients={dashboardData.topClients.byReturn.map((client) => ({
+                    ...client,
+                    metric: client.totalReturn,
+                    metricLabel: "Rentabilidade",
+                    metricFormatter: (val: number) =>
+                      `${percentageFormatter.format(val)}%`,
+                  }))}
+                />
+                <TopClientsCard
+                  title="Top 5 - Maior Patrimônio"
+                  clients={dashboardData.topClients.byPatrimony.map((client) => ({
+                    ...client,
+                    metric: client.patrimony,
+                    metricLabel: "Patrimônio",
+                    metricFormatter: (val: number) => currencyFormatter.format(val),
+                  }))}
+                />
+                <TopClientsCard
+                  title="Top 5 - Maior Taxa de Poupança"
+                  clients={dashboardData.topClients.bySavingRate.map((client) => ({
+                    ...client,
+                    metric: client.averageSavingRate,
+                    metricLabel: "Poupança",
+                    metricFormatter: (val: number) =>
+                      `${percentageFormatter.format(val)}%`,
+                  }))}
+                />
+              </section>
+            )}
+
+            {/* Riscos & Alertas */}
+            {dashboardData && (
+              <RiskAlertList alerts={dashboardData.riskAlerts} />
+            )}
+
+            {/* Aportes & Resgates */}
+            {dashboardData && (
+              <AportesResgatesTable
+                data={dashboardData.aportesResgates}
+                currencyFormatter={currencyFormatter.format}
+              />
+            )}
+
+            {/* Gráficos */}
+            {dashboardData && (
+              <section className="grid gap-6 lg:grid-cols-[1fr_1.5fr]">
+                <Card>
+                  <CardTitle>Distribuição de Ativos (Consolidado)</CardTitle>
+                  <div className="mt-4">
+                    <AssetDistributionChart
+                      data={dashboardData.assetDistribution}
+                      currencyFormatter={currencyFormatter.format}
+                    />
+                  </div>
+                </Card>
+                <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
@@ -752,6 +986,12 @@ const ConsultantDashboardPage = () => {
                           Rentabilidade
                         </TableCell>
                         <TableCell isHeader className="px-4 py-3">
+                          % Poupança Média
+                        </TableCell>
+                        <TableCell isHeader className="px-4 py-3">
+                          Nível de Risco
+                        </TableCell>
+                        <TableCell isHeader className="px-4 py-3">
                           Status
                         </TableCell>
                         <TableCell isHeader className="px-4 py-3 text-right">
@@ -765,6 +1005,30 @@ const ConsultantDashboardPage = () => {
                         const statusPresentation = getStatusPresentation(
                           client.status,
                         );
+                        
+                        // Buscar dados do cliente no dashboardData
+                        const clientSavingRate = dashboardData?.topClients.bySavingRate.find(
+                          (c) => c.clientId === client.clientId
+                        );
+                        const clientRisk = dashboardData?.riskAlerts.find(
+                          (alert) => alert.clientId === client.clientId
+                        );
+                        
+                        const getRiskLevel = (): { label: string; color: "success" | "warning" | "error" } => {
+                          if (clientRisk) {
+                            if (clientRisk.alertType === "negative_flow") {
+                              return { label: "Alto", color: "error" };
+                            }
+                            if (clientRisk.alertType === "high_concentration") {
+                              return { label: "Médio", color: "warning" };
+                            }
+                            return { label: "Médio", color: "warning" };
+                          }
+                          return { label: "Baixo", color: "success" };
+                        };
+                        
+                        const riskLevel = getRiskLevel();
+                        
                         return (
                           <TableRow
                             key={client.id}
@@ -793,6 +1057,22 @@ const ConsultantDashboardPage = () => {
                                     summary.monthlyReturnPercentage,
                                   )}%`
                                 : "—"}
+                            </TableCell>
+                            <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
+                              {clientSavingRate
+                                ? `${percentageFormatter.format(
+                                    clientSavingRate.averageSavingRate,
+                                  )}%`
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="px-4 py-4">
+                              <Badge
+                                variant="light"
+                                color={riskLevel.color}
+                                size="sm"
+                              >
+                                {riskLevel.label}
+                              </Badge>
                             </TableCell>
                             <TableCell className="px-4 py-4">
                               <Badge
@@ -824,7 +1104,180 @@ const ConsultantDashboardPage = () => {
                   </Table>
                 )}
               </div>
-            </section>
+                </section>
+              </section>
+            )}
+
+            {!dashboardData && (
+              <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+                      Clientes sob consultoria
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Visualize rapidamente patrimônio, rentabilidade e status de
+                      cada cliente.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 overflow-x-auto">
+                  {isLoading || isLoadingDetails ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 4 }).map((_, index) => (
+                        <div
+                          key={index}
+                          className="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-white/[0.05]"
+                        />
+                      ))}
+                    </div>
+                  ) : isEmptyState ? (
+                    <div className="flex items-center justify-center rounded-lg border border-dashed border-gray-300 py-16 dark:border-gray-700">
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-gray-700 dark:text-white/80">
+                          Sem dados no período
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Vincule clientes ao seu perfil de consultor para começar
+                          a visualizar informações aqui.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <Table className="bg-white dark:bg-transparent">
+                      <TableHeader className="border-b border-gray-200 dark:border-gray-700">
+                        <TableRow className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          <TableCell isHeader className="px-4 py-3">
+                            Cliente
+                          </TableCell>
+                          <TableCell isHeader className="px-4 py-3">
+                            Patrimônio
+                          </TableCell>
+                          <TableCell isHeader className="px-4 py-3">
+                            Rentabilidade
+                          </TableCell>
+                          <TableCell isHeader className="px-4 py-3">
+                            % Poupança Média
+                          </TableCell>
+                          <TableCell isHeader className="px-4 py-3">
+                            Nível de Risco
+                          </TableCell>
+                          <TableCell isHeader className="px-4 py-3">
+                            Status
+                          </TableCell>
+                          <TableCell isHeader className="px-4 py-3 text-right">
+                            Ações
+                          </TableCell>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {clients.map((client) => {
+                          const summary = client.detail?.summary;
+                          const statusPresentation = getStatusPresentation(
+                            client.status,
+                          );
+                          
+                          // Buscar dados do cliente no dashboardData
+                          const clientSavingRate = dashboardData?.topClients.bySavingRate.find(
+                            (c) => c.clientId === client.clientId
+                          );
+                          const clientRisk = dashboardData?.riskAlerts.find(
+                            (alert) => alert.clientId === client.clientId
+                          );
+                          
+                          const getRiskLevel = (): { label: string; color: "success" | "warning" | "error" } => {
+                            if (clientRisk) {
+                              if (clientRisk.alertType === "negative_flow") {
+                                return { label: "Alto", color: "error" };
+                              }
+                              if (clientRisk.alertType === "high_concentration") {
+                                return { label: "Médio", color: "warning" };
+                              }
+                              return { label: "Médio", color: "warning" };
+                            }
+                            return { label: "Baixo", color: "success" };
+                          };
+                          
+                          const riskLevel = getRiskLevel();
+                          
+                          return (
+                            <TableRow
+                              key={client.id}
+                              className="border-b border-gray-100 text-sm last:border-b-0 dark:border-gray-800"
+                            >
+                              <TableCell className="px-4 py-4">
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-gray-800 dark:text-white/90">
+                                    {client.name}
+                                  </span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {client.email}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
+                                {summary
+                                  ? currencyFormatter.format(
+                                      summary.currentBalance,
+                                    )
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
+                                {summary
+                                  ? `${percentageFormatter.format(
+                                      summary.monthlyReturnPercentage,
+                                    )}%`
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
+                                {clientSavingRate
+                                  ? `${percentageFormatter.format(
+                                      clientSavingRate.averageSavingRate,
+                                    )}%`
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="px-4 py-4">
+                                <Badge
+                                  variant="light"
+                                  color={riskLevel.color}
+                                  size="sm"
+                                >
+                                  {riskLevel.label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="px-4 py-4">
+                                <Badge
+                                  variant="light"
+                                  color={statusPresentation.color}
+                                  size="sm"
+                                >
+                                  {statusPresentation.label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="px-4 py-4 text-right">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handlePersonifyClient(client.clientId)}
+                                  disabled={personifyingClientId === client.clientId || !!actingClient}
+                                  aria-label="Personificar cliente"
+                                >
+                                  {personifyingClientId === client.clientId
+                                    ? "Personificando..."
+                                    : actingClient?.id === client.clientId
+                                    ? "Personificado"
+                                    : "Personificar cliente"}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              </section>
+            )}
           </>
         )}
       </section>

@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
@@ -16,6 +16,7 @@ const AppHeader: React.FC = () => {
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
   const { actingClient, checkAuth, user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleToggle = () => {
     if (window.innerWidth >= 1024) {
@@ -44,8 +45,16 @@ const AppHeader: React.FC = () => {
       if (!response.ok && response.status !== 204) {
         throw new Error("Falha ao encerrar visão do cliente");
       }
+      
+      // Aguardar um pouco para garantir que o cookie seja removido
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      
+      // Atualizar o estado de autenticação para refletir a saída da personificação
       await checkAuth();
+      
+      // Forçar refresh da página para garantir que todos os componentes sejam atualizados
       router.refresh();
+      
       if (user?.role === "consultant") {
         router.push("/dashboard/consultor");
       }
@@ -70,6 +79,29 @@ const AppHeader: React.FC = () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  // Verificar e atualizar o estado de personificação quando a rota mudar
+  useEffect(() => {
+    // Verificar autenticação quando a rota mudar para garantir que actingClient está atualizado
+    void checkAuth();
+  }, [pathname, checkAuth]);
+
+  // Listener para eventos customizados de personificação (opcional, para sincronização extra)
+  useEffect(() => {
+    const handleActingChange = () => {
+      void checkAuth();
+    };
+
+    // Escutar eventos customizados de personificação
+    window.addEventListener('acting-client-changed', handleActingChange);
+    // Verificar quando a janela ganha foco (útil se o usuário voltar para a aba)
+    window.addEventListener('focus', handleActingChange);
+
+    return () => {
+      window.removeEventListener('acting-client-changed', handleActingChange);
+      window.removeEventListener('focus', handleActingChange);
+    };
+  }, [checkAuth]);
 
   return (
     <header className="sticky top-0 flex w-full bg-white border-gray-200 z-99999 dark:border-gray-800 dark:bg-gray-900 lg:border-b">
