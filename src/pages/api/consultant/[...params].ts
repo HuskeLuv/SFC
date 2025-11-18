@@ -6,6 +6,18 @@ import {
   getClientSummary,
   getClientsByConsultant,
   getConsultantOverview,
+  getAverageSavingRate,
+  getTopClientsByReturn,
+  getTopClientsByPatrimony,
+  getClientWithHighestPatrimony,
+  getTotalDividends,
+  getTopClientsBySavingRate,
+  getClientsWithNegativeFlow,
+  getClientsWithoutAportes,
+  getClientsHighConcentration,
+  getAportesResgatesByClient,
+  getConsolidatedAssetDistribution,
+  getPatrimonyEvolution,
 } from '@/services/consultantService';
 import { fetchQuotes } from '@/services/brapiQuote';
 
@@ -326,6 +338,72 @@ const handleOverview = async (
   res.status(200).json({ overview });
 };
 
+const handleDashboard = async (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  consultant: AuthenticatedConsultant,
+) => {
+  try {
+    const [
+      overview,
+      averageSavingRate,
+      topClientsByReturn,
+      topClientsByPatrimony,
+      topClientsBySavingRate,
+      clientWithHighestPatrimony,
+      totalDividends,
+      negativeFlowAlerts,
+      noAportesAlerts,
+      highConcentrationAlerts,
+      aportesResgates,
+      assetDistribution,
+      patrimonyEvolution,
+    ] = await Promise.all([
+      getConsultantOverview(consultant.consultantId),
+      getAverageSavingRate(consultant.consultantId),
+      getTopClientsByReturn(consultant.consultantId, 5),
+      getTopClientsByPatrimony(consultant.consultantId, 5),
+      getTopClientsBySavingRate(consultant.consultantId, 5),
+      getClientWithHighestPatrimony(consultant.consultantId),
+      getTotalDividends(consultant.consultantId),
+      getClientsWithNegativeFlow(consultant.consultantId),
+      getClientsWithoutAportes(consultant.consultantId),
+      getClientsHighConcentration(consultant.consultantId),
+      getAportesResgatesByClient(consultant.consultantId),
+      getConsolidatedAssetDistribution(consultant.consultantId),
+      getPatrimonyEvolution(consultant.consultantId, 12),
+    ]);
+
+    const allRiskAlerts = [
+      ...negativeFlowAlerts,
+      ...noAportesAlerts,
+      ...highConcentrationAlerts,
+    ];
+
+    setCachingHeaders(res);
+    res.status(200).json({
+      overview,
+      metrics: {
+        averageSavingRate,
+        totalDividends,
+        clientWithHighestPatrimony,
+      },
+      topClients: {
+        byReturn: topClientsByReturn,
+        byPatrimony: topClientsByPatrimony,
+        bySavingRate: topClientsBySavingRate,
+      },
+      riskAlerts: allRiskAlerts,
+      aportesResgates,
+      assetDistribution,
+      patrimonyEvolution,
+    });
+  } catch (error) {
+    console.error('[Consultant Dashboard] Error:', error);
+    res.status(500).json({ error: 'Erro ao carregar dados do dashboard' });
+  }
+};
+
 const handleClientDetail = async (
   clientId: string,
   req: NextApiRequest,
@@ -421,6 +499,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (action === 'overview') {
       await handleOverview(req, res, consultant);
+      return;
+    }
+
+    if (action === 'dashboard') {
+      await handleDashboard(req, res, consultant);
       return;
     }
 

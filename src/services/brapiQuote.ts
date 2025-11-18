@@ -115,129 +115,172 @@ const fetchSingleQuote = async (symbol: string, forceRefresh: boolean = false): 
  * @returns Mapa de símbolo -> preço
  */
 export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = false): Promise<Map<string, number>> => {
-  if (!symbols || symbols.length === 0) {
-    return new Map();
-  }
-
-  // Filtrar símbolos únicos e remover vazios
-  const uniqueSymbols = [...new Set(symbols.filter(s => s && s.trim()))];
-  
-  if (uniqueSymbols.length === 0) {
-    return new Map();
-  }
-
-  const quotes = new Map<string, number>();
-  const now = Date.now();
-
-  // Se forceRefresh é true, buscar todos os símbolos
-  // Caso contrário, verificar cache primeiro
-  const symbolsToFetch: string[] = [];
-  
-  if (forceRefresh) {
-    // Forçar busca de todos os símbolos
-    symbolsToFetch.push(...uniqueSymbols);
-    console.log(`🔄 Buscando cotações frescas de ${uniqueSymbols.length} ativos usando SDK (forçado)`);
-  } else {
-    // Verificar cache primeiro
-    for (const symbol of uniqueSymbols) {
-      const cached = quoteCache[symbol];
-      if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-        quotes.set(symbol, cached.price);
-      } else {
-        symbolsToFetch.push(symbol);
-      }
+  try {
+    if (!symbols || symbols.length === 0) {
+      return new Map();
     }
 
-    // Se todos estão em cache, retornar
-    if (symbolsToFetch.length === 0) {
-      console.log(`✅ Todas as ${uniqueSymbols.length} cotações vieram do cache`);
-      return quotes;
-    }
-
-    console.log(`🔍 Buscando cotações de ${symbolsToFetch.length} ativos usando SDK (${uniqueSymbols.length - symbolsToFetch.length} em cache)`);
-  }
-
-  // Usar SDK para buscar múltiplas cotações de uma vez (mais eficiente)
-  // A API brapi permite buscar até 20 símbolos por requisição separados por vírgula
-  const BATCH_SIZE = 20;
-  
-  for (let i = 0; i < symbolsToFetch.length; i += BATCH_SIZE) {
-    const batch = symbolsToFetch.slice(i, i + BATCH_SIZE);
-    const symbolsString = batch.join(',');
+    // Filtrar símbolos únicos e remover vazios
+    const uniqueSymbols = [...new Set(symbols.filter(s => s && s.trim()))];
     
-    try {
-      const client = getBrapiClient();
-      const response = await client.quote.retrieve(symbolsString);
+    if (uniqueSymbols.length === 0) {
+      return new Map();
+    }
 
-      if (response.results && Array.isArray(response.results)) {
-        for (const result of response.results) {
-          if (result.symbol && result.regularMarketPrice !== undefined && result.regularMarketPrice !== null) {
-            const price = result.regularMarketPrice;
-            quotes.set(result.symbol, price);
-            
-            // Atualizar cache sempre
-            quoteCache[result.symbol] = {
-              price: price,
-              timestamp: now
-            };
-            
-            console.log(`✅ ${result.symbol}: R$ ${price.toFixed(2)}`);
-          }
+    const quotes = new Map<string, number>();
+    const now = Date.now();
+
+    // Se forceRefresh é true, buscar todos os símbolos
+    // Caso contrário, verificar cache primeiro
+    const symbolsToFetch: string[] = [];
+    
+    if (forceRefresh) {
+      // Forçar busca de todos os símbolos
+      symbolsToFetch.push(...uniqueSymbols);
+      console.log(`🔄 Buscando cotações frescas de ${uniqueSymbols.length} ativos usando SDK (forçado)`);
+    } else {
+      // Verificar cache primeiro
+      for (const symbol of uniqueSymbols) {
+        const cached = quoteCache[symbol];
+        if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+          quotes.set(symbol, cached.price);
+        } else {
+          symbolsToFetch.push(symbol);
         }
       }
-      
-      // Verificar quais símbolos não foram retornados
-      const returnedSymbols = new Set(response.results?.map(r => r.symbol) || []);
-      const missingSymbols = batch.filter(s => !returnedSymbols.has(s));
-      
-      for (const symbol of missingSymbols) {
-        console.warn(`⚠️  Não foi possível obter cotação de ${symbol}`);
-        // Se falhou mas temos cache antigo, usar cache como fallback apenas se não for forceRefresh
-        if (!forceRefresh) {
-          const cached = quoteCache[symbol];
-          if (cached) {
-            quotes.set(symbol, cached.price);
-            console.log(`📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`);
-          }
-        }
+
+      // Se todos estão em cache, retornar
+      if (symbolsToFetch.length === 0) {
+        console.log(`✅ Todas as ${uniqueSymbols.length} cotações vieram do cache`);
+        return quotes;
       }
+
+      console.log(`🔍 Buscando cotações de ${symbolsToFetch.length} ativos usando SDK (${uniqueSymbols.length - symbolsToFetch.length} em cache)`);
+    }
+
+    // Usar SDK para buscar múltiplas cotações de uma vez (mais eficiente)
+    // A API brapi permite buscar até 20 símbolos por requisição separados por vírgula
+    const BATCH_SIZE = 20;
+    
+    for (let i = 0; i < symbolsToFetch.length; i += BATCH_SIZE) {
+      const batch = symbolsToFetch.slice(i, i + BATCH_SIZE);
+      const symbolsString = batch.join(',');
       
-      // Aguardar antes do próximo batch (exceto no último)
-      if (i + BATCH_SIZE < symbolsToFetch.length) {
-        await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
-      }
-      
-    } catch (error) {
-      console.error(`❌ Erro ao buscar cotações do batch:`, error);
-      
-      // Se falhou, tentar buscar um por um como fallback
-      for (const symbol of batch) {
-        try {
-          const price = await fetchSingleQuote(symbol, forceRefresh);
-          if (price !== null) {
-            quotes.set(symbol, price);
-            quoteCache[symbol] = { price, timestamp: now };
-          } else if (!forceRefresh) {
-            const cached = quoteCache[symbol];
-            if (cached) {
-              quotes.set(symbol, cached.price);
-              console.log(`📦 Usando cache antigo após erro para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+      try {
+        const client = getBrapiClient();
+        const response = await client.quote.retrieve(symbolsString);
+
+        if (response.results && Array.isArray(response.results)) {
+          for (const result of response.results) {
+            if (result.symbol && result.regularMarketPrice !== undefined && result.regularMarketPrice !== null) {
+              const price = result.regularMarketPrice;
+              quotes.set(result.symbol, price);
+              
+              // Atualizar cache sempre
+              quoteCache[result.symbol] = {
+                price: price,
+                timestamp: now
+              };
+              
+              console.log(`✅ ${result.symbol}: R$ ${price.toFixed(2)}`);
             }
           }
-        } catch (singleError) {
-          console.error(`❌ Erro ao buscar cotação individual de ${symbol}:`, singleError);
+        }
+        
+        // Verificar quais símbolos não foram retornados
+        const returnedSymbols = new Set(response.results?.map(r => r.symbol) || []);
+        const missingSymbols = batch.filter(s => !returnedSymbols.has(s));
+        
+        for (const symbol of missingSymbols) {
+          console.warn(`⚠️  Não foi possível obter cotação de ${symbol}`);
+          // Se falhou mas temos cache antigo, usar cache como fallback apenas se não for forceRefresh
           if (!forceRefresh) {
             const cached = quoteCache[symbol];
             if (cached) {
               quotes.set(symbol, cached.price);
+              console.log(`📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+            }
+          }
+        }
+        
+        // Aguardar antes do próximo batch (exceto no último)
+        if (i + BATCH_SIZE < symbolsToFetch.length) {
+          await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
+        }
+        
+      } catch (error) {
+        // Verificar se é um erro de API (500, 429, etc.)
+        let errorStatus: number | null = null;
+        let errorMessage = '';
+        
+        // Extrair informações do erro
+        if (error && typeof error === 'object') {
+          // Verificar se tem propriedade status diretamente
+          if ('status' in error) {
+            const statusValue = (error as { status?: unknown }).status;
+            if (typeof statusValue === 'number') {
+              errorStatus = statusValue;
+            }
+          }
+          
+          // Verificar se é uma instância de Error
+          if (error instanceof Error) {
+            errorMessage = error.message;
+          } else if ('message' in error) {
+            errorMessage = String((error as { message?: unknown }).message ?? '');
+          }
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        }
+        
+        // Verificar se é erro 500 (pode estar na mensagem ou no status)
+        const is500Error = errorStatus === 500 || 
+          (errorMessage && (errorMessage.startsWith('500') || errorMessage.includes('500: Internal server error'))) ||
+          (error && typeof error === 'object' && 'status' in error && (error as { status?: number }).status === 500);
+        
+        if (is500Error) {
+          console.warn(`⚠️  API brapi.dev retornou erro 500 para batch. Usando cache ou preços médios como fallback.`);
+        } else {
+          console.error(`❌ Erro ao buscar cotações do batch:`, error);
+        }
+        
+        // Para qualquer erro, tentar usar cache primeiro (não fazer requisições adicionais se for 500)
+        for (const symbol of batch) {
+          if (!forceRefresh) {
+            const cached = quoteCache[symbol];
+            if (cached) {
+              quotes.set(symbol, cached.price);
+              console.log(`📦 Usando cache após erro para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+            }
+          }
+        }
+        
+        // Se ainda não temos todas as cotações e não é erro 500, tentar buscar individualmente
+        // Para erro 500, não tentar buscar individualmente (economiza requisições)
+        if (!is500Error) {
+          const missingSymbols = batch.filter(s => !quotes.has(s));
+          for (const symbol of missingSymbols) {
+            try {
+              const price = await fetchSingleQuote(symbol, forceRefresh);
+              if (price !== null) {
+                quotes.set(symbol, price);
+                quoteCache[symbol] = { price, timestamp: now };
+              }
+            } catch (singleError) {
+              console.error(`❌ Erro ao buscar cotação individual de ${symbol}:`, singleError);
+              // Já tentamos cache acima, então não há mais o que fazer
             }
           }
         }
       }
     }
-  }
 
-  return quotes;
+    return quotes;
+  } catch (error) {
+    // Garantir que sempre retornamos um Map, mesmo em caso de erro fatal
+    console.error('[fetchQuotes] Erro fatal ao buscar cotações:', error);
+    return new Map();
+  }
 };
 
 /**
