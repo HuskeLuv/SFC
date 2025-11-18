@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { logDataUpdate } from '@/services/impersonationLogger';
 
 export async function POST(request: NextRequest) {
   try {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+    
+    const requestBody = await request.json();
 
     const user = await prisma.user.findUnique({
       where: { id: targetUserId },
@@ -36,7 +39,7 @@ export async function POST(request: NextRequest) {
       taxaJurosAnual,
       // percentualCDI,
       // indexador
-    } = await request.json();
+    } = requestBody;
 
     // Validações básicas
     if (!tipoAtivo || !instituicaoId || !assetId) {
@@ -229,13 +232,50 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ 
+    const result = NextResponse.json({ 
       success: true, 
       transacao,
       message: 'Investimento adicionado com sucesso!' 
     }, { status: 201 });
     
+    // Registrar log se estiver personificado
+    if (actingClient) {
+      await logDataUpdate(
+        request,
+        { id: payload.id, role: payload.role },
+        targetUserId,
+        actingClient,
+        '/api/carteira/operacao',
+        'POST',
+        requestBody,
+        { success: true },
+      );
+    }
+    
+    return result;
+    
   } catch (error) {
+    // Registrar log de erro se estiver personificado
+    try {
+      const { requireAuthWithActing } = await import('@/utils/auth');
+      const { logDataUpdate } = await import('@/services/impersonationLogger');
+      const authResult = await requireAuthWithActing(request);
+      if (authResult.actingClient) {
+        await logDataUpdate(
+          request,
+          { id: authResult.payload.id, role: authResult.payload.role },
+          authResult.targetUserId,
+          authResult.actingClient,
+          '/api/carteira/operacao',
+          'POST',
+          {},
+          { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' },
+        );
+      }
+    } catch {
+      // Ignorar erros de log
+    }
+    
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }

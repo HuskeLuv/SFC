@@ -53,6 +53,8 @@ model User {
   stockTransactions StockTransaction[]
   notifications     Notification[]
   consultantInvites ConsultantInvite[] @relation("UserConsultantInvites")
+  impersonationLogsAsConsultant ConsultantImpersonationLog[] @relation("ImpersonationLogConsultant")
+  impersonationLogsAsClient ConsultantImpersonationLog[] @relation("ImpersonationLogClient")
 }
 
 model Consultant {
@@ -313,4 +315,23 @@ model Institution {
   @@index([cnpj])
   @@index([status])
   @@map("institutions")
+}
+
+model ConsultantImpersonationLog {
+  id          String   @id @default(uuid())
+  consultantId String
+  consultant  User     @relation("ImpersonationLogConsultant", fields: [consultantId], references: [id])
+  clientId    String
+  client      User     @relation("ImpersonationLogClient", fields: [clientId], references: [id])
+  action      String
+  details     Json
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([consultantId])
+  @@index([clientId])
+  @@index([createdAt])
+  @@index([action])
+  @@map("consultant_impersonation_logs")
 }

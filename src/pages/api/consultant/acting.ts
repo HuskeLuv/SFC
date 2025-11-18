@@ -6,6 +6,7 @@ import {
   authenticateConsultant,
 } from '@/pages/api/consultant/[...params]';
 import { CONSULTANT_ACTING_COOKIE } from '@/utils/consultantActing';
+import { logConsultantAction } from '@/services/impersonationLogger';
 
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 2; // 2 horas
 
@@ -20,6 +21,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const consultant = await authenticateConsultant(req);
 
     if (req.method === 'DELETE') {
+      // Registrar fim da personificação
+      const actingClientId = req.cookies[CONSULTANT_ACTING_COOKIE];
+      if (actingClientId) {
+        await logConsultantAction({
+          consultantId: consultant.userId,
+          clientId: actingClientId,
+          action: 'END_IMPERSONATION',
+          details: {
+            timestamp: new Date().toISOString(),
+          },
+          request: req,
+        });
+      }
+
       res.setHeader(
         'Set-Cookie',
         serialize(CONSULTANT_ACTING_COOKIE, '', {
@@ -49,6 +64,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: true,
         email: true,
       },
+    });
+
+    // Registrar início da personificação
+    await logConsultantAction({
+      consultantId: consultant.userId,
+      clientId,
+      action: 'START_IMPERSONATION',
+      details: {
+        clientName: clientProfile?.name ?? null,
+        clientEmail: clientProfile?.email ?? null,
+        timestamp: new Date().toISOString(),
+      },
+      request: req,
     });
 
     res.setHeader(

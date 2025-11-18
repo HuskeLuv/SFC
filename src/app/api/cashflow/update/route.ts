@@ -39,8 +39,21 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
     }
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
-    const { operation, type, id, data } = await request.json();
+    const jwtPayload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string; role: string };
+    const requestBody = await request.json();
+    const { operation, type, id, data } = requestBody;
+    
+    // Verificar personificação e registrar log se necessário
+    const { requireAuthWithActing } = await import('@/utils/auth');
+    const { logDataUpdate } = await import('@/services/impersonationLogger');
+    let authResult: Awaited<ReturnType<typeof requireAuthWithActing>> | null = null;
+    try {
+      authResult = await requireAuthWithActing(request);
+    } catch {
+      // Se falhar, usar payload do JWT diretamente
+    }
+    
+    const payload = jwtPayload;
 
     // Validações básicas
     if (!operation || !type) {
@@ -56,18 +69,54 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Operações com grupos
+    let result;
     if (type === 'group') {
-      return await handleGroupOperation(operation, id, data, payload.id);
+      result = await handleGroupOperation(operation, id, data, payload.id);
+    } else if (type === 'item') {
+      result = await handleItemOperation(operation, id, data, payload.id);
+    } else {
+      return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
     }
 
-    // Operações com itens
-    if (type === 'item') {
-      return await handleItemOperation(operation, id, data, payload.id);
+    // Registrar log se estiver personificado
+    if (authResult?.actingClient) {
+      await logDataUpdate(
+        request,
+        { id: authResult.payload.id, role: authResult.payload.role },
+        authResult.targetUserId,
+        authResult.actingClient,
+        '/api/cashflow/update',
+        'PATCH',
+        { operation, type, id, data },
+        { success: result.status === 200 || result.status === 201 },
+      );
     }
 
-    return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
+    return result;
   } catch (error) {
     console.error('Erro na API cashflow/update:', error);
+    
+    // Registrar log de erro se estiver personificado
+    const { requireAuthWithActing } = await import('@/utils/auth');
+    const { logDataUpdate } = await import('@/services/impersonationLogger');
+    try {
+      const authResult = await requireAuthWithActing(request);
+      if (authResult.actingClient) {
+        await logDataUpdate(
+          request,
+          { id: authResult.payload.id, role: authResult.payload.role },
+          authResult.targetUserId,
+          authResult.actingClient,
+          '/api/cashflow/update',
+          'PATCH',
+          {},
+          { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' },
+        );
+      }
+    } catch {
+      // Ignorar erros de log
+    }
+    
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

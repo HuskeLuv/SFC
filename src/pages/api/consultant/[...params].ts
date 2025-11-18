@@ -339,6 +339,20 @@ const handleClientDetail = async (
 
   await assertClientOwnership(consultant.consultantId, clientId);
 
+  // Registrar acesso ao detalhe do cliente
+  const { logConsultantAction } = await import('@/services/impersonationLogger');
+  await logConsultantAction({
+    consultantId: consultant.userId,
+    clientId,
+    action: 'ACCESS_SENSITIVE_ENDPOINT',
+    details: {
+      endpoint: `/api/consultant/client/${clientId}`,
+      method: 'GET',
+      timestamp: new Date().toISOString(),
+    },
+    request: req,
+  });
+
   const [summary, balances, portfolio, recentCashflows, monthlyNetHistory, clientProfile] =
     await Promise.all([
     getClientSummary(clientId),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
 /**
  * API para calcular investimentos por mês a partir das transações reais
@@ -8,7 +9,17 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(request: NextRequest) {
   try {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+    
+    // Registrar acesso se estiver personificado
+    await logSensitiveEndpointAccess(
+      request,
+      payload,
+      targetUserId,
+      actingClient,
+      '/api/cashflow/investimentos',
+      'GET',
+    );
 
     const user = await prisma.user.findUnique({
       where: { id: targetUserId },

@@ -2,10 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { fetchQuotes } from '@/services/brapiQuote';
+import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
 export async function GET(request: NextRequest) {
   try {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+    
+    // Registrar acesso se estiver personificado
+    await logSensitiveEndpointAccess(
+      request,
+      payload,
+      targetUserId,
+      actingClient,
+      '/api/carteira/resumo',
+      'GET',
+    );
 
     const user = await prisma.user.findUnique({
       where: { id: targetUserId },

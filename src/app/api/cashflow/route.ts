@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuthWithActing } from '@/utils/auth';
+import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
 /**
  * Combina templates padrão com personalizações do usuário
@@ -133,11 +134,21 @@ function mergeTemplatesWithCustomizations(
  */
 export async function GET(request: NextRequest) {
   try {
-    const { payload, targetUserId } = await requireAuthWithActing(request);
+    const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
     
-    // Obter ano do query param (padrão: ano atual)
+    // Registrar acesso se estiver personificado
     const { searchParams } = new URL(request.url);
     const yearParam = searchParams.get('year');
+    await logSensitiveEndpointAccess(
+      request,
+      payload,
+      targetUserId,
+      actingClient,
+      '/api/cashflow',
+      'GET',
+      yearParam ? { year: yearParam } : {},
+    );
+    
     const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
     
     if (isNaN(year)) {
