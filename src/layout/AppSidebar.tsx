@@ -332,9 +332,9 @@ const AppSidebar: React.FC = () => {
             <>
               <Image
                 className="dark:hidden"
-                src="/images/logo/logo-icon.svg"
+                src="/images/logo/logo.svg"
                 alt="Logo"
-                width={40}
+                width={150}
                 height={40}
               />
               <Image

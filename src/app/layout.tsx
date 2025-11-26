@@ -1,4 +1,5 @@
 import { Outfit } from "next/font/google";
+import type { Metadata } from "next";
 import "./globals.css";
 import "swiper/css";
 import "swiper/css/navigation";
@@ -11,6 +12,12 @@ import { AuthProvider } from "@/context/AuthContext";
 const outfit = Outfit({
   subsets: ["latin"],
 });
+
+export const metadata: Metadata = {
+  icons: {
+    icon: "/images/logo/logo-icon.svg",
+  },
+};
 
 export default function RootLayout({
   children,

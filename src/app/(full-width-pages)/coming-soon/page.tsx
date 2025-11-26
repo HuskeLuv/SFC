@@ -5,8 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Em Breve",
-  description: "Em Breve",
+  title: "My Finance",
+  description: "My Finance",
 };
 
 export default function ComingSoon() {

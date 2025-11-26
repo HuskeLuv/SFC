@@ -22,14 +22,14 @@ export default function AuthLayout({
               <div className="flex flex-col items-center max-w-xs">
                 <Link href="/" className="block mb-4">
                   <Image
-                    width={48}
-                    height={48}
-                    src="./images/logo/logo-icon.svg"
+                    width={313}
+                    height={100}
+                    src="./images/logo/auth-logo.svg"
                     alt="Logo"
                   />
                 </Link>
                 <p className="text-center text-gray-400 dark:text-white/60">
-                  Teste de area texto
+                  O App completo para suas finanças
                 </p>
               </div>
             </div>
