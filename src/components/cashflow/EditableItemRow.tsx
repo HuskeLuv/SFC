@@ -86,49 +86,49 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   const calculatedAnnualTotal = displayData.monthlyValues.reduce((sum, val) => sum + val, 0);
 
   return (
-    <TableRow className={`hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${isEditing ? 'bg-blue-50/30 dark:bg-blue-900/20' : ''}`}>
-      <TableCell className="px-2 py-2 font-medium text-gray-800 border border-black dark:border-black dark:text-white text-xs w-32 text-left">
+    <TableRow className={`h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${isEditing ? 'bg-blue-50/30 dark:bg-blue-900/20' : ''}`} style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}>
+      <TableCell className="px-2 font-medium text-gray-800 border-t border-b border-l border-black dark:border-black dark:text-white text-xs w-32 text-left h-6 leading-6">
         {isEditing && !isInvestmentItem ? (
           <input
             type="text"
             value={displayData.name}
             onChange={handleNameChange}
-            className="w-full px-2 py-1 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 h-6 leading-6"
           />
         ) : (
           <span>{displayData.name || ''}</span>
         )}
       </TableCell>
       
-      <TableCell className="px-2 py-2 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-40">
+      <TableCell className="px-2 font-normal text-gray-800 border-t border-b border-black dark:border-black text-xs dark:text-gray-400 w-40 h-6 leading-6">
         {isEditing && !isInvestmentItem ? (
           <input
             type="text"
             value={displayData.significado || ''}
             onChange={handleSignificadoChange}
             placeholder="Significado"
-            className="w-full px-2 py-1 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 h-6 leading-6"
           />
         ) : (
           <span>{displayData.significado || '-'}</span>
         )}
       </TableCell>
       
-      <TableCell className="px-2 py-2 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-16 text-center">
+      <TableCell className="px-2 font-normal text-gray-800 border-t border-b border-black dark:border-black text-xs dark:text-gray-400 w-16 text-center h-6 leading-6">
         {isEditing && !isInvestmentItem ? (
           <input
             type="number"
             value={displayData.rank || ''}
             onChange={handleRankChange}
             placeholder="Rank"
-            className="w-full px-2 py-1 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-center h-6 leading-6 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
         ) : (
           <span>{displayData.rank || '-'}</span>
         )}
       </TableCell>
       
-      <TableCell className={`px-2 py-2 font-normal border border-black dark:border-black text-xs w-16 text-right ${getPercentageColorClass()}`}>
+      <TableCell className={`px-2 font-normal border-t border-b border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6 ${getPercentageColorClass()}`}>
         {group.name === 'Investimentos' ? '-' : (itemPercentage > 0 ? formatPercent(itemPercentage) : '-')}
       </TableCell>
       
@@ -144,7 +144,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           return (
             <TableCell
               key={index}
-              className={`px-1 py-2 font-normal border border-black dark:border-black text-xs w-12 ${
+              className={`px-1 font-normal border border-black dark:border-black text-xs w-12 h-6 leading-6 bg-[#F2F2F2] ${
                 isColorModeActive
                   ? "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
                   : ""
@@ -176,7 +176,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           return (
             <TableCell
               key={index}
-              className="px-1 py-2 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-12 text-right"
+              className="px-1 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-12 text-right h-6 leading-6 bg-[#F2F2F2]"
             >
               <span style={cellColor ? { color: cellColor } : undefined}>
                 {formatCurrency(value || 0)}
@@ -186,12 +186,12 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         })
       )}
       
-      <TableCell className="px-2 py-2 font-semibold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right">
+      <TableCell className="px-2 font-semibold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right h-6 leading-6 bg-[#F2F2F2]">
         {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
       </TableCell>
       
       {isEditing && !isInvestmentItem && (
-        <TableCell className="px-2 py-2 border border-black dark:border-black w-8 text-center">
+        <TableCell className="px-2 border border-black dark:border-black w-8 text-center h-6 leading-6">
           <DeleteItemButton onClick={() => onDeleteItem(item.id)} />
         </TableCell>
       )}

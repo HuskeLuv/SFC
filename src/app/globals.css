@@ -836,3 +836,11 @@ span.flatpickr-weekday,
 .flatpickr-calendar.static {
   @apply right-0;
 }
+
+/* Cashflow - Fonte Calibri para todo o fluxo de caixa */
+.cashflow-table table,
+.cashflow-table table th,
+.cashflow-table table td,
+.cashflow-table table tr {
+  font-family: Calibri, sans-serif;
+}

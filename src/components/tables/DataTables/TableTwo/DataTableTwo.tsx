@@ -215,15 +215,49 @@ export default function DataTableTwo() {
   if (error) return <div className="py-8 text-center text-red-500">{error}</div>;
   if (!data?.length) return <div className="py-8 text-center text-red-500">Dados inválidos</div>;
 
+  // Função auxiliar para determinar espaçamento antes do grupo
+  const needsSpacingBefore = (groupName: string) => {
+    const groupsWithSpacingBefore = [
+      'Sem Tributação',
+      'Despesas',
+      'Despesas Fixas',
+      'Habitação',
+      'Transporte',
+      'Saúde',
+      'Educação',
+      'Animais de Estimação',
+      'Despesas Pessoais',
+      'Lazer',
+      'Impostos',
+      'Despesas Empresa',
+      'Planejamento Financeiro',
+      'Despesas Variáveis',
+    ];
+    return groupsWithSpacingBefore.includes(groupName);
+  };
+  
+  // Função auxiliar para determinar espaçamento depois do grupo
+  const needsSpacingAfter = (groupName: string) => {
+    const groupsWithSpacingAfter = [
+      'Entradas Fixas',
+      'Entradas Variáveis',
+      'Sem Tributação',
+      'Com Tributação',
+      'Despesas',
+      'Despesas Fixas',
+    ];
+    return groupsWithSpacingAfter.includes(groupName);
+  };
+
   return (
-    <div className="overflow-hidden rounded-xl bg-white dark:bg-white/[0.03]">
+    <div className="bg-white dark:bg-white/[0.03]">
       {alert && (
         <div className="mb-4">
           <Alert variant={alert.type} title={alert.title} message={alert.message} />
         </div>
       )}
       
-      <div className="max-w-full overflow-x-auto custom-scrollbar">
+      <div className="max-w-full overflow-x-auto custom-scrollbar cashflow-table">
         <Table>
           <TableHeaderComponent showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))} />
           <TableBody>
@@ -239,19 +273,31 @@ export default function DataTableTwo() {
                 
                 return (
                 <React.Fragment key={group.id}>
-                  {/* Adicionar espaçamento antes de grupos principais (exceto o primeiro) */}
-                  {isMainGroup && groupIndex > 0 && (
+                  {/* Espaçamento de 10px acima do grupo principal "Entradas" */}
+                  {group.name === 'Entradas' && !group.parentId && (
+                    <TableRow>
+                      <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                    </TableRow>
+                  )}
+                  {/* Espaçamento antes de grupos principais com margem em cima (exceto Despesas que tem Inflação Pedro antes) */}
+                  {isMainGroup && needsSpacingBefore(group.name) && group.name !== 'Entradas' && group.name !== 'Despesas' && (
                     <TableRow>
                       <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
                     </TableRow>
                   )}
                   {/* Renderizar Inflação Pedro antes do primeiro grupo de Despesas */}
                   {isFirstDespesaGroup && (
-                    <InflationPedroRow
-                      despesasByMonth={processedData.despesasByMonth}
-                      despesasAnnual={processedData.despesasTotal}
-                      showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
-                    />
+                    <>
+                      <InflationPedroRow
+                        despesasByMonth={processedData.despesasByMonth}
+                        despesasAnnual={processedData.despesasTotal}
+                        showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
+                      />
+                      {/* Espaçamento após Inflação Pedro e antes de Despesas */}
+                      <TableRow>
+                        <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                      </TableRow>
+                    </>
                   )}
                   <GroupHeader
                   group={group}
@@ -270,127 +316,177 @@ export default function DataTableTwo() {
                   selectedColor={isGroupEditing(group.id) ? selectedColor : null}
                   onColorSelect={isGroupEditing(group.id) ? setSelectedColor : undefined}
                 />
+                {/* Espaçamento de 10px abaixo do header do grupo principal "Entradas" */}
+                {group.name === 'Entradas' && !group.parentId && (
+                  <TableRow>
+                    <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                  </TableRow>
+                )}
                 
                 {!collapsed[group.id] && (
                   <>
                     {/* Renderizar subgrupos */}
-                    {group.children?.map((subgroup) => (
-                      <React.Fragment key={subgroup.id}>
-                        <GroupHeader
-                          group={subgroup}
-                          isCollapsed={collapsed[subgroup.id] || false}
-                          groupTotals={processedData.groupTotals[subgroup.id] || Array(12).fill(0)}
-                          groupAnnualTotal={processedData.groupAnnualTotals[subgroup.id] || 0}
-                          groupPercentage={processedData.groupPercentages[subgroup.id] || 0}
-                          onToggleCollapse={() => toggleCollapse(subgroup.id)}
-                          onAddRow={() => startAddingRow(subgroup.id)}
-                          isEditing={isGroupEditing(subgroup.id)}
-                          onStartEdit={() => handleStartGroupEdit(subgroup)}
-                          onSave={() => handleSaveGroup(subgroup)}
-                          onCancel={() => handleCancelGroupEdit(subgroup)}
-                          saving={savingGroups.has(subgroup.id)}
-                          showActionsColumn={isGroupEditing(subgroup.id)}
-                          selectedColor={isGroupEditing(subgroup.id) ? selectedColor : null}
-                          onColorSelect={isGroupEditing(subgroup.id) ? setSelectedColor : undefined}
-                        />
-                        
-                        {!collapsed[subgroup.id] && (
-                          <>
-                            {/* Renderizar sub-subgrupos */}
-                            {subgroup.children?.map((subsubgroup) => (
-                              <React.Fragment key={subsubgroup.id}>
-                                <GroupHeader
-                                  group={subsubgroup}
-                                  isCollapsed={collapsed[subsubgroup.id] || false}
-                                  groupTotals={processedData.groupTotals[subsubgroup.id] || Array(12).fill(0)}
-                                  groupAnnualTotal={processedData.groupAnnualTotals[subsubgroup.id] || 0}
-                                  groupPercentage={processedData.groupPercentages[subsubgroup.id] || 0}
-                                  onToggleCollapse={() => toggleCollapse(subsubgroup.id)}
-                                  onAddRow={() => startAddingRow(subsubgroup.id)}
-                                  isEditing={isGroupEditing(subsubgroup.id)}
-                                  onStartEdit={() => handleStartGroupEdit(subsubgroup)}
-                                  onSave={() => handleSaveGroup(subsubgroup)}
-                                  onCancel={() => handleCancelGroupEdit(subsubgroup)}
-                                  saving={savingGroups.has(subsubgroup.id)}
-                                  showActionsColumn={isGroupEditing(subsubgroup.id)}
-                                  selectedColor={isGroupEditing(subsubgroup.id) ? selectedColor : null}
-                                  onColorSelect={isGroupEditing(subsubgroup.id) ? setSelectedColor : undefined}
+                    {group.children?.map((subgroup, subgroupIndex, subgroups) => {
+                      // Aplicar espaçamento antes: sempre aplicar se o subgrupo precisa
+                      // Exceções:
+                      // - "Despesas Fixas" sempre precisa de espaçamento antes
+                      // - Não aplicar se for o primeiro e o pai também precisa
+                      // - "Despesas Variáveis" não precisa se o subgrupo anterior já tem espaçamento depois (evita duplicação)
+                      const previousSubgroup = subgroupIndex > 0 ? subgroups[subgroupIndex - 1] : null;
+                      const shouldSpaceBefore = needsSpacingBefore(subgroup.name) && 
+                        (subgroup.name === 'Despesas Fixas' || 
+                         (subgroup.name === 'Despesas Variáveis' ? !(previousSubgroup && needsSpacingAfter(previousSubgroup.name)) : true) &&
+                         !(subgroupIndex === 0 && needsSpacingBefore(group.name)));
+                      
+                      return (
+                        <React.Fragment key={subgroup.id}>
+                          {/* Espaçamento antes de subgrupos com margem em cima */}
+                          {shouldSpaceBefore && (
+                            <TableRow>
+                              <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                            </TableRow>
+                          )}
+                          <GroupHeader
+                            group={subgroup}
+                            isCollapsed={collapsed[subgroup.id] || false}
+                            groupTotals={processedData.groupTotals[subgroup.id] || Array(12).fill(0)}
+                            groupAnnualTotal={processedData.groupAnnualTotals[subgroup.id] || 0}
+                            groupPercentage={processedData.groupPercentages[subgroup.id] || 0}
+                            onToggleCollapse={() => toggleCollapse(subgroup.id)}
+                            onAddRow={() => startAddingRow(subgroup.id)}
+                            isEditing={isGroupEditing(subgroup.id)}
+                            onStartEdit={() => handleStartGroupEdit(subgroup)}
+                            onSave={() => handleSaveGroup(subgroup)}
+                            onCancel={() => handleCancelGroupEdit(subgroup)}
+                            saving={savingGroups.has(subgroup.id)}
+                            showActionsColumn={isGroupEditing(subgroup.id)}
+                            selectedColor={isGroupEditing(subgroup.id) ? selectedColor : null}
+                            onColorSelect={isGroupEditing(subgroup.id) ? setSelectedColor : undefined}
+                          />
+                          
+                          {!collapsed[subgroup.id] && (
+                            <>
+                              {/* Renderizar sub-subgrupos */}
+                              {subgroup.children?.map((subsubgroup, subsubgroupIndex, subsubgroups) => {
+                                // Aplicar espaçamento antes: sempre aplicar se o sub-subgrupo precisa
+                                // Exceção: não aplicar se for o primeiro e o pai também precisa, EXCETO para "Habitação" que sempre precisa
+                                const shouldSpaceSubSubBefore = needsSpacingBefore(subsubgroup.name) && 
+                                  (subsubgroup.name === 'Habitação' || !(subsubgroupIndex === 0 && needsSpacingBefore(subgroup.name)));
+                                
+                                return (
+                                <React.Fragment key={subsubgroup.id}>
+                                  {/* Espaçamento antes de sub-subgrupos com margem em cima */}
+                                  {shouldSpaceSubSubBefore && (
+                                    <TableRow>
+                                      <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                                    </TableRow>
+                                  )}
+                                  <GroupHeader
+                                    group={subsubgroup}
+                                    isCollapsed={collapsed[subsubgroup.id] || false}
+                                    groupTotals={processedData.groupTotals[subsubgroup.id] || Array(12).fill(0)}
+                                    groupAnnualTotal={processedData.groupAnnualTotals[subsubgroup.id] || 0}
+                                    groupPercentage={processedData.groupPercentages[subsubgroup.id] || 0}
+                                    onToggleCollapse={() => toggleCollapse(subsubgroup.id)}
+                                    onAddRow={() => startAddingRow(subsubgroup.id)}
+                                    isEditing={isGroupEditing(subsubgroup.id)}
+                                    onStartEdit={() => handleStartGroupEdit(subsubgroup)}
+                                    onSave={() => handleSaveGroup(subsubgroup)}
+                                    onCancel={() => handleCancelGroupEdit(subsubgroup)}
+                                    saving={savingGroups.has(subsubgroup.id)}
+                                    showActionsColumn={isGroupEditing(subsubgroup.id)}
+                                    selectedColor={isGroupEditing(subsubgroup.id) ? selectedColor : null}
+                                    onColorSelect={isGroupEditing(subsubgroup.id) ? setSelectedColor : undefined}
+                                  />
+                                  
+                                  {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item) => 
+                                    renderItemRowConditional(
+                                      item,
+                                      subsubgroup,
+                                      processedData.itemTotals[item.id] || Array(12).fill(0),
+                                      processedData.itemAnnualTotals[item.id] || 0,
+                                      processedData.itemPercentages[item.id] || 0
+                                    )
+                                  )}
+                                  
+                                  {/* Renderizar novos itens criados */}
+                                  {Object.entries(newItems)
+                                    .filter(([, item]) => item.groupId === subsubgroup.id)
+                                    .map(([itemId, item]) => (
+                                      <NewItemRow
+                                        key={itemId}
+                                        item={item}
+                                        group={subsubgroup}
+                                        onItemUpdate={handleItemUpdate}
+                                        startEditing={startEditing}
+                                        stopEditing={stopEditing}
+                                        isEditing={isEditing}
+                                    />
+                                  ))}
+                                  
+                                  {!collapsed[subsubgroup.id] && addingRow[subsubgroup.id] && (
+                                    <AddRowForm
+                                      newRow={newRow[subsubgroup.id] || { name: "", significado: "" }}
+                                      onUpdateField={(field, value) => updateNewRow(subsubgroup.id, field, value)}
+                                      onSave={() => handleSaveRow(subsubgroup.id)}
+                                      onCancel={() => cancelAddingRow(subsubgroup.id)}
+                                    />
+                                  )}
+                                  {/* Espaçamento depois de sub-subgrupos com margem embaixo (após todos os itens) */}
+                                  {needsSpacingAfter(subsubgroup.name) && (
+                                    <TableRow>
+                                      <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                                    </TableRow>
+                                  )}
+                                </React.Fragment>
+                                );
+                              })}
+                              
+                              {/* Renderizar itens do subgrupo */}
+                              {subgroup.items?.map((item) => 
+                                renderItemRowConditional(
+                                  item,
+                                  subgroup,
+                                  processedData.itemTotals[item.id] || Array(12).fill(0),
+                                  processedData.itemAnnualTotals[item.id] || 0,
+                                  processedData.itemPercentages[item.id] || 0
+                                )
+                              )}
+                              
+                              {/* Renderizar novos itens criados */}
+                              {Object.entries(newItems)
+                                .filter(([, item]) => item.groupId === subgroup.id)
+                                .map(([itemId, item]) => (
+                                  <NewItemRow
+                                    key={itemId}
+                                    item={item}
+                                    group={subgroup}
+                                    onItemUpdate={handleItemUpdate}
+                                    startEditing={startEditing}
+                                    stopEditing={stopEditing}
+                                    isEditing={isEditing}
                                 />
-                                
-                                {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item) => 
-                                  renderItemRowConditional(
-                                    item,
-                                    subsubgroup,
-                                    processedData.itemTotals[item.id] || Array(12).fill(0),
-                                    processedData.itemAnnualTotals[item.id] || 0,
-                                    processedData.itemPercentages[item.id] || 0
-                                  )
-                                )}
-                                
-                                {/* Renderizar novos itens criados */}
-                                {Object.entries(newItems)
-                                  .filter(([, item]) => item.groupId === subsubgroup.id)
-                                  .map(([itemId, item]) => (
-                                    <NewItemRow
-                                      key={itemId}
-                                      item={item}
-                                      group={subsubgroup}
-                                      onItemUpdate={handleItemUpdate}
-                                      startEditing={startEditing}
-                                      stopEditing={stopEditing}
-                                      isEditing={isEditing}
-                                  />
-                                ))}
-                                
-                                {!collapsed[subsubgroup.id] && addingRow[subsubgroup.id] && (
-                                  <AddRowForm
-                                    newRow={newRow[subsubgroup.id] || { name: "", significado: "" }}
-                                    onUpdateField={(field, value) => updateNewRow(subsubgroup.id, field, value)}
-                                    onSave={() => handleSaveRow(subsubgroup.id)}
-                                    onCancel={() => cancelAddingRow(subsubgroup.id)}
-                                  />
-                                )}
-                              </React.Fragment>
-                            ))}
-                            
-                            {/* Renderizar itens do subgrupo */}
-                            {subgroup.items?.map((item) => 
-                              renderItemRowConditional(
-                                item,
-                                subgroup,
-                                processedData.itemTotals[item.id] || Array(12).fill(0),
-                                processedData.itemAnnualTotals[item.id] || 0,
-                                processedData.itemPercentages[item.id] || 0
-                              )
-                            )}
-                            
-                            {/* Renderizar novos itens criados */}
-                            {Object.entries(newItems)
-                              .filter(([, item]) => item.groupId === subgroup.id)
-                              .map(([itemId, item]) => (
-                                <NewItemRow
-                                  key={itemId}
-                                  item={item}
-                                  group={subgroup}
-                                  onItemUpdate={handleItemUpdate}
-                                  startEditing={startEditing}
-                                  stopEditing={stopEditing}
-                                  isEditing={isEditing}
-                              />
-                            ))}
-                            
-                            {addingRow[subgroup.id] && (
-                              <AddRowForm
-                                newRow={newRow[subgroup.id] || { name: "", significado: "" }}
-                                onUpdateField={(field, value) => updateNewRow(subgroup.id, field, value)}
-                                onSave={() => handleSaveRow(subgroup.id)}
-                                onCancel={() => cancelAddingRow(subgroup.id)}
-                              />
-                            )}
-                          </>
-                        )}
-                      </React.Fragment>
-                    ))}
+                              ))}
+                              
+                              {addingRow[subgroup.id] && (
+                                <AddRowForm
+                                  newRow={newRow[subgroup.id] || { name: "", significado: "" }}
+                                  onUpdateField={(field, value) => updateNewRow(subgroup.id, field, value)}
+                                  onSave={() => handleSaveRow(subgroup.id)}
+                                  onCancel={() => cancelAddingRow(subgroup.id)}
+                                />
+                              )}
+                            </>
+                          )}
+                          {/* Espaçamento depois de subgrupos com margem embaixo (após todos os itens) */}
+                          {needsSpacingAfter(subgroup.name) && (
+                            <TableRow>
+                              <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                     
                     {/* Renderizar itens do grupo principal */}
                     {group.items?.map((item) => 
@@ -428,6 +524,15 @@ export default function DataTableTwo() {
                     )}
                   </>
                 )}
+                {/* Espaçamento depois de grupos principais com margem embaixo (após todos os itens e subgrupos) */}
+                {/* Não aplicar espaçamento depois de "Entradas Variáveis" se o próximo grupo é "Despesas" (que terá Inflação Pedro antes) */}
+                {isMainGroup && needsSpacingAfter(group.name) && group.name !== 'Entradas' && 
+                  !(group.name === 'Entradas Variáveis' && groupIndex < groups.length - 1 && 
+                    !isReceitaGroupByType(groups[groupIndex + 1].type)) && (
+                  <TableRow>
+                    <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                  </TableRow>
+                )}
                 </React.Fragment>
               );
             })}
@@ -438,6 +543,11 @@ export default function DataTableTwo() {
               totalAnnual={processedData.totalAnnual}
               showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
             />
+            
+            {/* Espaçamento depois do Saldo */}
+            <TableRow>
+              <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+            </TableRow>
             
             {/* Renderizar Índice de Poupança após o Saldo */}
             <SavingsIndexRow
@@ -494,8 +604,20 @@ export default function DataTableTwo() {
                         {!collapsed[subgroup.id] && (
                           <>
                             {/* Renderizar sub-subgrupos */}
-                            {subgroup.children?.map((subsubgroup) => (
+                            {subgroup.children?.map((subsubgroup, subsubgroupIndex, subsubgroups) => {
+                              // Aplicar espaçamento antes: sempre aplicar se o sub-subgrupo precisa
+                              // Exceção: não aplicar se for o primeiro e o pai também precisa, EXCETO para "Habitação" que sempre precisa
+                              const shouldSpaceSubSubBefore = needsSpacingBefore(subsubgroup.name) && 
+                                (subsubgroup.name === 'Habitação' || !(subsubgroupIndex === 0 && needsSpacingBefore(subgroup.name)));
+                              
+                              return (
                               <React.Fragment key={subsubgroup.id}>
+                                {/* Espaçamento antes de sub-subgrupos com margem em cima */}
+                                {shouldSpaceSubSubBefore && (
+                                  <TableRow>
+                                    <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                                  </TableRow>
+                                )}
                                 <GroupHeader
                                   group={subsubgroup}
                                   isCollapsed={collapsed[subsubgroup.id] || false}
@@ -547,8 +669,15 @@ export default function DataTableTwo() {
                                     onCancel={() => cancelAddingRow(subsubgroup.id)}
                                   />
                                 )}
+                                {/* Espaçamento depois de sub-subgrupos com margem embaixo (após todos os itens) */}
+                                {needsSpacingAfter(subsubgroup.name) && (
+                                  <TableRow>
+                                    <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                                  </TableRow>
+                                )}
                               </React.Fragment>
-                            ))}
+                              );
+                            })}
                             
                             {/* Renderizar itens do subgrupo */}
                             {subgroup.items?.map((item) => 
@@ -585,6 +714,12 @@ export default function DataTableTwo() {
                               />
                             )}
                           </>
+                        )}
+                        {/* Espaçamento depois de subgrupos com margem embaixo (após todos os itens) */}
+                        {needsSpacingAfter(subgroup.name) && (
+                          <TableRow>
+                            <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                          </TableRow>
                         )}
                       </React.Fragment>
                     ))}

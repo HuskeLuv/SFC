@@ -31,17 +31,17 @@ export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({
   const annualInflation: number | null = null;
 
   return (
-    <TableRow className="bg-gray-100 dark:bg-gray-800">
-      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-black dark:border-black dark:text-white text-xs w-32 text-left">
+    <TableRow className="h-6 bg-[#D9D9D9]" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}>
+      <TableCell className="px-2 font-bold text-black border-t border-b border-l border-black dark:border-black text-xs w-32 text-left h-6 leading-6">
         Inflação Pedro
       </TableCell>
-      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-40">
+      <TableCell className="px-2 font-bold text-black border-t border-b border-black dark:border-black text-xs w-40 h-6 leading-6">
         -
       </TableCell>
-      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-center">
+      <TableCell className="px-2 font-bold text-black border-t border-b border-black dark:border-black text-xs w-16 text-center h-6 leading-6">
         -
       </TableCell>
-      <TableCell className="px-2 py-2 font-bold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right">
+      <TableCell className="px-2 font-bold text-black border-t border-b border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6">
         -
       </TableCell>
       {despesasByMonth.map((despesasAtual, index) => {
@@ -51,7 +51,7 @@ export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({
         return (
           <TableCell 
             key={index} 
-            className={`px-1 py-2 font-bold border border-black dark:border-black text-xs w-12 text-right ${
+            className={`px-1 font-bold border border-black dark:border-black text-xs w-12 text-right h-6 leading-6 ${
               inflation === null 
                 ? 'text-gray-500 dark:text-gray-400' 
                 : inflation < 0 
@@ -64,7 +64,7 @@ export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({
         );
       })}
       <TableCell 
-        className={`px-2 py-2 font-bold border border-black dark:border-black text-xs w-16 text-right ${
+        className={`px-2 font-bold border border-black dark:border-black text-xs w-16 text-right h-6 leading-6 ${
           annualInflation === null 
             ? 'text-gray-500 dark:text-gray-400' 
             : annualInflation < 0 
@@ -75,7 +75,7 @@ export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({
         {annualInflation === null ? '-' : formatPercent(annualInflation)}
       </TableCell>
       {showActionsColumn && (
-        <TableCell className="px-2 py-2 border border-black dark:border-black w-8"></TableCell>
+        <TableCell className="px-2 border border-black dark:border-black w-8 h-6 leading-6"></TableCell>
       )}
     </TableRow>
   );
