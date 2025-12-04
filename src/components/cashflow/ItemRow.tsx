@@ -13,6 +13,7 @@ interface ItemRowProps {
   startEditing: (itemId: string, field: string, monthIndex?: number) => void;
   stopEditing: () => void;
   isEditing: (itemId: string, field: string, monthIndex?: number) => boolean;
+  isLastItem?: boolean;
 }
 
 export const ItemRow: React.FC<ItemRowProps> = ({ 
@@ -21,6 +22,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
   itemAnnualTotal,
   itemPercentage,
   group,
+  isLastItem = false,
 }) => {
   const isReceita = isReceitaGroupByType(group.type);
   
@@ -35,22 +37,22 @@ export const ItemRow: React.FC<ItemRowProps> = ({
 
   return (
     <TableRow className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}>
-      <TableCell className="px-2 font-medium text-gray-800 border-t border-b border-l border-black dark:border-black dark:text-white text-xs w-32 text-left h-6 leading-6">
+      <TableCell className={`px-2 font-medium text-gray-800 border-l border-black dark:border-black dark:text-white text-xs w-32 text-left h-6 leading-6 ${isLastItem ? 'border-b' : ''}`}>
         <span className="cursor-default">
           {item.name || ''}
         </span>
       </TableCell>
-      <TableCell className="px-2 font-normal text-gray-800 border-t border-b border-black dark:border-black text-xs dark:text-gray-400 w-40 h-6 leading-6">
+      <TableCell className={`px-2 font-normal text-gray-800 border-black dark:border-black text-xs dark:text-gray-400 w-40 h-6 leading-6 ${isLastItem ? 'border-b' : ''}`}>
         <span className="cursor-default">
           {item.significado || '-'}
         </span>
       </TableCell>
-      <TableCell className="px-2 font-normal text-gray-800 border-t border-b border-black dark:border-black text-xs dark:text-gray-400 w-16 text-center h-6 leading-6">
+      <TableCell className={`px-2 font-normal text-gray-800 border-black dark:border-black text-xs dark:text-gray-400 w-16 text-center h-6 leading-6 ${isLastItem ? 'border-b' : ''}`}>
         <span className="cursor-default">
           {item.rank || '-'}
         </span>
       </TableCell>
-      <TableCell className={`px-2 font-normal border-t border-b border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6 ${getPercentageColorClass()}`}>
+      <TableCell className={`px-2 font-normal border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6 ${isLastItem ? 'border-b' : ''} ${getPercentageColorClass()}`}>
         {group.name === 'Investimentos' ? '-' : (itemPercentage > 0 ? formatPercent(itemPercentage) : '-')}
       </TableCell>
       {itemTotals.map((value, index) => {

@@ -168,7 +168,8 @@ export default function DataTableTwo() {
     group: CashflowGroup,
     itemTotals: number[],
     itemAnnualTotal: number,
-    itemPercentage: number
+    itemPercentage: number,
+    isLastItem: boolean = false
   ) => {
     const groupId = group.id;
     if (isGroupEditing(groupId)) {
@@ -190,6 +191,7 @@ export default function DataTableTwo() {
           onDeleteItem={deleteItem}
           onApplyColor={applyColorToCell}
           isColorModeActive={selectedColor !== null}
+          isLastItem={isLastItem}
         />
       );
     } else {
@@ -206,10 +208,11 @@ export default function DataTableTwo() {
           startEditing={startEditing}
           stopEditing={stopEditing}
           isEditing={isEditing}
+          isLastItem={isLastItem}
         />
       );
     }
-  }, [isGroupEditing, isItemDeleted, getEditedItem, updateItemField, deleteItem, handleItemUpdate, startEditing, stopEditing, isEditing]);
+  }, [isGroupEditing, isItemDeleted, getEditedItem, updateItemField, deleteItem, handleItemUpdate, startEditing, stopEditing, isEditing, selectedColor]);
 
   if (loading) return <div className="py-8 text-center">Carregando...</div>;
   if (error) return <div className="py-8 text-center text-red-500">{error}</div>;
@@ -399,30 +402,37 @@ export default function DataTableTwo() {
                                     onColorSelect={isGroupEditing(subsubgroup.id) ? setSelectedColor : undefined}
                                   />
                                   
-                                  {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item) => 
-                                    renderItemRowConditional(
+                                  {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item, itemIndex, items) => {
+                                    const hasNewItems = Object.entries(newItems).some(([, newItem]) => newItem.groupId === subsubgroup.id);
+                                    const isLastItem = !hasNewItems && !addingRow[subsubgroup.id] && itemIndex === items.length - 1;
+                                    return renderItemRowConditional(
                                       item,
                                       subsubgroup,
                                       processedData.itemTotals[item.id] || Array(12).fill(0),
                                       processedData.itemAnnualTotals[item.id] || 0,
-                                      processedData.itemPercentages[item.id] || 0
-                                    )
-                                  )}
+                                      processedData.itemPercentages[item.id] || 0,
+                                      isLastItem
+                                    );
+                                  })}
                                   
                                   {/* Renderizar novos itens criados */}
                                   {Object.entries(newItems)
                                     .filter(([, item]) => item.groupId === subsubgroup.id)
-                                    .map(([itemId, item]) => (
-                                      <NewItemRow
-                                        key={itemId}
-                                        item={item}
-                                        group={subsubgroup}
-                                        onItemUpdate={handleItemUpdate}
-                                        startEditing={startEditing}
-                                        stopEditing={stopEditing}
-                                        isEditing={isEditing}
-                                    />
-                                  ))}
+                                    .map(([itemId, item], itemIndex, entries) => {
+                                      const isLastNewItem = !addingRow[subsubgroup.id] && itemIndex === entries.length - 1;
+                                      return (
+                                        <NewItemRow
+                                          key={itemId}
+                                          item={item}
+                                          group={subsubgroup}
+                                          onItemUpdate={handleItemUpdate}
+                                          startEditing={startEditing}
+                                          stopEditing={stopEditing}
+                                          isEditing={isEditing}
+                                          isLastItem={isLastNewItem}
+                                        />
+                                      );
+                                    })}
                                   
                                   {!collapsed[subsubgroup.id] && addingRow[subsubgroup.id] && (
                                     <AddRowForm
@@ -443,30 +453,37 @@ export default function DataTableTwo() {
                               })}
                               
                               {/* Renderizar itens do subgrupo */}
-                              {subgroup.items?.map((item) => 
-                                renderItemRowConditional(
+                              {subgroup.items?.map((item, itemIndex, items) => {
+                                const hasNewItems = Object.entries(newItems).some(([, newItem]) => newItem.groupId === subgroup.id);
+                                const isLastItem = !hasNewItems && !addingRow[subgroup.id] && itemIndex === items.length - 1;
+                                return renderItemRowConditional(
                                   item,
                                   subgroup,
                                   processedData.itemTotals[item.id] || Array(12).fill(0),
                                   processedData.itemAnnualTotals[item.id] || 0,
-                                  processedData.itemPercentages[item.id] || 0
-                                )
-                              )}
+                                  processedData.itemPercentages[item.id] || 0,
+                                  isLastItem
+                                );
+                              })}
                               
                               {/* Renderizar novos itens criados */}
                               {Object.entries(newItems)
                                 .filter(([, item]) => item.groupId === subgroup.id)
-                                .map(([itemId, item]) => (
-                                  <NewItemRow
-                                    key={itemId}
-                                    item={item}
-                                    group={subgroup}
-                                    onItemUpdate={handleItemUpdate}
-                                    startEditing={startEditing}
-                                    stopEditing={stopEditing}
-                                    isEditing={isEditing}
-                                />
-                              ))}
+                                .map(([itemId, item], itemIndex, entries) => {
+                                  const isLastNewItem = !addingRow[subgroup.id] && itemIndex === entries.length - 1;
+                                  return (
+                                    <NewItemRow
+                                      key={itemId}
+                                      item={item}
+                                      group={subgroup}
+                                      onItemUpdate={handleItemUpdate}
+                                      startEditing={startEditing}
+                                      stopEditing={stopEditing}
+                                      isEditing={isEditing}
+                                      isLastItem={isLastNewItem}
+                                    />
+                                  );
+                                })}
                               
                               {addingRow[subgroup.id] && (
                                 <AddRowForm
@@ -489,30 +506,37 @@ export default function DataTableTwo() {
                     })}
                     
                     {/* Renderizar itens do grupo principal */}
-                    {group.items?.map((item) => 
-                      renderItemRowConditional(
+                    {group.items?.map((item, itemIndex, items) => {
+                      const hasNewItems = Object.entries(newItems).some(([, newItem]) => newItem.groupId === group.id);
+                      const isLastItem = !hasNewItems && !addingRow[group.id] && itemIndex === items.length - 1;
+                      return renderItemRowConditional(
                         item,
                         group,
                         processedData.itemTotals[item.id] || Array(12).fill(0),
                         processedData.itemAnnualTotals[item.id] || 0,
-                        processedData.itemPercentages[item.id] || 0
-                      )
-                    )}
+                        processedData.itemPercentages[item.id] || 0,
+                        isLastItem
+                      );
+                    })}
                     
                     {/* Renderizar novos itens criados */}
                     {Object.entries(newItems)
                       .filter(([, item]) => item.groupId === group.id)
-                      .map(([itemId, item]) => (
-                        <NewItemRow
-                          key={itemId}
-                          item={item}
-                          group={group}
-                          onItemUpdate={handleItemUpdate}
-                          startEditing={startEditing}
-                          stopEditing={stopEditing}
-                          isEditing={isEditing}
-                      />
-                    ))}
+                      .map(([itemId, item], itemIndex, entries) => {
+                        const isLastNewItem = !addingRow[group.id] && itemIndex === entries.length - 1;
+                        return (
+                          <NewItemRow
+                            key={itemId}
+                            item={item}
+                            group={group}
+                            onItemUpdate={handleItemUpdate}
+                            startEditing={startEditing}
+                            stopEditing={stopEditing}
+                            isEditing={isEditing}
+                            isLastItem={isLastNewItem}
+                          />
+                        );
+                      })}
                     
                     {addingRow[group.id] && (
                       <AddRowForm
@@ -636,30 +660,37 @@ export default function DataTableTwo() {
                                   onColorSelect={isGroupEditing(subsubgroup.id) ? setSelectedColor : undefined}
                                 />
                                 
-                                {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item) => 
-                                  renderItemRowConditional(
+                                {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item, itemIndex, items) => {
+                                  const hasNewItems = Object.entries(newItems).some(([, newItem]) => newItem.groupId === subsubgroup.id);
+                                  const isLastItem = !hasNewItems && !addingRow[subsubgroup.id] && itemIndex === items.length - 1;
+                                  return renderItemRowConditional(
                                     item,
                                     subsubgroup,
                                     processedData.itemTotals[item.id] || Array(12).fill(0),
                                     processedData.itemAnnualTotals[item.id] || 0,
-                                    processedData.itemPercentages[item.id] || 0
-                                  )
-                                )}
+                                    processedData.itemPercentages[item.id] || 0,
+                                    isLastItem
+                                  );
+                                })}
                                 
                                 {/* Renderizar novos itens criados */}
                                 {Object.entries(newItems)
                                   .filter(([, item]) => item.groupId === subsubgroup.id)
-                                  .map(([itemId, item]) => (
-                                    <NewItemRow
-                                      key={itemId}
-                                      item={item}
-                                      group={subsubgroup}
-                                      onItemUpdate={handleItemUpdate}
-                                      startEditing={startEditing}
-                                      stopEditing={stopEditing}
-                                      isEditing={isEditing}
-                                  />
-                                ))}
+                                  .map(([itemId, item], itemIndex, entries) => {
+                                    const isLastNewItem = !addingRow[subsubgroup.id] && itemIndex === entries.length - 1;
+                                    return (
+                                      <NewItemRow
+                                        key={itemId}
+                                        item={item}
+                                        group={subsubgroup}
+                                        onItemUpdate={handleItemUpdate}
+                                        startEditing={startEditing}
+                                        stopEditing={stopEditing}
+                                        isEditing={isEditing}
+                                        isLastItem={isLastNewItem}
+                                      />
+                                    );
+                                  })}
                                 
                                 {!collapsed[subsubgroup.id] && addingRow[subsubgroup.id] && (
                                   <AddRowForm
@@ -680,30 +711,37 @@ export default function DataTableTwo() {
                             })}
                             
                             {/* Renderizar itens do subgrupo */}
-                            {subgroup.items?.map((item) => 
-                              renderItemRowConditional(
+                            {subgroup.items?.map((item, itemIndex, items) => {
+                              const hasNewItems = Object.entries(newItems).some(([, newItem]) => newItem.groupId === subgroup.id);
+                              const isLastItem = !hasNewItems && !addingRow[subgroup.id] && itemIndex === items.length - 1;
+                              return renderItemRowConditional(
                                 item,
                                 subgroup,
                                 processedData.itemTotals[item.id] || Array(12).fill(0),
                                 processedData.itemAnnualTotals[item.id] || 0,
-                                processedData.itemPercentages[item.id] || 0
-                              )
-                            )}
+                                processedData.itemPercentages[item.id] || 0,
+                                isLastItem
+                              );
+                            })}
                             
                             {/* Renderizar novos itens criados */}
                             {Object.entries(newItems)
                               .filter(([, item]) => item.groupId === subgroup.id)
-                              .map(([itemId, item]) => (
-                                <NewItemRow
-                                  key={itemId}
-                                  item={item}
-                                  group={subgroup}
-                                  onItemUpdate={handleItemUpdate}
-                                  startEditing={startEditing}
-                                  stopEditing={stopEditing}
-                                  isEditing={isEditing}
-                              />
-                            ))}
+                              .map(([itemId, item], itemIndex, entries) => {
+                                const isLastNewItem = !addingRow[subgroup.id] && itemIndex === entries.length - 1;
+                                return (
+                                  <NewItemRow
+                                    key={itemId}
+                                    item={item}
+                                    group={subgroup}
+                                    onItemUpdate={handleItemUpdate}
+                                    startEditing={startEditing}
+                                    stopEditing={stopEditing}
+                                    isEditing={isEditing}
+                                    isLastItem={isLastNewItem}
+                                  />
+                                );
+                              })}
                             
                             {addingRow[subgroup.id] && (
                               <AddRowForm

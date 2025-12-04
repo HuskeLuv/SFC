@@ -18,6 +18,7 @@ interface EditableItemRowProps {
   onDeleteItem: (itemId: string) => void;
   onApplyColor?: (itemId: string, monthIndex: number) => void;
   isColorModeActive?: boolean;
+  isLastItem?: boolean;
 }
 
 export const EditableItemRow: React.FC<EditableItemRowProps> = ({
@@ -32,6 +33,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   onDeleteItem,
   onApplyColor,
   isColorModeActive = false,
+  isLastItem = false,
 }) => {
   const isReceita = isReceitaGroupByType(group.type);
   const isInvestmentItem = group.type === 'investimento' || item.id.startsWith('investimento-');
@@ -87,7 +89,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
 
   return (
     <TableRow className={`h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${isEditing ? 'bg-blue-50/30 dark:bg-blue-900/20' : ''}`} style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}>
-      <TableCell className="px-2 font-medium text-gray-800 border-t border-b border-l border-black dark:border-black dark:text-white text-xs w-32 text-left h-6 leading-6">
+      <TableCell className={`px-2 font-medium text-gray-800 border-l border-black dark:border-black dark:text-white text-xs w-32 text-left h-6 leading-6 ${isLastItem ? 'border-b' : ''}`}>
         {isEditing && !isInvestmentItem ? (
           <input
             type="text"
@@ -100,7 +102,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         )}
       </TableCell>
       
-      <TableCell className="px-2 font-normal text-gray-800 border-t border-b border-black dark:border-black text-xs dark:text-gray-400 w-40 h-6 leading-6">
+      <TableCell className={`px-2 font-normal text-gray-800 border-black dark:border-black text-xs dark:text-gray-400 w-40 h-6 leading-6 ${isLastItem ? 'border-b' : ''}`}>
         {isEditing && !isInvestmentItem ? (
           <input
             type="text"
@@ -114,7 +116,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         )}
       </TableCell>
       
-      <TableCell className="px-2 font-normal text-gray-800 border-t border-b border-black dark:border-black text-xs dark:text-gray-400 w-16 text-center h-6 leading-6">
+      <TableCell className={`px-2 font-normal text-gray-800 border-black dark:border-black text-xs dark:text-gray-400 w-16 text-center h-6 leading-6 ${isLastItem ? 'border-b' : ''}`}>
         {isEditing && !isInvestmentItem ? (
           <input
             type="number"
@@ -128,7 +130,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         )}
       </TableCell>
       
-      <TableCell className={`px-2 font-normal border-t border-b border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6 ${getPercentageColorClass()}`}>
+      <TableCell className={`px-2 font-normal border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6 ${isLastItem ? 'border-b' : ''} ${getPercentageColorClass()}`}>
         {group.name === 'Investimentos' ? '-' : (itemPercentage > 0 ? formatPercent(itemPercentage) : '-')}
       </TableCell>
       
