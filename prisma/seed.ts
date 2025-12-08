@@ -140,6 +140,10 @@ async function main() {
           valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         },
         { 
+          descricao: 'Saldo em conta corrente',
+          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        },
+        { 
           descricao: 'Férias',
           valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         },
@@ -456,16 +460,36 @@ async function main() {
       ],
       'Despesas Empresa': [
         { 
-          descricao: 'Aluguel',
+          descricao: 'Administrativas/Operacionais',
           valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         },
         { 
-          descricao: 'Funcionários',
+          descricao: 'Fornecedores',
           valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         },
         { 
-          descricao: 'Material de escritório',
-          valoresMensais: [50, 45, 55, 48, 52, 50, 58, 54, 47, 56, 51, 59]
+          descricao: 'Taxas, Alvarás, Etc.',
+          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        },
+        { 
+          descricao: 'Impostos, Contribuições Diretas',
+          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        },
+        { 
+          descricao: 'Salários, Encargos e Benefícios',
+          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        },
+        { 
+          descricao: 'Maquinários & Equipamentos',
+          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        },
+        { 
+          descricao: 'Despesas com Vendas',
+          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        },
+        { 
+          descricao: 'Despesas Financeiras',
+          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         },
         { 
           descricao: 'Outros',
@@ -474,19 +498,19 @@ async function main() {
       ],
       'Planejamento Financeiro': [
         { 
-          descricao: 'Reserva de emergência',
+          descricao: 'Objetivo 1',
           valoresMensais: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]
         },
         { 
-          descricao: 'Investimentos',
+          descricao: 'Objetivo 2',
           valoresMensais: [800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800]
         },
         { 
-          descricao: 'Previdência',
+          descricao: 'Objetivo 3',
           valoresMensais: [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
         },
         { 
-          descricao: 'Outros',
+          descricao: 'Objetivo 4',
           valoresMensais: [100, 90, 110, 95, 105, 100, 115, 105, 98, 108, 102, 112]
         },
       ],

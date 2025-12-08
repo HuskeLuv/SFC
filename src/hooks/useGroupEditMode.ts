@@ -342,10 +342,10 @@ export const useGroupEditMode = () => {
     // Converter ColorOption para formato CSS
     const colorMap: Record<string, string> = {
       black: "#000000",
-      green: "#00FF00",
+      green: "#76933C",
       red: "#FF0000",
       blue: "#0000FF",
-      yellow: "#FFFF00",
+      yellow: "#9E8A58",
     };
     
     const cssColor = colorMap[selectedColor] || "#000000";

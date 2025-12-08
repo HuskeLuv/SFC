@@ -26,7 +26,7 @@ import { createCashflowItem } from "@/utils/cashflowUpdate";
 import { useCellEditing } from "@/hooks/useCellEditing";
 import { useGroupEditMode } from "@/hooks/useGroupEditMode";
 import { getAllItemsInGroup } from "@/utils/cashflowHelpers";
-import { isReceitaGroupByType } from "@/utils/formatters";
+import { isReceitaGroupByType, formatCurrency } from "@/utils/formatters";
 
 export default function DataTableTwo() {
   const { data, loading, error, refetch } = useCashflowData();
@@ -260,8 +260,8 @@ export default function DataTableTwo() {
         </div>
       )}
       
-      <div className="max-w-full overflow-x-auto custom-scrollbar cashflow-table">
-        <Table>
+      <div className="max-w-full max-h-[calc(100vh-300px)] overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table">
+        <Table className="relative">
           <TableHeaderComponent showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))} />
           <TableBody>
             {processedData.groups
@@ -273,6 +273,8 @@ export default function DataTableTwo() {
                 
                 // Verificar se é um grupo principal (sem parentId)
                 const isMainGroup = !group.parentId;
+                // Verificar se é o grupo principal "Despesas"
+                const isMainDespesasGroup = group.name === 'Despesas' && !group.parentId;
                 
                 return (
                 <React.Fragment key={group.id}>
@@ -282,25 +284,11 @@ export default function DataTableTwo() {
                       <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
                     </TableRow>
                   )}
-                  {/* Espaçamento antes de grupos principais com margem em cima (exceto Despesas que tem Inflação Pedro antes) */}
-                  {isMainGroup && needsSpacingBefore(group.name) && group.name !== 'Entradas' && group.name !== 'Despesas' && (
+                  {/* Espaçamento antes de grupos principais com margem em cima */}
+                  {isMainGroup && needsSpacingBefore(group.name) && group.name !== 'Entradas' && (
                     <TableRow>
                       <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
                     </TableRow>
-                  )}
-                  {/* Renderizar Inflação Pedro antes do primeiro grupo de Despesas */}
-                  {isFirstDespesaGroup && (
-                    <>
-                      <InflationPedroRow
-                        despesasByMonth={processedData.despesasByMonth}
-                        despesasAnnual={processedData.despesasTotal}
-                        showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
-                      />
-                      {/* Espaçamento após Inflação Pedro e antes de Despesas */}
-                      <TableRow>
-                        <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
-                      </TableRow>
-                    </>
                   )}
                   <GroupHeader
                   group={group}
@@ -319,6 +307,20 @@ export default function DataTableTwo() {
                   selectedColor={isGroupEditing(group.id) ? selectedColor : null}
                   onColorSelect={isGroupEditing(group.id) ? setSelectedColor : undefined}
                 />
+                {/* Renderizar Inflação Pedro depois do grupo principal "Despesas" */}
+                {isMainDespesasGroup && (
+                  <>
+                    {/* Espaçamento após Despesas e antes de Inflação Pedro */}
+                    <TableRow>
+                      <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+                    </TableRow>
+                    <InflationPedroRow
+                      despesasByMonth={processedData.despesasByMonth}
+                      despesasAnnual={processedData.despesasTotal}
+                      showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
+                    />
+                  </>
+                )}
                 {/* Espaçamento de 10px abaixo do header do grupo principal "Entradas" */}
                 {group.name === 'Entradas' && !group.parentId && (
                   <TableRow>
@@ -763,30 +765,37 @@ export default function DataTableTwo() {
                     ))}
                     
                     {/* Renderizar itens do grupo principal */}
-                    {group.items?.map((item) => 
-                      renderItemRowConditional(
+                    {group.items?.map((item, itemIndex, items) => {
+                      const hasNewItems = Object.entries(newItems).some(([, newItem]) => newItem.groupId === group.id);
+                      const isLastItem = !hasNewItems && !addingRow[group.id] && itemIndex === items.length - 1;
+                      return renderItemRowConditional(
                         item,
                         group,
                         processedData.itemTotals[item.id] || Array(12).fill(0),
                         processedData.itemAnnualTotals[item.id] || 0,
-                        processedData.itemPercentages[item.id] || 0
-                      )
-                    )}
+                        processedData.itemPercentages[item.id] || 0,
+                        isLastItem
+                      );
+                    })}
                     
                     {/* Renderizar novos itens criados */}
                     {Object.entries(newItems)
                       .filter(([, item]) => item.groupId === group.id)
-                      .map(([itemId, item]) => (
-                        <NewItemRow
-                          key={itemId}
-                          item={item}
-                          group={group}
-                          onItemUpdate={handleItemUpdate}
-                          startEditing={startEditing}
-                          stopEditing={stopEditing}
-                          isEditing={isEditing}
-                      />
-                    ))}
+                      .map(([itemId, item], itemIndex, entries) => {
+                        const isLastNewItem = !addingRow[group.id] && itemIndex === entries.length - 1;
+                        return (
+                          <NewItemRow
+                            key={itemId}
+                            item={item}
+                            group={group}
+                            onItemUpdate={handleItemUpdate}
+                            startEditing={startEditing}
+                            stopEditing={stopEditing}
+                            isEditing={isEditing}
+                            isLastItem={isLastNewItem}
+                          />
+                        );
+                      })}
                     
                     {addingRow[group.id] && (
                       <AddRowForm
@@ -800,6 +809,60 @@ export default function DataTableTwo() {
                 )}
               </React.Fragment>
             ))}
+            
+            {/* Espaçamento entre Investimentos e Fluxo de Caixa livre */}
+            <TableRow>
+              <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+            </TableRow>
+            
+            {/* Linha Fluxo de Caixa livre */}
+            {(() => {
+              // Calcular valores acumulados mês a mês
+              const fluxoCaixaLivreAcumulado: number[] = [];
+              for (let index = 0; index < 12; index++) {
+                const fluxoMesAtual = processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
+                if (index === 0) {
+                  // Janeiro: apenas o valor do mês atual
+                  fluxoCaixaLivreAcumulado.push(fluxoMesAtual);
+                } else {
+                  // Outros meses: valor do mês atual + valor acumulado do mês anterior
+                  const valorMesAnterior = fluxoCaixaLivreAcumulado[index - 1] || 0;
+                  fluxoCaixaLivreAcumulado.push(fluxoMesAtual + valorMesAnterior);
+                }
+              }
+              
+              const totalAnual = fluxoCaixaLivreAcumulado[11] || 0;
+              
+              return (
+                <TableRow className="h-6" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px', backgroundColor: '#998256' }}>
+                  <TableCell className="px-2 font-bold text-white border-t border-b border-l border-black dark:border-black text-xs w-32 text-left h-6 leading-6">
+                    Fluxo de Caixa livre
+                  </TableCell>
+                  <TableCell className="px-2 font-bold text-white border-t border-b border-black dark:border-black text-xs w-40 h-6 leading-6">
+                    -
+                  </TableCell>
+                  <TableCell className="px-2 font-bold text-white border-t border-b border-black dark:border-black text-xs w-16 text-center h-6 leading-6">
+                    -
+                  </TableCell>
+                  <TableCell className="px-2 font-bold text-white border-t border-b border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6">
+                    -
+                  </TableCell>
+                  {fluxoCaixaLivreAcumulado.map((valor, index) => (
+                    <TableCell key={index} className="px-1 font-bold text-white border border-black dark:border-black text-xs w-12 text-right h-6 leading-6">
+                      {formatCurrency(valor || 0)}
+                    </TableCell>
+                  ))}
+                  {/* Coluna vazia para espaçamento */}
+                  <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
+                  <TableCell className="px-2 font-bold text-white border border-black dark:border-black text-xs w-16 text-right h-6 leading-6">
+                    {formatCurrency(totalAnual)}
+                  </TableCell>
+                  {processedData.groups.some(g => isGroupEditing(g.id)) && (
+                    <TableCell className="px-2 border border-black dark:border-black w-8 h-6 leading-6"></TableCell>
+                  )}
+                </TableRow>
+              );
+            })()}
           </TableBody>
         </Table>
       </div>

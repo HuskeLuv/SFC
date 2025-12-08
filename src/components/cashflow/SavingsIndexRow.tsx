@@ -53,6 +53,8 @@ export const SavingsIndexRow: React.FC<SavingsIndexRowProps> = ({
           </TableCell>
         );
       })}
+      {/* Coluna vazia para espaçamento */}
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
       <TableCell className="px-2 font-bold text-white border border-black dark:border-black text-xs w-16 text-right h-6 leading-6">
         {annualSavingsIndex === null ? '-' : formatPercent(annualSavingsIndex)}
       </TableCell>

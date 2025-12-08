@@ -10,11 +10,11 @@ interface ColorPickerButtonProps {
 }
 
 const COLOR_OPTIONS: Array<{ value: ColorOption; label: string; emoji: string; cssColor: string }> = [
-  { value: "black", label: "Preto", emoji: "⚫", cssColor: "#000000" },
-  { value: "green", label: "Verde", emoji: "🟢", cssColor: "#00FF00" },
-  { value: "red", label: "Vermelho", emoji: "🔴", cssColor: "#FF0000" },
-  { value: "blue", label: "Azul", emoji: "🔵", cssColor: "#0000FF" },
-  { value: "yellow", label: "Amarelo", emoji: "🟡", cssColor: "#FFFF00" },
+  { value: "black", label: "Pagar/Receber", emoji: "⚫", cssColor: "#000000" },
+  { value: "green", label: "Recebido", emoji: "🟢", cssColor: "#76933C" },
+  { value: "red", label: "Pago", emoji: "🔴", cssColor: "#FF0000" },
+  { value: "blue", label: "Lançamento Futuro", emoji: "🔵", cssColor: "#0000FF" },
+  { value: "yellow", label: "Cartão crédito", emoji: "🟤", cssColor: "#9E8A58" },
 ];
 
 export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
@@ -134,7 +134,7 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
             <button
               key={option.value}
               onClick={() => handleColorClick(option.value)}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
                 selectedColor === option.value
                   ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                   : "text-gray-700 dark:text-gray-300"
@@ -146,7 +146,7 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
               }
             >
               <span className="text-base">{option.emoji}</span>
-              <span>{option.label}</span>
+              <span className="text-left">{option.label}</span>
               {selectedColor === option.value && (
                 <span className="ml-auto text-blue-600 dark:text-blue-400">✓</span>
               )}

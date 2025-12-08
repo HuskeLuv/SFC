@@ -65,7 +65,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         return (
           <TableCell
             key={index}
-            className="px-1 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-12 text-right cursor-default h-6 leading-6 bg-[#F2F2F2]"
+            className={`px-1 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-12 text-right cursor-default h-6 leading-6 bg-[#F2F2F2] ${isLastItem ? 'border-b' : ''}`}
           >
             <span style={cellColor ? { color: cellColor } : undefined}>
               {formatCurrency(value || 0)}
@@ -73,7 +73,10 @@ export const ItemRow: React.FC<ItemRowProps> = ({
           </TableCell>
         );
       })}
-      <TableCell className="px-2 font-semibold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right h-6 leading-6 bg-[#F2F2F2]">
+      {/* Coluna vazia para espaçamento */}
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white">
+      </TableCell>
+      <TableCell className={`px-2 font-semibold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right h-6 leading-6 bg-[#F2F2F2] ${isLastItem ? 'border-b' : ''}`}>
         {formatCurrency(itemAnnualTotal)}
       </TableCell>
     </TableRow>

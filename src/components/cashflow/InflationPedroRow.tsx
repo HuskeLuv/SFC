@@ -26,9 +26,17 @@ export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({
     return ((currentMonthValue / previousMonthValue) - 1) * 100;
   };
 
-  // Calcular inflação anual (comparando total anual com zero não faz sentido, então será null)
-  // Ou podemos calcular a média, mas vou deixar como null por enquanto
-  const annualInflation: number | null = null;
+  // Calcular inflação por mês
+  const monthlyInflations = despesasByMonth.map((despesasAtual, index) => {
+    const despesasAnterior = index === 0 ? 0 : despesasByMonth[index - 1];
+    return calculateInflation(despesasAtual, despesasAnterior, index);
+  });
+
+  // Calcular média dos valores mensais (ignorando nulls)
+  const validInflations = monthlyInflations.filter((inf): inf is number => inf !== null);
+  const annualInflation: number | null = validInflations.length > 0 
+    ? validInflations.reduce((sum, inf) => sum + inf, 0) / validInflations.length 
+    : null;
 
   return (
     <TableRow className="h-6 bg-[#D9D9D9]" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}>
@@ -45,32 +53,21 @@ export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({
         -
       </TableCell>
       {despesasByMonth.map((despesasAtual, index) => {
-        const despesasAnterior = index === 0 ? 0 : despesasByMonth[index - 1];
-        const inflation = calculateInflation(despesasAtual, despesasAnterior, index);
+        const inflation = monthlyInflations[index];
         
         return (
           <TableCell 
             key={index} 
-            className={`px-1 font-bold border border-black dark:border-black text-xs w-12 text-right h-6 leading-6 ${
-              inflation === null 
-                ? 'text-gray-500 dark:text-gray-400' 
-                : inflation < 0 
-                  ? 'text-green-600 dark:text-green-400' 
-                  : 'text-red-600 dark:text-red-400'
-            }`}
+            className="px-1 font-bold text-black border border-black dark:border-black text-xs w-12 text-right h-6 leading-6"
           >
             {inflation === null ? '-' : formatPercent(inflation)}
           </TableCell>
         );
       })}
+      {/* Coluna vazia para espaçamento */}
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
       <TableCell 
-        className={`px-2 font-bold border border-black dark:border-black text-xs w-16 text-right h-6 leading-6 ${
-          annualInflation === null 
-            ? 'text-gray-500 dark:text-gray-400' 
-            : annualInflation < 0 
-              ? 'text-green-600 dark:text-green-400' 
-              : 'text-red-600 dark:text-red-400'
-        }`}
+        className="px-2 font-bold text-black border border-black dark:border-black text-xs w-16 text-right h-6 leading-6"
       >
         {annualInflation === null ? '-' : formatPercent(annualInflation)}
       </TableCell>

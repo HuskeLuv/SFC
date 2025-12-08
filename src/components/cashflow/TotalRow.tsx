@@ -22,12 +22,20 @@ export const TotalRow: React.FC<TotalRowProps> = ({ totalByMonth, totalAnnual, s
     <TableCell className="px-2 font-bold text-white border-t border-b border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6">
       -
     </TableCell>
-    {totalByMonth.map((value, index) => (
-      <TableCell key={index} className="px-1 font-bold text-white border border-black dark:border-black text-xs w-12 text-right h-6 leading-6">
-        {formatCurrency(value || 0)}
-      </TableCell>
-    ))}
-    <TableCell className="px-2 font-bold text-white border border-black dark:border-black text-xs w-16 text-right h-6 leading-6">
+    {totalByMonth.map((value, index) => {
+      const numValue = value || 0;
+      const colorClass = numValue >= 0 
+        ? "text-white" 
+        : "text-red-600 dark:text-red-400";
+      return (
+        <TableCell key={index} className={`px-1 font-bold border border-black dark:border-black text-xs w-12 text-right h-6 leading-6 ${colorClass}`}>
+          {formatCurrency(numValue)}
+        </TableCell>
+      );
+    })}
+    {/* Coluna vazia para espaçamento */}
+    <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
+    <TableCell className={`px-2 font-bold border border-black dark:border-black text-xs w-16 text-right h-6 leading-6 ${totalAnnual >= 0 ? "text-white" : "text-red-600 dark:text-red-400"}`}>
       {formatCurrency(totalAnnual)}
     </TableCell>
     {showActionsColumn && (

@@ -146,7 +146,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           return (
             <TableCell
               key={index}
-              className={`px-1 font-normal border border-black dark:border-black text-xs w-12 h-6 leading-6 bg-[#F2F2F2] ${
+              className={`px-1 font-normal border border-black dark:border-black text-xs w-12 h-6 leading-6 bg-[#F2F2F2] ${isLastItem ? 'border-b' : ''} ${
                 isColorModeActive
                   ? "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
                   : ""
@@ -178,7 +178,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           return (
             <TableCell
               key={index}
-              className="px-1 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-12 text-right h-6 leading-6 bg-[#F2F2F2]"
+              className={`px-1 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-12 text-right h-6 leading-6 bg-[#F2F2F2] ${isLastItem ? 'border-b' : ''}`}
             >
               <span style={cellColor ? { color: cellColor } : undefined}>
                 {formatCurrency(value || 0)}
@@ -188,7 +188,11 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         })
       )}
       
-      <TableCell className="px-2 font-semibold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right h-6 leading-6 bg-[#F2F2F2]">
+      {/* Coluna vazia para espaçamento */}
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white">
+      </TableCell>
+      
+      <TableCell className={`px-2 font-semibold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right h-6 leading-6 bg-[#F2F2F2] ${isLastItem ? 'border-b' : ''}`}>
         {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
       </TableCell>
       

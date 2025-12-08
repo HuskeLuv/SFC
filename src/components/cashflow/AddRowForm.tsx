@@ -48,6 +48,8 @@ export const AddRowForm: React.FC<AddRowFormProps> = ({
         -
       </TableCell>
     ))}
+    {/* Coluna vazia para espaçamento */}
+    <TableCell className="px-0 w-[10px] h-6 leading-6 text-xs bg-white dark:bg-white"></TableCell>
     <TableCell className="px-2 border border-black dark:border-black w-16 text-right h-6 leading-6 text-xs bg-[#F2F2F2]">
       -
     </TableCell>

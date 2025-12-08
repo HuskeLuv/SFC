@@ -15,15 +15,16 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   value,
   onChange,
   className = "",
-  placeholder = "0,00",
+  placeholder = "0",
   disabled = false,
   style,
   onClick,
 }) => {
   const [displayValue, setDisplayValue] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Converte número para formato brasileiro
+  // Converte número para formato brasileiro (apenas para exibição quando não está focado)
   const formatToBrazilian = (num: number): string => {
     return num.toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
@@ -31,46 +32,60 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
     });
   };
 
-  // Converte string formatada para número
-  const parseFromBrazilian = (str: string): number => {
-    // Remove tudo exceto números e vírgula
-    const cleaned = str.replace(/[^\d,]/g, "").replace(/\./g, "");
-    // Substitui vírgula por ponto
-    const normalized = cleaned.replace(",", ".");
-    const num = parseFloat(normalized) || 0;
-    return num;
+  // Converte string para número (aceita números com ou sem vírgula/ponto)
+  const parseToNumber = (str: string): number => {
+    // Remove tudo exceto números, vírgula e ponto
+    const cleaned = str.replace(/[^\d,.]/g, "");
+    // Se tem vírgula, trata como decimal brasileiro
+    if (cleaned.includes(",")) {
+      const normalized = cleaned.replace(/\./g, "").replace(",", ".");
+      return parseFloat(normalized) || 0;
+    }
+    // Se tem ponto, pode ser decimal internacional
+    if (cleaned.includes(".")) {
+      return parseFloat(cleaned) || 0;
+    }
+    // Apenas números inteiros
+    return parseFloat(cleaned) || 0;
   };
 
+  // Inicializa o valor quando o componente recebe um novo value
   useEffect(() => {
-    setDisplayValue(formatToBrazilian(value));
-  }, [value]);
+    if (!isFocused) {
+      setDisplayValue(formatToBrazilian(value));
+    }
+  }, [value, isFocused]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
+    // Durante a edição, permite digitar livremente
     setDisplayValue(inputValue);
     
-    const numValue = parseFromBrazilian(inputValue);
-    if (!isNaN(numValue)) {
-      onChange(numValue);
-    }
-  };
-
-  const handleBlur = () => {
-    // Garante formatação correta ao perder foco
-    const numValue = parseFromBrazilian(displayValue);
-    setDisplayValue(formatToBrazilian(numValue));
+    // Converte e atualiza o valor numérico
+    const numValue = parseToNumber(inputValue);
     onChange(numValue);
   };
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    // Seleciona todo o texto ao focar (opcional, pode remover se não quiser)
-    // e.target.select();
+    setIsFocused(true);
+    // Ao focar, mostra apenas o número sem formatação
+    setDisplayValue(value === 0 ? "" : value.toString().replace(".", ","));
+    e.target.select();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    // Ao perder o foco, formata como monetário
+    const numValue = parseToNumber(displayValue);
+    setDisplayValue(formatToBrazilian(numValue));
+    onChange(numValue);
   };
 
   return (
     <input
       ref={inputRef}
       type="text"
+      inputMode="decimal"
       value={displayValue}
       onChange={handleChange}
       onBlur={handleBlur}
