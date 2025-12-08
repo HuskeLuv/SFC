@@ -124,6 +124,22 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
     return group.name;
   };
 
+  const getStickyBackgroundColor = () => {
+    if (isMainEntradasGroup) return '#244062';
+    if (isMainDespesasGroup) return '#800000';
+    if (isEntradasFixasOrVariaveis) return '#366092';
+    if (isDespesasFixasOrVariaveis) return '#CC3300';
+    if (isTributacaoGroup) return '#808080';
+    if (isDespesasEmpresa) return '#16365C';
+    if (isPlanejamentoFinanceiro) return '#9E8A58';
+    if (isInvestimentosGroup) return '#76933C';
+    if (isDespesasFixasSubgroup) return '#404040';
+    // Para outros grupos, usar a cor de fundo calculada
+    if (!group.parentId) return 'rgb(219 234 254)'; // bg-blue-100
+    if (group.children?.length) return 'rgb(220 252 231)'; // bg-green-100
+    return 'rgb(243 244 246)'; // bg-gray-100
+  };
+
   return (
     <TableRow 
       className={`h-6 ${isMainEntradasGroup 
@@ -147,14 +163,27 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
         : getBackgroundColor()}`}
       style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
     >
-      <TableCell className={`px-2 font-bold border-t border-b border-l border-black dark:border-black w-32 text-left h-6 text-xs leading-6 ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white align-middle' : ''}`}>
-        <div className={`flex items-center gap-2 ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'h-6' : ''}`}>
+      <TableCell 
+        className={`px-2 font-bold border-t border-b border-l border-black dark:border-black w-32 text-left h-6 text-xs leading-6 whitespace-nowrap ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white align-middle' : ''}`}
+        style={{ 
+          position: 'sticky',
+          left: 0,
+          zIndex: 55,
+          backgroundColor: getStickyBackgroundColor(),
+          minWidth: '128px',
+          maxWidth: '128px',
+          width: '128px',
+          boxShadow: '1px 0 0 0 rgba(0,0,0,0.1)',
+          overflow: 'hidden'
+        }}
+      >
+        <div className={`flex items-center gap-1 ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'h-6' : ''}`}>
           <CollapseButton 
             isCollapsed={isCollapsed} 
             onClick={onToggleCollapse} 
             groupName={group.name} 
           />
-          <span className={`text-xs ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : getGroupNameColorClass()}`}>{getDisplayName()}</span>
+          <span className={`text-xs truncate flex-1 ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : getGroupNameColorClass()}`}>{getDisplayName()}</span>
           {!isCollapsed && !group.children?.length && group.name !== 'Investimentos' && !isEditing && (
             <AddRowButton 
               onClick={onAddRow} 
@@ -175,13 +204,52 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
           )}
         </div>
       </TableCell>
-      <TableCell className={`px-2 text-xs font-bold border-t border-b border-black dark:border-black w-40 h-6 leading-6 align-middle ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : ''}`}>
+      <TableCell 
+        className={`px-2 text-xs font-bold border-t border-b border-black dark:border-black w-40 h-6 leading-6 align-middle whitespace-nowrap ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : ''}`}
+        style={{ 
+          position: 'sticky',
+          left: '128px',
+          zIndex: 56,
+          backgroundColor: getStickyBackgroundColor(),
+          boxShadow: '2px 0 0 0 black',
+          minWidth: '160px',
+          maxWidth: '160px',
+          width: '160px',
+          overflow: 'hidden'
+        }}
+      >
         -
       </TableCell>
-      <TableCell className={`px-2 text-xs font-bold text-center border-t border-b border-black dark:border-black w-16 h-6 leading-6 align-middle ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : ''}`}>
+      <TableCell 
+        className={`px-2 text-xs font-bold text-center border-t border-b border-black dark:border-black w-16 h-6 leading-6 align-middle whitespace-nowrap ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : ''}`}
+        style={{ 
+          position: 'sticky',
+          left: '288px',
+          zIndex: 57,
+          backgroundColor: getStickyBackgroundColor(),
+          boxShadow: '2px 0 0 0 black',
+          minWidth: '64px',
+          maxWidth: '64px',
+          width: '64px',
+          overflow: 'hidden'
+        }}
+      >
         -
       </TableCell>
-      <TableCell className={`px-2 text-xs font-bold text-right w-16 border-t border-b border-r border-black dark:border-black h-6 leading-6 align-middle ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : getPercentageColorClass()}`}>
+      <TableCell 
+        className={`px-2 text-xs font-bold text-right w-16 border-t border-b border-r border-black dark:border-black h-6 leading-6 align-middle whitespace-nowrap ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : getPercentageColorClass()}`}
+        style={{ 
+          position: 'sticky',
+          left: '352px',
+          zIndex: 58,
+          backgroundColor: getStickyBackgroundColor(),
+          boxShadow: '2px 0 0 0 black',
+          minWidth: '64px',
+          maxWidth: '64px',
+          width: '64px',
+          overflow: 'hidden'
+        }}
+      >
         {group.name === 'Investimentos' ? '-' : (groupPercentage > 0 ? formatPercent(groupPercentage) : '-')}
       </TableCell>
       {groupTotals.map((value, index) => (

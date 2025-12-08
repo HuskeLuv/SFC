@@ -15,7 +15,7 @@ export const CollapseButton: React.FC<CollapseButtonProps> = ({
     onClick={onClick}
     aria-label={isCollapsed ? `Expandir ${groupName}` : `Colapsar ${groupName}`}
     tabIndex={0}
-    className="rounded-full w-6 h-6 flex items-center justify-center border border-gray-300 bg-white dark:bg-gray-800 shadow text-gray-700 dark:text-gray-200 hover:bg-gray-100 focus:outline-none transition-colors"
+    className="rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center border border-gray-300 bg-white dark:bg-gray-800 shadow text-gray-700 dark:text-gray-200 hover:bg-gray-100 focus:outline-none transition-colors"
   >
     {isCollapsed ? (
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">

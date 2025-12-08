@@ -11,7 +11,7 @@ export const EditButton: React.FC<EditButtonProps> = ({ onClick, disabled = fals
       onClick={onClick}
       disabled={disabled}
       aria-label="Editar grupo"
-      className="rounded-full w-6 h-6 flex items-center justify-center border border-blue-600 bg-blue-500 text-white shadow hover:bg-blue-600 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      className="rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center border border-blue-600 bg-blue-500 text-white shadow hover:bg-blue-600 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       title="Editar grupo"
     >
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">

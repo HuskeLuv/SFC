@@ -31,8 +31,8 @@ const ComponentCard: React.FC<ComponentCardProps> = ({
         )}
       </div>
       {/* Card Body */}
-      <div className="p-4 border-t border-gray-100 dark:border-gray-800 sm:p-6">
-        <div className="space-y-6">{children}</div>
+      <div className={`border-t border-gray-100 dark:border-gray-800 ${className.includes('flex flex-col') ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'p-4 sm:p-6'}`}>
+        <div className={className.includes('flex flex-col') ? 'flex-1 flex flex-col min-h-0' : 'space-y-6'}>{children}</div>
       </div>
     </div>
   );

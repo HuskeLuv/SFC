@@ -22,7 +22,17 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       <TableCell
         isHeader
         className="px-2 border-t-2 border-b-2 border-l border-black dark:border-black w-32 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-        style={{ backgroundColor: 'white' }}
+        style={{ 
+          backgroundColor: 'white',
+          position: 'sticky',
+          left: 0,
+          zIndex: 200,
+          minWidth: '128px',
+          maxWidth: '128px',
+          width: '128px',
+          boxShadow: '1px 0 0 0 rgba(0,0,0,0.1)',
+          overflow: 'hidden'
+        }}
       >
         <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
           Itens
@@ -31,7 +41,17 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       <TableCell
         isHeader
         className="px-2 border-t-2 border-b-2 border-black dark:border-black w-40 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-        style={{ backgroundColor: 'white' }}
+        style={{ 
+          backgroundColor: 'white',
+          position: 'sticky',
+          left: '128px',
+          zIndex: 201,
+          boxShadow: '2px 0 0 0 black',
+          minWidth: '160px',
+          maxWidth: '160px',
+          width: '160px',
+          overflow: 'hidden'
+        }}
       >
         <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
           Significado
@@ -40,7 +60,17 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       <TableCell
         isHeader
         className="px-2 border-t-2 border-b-2 border-black dark:border-black w-16 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-        style={{ backgroundColor: 'white' }}
+        style={{ 
+          backgroundColor: 'white',
+          position: 'sticky',
+          left: '288px',
+          zIndex: 202,
+          boxShadow: '2px 0 0 0 black',
+          minWidth: '64px',
+          maxWidth: '64px',
+          width: '64px',
+          overflow: 'hidden'
+        }}
       >
         <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
           Rank
@@ -49,7 +79,17 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       <TableCell
         isHeader
         className="px-2 border-t-2 border-b-2 border-r border-black dark:border-black w-16 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-        style={{ backgroundColor: 'white' }}
+        style={{ 
+          backgroundColor: 'white',
+          position: 'sticky',
+          left: '352px',
+          zIndex: 203,
+          boxShadow: '2px 0 0 0 black',
+          minWidth: '64px',
+          maxWidth: '64px',
+          width: '64px',
+          overflow: 'hidden'
+        }}
       >
         <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
           % Receita
@@ -59,6 +99,7 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
         <TableCell
           key={month}
           isHeader
+          id={index === 0 ? 'first-month-cell' : undefined}
           className="px-1 border-t-2 border-b-2 border-l border-r border-black dark:border-black w-12 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
           style={{ backgroundColor: 'white' }}
         >

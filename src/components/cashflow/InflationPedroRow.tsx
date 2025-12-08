@@ -40,16 +40,68 @@ export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({
 
   return (
     <TableRow className="h-6 bg-[#D9D9D9]" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}>
-      <TableCell className="px-2 font-bold text-black border-t border-b border-l border-black dark:border-black text-xs w-32 text-left h-6 leading-6">
+      <TableCell 
+        className="px-2 font-bold text-black border-t border-b border-l border-black dark:border-black text-xs w-32 text-left h-6 leading-6 whitespace-nowrap"
+        style={{ 
+          position: 'sticky',
+          left: 0,
+          zIndex: 50,
+          backgroundColor: '#D9D9D9',
+          minWidth: '128px',
+          maxWidth: '128px',
+          width: '128px',
+          boxShadow: '1px 0 0 0 rgba(0,0,0,0.1)',
+          overflow: 'hidden'
+        }}
+      >
         Inflação Pedro
       </TableCell>
-      <TableCell className="px-2 font-bold text-black border-t border-b border-black dark:border-black text-xs w-40 h-6 leading-6">
+      <TableCell 
+        className="px-2 font-bold text-black border-t border-b border-black dark:border-black text-xs w-40 h-6 leading-6 whitespace-nowrap"
+        style={{ 
+          position: 'sticky',
+          left: '128px',
+          zIndex: 51,
+          backgroundColor: '#D9D9D9',
+          boxShadow: '2px 0 0 0 black',
+          minWidth: '160px',
+          maxWidth: '160px',
+          width: '160px',
+          overflow: 'hidden'
+        }}
+      >
         -
       </TableCell>
-      <TableCell className="px-2 font-bold text-black border-t border-b border-black dark:border-black text-xs w-16 text-center h-6 leading-6">
+      <TableCell 
+        className="px-2 font-bold text-black border-t border-b border-black dark:border-black text-xs w-16 text-center h-6 leading-6 whitespace-nowrap"
+        style={{ 
+          position: 'sticky',
+          left: '288px',
+          zIndex: 52,
+          backgroundColor: '#D9D9D9',
+          boxShadow: '2px 0 0 0 black',
+          minWidth: '64px',
+          maxWidth: '64px',
+          width: '64px',
+          overflow: 'hidden'
+        }}
+      >
         -
       </TableCell>
-      <TableCell className="px-2 font-bold text-black border-t border-b border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6">
+      <TableCell 
+        className="px-2 font-bold text-black border-t border-b border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6 whitespace-nowrap"
+        style={{ 
+          position: 'sticky',
+          left: '352px',
+          zIndex: 53,
+          backgroundColor: '#D9D9D9',
+          boxShadow: '2px 0 0 0 black',
+          minWidth: '64px',
+          maxWidth: '64px',
+          width: '64px',
+          overflow: 'hidden'
+        }}
+      >
         -
       </TableCell>
       {despesasByMonth.map((despesasAtual, index) => {
