@@ -9,6 +9,7 @@ interface CurrencyInputProps {
   disabled?: boolean;
   style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent<HTMLInputElement>) => void;
+  onBlur?: () => void;
 }
 
 export const CurrencyInput: React.FC<CurrencyInputProps> = ({
@@ -19,6 +20,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   disabled = false,
   style,
   onClick,
+  onBlur: externalOnBlur,
 }) => {
   const [displayValue, setDisplayValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -79,6 +81,10 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
     const numValue = parseToNumber(displayValue);
     setDisplayValue(formatToBrazilian(numValue));
     onChange(numValue);
+    // Chamar callback externo se fornecido
+    if (externalOnBlur) {
+      externalOnBlur();
+    }
   };
 
   return (

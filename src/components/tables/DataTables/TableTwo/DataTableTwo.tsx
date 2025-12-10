@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import React from "react";
 import Alert from "@/components/ui/alert/Alert";
 import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
@@ -17,8 +17,10 @@ import {
   AddRowForm,
   TotalRow,
   SavingsIndexRow,
+  FinancialPeaceIndexRow,
   InflationPedroRow,
-  NewItemRow
+  NewItemRow,
+  PreviousMonthBalanceRow
 } from "@/components/cashflow";
 import { EditableItemRow } from "@/components/cashflow/EditableItemRow";
 import { CashflowItem, CashflowGroup } from "@/types/cashflow";
@@ -44,7 +46,46 @@ export default function DataTableTwo() {
   const processedData = useProcessedData(data);
   const [newItems, setNewItems] = useState<Record<string, CashflowItem>>({});
   const [savingGroups, setSavingGroups] = useState<Set<string>>(new Set());
+  const [previousMonthBalance, setPreviousMonthBalance] = useState<number[]>(Array(12).fill(0));
+  const [isPreviousMonthBalanceEditing, setIsPreviousMonthBalanceEditing] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Função auxiliar para encontrar grupo "Despesas Fixas" recursivamente
+  const findDespesasFixasGroup = useMemo(() => {
+    const findGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
+      for (const group of groups) {
+        if (group.name === 'Despesas Fixas') {
+          return group;
+        }
+        if (group.children && group.children.length > 0) {
+          const found = findGroup(group.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    return findGroup(processedData.groups);
+  }, [processedData.groups]);
+
+  // Calcular valores de Despesas Fixas por mês e anual
+  const despesasFixasData = useMemo(() => {
+    if (!findDespesasFixasGroup) {
+      return {
+        byMonth: Array(12).fill(0),
+        annual: 0
+      };
+    }
+    const groupTotals = processedData.groupTotals[findDespesasFixasGroup.id] || Array(12).fill(0);
+    const annualTotal = processedData.groupAnnualTotals[findDespesasFixasGroup.id] || 0;
+    return {
+      byMonth: groupTotals,
+      annual: annualTotal
+    };
+  }, [findDespesasFixasGroup, processedData.groupTotals, processedData.groupAnnualTotals]);
+
+  // Proventos recebidos (por enquanto vazio, preparado para futuro)
+  const proventosByMonth = useMemo(() => Array(12).fill(0), []);
+  const proventosAnnual = useMemo(() => 0, []);
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
@@ -350,6 +391,27 @@ export default function DataTableTwo() {
                       <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
                     </TableRow>
                   )}
+                  {/* Renderizar "Saldo do mês anterior" antes do primeiro grupo de despesas */}
+                  {isFirstDespesaGroup && (
+                    <>
+                      <PreviousMonthBalanceRow
+                        valuesByMonth={previousMonthBalance}
+                        totalAnnual={previousMonthBalance.reduce((sum, val) => sum + val, 0)}
+                        showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
+                        onUpdateValues={(values) => {
+                          setPreviousMonthBalance(values);
+                          // Aqui você pode adicionar lógica para salvar no backend se necessário
+                        }}
+                        startEditing={startEditing}
+                        stopEditing={stopEditing}
+                        isEditing={isEditing}
+                        isRowEditing={isPreviousMonthBalanceEditing}
+                        onStartRowEdit={() => setIsPreviousMonthBalanceEditing(true)}
+                        onSaveRowEdit={() => setIsPreviousMonthBalanceEditing(false)}
+                        onCancelRowEdit={() => setIsPreviousMonthBalanceEditing(false)}
+                      />
+                    </>
+                  )}
                   {/* Espaçamento antes de grupos principais com margem em cima */}
                   {isMainGroup && needsSpacingBefore(group.name) && group.name !== 'Entradas' && (
                     <TableRow>
@@ -650,7 +712,21 @@ export default function DataTableTwo() {
               showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
             />
             
-            {/* Espaçamento entre Índice de Poupança e Investimentos */}
+            {/* Espaçamento entre Índice de Poupança e Índice Paz Financeira */}
+            <TableRow>
+              <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+            </TableRow>
+            
+            {/* Renderizar Índice Paz Financeira após o Índice de Poupança */}
+            <FinancialPeaceIndexRow
+              proventosByMonth={proventosByMonth}
+              despesasFixasByMonth={despesasFixasData.byMonth}
+              proventosAnnual={proventosAnnual}
+              despesasFixasAnnual={despesasFixasData.annual}
+              showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
+            />
+            
+            {/* Espaçamento entre Índice Paz Financeira e Investimentos */}
             <TableRow>
               <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
             </TableRow>

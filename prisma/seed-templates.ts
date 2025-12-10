@@ -61,8 +61,6 @@ export const CASHFLOW_TEMPLATE_STRUCTURE: CashflowTemplateStructure = {
       { name: '13º Salário' },
       { name: 'Pacote Benefícios' },
       { name: 'Ganho de Capital Aplicações com Isenção' },
-      { name: 'Saldo Caixa Mês anterior' },
-      { name: 'Saldo em conta corrente' },
       { name: 'Férias' },
       { name: 'Outros' },
     ],

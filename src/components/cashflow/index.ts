@@ -12,6 +12,8 @@ export { CurrencyInput } from './CurrencyInput';
 export { AddRowForm } from './AddRowForm';
 export { TotalRow } from './TotalRow'; 
 export { SavingsIndexRow } from './SavingsIndexRow';
+export { FinancialPeaceIndexRow } from './FinancialPeaceIndexRow';
+export { PreviousMonthBalanceRow } from './PreviousMonthBalanceRow';
 export { InflationPedroRow } from './InflationPedroRow';
 export { NewItemRow } from './NewItemRow';
 export { default as NewEditableCell } from './NewEditableCell';

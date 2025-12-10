@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 export type ColorOption = "black" | "green" | "red" | "blue" | "yellow";
 
@@ -23,17 +24,32 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
   isColorModeActive,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (
+        menuRef.current && 
+        !menuRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
 
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
+      // Calcular posição do menu
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        setMenuPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+        });
+      }
     }
 
     return () => {
@@ -69,17 +85,19 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
   };
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={handleButtonClick}
-        aria-label="Alterar cor do texto"
-        className={`rounded-full w-6 h-6 flex items-center justify-center border border-blue-600 bg-blue-500 text-white shadow hover:bg-blue-600 focus:outline-none transition-all ${
-          isColorModeActive
-            ? "ring-2 ring-blue-300"
-            : ""
-        }`}
-        title={isColorModeActive ? "Desativar modo de cor" : "Alterar cor do texto"}
-      >
+    <>
+      <div className="relative">
+        <button
+          ref={buttonRef}
+          onClick={handleButtonClick}
+          aria-label="Alterar cor do texto"
+          className={`rounded-full w-6 h-6 flex items-center justify-center border border-blue-600 bg-blue-500 text-white shadow hover:bg-blue-600 focus:outline-none transition-all ${
+            isColorModeActive
+              ? "ring-2 ring-blue-300"
+              : ""
+          }`}
+          title={isColorModeActive ? "Desativar modo de cor" : "Alterar cor do texto"}
+        >
         <svg
           width="12"
           height="12"
@@ -123,10 +141,19 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
             style={{ backgroundColor: getActiveColorCss() }}
           />
         )}
-      </button>
+        </button>
+      </div>
 
-      {isOpen && (
-        <div className="absolute top-8 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-[140px]">
+      {isOpen && typeof window !== 'undefined' && createPortal(
+        <div 
+          ref={menuRef}
+          className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-[140px]"
+          style={{ 
+            zIndex: 9999,
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left}px`
+          }}
+        >
           <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 px-2">
             Escolher cor:
           </div>
@@ -152,9 +179,10 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
               )}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 };
 
