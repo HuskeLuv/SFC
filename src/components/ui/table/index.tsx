@@ -1,4 +1,4 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, forwardRef } from "react";
 
 // Props for Table
 interface TableProps {
@@ -58,16 +58,18 @@ const TableRow: React.FC<TableRowProps> = ({ children, className, style }) => {
 };
 
 // TableCell Component
-const TableCell: React.FC<TableCellProps> = ({
+const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(({
   children,
   isHeader = false,
   className,
   colSpan,
   style,
   id,
-}) => {
+}, ref) => {
   const CellTag = isHeader ? "th" : "td";
-  return <CellTag id={id} className={` ${className}`} colSpan={colSpan} style={style}>{children}</CellTag>;
-};
+  return <CellTag ref={ref} id={id} className={` ${className}`} colSpan={colSpan} style={style}>{children}</CellTag>;
+});
+
+TableCell.displayName = "TableCell";
 
 export { Table, TableHeader, TableBody, TableRow, TableCell };

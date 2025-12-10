@@ -27,6 +27,7 @@ import { useCellEditing } from "@/hooks/useCellEditing";
 import { useGroupEditMode } from "@/hooks/useGroupEditMode";
 import { getAllItemsInGroup } from "@/utils/cashflowHelpers";
 import { isReceitaGroupByType, formatCurrency } from "@/utils/formatters";
+import { FIXED_COLUMN_BODY_STYLES } from "@/components/cashflow/fixedColumns";
 
 export default function DataTableTwo() {
   const { data, loading, error, refetch } = useCashflowData();
@@ -318,12 +319,13 @@ export default function DataTableTwo() {
       
       <div 
         ref={scrollContainerRef}
-        className="max-w-full flex-1 overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table min-h-0"
+        className="w-full h-full overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table"
         style={{ 
-          scrollBehavior: 'auto'
+          scrollBehavior: 'auto',
+          position: 'relative'
         }}
       >
-        <Table className="relative" style={{ minWidth: 'max-content', borderCollapse: 'separate', borderSpacing: 0 }}>
+        <Table className="relative table-fixed" style={{ minWidth: 'max-content', borderCollapse: 'separate', borderSpacing: 0 }}>
           <TableHeaderComponent 
             showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))} 
           />
@@ -900,81 +902,67 @@ export default function DataTableTwo() {
               return (
                 <TableRow className="h-6" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px', backgroundColor: '#998256' }}>
                   <TableCell 
-                    className="px-2 font-bold text-white border-t border-b border-l border-black dark:border-black text-xs w-32 text-left h-6 leading-6 whitespace-nowrap"
+                    className="px-2 font-bold text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-t-2 border-b-2 border-l-2 border-black border-r-0"
                     style={{ 
                       position: 'sticky',
-                      left: 0,
-                      zIndex: 50,
                       backgroundColor: '#998256',
-                      minWidth: '128px',
-                      maxWidth: '128px',
-                      width: '128px',
-                      boxShadow: '1px 0 0 0 rgba(0,0,0,0.1)',
-                      overflow: 'hidden'
+                      ...FIXED_COLUMN_BODY_STYLES[0],
+                      overflow: 'hidden',
+                      flexShrink: 0
                     }}
                   >
                     Fluxo de Caixa livre
                   </TableCell>
                   <TableCell 
-                    className="px-2 font-bold text-white border-t border-b border-black dark:border-black text-xs w-40 h-6 leading-6 whitespace-nowrap"
+                    className="px-2 font-bold text-white text-xs h-6 leading-6 whitespace-nowrap border-t-2 border-b-2 border-black border-l-0 border-r-0"
                     style={{ 
                       position: 'sticky',
-                      left: '128px',
-                      zIndex: 51,
                       backgroundColor: '#998256',
-                      boxShadow: '2px 0 0 0 black',
-                      minWidth: '160px',
-                      maxWidth: '160px',
-                      width: '160px',
-                      overflow: 'hidden'
+                      ...FIXED_COLUMN_BODY_STYLES[1],
+                      overflow: 'hidden',
+                      flexShrink: 0
                     }}
                   >
                     -
                   </TableCell>
                   <TableCell 
-                    className="px-2 font-bold text-white border-t border-b border-black dark:border-black text-xs w-16 text-center h-6 leading-6 whitespace-nowrap"
+                    className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t-2 border-b-2 border-black border-l-0 border-r-0"
                     style={{ 
                       position: 'sticky',
-                      left: '288px',
-                      zIndex: 52,
                       backgroundColor: '#998256',
-                      boxShadow: '2px 0 0 0 black',
-                      minWidth: '64px',
-                      maxWidth: '64px',
-                      width: '64px',
-                      overflow: 'hidden'
+                      ...FIXED_COLUMN_BODY_STYLES[2],
+                      overflow: 'hidden',
+                      flexShrink: 0
                     }}
                   >
                     -
                   </TableCell>
                   <TableCell 
-                    className="px-2 font-bold text-white border-t border-b border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6 whitespace-nowrap"
+                    className="px-2 font-bold text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t-2 border-b-2 border-black border-l-0 border-r border-gray-300"
                     style={{ 
                       position: 'sticky',
-                      left: '352px',
-                      zIndex: 53,
                       backgroundColor: '#998256',
-                      boxShadow: '2px 0 0 0 black',
-                      minWidth: '64px',
-                      maxWidth: '64px',
-                      width: '64px',
-                      overflow: 'hidden'
+                      ...FIXED_COLUMN_BODY_STYLES[3],
+                      overflow: 'hidden',
+                      flexShrink: 0
                     }}
                   >
                     -
                   </TableCell>
                   {fluxoCaixaLivreAcumulado.map((valor, index) => (
-                    <TableCell key={index} className="px-1 font-bold text-white border border-black dark:border-black text-xs w-12 text-right h-6 leading-6">
+                    <TableCell key={index} className={`px-1 font-bold text-white border-r border-gray-200 text-xs text-right h-6 leading-6 ${
+                      index === 0 ? 'border-l-0' : 'border-l border-gray-200'
+                    }`} style={{ minWidth: '3rem' }}>
                       {formatCurrency(valor || 0)}
                     </TableCell>
                   ))}
                   {/* Coluna vazia para espaçamento */}
                   <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
-                  <TableCell className="px-2 font-bold text-white border border-black dark:border-black text-xs w-16 text-right h-6 leading-6">
+                  <TableCell className="px-2 font-bold text-white border border-gray-200 text-xs text-right h-6 leading-6" style={{ minWidth: '4rem' }}>
                     {formatCurrency(totalAnual)}
                   </TableCell>
                   {processedData.groups.some(g => isGroupEditing(g.id)) && (
-                    <TableCell className="px-2 border border-black dark:border-black w-8 h-6 leading-6"></TableCell>
+                    <TableCell className="px-2 border border-gray-200 w-8 h-6 leading-6"></TableCell>
                   )}
                 </TableRow>
               );
