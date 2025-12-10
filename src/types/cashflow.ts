@@ -16,7 +16,7 @@ export interface CashflowItem {
   groupId: string;
   name: string; // era descricao
   significado: string | null;
-  rank: number | null;
+  rank: string | null;
   values: CashflowValue[]; // era valores
   createdAt?: Date;
   updatedAt?: Date;

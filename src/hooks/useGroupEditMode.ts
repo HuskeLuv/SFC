@@ -6,7 +6,7 @@ export interface EditableItemData {
   id: string;
   name: string;
   significado: string | null;
-  rank: number | null;
+  rank: string | null;
   monthlyValues: number[]; // 12 valores mensais
   monthlyColors: (string | null)[]; // 12 cores mensais (formato CSS)
 }
@@ -124,7 +124,7 @@ export const useGroupEditMode = () => {
       } else if (field === "significado") {
         updated.significado = value as string | null;
       } else if (field === "rank") {
-        updated.rank = value === null || value === "" ? null : parseInt(value.toString(), 10);
+        updated.rank = value === null || value === "" ? null : value.toString();
       } else if (field === "monthlyValue" && typeof monthIndex === "number") {
         updated.monthlyValues = [...updated.monthlyValues];
         updated.monthlyValues[monthIndex] = typeof value === "number" ? value : 0;
@@ -225,7 +225,7 @@ export const useGroupEditMode = () => {
         itemId: string;
         name?: string;
         significado?: string | null;
-        rank?: number | null;
+        rank?: string | null;
         values?: Array<{ month: number; value: number }>;
       }>;
       deletes: string[];

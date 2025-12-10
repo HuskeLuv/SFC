@@ -152,12 +152,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Obter maior rank do grupo
-    const maxRank = await prisma.cashflowItem.findFirst({
-      where: { groupId: grupoInvestimentos!.id },
-      orderBy: { rank: 'desc' },
-      select: { rank: true },
-    });
-
     // Criar o item de investimento
     const investimento = await prisma.cashflowItem.create({
       data: {
@@ -165,7 +159,7 @@ export async function POST(request: NextRequest) {
         groupId: grupoInvestimentos!.id,
         name: itemName,
         significado: significado || null,
-        rank: (maxRank?.rank || 0) + 1,
+        rank: null, // Rank agora é texto, não precisa calcular
       },
     });
 

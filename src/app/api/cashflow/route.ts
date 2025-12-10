@@ -114,7 +114,8 @@ function mergeTemplatesWithCustomizations(
       }
     }
 
-    return result.sort((a, b) => (a.rank || 0) - (b.rank || 0));
+    // Ordenar por nome já que rank não é mais numérico
+    return result.sort((a, b) => a.name.localeCompare(b.name));
   };
 
   return templates.map(template => mergeGroup(template));

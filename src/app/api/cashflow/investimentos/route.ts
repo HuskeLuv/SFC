@@ -169,8 +169,8 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Ordenar por ordem definida (usar rank ou order para compatibilidade)
-    investimentosCalculados.sort((a, b) => (a.rank || a.order || 999) - (b.rank || b.order || 999));
+    // Ordenar por ordem definida (usar order já que rank não é mais numérico)
+    investimentosCalculados.sort((a, b) => (a.order || 999) - (b.order || 999));
     
     // Log para debug
     console.log(`[Cashflow Investimentos] Investimentos calculados: ${investimentosCalculados.length}`);

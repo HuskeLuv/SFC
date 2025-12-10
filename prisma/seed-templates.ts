@@ -15,7 +15,7 @@ export interface CashflowTemplateStructure {
     Array<{
       name: string;
       significado?: string;
-      rank?: number;
+      rank?: string;
     }>
   >;
 }
@@ -44,13 +44,13 @@ export const CASHFLOW_TEMPLATE_STRUCTURE: CashflowTemplateStructure = {
   ],
   itensPorGrupo: {
     'Entradas Fixas': [
-      { name: 'Salário', significado: 'Remuneração mensal', rank: 1 },
-      { name: "Receita Proventos FII's", significado: 'Proventos de fundos imobiliários', rank: 2 },
-      { name: 'Receita Renda Fixa (Préfixado)', significado: 'Renda fixa prefixada', rank: 3 },
-      { name: 'Receita Renda Fixa (Pósfixado)', significado: 'Renda fixa pós-fixada', rank: 4 },
-      { name: 'Receita Renda Fixa (Híbridos)', significado: 'Renda fixa híbrida', rank: 5 },
-      { name: 'Aluguéis', significado: 'Recebimento de aluguéis', rank: 6 },
-      { name: 'Outros', significado: 'Outras receitas fixas', rank: 7 },
+      { name: 'Salário', significado: 'Remuneração mensal', rank: 'essencial' },
+      { name: "Receita Proventos FII's", significado: 'Proventos de fundos imobiliários', rank: 'normal' },
+      { name: 'Receita Renda Fixa (Préfixado)', significado: 'Renda fixa prefixada', rank: 'essencial' },
+      { name: 'Receita Renda Fixa (Pósfixado)', significado: 'Renda fixa pós-fixada', rank: 'normal' },
+      { name: 'Receita Renda Fixa (Híbridos)', significado: 'Renda fixa híbrida', rank: 'essencial' },
+      { name: 'Aluguéis', significado: 'Recebimento de aluguéis', rank: 'normal' },
+      { name: 'Outros', significado: 'Outras receitas fixas', rank: 'essencial' },
     ],
     'Sem Tributação': [
       { name: 'Empréstimos' },

@@ -77,7 +77,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   };
 
   const handleRankChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value === '' ? null : parseInt(e.target.value, 10);
+    const value = e.target.value === '' ? null : e.target.value;
     onUpdateField(item.id, "rank", value);
   };
 
@@ -163,11 +163,11 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
       >
         {isEditing && !isInvestmentItem ? (
           <input
-            type="number"
+            type="text"
             value={displayData.rank || ''}
             onChange={handleRankChange}
             placeholder="Rank"
-            className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-center h-6 leading-6 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-center h-6 leading-6"
           />
         ) : (
           <span>{displayData.rank || '-'}</span>

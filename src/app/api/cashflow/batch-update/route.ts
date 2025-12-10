@@ -15,7 +15,7 @@ import { personalizeItem, getItemForUser } from '@/utils/cashflowPersonalization
  *     itemId: string,
  *     name?: string,
  *     significado?: string | null,
- *     rank?: number | null,
+ *     rank?: string | null,
  *     values?: Array<{ month: number; value: number; color?: string | null }>
  *   }>,
  *   deletes: string[]
@@ -99,7 +99,7 @@ export async function PUT(request: NextRequest) {
           const itemUpdateData: {
             name?: string;
             significado?: string | null;
-            rank?: number | null;
+            rank?: string | null;
           } = {};
 
           if (name !== undefined) itemUpdateData.name = name;

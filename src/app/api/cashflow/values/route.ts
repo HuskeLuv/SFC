@@ -38,12 +38,12 @@ export async function PATCH(request: NextRequest) {
       const updateData: {
         name?: string;
         significado?: string;
-        rank?: number | null;
+        rank?: string | null;
       } = {};
       if (field === 'name' || field === 'descricao') updateData.name = value;
       if (field === 'significado') updateData.significado = value;
       if (field === 'rank') {
-        updateData.rank = value === '' || value === null ? null : parseInt(value.toString(), 10);
+        updateData.rank = value === '' || value === null ? null : value.toString();
       }
 
       updatedItem = await prisma.cashflowItem.update({

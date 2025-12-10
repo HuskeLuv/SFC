@@ -31,13 +31,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the highest rank in the group to set the new item's rank
-    const maxRank = await prisma.cashflowItem.findFirst({
-      where: { groupId: finalGroupId },
-      orderBy: { rank: 'desc' },
-      select: { rank: true }
-    });
-
-    const newRank = (maxRank?.rank || 0) + 1;
+    // Rank agora é texto, não precisa calcular
+    const newRank = null;
 
     // Create the new item (sempre personalizado quando criado pelo usuário)
     const newItem = await prisma.cashflowItem.create({

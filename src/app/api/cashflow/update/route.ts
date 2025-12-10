@@ -27,7 +27,7 @@ import { personalizeGroup, personalizeItem, getItemForUser, getGroupForUser } fr
  *     groupId?: string,
  *     name?: string,
  *     significado?: string,
- *     rank?: number,
+ *     rank?: string,
  *   }
  * }
  */
@@ -278,14 +278,8 @@ async function handleItemOperation(
       finalGroupId = await personalizeGroup(group.id, userId);
     }
 
-    // Obter maior rank do grupo
-    const maxRank = await prisma.cashflowItem.findFirst({
-      where: { groupId: finalGroupId },
-      orderBy: { rank: 'desc' },
-      select: { rank: true },
-    });
-
-    const newRank = (maxRank?.rank || 0) + 1;
+    // Rank agora é texto, não precisa calcular
+    const newRank = null;
 
     // Criar novo item (sempre personalizado quando criado pelo usuário)
     const newItem = await prisma.cashflowItem.create({

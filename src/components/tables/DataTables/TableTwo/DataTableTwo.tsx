@@ -902,55 +902,61 @@ export default function DataTableTwo() {
               return (
                 <TableRow className="h-6" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px', backgroundColor: '#998256' }}>
                   <TableCell 
-                    className="px-2 font-bold text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-t-2 border-b-2 border-l-2 border-black border-r-0"
+                    className="px-2 font-bold text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0"
                     style={{ 
                       position: 'sticky',
                       backgroundColor: '#998256',
                       ...FIXED_COLUMN_BODY_STYLES[0],
                       overflow: 'hidden',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      borderRight: 'none'
                     }}
                   >
                     Fluxo de Caixa livre
                   </TableCell>
                   <TableCell 
-                    className="px-2 font-bold text-white text-xs h-6 leading-6 whitespace-nowrap border-t-2 border-b-2 border-black border-l-0 border-r-0"
+                    className="px-2 font-bold text-white text-xs h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0"
                     style={{ 
                       position: 'sticky',
                       backgroundColor: '#998256',
                       ...FIXED_COLUMN_BODY_STYLES[1],
                       overflow: 'hidden',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      borderLeft: 'none',
+                      borderRight: 'none'
                     }}
                   >
                     -
                   </TableCell>
                   <TableCell 
-                    className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t-2 border-b-2 border-black border-l-0 border-r-0"
+                    className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0"
                     style={{ 
                       position: 'sticky',
                       backgroundColor: '#998256',
                       ...FIXED_COLUMN_BODY_STYLES[2],
                       overflow: 'hidden',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      borderLeft: 'none',
+                      borderRight: 'none'
                     }}
                   >
                     -
                   </TableCell>
                   <TableCell 
-                    className="px-2 font-bold text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t-2 border-b-2 border-black border-l-0 border-r border-gray-300"
+                    className="px-2 font-bold text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300"
                     style={{ 
                       position: 'sticky',
                       backgroundColor: '#998256',
                       ...FIXED_COLUMN_BODY_STYLES[3],
                       overflow: 'hidden',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      borderLeft: 'none'
                     }}
                   >
                     -
                   </TableCell>
                   {fluxoCaixaLivreAcumulado.map((valor, index) => (
-                    <TableCell key={index} className={`px-1 font-bold text-white border-r border-gray-200 text-xs text-right h-6 leading-6 ${
+                    <TableCell key={index} className={`px-1 font-bold text-white border-t border-b border-gray-200 border-r border-gray-200 text-xs text-right h-6 leading-6 ${
                       index === 0 ? 'border-l-0' : 'border-l border-gray-200'
                     }`} style={{ minWidth: '3rem' }}>
                       {formatCurrency(valor || 0)}
