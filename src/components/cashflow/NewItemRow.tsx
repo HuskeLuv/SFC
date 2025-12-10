@@ -2,6 +2,7 @@ import React from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { CashflowItem, CashflowGroup } from "@/types/cashflow";
 import { formatCurrency, isReceitaGroupByType } from "@/utils/formatters";
+import { FIXED_COLUMN_BODY_STYLES } from "./fixedColumns";
 
 interface NewItemRowProps {
   item: CashflowItem;
@@ -29,17 +30,16 @@ export const NewItemRow: React.FC<NewItemRowProps> = ({
   return (
     <TableRow className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-blue-50 dark:bg-blue-800" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}>
       <TableCell 
-        className={`px-2 font-medium text-gray-800 border-l border-black dark:border-black dark:text-white text-xs w-32 text-left h-6 leading-6 whitespace-nowrap ${isLastItem ? 'border-b' : ''}`}
+        className="px-2 font-medium text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap"
         style={{ 
           position: 'sticky',
-          left: 0,
-          zIndex: 50,
           backgroundColor: 'rgb(239 246 255)',
-          minWidth: '128px',
-          maxWidth: '128px',
-          width: '128px',
-          boxShadow: '1px 0 0 0 rgba(0,0,0,0.1)',
-          overflow: 'hidden'
+          ...FIXED_COLUMN_BODY_STYLES[0],
+          overflow: 'hidden',
+          flexShrink: 0,
+          border: 'none',
+          borderLeft: 'none',
+          borderRight: 'none'
         }}
       >
         <span className="cursor-default truncate block">
@@ -47,17 +47,16 @@ export const NewItemRow: React.FC<NewItemRowProps> = ({
         </span>
       </TableCell>
       <TableCell 
-        className={`px-2 font-normal text-gray-800 border-black dark:border-black text-xs dark:text-gray-400 w-40 h-6 leading-6 whitespace-nowrap ${isLastItem ? 'border-b' : ''}`}
+        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 h-6 leading-6 whitespace-nowrap"
         style={{ 
           position: 'sticky',
-          left: '128px',
-          zIndex: 51,
           backgroundColor: 'rgb(239 246 255)',
-          boxShadow: '2px 0 0 0 black',
-          minWidth: '160px',
-          maxWidth: '160px',
-          width: '160px',
-          overflow: 'hidden'
+          ...FIXED_COLUMN_BODY_STYLES[1],
+          overflow: 'hidden',
+          flexShrink: 0,
+          border: 'none',
+          borderLeft: 'none',
+          borderRight: 'none'
         }}
       >
         <span className="cursor-default truncate block">
@@ -65,17 +64,16 @@ export const NewItemRow: React.FC<NewItemRowProps> = ({
         </span>
       </TableCell>
       <TableCell 
-        className={`px-2 font-normal text-gray-800 border-black dark:border-black text-xs dark:text-gray-400 w-16 text-center h-6 leading-6 whitespace-nowrap ${isLastItem ? 'border-b' : ''}`}
+        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 text-center h-6 leading-6 whitespace-nowrap"
         style={{ 
           position: 'sticky',
-          left: '288px',
-          zIndex: 52,
           backgroundColor: 'rgb(239 246 255)',
-          boxShadow: '2px 0 0 0 black',
-          minWidth: '64px',
-          maxWidth: '64px',
-          width: '64px',
-          overflow: 'hidden'
+          ...FIXED_COLUMN_BODY_STYLES[2],
+          overflow: 'hidden',
+          flexShrink: 0,
+          border: 'none',
+          borderLeft: 'none',
+          borderRight: 'none'
         }}
       >
         <span className="cursor-default">
@@ -83,30 +81,29 @@ export const NewItemRow: React.FC<NewItemRowProps> = ({
         </span>
       </TableCell>
       <TableCell 
-        className={`px-2 font-normal border-r border-black dark:border-black text-xs w-16 text-right h-6 leading-6 whitespace-nowrap ${isLastItem ? 'border-b' : ''} ${getPercentageColorClass()}`}
+        className={`px-2 font-normal text-xs text-right h-6 leading-6 whitespace-nowrap ${getPercentageColorClass()}`}
         style={{ 
           position: 'sticky',
-          left: '352px',
-          zIndex: 53,
           backgroundColor: 'rgb(239 246 255)',
-          boxShadow: '2px 0 0 0 black',
-          minWidth: '64px',
-          maxWidth: '64px',
-          width: '64px',
-          overflow: 'hidden'
+          ...FIXED_COLUMN_BODY_STYLES[3],
+          overflow: 'hidden',
+          flexShrink: 0,
+          border: 'none',
+          borderLeft: 'none',
+          borderRight: 'none'
         }}
       >
         -
       </TableCell>
       {Array.from({ length: 12 }).map((_, index) => (
-        <TableCell key={index} className={`px-1 font-normal text-gray-800 border border-black dark:border-black text-xs dark:text-gray-400 w-12 text-right cursor-default h-6 leading-6 bg-[#F2F2F2] ${isLastItem ? 'border-b' : ''}`}>
+        <TableCell key={index} className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right cursor-default h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white" style={{ minWidth: '3rem' }}>
           {formatCurrency(0)}
         </TableCell>
       ))}
       {/* Coluna vazia para espaçamento */}
       <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white">
       </TableCell>
-      <TableCell className={`px-2 font-semibold text-gray-800 border border-black dark:border-black text-xs dark:text-white w-16 text-right h-6 leading-6 bg-[#F2F2F2] ${isLastItem ? 'border-b' : ''}`}>
+      <TableCell className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white" style={{ minWidth: '4rem' }}>
         {formatCurrency(0)}
       </TableCell>
     </TableRow>

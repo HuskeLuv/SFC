@@ -1,107 +1,73 @@
 import React from "react";
 import { TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { MONTHS } from "@/constants/cashflow";
+import { FIXED_COLUMN_HEADER_STYLES } from "./fixedColumns";
 
 interface TableHeaderComponentProps {
   showActionsColumn?: boolean;
 }
 
+// Estilos comuns para células sticky do cabeçalho
+const stickyHeaderCellStyle = {
+  backgroundColor: 'white' as const,
+  position: 'sticky' as const,
+  top: 0,
+  zIndex: 400,
+};
+
 export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({ 
   showActionsColumn = false 
 }) => (
-  <TableHeader className="sticky top-0 z-30" style={{ isolation: 'isolate' }}>
+  <TableHeader 
+    style={{ 
+      position: 'sticky',
+      top: 0,
+      zIndex: 400,
+      backgroundColor: 'white',
+      isolation: 'isolate',
+    }}
+  >
     <TableRow 
       className="h-6" 
       style={{ 
         fontFamily: 'Calibri, sans-serif', 
         fontSize: '12px',
-        boxShadow: '0 2px 0 0 black, 0 -2px 0 0 black',
         backgroundColor: 'white'
       }}
     >
-      <TableCell
-        isHeader
-        className="px-2 border-t-2 border-b-2 border-l border-black dark:border-black w-32 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-        style={{ 
-          backgroundColor: 'white',
-          position: 'sticky',
-          left: 0,
-          zIndex: 200,
-          minWidth: '128px',
-          maxWidth: '128px',
-          width: '128px',
-          boxShadow: '1px 0 0 0 rgba(0,0,0,0.1)',
-          overflow: 'hidden'
-        }}
-      >
-        <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
-          Itens
-        </p>
-      </TableCell>
-      <TableCell
-        isHeader
-        className="px-2 border-t-2 border-b-2 border-black dark:border-black w-40 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-        style={{ 
-          backgroundColor: 'white',
-          position: 'sticky',
-          left: '128px',
-          zIndex: 201,
-          boxShadow: '2px 0 0 0 black',
-          minWidth: '160px',
-          maxWidth: '160px',
-          width: '160px',
-          overflow: 'hidden'
-        }}
-      >
-        <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
-          Significado
-        </p>
-      </TableCell>
-      <TableCell
-        isHeader
-        className="px-2 border-t-2 border-b-2 border-black dark:border-black w-16 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-        style={{ 
-          backgroundColor: 'white',
-          position: 'sticky',
-          left: '288px',
-          zIndex: 202,
-          boxShadow: '2px 0 0 0 black',
-          minWidth: '64px',
-          maxWidth: '64px',
-          width: '64px',
-          overflow: 'hidden'
-        }}
-      >
-        <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
-          Rank
-        </p>
-      </TableCell>
-      <TableCell
-        isHeader
-        className="px-2 border-t-2 border-b-2 border-r border-black dark:border-black w-16 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-        style={{ 
-          backgroundColor: 'white',
-          position: 'sticky',
-          left: '352px',
-          zIndex: 203,
-          boxShadow: '2px 0 0 0 black',
-          minWidth: '64px',
-          maxWidth: '64px',
-          width: '64px',
-          overflow: 'hidden'
-        }}
-      >
-        <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
-          % Receita
-        </p>
-      </TableCell>
+      {['Itens', 'Significado', 'Rank', '% Receita'].map((label, index) => (
+        <TableCell
+          key={label}
+          isHeader
+          className="px-2 border-t border-b border-gray-200 text-center h-6 text-xs leading-6 bg-white dark:bg-white whitespace-nowrap"
+          style={{ 
+            ...stickyHeaderCellStyle,
+            ...FIXED_COLUMN_HEADER_STYLES[index],
+            overflow: 'hidden',
+            flexShrink: 0,
+            borderTop: '1px solid rgb(229 231 235)',
+            borderBottom: '1px solid rgb(229 231 235)',
+            borderLeft: index === 0 ? '1px solid rgb(229 231 235)' : 'none',
+            borderRight: index === 3 ? '1px solid rgb(203 213 225)' : 'none'
+          }}
+        >
+          <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
+            {label}
+          </p>
+        </TableCell>
+      ))}
       {MONTHS.map((month, index) => (
         <TableCell
           key={month}
           isHeader
           id={index === 0 ? 'first-month-cell' : undefined}
-          className="px-1 border-t-2 border-b-2 border-l border-r border-black dark:border-black w-12 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-          style={{ backgroundColor: 'white' }}
+          className={`px-1 border-t border-b border-gray-200 border-r border-gray-200 text-center h-6 text-xs leading-6 bg-white dark:bg-white whitespace-nowrap ${
+            index === 0 ? 'border-l-0' : 'border-l border-gray-200'
+          }`}
+          style={{
+            ...stickyHeaderCellStyle,
+            minWidth: '3rem'
+          }}
         >
           <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
             {month}
@@ -134,8 +100,11 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       </TableCell>
       <TableCell
         isHeader
-        className="px-2 border-t-2 border-b-2 border-l border-r border-black dark:border-black w-16 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-        style={{ backgroundColor: 'white' }}
+        className="px-2 border-t border-b border-gray-200 border border-gray-200 text-center h-6 text-xs leading-6 bg-white dark:bg-white whitespace-nowrap"
+        style={{
+          ...stickyHeaderCellStyle,
+          minWidth: '4rem'
+        }}
       >
         <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
           Total Anual
@@ -144,8 +113,11 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       {showActionsColumn && (
         <TableCell
           isHeader
-          className="px-2 border-t-2 border-b-2 border-l border-r border-black dark:border-black w-8 text-center h-6 text-xs leading-6 bg-white dark:bg-white z-30"
-          style={{ backgroundColor: 'white' }}
+          className="px-2 border-t border-b border-gray-200 border border-gray-200 text-center h-6 text-xs leading-6 bg-white dark:bg-white whitespace-nowrap"
+          style={{
+            ...stickyHeaderCellStyle,
+            minWidth: '2rem'
+          }}
         >
           <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
             Ações

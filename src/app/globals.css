@@ -848,3 +848,22 @@ span.flatpickr-weekday,
 .cashflow-table table tr {
   font-family: Calibri, sans-serif;
 }
+
+/* Cashflow - Remover bordas laterais entre as 4 primeiras colunas */
+.cashflow-table table th:nth-child(2),
+.cashflow-table table th:nth-child(3),
+.cashflow-table table td:nth-child(2),
+.cashflow-table table td:nth-child(3) {
+  border-left: none !important;
+  border-right: none !important;
+}
+
+.cashflow-table table th:nth-child(1),
+.cashflow-table table td:nth-child(1) {
+  border-right: none !important;
+}
+
+.cashflow-table table th:nth-child(4),
+.cashflow-table table td:nth-child(4) {
+  border-left: none !important;
+}

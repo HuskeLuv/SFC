@@ -6,8 +6,8 @@ import { CollapseButton } from "./CollapseButton";
 import { AddRowButton } from "./AddRowButton";
 import { EditButton } from "./EditButton";
 import { SaveCancelButtons } from "./SaveCancelButtons";
-
 import { ColorOption } from "./ColorPickerButton";
+import { FIXED_COLUMN_BODY_STYLES } from "./fixedColumns";
 
 interface GroupHeaderProps {
   group: CashflowGroup;
@@ -164,17 +164,15 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
     >
       <TableCell 
-        className={`px-2 font-bold border-t border-b border-l border-black dark:border-black w-32 text-left h-6 text-xs leading-6 whitespace-nowrap ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white align-middle' : ''}`}
+        className={`px-2 font-bold text-left h-6 text-xs leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0 ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white align-middle' : ''}`}
         style={{ 
           position: 'sticky',
-          left: 0,
-          zIndex: 55,
           backgroundColor: getStickyBackgroundColor(),
-          minWidth: '128px',
-          maxWidth: '128px',
-          width: '128px',
-          boxShadow: '1px 0 0 0 rgba(0,0,0,0.1)',
-          overflow: 'hidden'
+          ...FIXED_COLUMN_BODY_STYLES[0],
+          zIndex: 55,
+          overflow: 'hidden',
+          flexShrink: 0,
+          borderRight: 'none'
         }}
       >
         <div className={`flex items-center gap-1 ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'h-6' : ''}`}>
@@ -205,65 +203,63 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
         </div>
       </TableCell>
       <TableCell 
-        className={`px-2 text-xs font-bold border-t border-b border-black dark:border-black w-40 h-6 leading-6 align-middle whitespace-nowrap ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : ''}`}
+        className={`px-2 text-xs font-bold h-6 leading-6 align-middle whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : ''}`}
         style={{ 
           position: 'sticky',
-          left: '128px',
+          backgroundColor: getStickyBackgroundColor(),
+          ...FIXED_COLUMN_BODY_STYLES[1],
           zIndex: 56,
-          backgroundColor: getStickyBackgroundColor(),
-          boxShadow: '2px 0 0 0 black',
-          minWidth: '160px',
-          maxWidth: '160px',
-          width: '160px',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          flexShrink: 0,
+          borderLeft: 'none',
+          borderRight: 'none'
         }}
       >
         -
       </TableCell>
       <TableCell 
-        className={`px-2 text-xs font-bold text-center border-t border-b border-black dark:border-black w-16 h-6 leading-6 align-middle whitespace-nowrap ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : ''}`}
+        className={`px-2 text-xs font-bold text-center h-6 leading-6 align-middle whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : ''}`}
         style={{ 
           position: 'sticky',
-          left: '288px',
+          backgroundColor: getStickyBackgroundColor(),
+          ...FIXED_COLUMN_BODY_STYLES[2],
           zIndex: 57,
-          backgroundColor: getStickyBackgroundColor(),
-          boxShadow: '2px 0 0 0 black',
-          minWidth: '64px',
-          maxWidth: '64px',
-          width: '64px',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          flexShrink: 0,
+          borderLeft: 'none',
+          borderRight: 'none'
         }}
       >
         -
       </TableCell>
       <TableCell 
-        className={`px-2 text-xs font-bold text-right w-16 border-t border-b border-r border-black dark:border-black h-6 leading-6 align-middle whitespace-nowrap ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : getPercentageColorClass()}`}
+        className={`px-2 text-xs font-bold text-right h-6 leading-6 align-middle whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300 ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : getPercentageColorClass()}`}
         style={{ 
           position: 'sticky',
-          left: '352px',
-          zIndex: 58,
           backgroundColor: getStickyBackgroundColor(),
-          boxShadow: '2px 0 0 0 black',
-          minWidth: '64px',
-          maxWidth: '64px',
-          width: '64px',
-          overflow: 'hidden'
+          ...FIXED_COLUMN_BODY_STYLES[3],
+          zIndex: 58,
+          overflow: 'hidden',
+          flexShrink: 0,
+          borderLeft: 'none'
         }}
       >
         {group.name === 'Investimentos' ? '-' : (groupPercentage > 0 ? formatPercent(groupPercentage) : '-')}
       </TableCell>
       {groupTotals.map((value, index) => (
-        <TableCell key={index} className={`px-1 text-xs font-bold text-right w-12 border border-black dark:border-black h-6 leading-6 align-middle ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : 'text-blue-900 dark:text-blue-100'}`}>
+        <TableCell key={index} className={`px-1 text-xs font-bold text-right border-t border-b border-gray-200 border-r border-gray-200 h-6 leading-6 align-middle ${
+          index === 0 ? 'border-l-0' : 'border-l border-gray-200'
+        } ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : 'text-blue-900 dark:text-blue-100'}`} style={{ minWidth: '3rem' }}>
           {formatCurrency(value || 0)}
         </TableCell>
       ))}
       {/* Coluna vazia para espaçamento */}
       <TableCell className="px-0 w-[10px] h-6 leading-6 align-middle bg-white dark:bg-white"></TableCell>
-      <TableCell className={`px-2 text-xs font-bold text-right w-16 border border-black dark:border-black h-6 leading-6 align-middle ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : 'text-blue-900 dark:text-blue-100'}`}>
+      <TableCell className={`px-2 text-xs font-bold text-right border-t border-b border-gray-200 border border-gray-200 h-6 leading-6 align-middle ${(isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup) ? 'text-white' : 'text-blue-900 dark:text-blue-100'}`} style={{ minWidth: '4rem' }}>
         {formatCurrency(groupAnnualTotal)}
       </TableCell>
       {showActionsColumn && (
-        <TableCell className="px-2 border border-black dark:border-black w-8 h-6 leading-6 align-middle"></TableCell>
+        <TableCell className="px-2 border border-gray-200 w-8 h-6 leading-6 align-middle"></TableCell>
       )}
     </TableRow>
   );
