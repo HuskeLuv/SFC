@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
 export async function POST(req: NextRequest) {
-  const { email, password } = await req.json();
+  const { email, password, rememberMe } = await req.json();
   if (!email || !password) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
   }
@@ -16,10 +16,15 @@ export async function POST(req: NextRequest) {
   if (!valid) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   }
+  
+  // Se rememberMe for true, token expira em 7 dias (1 semana), senão em 1 dia
+  const expiresIn = rememberMe ? '7d' : '1d';
+  const maxAge = rememberMe ? 60 * 60 * 24 * 7 : 60 * 60 * 24; // 7 dias ou 1 dia
+  
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role },
     process.env.JWT_SECRET!,
-    { expiresIn: '7d' }
+    { expiresIn }
   );
   const response = NextResponse.json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
@@ -28,7 +33,7 @@ export async function POST(req: NextRequest) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge,
     path: '/',
   });
   return response;

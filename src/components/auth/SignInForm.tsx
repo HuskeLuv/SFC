@@ -31,7 +31,7 @@ export default function SignInForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe: isChecked }),
       });
       if (!res.ok) {
         const data = await res.json();
