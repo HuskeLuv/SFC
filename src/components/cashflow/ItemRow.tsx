@@ -32,7 +32,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
 
   const getPercentageColorClass = () => {
     return isReceita 
-      ? "text-green-600 dark:text-green-400" 
+      ? "text-black dark:text-black" 
       : "text-red-600 dark:text-red-400";
   };
 
