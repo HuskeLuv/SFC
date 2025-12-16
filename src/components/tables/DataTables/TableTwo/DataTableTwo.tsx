@@ -46,8 +46,6 @@ export default function DataTableTwo() {
   const processedData = useProcessedData(data);
   const [newItems, setNewItems] = useState<Record<string, CashflowItem>>({});
   const [savingGroups, setSavingGroups] = useState<Set<string>>(new Set());
-  const [previousMonthBalance, setPreviousMonthBalance] = useState<number[]>(Array(12).fill(0));
-  const [isPreviousMonthBalanceEditing, setIsPreviousMonthBalanceEditing] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Função auxiliar para encontrar grupo "Despesas Fixas" recursivamente
@@ -86,6 +84,49 @@ export default function DataTableTwo() {
   // Proventos recebidos (por enquanto vazio, preparado para futuro)
   const proventosByMonth = useMemo(() => Array(12).fill(0), []);
   const proventosAnnual = useMemo(() => 0, []);
+
+  // Calcular Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior
+  const previousMonthBalance = useMemo(() => {
+    // Encontrar o grupo "Investimentos" para obter valores de aportes/resgates
+    const findInvestimentosGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
+      for (const group of groups) {
+        if (group.name === 'Investimentos' || group.type === 'investimento') {
+          return group;
+        }
+        if (group.children) {
+          const found = findInvestimentosGroup(group.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    const investimentosGroup = findInvestimentosGroup(processedData.groups);
+    const investimentosByMonth = investimentosGroup 
+      ? (processedData.groupTotals[investimentosGroup.id] || Array(12).fill(0))
+      : Array(12).fill(0);
+    
+    const saldo: number[] = [];
+    // Calcular fluxo de caixa livre acumulado usando a fórmula:
+    // Fluxo de Caixa Livre = (Saldo do mês atual) - (Aportes/Resgates) + (Saldo do mês anterior)
+    const fluxoCaixaLivreAcumulado: number[] = [];
+    for (let index = 0; index < 12; index++) {
+      // Saldo do mês atual = Entradas - Despesas
+      const saldoMesAtual = processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
+      // Aportes/Resgates do mês atual
+      const aportesResgates = investimentosByMonth[index] || 0;
+      // Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior
+      const saldoNaoInvestidoMesAnterior = index === 0 ? 0 : (fluxoCaixaLivreAcumulado[index - 1] || 0);
+      
+      // Fórmula: (Saldo do mês atual) - (Aportes/Resgates) + (Saldo Não Investido no Mês Anterior)
+      const fluxoCaixaLivre = saldoMesAtual - aportesResgates + saldoNaoInvestidoMesAnterior;
+      fluxoCaixaLivreAcumulado.push(fluxoCaixaLivre);
+      
+      // Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior
+      saldo.push(saldoNaoInvestidoMesAnterior);
+    }
+    return saldo;
+  }, [processedData.entradasByMonth, processedData.despesasByMonth, processedData.groups, processedData.groupTotals]);
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
@@ -398,17 +439,6 @@ export default function DataTableTwo() {
                         valuesByMonth={previousMonthBalance}
                         totalAnnual={previousMonthBalance.reduce((sum, val) => sum + val, 0)}
                         showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
-                        onUpdateValues={(values) => {
-                          setPreviousMonthBalance(values);
-                          // Aqui você pode adicionar lógica para salvar no backend se necessário
-                        }}
-                        startEditing={startEditing}
-                        stopEditing={stopEditing}
-                        isEditing={isEditing}
-                        isRowEditing={isPreviousMonthBalanceEditing}
-                        onStartRowEdit={() => setIsPreviousMonthBalanceEditing(true)}
-                        onSaveRowEdit={() => setIsPreviousMonthBalanceEditing(false)}
-                        onCancelRowEdit={() => setIsPreviousMonthBalanceEditing(false)}
                       />
                     </>
                   )}
@@ -959,18 +989,39 @@ export default function DataTableTwo() {
             
             {/* Linha Fluxo de Caixa livre */}
             {(() => {
-              // Calcular valores acumulados mês a mês
+              // Encontrar o grupo "Investimentos" para obter valores de aportes/resgates
+              const findInvestimentosGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
+                for (const group of groups) {
+                  if (group.name === 'Investimentos' || group.type === 'investimento') {
+                    return group;
+                  }
+                  if (group.children) {
+                    const found = findInvestimentosGroup(group.children);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+              
+              const investimentosGroup = findInvestimentosGroup(processedData.groups);
+              const investimentosByMonth = investimentosGroup 
+                ? (processedData.groupTotals[investimentosGroup.id] || Array(12).fill(0))
+                : Array(12).fill(0);
+              
+              // Calcular Fluxo de Caixa Livre usando a fórmula:
+              // Fluxo de Caixa Livre = (Saldo do mês atual) - (Aportes/Resgates) + (Saldo Não Investido no Mês Anterior)
               const fluxoCaixaLivreAcumulado: number[] = [];
               for (let index = 0; index < 12; index++) {
-                const fluxoMesAtual = processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
-                if (index === 0) {
-                  // Janeiro: apenas o valor do mês atual
-                  fluxoCaixaLivreAcumulado.push(fluxoMesAtual);
-                } else {
-                  // Outros meses: valor do mês atual + valor acumulado do mês anterior
-                  const valorMesAnterior = fluxoCaixaLivreAcumulado[index - 1] || 0;
-                  fluxoCaixaLivreAcumulado.push(fluxoMesAtual + valorMesAnterior);
-                }
+                // Saldo do mês atual = Entradas - Despesas
+                const saldoMesAtual = processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
+                // Aportes/Resgates do mês atual
+                const aportesResgates = investimentosByMonth[index] || 0;
+                // Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior
+                const saldoNaoInvestidoMesAnterior = index === 0 ? 0 : (fluxoCaixaLivreAcumulado[index - 1] || 0);
+                
+                // Fórmula: (Saldo do mês atual) - (Aportes/Resgates) + (Saldo Não Investido no Mês Anterior)
+                const fluxoCaixaLivre = saldoMesAtual - aportesResgates + saldoNaoInvestidoMesAnterior;
+                fluxoCaixaLivreAcumulado.push(fluxoCaixaLivre);
               }
               
               const totalAnual = fluxoCaixaLivreAcumulado[11] || 0;
