@@ -31,9 +31,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
   const isInvestmentItem = group.type === 'investimento' || item.id.startsWith('investimento-');
 
   const getPercentageColorClass = () => {
-    return isReceita 
-      ? "text-black dark:text-black" 
-      : "text-red-600 dark:text-red-400";
+    return "text-black dark:text-black";
   };
 
   return (

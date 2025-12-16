@@ -67,10 +67,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   };
 
   const getPercentageColorClass = () => {
-    const isReceita = isReceitaGroupByType(group.type);
-    return isReceita 
-      ? "text-black dark:text-black" 
-      : "text-red-600 dark:text-red-400";
+    return "text-black dark:text-black";
   };
 
   const getGroupNameColorClass = () => {

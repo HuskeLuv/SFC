@@ -22,9 +22,7 @@ export const NewItemRow: React.FC<NewItemRowProps> = ({
   const isReceita = isReceitaGroupByType(group.type);
 
   const getPercentageColorClass = () => {
-    return isReceita 
-      ? "text-green-600 dark:text-green-400" 
-      : "text-red-600 dark:text-red-400";
+    return "text-black dark:text-black";
   };
 
   return (
