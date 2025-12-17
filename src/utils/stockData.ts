@@ -16,12 +16,23 @@ export interface StockPriceData {
 }
 
 /**
- * Busca dados de ativos da API da B3
+ * Busca dados de ativos da API brapi.dev
  * @returns Promise com array de dados dos ativos
  */
 export async function fetchB3Stocks(): Promise<B3StockData[]> {
   try {
-    const response = await fetch('https://arquivos.b3.com.br/apinegocios/ticker');
+    const apiKey = process.env.BRAPI_API_KEY;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+    
+    const response = await fetch('https://brapi.dev/api/quote/list', {
+      headers
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -29,40 +40,31 @@ export async function fetchB3Stocks(): Promise<B3StockData[]> {
     
     const data = await response.json();
     
-    // Processar os dados da API da B3
-    // A estrutura pode variar, então vamos adaptar conforme necessário
-    if (Array.isArray(data)) {
-      return data.map((item: { ticker?: string; symbol?: string; code?: string; companyName?: string; name?: string; company?: string; sector?: string; industry?: string; subsector?: string; subIndustry?: string; segment?: string; market?: string }) => ({
-        ticker: item.ticker || item.symbol || item.code || '',
-        companyName: item.companyName || item.name || item.company || '',
-        sector: item.sector || item.industry || '',
-        subsector: item.subsector || item.subIndustry || '',
-        segment: item.segment || item.market || '',
+    // A API brapi.dev retorna { stocks: [...] }
+    if (data.stocks && Array.isArray(data.stocks)) {
+      return data.stocks.map((item: { 
+        stock?: string; 
+        name?: string;
+        sector?: string;
+        subsector?: string;
+        segment?: string;
+      }) => ({
+        ticker: item.stock || '',
+        companyName: item.name || item.stock || '',
+        sector: item.sector || undefined,
+        subsector: item.subsector || undefined,
+        segment: item.segment || undefined,
       })).filter((stock: B3StockData) => 
         stock.ticker && stock.companyName && 
         stock.ticker.length > 0 && stock.companyName.length > 0
       );
     }
     
-    // Se não for um array, tentar extrair de outra estrutura
-    if (data.data && Array.isArray(data.data)) {
-      return data.data.map((item: { ticker?: string; symbol?: string; code?: string; companyName?: string; name?: string; company?: string; sector?: string; industry?: string; subsector?: string; subIndustry?: string; segment?: string; market?: string }) => ({
-        ticker: item.ticker || item.symbol || item.code || '',
-        companyName: item.companyName || item.name || item.company || '',
-        sector: item.sector || item.industry || '',
-        subsector: item.subsector || item.subIndustry || '',
-        segment: item.segment || item.market || '',
-      })).filter((stock: B3StockData) => 
-        stock.ticker && stock.companyName && 
-        stock.ticker.length > 0 && stock.companyName.length > 0
-      );
-    }
-    
-    console.warn('Estrutura de dados inesperada da API da B3:', data);
+    console.warn('Estrutura de dados inesperada da API brapi.dev:', data);
     return [];
     
   } catch (error) {
-    console.error('Erro ao buscar dados da B3:', error);
+    console.error('Erro ao buscar dados da brapi.dev:', error);
     
     // Dados de fallback para desenvolvimento
     return getFallbackStocks();

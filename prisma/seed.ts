@@ -1,6 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ConsultantClientStatus, UserRole } from '@prisma/client';
 import bcrypt from 'bcrypt';
+
 const prisma = new PrismaClient();
+
+// ===== SEED INSTITUTIONS =====
 
 async function seedInstitutions() {
   const institutions = [
@@ -27,7 +30,6 @@ async function seedInstitutions() {
   console.log('🏦 Cadastrando instituições bancárias...\n');
 
   for (const institution of institutions) {
-    // Converter status de 'ATIVO' para 'ATIVA' (enum esperado)
     const statusEnum = institution.status === 'ATIVO' ? 'ATIVA' : 'INATIVA';
     
     await prisma.institution.upsert({
@@ -51,6 +53,646 @@ async function seedInstitutions() {
   console.log(`\n✅ ${institutions.length} instituições bancárias cadastradas!\n`);
 }
 
+// ===== CASHFLOW TEMPLATES STRUCTURE =====
+
+const CASHFLOW_TEMPLATE_STRUCTURE = {
+  grupos: [
+    { name: 'Entradas', orderIndex: 1, parentId: null, type: 'entrada' as const },
+    { name: 'Entradas Fixas', orderIndex: 1, parentId: 'Entradas', type: 'entrada' as const },
+    { name: 'Entradas Variáveis', orderIndex: 2, parentId: 'Entradas', type: 'entrada' as const },
+    { name: 'Sem Tributação', orderIndex: 1, parentId: 'Entradas Variáveis', type: 'entrada' as const },
+    { name: 'Com Tributação', orderIndex: 2, parentId: 'Entradas Variáveis', type: 'entrada' as const },
+    { name: 'Despesas', orderIndex: 2, parentId: null, type: 'despesa' as const },
+    { name: 'Despesas Fixas', orderIndex: 1, parentId: 'Despesas', type: 'despesa' as const },
+    { name: 'Habitação', orderIndex: 1, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Transporte', orderIndex: 2, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Saúde', orderIndex: 3, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Educação', orderIndex: 4, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Animais de Estimação', orderIndex: 5, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Despesas Pessoais', orderIndex: 6, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Lazer', orderIndex: 7, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Impostos', orderIndex: 8, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Despesas Empresa', orderIndex: 9, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Planejamento Financeiro', orderIndex: 10, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    { name: 'Despesas Variáveis', orderIndex: 2, parentId: 'Despesas', type: 'despesa' as const },
+    { name: 'Investimentos', orderIndex: 3, parentId: null, type: 'investimento' as const },
+  ],
+  itensPorGrupo: {
+    'Entradas Fixas': [
+      { name: 'Salário', significado: 'Remuneração mensal', rank: 'essencial' },
+      { name: "Receita Proventos FII's", significado: 'Proventos de fundos imobiliários', rank: 'normal' },
+      { name: 'Receita Renda Fixa (Préfixado)', significado: 'Renda fixa prefixada', rank: 'essencial' },
+      { name: 'Receita Renda Fixa (Pósfixado)', significado: 'Renda fixa pós-fixada', rank: 'normal' },
+      { name: 'Receita Renda Fixa (Híbridos)', significado: 'Renda fixa híbrida', rank: 'essencial' },
+      { name: 'Aluguéis', significado: 'Recebimento de aluguéis', rank: 'normal' },
+      { name: 'Outros', significado: 'Outras receitas fixas', rank: 'essencial' },
+    ],
+    'Sem Tributação': [
+      { name: 'Empréstimos' },
+      { name: 'Recebimento de Terceiros' },
+      { name: 'Venda de Opções' },
+      { name: 'DayTrade' },
+      { name: 'Cash Back' },
+      { name: '13º Salário' },
+      { name: 'Pacote Benefícios' },
+      { name: 'Ganho de Capital Aplicações com Isenção' },
+      { name: 'Férias' },
+      { name: 'Outros' },
+    ],
+    'Com Tributação': [
+      { name: 'Empresa' },
+      { name: 'Doações' },
+      { name: 'Ganho de Capital Aplicações SEM Isenção' },
+      { name: 'Outros' },
+    ],
+    'Habitação': [
+      { name: 'Aluguel / Prestação' },
+      { name: 'Condomínio' },
+      { name: 'IPTU + Taxas Municipais' },
+      { name: 'Conta de energia' },
+      { name: 'Internet' },
+      { name: 'Conta de água' },
+      { name: 'Gás' },
+      { name: 'Alarme' },
+      { name: 'Telefone fixo' },
+      { name: 'Telefones celulares' },
+      { name: 'Supermercado' },
+      { name: 'Padaria' },
+      { name: 'Empregados/ Diaristas' },
+      { name: 'Lavanderia' },
+      { name: 'Seguro Residência' },
+      { name: 'Outros' },
+    ],
+    'Transporte': [
+      { name: 'Prestação Moto/ Carro' },
+      { name: 'IPVA + Seguro Obrigatório Carro' },
+      { name: 'Licenciamento Carro' },
+      { name: 'Seguro Carro' },
+      { name: 'Combustível' },
+      { name: 'Alinhamento e Balanceamento' },
+      { name: 'Pneu' },
+      { name: 'Estacionamentos' },
+      { name: 'Lavagens' },
+      { name: 'Manutenção / Revisões' },
+      { name: 'Multas' },
+      { name: 'Ônibus (Buser)' },
+      { name: 'Uber' },
+      { name: 'Metro' },
+      { name: 'Pedágio' },
+      { name: 'Pedágio (Sem parar mensalidade)' },
+      { name: 'Aluguel garagem' },
+      { name: 'Acessórios' },
+      { name: 'Outros' },
+    ],
+    'Saúde': [
+      { name: 'Plano de Saúde' },
+      { name: 'Seguro Vida' },
+      { name: 'Médicos e terapeutas' },
+      { name: 'Dentista' },
+      { name: 'Medicamentos' },
+      { name: 'Nutricionista' },
+      { name: 'Exames' },
+      { name: 'Fisioterapia' },
+      { name: 'Outros' },
+    ],
+    'Educação': [
+      { name: 'Escola/Faculdade' },
+      { name: 'Cursos' },
+      { name: 'Material escolar' },
+      { name: 'Transporte escolar' },
+      { name: 'Outros' },
+    ],
+    'Animais de Estimação': [
+      { name: 'Ração' },
+      { name: 'Veterinário' },
+      { name: 'Banho e tosa' },
+      { name: 'Vacinas' },
+      { name: 'Outros' },
+    ],
+    'Despesas Pessoais': [
+      { name: 'Roupas' },
+      { name: 'Calçados' },
+      { name: 'Acessórios' },
+      { name: 'Cuidados pessoais' },
+      { name: 'Outros' },
+    ],
+    'Lazer': [
+      { name: 'Cinema' },
+      { name: 'Teatro' },
+      { name: 'Restaurantes' },
+      { name: 'Viagens' },
+      { name: 'Hobbies' },
+      { name: 'Outros' },
+    ],
+    'Impostos': [
+      { name: 'IRPF' },
+      { name: 'ISS' },
+      { name: 'Outros impostos' },
+    ],
+    'Despesas Empresa': [
+      { name: 'Administrativas/Operacionais' },
+      { name: 'Fornecedores' },
+      { name: 'Taxas, Alvarás, Etc.' },
+      { name: 'Impostos, Contribuições Diretas' },
+      { name: 'Salários, Encargos e Benefícios' },
+      { name: 'Maquinários & Equipamentos' },
+      { name: 'Despesas com Vendas' },
+      { name: 'Despesas Financeiras' },
+      { name: 'Outros' },
+    ],
+    'Planejamento Financeiro': [
+      { name: 'Objetivo 1' },
+      { name: 'Objetivo 2' },
+      { name: 'Objetivo 3' },
+      { name: 'Objetivo 4' },
+    ],
+    'Despesas Variáveis': [
+      { name: 'Lazer' },
+      { name: 'Compras' },
+      { name: 'Viagem' },
+      { name: 'Outros' },
+    ],
+    'Investimentos': [
+      { name: 'Reserva Emergência' },
+      { name: 'Reserva Oportunidade' },
+      { name: 'Renda Fixa & Fundos Renda Fixa' },
+      { name: 'Fundos (FIM / FIA)' },
+      { name: "FII's" },
+      { name: 'Ações' },
+      { name: 'STOCKS' },
+      { name: "REIT's" },
+      { name: "ETF's" },
+      { name: 'Moedas, Criptomoedas & Outros' },
+      { name: 'Previdência & Seguros' },
+      { name: 'Imóveis Físicos' },
+    ],
+  },
+};
+
+// ===== SEED TEMPLATES =====
+
+async function seedTemplates() {
+  console.log('🌱 Criando templates padrão (userId = null)...\n');
+
+  const existingTemplates = await prisma.cashflowGroup.count({
+    where: { userId: null, parentId: null },
+  });
+
+  if (existingTemplates >= 3) {
+    console.log('✅ Templates já existem no banco. Pulando criação.\n');
+    return;
+  }
+
+  const createdGroups: Record<string, { id: string; name: string }> = {};
+
+  for (const grupo of CASHFLOW_TEMPLATE_STRUCTURE.grupos) {
+    const groupData = {
+      userId: null as null,
+      name: grupo.name,
+      type: grupo.type,
+      orderIndex: grupo.orderIndex,
+      parentId:
+        grupo.parentId && createdGroups[grupo.parentId]
+          ? createdGroups[grupo.parentId].id
+          : null,
+    };
+
+    const group = await prisma.cashflowGroup.create({ data: groupData });
+    createdGroups[grupo.name] = { id: group.id, name: group.name };
+    console.log(`   ✅ ${grupo.name} criado como template`);
+  }
+
+  console.log('\n📝 Criando itens padrão (templates)...\n');
+  let itemsCount = 0;
+
+  for (const [groupName, items] of Object.entries(
+    CASHFLOW_TEMPLATE_STRUCTURE.itensPorGrupo,
+  )) {
+    const group = createdGroups[groupName];
+    if (!group) {
+      console.log(`   ⚠️  Grupo não encontrado: ${groupName}`);
+      continue;
+    }
+
+    if (!items.length) continue;
+
+    await prisma.cashflowItem.createMany({
+      data: items.map((item) => ({
+        userId: null,
+        groupId: group.id,
+        name: item.name,
+        significado: item.significado ?? null,
+        rank: item.rank ?? null,
+      })),
+    });
+    itemsCount += items.length;
+    console.log(`   ✅ ${items.length} itens criados para ${groupName}`);
+  }
+
+  console.log(
+    `\n✅ Estrutura padrão criada: ${Object.keys(createdGroups).length} grupos, ${itemsCount} itens\n`,
+  );
+}
+
+// ===== CLONE TEMPLATES FOR USER =====
+
+async function cloneTemplatesForUser(userId: string) {
+  const templateGroups = await prisma.cashflowGroup.findMany({
+    where: { userId: null },
+    orderBy: { orderIndex: 'asc' },
+    include: {
+      items: {
+        orderBy: { rank: 'asc' },
+      },
+    },
+  });
+
+  if (!templateGroups.length) {
+    throw new Error('Nenhum template encontrado para clonar.');
+  }
+
+  const groupsByParent = new Map<string | null, typeof templateGroups>();
+  templateGroups.forEach((group) => {
+    const key = group.parentId ?? null;
+    const list = groupsByParent.get(key) ?? [];
+    list.push(group);
+    groupsByParent.set(key, list);
+  });
+
+  const createdIdMap = new Map<string, string>();
+
+  const processGroup = async (templateId: string | null) => {
+    const groups = groupsByParent.get(templateId) ?? [];
+    groups.sort((a, b) => a.orderIndex - b.orderIndex);
+
+    for (const group of groups) {
+      const createdGroup = await prisma.cashflowGroup.create({
+        data: {
+          userId,
+          name: group.name,
+          type: group.type,
+          orderIndex: group.orderIndex,
+          parentId: group.parentId ? createdIdMap.get(group.parentId) ?? null : null,
+        },
+      });
+
+      createdIdMap.set(group.id, createdGroup.id);
+
+      if (group.items.length) {
+        await prisma.cashflowItem.createMany({
+          data: group.items.map((item) => ({
+            userId,
+            groupId: createdGroup.id,
+            name: item.name,
+            significado: item.significado ?? null,
+            rank: item.rank ?? null,
+          })),
+        });
+      }
+
+      await processGroup(group.id);
+    }
+  };
+
+  await processGroup(null);
+}
+
+// ===== SEED CASHFLOW VALUES =====
+
+async function seedCashflowValues(
+  userId: string,
+  entries: Record<string, number[]>,
+  year: number,
+) {
+  for (const [itemName, values] of Object.entries(entries)) {
+    const item = await prisma.cashflowItem.findFirst({
+      where: { userId, name: itemName },
+    });
+
+    if (!item) {
+      console.warn(`⚠️  Item não encontrado para o usuário: ${itemName}`);
+      continue;
+    }
+
+    const data = values.map((value, index) => ({
+      itemId: item.id,
+      userId,
+      year,
+      month: index,
+      value,
+    }));
+
+    await prisma.cashflowValue.createMany({
+      data,
+      skipDuplicates: true,
+    });
+  }
+}
+
+// ===== SEED CASHFLOW MOVEMENTS =====
+
+async function seedCashflowMovements(
+  userId: string,
+  year: number,
+  incomes: Record<string, number[]>,
+  expenses: Record<string, number[]>,
+) {
+  await prisma.cashflow.deleteMany({ where: { userId } });
+
+  const monthLabels = [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez",
+  ];
+
+  const entries: Array<{
+    userId: string;
+    data: Date;
+    tipo: string;
+    categoria: string;
+    descricao: string;
+    valor: number;
+    forma_pagamento: string;
+    pago: boolean;
+  }> = [];
+
+  const appendEntries = (
+    registry: Record<string, number[]>,
+    tipo: "receita" | "despesa",
+    paymentMethod: string,
+  ) => {
+    for (const [category, values] of Object.entries(registry)) {
+      values.forEach((value, monthIndex) => {
+        if (!value || Math.abs(value) < 0.01) {
+          return;
+        }
+        const referenceDay = tipo === "receita" ? 1 : 5;
+        entries.push({
+          userId,
+          data: new Date(year, monthIndex, referenceDay),
+          tipo,
+          categoria: category,
+          descricao: `${category} - ${monthLabels[monthIndex]}/${year}`,
+          valor: Math.round(value * 100) / 100,
+          forma_pagamento: paymentMethod,
+          pago: true,
+        });
+      });
+    }
+  };
+
+  appendEntries(incomes, "receita", "transferencia");
+  appendEntries(expenses, "despesa", "cartao_credito");
+
+  if (entries.length === 0) {
+    console.warn("⚠️  Nenhum lançamento de fluxo de caixa foi gerado.");
+    return;
+  }
+
+  await prisma.cashflow.createMany({
+    data: entries,
+  });
+}
+
+// ===== SEED DEMO USERS =====
+
+async function seedDemoUsers() {
+  console.log('\n👤 Criando usuários de demonstração...');
+
+  const hashedPassword = await bcrypt.hash('123456', 10);
+
+  const demoUser = await prisma.user.upsert({
+    where: { email: 'usuario.demo@finapp.local' },
+    update: {
+      password: hashedPassword,
+      name: 'Usuário Demo',
+      role: UserRole.user,
+    },
+    create: {
+      email: 'usuario.demo@finapp.local',
+      password: hashedPassword,
+      name: 'Usuário Demo',
+      role: UserRole.user,
+    },
+  });
+
+  await prisma.cashflowValue.deleteMany({ where: { userId: demoUser.id } });
+  await prisma.cashflow.deleteMany({ where: { userId: demoUser.id } });
+  await prisma.cashflowItem.deleteMany({ where: { userId: demoUser.id } });
+  await prisma.cashflowGroup.deleteMany({ where: { userId: demoUser.id } });
+  await prisma.portfolio.deleteMany({ where: { userId: demoUser.id } });
+  await prisma.stockTransaction.deleteMany({ where: { userId: demoUser.id } });
+
+  await cloneTemplatesForUser(demoUser.id);
+
+  const incomes: Record<string, number[]> = {
+    'Salário': Array(12).fill(9000),
+    "Receita Proventos FII's": [420, 430, 440, 450, 460, 470, 480, 490, 500, 510, 520, 530],
+    'Aluguéis': Array(12).fill(1200),
+  };
+
+  const expenses: Record<string, number[]> = {
+    'Aluguel / Prestação': Array(12).fill(2500),
+    'Supermercado': [900, 920, 940, 950, 960, 980, 1000, 1010, 1020, 1030, 1040, 1050],
+    'Conta de energia': [180, 175, 190, 185, 200, 195, 210, 205, 195, 190, 185, 180],
+    'Internet': Array(12).fill(120),
+    'Plano de Saúde': Array(12).fill(680),
+    'Restaurantes': [400, 420, 380, 450, 470, 430, 460, 480, 420, 410, 430, 440],
+    'Uber': [100, 120, 110, 130, 125, 140, 135, 145, 120, 110, 115, 130],
+    'Escola/Faculdade': Array(12).fill(1500),
+    'Cinema': [80, 60, 70, 90, 85, 75, 95, 80, 70, 65, 60, 75],
+    'Roupas': [250, 0, 180, 0, 220, 0, 210, 0, 230, 0, 190, 0],
+    'Reserva Emergência': Array(12).fill(500),
+  };
+
+  await seedCashflowValues(demoUser.id, incomes, 2025);
+  await seedCashflowValues(demoUser.id, expenses, 2025);
+  await seedCashflowMovements(demoUser.id, 2025, incomes, expenses);
+
+  const asset = await prisma.asset.upsert({
+    where: { symbol: 'ITSA4' },
+    update: {
+      name: 'Itaúsa PN',
+      type: 'stock',
+      currency: 'BRL',
+    },
+    create: {
+      symbol: 'ITSA4',
+      name: 'Itaúsa PN',
+      type: 'stock',
+      currency: 'BRL',
+    },
+  });
+
+  await prisma.portfolio.create({
+    data: {
+      userId: demoUser.id,
+      assetId: asset.id,
+      quantity: 250,
+      avgPrice: 10.75,
+      totalInvested: 2687.5,
+      lastUpdate: new Date(2025, 10, 1),
+    },
+  });
+
+  const stockTransactionsData = Array.from({ length: 12 }, (_, month) => {
+    const quantity = 10 + month;
+    const price = 10.5 + month * 0.2;
+    const total = Math.round(quantity * price * 100) / 100;
+    return {
+      userId: demoUser.id,
+      assetId: asset.id,
+      stockId: null as string | null,
+      type: 'compra' as const,
+      quantity,
+      price,
+      total,
+      date: new Date(2025, month, 12),
+      fees: 2.5,
+      notes: `Compra mensal ${month + 1}/2025`,
+    };
+  });
+
+  await prisma.stockTransaction.createMany({
+    data: stockTransactionsData,
+  });
+
+  console.log('👥 Configurando usuário consultor...');
+
+  const consultantPassword = await bcrypt.hash('123456', 10);
+
+  const consultantUser = await prisma.user.upsert({
+    where: { email: 'consultor.demo@finapp.local' },
+    update: {
+      password: consultantPassword,
+      name: 'Consultor Demo',
+      role: UserRole.consultant,
+    },
+    create: {
+      email: 'consultor.demo@finapp.local',
+      password: consultantPassword,
+      name: 'Consultor Demo',
+      role: UserRole.consultant,
+    },
+  });
+
+  const consultantProfile = await prisma.consultant.upsert({
+    where: { userId: consultantUser.id },
+    update: {},
+    create: { userId: consultantUser.id },
+  });
+
+  await prisma.clientConsultant.upsert({
+    where: {
+      consultantId_clientId: {
+        consultantId: consultantProfile.id,
+        clientId: demoUser.id,
+      },
+    },
+    update: {
+      status: ConsultantClientStatus.active,
+    },
+    create: {
+      consultantId: consultantProfile.id,
+      clientId: demoUser.id,
+      status: ConsultantClientStatus.active,
+    },
+  });
+
+  console.log('✅ Usuários de demonstração criados.\n');
+}
+
+// ===== SEED STOCKS =====
+
+async function seedStocks() {
+  try {
+    console.log('🌱 Iniciando seed de ativos da B3...\n');
+
+    // Nota: Esta função requer fetchB3Stocks de '../src/utils/stockData'
+    // Se não estiver disponível, esta etapa será pulada
+    try {
+      // Tentar importar dinamicamente
+      const { fetchB3Stocks } = await import('../src/utils/stockData');
+      
+      console.log('📡 Buscando dados da API da B3...');
+      const stocksData = await fetchB3Stocks();
+      
+      console.log(`✅ ${stocksData.length} ativos encontrados`);
+
+      // Limpar dados existentes apenas se houver dados para inserir
+      if (stocksData.length > 0) {
+        console.log('🧹 Limpando dados existentes...');
+        await prisma.stockTransaction.deleteMany({});
+        await prisma.portfolio.deleteMany({});
+        await prisma.watchlist.deleteMany({});
+        await prisma.stock.deleteMany({});
+
+        // Inserir ativos no banco
+        console.log('📝 Inserindo ativos no banco...');
+        const createdStocks: Array<{
+          id: string;
+          ticker: string;
+          companyName: string;
+          sector: string | null;
+          subsector: string | null;
+          segment: string | null;
+          isActive: boolean;
+          lastUpdate: Date;
+        }> = [];
+        
+        for (const stockData of stocksData) {
+          try {
+            const stock = await prisma.stock.create({
+              data: {
+                ticker: stockData.ticker,
+                companyName: stockData.companyName,
+                sector: stockData.sector || null,
+                subsector: stockData.subsector || null,
+                segment: stockData.segment || null,
+                isActive: true,
+                lastUpdate: new Date(),
+              },
+            });
+            
+            createdStocks.push(stock);
+            console.log(`  ✅ ${stock.ticker} - ${stock.companyName}`);
+            
+          } catch (error) {
+            console.warn(`  ⚠️  Erro ao criar ${stockData.ticker}:`, error);
+          }
+        }
+
+        console.log(`\n🎉 Seed concluído! ${createdStocks.length} ativos inseridos no banco.`);
+        
+        // Mostrar alguns exemplos
+        if (createdStocks.length > 0) {
+          console.log('\n📊 Exemplos de ativos inseridos:');
+          createdStocks.slice(0, 5).forEach(stock => {
+            console.log(`  - ${stock.ticker}: ${stock.companyName} (${stock.sector || 'N/A'})`);
+          });
+        }
+      }
+    } catch (importError) {
+      console.log('⚠️  Função fetchB3Stocks não disponível. Pulando seed de stocks da B3.\n');
+    }
+
+  } catch (error) {
+    console.error('❌ Erro durante o seed de stocks:', error);
+    // Não lançar erro para não interromper o seed completo
+  }
+}
+
+// ===== MAIN SEED FUNCTION =====
+
 async function main() {
   try {
     console.log('🌱 Iniciando seed do banco de dados...\n');
@@ -58,672 +700,22 @@ async function main() {
     // Cadastrar instituições bancárias
     await seedInstitutions();
 
-    // Criar um usuário padrão para os dados de exemplo
-    const hashedPassword = await bcrypt.hash('123456', 10);
-    const defaultUser = await prisma.user.upsert({
-      where: { email: 'admin@example.com' },
-      update: {},
-      create: {
-        email: 'admin@example.com',
-        password: hashedPassword,
-        name: 'Administrador',
-      },
-    });
+    // Executar seed de templates (cashflow)
+    await seedTemplates();
 
-    console.log(`✅ Usuário criado: ${defaultUser.name} (${defaultUser.email})`);
+    // Executar seed de usuários de demonstração
+    await seedDemoUsers();
 
-    // Grupos principais e subgrupos com type field
-    const grupos = [
-      { name: 'Entradas', order: 1, parentId: null, type: 'entrada' },
-      { name: 'Entradas Fixas', order: 1, parentId: 'Entradas', type: 'entrada' },
-      { name: 'Entradas Variáveis', order: 2, parentId: 'Entradas', type: 'entrada' },
-      { name: 'Sem Tributação', order: 1, parentId: 'Entradas Variáveis', type: 'entrada' },
-      { name: 'Com Tributação', order: 2, parentId: 'Entradas Variáveis', type: 'entrada' },
-      { name: 'Despesas', order: 2, parentId: null, type: 'despesa' },
-      { name: 'Despesas Fixas', order: 1, parentId: 'Despesas', type: 'despesa' },
-      { name: 'Habitação', order: 1, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Transporte', order: 2, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Saúde', order: 3, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Educação', order: 4, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Animais de Estimação', order: 5, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Despesas Pessoais', order: 6, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Lazer', order: 7, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Impostos', order: 8, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Despesas Empresa', order: 9, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Planejamento Financeiro', order: 10, parentId: 'Despesas Fixas', type: 'despesa' },
-      { name: 'Despesas Variáveis', order: 2, parentId: 'Despesas', type: 'despesa' },
-      { name: 'Investimentos', order: 3, parentId: null, type: 'investimento' },
-    ];
+    // Executar seed de stocks (ativos da B3)
+    await seedStocks();
 
-    // Itens por grupo com valores mensais realistas
-    const itensPorGrupo: Record<string, { 
-      descricao: string; 
-      significado?: string; 
-      rank?: number; 
-      percentTotal?: number;
-      valoresMensais: number[]; // Array com 12 valores (Jan a Dez)
-    }[]> = {
-      'Entradas Fixas': [
-        { 
-          descricao: 'Salário', 
-          significado: 'Remuneração mensal', 
-          rank: 1, 
-          percentTotal: 60,
-          valoresMensais: [8500, 8500, 8500, 8500, 8500, 8500, 8500, 8500, 8500, 8500, 8500, 8500]
-        },
-        { 
-          descricao: "Receita Proventos FII's", 
-          significado: 'Proventos de fundos imobiliários', 
-          rank: 2, 
-          percentTotal: 10,
-          valoresMensais: [120, 135, 110, 125, 140, 130, 115, 145, 120, 135, 125, 140]
-        },
-        { 
-          descricao: 'Receita Renda Fixa (Préfixado)', 
-          significado: 'Renda fixa prefixada', 
-          rank: 3, 
-          percentTotal: 5,
-          valoresMensais: [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80]
-        },
-        { 
-          descricao: 'Receita Renda Fixa (Pósfixado)', 
-          significado: 'Renda fixa pós-fixada', 
-          rank: 4, 
-          percentTotal: 5,
-          valoresMensais: [75, 78, 82, 79, 85, 81, 83, 77, 84, 80, 86, 82]
-        },
-        { 
-          descricao: 'Receita Renda Fixa (Híbridos)', 
-          significado: 'Renda fixa híbrida', 
-          rank: 5, 
-          percentTotal: 5,
-          valoresMensais: [60, 62, 65, 63, 68, 64, 66, 61, 67, 63, 69, 65]
-        },
-        { 
-          descricao: 'Aluguéis', 
-          significado: 'Recebimento de aluguéis', 
-          rank: 6, 
-          percentTotal: 10,
-          valoresMensais: [1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200]
-        },
-        { 
-          descricao: 'Outros', 
-          significado: 'Outras receitas fixas', 
-          rank: 7, 
-          percentTotal: 5,
-          valoresMensais: [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
-        },
-      ],
-      'Sem Tributação': [
-        { 
-          descricao: 'Empréstimos',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Recebimento de Terceiros',
-          valoresMensais: [150, 0, 300, 0, 200, 0, 250, 0, 180, 0, 320, 0]
-        },
-        { 
-          descricao: 'Venda de Opções',
-          valoresMensais: [0, 450, 0, 380, 0, 520, 0, 410, 0, 480, 0, 390]
-        },
-        { 
-          descricao: 'DayTrade',
-          valoresMensais: [800, 650, 920, 750, 680, 890, 720, 850, 780, 920, 650, 880]
-        },
-        { 
-          descricao: 'Cash Back',
-          valoresMensais: [45, 52, 38, 61, 49, 55, 42, 58, 47, 53, 40, 56]
-        },
-        { 
-          descricao: '13º Salário',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8500]
-        },
-        { 
-          descricao: 'Pacote Benefícios',
-          valoresMensais: [300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300]
-        },
-        { 
-          descricao: 'Ganho de Capital Aplicações com Isenção',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Saldo Caixa Mês anterior',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Saldo em conta corrente',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Férias',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [100, 80, 120, 90, 110, 95, 105, 85, 115, 100, 90, 110]
-        },
-      ],
-      'Com Tributação': [
-        { 
-          descricao: 'Empresa',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Doações',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Ganho de Capital Aplicações SEM Isenção',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-      ],
-      'Habitação': [
-        { 
-          descricao: 'Aluguel / Prestação',
-          valoresMensais: [2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500]
-        },
-        { 
-          descricao: 'Condomínio',
-          valoresMensais: [450, 450, 450, 450, 450, 450, 450, 450, 450, 450, 450, 450]
-        },
-        { 
-          descricao: 'IPTU + Taxas Municipais',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Conta de energia',
-          valoresMensais: [180, 220, 190, 160, 140, 120, 130, 150, 170, 200, 210, 190]
-        },
-        { 
-          descricao: 'Internet',
-          valoresMensais: [89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89]
-        },
-        { 
-          descricao: 'Conta de água',
-          valoresMensais: [65, 70, 68, 62, 58, 55, 57, 60, 63, 67, 72, 69]
-        },
-        { 
-          descricao: 'Gás',
-          valoresMensais: [45, 50, 48, 42, 38, 35, 37, 40, 43, 47, 52, 49]
-        },
-        { 
-          descricao: 'Alarme',
-          valoresMensais: [35, 35, 35, 35, 35, 35, 35, 35, 35, 35, 35, 35]
-        },
-        { 
-          descricao: 'Telefone fixo',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Telefones celulares',
-          valoresMensais: [89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89]
-        },
-        { 
-          descricao: 'Supermercado',
-          valoresMensais: [800, 750, 820, 780, 850, 800, 870, 830, 790, 860, 810, 880]
-        },
-        { 
-          descricao: 'Padaria',
-          valoresMensais: [120, 110, 125, 115, 130, 120, 135, 125, 118, 128, 122, 132]
-        },
-        { 
-          descricao: 'Empregados/ Diaristas',
-          valoresMensais: [300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300]
-        },
-        { 
-          descricao: 'Lavanderia',
-          valoresMensais: [80, 75, 85, 78, 88, 82, 90, 85, 77, 86, 80, 89]
-        },
-        { 
-          descricao: 'Seguro Residência',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [100, 90, 110, 95, 105, 100, 115, 105, 98, 108, 102, 112]
-        },
-      ],
-      'Transporte': [
-        { 
-          descricao: 'Prestação Moto/ Carro',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'IPVA + Seguro Obrigatório Carro',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Licenciamento Carro',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Seguro Carro',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Combustível',
-          valoresMensais: [350, 380, 320, 300, 280, 260, 270, 290, 310, 340, 360, 330]
-        },
-        { 
-          descricao: 'Alinhamento e Balanceamento',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Pneu',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Estacionamentos',
-          valoresMensais: [120, 110, 130, 115, 125, 120, 135, 125, 118, 128, 122, 132]
-        },
-        { 
-          descricao: 'Lavagens',
-          valoresMensais: [60, 55, 65, 58, 62, 60, 68, 64, 57, 66, 61, 69]
-        },
-        { 
-          descricao: 'Manutenção / Revisões',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Multas',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Ônibus (Buser)',
-          valoresMensais: [80, 75, 85, 78, 82, 80, 88, 84, 77, 86, 81, 89]
-        },
-        { 
-          descricao: 'Uber',
-          valoresMensais: [150, 140, 160, 145, 155, 150, 165, 155, 148, 158, 152, 162]
-        },
-        { 
-          descricao: 'Metro',
-          valoresMensais: [60, 55, 65, 58, 62, 60, 68, 64, 57, 66, 61, 69]
-        },
-        { 
-          descricao: 'Pedágio',
-          valoresMensais: [40, 38, 42, 37, 41, 39, 43, 40, 36, 42, 38, 44]
-        },
-        { 
-          descricao: 'Pedágio (Sem parar mensalidade)',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Aluguel garagem',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Acessórios',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [50, 45, 55, 48, 52, 50, 58, 54, 47, 56, 51, 59]
-        },
-      ],
-      'Saúde': [
-        { 
-          descricao: 'Plano de Saúde',
-          valoresMensais: [350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350]
-        },
-        { 
-          descricao: 'Seguro Vida',
-          valoresMensais: [120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]
-        },
-        { 
-          descricao: 'Médicos e terapeutas',
-          valoresMensais: [200, 180, 220, 190, 210, 200, 230, 210, 185, 225, 195, 235]
-        },
-        { 
-          descricao: 'Dentista',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Medicamentos',
-          valoresMensais: [80, 75, 85, 78, 82, 80, 88, 84, 77, 86, 81, 89]
-        },
-        { 
-          descricao: 'Nutricionista',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Exames',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Fisioterapia',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [30, 25, 35, 28, 32, 30, 38, 34, 27, 36, 31, 39]
-        },
-      ],
-      'Educação': [
-        { 
-          descricao: 'Escola/Faculdade',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Cursos',
-          valoresMensais: [150, 0, 200, 0, 180, 0, 220, 0, 160, 0, 190, 0]
-        },
-        { 
-          descricao: 'Material escolar',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Transporte escolar',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [50, 40, 60, 45, 55, 50, 65, 55, 42, 58, 47, 62]
-        },
-      ],
-      'Animais de Estimação': [
-        { 
-          descricao: 'Ração',
-          valoresMensais: [120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]
-        },
-        { 
-          descricao: 'Veterinário',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Banho e tosa',
-          valoresMensais: [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80]
-        },
-        { 
-          descricao: 'Vacinas',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [30, 25, 35, 28, 32, 30, 38, 34, 27, 36, 31, 39]
-        },
-      ],
-      'Despesas Pessoais': [
-        { 
-          descricao: 'Roupas',
-          valoresMensais: [200, 180, 220, 190, 210, 200, 230, 210, 185, 225, 195, 235]
-        },
-        { 
-          descricao: 'Calçados',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Acessórios',
-          valoresMensais: [80, 75, 85, 78, 82, 80, 88, 84, 77, 86, 81, 89]
-        },
-        { 
-          descricao: 'Cuidados pessoais',
-          valoresMensais: [120, 110, 130, 115, 125, 120, 135, 125, 118, 128, 122, 132]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [50, 45, 55, 48, 52, 50, 58, 54, 47, 56, 51, 59]
-        },
-      ],
-      'Lazer': [
-        { 
-          descricao: 'Cinema',
-          valoresMensais: [60, 55, 65, 58, 62, 60, 68, 64, 57, 66, 61, 69]
-        },
-        { 
-          descricao: 'Teatro',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Restaurantes',
-          valoresMensais: [300, 280, 320, 290, 310, 300, 330, 310, 285, 325, 295, 335]
-        },
-        { 
-          descricao: 'Viagens',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Hobbies',
-          valoresMensais: [100, 90, 110, 95, 105, 100, 115, 105, 98, 108, 102, 112]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [80, 75, 85, 78, 82, 80, 88, 84, 77, 86, 81, 89]
-        },
-      ],
-      'Impostos': [
-        { 
-          descricao: 'IRPF',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'ISS',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros impostos',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-      ],
-      'Despesas Empresa': [
-        { 
-          descricao: 'Administrativas/Operacionais',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Fornecedores',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Taxas, Alvarás, Etc.',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Impostos, Contribuições Diretas',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Salários, Encargos e Benefícios',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Maquinários & Equipamentos',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Despesas com Vendas',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Despesas Financeiras',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [30, 25, 35, 28, 32, 30, 38, 34, 27, 36, 31, 39]
-        },
-      ],
-      'Planejamento Financeiro': [
-        { 
-          descricao: 'Objetivo 1',
-          valoresMensais: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]
-        },
-        { 
-          descricao: 'Objetivo 2',
-          valoresMensais: [800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800]
-        },
-        { 
-          descricao: 'Objetivo 3',
-          valoresMensais: [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
-        },
-        { 
-          descricao: 'Objetivo 4',
-          valoresMensais: [100, 90, 110, 95, 105, 100, 115, 105, 98, 108, 102, 112]
-        },
-      ],
-      'Investimentos': [
-        { 
-          descricao: 'Reserva Emergência',
-          significado: 'Reserva para emergências financeiras',
-          valoresMensais: [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
-        },
-        { 
-          descricao: 'Reserva Oportunidade',
-          significado: 'Reserva para aproveitar oportunidades de investimento',
-          valoresMensais: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]
-        },
-        { 
-          descricao: 'Renda Fixa & Fundos Renda Fixa',
-          significado: 'Investimentos em renda fixa e fundos de renda fixa',
-          valoresMensais: [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
-        },
-        { 
-          descricao: 'Fundos (FIM / FIA)',
-          significado: 'Fundos de investimento multimercado e fundos de ações',
-          valoresMensais: [800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800]
-        },
-        { 
-          descricao: 'FII\'s',
-          significado: 'Fundos Imobiliários',
-          valoresMensais: [600, 600, 600, 600, 600, 600, 600, 600, 600, 600, 600, 600]
-        },
-        { 
-          descricao: 'Ações',
-          significado: 'Investimentos em ações individuais',
-          valoresMensais: [1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200]
-        },
-        { 
-          descricao: 'STOCKS',
-          significado: 'Investimentos em ações internacionais',
-          valoresMensais: [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]
-        },
-        { 
-          descricao: 'REIT\'s',
-          significado: 'Real Estate Investment Trusts',
-          valoresMensais: [300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300]
-        },
-        { 
-          descricao: 'ETF\'s',
-          significado: 'Exchange Traded Funds',
-          valoresMensais: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]
-        },
-        { 
-          descricao: 'Moedas, Criptomoedas & Outros',
-          significado: 'Investimentos em moedas estrangeiras e criptomoedas',
-          valoresMensais: [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
-        },
-        { 
-          descricao: 'Previdência & Seguros',
-          significado: 'Investimentos em previdência privada e seguros',
-          valoresMensais: [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]
-        },
-        { 
-          descricao: 'Imóveis Físicos',
-          significado: 'Investimentos em imóveis físicos',
-          valoresMensais: [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
-        },
-      ],
-      'Despesas Variáveis': [
-        { 
-          descricao: 'Lazer',
-          valoresMensais: [150, 140, 160, 145, 155, 150, 165, 155, 148, 158, 152, 162]
-        },
-        { 
-          descricao: 'Compras',
-          valoresMensais: [200, 180, 220, 190, 210, 200, 230, 210, 185, 225, 195, 235]
-        },
-        { 
-          descricao: 'Viagem',
-          valoresMensais: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        },
-        { 
-          descricao: 'Outros',
-          valoresMensais: [100, 90, 110, 95, 105, 100, 115, 105, 98, 108, 102, 112]
-        },
-      ],
-    };
-
-    // Criar grupos com hierarquia
-    const createdGroups: { [key: string]: any } = {};
-    
-    console.log('📁 Criando grupos...');
-    for (const grupo of grupos) {
-      const groupData: any = {
-        name: grupo.name,
-        type: grupo.type,
-        orderIndex: grupo.order,
-        user: { connect: { id: defaultUser.id } },
-      };
-      
-      if (grupo.parentId && createdGroups[grupo.parentId]) {
-        groupData.parent = { connect: { id: createdGroups[grupo.parentId].id } };
-      }
-      
-      const g = await prisma.cashflowGroup.create({
-        data: groupData,
-      });
-      
-      createdGroups[grupo.name] = g;
-      console.log(`  ✅ ${grupo.name} criado`);
-    }
-
-    console.log('\n📝 Criando itens e valores mensais...');
-    
-    // Criar itens apenas para grupos finais (que não têm filhos)
-    for (const grupo of grupos) {
-      const hasChildren = grupos.some(g => g.parentId === grupo.name);
-      if (!hasChildren) {
-        const group = createdGroups[grupo.name];
-        if (!group) {
-          console.warn(`⚠️  Grupo não encontrado: ${grupo.name}`);
-          continue;
-        }
-
-        const items = itensPorGrupo[grupo.name] || [];
-        console.log(`  📋 ${grupo.name}: ${items.length} itens`);
-        
-        for (const item of items) {
-          const createdItem = await prisma.cashflowItem.create({
-            data: {
-              group: { connect: { id: group.id } },
-              name: item.descricao,
-              significado: item.significado || null,
-              rank: item.rank ? String(item.rank) : null,
-            },
-          });
-
-          // Criar valores mensais para cada item
-          let valuesCreated = 0;
-          const currentYear = new Date().getFullYear();
-          for (let month = 0; month < 12; month++) {
-            if (item.valoresMensais[month] > 0) {
-              await prisma.cashflowValue.create({
-                data: {
-                  itemId: createdItem.id,
-                  userId: defaultUser.id,
-                  year: currentYear,
-                  month: month,
-                  value: item.valoresMensais[month],
-                },
-              });
-              valuesCreated++;
-            }
-          }
-          console.log(`    ✅ ${item.descricao}: ${valuesCreated} valores mensais`);
-        }
-      }
-    }
-
-    console.log('\n🎉 Seed cashflow hierárquico populado com valores mensais realistas!');
+    console.log('\n🎉 Seed concluído com sucesso!');
     
   } catch (error) {
     console.error('❌ Erro durante o seed:', error);
     throw error;
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
@@ -731,7 +723,4 @@ main()
   .catch((e) => {
     console.error(e);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  }); 
+  });

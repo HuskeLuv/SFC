@@ -17,7 +17,7 @@
     "type-check": "tsc --noEmit"
   },
   "prisma": {
-    "seed": "npx tsx prisma/seed-templates.ts"
+    "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.15",
