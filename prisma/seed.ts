@@ -231,7 +231,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
 
 // ===== SEED TEMPLATES =====
 
-async function seedTemplates() {
+export async function seedTemplates() {
   console.log('🌱 Criando templates padrão (userId = null)...\n');
 
   const existingTemplates = await prisma.cashflowGroup.count({
@@ -281,8 +281,8 @@ async function seedTemplates() {
         userId: null,
         groupId: group.id,
         name: item.name,
-        significado: item.significado ?? null,
-        rank: item.rank ?? null,
+        significado: 'significado' in item ? item.significado ?? null : null,
+        rank: 'rank' in item ? item.rank ?? null : null,
       })),
     });
     itemsCount += items.length;

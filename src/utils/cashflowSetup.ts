@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { seedTemplates } from '../../prisma/seed-templates';
+import { seedTemplates } from '../../prisma/seed';
 
 async function cloneTemplatesForUser(userId: string) {
   const templateGroups = await prisma.cashflowGroup.findMany({
@@ -69,7 +69,7 @@ export async function setupCashflowForUser(userId: string) {
     });
 
     if (templateCount === 0) {
-      await seedTemplates(prisma);
+      await seedTemplates();
     }
 
     await cloneTemplatesForUser(userId);

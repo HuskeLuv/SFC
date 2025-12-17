@@ -86,7 +86,8 @@ const AppHeader: React.FC = () => {
     void checkAuth();
   }, [pathname, checkAuth]);
 
-  // Listener para eventos customizados de personificação (opcional, para sincronização extra)
+  // Listener apenas para eventos customizados de personificação
+  // Removido listener de 'focus' para evitar refetch desnecessário ao trocar de aba
   useEffect(() => {
     const handleActingChange = () => {
       void checkAuth();
@@ -94,12 +95,12 @@ const AppHeader: React.FC = () => {
 
     // Escutar eventos customizados de personificação
     window.addEventListener('acting-client-changed', handleActingChange);
-    // Verificar quando a janela ganha foco (útil se o usuário voltar para a aba)
-    window.addEventListener('focus', handleActingChange);
+    // NOTA: Removido listener de 'focus' que estava causando refetch desnecessário
+    // quando usuário volta para a aba. Agora apenas eventos explícitos de personificação
+    // disparam checkAuth.
 
     return () => {
       window.removeEventListener('acting-client-changed', handleActingChange);
-      window.removeEventListener('focus', handleActingChange);
     };
   }, [checkAuth]);
 

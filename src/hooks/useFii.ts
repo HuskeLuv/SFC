@@ -1,13 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { FiiData, FiiAtivo, FiiSecao } from '@/types/fii';
 
 export const useFii = () => {
   const [data, setData] = useState<FiiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isFetchingRef = useRef(false);
+  const hasFetchedRef = useRef(false);
 
-  const fetchData = async () => {
+  // Prevenir refetch desnecessário: só busca dados uma vez na montagem inicial
+  // ou quando explicitamente forçado (ex: após atualização de dados)
+  const fetchData = useCallback(async (force = false) => {
+    // Prevenir múltiplas chamadas simultâneas
+    if (isFetchingRef.current) {
+      return;
+    }
+
+    // Se já foi feito fetch e não é forçado, não fazer nada
+    // Isso evita refetch quando componente remonta ou usuário volta para aba
+    if (!force && hasFetchedRef.current) {
+      return;
+    }
+
     try {
+      isFetchingRef.current = true;
       setLoading(true);
       setError(null);
       
@@ -22,13 +38,15 @@ export const useFii = () => {
 
       const responseData = await response.json();
       setData(responseData);
+      hasFetchedRef.current = true;
     } catch (err) {
       console.error('Erro ao buscar dados FIIs:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, []);
 
   const formatCurrency = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) {
@@ -133,8 +151,8 @@ export const useFii = () => {
         throw new Error('Erro ao atualizar objetivo');
       }
 
-      // Recarregar dados após atualização
-      await fetchData();
+      // Recarregar dados após atualização (forçar reload)
+      await fetchData(true);
       return true;
     } catch (err) {
       console.error('Erro ao atualizar objetivo:', err);
@@ -158,8 +176,8 @@ export const useFii = () => {
         throw new Error('Erro ao atualizar cotação');
       }
 
-      // Recarregar dados após atualização
-      await fetchData();
+      // Recarregar dados após atualização (forçar reload)
+      await fetchData(true);
       return true;
     } catch (err) {
       console.error('Erro ao atualizar cotação:', err);
@@ -168,15 +186,27 @@ export const useFii = () => {
     }
   };
 
+  // Só fazer fetch na montagem inicial
   useEffect(() => {
-    fetchData();
+    if (!hasFetchedRef.current) {
+      fetchData(false);
+    } else {
+      // Se já tem dados, apenas marcar como não loading
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Wrapper para refetch que força reload
+  const refetch = useCallback(() => {
+    return fetchData(true);
+  }, [fetchData]);
 
   return {
     data,
     loading,
     error,
-    refetch: fetchData,
+    refetch,
     updateObjetivo,
     updateCotacao,
     formatCurrency,
