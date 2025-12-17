@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
     const investments = allInvestmentGroups.flatMap(group => group.items || []);
 
     // Buscar cotações atuais dos ativos no portfolio
+    // Excluir símbolos de reserva (RESERVA-EMERG, RESERVA-OPORT) pois são assets manuais sem cotações externas
     const symbols = portfolio
       .map(item => {
         if (item.asset) {
@@ -94,7 +95,11 @@ export async function GET(request: NextRequest) {
         }
         return null;
       })
-      .filter((symbol): symbol is string => symbol !== null);
+      .filter((symbol): symbol is string => 
+        symbol !== null && 
+        symbol !== 'RESERVA-EMERG' && 
+        symbol !== 'RESERVA-OPORT'
+      );
 
     const quotes = await fetchQuotes(symbols);
 

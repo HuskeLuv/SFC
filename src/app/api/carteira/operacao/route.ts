@@ -37,6 +37,10 @@ export async function POST(request: NextRequest) {
       emissorId,
       periodo,
       taxaJurosAnual,
+      cotizacaoResgate,
+      liquidacaoResgate,
+      vencimento,
+      benchmark,
       // percentualCDI,
       // indexador
     } = requestBody;
@@ -240,6 +244,28 @@ export async function POST(request: NextRequest) {
     const valorFinal = valorTotal || valorCalculado;
     const dataTransacao = new Date(dataFinal);
 
+    // Preparar notes com campos específicos para reserva de emergência
+    let notesData = observacoes || null;
+    if (tipoAtivo === "emergency") {
+      const reservaMetadata: any = {
+        cotizacaoResgate: cotizacaoResgate || 'D+0',
+        liquidacaoResgate: liquidacaoResgate || 'Imediata',
+        benchmark: benchmark || 'CDI',
+      };
+      
+      // Adicionar vencimento apenas se fornecido
+      if (vencimento) {
+        reservaMetadata.vencimento = vencimento;
+      }
+      
+      // Adicionar observações se houver
+      if (observacoes) {
+        reservaMetadata.observacoes = observacoes;
+      }
+      
+      notesData = JSON.stringify(reservaMetadata);
+    }
+
     // Criar transação de compra usando Asset diretamente
     const transacao = await prisma.stockTransaction.create({
       data: {
@@ -251,7 +277,7 @@ export async function POST(request: NextRequest) {
         total: valorFinal,
         date: dataTransacao,
         fees: taxaCorretagem || 0,
-        notes: observacoes || null,
+        notes: notesData,
       },
     });
 

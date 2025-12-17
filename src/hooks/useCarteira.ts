@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface CarteiraResumo {
   saldoBruto: number;
@@ -73,9 +73,22 @@ export const useCarteira = () => {
   const [resumo, setResumo] = useState<CarteiraResumo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isFetchingRef = useRef(false);
+  const hasFetchedRef = useRef(false);
 
-  const fetchResumo = async () => {
+  const fetchResumo = useCallback(async (force = false) => {
+    // Prevenir múltiplas chamadas simultâneas
+    if (isFetchingRef.current) {
+      return;
+    }
+
+    // Se já foi feito fetch e não é forçado, não fazer nada
+    if (!force && hasFetchedRef.current) {
+      return;
+    }
+
     try {
+      isFetchingRef.current = true;
       setLoading(true);
       setError(null);
       
@@ -90,15 +103,17 @@ export const useCarteira = () => {
 
       const data = await response.json();
       setResumo(data);
+      hasFetchedRef.current = true;
     } catch (err) {
       console.error('Erro ao buscar resumo da carteira:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, [resumo]);
 
-  const updateMeta = async (novaMetaPatrimonio: number) => {
+  const updateMeta = useCallback(async (novaMetaPatrimonio: number) => {
     try {
       const response = await fetch('/api/carteira/resumo', {
         method: 'POST',
@@ -113,15 +128,15 @@ export const useCarteira = () => {
         throw new Error('Erro ao atualizar meta de patrimônio');
       }
 
-      // Recarregar dados após atualização
-      await fetchResumo();
+      // Recarregar dados após atualização (forçar reload)
+      await fetchResumo(true);
       return true;
     } catch (err) {
       console.error('Erro ao atualizar meta:', err);
       setError(err instanceof Error ? err.message : 'Erro ao atualizar meta');
       return false;
     }
-  };
+  }, [fetchResumo]);
 
   const formatCurrency = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) {
@@ -140,15 +155,27 @@ export const useCarteira = () => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
 
+  // Só fazer fetch na montagem inicial
   useEffect(() => {
-    fetchResumo();
+    if (!hasFetchedRef.current) {
+      fetchResumo(false);
+    } else {
+      // Se já tem dados, apenas marcar como não loading
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Wrapper para refetch que força reload
+  const refetch = useCallback(() => {
+    return fetchResumo(true);
+  }, [fetchResumo]);
 
   return {
     resumo,
     loading,
     error,
-    refetch: fetchResumo,
+    refetch,
     updateMeta,
     formatCurrency,
     formatPercentage,

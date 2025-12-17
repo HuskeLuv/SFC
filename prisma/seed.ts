@@ -2,9 +2,61 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
+async function seedInstitutions() {
+  const institutions = [
+    { code: '001', name: 'Banco do Brasil S.A.', cnpj: '00000000000191', status: 'ATIVO' },
+    { code: '104', name: 'Caixa Econômica Federal', cnpj: '00360305000104', status: 'ATIVO' },
+    { code: '237', name: 'Banco Bradesco S.A.', cnpj: '60746948000112', status: 'ATIVO' },
+    { code: '341', name: 'Itaú Unibanco S.A.', cnpj: '60701190000104', status: 'ATIVO' },
+    { code: '033', name: 'Banco Santander (Brasil) S.A.', cnpj: '90400888000142', status: 'ATIVO' },
+    { code: '208', name: 'Banco BTG Pactual S.A.', cnpj: '30306294000145', status: 'ATIVO' },
+    { code: '422', name: 'Banco Safra S.A.', cnpj: '58160789000128', status: 'ATIVO' },
+    { code: '077', name: 'Banco Inter S.A.', cnpj: '00416968000101', status: 'ATIVO' },
+    { code: '336', name: 'Banco C6 S.A.', cnpj: '31872495000172', status: 'ATIVO' },
+    { code: '212', name: 'Banco Original S.A.', cnpj: '92894922000185', status: 'ATIVO' },
+    { code: '623', name: 'Banco Pan S.A.', cnpj: '59285411000113', status: 'ATIVO' },
+    { code: '746', name: 'Banco Modal S.A.', cnpj: '30723886000130', status: 'ATIVO' },
+    { code: '707', name: 'Banco Daycoval S.A.', cnpj: '62232889000190', status: 'ATIVO' },
+    { code: '246', name: 'Banco ABC Brasil S.A.', cnpj: '28195667000106', status: 'ATIVO' },
+    { code: '655', name: 'Banco Votorantim S.A.', cnpj: '59588111000103', status: 'ATIVO' },
+    { code: '318', name: 'Banco BMG S.A.', cnpj: '61186680000174', status: 'ATIVO' },
+    { code: '756', name: 'Banco Cooperativo do Brasil S.A. (Sicoob)', cnpj: '02038232000164', status: 'ATIVO' },
+    { code: '748', name: 'Banco Cooperativo Sicredi S.A.', cnpj: '01181521000155', status: 'ATIVO' },
+  ];
+
+  console.log('🏦 Cadastrando instituições bancárias...\n');
+
+  for (const institution of institutions) {
+    // Converter status de 'ATIVO' para 'ATIVA' (enum esperado)
+    const statusEnum = institution.status === 'ATIVO' ? 'ATIVA' : 'INATIVA';
+    
+    await prisma.institution.upsert({
+      where: { codigo: institution.code },
+      update: {
+        nome: institution.name,
+        cnpj: institution.cnpj,
+        status: statusEnum,
+      },
+      create: {
+        codigo: institution.code,
+        nome: institution.name,
+        cnpj: institution.cnpj,
+        status: statusEnum,
+      },
+    });
+
+    console.log(`  ✅ ${institution.name} (${institution.code}) cadastrado`);
+  }
+
+  console.log(`\n✅ ${institutions.length} instituições bancárias cadastradas!\n`);
+}
+
 async function main() {
   try {
     console.log('🌱 Iniciando seed do banco de dados...\n');
+
+    // Cadastrar instituições bancárias
+    await seedInstitutions();
 
     // Criar um usuário padrão para os dados de exemplo
     const hashedPassword = await bcrypt.hash('123456', 10);
@@ -641,7 +693,7 @@ async function main() {
               group: { connect: { id: group.id } },
               name: item.descricao,
               significado: item.significado || null,
-              rank: item.rank || null,
+              rank: item.rank ? String(item.rank) : null,
             },
           });
 

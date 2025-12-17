@@ -144,6 +144,18 @@ export default function Step5Confirmation({
           </>
         );
 
+      case "reserva-emergencia":
+        return (
+          <>
+            {renderFieldValue("Data", formData.dataCompra, formatDate)}
+            {renderFieldValue("Valor", formData.valorInvestido, formatCurrency)}
+            {renderFieldValue("Cot. Resgate", formData.cotizacaoResgate)}
+            {renderFieldValue("Liq. Resgate", formData.liquidacaoResgate)}
+            {renderFieldValue("Vencimento", formData.vencimento, formatDate)}
+            {renderFieldValue("Benchmark", formData.benchmark)}
+          </>
+        );
+
       case "fii":
         return (
           <>

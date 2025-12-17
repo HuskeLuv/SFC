@@ -29,6 +29,15 @@ export default function Step3Asset({
       return;
     }
 
+    // Para reserva de emergência, criar automaticamente sem busca
+    if (formData.tipoAtivo === "reserva-emergencia") {
+      onFormDataChange({
+        ativo: "Reserva de Emergência",
+        assetId: "RESERVA-EMERG", // Será processado pela API
+      });
+      return;
+    }
+
     if (search.length > 0 && search.length < 2) {
       return;
     }
@@ -95,11 +104,21 @@ export default function Step3Asset({
     setAssetOptions([]);
     if (formData.tipoAtivo) {
       onErrorsChange({ ativo: undefined });
+      
+      // Para reserva de emergência, definir automaticamente
+      if (formData.tipoAtivo === "reserva-emergencia") {
+        onFormDataChange({
+          ativo: "Reserva de Emergência",
+          assetId: "RESERVA-EMERG", // Será processado pela API
+        });
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.tipoAtivo]);
 
   const getPlaceholderText = () => {
     const placeholders: Record<string, string> = {
+      "reserva-emergencia": "Reserva de Emergência (automático)",
       "acao": "Digite pelo menos 2 caracteres (ex: PETR4, VALE3, ITUB4)",
       "bdr": "Digite pelo menos 2 caracteres (ex: AAPL34, MSFT34)",
       "fii": "Digite pelo menos 2 caracteres (ex: HGLG11, XPML11)",
@@ -120,6 +139,32 @@ export default function Step3Asset({
     
     return placeholders[formData.tipoAtivo] || "Digite pelo menos 2 caracteres para buscar";
   };
+
+  // Para reserva de emergência, não mostrar campo de busca
+  if (formData.tipoAtivo === "reserva-emergencia") {
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            Reserva de Emergência
+          </h4>
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            O ativo será criado automaticamente como "Reserva de Emergência". Continue para o próximo passo para informar o valor e a data.
+          </p>
+        </div>
+        {formData.assetId && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">
+              Ativo Configurado
+            </h4>
+            <p className="text-sm text-green-700 dark:text-green-300">
+              {formData.ativo}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -165,6 +210,7 @@ export default function Step3Asset({
 
 function getSearchInstructions(tipoAtivo: string): string {
   const instructions: Record<string, string> = {
+    "reserva-emergencia": "O ativo será criado automaticamente como Reserva de Emergência.",
     "acao": "Digite pelo menos 2 caracteres do código da ação (ex: PETR4, VALE3). O sistema buscará ações brasileiras listadas na B3.",
     "bdr": "Digite pelo menos 2 caracteres do código do BDR (ex: AAPL34, MSFT34). BDRs são certificados de ações estrangeiras.",
     "fii": "Digite pelo menos 2 caracteres do código do FII (ex: HGLG11, XPML11). Fundos Imobiliários investem em imóveis.",

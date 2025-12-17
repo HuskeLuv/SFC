@@ -67,6 +67,10 @@ export interface WizardFormData {
   moeda: string;
   nomePersonalizado: string;
   precoUnitario: number;
+  cotizacaoResgate: string;
+  liquidacaoResgate: string;
+  vencimento: string;
+  benchmark: string;
 }
 
 export interface WizardErrors {
@@ -90,9 +94,14 @@ export interface WizardErrors {
   nomePersonalizado?: string;
   precoUnitario?: string;
   moeda?: string;
+  cotizacaoResgate?: string;
+  liquidacaoResgate?: string;
+  vencimento?: string;
+  benchmark?: string;
 }
 
 export const TIPOS_ATIVO = [
+  { value: "reserva-emergencia", label: "Reserva de Emergência" },
   { value: "acao", label: "Ações" },
   { value: "bdr", label: "BDRs" },
   { value: "conta-corrente", label: "Conta Corrente" },

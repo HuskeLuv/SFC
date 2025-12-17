@@ -42,6 +42,10 @@ const INITIAL_FORM_DATA: WizardFormData = {
   moeda: "",
   nomePersonalizado: "",
   precoUnitario: 0,
+  cotizacaoResgate: "",
+  liquidacaoResgate: "",
+  vencimento: "",
+  benchmark: "",
 };
 
 const STEPS: WizardStep[] = [
@@ -65,6 +69,17 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       const { tipoAtivo, dataCompra, dataInicio } = formData;
       
       // Validação básica - cada tipo terá validações específicas
+      if (tipoAtivo === "reserva-emergencia") {
+        return !!(
+          dataCompra && 
+          formData.valorInvestido > 0 &&
+          formData.cotizacaoResgate &&
+          formData.liquidacaoResgate &&
+          formData.vencimento &&
+          formData.benchmark
+        );
+      }
+      
       if (tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca") {
         return !!(dataInicio && formData.valorAplicado > 0);
       }
@@ -109,7 +124,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
             isValid = !!formData.instituicaoId;
             break;
           case "asset":
-            isValid = !!formData.assetId;
+            // Para reserva de emergência, o assetId será "RESERVA-EMERG" (placeholder)
+            isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia";
             break;
           case "info":
             isValid = validateStep4();
@@ -155,13 +171,22 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const handleSubmit = async () => {
     setLoading(true);
     try {
+      // Converter 'reserva-emergencia' para 'emergency' para a API
+      const apiFormData = { ...formData };
+      if (apiFormData.tipoAtivo === "reserva-emergencia") {
+        apiFormData.tipoAtivo = "emergency" as any;
+        // Ajustar campos para formato esperado pela API
+        apiFormData.quantidade = 1;
+        apiFormData.cotacaoUnitaria = apiFormData.valorInvestido;
+      }
+      
       const response = await fetch('/api/carteira/operacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(apiFormData),
       });
 
       if (response.ok) {

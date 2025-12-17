@@ -120,8 +120,11 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
       return new Map();
     }
 
-    // Filtrar símbolos únicos e remover vazios
-    const uniqueSymbols = [...new Set(symbols.filter(s => s && s.trim()))];
+    // Filtrar símbolos únicos, remover vazios e excluir símbolos de reserva
+    // (RESERVA-EMERG e RESERVA-OPORT são assets manuais sem cotações externas)
+    const uniqueSymbols = [...new Set(symbols.filter(s => 
+      s && s.trim() && s !== 'RESERVA-EMERG' && s !== 'RESERVA-OPORT'
+    ))];
     
     if (uniqueSymbols.length === 0) {
       return new Map();
@@ -314,7 +317,11 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
     return [];
   }
 
-  const uniqueSymbols = [...new Set(symbols.filter(s => s && s.trim()))];
+  // Filtrar símbolos únicos, remover vazios e excluir símbolos de reserva
+  // (RESERVA-EMERG e RESERVA-OPORT são assets manuais sem cotações externas)
+  const uniqueSymbols = [...new Set(symbols.filter(s => 
+    s && s.trim() && s !== 'RESERVA-EMERG' && s !== 'RESERVA-OPORT'
+  ))];
   
   if (uniqueSymbols.length === 0) {
     return [];

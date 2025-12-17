@@ -59,6 +59,7 @@ export default function Step1AssetType({
 
 function getAssetTypeDescription(tipoAtivo: string): string {
   const descriptions: Record<string, string> = {
+    "reserva-emergencia": "Reserva de emergência é um valor guardado para cobrir imprevistos e situações de necessidade. Idealmente deve corresponder a 6 meses das suas despesas mensais.",
     "acao": "Ações representam participação no capital social de uma empresa. Você se torna sócio da empresa e pode receber dividendos e participar dos lucros.",
     "bdr": "BDRs (Brazilian Depositary Receipts) são certificados que representam ações de empresas estrangeiras negociadas no Brasil.",
     "conta-corrente": "Conta corrente é uma conta bancária tradicional para movimentação de dinheiro e pagamentos.",
