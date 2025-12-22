@@ -64,21 +64,19 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   const options: ApexOptions = useMemo(
     () => ({
       colors: [
-        "#FEE2E2", // Reserva de Emergência - Vermelho claro pastel
-        "#BFDBFE", // Reserva de Oportunidade - Azul pastel
-        "#A7F3D0", // Renda Fixa & Fundos - Verde pastel
-        "#DDD6FE", // FIM/FIA - Roxo pastel
-        "#FECACA", // FII's - Vermelho pastel
-        "#93C5FD", // Ações - Azul claro pastel
-        "#BBF7D0", // Stocks - Verde menta pastel
-        "#E9D5FF", // REIT's - Lilás pastel
-        "#FED7AA", // ETF's - Laranja pastel
-        "#FEF3C7", // Moedas/Criptos - Amarelo pastel
-        "#D1D5DB", // Previdência - Cinza pastel
-        "#FBBF24", // Opções - Dourado pastel
+        "#DDD9C3", // Reserva de Oportunidade
+        "#404040", // Renda Fixa & Fundos
+        "#B9CDE5", // FIM/FIA
+        "#9E8A58", // FII's
+        "#FFC000", // Ações
+        "#9E8A58", // STOCKS
+        "#FFFF00", // REIT's
+        "#E46C0A", // ETF's
+        "#C4BD97", // Moedas, Criptomoedas & Outros
+        "#EEECE1", // Previdência & Seguros
+        "#00CCFF", // Opções
       ],
       labels: [
-        "Reserva de Emergência",
         "Reserva de Oportunidade",
         "Renda Fixa & Fundos de Renda Fixa", 
         "FIM/FIA",
@@ -134,7 +132,21 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
                 color: isDarkMode ? "#ffffff" : "#000000",
                 fontSize: "16px",
                 fontWeight: "bold",
-                formatter: () => "100%",
+                formatter: () => {
+                  const totalSemReservaEmergencia = 
+                    distribuicao.reservaOportunidade.percentual +
+                    distribuicao.rendaFixaFundos.percentual +
+                    distribuicao.fimFia.percentual +
+                    distribuicao.fiis.percentual +
+                    distribuicao.acoes.percentual +
+                    distribuicao.stocks.percentual +
+                    distribuicao.reits.percentual +
+                    distribuicao.etfs.percentual +
+                    distribuicao.moedasCriptos.percentual +
+                    distribuicao.previdenciaSeguros.percentual +
+                    distribuicao.opcoes.percentual;
+                  return `${totalSemReservaEmergencia.toFixed(2)}%`;
+                },
               },
             },
           },
@@ -214,7 +226,6 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   );
 
   const series = useMemo(() => [
-    Number(distribuicao.reservaEmergencia.percentual.toFixed(2)),
     Number(distribuicao.reservaOportunidade.percentual.toFixed(2)),
     Number(distribuicao.rendaFixaFundos.percentual.toFixed(2)),
     Number(distribuicao.fimFia.percentual.toFixed(2)),
