@@ -156,77 +156,92 @@ export default function ReservaEmergenciaTable({
       <ComponentCard title="Reserva de Emergência - Detalhamento">
         <div className="max-w-full overflow-x-auto">
           <Table>
-            <TableHeader className="border-t border-gray-100 border-y bg-gray-50 dark:border-white/[0.05] dark:bg-gray-900">
-              <TableRow>
+            <TableHeader 
+              style={{ backgroundColor: '#9E8A58' }}
+              className="border-t border-gray-100 border-y"
+            >
+              <TableRow style={{ backgroundColor: '#9E8A58' }}>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Nome dos Ativos
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Cot. Resgate
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Liq. Resgate
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Vencimento
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Benchmark
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Valor Inicial
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Aporte
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Resgate
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Valor Atual
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   % Carteira
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Risco
                 </TableCell>
                 <TableCell 
                   isHeader 
-                  className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
                 >
                   Rentab.
                 </TableCell>
@@ -238,76 +253,72 @@ export default function ReservaEmergenciaTable({
                   key={ativo.id}
                   className="border-b border-gray-100 hover:bg-gray-50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
                 >
-                  <TableCell className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
+                  <TableCell className="px-2 py-2 text-xs font-medium text-black">
                     {ativo.nome}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-gray-700 dark:text-gray-300 text-center">
+                  <TableCell className="px-2 py-2 text-xs text-black text-center">
                     {ativo.cotizacaoResgate}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-gray-700 dark:text-gray-300 text-center">
+                  <TableCell className="px-2 py-2 text-xs text-black text-center">
                     {ativo.liquidacaoResgate}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-gray-700 dark:text-gray-300 text-center">
+                  <TableCell className="px-2 py-2 text-xs text-black text-center">
                     {formatDate(ativo.vencimento)}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-gray-700 dark:text-gray-300 text-center">
+                  <TableCell className="px-2 py-2 text-xs text-black text-center">
                     {ativo.benchmark}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
+                  <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
                     {formatCurrency(ativo.valorInicial)}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
+                  <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
                     {formatCurrency(ativo.aporte)}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
+                  <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
                     {formatCurrency(ativo.resgate)}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs font-semibold text-gray-900 dark:text-white text-right font-mono">
+                  <TableCell className="px-2 py-2 text-xs font-semibold text-black text-right font-mono">
                     {formatCurrency(ativo.valorAtualizado)}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-gray-700 dark:text-gray-300 text-center">
+                  <TableCell className="px-2 py-2 text-xs text-black text-center">
                     {formatPercentage(ativo.percentualCarteira)}
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-gray-700 dark:text-gray-300 text-center">
+                  <TableCell className="px-2 py-2 text-xs text-black text-center">
                     {formatPercentage(ativo.riscoAtivo)}
                   </TableCell>
-                  <TableCell className={`px-2 py-2 text-xs text-center font-medium ${
-                    ativo.rentabilidade >= 0 
-                      ? 'text-green-600 dark:text-green-400' 
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
+                  <TableCell className="px-2 py-2 text-xs text-center font-medium text-black">
                     {formatPercentage(ativo.rentabilidade)}
                   </TableCell>
                 </TableRow>
               ))}
               
               <TableRow className="border-t-2 border-gray-200 bg-gray-50 dark:border-white/[0.1] dark:bg-gray-900/50">
-                <TableCell className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
+                <TableCell className="px-2 py-2 text-xs font-bold text-black">
                   TOTAL GERAL
                 </TableCell>
                 <TableCell className="px-2 py-2"></TableCell>
                 <TableCell className="px-2 py-2"></TableCell>
                 <TableCell className="px-2 py-2"></TableCell>
                 <TableCell className="px-2 py-2"></TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white text-right font-mono">
+                <TableCell className="px-2 py-2 text-xs font-bold text-black text-right font-mono">
                   {formatCurrency(totais.valorInicial)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white text-right font-mono">
+                <TableCell className="px-2 py-2 text-xs font-bold text-black text-right font-mono">
                   {formatCurrency(totais.aporte)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white text-right font-mono">
+                <TableCell className="px-2 py-2 text-xs font-bold text-black text-right font-mono">
                   {formatCurrency(totais.resgate)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white text-right font-mono">
+                <TableCell className="px-2 py-2 text-xs font-bold text-black text-right font-mono">
                   {formatCurrency(totais.valorAtualizado)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-center text-gray-900 dark:text-white">
+                <TableCell className="px-2 py-2 text-xs font-bold text-center text-black">
                   100,00%
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-center text-gray-900 dark:text-white">
+                <TableCell className="px-2 py-2 text-xs font-bold text-center text-black">
                   {formatPercentage(totais.risco)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-center text-gray-900 dark:text-white">
+                <TableCell className="px-2 py-2 text-xs font-bold text-center text-black">
                   {formatPercentage(rentabilidade)}
                 </TableCell>
               </TableRow>

@@ -4,7 +4,6 @@ import { useEtf } from "@/hooks/useEtf";
 import { EtfAtivo, EtfSecao } from "@/types/etf";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import Badge from "@/components/ui/badge/Badge";
 import PieChartEtfAtivo from "@/components/charts/pie/PieChartEtfAtivo";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
@@ -91,52 +90,32 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
     }
   };
 
-  const getIndiceColor = (indice: string) => {
-    const colors = {
-      'ibovespa': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      'sp500': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
-      'nasdaq': 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300',
-      'dow_jones': 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
-      'small_caps': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300',
-      'dividendos': 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300',
-      'tecnologia': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300',
-      'energia': 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-300',
-      'materiais': 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300',
-      'financeiro': 'bg-teal-100 text-teal-800 dark:bg-teal-900/20 dark:text-teal-300',
-      'saude': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300',
-      'consumo': 'bg-lime-100 text-lime-800 dark:bg-lime-900/20 dark:text-lime-300',
-      'outros': 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300',
-    };
-    return colors[indice as keyof typeof colors] || colors.outros;
-  };
 
   const currency = ativo.regiao === 'estados_unidos' ? 'USD' : 'BRL';
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs font-medium text-black">
         <div>
           <div className="font-semibold">{ativo.ticker}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">{ativo.nome}</div>
+          <div className="text-xs text-black">{ativo.nome}</div>
           {ativo.observacoes && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <div className="text-xs text-black mt-1">
               {ativo.observacoes}
             </div>
           )}
         </div>
       </td>
       <td className="px-2 py-2 text-xs text-center">
-        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getIndiceColor(ativo.indiceRastreado)}`}>
-          {ativo.indiceRastreado.charAt(0).toUpperCase() + ativo.indiceRastreado.slice(1).replace('_', ' ')}
-        </span>
+        {ativo.indiceRastreado.charAt(0).toUpperCase() + ativo.indiceRastreado.slice(1).replace('_', ' ')}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
         {formatNumber(ativo.quantidade)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
         {formatCurrency(ativo.precoAquisicao, currency)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
         {formatCurrency(ativo.valorTotal, currency)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
@@ -158,30 +137,20 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingCotacao(true)}
           >
-            <span className="font-medium text-gray-900 dark:text-white">
+            <span className="font-medium text-black">
               {formatCurrency(ativo.cotacaoAtual, currency)}
             </span>
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-semibold text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-semibold text-black">
         {formatCurrency(ativo.valorAtualizado, currency)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.riscoPorAtivo > 20 ? "error" : ativo.riscoPorAtivo > 10 ? "warning" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.riscoPorAtivo)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right text-black">
+        {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.percentualCarteira > 25 ? "warning" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.percentualCarteira)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right text-black">
+        {formatPercentage(ativo.percentualCarteira)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
         {isEditingObjetivo ? (
@@ -196,39 +165,25 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
               className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               autoFocus
             />
-            <span className="text-xs text-gray-500">%</span>
+            <span className="text-xs text-black">%</span>
           </div>
         ) : (
           <div 
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObjetivo(true)}
           >
-            <Badge color="primary" size="sm">
-              {formatPercentage(ativo.objetivo)}
-            </Badge>
+            {formatPercentage(ativo.objetivo)}
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.quantoFalta > 0 ? "warning" : ativo.quantoFalta < 0 ? "success" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.quantoFalta)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right text-black">
+        {formatPercentage(ativo.quantoFalta)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium">
-        <span className={ativo.necessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
-          {formatCurrency(ativo.necessidadeAporte, currency)}
-        </span>
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+        {formatCurrency(ativo.necessidadeAporte, currency)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.rentabilidade >= 0 ? "success" : "error"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.rentabilidade)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right text-black">
+        {formatPercentage(ativo.rentabilidade)}
       </td>
     </tr>
   );
@@ -255,13 +210,6 @@ const EtfSection: React.FC<EtfSectionProps> = ({
   onUpdateObjetivo,
   onUpdateCotacao,
 }) => {
-  const getRegiaoColor = (regiao: string) => {
-    const colors = {
-      'brasil': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      'estados_unidos': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
-    };
-    return colors[regiao as keyof typeof colors] || colors.brasil;
-  };
 
   const currency = secao.regiao === 'estados_unidos' ? 'USD' : 'BRL';
 
@@ -272,7 +220,7 @@ const EtfSection: React.FC<EtfSectionProps> = ({
         className="bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
         onClick={onToggle}
       >
-        <td className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
+        <td className="px-2 py-2 text-xs font-bold text-black">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -280,61 +228,40 @@ const EtfSection: React.FC<EtfSectionProps> = ({
               <ChevronDownIcon className="w-4 h-4" />
             )}
             <span>{secao.nome}</span>
-            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRegiaoColor(secao.regiao)}`}>
-              {secao.regiao === 'brasil' ? 'BRASIL' : 'EUA'}
+            <span className="text-xs">
+              ({secao.regiao === 'brasil' ? 'BRASIL' : 'EUA'}) {secao.ativos.length} {secao.ativos.length === 1 ? 'ETF' : 'ETFs'}
             </span>
-            <Badge color="primary" size="sm">
-              {secao.ativos.length} {secao.ativos.length === 1 ? 'ETF' : 'ETFs'}
-            </Badge>
           </div>
         </td>
         <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
           {formatNumber(secao.totalQuantidade)}
         </td>
         <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
           {formatCurrency(secao.totalValorAplicado, currency)}
         </td>
         <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
           {formatCurrency(secao.totalValorAtualizado, currency)}
         </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge color="primary" size="sm">
-            {formatPercentage(secao.totalRisco)}
-          </Badge>
+        <td className="px-2 py-2 text-xs text-right text-black">
+          {formatPercentage(secao.totalRisco)}
         </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge color="primary" size="sm">
-            {formatPercentage(secao.totalPercentualCarteira)}
-          </Badge>
+        <td className="px-2 py-2 text-xs text-right text-black">
+          {formatPercentage(secao.totalPercentualCarteira)}
         </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge color="primary" size="sm">
-            {formatPercentage(secao.totalObjetivo)}
-          </Badge>
+        <td className="px-2 py-2 text-xs text-right text-black">
+          {formatPercentage(secao.totalObjetivo)}
         </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge 
-            color={secao.totalQuantoFalta > 0 ? "warning" : secao.totalQuantoFalta < 0 ? "success" : "primary"} 
-            size="sm"
-          >
-            {formatPercentage(secao.totalQuantoFalta)}
-          </Badge>
+        <td className="px-2 py-2 text-xs text-right text-black">
+          {formatPercentage(secao.totalQuantoFalta)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold">
-          <span className={secao.totalNecessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
-            {formatCurrency(secao.totalNecessidadeAporte, currency)}
-          </span>
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+          {formatCurrency(secao.totalNecessidadeAporte, currency)}
         </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge 
-            color={secao.rentabilidadeMedia >= 0 ? "success" : "error"} 
-            size="sm"
-          >
-            {formatPercentage(secao.rentabilidadeMedia)}
-          </Badge>
+        <td className="px-2 py-2 text-xs text-right text-black">
+          {formatPercentage(secao.rentabilidadeMedia)}
         </td>
       </tr>
 
@@ -437,7 +364,7 @@ export default function EtfTable() {
               <DollarLineIcon className="w-8 h-8 text-gray-400" />
             </div>
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              <h3 className="text-lg font-semibold text-black mb-2">
                 Nenhum ETF encontrado
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
@@ -489,44 +416,44 @@ export default function EtfTable() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
+                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Nome do Ativo
                 </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Índice Rastreado
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Quantidade
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Preço Médio
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Valor Total
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Cotação Atual
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Valor Atualizado
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Risco por Ativo
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   % da Carteira
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Objetivo
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Quanto Falta
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Nec. Aporte $
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Rentabilidade
                 </th>
               </tr>
@@ -548,54 +475,36 @@ export default function EtfTable() {
 
               {/* Linha de totalização */}
               <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs font-bold text-black">
                   TOTAL GERAL
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatNumber(data?.totalGeral?.quantidade)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatCurrency(data?.totalGeral?.valorAplicado)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatCurrency(data?.totalGeral?.valorAtualizado)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">
-                    {formatPercentage(data?.totalGeral?.risco)}
-                  </Badge>
+                <td className="px-2 py-2 text-xs text-right text-black">
+                  {formatPercentage(data?.totalGeral?.risco)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">100.00%</Badge>
+                <td className="px-2 py-2 text-xs text-right text-black">100.00%</td>
+                <td className="px-2 py-2 text-xs text-right text-black">
+                  {formatPercentage(data?.totalGeral?.objetivo)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">
-                    {formatPercentage(data?.totalGeral?.objetivo)}
-                  </Badge>
+                <td className="px-2 py-2 text-xs text-right text-black">
+                  {formatPercentage(data?.totalGeral?.quantoFalta)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge 
-                    color={data?.totalGeral?.quantoFalta > 0 ? "warning" : data?.totalGeral?.quantoFalta < 0 ? "success" : "primary"} 
-                    size="sm"
-                  >
-                    {formatPercentage(data?.totalGeral?.quantoFalta)}
-                  </Badge>
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                  {formatCurrency(data?.totalGeral?.necessidadeAporte)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold">
-                  <span className={data?.totalGeral?.necessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
-                    {formatCurrency(data?.totalGeral?.necessidadeAporte)}
-                  </span>
-                </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge 
-                    color={data?.totalGeral?.rentabilidade >= 0 ? "success" : "error"} 
-                    size="sm"
-                  >
-                    {formatPercentage(data?.totalGeral?.rentabilidade)}
-                  </Badge>
+                <td className="px-2 py-2 text-xs text-right text-black">
+                  {formatPercentage(data?.totalGeral?.rentabilidade)}
                 </td>
               </tr>
             </tbody>
@@ -628,10 +537,10 @@ export default function EtfTable() {
                 <tbody>
                   {data?.tabelaAuxiliar?.map((item, index) => (
                     <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                      <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
+                      <td className="px-2 py-2 text-xs font-medium text-black">
                         {item.ticker}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+                      <td className="px-2 py-2 text-xs text-right font-medium text-black">
                         {formatCurrency(item.cotacaoAtual)}
                       </td>
                       <td className="px-2 py-2 text-xs text-right font-medium">
@@ -639,7 +548,7 @@ export default function EtfTable() {
                           {formatCurrency(item.necessidadeAporte)}
                         </span>
                       </td>
-                      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+                      <td className="px-2 py-2 text-xs text-right font-medium text-black">
                         {formatNumber(item.loteAproximado)}
                       </td>
                     </tr>

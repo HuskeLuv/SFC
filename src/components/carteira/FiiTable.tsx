@@ -4,11 +4,11 @@ import { useFii } from "@/hooks/useFii";
 import { FiiAtivo, FiiSecao } from "@/types/fii";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import Badge from "@/components/ui/badge/Badge";
 import PieChartFiiSegmento from "@/components/charts/pie/PieChartFiiSegmento";
 import PieChartFiiAtivo from "@/components/charts/pie/PieChartFiiAtivo";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableRow, StandardTableBodyCell, TableBody } from "@/components/ui/table/StandardTable";
 
 interface FiiMetricCardProps {
   title: string;
@@ -92,51 +92,38 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
     }
   };
 
-  const getSegmentoColor = (segmento: string) => {
-    const colors = {
-      'logistica': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
-      'shoppings': 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300',
-      'residencial': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      'hibrido': 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300',
-      'escritorios': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300',
-      'outros': 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300',
-    };
-    return colors[segmento as keyof typeof colors] || colors.outros;
-  };
 
   return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="min-w-[220px] w-3/12 px-3 py-2 text-xs font-medium text-gray-900 dark:text-white">
+    <StandardTableRow>
+      <StandardTableBodyCell align="left" className="min-w-[220px] w-3/12">
         <div>
           <div className="font-semibold">{ativo.ticker}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">{ativo.nome}</div>
+          <div className="text-xs">{ativo.nome}</div>
           {ativo.observacoes && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <div className="text-xs mt-1">
               {ativo.observacoes}
             </div>
           )}
         </div>
-      </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
-        <Badge color="primary" size="sm">
-          {ativo.mandato}
-        </Badge>
-      </td>
-      <td className="px-2 py-2 text-xs text-center">
-        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getSegmentoColor(ativo.segmento)}`}>
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="center">
+        {ativo.mandato}
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="center">
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium">
           {ativo.segmento.charAt(0).toUpperCase() + ativo.segmento.slice(1)}
         </span>
-      </td>
-      <td className="w-[80px] px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right" className="w-[80px]">
         {formatNumber(ativo.quantidade)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatCurrency(ativo.precoAquisicao)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatCurrency(ativo.valorTotal)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {isEditingCotacao ? (
           <div className="flex items-center space-x-1">
             <input
@@ -155,32 +142,22 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingCotacao(true)}
           >
-            <span className="font-medium text-gray-900 dark:text-white">
+            <span className="font-medium">
               {formatCurrency(ativo.cotacaoAtual)}
             </span>
           </div>
         )}
-      </td>
-      <td className="px-2 py-2 text-xs text-right font-semibold text-gray-900 dark:text-white">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatCurrency(ativo.valorAtualizado)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.riscoPorAtivo > 20 ? "error" : ativo.riscoPorAtivo > 10 ? "warning" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.riscoPorAtivo)}
-        </Badge>
-      </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.percentualCarteira > 25 ? "warning" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.percentualCarteira)}
-        </Badge>
-      </td>
-      <td className="px-2 py-2 text-xs text-right">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
+        {formatPercentage(ativo.riscoPorAtivo)}
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
+        {formatPercentage(ativo.percentualCarteira)}
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {isEditingObjetivo ? (
           <div className="flex items-center space-x-1">
             <input
@@ -193,41 +170,29 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
               className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               autoFocus
             />
-            <span className="text-xs text-gray-500">%</span>
+            <span className="text-xs">%</span>
           </div>
         ) : (
           <div 
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObjetivo(true)}
           >
-            <Badge color="primary" size="sm">
-              {formatPercentage(ativo.objetivo)}
-            </Badge>
+            {formatPercentage(ativo.objetivo)}
           </div>
         )}
-      </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.quantoFalta > 0 ? "warning" : ativo.quantoFalta < 0 ? "success" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.quantoFalta)}
-        </Badge>
-      </td>
-      <td className="px-2 py-2 text-xs text-right font-medium">
-        <span className={ativo.necessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
+        {formatPercentage(ativo.quantoFalta)}
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
+        <span>
           {formatCurrency(ativo.necessidadeAporte)}
         </span>
-      </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.rentabilidade >= 0 ? "success" : "error"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.rentabilidade)}
-        </Badge>
-      </td>
-    </tr>
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
+        {formatPercentage(ativo.rentabilidade)}
+      </StandardTableBodyCell>
+    </StandardTableRow>
   );
 };
 
@@ -255,73 +220,55 @@ const FiiSection: React.FC<FiiSectionProps> = ({
   return (
     <>
       {/* Cabeçalho da seção */}
-      <tr 
-        className="bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+      <StandardTableRow 
+        className="bg-gray-100 dark:bg-gray-800 cursor-pointer"
         onClick={onToggle}
       >
-        <td className="min-w-[220px] w-3/12 px-3 py-2 text-xs font-bold text-gray-900 dark:text-white">
+        <StandardTableBodyCell align="left" className="min-w-[220px] w-3/12">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
             ) : (
               <ChevronDownIcon className="w-4 h-4" />
             )}
-            <span>{secao.nome}</span>
-            <Badge color="primary" size="sm">
-              {secao.ativos.length} {secao.ativos.length === 1 ? 'FII' : 'FIIs'}
-            </Badge>
+            <span className="font-bold">{secao.nome}</span>
+            {secao.ativos.length} {secao.ativos.length === 1 ? 'FII' : 'FIIs'}
           </div>
-        </td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="w-[80px] px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="center">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="w-[80px] font-semibold">
           {formatNumber(secao.totalQuantidade)}
-        </td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="center">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="font-semibold">
           {formatCurrency(secao.totalValorAplicado)}
-        </td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="center">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="font-semibold">
           {formatCurrency(secao.totalValorAtualizado)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge color="primary" size="sm">
-            {formatPercentage(secao.totalRisco)}
-          </Badge>
-        </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge color="primary" size="sm">
-            {formatPercentage(secao.totalPercentualCarteira)}
-          </Badge>
-        </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge color="primary" size="sm">
-            {formatPercentage(secao.totalObjetivo)}
-          </Badge>
-        </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge 
-            color={secao.totalQuantoFalta > 0 ? "warning" : secao.totalQuantoFalta < 0 ? "success" : "primary"} 
-            size="sm"
-          >
-            {formatPercentage(secao.totalQuantoFalta)}
-          </Badge>
-        </td>
-        <td className="px-2 py-2 text-xs text-right font-bold">
-          <span className={secao.totalNecessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right">
+          {formatPercentage(secao.totalRisco)}
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right">
+          {formatPercentage(secao.totalPercentualCarteira)}
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right">
+          {formatPercentage(secao.totalObjetivo)}
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right">
+          {formatPercentage(secao.totalQuantoFalta)}
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="font-semibold">
+          <span>
             {formatCurrency(secao.totalNecessidadeAporte)}
           </span>
-        </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge 
-            color={secao.rentabilidadeMedia >= 0 ? "success" : "error"} 
-            size="sm"
-          >
-            {formatPercentage(secao.rentabilidadeMedia)}
-          </Badge>
-        </td>
-      </tr>
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right">
+          {formatPercentage(secao.rentabilidadeMedia)}
+        </StandardTableBodyCell>
+      </StandardTableRow>
 
       {/* Ativos da seção */}
       {isExpanded && secao.ativos.map((ativo) => (
@@ -418,7 +365,7 @@ export default function FiiTable() {
               <DollarLineIcon className="w-8 h-8 text-gray-400" />
             </div>
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              <h3 className="text-lg font-semibold text-black mb-2">
                 Nenhum FII encontrado
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
@@ -463,55 +410,54 @@ export default function FiiTable() {
 
       {/* Tabela principal */}
       <ComponentCard title="FIIs - Detalhamento">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="min-w-[220px] w-3/12 px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Nome do Ativo
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Mandato
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Segmento
-                </th>
-                <th className="w-[80px] px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Quantidade
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Preço Médio
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Valor Total
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Cotação Atual
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Valor Atualizado
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Risco por Ativo
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  % da Carteira
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Objetivo
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Quanto Falta
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Nec. Aporte R$
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Rentabilidade
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+        <StandardTable>
+          <StandardTableHeader sticky headerBgColor="#9E8A58">
+            <StandardTableHeaderRow headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="center" className="min-w-[220px] w-3/12" headerBgColor="#9E8A58">
+                Nome do Ativo
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Mandato
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Segmento
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" className="w-[80px]" headerBgColor="#9E8A58">
+                Quantidade
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Preço Médio
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Valor Total
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Cotação Atual
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Valor Atualizado
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Risco por Ativo
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                % da Carteira
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Objetivo
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Quanto Falta
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Nec. Aporte R$
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Rentabilidade
+              </StandardTableHeaderCell>
+            </StandardTableHeaderRow>
+          </StandardTableHeader>
+          <TableBody>
               {data.secoes.map((secao) => (
                 <FiiSection
                   key={secao.tipo}
@@ -527,61 +473,46 @@ export default function FiiTable() {
               ))}
 
               {/* Linha de totalização */}
-              <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="min-w-[220px] w-3/12 px-3 py-2 text-xs font-bold text-gray-900 dark:text-white">
+              <StandardTableRow isTotal>
+                <StandardTableBodyCell align="left" isTotal className="min-w-[220px] w-3/12">
                   TOTAL GERAL
-                </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="w-[80px] px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal className="w-[80px]">
                   {formatNumber(data.totalGeral.quantidade)}
-                </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
                   {formatCurrency(data.totalGeral.valorAplicado)}
-                </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
                   {formatCurrency(data.totalGeral.valorAtualizado)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">
-                    {formatPercentage(data.totalGeral.risco)}
-                  </Badge>
-                </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">100.00%</Badge>
-                </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">
-                    {formatPercentage(data.totalGeral.objetivo)}
-                  </Badge>
-                </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge 
-                    color={data.totalGeral.quantoFalta > 0 ? "warning" : data.totalGeral.quantoFalta < 0 ? "success" : "primary"} 
-                    size="sm"
-                  >
-                    {formatPercentage(data.totalGeral.quantoFalta)}
-                  </Badge>
-                </td>
-                <td className="px-2 py-2 text-xs text-right font-bold">
-                  <span className={data.totalGeral.necessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  {formatPercentage(data.totalGeral.risco)}
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  100.00%
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  {formatPercentage(data.totalGeral.objetivo)}
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  {formatPercentage(data.totalGeral.quantoFalta)}
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  <span>
                     {formatCurrency(data.totalGeral.necessidadeAporte)}
                   </span>
-                </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge 
-                    color={data.totalGeral.rentabilidade >= 0 ? "success" : "error"} 
-                    size="sm"
-                  >
-                    {formatPercentage(data.totalGeral.rentabilidade)}
-                  </Badge>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  {formatPercentage(data.totalGeral.rentabilidade)}
+                </StandardTableBodyCell>
+              </StandardTableRow>
+            </TableBody>
+        </StandardTable>
       </ComponentCard>
 
       {/* Gráficos e tabela auxiliar */}
@@ -600,52 +531,36 @@ export default function FiiTable() {
 
       {/* Tabela auxiliar */}
       <ComponentCard title="Resumo de Aportes">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Ticker
-                </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Nome
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Cotação Atual
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Necessidade Aporte
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Lote Aproximado
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.tabelaAuxiliar.map((item, index) => (
-                <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                  <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
-                    {item.ticker}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-gray-700 dark:text-gray-300">
-                    {item.nome}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
-                    {formatCurrency(item.cotacaoAtual)}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right font-medium">
-                    <span className={item.necessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
-                      {formatCurrency(item.necessidadeAporte)}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
-                    {formatNumber(item.loteAproximado)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <StandardTable>
+          <StandardTableHeader headerBgColor="#9E8A58">
+            <StandardTableHeaderRow headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">Ticker</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">Nome</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Cotação Atual</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Necessidade Aporte</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Lote Aproximado</StandardTableHeaderCell>
+            </StandardTableHeaderRow>
+          </StandardTableHeader>
+          <TableBody>
+            {data.tabelaAuxiliar.map((item, index) => (
+              <StandardTableRow key={index}>
+                <StandardTableBodyCell align="left">{item.ticker}</StandardTableBodyCell>
+                <StandardTableBodyCell align="left">{item.nome}</StandardTableBodyCell>
+                <StandardTableBodyCell align="right">
+                  {formatCurrency(item.cotacaoAtual)}
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right">
+                  <span>
+                    {formatCurrency(item.necessidadeAporte)}
+                  </span>
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right">
+                  {formatNumber(item.loteAproximado)}
+                </StandardTableBodyCell>
+              </StandardTableRow>
+            ))}
+          </TableBody>
+        </StandardTable>
       </ComponentCard>
     </div>
   );

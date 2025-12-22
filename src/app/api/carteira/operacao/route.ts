@@ -174,6 +174,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar se o ativo existe ou criar para reservas
     let asset = null;
+    let stock = null;
     
     // Se é reserva de emergência ou oportunidade, buscar ou criar o asset
     if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
@@ -197,8 +198,17 @@ export async function POST(request: NextRequest) {
           },
         });
       }
+    } else if (tipoAtivo === "acao") {
+      // Para ações, buscar na tabela Stock
+      stock = await prisma.stock.findUnique({
+        where: { id: assetId },
+      });
+
+      if (!stock) {
+        return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
+      }
     } else {
-      // Para outros tipos, buscar pelo ID fornecido
+      // Para outros tipos, buscar pelo ID fornecido na tabela Asset
       asset = await prisma.asset.findUnique({
         where: { id: assetId },
       });
@@ -244,9 +254,9 @@ export async function POST(request: NextRequest) {
     const valorFinal = valorTotal || valorCalculado;
     const dataTransacao = new Date(dataFinal);
 
-    // Preparar notes com campos específicos para reserva de emergência
+    // Preparar notes com campos específicos para reserva de emergência e oportunidade
     let notesData = observacoes || null;
-    if (tipoAtivo === "emergency") {
+    if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
       const reservaMetadata: any = {
         cotizacaoResgate: cotizacaoResgate || 'D+0',
         liquidacaoResgate: liquidacaoResgate || 'Imediata',
@@ -266,11 +276,11 @@ export async function POST(request: NextRequest) {
       notesData = JSON.stringify(reservaMetadata);
     }
 
-    // Criar transação de compra usando Asset diretamente
+    // Criar transação de compra
     const transacao = await prisma.stockTransaction.create({
       data: {
         userId: targetUserId,
-        assetId: asset.id, // Usar o ID do Asset diretamente
+        ...(tipoAtivo === "acao" ? { stockId: stock!.id } : { assetId: asset!.id }),
         type: 'compra',
         quantity: quantidadeFinal,
         price: precoFinal,
@@ -281,11 +291,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Atualizar ou criar portfolio usando Asset
+    // Atualizar ou criar portfolio
     const portfolioExistente = await prisma.portfolio.findFirst({
       where: {
         userId: targetUserId,
-        assetId: asset.id, // Usar o ID do Asset
+        ...(tipoAtivo === "acao" ? { stockId: stock!.id } : { assetId: asset!.id }),
       },
     });
 
@@ -309,7 +319,7 @@ export async function POST(request: NextRequest) {
       await prisma.portfolio.create({
         data: {
           userId: targetUserId,
-          assetId: asset.id, // Usar o ID do Asset
+          ...(tipoAtivo === "acao" ? { stockId: stock!.id } : { assetId: asset!.id }),
           quantity: quantidadeFinal,
           avgPrice: precoFinal,
           totalInvested: valorFinal,

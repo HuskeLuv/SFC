@@ -19,7 +19,6 @@ import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarte
 import ComponentCard from "@/components/common/ComponentCard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import AddAssetWizard from "./AddAssetWizard";
-import AddReservaModal from "./AddReservaModal";
 import { PencilIcon, PlusIcon } from "@/icons";
 import { useReservaEmergencia } from "@/hooks/useReservaEmergencia";
 import { useCarteira } from "@/hooks/useCarteira";
@@ -249,7 +248,6 @@ const tabs = [
 export default function CarteiraTabs() {
   const [activeTab, setActiveTab] = useState("consolidada");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isReservaOportunidadeModalOpen, setIsReservaOportunidadeModalOpen] = useState(false);
   const { resumo, loading, error, formatCurrency, formatPercentage, refetch, updateMeta } = useCarteira();
   const alocacaoConfig = useAlocacaoConfig();
   const [isEditingMeta, setIsEditingMeta] = useState(false);
@@ -482,15 +480,6 @@ export default function CarteiraTabs() {
 
             {/* Reserva de Oportunidade */}
             <TabContent id="reserva-oportunidade" isActive={activeTab === "reserva-oportunidade"}>
-              <div className="mb-4 flex justify-end">
-                <button
-                  onClick={() => setIsReservaOportunidadeModalOpen(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
-                >
-                  <PlusIcon className="w-4 h-4" />
-                  <span>Adicionar Reserva de Oportunidade</span>
-                </button>
-              </div>
               <ReservaOportunidadeTable />
             </TabContent>
 
@@ -582,16 +571,6 @@ export default function CarteiraTabs() {
           onSuccess={() => {
             refetch();
           }}
-        />
-
-        {/* Modal para adicionar Reserva de Oportunidade */}
-        <AddReservaModal
-          isOpen={isReservaOportunidadeModalOpen}
-          onClose={() => setIsReservaOportunidadeModalOpen(false)}
-          onSuccess={() => {
-            refetch();
-          }}
-          tipo="opportunity"
         />
       </div>
     </CarteiraResumoProvider>

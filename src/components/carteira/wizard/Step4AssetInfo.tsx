@@ -83,6 +83,7 @@ export default function Step4AssetInfo({
   const renderFieldsByAssetType = () => {
     switch (formData.tipoAtivo) {
       case "reserva-emergencia":
+      case "reserva-oportunidade":
         return (
           <>
             <div>

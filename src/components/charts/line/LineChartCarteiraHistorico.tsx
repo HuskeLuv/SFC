@@ -12,6 +12,16 @@ const ApexChartWrapper = React.memo(({ options, series, type, height }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
 
+  // IMPORTANTE: useMemo deve ser chamado antes de qualquer early return para manter ordem dos hooks
+  // Sanitizar options para evitar enumeração de searchParams pelo ApexCharts
+  const sanitizedOptions = useMemo(() => {
+    try {
+      return JSON.parse(JSON.stringify(options)) as ApexOptions;
+    } catch {
+      return options;
+    }
+  }, [options]);
+
   useEffect(() => {
     // Importação dinâmica do ReactApexChart apenas no client-side
     const loadChart = async () => {
@@ -34,7 +44,7 @@ const ApexChartWrapper = React.memo(({ options, series, type, height }: {
     );
   }
 
-  return <Chart options={options} series={series} type={type} height={height} />;
+  return <Chart options={sanitizedOptions} series={series} type={type} height={height} />;
 });
 
 ApexChartWrapper.displayName = 'ApexChartWrapper';

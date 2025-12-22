@@ -5,25 +5,25 @@ import { AcaoData, AcaoAtivo, AcaoSecao } from '@/types/acoes';
 import { fetchQuotes } from '@/services/brapiQuote';
 
 async function calculateAcoesData(userId: string): Promise<AcaoData> {
-  // Buscar portfolio do usuário com ativos do tipo "stock" e moeda BRL (ações brasileiras)
+  // Buscar portfolio do usuário com ações brasileiras (tabela Stock)
   const portfolio = await prisma.portfolio.findMany({
     where: { 
       userId,
-      asset: {
-        type: 'stock',
-        currency: 'BRL'
-      }
+      stockId: { not: null } // Buscar apenas portfolios com stockId (ações)
     },
     include: {
-      asset: true
+      stock: true, // Incluir relação com Stock
+      asset: true  // Incluir relação com Asset para compatibilidade
     }
   });
 
+  // Filtrar apenas itens com stock válido
+  const acoesPortfolio = portfolio.filter(item => item.stock);
+
   // Buscar cotações atuais dos ativos
   // Sempre forçar busca fresca para garantir valores atualizados
-  const symbols = portfolio
-    .filter(item => item.asset)
-    .map(item => item.asset!.symbol);
+  const symbols = acoesPortfolio
+    .map(item => item.stock!.ticker);
   
   // Forçar refresh para sempre obter cotações atualizadas da API
   let quotes = await fetchQuotes(symbols, true);
@@ -45,17 +45,16 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   }
 
   // Converter para formato AcaoAtivo
-  const acoesAtivos: AcaoAtivo[] = portfolio
-    .filter(item => item.asset) // Filtrar apenas itens com asset
-    .map(item => {
+  const acoesAtivos: AcaoAtivo[] = acoesPortfolio.map(item => {
       const valorTotal = item.totalInvested;
+      const ticker = item.stock!.ticker;
       
       // Buscar cotação atual da brapi
-      let cotacaoAtual = quotes.get(item.asset!.symbol);
+      let cotacaoAtual = quotes.get(ticker);
       
       // Se ainda não encontrou, usar preço médio como último recurso
       if (!cotacaoAtual) {
-        console.warn(`⚠️  Não foi possível obter cotação de ${item.asset!.symbol}, usando preço médio como fallback`);
+        console.warn(`⚠️  Não foi possível obter cotação de ${ticker}, usando preço médio como fallback`);
         cotacaoAtual = item.avgPrice;
       }
       
@@ -69,10 +68,10 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       
       return {
         id: item.id,
-        ticker: item.asset!.symbol,
-        nome: item.asset!.name,
-        setor: 'outros', // Asset não tem setor
-        subsetor: '',
+        ticker: ticker,
+        nome: item.stock!.companyName,
+        setor: item.stock!.sector || 'outros',
+        subsetor: item.stock!.subsector || '',
         quantidade: item.quantity,
         precoAquisicao: item.avgPrice,
         valorTotal,

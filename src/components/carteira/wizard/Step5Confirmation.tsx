@@ -145,6 +145,7 @@ export default function Step5Confirmation({
         );
 
       case "reserva-emergencia":
+      case "reserva-oportunidade":
         return (
           <>
             {renderFieldValue("Data", formData.dataCompra, formatDate)}

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export interface ReservaOportunidadeAtivo {
   id: string;
@@ -20,62 +20,90 @@ export interface ReservaOportunidadeAtivo {
 
 export interface ReservaOportunidadeData {
   ativos: ReservaOportunidadeAtivo[];
-  resumo: {
-    necessidadeAporte: number;
-    caixaParaInvestir: number;
-    saldoInicioMes: number;
-    rendimento: number;
-    rentabilidade: number;
-  };
+  saldoInicioMes: number;
+  rendimento: number;
+  rentabilidade: number;
 }
 
 export const useReservaOportunidade = () => {
   const [data, setData] = useState<ReservaOportunidadeData>({
     ativos: [],
-    resumo: {
-      necessidadeAporte: 0,
-      caixaParaInvestir: 0,
-      saldoInicioMes: 0,
-      rendimento: 0,
-      rentabilidade: 0,
-    },
+    saldoInicioMes: 0,
+    rendimento: 0,
+    rentabilidade: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isFetchingRef = useRef(false);
+  const hasFetchedRef = useRef(false);
 
-  const fetchReservaOportunidade = async () => {
+  const fetchReservaOportunidade = useCallback(async (force = false) => {
+    // Prevenir múltiplas chamadas simultâneas
+    if (isFetchingRef.current) {
+      return;
+    }
+
+    // Se já foi feito fetch e não é forçado, não fazer nada
+    if (!force && hasFetchedRef.current) {
+      return;
+    }
+
     try {
+      isFetchingRef.current = true;
       setLoading(true);
       setError(null);
       
-      // Retornar dados vazios por enquanto
-      const emptyData: ReservaOportunidadeData = {
-        ativos: [],
-        resumo: {
-          necessidadeAporte: 0,
-          caixaParaInvestir: 0,
-          saldoInicioMes: 0,
-          rendimento: 0,
-          rentabilidade: 0,
-        },
+      const response = await fetch('/api/carteira/reserva-oportunidade', {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao carregar dados da reserva de oportunidade');
+      }
+
+      const responseData = await response.json();
+      
+      // Transformar dados recebidos para o formato esperado
+      const transformedData: ReservaOportunidadeData = {
+        ativos: responseData.ativos.map((ativo: any) => ({
+          ...ativo,
+          vencimento: new Date(ativo.vencimento),
+        })),
+        saldoInicioMes: responseData.saldoInicioMes || 0,
+        rendimento: responseData.rendimento || 0,
+        rentabilidade: responseData.rentabilidade || 0,
       };
       
-      setData(emptyData);
+      setData(transformedData);
+      hasFetchedRef.current = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  };
-
-  useEffect(() => {
-    fetchReservaOportunidade();
   }, []);
+
+  // Só fazer fetch na montagem inicial
+  useEffect(() => {
+    if (!hasFetchedRef.current) {
+      fetchReservaOportunidade(false);
+    } else {
+      // Se já tem dados, apenas marcar como não loading
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Wrapper para refetch que força reload
+  const refetch = useCallback(() => {
+    return fetchReservaOportunidade(true);
+  }, [fetchReservaOportunidade]);
 
   return {
     data,
     loading,
     error,
-    refetch: fetchReservaOportunidade,
+    refetch,
   };
 };

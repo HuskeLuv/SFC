@@ -3,8 +3,8 @@ import React from "react";
 import { useReservaOportunidade } from "@/hooks/useReservaOportunidade";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import Badge from "@/components/ui/badge/Badge";
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableBodyCell, StandardTableRow } from "@/components/ui/table/StandardTable";
+import { TableBody } from "@/components/ui/table";
 
 interface ReservaOportunidadeMetricCardProps {
   title: string;
@@ -34,8 +34,6 @@ const ReservaOportunidadeMetricCard: React.FC<ReservaOportunidadeMetricCardProps
 
 export default function ReservaOportunidadeTable() {
   const { data, loading, error } = useReservaOportunidade();
-  const { necessidadeAporteMap } = useCarteiraResumoContext();
-  const necessidadeAporteCalculada = necessidadeAporteMap.reservaOportunidade ?? data?.resumo?.necessidadeAporte ?? 0;
 
   const formatCurrency = (value: number): string => {
     return value.toLocaleString("pt-BR", {
@@ -68,17 +66,7 @@ export default function ReservaOportunidadeTable() {
   if (!data || data.ativos.length === 0) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-          <ReservaOportunidadeMetricCard
-            title="Necessidade de Aporte"
-            value={formatCurrency(necessidadeAporteCalculada)}
-            color="warning"
-          />
-          <ReservaOportunidadeMetricCard
-            title="Caixa para Investir"
-            value={formatCurrency(0)}
-            color="success"
-          />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-3">
           <ReservaOportunidadeMetricCard
             title="Saldo Início do Mês"
             value={formatCurrency(0)}
@@ -98,7 +86,7 @@ export default function ReservaOportunidadeTable() {
         <ComponentCard title="Reserva de Oportunidade - Detalhamento">
           <div className="flex flex-col items-center justify-center py-16 space-y-4">
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              <h3 className="text-lg font-semibold text-black mb-2">
                 Nenhum investimento encontrado
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -125,178 +113,80 @@ export default function ReservaOportunidadeTable() {
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-        <ReservaOportunidadeMetricCard
-          title="Necessidade de Aporte"
-          value={formatCurrency(necessidadeAporteCalculada)}
-          color="warning"
-        />
-        <ReservaOportunidadeMetricCard
-          title="Caixa para Investir"
-          value={formatCurrency(data.resumo.caixaParaInvestir)}
-          color="success"
-        />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-3">
         <ReservaOportunidadeMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data.resumo.saldoInicioMes)}
+          value={formatCurrency(data.saldoInicioMes)}
         />
         <ReservaOportunidadeMetricCard
           title="Rendimento"
-          value={formatCurrency(data.resumo.rendimento)}
+          value={formatCurrency(data.rendimento)}
           color="success"
         />
         <ReservaOportunidadeMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.resumo.rentabilidade)}
+          value={formatPercentage(data.rentabilidade)}
           color="success"
         />
       </div>
 
       {/* Tabela principal */}
       <ComponentCard title="Reserva de Oportunidade - Detalhamento">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Nome dos Ativos
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Cot. Resgate
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Liq. Resgate
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Vencimento
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Benchmark
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Valor Inicial
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Aporte
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Resgate
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Valor Atual
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  % Carteira
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Risco
-                </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Rentab.
-                </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Observações
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.ativos.map((ativo) => (
-                <tr key={ativo.id} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                  <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
-                    {ativo.nome}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
-                    {ativo.cotizacaoResgate}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
-                    {ativo.liquidacaoResgate}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
-                    {ativo.vencimento.toLocaleDateString("pt-BR")}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
-                    {ativo.benchmark}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
-                    {formatCurrency(ativo.valorInicial)}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right font-medium text-green-600 dark:text-green-400">
-                    {formatCurrency(ativo.aporte)}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right font-medium text-red-600 dark:text-red-400">
-                    {formatCurrency(ativo.resgate)}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right font-semibold text-gray-900 dark:text-white">
-                    {formatCurrency(ativo.valorAtualizado)}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right">
-                    <Badge 
-                      color={ativo.percentualCarteira > 25 ? "warning" : "primary"} 
-                      size="sm"
-                    >
-                      {formatPercentage(ativo.percentualCarteira)}
-                    </Badge>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right">
-                    <Badge 
-                      color={ativo.riscoAtivo > 20 ? "error" : "primary"} 
-                      size="sm"
-                    >
-                      {formatPercentage(ativo.riscoAtivo)}
-                    </Badge>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right">
-                    <Badge 
-                      color={ativo.rentabilidade >= 3 ? "success" : "primary"} 
-                      size="sm"
-                    >
-                      {formatPercentage(ativo.rentabilidade)}
-                    </Badge>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
-                    {ativo.observacoes || "-"}
-                  </td>
-                </tr>
-              ))}
+        <StandardTable>
+          <StandardTableHeader sticky headerBgColor="#9E8A58">
+            <StandardTableHeaderRow headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">Nome dos Ativos</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">Cot. Resgate</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">Liq. Resgate</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">Vencimento</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">Benchmark</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Valor Inicial</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Aporte</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Resgate</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Valor Atual</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">% Carteira</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Risco</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Rentab.</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">Observações</StandardTableHeaderCell>
+            </StandardTableHeaderRow>
+          </StandardTableHeader>
+          <TableBody>
+            {data.ativos.map((ativo) => (
+              <StandardTableRow key={ativo.id}>
+                <StandardTableBodyCell align="left">{ativo.nome}</StandardTableBodyCell>
+                <StandardTableBodyCell align="center">{ativo.cotizacaoResgate}</StandardTableBodyCell>
+                <StandardTableBodyCell align="center">{ativo.liquidacaoResgate}</StandardTableBodyCell>
+                <StandardTableBodyCell align="center">{ativo.vencimento.toLocaleDateString("pt-BR")}</StandardTableBodyCell>
+                <StandardTableBodyCell align="center">{ativo.benchmark}</StandardTableBodyCell>
+                <StandardTableBodyCell align="right">{formatCurrency(ativo.valorInicial)}</StandardTableBodyCell>
+                <StandardTableBodyCell align="right">{formatCurrency(ativo.aporte)}</StandardTableBodyCell>
+                <StandardTableBodyCell align="right">{formatCurrency(ativo.resgate)}</StandardTableBodyCell>
+                <StandardTableBodyCell align="right">{formatCurrency(ativo.valorAtualizado)}</StandardTableBodyCell>
+                <StandardTableBodyCell align="right">{formatPercentage(ativo.percentualCarteira)}</StandardTableBodyCell>
+                <StandardTableBodyCell align="right">{formatPercentage(ativo.riscoAtivo)}</StandardTableBodyCell>
+                <StandardTableBodyCell align="right">{formatPercentage(ativo.rentabilidade)}</StandardTableBodyCell>
+                <StandardTableBodyCell align="center">{ativo.observacoes || "-"}</StandardTableBodyCell>
+              </StandardTableRow>
+            ))}
 
-              {/* Linha de totalização */}
-              <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
-                  TOTAL GERAL
-                </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(totais.valorInicial)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-green-600 dark:text-green-400">
-                  {formatCurrency(totais.aporte)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-red-600 dark:text-red-400">
-                  {formatCurrency(totais.resgate)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(totais.valorAtualizado)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">100.00%</Badge>
-                </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge 
-                    color={rentabilidadeTotal >= 3 ? "success" : "primary"} 
-                    size="sm"
-                  >
-                    {formatPercentage(rentabilidadeTotal)}
-                  </Badge>
-                </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+            {/* Linha de totalização */}
+            <StandardTableRow isTotal>
+              <StandardTableBodyCell align="left" isTotal>TOTAL GERAL</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal>{formatCurrency(totais.valorInicial)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal>{formatCurrency(totais.aporte)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal>{formatCurrency(totais.resgate)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal>{formatCurrency(totais.valorAtualizado)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal>100.00%</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal>{formatPercentage(rentabilidadeTotal)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
+            </StandardTableRow>
+          </TableBody>
+        </StandardTable>
       </ComponentCard>
     </div>
   );

@@ -29,11 +29,13 @@ export default function Step3Asset({
       return;
     }
 
-    // Para reserva de emergência, criar automaticamente sem busca
-    if (formData.tipoAtivo === "reserva-emergencia") {
+    // Para reserva de emergência e oportunidade, criar automaticamente sem busca
+    if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade") {
+      const nome = formData.tipoAtivo === "reserva-emergencia" ? "Reserva de Emergência" : "Reserva de Oportunidade";
+      const symbol = formData.tipoAtivo === "reserva-emergencia" ? "RESERVA-EMERG" : "RESERVA-OPORT";
       onFormDataChange({
-        ativo: "Reserva de Emergência",
-        assetId: "RESERVA-EMERG", // Será processado pela API
+        ativo: nome,
+        assetId: symbol, // Será processado pela API
       });
       return;
     }
@@ -50,15 +52,21 @@ export default function Step3Asset({
       
       if (response.ok) {
         const data = await response.json();
-        const options: AutocompleteOption[] = data.assets.map((asset: Asset) => ({
+        const options: AutocompleteOption[] = (data.assets || []).map((asset: Asset) => ({
           value: asset.id,
           label: `${asset.symbol} - ${asset.name}`,
           subtitle: asset.type,
         }));
         setAssetOptions(options);
-        if (options.length === 0) {
+        if (options.length === 0 && search.length >= 2) {
           onErrorsChange({ ativo: "Nenhum ativo encontrado para o tipo selecionado." });
+        } else if (options.length === 0) {
+          onErrorsChange({ ativo: undefined });
         }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Erro ao buscar ativos:', errorData);
+        onErrorsChange({ ativo: errorData.message || "Não foi possível carregar os ativos. Tente novamente." });
       }
     } catch (error) {
       console.error('Erro ao buscar ativos:', error);
@@ -105,11 +113,13 @@ export default function Step3Asset({
     if (formData.tipoAtivo) {
       onErrorsChange({ ativo: undefined });
       
-      // Para reserva de emergência, definir automaticamente
-      if (formData.tipoAtivo === "reserva-emergencia") {
+      // Para reserva de emergência e oportunidade, definir automaticamente
+      if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade") {
+        const nome = formData.tipoAtivo === "reserva-emergencia" ? "Reserva de Emergência" : "Reserva de Oportunidade";
+        const symbol = formData.tipoAtivo === "reserva-emergencia" ? "RESERVA-EMERG" : "RESERVA-OPORT";
         onFormDataChange({
-          ativo: "Reserva de Emergência",
-          assetId: "RESERVA-EMERG", // Será processado pela API
+          ativo: nome,
+          assetId: symbol, // Será processado pela API
         });
       }
     }
@@ -119,6 +129,7 @@ export default function Step3Asset({
   const getPlaceholderText = () => {
     const placeholders: Record<string, string> = {
       "reserva-emergencia": "Reserva de Emergência (automático)",
+      "reserva-oportunidade": "Reserva de Oportunidade (automático)",
       "acao": "Digite pelo menos 2 caracteres (ex: PETR4, VALE3, ITUB4)",
       "bdr": "Digite pelo menos 2 caracteres (ex: AAPL34, MSFT34)",
       "fii": "Digite pelo menos 2 caracteres (ex: HGLG11, XPML11)",
@@ -140,16 +151,17 @@ export default function Step3Asset({
     return placeholders[formData.tipoAtivo] || "Digite pelo menos 2 caracteres para buscar";
   };
 
-  // Para reserva de emergência, não mostrar campo de busca
-  if (formData.tipoAtivo === "reserva-emergencia") {
+  // Para reserva de emergência e oportunidade, não mostrar campo de busca
+  if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade") {
+    const nome = formData.tipoAtivo === "reserva-emergencia" ? "Reserva de Emergência" : "Reserva de Oportunidade";
     return (
       <div className="space-y-6">
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            Reserva de Emergência
+            {nome}
           </h4>
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            O ativo será criado automaticamente como "Reserva de Emergência". Continue para o próximo passo para informar o valor e a data.
+            O ativo será criado automaticamente como "{nome}". Continue para o próximo passo para informar o valor e a data.
           </p>
         </div>
         {formData.assetId && (
@@ -211,6 +223,7 @@ export default function Step3Asset({
 function getSearchInstructions(tipoAtivo: string): string {
   const instructions: Record<string, string> = {
     "reserva-emergencia": "O ativo será criado automaticamente como Reserva de Emergência.",
+    "reserva-oportunidade": "O ativo será criado automaticamente como Reserva de Oportunidade.",
     "acao": "Digite pelo menos 2 caracteres do código da ação (ex: PETR4, VALE3). O sistema buscará ações brasileiras listadas na B3.",
     "bdr": "Digite pelo menos 2 caracteres do código do BDR (ex: AAPL34, MSFT34). BDRs são certificados de ações estrangeiras.",
     "fii": "Digite pelo menos 2 caracteres do código do FII (ex: HGLG11, XPML11). Fundos Imobiliários investem em imóveis.",

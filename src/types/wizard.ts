@@ -102,6 +102,7 @@ export interface WizardErrors {
 
 export const TIPOS_ATIVO = [
   { value: "reserva-emergencia", label: "Reserva de Emergência" },
+  { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
   { value: "acao", label: "Ações" },
   { value: "bdr", label: "BDRs" },
   { value: "conta-corrente", label: "Conta Corrente" },

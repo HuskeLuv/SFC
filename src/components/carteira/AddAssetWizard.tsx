@@ -69,7 +69,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       const { tipoAtivo, dataCompra, dataInicio } = formData;
       
       // Validação básica - cada tipo terá validações específicas
-      if (tipoAtivo === "reserva-emergencia") {
+      if (tipoAtivo === "reserva-emergencia" || tipoAtivo === "reserva-oportunidade") {
         return !!(
           dataCompra && 
           formData.valorInvestido > 0 &&
@@ -124,8 +124,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
             isValid = !!formData.instituicaoId;
             break;
           case "asset":
-            // Para reserva de emergência, o assetId será "RESERVA-EMERG" (placeholder)
-            isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia";
+            // Para reserva de emergência e oportunidade, o assetId será um placeholder
+            isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade";
             break;
           case "info":
             isValid = validateStep4();
@@ -171,10 +171,15 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      // Converter 'reserva-emergencia' para 'emergency' para a API
+      // Converter 'reserva-emergencia' e 'reserva-oportunidade' para o formato da API
       const apiFormData = { ...formData };
       if (apiFormData.tipoAtivo === "reserva-emergencia") {
         apiFormData.tipoAtivo = "emergency" as any;
+        // Ajustar campos para formato esperado pela API
+        apiFormData.quantidade = 1;
+        apiFormData.cotacaoUnitaria = apiFormData.valorInvestido;
+      } else if (apiFormData.tipoAtivo === "reserva-oportunidade") {
+        apiFormData.tipoAtivo = "opportunity" as any;
         // Ajustar campos para formato esperado pela API
         apiFormData.quantidade = 1;
         apiFormData.cotacaoUnitaria = apiFormData.valorInvestido;

@@ -8,12 +8,46 @@ export async function GET(request: NextRequest) {
     const tipo = searchParams.get('tipo') || '';
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    const whereClause: Record<string, unknown> = {};
+    // Para ações, buscar na tabela Stock
+    if (tipo === 'acao') {
+      const whereClause: Record<string, unknown> = {
+        isActive: true,
+      };
 
-    // Filtrar por tipo se especificado
+      if (search) {
+        whereClause.OR = [
+          { ticker: { contains: search, mode: 'insensitive' } },
+          { companyName: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      const stocks = await prisma.stock.findMany({
+        where: whereClause,
+        take: limit,
+        orderBy: [
+          { ticker: 'asc' },
+        ],
+      });
+
+      return NextResponse.json({
+        success: true,
+        assets: stocks.map(stock => ({
+          id: stock.id,
+          symbol: stock.ticker,
+          name: stock.companyName,
+          type: 'stock',
+          currency: 'BRL',
+          source: 'brapi',
+        })),
+        count: stocks.length,
+      });
+    }
+
+    // Para outros tipos, buscar na tabela Asset
+    const baseFilters: Record<string, unknown> = {};
+
     if (tipo) {
       const tipoMapping: Record<string, string[]> = {
-        'acao': ['stock'],
         'bdr': ['brd', 'bdr'],
         'fii': ['fund', 'fii'],
         'etf': ['etf'],
@@ -33,16 +67,36 @@ export async function GET(request: NextRequest) {
 
       const tipoFilter = tipoMapping[tipo];
       if (tipoFilter && tipoFilter.length > 0) {
-        whereClause.type = tipoFilter.length === 1 ? tipoFilter[0] : { in: tipoFilter };
+        baseFilters.type = tipoFilter.length === 1 ? tipoFilter[0] : { in: tipoFilter };
       }
     }
 
-    // Buscar por texto se especificado
+    // Construir whereClause combinando filtros base com busca de texto
+    let whereClause: Record<string, unknown>;
+
     if (search) {
-      whereClause.OR = [
-        { symbol: { contains: search, mode: 'insensitive' } },
-        { name: { contains: search, mode: 'insensitive' } },
-      ];
+      // Quando há busca, usar AND para combinar filtros base com OR de busca
+      const andConditions = [];
+      
+      // Adicionar filtros base apenas se existirem
+      if (Object.keys(baseFilters).length > 0) {
+        andConditions.push(baseFilters);
+      }
+      
+      // Adicionar condição de busca
+      andConditions.push({
+        OR: [
+          { symbol: { contains: search, mode: 'insensitive' } },
+          { name: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+      
+      whereClause = {
+        AND: andConditions,
+      };
+    } else {
+      // Quando não há busca, usar filtros base diretamente
+      whereClause = Object.keys(baseFilters).length > 0 ? baseFilters : {};
     }
 
     const assets = await prisma.asset.findMany({

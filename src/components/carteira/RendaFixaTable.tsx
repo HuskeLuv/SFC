@@ -41,6 +41,13 @@ interface RendaFixaTableRowProps {
   formatPercentage: (value: number) => string;
 }
 
+const formatPercentageSimple = (value: number | undefined | null): string => {
+  if (value === undefined || value === null || isNaN(value)) {
+    return '0,00%';
+  }
+  return `${value.toFixed(2)}%`;
+};
+
 const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
   ativo,
   formatCurrency,
@@ -48,11 +55,11 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
 }) => {
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs font-medium text-black">
         <div>
           <div className="font-semibold">{ativo.nome}</div>
           {ativo.observacoes && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <div className="text-xs text-black mt-1">
               {ativo.observacoes}
             </div>
           )}
@@ -63,37 +70,32 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           {ativo.percentualRentabilidade}%
         </Badge>
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
+      <td className="px-2 py-2 text-xs text-center text-black">
         {ativo.cotizacaoResgate}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
+      <td className="px-2 py-2 text-xs text-center text-black">
         {ativo.liquidacaoResgate}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
+      <td className="px-2 py-2 text-xs text-center text-black">
         {ativo.vencimento.toLocaleDateString("pt-BR")}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-700 dark:text-gray-300">
+      <td className="px-2 py-2 text-xs text-center text-black">
         {ativo.benchmark}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
         {formatCurrency(ativo.valorInicialAplicado)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-green-600 dark:text-green-400">
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
         {formatCurrency(ativo.aporte)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-red-600 dark:text-red-400">
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
         {formatCurrency(ativo.resgate)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-semibold text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-semibold text-black">
         {formatCurrency(ativo.valorAtualizado)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.percentualCarteira > 25 ? "warning" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.percentualCarteira)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+        {formatPercentageSimple(ativo.percentualCarteira)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
         <Badge 
@@ -103,13 +105,8 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           {formatPercentage(ativo.riscoPorAtivo)}
         </Badge>
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.rentabilidade >= 3 ? "success" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.rentabilidade)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+        {formatPercentage(ativo.rentabilidade)}
       </td>
     </tr>
   );
@@ -137,7 +134,7 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
         className="bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
         onClick={onToggle}
       >
-        <td className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
+        <td className="px-2 py-2 text-xs font-bold text-black">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -155,31 +152,24 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
         <td className="px-2 py-2 text-xs text-center">-</td>
         <td className="px-2 py-2 text-xs text-center">-</td>
         <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
           {formatCurrency(secao.totalValorAplicado)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-green-600 dark:text-green-400">
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
           {formatCurrency(secao.totalAporte)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-red-600 dark:text-red-400">
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
           {formatCurrency(secao.totalResgate)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
           {formatCurrency(secao.totalValorAtualizado)}
         </td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge color="primary" size="sm">
-            {formatPercentage(secao.percentualTotal)}
-          </Badge>
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+          {formatPercentageSimple(secao.percentualTotal)}
         </td>
         <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right">
-          <Badge 
-            color={secao.rentabilidadeMedia >= 3 ? "success" : "primary"} 
-            size="sm"
-          >
-            {formatPercentage(secao.rentabilidadeMedia)}
-          </Badge>
+        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+          {formatPercentage(secao.rentabilidadeMedia)}
         </td>
       </tr>
 
@@ -225,7 +215,7 @@ export default function RendaFixaTable() {
           <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
             Erro ao carregar dados
           </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{error}</p>
+          <p className="text-xs text-black">{error}</p>
         </div>
       </div>
     );
@@ -235,10 +225,10 @@ export default function RendaFixaTable() {
     return (
       <div className="flex flex-col items-center justify-center py-16 space-y-4">
         <div className="text-center">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <h3 className="text-lg font-semibold text-black mb-2">
             Nenhum dado encontrado
           </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-black">
             Adicione seus primeiros investimentos em renda fixa para começar.
           </p>
         </div>
@@ -285,44 +275,44 @@ export default function RendaFixaTable() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
+                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Nome dos Ativos
                 </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   % Rentabilidade
                 </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Cotização Resgate
                 </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Liquidação Resgate
                 </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Vencimento
                 </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Benchmark
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Valor Inicial
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Aporte
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Resgate
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Valor Atualizado
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  % da Carteira
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                  % Carteira
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Risco por Ativo
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Rentabilidade
                 </th>
               </tr>
@@ -341,7 +331,7 @@ export default function RendaFixaTable() {
 
               {/* Linha de totalização */}
               <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs font-bold text-black">
                   TOTAL GERAL
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
@@ -349,29 +339,24 @@ export default function RendaFixaTable() {
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatCurrency(data.totalGeral.valorAplicado)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-green-600 dark:text-green-400">
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatCurrency(data.totalGeral.aporte)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-red-600 dark:text-red-400">
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatCurrency(data.totalGeral.resgate)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatCurrency(data.totalGeral.valorAtualizado)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">100.00%</Badge>
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                  100.00%
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge 
-                    color={data.totalGeral.rentabilidade >= 3 ? "success" : "primary"} 
-                    size="sm"
-                  >
-                    {formatPercentage(data.totalGeral.rentabilidade)}
-                  </Badge>
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                  {formatPercentage(data.totalGeral.rentabilidade)}
                 </td>
               </tr>
             </tbody>
