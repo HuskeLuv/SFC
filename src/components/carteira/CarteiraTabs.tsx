@@ -448,38 +448,6 @@ export default function CarteiraTabs() {
             {/* Carteira Consolidada */}
             <TabContent id="consolidada" isActive={activeTab === "consolidada"}>
               <div className="space-y-4">
-                {/* Grid de Cards de Métricas */}
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                  <CarteiraConsolidadaMetricCard
-                    title="Saldo Bruto"
-                    value={formatCurrency(resumo.saldoBruto)}
-                  />
-                  <CarteiraConsolidadaMetricCard
-                    title="Valor Aplicado"
-                    value={formatCurrency(resumo.valorAplicado)}
-                    color="primary"
-                  />
-                  <CarteiraConsolidadaMetricCard
-                    title="Rentabilidade"
-                    value={formatPercentage(resumo.rentabilidade)}
-                    color={resumo.rentabilidade >= 0 ? "success" : "error"}
-                  />
-                  <MetaPatrimonioCard
-                    formattedValue={formatCurrency(resumo.metaPatrimonio)}
-                    inputValue={metaInputValue}
-                    isEditing={isEditingMeta}
-                    isSaving={isSavingMeta}
-                    errorMessage={metaErrorMessage}
-                    onStartEdit={handleStartEditMeta}
-                    onChangeInput={handleMetaInputChange}
-                    onCancelEdit={handleCancelEditMeta}
-                    onSubmitEdit={() => {
-                      void handleSubmitMeta();
-                    }}
-                    onKeyDownInput={handleMetaInputKeyDown}
-                  />
-                </div>
-
                 {/* Grid de Gráficos */}
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
                   <div className="xl:col-span-8">
