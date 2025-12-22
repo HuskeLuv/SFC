@@ -169,7 +169,6 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
   return (
     <ComponentCard 
       title="Alocação de Ativos"
-      desc={`Distribuição atual vs. targets recomendados ${totalTargets > 0 ? `(Total: ${totalTargets.toFixed(1)}%)` : ''}`}
     >
       {/* Alerts */}
       {showSuccessAlert && (
@@ -182,95 +181,117 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
           <Alert variant="error" title="Erro" message={configError} />
         </div>
       )}
-      
-      <div className="flex justify-end mb-4">
-        <button
-          onClick={handleSaveConfigurations}
-          className="px-3 py-2 bg-brand-500 text-white text-xs rounded-lg hover:bg-brand-600 transition-colors"
-        >
-          Salvar Configurações
-        </button>
-      </div>
 
       <div className="max-w-full overflow-x-auto">
-        <Table>
-          <TableHeader className="border-t border-gray-100 border-y bg-gray-50 dark:border-white/[0.05] dark:bg-gray-900">
-            <TableRow>
+        <Table className="relative" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+          <TableHeader 
+            style={{ 
+              position: 'sticky',
+              top: 0,
+              zIndex: 400,
+              backgroundColor: '#9E8A58',
+              isolation: 'isolate',
+            }}
+          >
+            <TableRow 
+              className="h-6" 
+              style={{ 
+                fontFamily: 'Calibri, sans-serif', 
+                fontSize: '12px',
+                backgroundColor: '#9E8A58'
+              }}
+            >
               <TableCell 
                 isHeader 
-                className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-left"
+                className="px-2 border-t border-b border-l border-gray-200 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
               >
-                Classe de Ativos
-              </TableCell>
-              <TableCell 
-                isHeader 
-                className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-right"
-              >
-                TOTAL
-              </TableCell>
-              <TableCell 
-                isHeader 
-                className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center"
-              >
-                % Atual
-              </TableCell>
-              <TableCell 
-                isHeader 
-                className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center"
-                colSpan={2}
-              >
-                Alocação
-              </TableCell>
-              <TableCell 
-                isHeader 
-                className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center"
-              >
-                % TARGET
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  Classe de Ativos
+                </p>
               </TableCell>
               <TableCell 
                 isHeader 
-                className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-center"
+                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
               >
-                Quanto Falta
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  TOTAL
+                </p>
               </TableCell>
               <TableCell 
                 isHeader 
-                className="px-2 py-2 font-medium text-gray-500 text-xs dark:text-gray-400 text-right"
+                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
               >
-                Necessidade de aporte em
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  % Atual
+                </p>
               </TableCell>
-            </TableRow>
-            <TableRow className="bg-gray-50 dark:bg-gray-900">
-              <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"></TableCell>
-              <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"></TableCell>
-              <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"></TableCell>
-              <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-                Mínimo
+              <TableCell 
+                isHeader 
+                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  Mínimo
+                </p>
               </TableCell>
-              <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-                Máximo
+              <TableCell 
+                isHeader 
+                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  Máximo
+                </p>
               </TableCell>
-              <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"></TableCell>
-              <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"></TableCell>
-              <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"></TableCell>
+              <TableCell 
+                isHeader 
+                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  % TARGET
+                </p>
+              </TableCell>
+              <TableCell 
+                isHeader 
+                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  Quanto Falta
+                </p>
+              </TableCell>
+              <TableCell 
+                isHeader 
+                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  Necessidade de aporte em
+                </p>
+              </TableCell>
             </TableRow>
           </TableHeader>
           <TableBody>
             {dados.map((ativo) => (
               <TableRow 
                 key={ativo.classeAtivo}
-                className="border-b border-gray-100 hover:bg-gray-50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
+                className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-white dark:bg-gray-900"
+                style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
               >
-                <TableCell className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
+                <TableCell className="px-2 font-medium text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-b border-l border-gray-200 border-r-0">
                   {ativo.classeAtivo}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
+                <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-right h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 font-mono">
                   {formatarMoeda(ativo.total)}
                 </TableCell>
-                <TableCell className={`px-2 py-2 text-xs text-center font-medium ${getCorCelula(ativo.percentualAtual, ativo.percentualTarget)}`}>
+                <TableCell className={`px-2 text-xs text-center font-medium h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 ${getCorCelula(ativo.percentualAtual, ativo.percentualTarget)}`}>
                   {formatarPercentual(ativo.percentualAtual)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-gray-700 dark:text-gray-300 text-center">
+                <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0">
                   <EditableCell
                     value={ativo.alocacaoMinimo}
                     isEditing={isEditing(getChaveCategoria(ativo.classeAtivo), 'minimo')}
@@ -281,7 +302,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                     max={100}
                   />
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-gray-700 dark:text-gray-300 text-center">
+                <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0">
                   <EditableCell
                     value={ativo.alocacaoMaximo}
                     isEditing={isEditing(getChaveCategoria(ativo.classeAtivo), 'maximo')}
@@ -292,7 +313,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                     max={100}
                   />
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-medium text-center bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+                <TableCell className={`px-2 text-xs font-medium text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400`}>
                   <EditableCell
                     value={ativo.percentualTarget}
                     isEditing={isEditing(getChaveCategoria(ativo.classeAtivo), 'target')}
@@ -304,7 +325,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                     className="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
                   />
                 </TableCell>
-                <TableCell className={`px-2 py-2 text-xs text-center font-medium ${ativo.quantoFalta > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                <TableCell className={`px-2 text-xs text-center font-medium h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 ${ativo.quantoFalta > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                   {ativo.quantoFalta > 0 ? 
                     `Falta ${formatarPercentual(ativo.quantoFalta)}` : 
                     ativo.quantoFalta < 0 ? 
@@ -312,7 +333,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                       'No target'
                   }
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-right font-mono">
+                <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-right h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r border-gray-300 font-mono">
                   <span className={ativo.necessidadeAporte > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
                     {ativo.necessidadeAporte > 0 ? formatarMoeda(ativo.necessidadeAporte) : '-'}
                   </span>
@@ -321,28 +342,40 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
             ))}
             
             {/* Linha de Total */}
-            <TableRow className="border-t-2 border-gray-200 bg-gray-50 dark:border-white/[0.1] dark:bg-gray-900/50">
-              <TableCell className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
+            <TableRow 
+              className="h-6 bg-gray-50 dark:bg-gray-900" 
+              style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
+            >
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
                 TOTAL GERAL
               </TableCell>
-              <TableCell className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white text-right font-mono">
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
                 {formatarMoeda(totalCarteira)}
               </TableCell>
-              <TableCell className="px-2 py-2 text-xs font-bold text-center text-gray-900 dark:text-white">
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
                 100,00%
               </TableCell>
-              <TableCell className="px-2 py-2"></TableCell>
-              <TableCell className="px-2 py-2"></TableCell>
-              <TableCell className="px-2 py-2 text-xs font-bold text-center text-gray-900 dark:text-white">
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
                 100,00%
               </TableCell>
-              <TableCell className="px-2 py-2"></TableCell>
-              <TableCell className="px-2 py-2 text-xs font-bold text-right font-mono text-gray-900 dark:text-white">
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300 font-mono">
                 {formatarMoeda(dados.reduce((sum, item) => sum + (item.necessidadeAporte > 0 ? item.necessidadeAporte : 0), 0))}
               </TableCell>
             </TableRow>
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={handleSaveConfigurations}
+          className="px-3 py-2 bg-brand-500 text-white text-xs rounded-lg hover:bg-brand-600 transition-colors"
+        >
+          Salvar Configurações
+        </button>
       </div>
     </ComponentCard>
   );

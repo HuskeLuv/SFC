@@ -75,13 +75,8 @@ export default function EditableCell({
           min={min}
           max={max}
           step="0.1"
-          className="w-full px-2 py-1 text-sm border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          className="w-full px-2 py-1 text-sm border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
-        {suffix && (
-          <span className="absolute right-2 top-1 text-sm text-gray-500 pointer-events-none">
-            {suffix}
-          </span>
-        )}
       </div>
     );
   }
