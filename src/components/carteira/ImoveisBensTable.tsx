@@ -71,32 +71,32 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs font-medium text-black">
         <div>
           <div className="font-semibold">{ativo.nome}</div>
           {ativo.observacoes && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <div className="text-xs text-black mt-1">
               {ativo.observacoes}
             </div>
           )}
         </div>
       </td>
-      <td className="px-2 py-2 text-xs text-center font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-center font-medium text-black">
         {ativo.cidade}
       </td>
-      <td className="px-2 py-2 text-xs text-center font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-center font-medium text-black">
         {ativo.mandato}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
         {formatNumber(ativo.quantidade)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
         {formatCurrency(ativo.precoAquisicao)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-medium text-black">
         {formatCurrency(ativo.melhorias)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-semibold text-gray-900 dark:text-white">
+      <td className="px-2 py-2 text-xs text-right font-semibold text-black">
         {formatCurrency(ativo.valorTotal)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
@@ -118,35 +118,20 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingValor(true)}
           >
-            <span className="font-semibold text-gray-900 dark:text-white">
+            <span className="font-semibold text-black">
               {formatCurrency(ativo.valorAtualizado)}
             </span>
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.riscoPorAtivo > 20 ? "error" : ativo.riscoPorAtivo > 10 ? "warning" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.riscoPorAtivo)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right text-black">
+        {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.percentualCarteira > 30 ? "warning" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.percentualCarteira)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right text-black">
+        {formatPercentage(ativo.percentualCarteira)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.rentabilidade >= 0 ? "success" : "error"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.rentabilidade)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right text-black">
+        {formatPercentage(ativo.rentabilidade)}
       </td>
     </tr>
   );
@@ -211,7 +196,7 @@ export default function ImoveisBensTable() {
               <DollarLineIcon className="w-8 h-8 text-gray-400" />
             </div>
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              <h3 className="text-lg font-semibold text-black mb-2">
                 Nenhum ativo encontrado
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
@@ -258,38 +243,38 @@ export default function ImoveisBensTable() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
+                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Nome do Ativo
                 </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Cidade
                 </th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Mandato
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Quantidade
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Preço Aquisição
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Melhorias
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Valor Total
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Valor Atualizado
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Risco por Ativo
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   % da Carteira Total
                 </th>
-                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Rentabilidade
                 </th>
               </tr>
@@ -308,37 +293,30 @@ export default function ImoveisBensTable() {
 
               {/* Linha de totalização */}
               <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs font-bold text-black">
                   TOTAL GERAL
                 </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs text-center text-black">-</td>
+                <td className="px-2 py-2 text-xs text-center text-black">-</td>
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatNumber(data?.totalGeral?.quantidade)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs text-center text-black">-</td>
+                <td className="px-2 py-2 text-xs text-center text-black">-</td>
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatCurrency(data?.totalGeral?.valorAplicado)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-gray-900 dark:text-white">
+                <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   {formatCurrency(data?.totalGeral?.valorAtualizado)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">
-                    {formatPercentage(data?.totalGeral?.risco)}
-                  </Badge>
+                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                  {formatPercentage(data?.totalGeral?.risco)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge color="primary" size="sm">100.00%</Badge>
+                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                  100.00%
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
-                  <Badge 
-                    color={data?.totalGeral?.rentabilidade >= 0 ? "success" : "error"} 
-                    size="sm"
-                  >
-                    {formatPercentage(data?.totalGeral?.rentabilidade)}
-                  </Badge>
+                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                  {formatPercentage(data?.totalGeral?.rentabilidade)}
                 </td>
               </tr>
             </tbody>
