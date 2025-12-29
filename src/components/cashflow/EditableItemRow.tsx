@@ -6,6 +6,7 @@ import { CurrencyInput } from "./CurrencyInput";
 import { DeleteItemButton } from "./DeleteItemButton";
 import { EditableItemData } from "@/hooks/useGroupEditMode";
 import { FIXED_COLUMN_BODY_STYLES } from "./fixedColumns";
+import { CommentIndicator } from "./CommentIndicator";
 
 interface EditableItemRowProps {
   item: CashflowItem;
@@ -19,6 +20,9 @@ interface EditableItemRowProps {
   onDeleteItem: (itemId: string) => void;
   onApplyColor?: (itemId: string, monthIndex: number) => void;
   isColorModeActive?: boolean;
+  isCommentModeActive?: boolean;
+  onCommentCellClick?: (itemId: string, monthIndex: number) => void;
+  currentYear?: number;
   isLastItem?: boolean;
 }
 
@@ -34,6 +38,9 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   onDeleteItem,
   onApplyColor,
   isColorModeActive = false,
+  isCommentModeActive = false,
+  onCommentCellClick,
+  currentYear = new Date().getFullYear(),
   isLastItem = false,
 }) => {
   const isReceita = isReceitaGroupByType(group.type);
@@ -191,8 +198,14 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
       {isEditing && !isInvestmentItem ? (
         displayData.monthlyValues.map((value, index) => {
           const cellColor = monthlyColors[index] || null;
+          // Buscar comentário do valor mensal
+          const monthlyValue = item.values?.find((v) => v.month === index && v.year === currentYear);
+          const cellComment = monthlyValue?.comment || null;
+          
           const handleCellClick = () => {
-            if (isColorModeActive && onApplyColor) {
+            if (isCommentModeActive && onCommentCellClick) {
+              onCommentCellClick(item.id, index);
+            } else if (isColorModeActive && onApplyColor) {
               onApplyColor(item.id, index);
             }
           };
@@ -201,22 +214,37 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             <TableCell
               key={index}
               className={`px-1 font-normal text-xs h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white ${
-                isColorModeActive
+                isCommentModeActive
+                  ? "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                  : isColorModeActive
                   ? "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
                   : ""
               }`}
+              style={{ overflow: 'visible' }}
             >
               <div
                 onClick={handleCellClick}
-                className={isColorModeActive ? "cursor-pointer" : ""}
+                className={`flex items-center justify-end gap-1 ${isCommentModeActive || isColorModeActive ? "cursor-pointer" : ""}`}
+                style={{ position: 'relative', overflow: 'visible' }}
               >
+                {cellComment && (
+                  <CommentIndicator
+                    comment={cellComment}
+                    itemName={item.name}
+                    month={index}
+                    year={currentYear}
+                  />
+                )}
                 <CurrencyInput
                   value={value}
                   onChange={(newValue) => handleMonthlyValueChange(index, newValue)}
                   className="text-right"
                   style={cellColor ? { color: cellColor } : undefined}
                   onClick={(e) => {
-                    if (isColorModeActive && onApplyColor) {
+                    if (isCommentModeActive && onCommentCellClick) {
+                      e.stopPropagation();
+                      onCommentCellClick(item.id, index);
+                    } else if (isColorModeActive && onApplyColor) {
                       e.stopPropagation();
                       onApplyColor(item.id, index);
                     }
@@ -229,14 +257,29 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
       ) : (
         itemTotals.map((value, index) => {
           const cellColor = monthlyColors[index] || null;
+          // Buscar comentário do valor mensal
+          const monthlyValue = item.values?.find((v) => v.month === index && v.year === currentYear);
+          const cellComment = monthlyValue?.comment || null;
+          
           return (
             <TableCell
               key={index}
               className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+              style={{ overflow: 'visible' }}
             >
-              <span style={cellColor ? { color: cellColor } : undefined}>
-                {formatCurrency(value || 0)}
-              </span>
+              <div className="flex items-center justify-end gap-1" style={{ position: 'relative', overflow: 'visible' }}>
+                {cellComment && (
+                  <CommentIndicator
+                    comment={cellComment}
+                    itemName={item.name}
+                    month={index}
+                    year={currentYear}
+                  />
+                )}
+                <span style={cellColor ? { color: cellColor } : undefined}>
+                  {formatCurrency(value || 0)}
+                </span>
+              </div>
             </TableCell>
           );
         })

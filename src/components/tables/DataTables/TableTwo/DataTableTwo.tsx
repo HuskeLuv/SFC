@@ -27,9 +27,10 @@ import { CashflowItem, CashflowGroup } from "@/types/cashflow";
 import { createCashflowItem } from "@/utils/cashflowUpdate";
 import { useCellEditing } from "@/hooks/useCellEditing";
 import { useGroupEditMode } from "@/hooks/useGroupEditMode";
-import { getAllItemsInGroup } from "@/utils/cashflowHelpers";
+import { getAllItemsInGroup, findItemById } from "@/utils/cashflowHelpers";
 import { isReceitaGroupByType, formatCurrency } from "@/utils/formatters";
 import { FIXED_COLUMN_BODY_STYLES } from "@/components/cashflow/fixedColumns";
+import { CommentModal } from "@/components/cashflow/CommentModal";
 
 export default function DataTableTwo() {
   const { data, loading, error, refetch } = useCashflowData();
@@ -200,7 +201,164 @@ export default function DataTableTwo() {
     selectedColor,
     setSelectedColor,
     applyColorToCell,
+    isCommentModeActive,
+    setIsCommentModeActive,
   } = useGroupEditMode();
+
+  // Estado para modal de comentário
+  const [commentModal, setCommentModal] = useState<{
+    isOpen: boolean;
+    itemId: string | null;
+    itemName: string;
+    month: number;
+    year: number;
+    initialComment: string | null;
+    updatedAt: Date | null;
+  }>({
+    isOpen: false,
+    itemId: null,
+    itemName: "",
+    month: 0,
+    year: new Date().getFullYear(),
+    initialComment: null,
+    updatedAt: null,
+  });
+
+  // Função para buscar comentário
+  const fetchComment = useCallback(async (itemId: string, month: number, year: number) => {
+    try {
+      const response = await fetch(
+        `/api/cashflow/comments?itemId=${itemId}&month=${month}&year=${year}`,
+        {
+          credentials: 'include',
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro ao buscar comentário' }));
+        
+        if (response.status === 401) {
+          throw new Error('Sessão inválida');
+        }
+        
+        throw new Error(errorData.error || 'Erro ao buscar comentário');
+      }
+      const data = await response.json();
+      return {
+        comment: data.comment || null,
+        updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
+      };
+    } catch (error: any) {
+      console.error('Erro ao buscar comentário:', error);
+      // Re-throw para que o handler possa mostrar o alert apropriado
+      throw error;
+    }
+  }, []);
+
+  // Handler para clicar no botão de comentário
+  const handleCommentButtonClick = useCallback(() => {
+    setIsCommentModeActive((prev) => !prev);
+    // Desativar modo de cor quando ativar modo de comentário
+    if (!isCommentModeActive) {
+      setSelectedColor(null);
+    }
+  }, [isCommentModeActive, setIsCommentModeActive, setSelectedColor]);
+
+  // Handler para clicar em uma célula quando em modo de comentário
+  const handleCommentCellClick = useCallback(async (itemId: string, monthIndex: number) => {
+    if (!isCommentModeActive) return;
+
+    try {
+      // Encontrar o item para obter o nome
+      const item = findItemById(processedData.groups, itemId);
+      if (!item) {
+        console.warn(`Item não encontrado: ${itemId}`);
+        showAlert("error", "Item não encontrado", "Não foi possível encontrar o item selecionado.");
+        return;
+      }
+
+      const currentYear = new Date().getFullYear();
+      
+      // Buscar comentário existente
+      const { comment, updatedAt } = await fetchComment(itemId, monthIndex, currentYear);
+
+      // Abrir modal
+      setCommentModal({
+        isOpen: true,
+        itemId,
+        itemName: item.name,
+        month: monthIndex,
+        year: currentYear,
+        initialComment: comment,
+        updatedAt,
+      });
+
+      // Desativar modo de comentário após abrir modal
+      setIsCommentModeActive(false);
+    } catch (error: any) {
+      console.error('Erro ao buscar comentário:', error);
+      if (error.message && error.message.includes('Sessão inválida')) {
+        showAlert(
+          "error", 
+          "Sessão inválida", 
+          "Sua sessão expirou ou está inválida. Por favor, faça logout e login novamente."
+        );
+      } else {
+        showAlert("error", "Erro", "Erro ao abrir comentário. Tente novamente.");
+      }
+      setIsCommentModeActive(false);
+    }
+  }, [isCommentModeActive, processedData.groups, fetchComment, setIsCommentModeActive, showAlert]);
+
+  // Handler para salvar comentário
+  const handleSaveComment = useCallback(async (comment: string) => {
+    if (!commentModal.itemId) return;
+
+    try {
+      const response = await fetch('/api/cashflow/comments', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          itemId: commentModal.itemId,
+          month: commentModal.month,
+          year: commentModal.year,
+          comment: comment.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro ao salvar comentário' }));
+        
+        if (response.status === 401) {
+          showAlert(
+            "error", 
+            "Sessão inválida", 
+            errorData.error || "Sua sessão expirou ou está inválida. Por favor, faça logout e login novamente."
+          );
+          throw new Error('Sessão inválida');
+        }
+        
+        throw new Error(errorData.error || 'Erro ao salvar comentário');
+      }
+
+      // Recarregar dados para atualizar comentários
+      await refetch();
+      
+      showAlert("success", "Comentário salvo", "O comentário foi salvo com sucesso.");
+    } catch (error: any) {
+      console.error('Erro ao salvar comentário:', error);
+      
+      if (error.message === 'Sessão inválida') {
+        // Já mostrou o alert acima
+        throw error;
+      }
+      
+      showAlert("error", "Erro ao salvar", error.message || "Erro ao salvar o comentário. Tente novamente.");
+      throw error;
+    }
+  }, [commentModal, refetch, showAlert]);
 
   const handleSaveRow = useCallback(async (groupId: string) => {
     const row = newRow[groupId];
@@ -330,6 +488,9 @@ export default function DataTableTwo() {
           onDeleteItem={deleteItem}
           onApplyColor={applyColorToCell}
           isColorModeActive={selectedColor !== null}
+          isCommentModeActive={isCommentModeActive}
+          onCommentCellClick={handleCommentCellClick}
+          currentYear={new Date().getFullYear()}
           isLastItem={isLastItem}
         />
       );
@@ -347,6 +508,7 @@ export default function DataTableTwo() {
           startEditing={startEditing}
           stopEditing={stopEditing}
           isEditing={isEditing}
+          currentYear={new Date().getFullYear()}
           isLastItem={isLastItem}
         />
       );
@@ -464,6 +626,8 @@ export default function DataTableTwo() {
                   showActionsColumn={isGroupEditing(group.id)}
                   selectedColor={isGroupEditing(group.id) ? selectedColor : null}
                   onColorSelect={isGroupEditing(group.id) ? setSelectedColor : undefined}
+                  isCommentModeActive={isGroupEditing(group.id) ? isCommentModeActive : false}
+                  onCommentClick={isGroupEditing(group.id) ? handleCommentButtonClick : undefined}
                 />
                 {/* Renderizar Inflação Pedro depois do grupo principal "Despesas" */}
                 {isMainDespesasGroup && (
@@ -525,6 +689,8 @@ export default function DataTableTwo() {
                             showActionsColumn={isGroupEditing(subgroup.id)}
                             selectedColor={isGroupEditing(subgroup.id) ? selectedColor : null}
                             onColorSelect={isGroupEditing(subgroup.id) ? setSelectedColor : undefined}
+                            isCommentModeActive={isGroupEditing(subgroup.id) ? isCommentModeActive : false}
+                            onCommentClick={isGroupEditing(subgroup.id) ? handleCommentButtonClick : undefined}
                           />
                           
                           {!collapsed[subgroup.id] && (
@@ -560,6 +726,8 @@ export default function DataTableTwo() {
                                     showActionsColumn={isGroupEditing(subsubgroup.id)}
                                     selectedColor={isGroupEditing(subsubgroup.id) ? selectedColor : null}
                                     onColorSelect={isGroupEditing(subsubgroup.id) ? setSelectedColor : undefined}
+                                    isCommentModeActive={isGroupEditing(subsubgroup.id) ? isCommentModeActive : false}
+                                    onCommentClick={isGroupEditing(subsubgroup.id) ? handleCommentButtonClick : undefined}
                                   />
                                   
                                   {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item, itemIndex, items) => {
@@ -797,6 +965,8 @@ export default function DataTableTwo() {
                           showActionsColumn={isGroupEditing(subgroup.id)}
                           selectedColor={isGroupEditing(subgroup.id) ? selectedColor : null}
                           onColorSelect={isGroupEditing(subgroup.id) ? setSelectedColor : undefined}
+                          isCommentModeActive={isGroupEditing(subgroup.id) ? isCommentModeActive : false}
+                          onCommentClick={isGroupEditing(subgroup.id) ? handleCommentButtonClick : undefined}
                         />
                         
                         {!collapsed[subgroup.id] && (
@@ -832,6 +1002,8 @@ export default function DataTableTwo() {
                                   showActionsColumn={isGroupEditing(subsubgroup.id)}
                                   selectedColor={isGroupEditing(subsubgroup.id) ? selectedColor : null}
                                   onColorSelect={isGroupEditing(subsubgroup.id) ? setSelectedColor : undefined}
+                                  isCommentModeActive={isGroupEditing(subsubgroup.id) ? isCommentModeActive : false}
+                                  onCommentClick={isGroupEditing(subsubgroup.id) ? handleCommentButtonClick : undefined}
                                 />
                                 
                                 {!collapsed[subsubgroup.id] && subsubgroup.items?.map((item, itemIndex, items) => {
@@ -1103,6 +1275,18 @@ export default function DataTableTwo() {
           </TableBody>
         </Table>
       </div>
+      
+      {/* Modal de Comentários */}
+      <CommentModal
+        isOpen={commentModal.isOpen}
+        onClose={() => setCommentModal({ ...commentModal, isOpen: false })}
+        onSave={handleSaveComment}
+        initialComment={commentModal.initialComment}
+        updatedAt={commentModal.updatedAt}
+        itemName={commentModal.itemName}
+        month={commentModal.month}
+        year={commentModal.year}
+      />
     </div>
   );
 }

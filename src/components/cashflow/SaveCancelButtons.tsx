@@ -1,5 +1,6 @@
 import React from "react";
 import { ColorPickerButton, ColorOption } from "./ColorPickerButton";
+import { CommentButton } from "./CommentButton";
 
 interface SaveCancelButtonsProps {
   onSave: () => void;
@@ -7,6 +8,8 @@ interface SaveCancelButtonsProps {
   saving?: boolean;
   selectedColor?: ColorOption | null;
   onColorSelect?: (color: ColorOption | null) => void;
+  isCommentModeActive?: boolean;
+  onCommentClick?: (() => void) | null;
 }
 
 export const SaveCancelButtons: React.FC<SaveCancelButtonsProps> = ({ 
@@ -15,6 +18,8 @@ export const SaveCancelButtons: React.FC<SaveCancelButtonsProps> = ({
   saving = false,
   selectedColor = null,
   onColorSelect,
+  isCommentModeActive = false,
+  onCommentClick,
 }) => {
   return (
     <div className="flex items-center gap-1 flex-shrink-0">
@@ -24,6 +29,14 @@ export const SaveCancelButtons: React.FC<SaveCancelButtonsProps> = ({
             onColorSelect={onColorSelect}
             selectedColor={selectedColor || null}
             isColorModeActive={selectedColor !== null}
+          />
+        </div>
+      )}
+      {onCommentClick && (
+        <div className="flex-shrink-0">
+          <CommentButton
+            onClick={onCommentClick}
+            isCommentModeActive={isCommentModeActive}
           />
         </div>
       )}

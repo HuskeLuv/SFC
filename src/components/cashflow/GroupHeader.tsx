@@ -25,6 +25,8 @@ interface GroupHeaderProps {
   showActionsColumn?: boolean;
   selectedColor?: ColorOption | null;
   onColorSelect?: (color: ColorOption | null) => void;
+  isCommentModeActive?: boolean;
+  onCommentClick?: () => void;
 }
 
 export const GroupHeader: React.FC<GroupHeaderProps> = ({ 
@@ -43,6 +45,8 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   showActionsColumn = false,
   selectedColor = null,
   onColorSelect,
+  isCommentModeActive = false,
+  onCommentClick,
 }) => {
   // Determinar o nível de indentação baseado na hierarquia
   const indentLevel = group.parentId ? (group.children?.length ? 2 : 3) : 1;
@@ -195,6 +199,8 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
               saving={saving}
               selectedColor={selectedColor ?? null}
               onColorSelect={onColorSelect ?? undefined}
+              isCommentModeActive={isCommentModeActive}
+              onCommentClick={onCommentClick}
             />
           )}
         </div>

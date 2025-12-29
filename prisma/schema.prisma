@@ -31,30 +31,30 @@ enum ConsultantInviteStatus {
 }
 
 model User {
-  id                String             @id @default(uuid())
-  email             String             @unique
-  password          String
-  name              String
-  avatarUrl         String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  role              UserRole           @default(user)
-  events            Event[]
-  dashboard         DashboardData[]
-  cashflows         Cashflow[]
-  cashflowGroups    CashflowGroup[]
-  cashflowItems     CashflowItem[]
-  cashflowValues    CashflowValue[]
-  consultantProfile Consultant?
-  consultancies     ClientConsultant[] @relation("ClientConsultantClients")
+  id                            String                       @id @default(uuid())
+  email                         String                       @unique
+  password                      String
+  name                          String
+  avatarUrl                     String?
+  createdAt                     DateTime                     @default(now())
+  updatedAt                     DateTime                     @updatedAt
+  role                          UserRole                     @default(user)
+  events                        Event[]
+  dashboard                     DashboardData[]
+  cashflows                     Cashflow[]
+  cashflowGroups                CashflowGroup[]
+  cashflowItems                 CashflowItem[]
+  cashflowValues                CashflowValue[]
+  consultantProfile             Consultant?
+  consultancies                 ClientConsultant[]           @relation("ClientConsultantClients")
   // Stocks
-  watchlists        Watchlist[]
-  portfolios        Portfolio[]
-  stockTransactions StockTransaction[]
-  notifications     Notification[]
-  consultantInvites ConsultantInvite[] @relation("UserConsultantInvites")
+  watchlists                    Watchlist[]
+  portfolios                    Portfolio[]
+  stockTransactions             StockTransaction[]
+  notifications                 Notification[]
+  consultantInvites             ConsultantInvite[]           @relation("UserConsultantInvites")
   impersonationLogsAsConsultant ConsultantImpersonationLog[] @relation("ImpersonationLogConsultant")
-  impersonationLogsAsClient ConsultantImpersonationLog[] @relation("ImpersonationLogClient")
+  impersonationLogsAsClient     ConsultantImpersonationLog[] @relation("ImpersonationLogClient")
 }
 
 model Consultant {
@@ -68,13 +68,13 @@ model Consultant {
 }
 
 model ClientConsultant {
-  id            String                   @id @default(uuid())
-  consultantId  String
-  consultant    Consultant               @relation(fields: [consultantId], references: [id])
-  clientId      String
-  client        User                     @relation("ClientConsultantClients", fields: [clientId], references: [id])
-  createdAt     DateTime                 @default(now())
-  status        ConsultantClientStatus   @default(active)
+  id           String                 @id @default(uuid())
+  consultantId String
+  consultant   Consultant             @relation(fields: [consultantId], references: [id])
+  clientId     String
+  client       User                   @relation("ClientConsultantClients", fields: [clientId], references: [id])
+  createdAt    DateTime               @default(now())
+  status       ConsultantClientStatus @default(active)
 
   @@unique([consultantId, clientId])
   @@index([clientId])
@@ -95,15 +95,15 @@ model ConsultantInvite {
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String            @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User              @relation(fields: [userId], references: [id])
   title     String
   message   String
   type      String
   metadata  Json?
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime          @default(now())
   inviteId  String?
   invite    ConsultantInvite? @relation(fields: [inviteId], references: [id])
 
@@ -187,6 +187,7 @@ model CashflowValue {
   month     Int // 0 = Jan, 11 = Dez
   value     Float
   color     String? // Cor do texto (formato CSS: #000000, green, red, etc.)
+  comment   String? // Comentário da célula
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -318,16 +319,16 @@ model Institution {
 }
 
 model ConsultantImpersonationLog {
-  id          String   @id @default(uuid())
+  id           String   @id @default(uuid())
   consultantId String
-  consultant  User     @relation("ImpersonationLogConsultant", fields: [consultantId], references: [id])
-  clientId    String
-  client      User     @relation("ImpersonationLogClient", fields: [clientId], references: [id])
-  action      String
-  details     Json
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
+  consultant   User     @relation("ImpersonationLogConsultant", fields: [consultantId], references: [id])
+  clientId     String
+  client       User     @relation("ImpersonationLogClient", fields: [clientId], references: [id])
+  action       String
+  details      Json
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
 
   @@index([consultantId])
   @@index([clientId])

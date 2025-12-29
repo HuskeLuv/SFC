@@ -18,4 +18,7 @@ export { InflationPedroRow } from './InflationPedroRow';
 export { NewItemRow } from './NewItemRow';
 export { default as NewEditableCell } from './NewEditableCell';
 export { default as NewEditableDescriptionCell } from './NewEditableDescriptionCell';
-export { default as NewEditableTextCell } from './NewEditableTextCell'; 
+export { default as NewEditableTextCell } from './NewEditableTextCell';
+export { CommentButton } from './CommentButton';
+export { CommentModal } from './CommentModal';
+export { CommentIndicator } from './CommentIndicator'; 

@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { seedTemplates } from '../../prisma/seed';
+import { seedTemplates } from '@/utils/cashflowTemplates';
 
 async function cloneTemplatesForUser(userId: string) {
   const templateGroups = await prisma.cashflowGroup.findMany({

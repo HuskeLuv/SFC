@@ -20,6 +20,19 @@ export async function personalizeGroup(
   userId: string,
   newParentId?: string | null
 ): Promise<string> {
+  // Verificar se o usuário existe PRIMEIRO (antes de qualquer processamento)
+  // Isso evita processamento desnecessário e erros em chamadas recursivas
+  const userExists = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+  
+  if (!userExists) {
+    // Verificar se existem usuários no banco (para debug)
+    const userCount = await prisma.user.count();
+    console.error(`[personalizeGroup] Usuário não encontrado. ID buscado: ${userId}, Total de usuários no banco: ${userCount}`);
+    throw new Error(`Usuário não encontrado no banco de dados. O token JWT pode estar desatualizado. Por favor, faça logout e login novamente.`);
+  }
+
   // Verificar se já existe personalização
   const templateGroup = await prisma.cashflowGroup.findUnique({
     where: { id: templateGroupId },
@@ -37,12 +50,32 @@ export async function personalizeGroup(
     throw new Error('Grupo não é um template');
   }
 
-  // Verificar se já existe personalização
+  // Determinar parentId correto
+  let finalParentId: string | null = newParentId !== undefined ? (newParentId || null) : null;
+  
+  // Se não foi fornecido explicitamente e grupo tem parent no template, tentar personalizar o parent também
+  if (finalParentId === null && templateGroup.parentId) {
+    const templateParent = await prisma.cashflowGroup.findUnique({
+      where: { id: templateGroup.parentId },
+    });
+    
+    if (templateParent && templateParent.userId === null) {
+      // Parent também é template - personalizar parent primeiro
+      // Não precisamos verificar o usuário novamente aqui pois já verificamos no início
+      const personalizedParentId = await personalizeGroup(templateParent.id, userId);
+      finalParentId = personalizedParentId;
+    } else if (templateParent && templateParent.userId !== null) {
+      // Parent já é personalizado
+      finalParentId = templateParent.id;
+    }
+  }
+
+  // Verificar se já existe personalização com base no nome e contexto hierárquico
   const existingCustom = await prisma.cashflowGroup.findFirst({
     where: {
       userId,
       name: templateGroup.name,
-      ...(newParentId !== undefined ? { parentId: newParentId } : {}),
+      parentId: finalParentId,
     },
   });
 
@@ -55,25 +88,6 @@ export async function personalizeGroup(
       });
     }
     return existingCustom.id; // Já existe personalização
-  }
-
-  // Determinar parentId correto
-  let finalParentId: string | null = newParentId !== undefined ? (newParentId || null) : null;
-  
-  // Se grupo tem parent no template, tentar personalizar o parent também
-  if (templateGroup.parentId) {
-    const templateParent = await prisma.cashflowGroup.findUnique({
-      where: { id: templateGroup.parentId },
-    });
-    
-    if (templateParent && templateParent.userId === null) {
-      // Parent também é template - personalizar parent primeiro
-      const personalizedParentId = await personalizeGroup(templateParent.id, userId);
-      finalParentId = personalizedParentId;
-    } else if (templateParent) {
-      // Parent já é personalizado
-      finalParentId = templateParent.id;
-    }
   }
 
   // Criar cópia do grupo
@@ -116,6 +130,18 @@ export async function personalizeItem(
   userId: string,
   targetGroupId?: string
 ): Promise<string> {
+  // Verificar se o usuário existe PRIMEIRO (antes de qualquer processamento)
+  const userExists = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+  
+  if (!userExists) {
+    // Verificar se existem usuários no banco (para debug)
+    const userCount = await prisma.user.count();
+    console.error(`[personalizeItem] Usuário não encontrado. ID buscado: ${userId}, Total de usuários no banco: ${userCount}`);
+    throw new Error(`Usuário não encontrado no banco de dados. O token JWT pode estar desatualizado. Por favor, faça logout e login novamente.`);
+  }
+
   const templateItem = await prisma.cashflowItem.findUnique({
     where: { id: templateItemId },
     include: { group: true },

@@ -142,19 +142,24 @@ interface StandardTableRowProps {
   children: React.ReactNode;
   className?: string;
   isTotal?: boolean;
+  onClick?: () => void;
 }
 
 export const StandardTableRow: React.FC<StandardTableRowProps> = ({
   children,
   className = "",
   isTotal = false,
+  onClick,
 }) => {
   const baseClass = "h-6 bg-white";
   const hoverClass = "";
   const totalClass = isTotal ? "border-t-2 border-gray-300" : "border-b border-gray-200";
 
   return (
-    <TableRow className={`${baseClass} ${hoverClass} ${totalClass} ${className}`}>
+    <TableRow 
+      className={`${baseClass} ${hoverClass} ${totalClass} ${className}`}
+      onClick={onClick}
+    >
       {children}
     </TableRow>
   );

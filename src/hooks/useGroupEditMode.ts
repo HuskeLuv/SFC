@@ -22,6 +22,7 @@ export const useGroupEditMode = () => {
   const [editedItems, setEditedItems] = useState<Map<string, EditableItemData>>(new Map());
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const [selectedColor, setSelectedColor] = useState<ColorOption | null>(null); // Cor selecionada para aplicar
+  const [isCommentModeActive, setIsCommentModeActive] = useState(false); // Modo de comentário ativo
 
   const startEditing = useCallback((groupId: string, items: CashflowItem[]) => {
     setEditingGroups((prev) => new Set(prev).add(groupId));
@@ -99,6 +100,7 @@ export const useGroupEditMode = () => {
     
     // Limpar cor selecionada quando sair do modo de edição
     setSelectedColor(null);
+    setIsCommentModeActive(false);
   }, []);
 
   const isEditing = useCallback((groupId: string) => {
@@ -208,6 +210,7 @@ export const useGroupEditMode = () => {
     
     // Limpar cor selecionada ao cancelar
     setSelectedColor(null);
+    setIsCommentModeActive(false);
   }, []);
 
   const getEditedItem = useCallback((itemId: string): EditableItemData | null => {
@@ -367,6 +370,8 @@ export const useGroupEditMode = () => {
     setSelectedColor,
     applyColorToCell,
     updateCellColor,
+    isCommentModeActive,
+    setIsCommentModeActive,
   };
 };
 

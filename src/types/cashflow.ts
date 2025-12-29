@@ -6,6 +6,7 @@ export interface CashflowValue {
   month: number; // 0 = Jan, 11 = Dez
   value: number;
   color?: string | null; // Cor do texto (formato CSS: #000000, green, red, etc.)
+  comment?: string | null; // Comentário da célula
   createdAt?: Date;
   updatedAt?: Date;
 }

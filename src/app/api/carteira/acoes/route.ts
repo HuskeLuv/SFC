@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { AcaoData, AcaoAtivo, AcaoSecao } from '@/types/acoes';
+import { AcaoData, AcaoAtivo, AcaoSecao, SetorAcao } from '@/types/acoes';
 import { fetchQuotes } from '@/services/brapiQuote';
+
+// Função helper para validar e converter setor para SetorAcao
+function parseSetorAcao(setor: string | null | undefined): SetorAcao {
+  const setoresValidos: SetorAcao[] = ['financeiro', 'energia', 'consumo', 'saude', 'tecnologia', 'industria', 'materiais', 'utilidades', 'outros'];
+  if (setor && setoresValidos.includes(setor as SetorAcao)) {
+    return setor as SetorAcao;
+  }
+  return 'outros';
+}
 
 async function calculateAcoesData(userId: string): Promise<AcaoData> {
   // Buscar portfolio do usuário com ações brasileiras (tabela Stock)
@@ -70,7 +79,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
         id: item.id,
         ticker: ticker,
         nome: item.stock!.companyName,
-        setor: item.stock!.sector || 'outros',
+        setor: parseSetorAcao(item.stock!.sector),
         subsetor: item.stock!.subsector || '',
         quantidade: item.quantity,
         precoAquisicao: item.avgPrice,

@@ -3,6 +3,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { CashflowItem, CashflowGroup } from "@/types/cashflow";
 import { formatCurrency, formatPercent, isReceitaGroupByType } from "@/utils/formatters";
 import { FIXED_COLUMN_BODY_STYLES } from "./fixedColumns";
+import { CommentIndicator } from "./CommentIndicator";
 
 interface ItemRowProps {
   item: CashflowItem;
@@ -14,6 +15,7 @@ interface ItemRowProps {
   startEditing: (itemId: string, field: string, monthIndex?: number) => void;
   stopEditing: () => void;
   isEditing: (itemId: string, field: string, monthIndex?: number) => boolean;
+  currentYear?: number;
   isLastItem?: boolean;
 }
 
@@ -23,6 +25,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
   itemAnnualTotal,
   itemPercentage,
   group,
+  currentYear = new Date().getFullYear(),
   isLastItem = false,
 }) => {
   const isReceita = isReceitaGroupByType(group.type);
@@ -106,17 +109,29 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         // Obter cor do valor mensal se existir
         // Buscar em item.values que pode vir do banco
         // IMPORTANTE: Buscar por month (0-11) que corresponde ao índice
-        const monthlyValue = item.values?.find((v) => v.month === index);
+        const monthlyValue = item.values?.find((v) => v.month === index && v.year === currentYear);
         const cellColor = monthlyValue?.color || null;
+        const cellComment = monthlyValue?.comment || null;
         
         return (
           <TableCell
             key={index}
             className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right cursor-default h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+            style={{ overflow: 'visible' }}
           >
-            <span style={cellColor ? { color: cellColor } : undefined}>
-              {formatCurrency(value || 0)}
-            </span>
+            <div className="flex items-center justify-end gap-1" style={{ position: 'relative', overflow: 'visible' }}>
+              {cellComment && (
+                <CommentIndicator
+                  comment={cellComment}
+                  itemName={item.name}
+                  month={index}
+                  year={currentYear}
+                />
+              )}
+              <span style={cellColor ? { color: cellColor } : undefined}>
+                {formatCurrency(value || 0)}
+              </span>
+            </div>
           </TableCell>
         );
       })}
