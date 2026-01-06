@@ -5,7 +5,7 @@ import { GroupedProventoData } from "@/hooks/useProventos";
 
 const ApexChartWrapper = React.memo(({ options, series, type, height }: {
   options: ApexOptions;
-  series: Array<{ name: string; data: number[] }>;
+  series: number[] | Array<{ name: string; data: number[] }>;
   type: string;
   height: number;
 }) => {
@@ -73,11 +73,12 @@ export default function ProventosDistribuicaoChart({ grouped, viewMode }: Proven
     
     return {
       series: data,
-      labels: names,
-    };
-  }, [grouped, viewMode]);
+    labels: names,
+  };
+}, [grouped, viewMode]);
 
   const options: ApexOptions = useMemo(() => ({
+    labels: labels,
     legend: {
       show: true,
       position: "bottom",

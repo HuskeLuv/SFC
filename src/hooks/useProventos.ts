@@ -11,7 +11,7 @@ export interface ProventoData {
   status: 'realizado' | 'a_receber';
 }
 
-interface GroupedProventoData {
+export interface GroupedProventoData {
   total: number;
   count: number;
   items: ProventoData[];
