@@ -41,7 +41,6 @@ interface StocksTableRowProps {
   formatPercentage: (value: number) => string;
   formatNumber: (value: number) => string;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-  onUpdateCotacao: (ativoId: string, novaCotacao: number) => void;
 }
 
 const StocksTableRow: React.FC<StocksTableRowProps> = ({
@@ -50,12 +49,9 @@ const StocksTableRow: React.FC<StocksTableRowProps> = ({
   formatPercentage,
   formatNumber,
   onUpdateObjetivo,
-  onUpdateCotacao,
 }) => {
   const [isEditingObjetivo, setIsEditingObjetivo] = useState(false);
-  const [isEditingCotacao, setIsEditingCotacao] = useState(false);
   const [objetivoValue, setObjetivoValue] = useState(ativo.objetivo.toString());
-  const [cotacaoValue, setCotacaoValue] = useState(ativo.cotacaoAtual.toString());
 
   const handleObjetivoSubmit = () => {
     const novoObjetivo = parseFloat(objetivoValue);
@@ -65,29 +61,12 @@ const StocksTableRow: React.FC<StocksTableRowProps> = ({
     }
   };
 
-  const handleCotacaoSubmit = () => {
-    const novaCotacao = parseFloat(cotacaoValue);
-    if (!isNaN(novaCotacao) && novaCotacao > 0) {
-      onUpdateCotacao(ativo.id, novaCotacao);
-      setIsEditingCotacao(false);
-    }
-  };
-
   const handleObjetivoKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleObjetivoSubmit();
     } else if (e.key === 'Escape') {
       setObjetivoValue(ativo.objetivo.toString());
       setIsEditingObjetivo(false);
-    }
-  };
-
-  const handleCotacaoKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleCotacaoSubmit();
-    } else if (e.key === 'Escape') {
-      setCotacaoValue(ativo.cotacaoAtual.toString());
-      setIsEditingCotacao(false);
     }
   };
 
@@ -139,29 +118,9 @@ const StocksTableRow: React.FC<StocksTableRowProps> = ({
         {formatCurrency(ativo.valorTotal)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
-        {isEditingCotacao ? (
-          <div className="flex items-center space-x-1">
-            <input
-              type="number"
-              step="0.01"
-              value={cotacaoValue}
-              onChange={(e) => setCotacaoValue(e.target.value)}
-              onKeyDown={handleCotacaoKeyPress}
-              onBlur={handleCotacaoSubmit}
-              className="w-20 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-              autoFocus
-            />
-          </div>
-        ) : (
-          <div 
-            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
-            onClick={() => setIsEditingCotacao(true)}
-          >
-            <span className="font-medium text-black">
-              {formatCurrency(ativo.cotacaoAtual)}
-            </span>
-          </div>
-        )}
+        <span className="font-medium text-black">
+          {formatCurrency(ativo.cotacaoAtual)}
+        </span>
       </td>
       <td className="px-2 py-2 text-xs text-right font-semibold text-black">
         {formatCurrency(ativo.valorAtualizado)}
@@ -219,7 +178,6 @@ interface StocksSectionProps {
   isExpanded: boolean;
   onToggle: () => void;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-  onUpdateCotacao: (ativoId: string, novaCotacao: number) => void;
 }
 
 const StocksSection: React.FC<StocksSectionProps> = ({
@@ -230,7 +188,6 @@ const StocksSection: React.FC<StocksSectionProps> = ({
   isExpanded,
   onToggle,
   onUpdateObjetivo,
-  onUpdateCotacao,
 }) => {
   const getEstrategiaColor = (estrategia: string) => {
     const colors = {
@@ -306,7 +263,6 @@ const StocksSection: React.FC<StocksSectionProps> = ({
           formatPercentage={formatPercentage}
           formatNumber={formatNumber}
           onUpdateObjetivo={onUpdateObjetivo}
-          onUpdateCotacao={onUpdateCotacao}
         />
       ))}
     </>
@@ -314,7 +270,7 @@ const StocksSection: React.FC<StocksSectionProps> = ({
 };
 
 export default function StocksTable() {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = useCarteiraStocks();
+  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo } = useCarteiraStocks();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.stocks ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -333,10 +289,6 @@ export default function StocksTable() {
 
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
-  };
-
-  const handleUpdateCotacao = async (ativoId: string, novaCotacao: number) => {
-    await updateCotacao(ativoId, novaCotacao);
   };
 
   if (loading) {
@@ -505,7 +457,6 @@ export default function StocksTable() {
                   isExpanded={expandedSections.has(secao.estrategia)}
                   onToggle={() => toggleSection(secao.estrategia)}
                   onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateCotacao={handleUpdateCotacao}
                 />
               )) || []}
 

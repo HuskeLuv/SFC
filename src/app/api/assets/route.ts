@@ -43,13 +43,68 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Para FIIs, também buscar na tabela Stock (mesma tabela das ações)
+    // FIIs são identificados por tickers que terminam em '11' ou nomes que contêm "fundo imobiliário" ou "fii"
+    if (tipo === 'fii') {
+      const whereClause: Record<string, unknown> = {
+        isActive: true,
+        OR: [
+          { ticker: { endsWith: '11' } },
+          { companyName: { contains: 'fundo imobiliário', mode: 'insensitive' } },
+          { companyName: { contains: 'fii', mode: 'insensitive' } },
+        ],
+      };
+
+      if (search) {
+        // Adicionar condições de busca combinadas com o filtro de FII
+        const searchConditions = [
+          { ticker: { contains: search, mode: 'insensitive' } },
+          { companyName: { contains: search, mode: 'insensitive' } },
+        ];
+
+        whereClause.AND = [
+          {
+            OR: [
+              { ticker: { endsWith: '11' } },
+              { companyName: { contains: 'fundo imobiliário', mode: 'insensitive' } },
+              { companyName: { contains: 'fii', mode: 'insensitive' } },
+            ],
+          },
+          {
+            OR: searchConditions,
+          },
+        ];
+        delete whereClause.OR;
+      }
+
+      const stocks = await prisma.stock.findMany({
+        where: whereClause,
+        take: limit,
+        orderBy: [
+          { ticker: 'asc' },
+        ],
+      });
+
+      return NextResponse.json({
+        success: true,
+        assets: stocks.map(stock => ({
+          id: stock.id,
+          symbol: stock.ticker,
+          name: stock.companyName,
+          type: 'fii',
+          currency: 'BRL',
+          source: 'brapi',
+        })),
+        count: stocks.length,
+      });
+    }
+
     // Para outros tipos, buscar na tabela Asset
     const baseFilters: Record<string, unknown> = {};
 
     if (tipo) {
       const tipoMapping: Record<string, string[]> = {
         'bdr': ['brd', 'bdr'],
-        'fii': ['fund', 'fii'],
         'etf': ['etf'],
         'reit': ['reit'],
         'debenture': ['bond'],
