@@ -36,11 +36,6 @@ const MAIN_NAV_ITEMS: NavItem[] = [
     path: "/carteira",
   },
   {
-    icon: <PieChartIcon />,
-    name: "Análises",
-    path: "/analises",
-  },
-  {
     name: "Fluxo de Caixa",
     icon: <TableIcon />,
     path: "/fluxodecaixa",
@@ -105,9 +100,9 @@ const AppSidebar: React.FC = () => {
         : item,
     );
 
-    // Se estiver personificado, mostrar apenas: Dashboard, Fluxo de Caixa, Carteira, Análises e Relatórios
+    // Se estiver personificado, mostrar apenas: Dashboard, Fluxo de Caixa, Carteira e Relatórios
     if (actingClient) {
-      const allowedItems = ["Dashboard", "Fluxo de Caixa", "Carteira", "Análises", "Relatórios"];
+      const allowedItems = ["Dashboard", "Fluxo de Caixa", "Carteira", "Relatórios"];
       items = items.filter((item) => allowedItems.includes(item.name));
     }
 
