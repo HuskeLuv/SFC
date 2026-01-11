@@ -58,6 +58,10 @@ export interface CarteiraResumo {
       valor: number;
       percentual: number;
     };
+    imoveisBens: {
+      valor: number;
+      percentual: number;
+    };
   };
   portfolioDetalhes: {
     totalAcoes: number;

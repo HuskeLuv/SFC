@@ -27,6 +27,7 @@ export interface ImovelBemTotalGeral {
   valorAplicado: number;
   valorAtualizado: number;
   risco: number;
+  percentualCarteira?: number;
   rentabilidade: number;
 }
 

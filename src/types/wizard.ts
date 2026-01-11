@@ -71,6 +71,8 @@ export interface WizardFormData {
   liquidacaoResgate: string;
   vencimento: string;
   benchmark: string;
+  estrategia: 'value' | 'growth' | 'risk' | '';
+  tipoFii: 'fofi' | 'tvm' | 'tijolo' | '';
 }
 
 export interface WizardErrors {
@@ -98,6 +100,9 @@ export interface WizardErrors {
   liquidacaoResgate?: string;
   vencimento?: string;
   benchmark?: string;
+  metodo?: string;
+  estrategia?: string;
+  tipoFii?: string;
 }
 
 export const TIPOS_ATIVO = [
@@ -111,7 +116,7 @@ export const TIPOS_ATIVO = [
   { value: "fundo", label: "Fundos" },
   { value: "fii", label: "Fundos Imobiliários e REITs" },
   { value: "moeda", label: "Moedas" },
-  { value: "personalizado", label: "Personalizados" },
+  { value: "personalizado", label: "Personalizado" },
   { value: "poupanca", label: "Poupança" },
   { value: "previdencia", label: "Previdência" },
   { value: "renda-fixa-prefixada", label: "Renda Fixa Prefixada" },

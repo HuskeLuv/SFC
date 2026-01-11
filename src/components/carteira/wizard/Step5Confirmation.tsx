@@ -1,18 +1,27 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import { WizardFormData, TIPOS_ATIVO, MOEDAS_FIXAS, INDEXADORES, PERIODOS } from "@/types/wizard";
+import Button from "@/components/ui/button/Button";
 
 interface Step5ConfirmationProps {
   formData: WizardFormData;
   onSubmit: () => void;
   loading: boolean;
+  autoSubmit?: boolean;
 }
 
 export default function Step5Confirmation({
   formData,
   onSubmit,
   loading,
+  autoSubmit = false,
 }: Step5ConfirmationProps) {
+  // Auto-submit quando entrar na tela de confirmação
+  useEffect(() => {
+    if (autoSubmit && !loading) {
+      onSubmit();
+    }
+  }, [autoSubmit, loading, onSubmit]);
   const getTipoAtivoLabel = (value: string | number | Date | null | undefined) => {
     if (typeof value !== 'string') return '-';
     return TIPOS_ATIVO.find(t => t.value === value)?.label || value;
@@ -97,7 +106,8 @@ export default function Step5Confirmation({
             {renderFieldValue("Nome do Ativo", formData.nomePersonalizado)}
             {renderFieldValue("Quantidade de Cotas", formData.quantidade)}
             {renderFieldValue("Preço Unitário", formData.precoUnitario, formatCurrency)}
-            {renderFieldValue("Método", formData.metodo === 'valor' ? 'Por Valor Financeiro' : 'Por Variação Percentual')}
+            {renderFieldValue("Valor Total", (formData.quantidade || 0) * (formData.precoUnitario || 0), formatCurrency)}
+            {renderFieldValue("Método de Acompanhamento", formData.metodo === 'valor' ? 'Por Valor Financeiro: A cada mês você informa o valor atualizado do seu investimento' : 'Por Variação Percentual: A cada mês, você informa quantos % seu investimento rendeu')}
           </>
         );
 
@@ -222,15 +232,17 @@ export default function Step5Confirmation({
         </ul>
       </div>
 
-      <div className="flex justify-center">
-        <button
-          onClick={onSubmit}
-          disabled={loading}
-          className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:bg-brand-300 disabled:cursor-not-allowed transition-colors font-medium"
-        >
-          {loading ? "Salvando..." : "Confirmar Adição do Ativo"}
-        </button>
-      </div>
+      {!autoSubmit && (
+        <div className="flex justify-end gap-4 pt-6">
+          <Button
+            onClick={onSubmit}
+            disabled={loading}
+            className="px-6 py-2"
+          >
+            {loading ? "Salvando..." : "Confirmar Adição do Ativo"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
