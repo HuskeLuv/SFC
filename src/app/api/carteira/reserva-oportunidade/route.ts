@@ -39,9 +39,10 @@ export async function GET(request: NextRequest) {
     });
 
     // Filtrar apenas os itens de reserva de oportunidade
+    // Agora cada investimento tem seu próprio asset com símbolo único (RESERVA-OPORT-*)
     const portfolio = allUserPortfolio.filter(item => {
       if (!item.asset) return false;
-      return item.asset.type === 'opportunity' || item.asset.symbol === 'RESERVA-OPORT';
+      return item.asset.type === 'opportunity' || item.asset.symbol?.startsWith('RESERVA-OPORT');
     });
 
     // Buscar resumo da carteira para calcular percentuais
@@ -53,10 +54,10 @@ export async function GET(request: NextRequest) {
     // Calcular saldo bruto total da carteira
     let saldoBrutoTotal = 0;
     for (const item of allPortfolio) {
-      // Para reservas, usar valor investido (sem cotação)
-      if (item.asset?.type === 'emergency' || item.asset?.symbol === 'RESERVA-EMERG' ||
-          item.asset?.type === 'opportunity' || item.asset?.symbol === 'RESERVA-OPORT') {
-        saldoBrutoTotal += item.totalInvested;
+      // Para reservas, usar quantity * avgPrice para valor atual (sem cotação)
+      if (item.asset?.type === 'emergency' || item.asset?.symbol?.startsWith('RESERVA-EMERG') ||
+          item.asset?.type === 'opportunity' || item.asset?.symbol?.startsWith('RESERVA-OPORT')) {
+        saldoBrutoTotal += item.quantity * item.avgPrice;
       } else {
         // Para outros ativos, usar valor investido (as cotações serão aplicadas pelo resumo)
         saldoBrutoTotal += item.totalInvested;
@@ -104,7 +105,8 @@ export async function GET(request: NextRequest) {
 
     // Transformar dados do portfolio para o formato esperado
     const ativos = portfolio.map(item => {
-      const valorAtualizado = item.totalInvested; // Para reservas, valor atual = valor investido (sem cotação)
+      // Para reservas, valor atual = quantity * avgPrice (sem cotação)
+      const valorAtualizado = item.quantity * item.avgPrice;
       const valorInicial = item.totalInvested;
       
       // Calcular percentual da carteira
