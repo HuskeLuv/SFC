@@ -31,12 +31,23 @@ interface AlocacaoAtivosTableProps {
     moedasCriptos: { valor: number; percentual: number; };
     previdenciaSeguros: { valor: number; percentual: number; };
     opcoes: { valor: number; percentual: number; };
+    imoveisBens: { valor: number; percentual: number; };
   };
   alocacaoConfig: UseAlocacaoConfigReturn;
 }
 
 export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: AlocacaoAtivosTableProps) {
-  const totalCarteira = Object.values(distribuicao).reduce((sum, item) => sum + item.valor, 0);
+  // Total Dinheiro: exclui Imóveis e Bens
+  const totalDinheiro = Object.entries(distribuicao)
+    .filter(([key]) => key !== 'imoveisBens')
+    .reduce((sum, [, item]) => sum + item.valor, 0);
+  
+  // Total Dinheiro + Bens: inclui tudo (dinheiro + imóveis e bens)
+  const valorImoveisBens = distribuicao.imoveisBens?.valor || 0;
+  const totalDinheiroMaisBens = totalDinheiro + valorImoveisBens;
+  
+  // Total Carteira para cálculos de percentuais (exclui Imóveis e Bens)
+  const totalCarteira = totalDinheiro;
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   
   const {
@@ -76,6 +87,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
       "moedasCriptos": "Moedas, Criptomoedas & Outros",
       "previdenciaSeguros": "Previdência & Seguros",
       "opcoes": "Opções",
+      "imoveisBens": "Imóveis e Bens",
     };
     return nomes[categoria] || categoria;
   };
@@ -94,6 +106,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
       "Moedas, Criptomoedas & Outros": "moedasCriptos",
       "Previdência & Seguros": "previdenciaSeguros",
       "Opções": "opcoes",
+      "Imóveis e Bens": "imoveisBens",
     };
     return chaves[nome] || nome;
   };
@@ -105,20 +118,39 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
       const config = targetConfigMap[key];
       if (!config) return; // Skip if no config found
       
-      const percentualAtual = totalCarteira > 0 ? (value.valor / totalCarteira) * 100 : 0;
-      const diferenca = config.target - percentualAtual;
-      const valorNecessario = (diferenca / 100) * totalCarteira;
+      // Para Imóveis e Bens, usar totalDinheiroMaisBens para percentual
+      // Para outros, usar totalCarteira (totalDinheiro)
+      const baseTotal = key === 'imoveisBens' ? totalDinheiroMaisBens : totalCarteira;
+      const percentualAtual = baseTotal > 0 ? (value.valor / baseTotal) * 100 : 0;
+      
+      // Para Imóveis e Bens, não calcular diferença e necessidade de aporte
+      // (não faz sentido ter target para imóveis na alocação de dinheiro)
+      if (key === 'imoveisBens') {
+        dados.push({
+          classeAtivo: getNomeAmigavel(key),
+          total: value.valor,
+          percentualAtual: percentualAtual,
+          alocacaoMinimo: 0,
+          alocacaoMaximo: 0,
+          percentualTarget: 0,
+          quantoFalta: 0,
+          necessidadeAporte: 0,
+        });
+      } else {
+        const diferenca = config.target - percentualAtual;
+        const valorNecessario = (diferenca / 100) * totalCarteira;
 
-      dados.push({
-        classeAtivo: getNomeAmigavel(key),
-        total: value.valor,
-        percentualAtual: percentualAtual,
-        alocacaoMinimo: config.min,
-        alocacaoMaximo: config.max,
-        percentualTarget: config.target,
-        quantoFalta: diferenca,
-        necessidadeAporte: valorNecessario,
-      });
+        dados.push({
+          classeAtivo: getNomeAmigavel(key),
+          total: value.valor,
+          percentualAtual: percentualAtual,
+          alocacaoMinimo: config.min,
+          alocacaoMaximo: config.max,
+          percentualTarget: config.target,
+          quantoFalta: diferenca,
+          necessidadeAporte: valorNecessario,
+        });
+      }
     });
 
     return dados;
@@ -313,7 +345,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                     max={100}
                   />
                 </TableCell>
-                <TableCell className={`px-2 text-xs font-medium text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400`}>
+                <TableCell className={`px-2 text-xs font-medium text-center h-6 leading-6 whitespace-nowrap border-2 border-t-2 border-b-2 border-l-2 border-r-2 border-black bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400`}>
                   <EditableCell
                     value={ativo.percentualTarget}
                     isEditing={isEditing(getChaveCategoria(ativo.classeAtivo), 'target')}
@@ -341,19 +373,19 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               </TableRow>
             ))}
             
-            {/* Linha de Total */}
+            {/* Linha de Total Dinheiro (exclui Imóveis e Bens) */}
             <TableRow 
               className="h-6 bg-gray-50 dark:bg-gray-900" 
               style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
             >
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
-                TOTAL GERAL
+                Total Dinheiro
               </TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
-                {formatarMoeda(totalCarteira)}
+                {formatarMoeda(totalDinheiro)}
               </TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
-                100,00%
+                {formatarPercentual((totalDinheiro / totalDinheiroMaisBens) * 100)}
               </TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
@@ -362,8 +394,29 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               </TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300 font-mono">
-                {formatarMoeda(dados.reduce((sum, item) => sum + (item.necessidadeAporte > 0 ? item.necessidadeAporte : 0), 0))}
+                {formatarMoeda(dados.filter(item => item.classeAtivo !== 'Imóveis e Bens').reduce((sum, item) => sum + (item.necessidadeAporte > 0 ? item.necessidadeAporte : 0), 0))}
               </TableCell>
+            </TableRow>
+            
+            {/* Linha de Total Dinheiro + Bens */}
+            <TableRow 
+              className="h-6 bg-gray-100 dark:bg-gray-800" 
+              style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
+            >
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
+                Total Dinheiro + Bens
+              </TableCell>
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
+                {formatarMoeda(totalDinheiroMaisBens)}
+              </TableCell>
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
+                100,00%
+              </TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
             </TableRow>
           </TableBody>
         </Table>
