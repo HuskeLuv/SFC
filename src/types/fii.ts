@@ -1,6 +1,6 @@
 // Tipos para FIIs (Fundos Imobiliários)
 
-export type TipoFii = 'fof' | 'tvm' | 'ijol' | 'hibrido' | 'renda' | 'outros';
+export type TipoFii = 'fofi' | 'tvm' | 'tijolo' | 'fof' | 'ijol' | 'hibrido' | 'renda' | 'outros'; // Mantém tipos antigos para compatibilidade
 
 export type SegmentoFii = 'logistica' | 'shoppings' | 'residencial' | 'hibrido' | 'escritorios' | 'outros';
 

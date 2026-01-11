@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { FiiData, FiiAtivo, FiiSecao } from '@/types/fii';
+import { fetchQuotes } from '@/services/brapiQuote';
 
 // Funções auxiliares para cores
 function getSegmentColor(tipo: string): string {
   const colors: { [key: string]: string } = {
-    'fof': '#3B82F6',
+    'fofi': '#3B82F6',
+    'fof': '#3B82F6', // Compatibilidade
     'tvm': '#10B981',
-    'ijol': '#F59E0B',
+    'tijolo': '#F59E0B',
+    'ijol': '#F59E0B', // Compatibilidade
     'hibrido': '#8B5CF6',
     'renda': '#EF4444'
   };
@@ -22,49 +25,104 @@ function getAtivoColor(ticker: string): string {
 }
 
 async function calculateFiiData(userId: string): Promise<FiiData> {
-  // Buscar portfolio do usuário com ativos do tipo "fii"
+  // Buscar portfolio do usuário com FIIs
+  // FIIs podem estar em stockId (tabela Stock) ou assetId (tabela Asset)
   const portfolio = await prisma.portfolio.findMany({
     where: { 
       userId,
-      asset: {
-        type: 'fii'
-      }
+      OR: [
+        { 
+          stockId: { not: null }
+        },
+        {
+          asset: {
+            type: 'fii'
+          }
+        }
+      ]
     },
     include: {
-      asset: true
+      stock: true, // Incluir relação com Stock
+      asset: true  // Incluir relação com Asset
     }
   });
 
+  // Filtrar apenas FIIs: stocks com ticker terminando em '11' OU assets do tipo 'fii'
+  const fiiPortfolio = portfolio.filter(item => {
+    // Se é stock com ticker terminando em '11', é FII
+    if (item.stock && item.stock.ticker && item.stock.ticker.toUpperCase().endsWith('11')) {
+      return true;
+    }
+    
+    // Se é asset do tipo 'fii', é FII
+    if (item.asset && item.asset.type === 'fii') return true;
+    
+    return false;
+  });
+
+  // Buscar cotações atuais dos FIIs na API brapi
+  const symbols = fiiPortfolio
+    .map(item => {
+      const ticker = item.stock?.ticker || item.asset?.symbol || '';
+      return ticker;
+    })
+    .filter(ticker => ticker && ticker.trim());
+  
+  // Buscar cotações (forçar refresh para garantir valores atualizados)
+  const quotes = await fetchQuotes(symbols, true);
+
   // Converter para formato FiiAtivo
-  const fiiAtivos: FiiAtivo[] = portfolio
-    .filter(item => item.asset) // Filtrar apenas itens com asset
+  const fiiAtivos: FiiAtivo[] = fiiPortfolio
     .map(item => {
       const valorTotal = item.totalInvested;
-      const valorAtualizado = item.totalInvested; // Usar valor investido como atual
-      const rentabilidade = 0; // Sem variação por enquanto
+      
+      // Determinar ticker e nome baseado na origem (Stock ou Asset)
+      const ticker = item.stock?.ticker || item.asset?.symbol || '';
+      const nome = item.stock?.companyName || item.asset?.name || '';
+      
+      // Buscar cotação atual da brapi
+      let cotacaoAtual = quotes.get(ticker);
+      
+      // Se não encontrou cotação, usar preço médio como fallback
+      if (!cotacaoAtual) {
+        console.warn(`⚠️  Não foi possível obter cotação de ${ticker}, usando preço médio como fallback`);
+        cotacaoAtual = item.avgPrice;
+      }
+      
+      // Calcular valor atualizado com cotação atual
+      const valorAtualizado = item.quantity * cotacaoAtual;
+      
+      // Calcular rentabilidade real
+      const rentabilidade = item.avgPrice > 0 
+        ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 
+        : 0;
+      
+      // Usar padrão 'fofi' já que não há campo de identificação no schema
+      // O tipo pode ser determinado pelo usuário no wizard, mas não está persistido no banco
+      const tipoFii: 'fofi' | 'tvm' | 'tijolo' = 'fofi';
       
       return {
         id: item.id,
-        ticker: item.asset!.symbol,
-        nome: item.asset!.name,
-      mandato: 'Estratégico', // Padrão
-      segmento: 'outros', // Asset não tem segmento
-      quantidade: item.quantity,
-      precoAquisicao: item.avgPrice,
-      valorTotal,
-      cotacaoAtual: item.avgPrice, // Usar preço médio como cotação atual
-      valorAtualizado,
-      riscoPorAtivo: 0, // Calcular depois
-      percentualCarteira: 0, // Calcular depois
-      objetivo: 0, // Sem objetivo por enquanto
-      quantoFalta: 0, // Calcular depois
-      necessidadeAporte: 0, // Calcular depois
-      rentabilidade,
-      tipo: 'fof', // Padrão
-      observacoes: undefined,
-      dataUltimaAtualizacao: item.lastUpdate
-    };
-  });
+        ticker: ticker,
+        nome: nome,
+        mandato: 'Estratégico', // Padrão
+        segmento: 'outros', // Asset não tem segmento
+        quantidade: item.quantity,
+        precoAquisicao: item.avgPrice,
+        valorTotal,
+        cotacaoAtual: cotacaoAtual,
+        valorAtualizado,
+        riscoPorAtivo: 0, // Calcular depois
+        percentualCarteira: 0, // Calcular depois
+        objetivo: 0, // Sem objetivo por enquanto
+        quantoFalta: 0, // Calcular depois
+        necessidadeAporte: 0, // Calcular depois
+        rentabilidade,
+        tipo: tipoFii, // Usar tipo novo diretamente
+        observacoes: undefined,
+        dataUltimaAtualizacao: item.lastUpdate
+      };
+    });
 
   // Calcular totais gerais
   const totalQuantidade = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
@@ -78,12 +136,21 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     ? fiiAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / fiiAtivos.length 
     : 0;
 
-  // Agrupar por tipo (todos como 'fof' por enquanto)
-  const secoes: FiiSecao[] = [
-    {
-      tipo: 'fof',
-      nome: 'Fundos de Fundos (FOF)',
-      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'fof'),
+  // Agrupar por tipo (fofi, tvm, tijolo)
+  const tipos: ('fofi' | 'tvm' | 'tijolo')[] = ['fofi', 'tvm', 'tijolo'];
+  const secoes: FiiSecao[] = tipos.map(tipo => {
+    const ativosDoTipo = fiiAtivos.filter(ativo => ativo.tipo === tipo);
+    
+    const nomesTipo = {
+      'fofi': 'FOFI (Fundos de Fundos)',
+      'tvm': 'TVM (Títulos e Valores Mobiliários)',
+      'tijolo': 'Tijolo'
+    };
+    
+    return {
+      tipo: tipo as any, // Tipo compatível com TipoFii
+      nome: nomesTipo[tipo],
+      ativos: ativosDoTipo,
       totalQuantidade: 0,
       totalValorAplicado: 0,
       totalValorAtualizado: 0,
@@ -93,64 +160,8 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
       totalQuantoFalta: 0,
       totalNecessidadeAporte: 0,
       rentabilidadeMedia: 0
-    },
-    {
-      tipo: 'tvm',
-      nome: 'Títulos e Valores Mobiliários (TVM)',
-      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'tvm'),
-      totalQuantidade: 0,
-      totalValorAplicado: 0,
-      totalValorAtualizado: 0,
-      totalPercentualCarteira: 0,
-      totalRisco: 0,
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: 0
-    },
-    {
-      tipo: 'ijol',
-      nome: 'Imóveis para Juros e Outros (IJOL)',
-      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'ijol'),
-      totalQuantidade: 0,
-      totalValorAplicado: 0,
-      totalValorAtualizado: 0,
-      totalPercentualCarteira: 0,
-      totalRisco: 0,
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: 0
-    },
-    {
-      tipo: 'hibrido',
-      nome: 'Híbrido',
-      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'hibrido'),
-      totalQuantidade: 0,
-      totalValorAplicado: 0,
-      totalValorAtualizado: 0,
-      totalPercentualCarteira: 0,
-      totalRisco: 0,
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: 0
-    },
-    {
-      tipo: 'renda',
-      nome: 'Renda',
-      ativos: fiiAtivos.filter(ativo => ativo.tipo === 'renda'),
-      totalQuantidade: 0,
-      totalValorAplicado: 0,
-      totalValorAtualizado: 0,
-      totalPercentualCarteira: 0,
-      totalRisco: 0,
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: 0
-    }
-  ];
+    };
+  }).filter(secao => secao.ativos.length > 0); // Remover seções vazias
 
   // Calcular valores das seções
   secoes.forEach(secao => {
