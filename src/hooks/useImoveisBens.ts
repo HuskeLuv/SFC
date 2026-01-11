@@ -85,14 +85,16 @@ export const useImoveisBens = (): UseImoveisBensReturn => {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
-          ativoId,
-          valorAtualizado: novoValor,
+          portfolioId: ativoId, // Mudança: usar portfolioId em vez de ativoId
+          novoValor,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao atualizar valor atualizado');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao atualizar valor atualizado');
       }
 
       // Recarrega os dados após a atualização (forçar reload)

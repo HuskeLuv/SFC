@@ -99,10 +99,37 @@ export const useReservaEmergencia = () => {
     return fetchReservaEmergencia(true);
   }, [fetchReservaEmergencia]);
 
+  const updateValorAtualizado = useCallback(async (portfolioId: string, novoValor: number): Promise<void> => {
+    try {
+      const response = await fetch('/api/carteira/reserva/valor-atualizado', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          portfolioId,
+          valorAtualizado: novoValor,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar valor atualizado');
+      }
+
+      // Recarrega os dados após a atualização
+      await fetchReservaEmergencia(true);
+    } catch (err) {
+      console.error('Erro ao atualizar valor atualizado:', err);
+      throw err;
+    }
+  }, [fetchReservaEmergencia]);
+
   return {
     data,
     loading,
     error,
     refetch,
+    updateValorAtualizado,
   };
 };
