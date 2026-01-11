@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useFimFia } from "@/hooks/useFimFia";
 import { FimFiaAtivo, FimFiaSecao } from "@/types/fimFia";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -236,13 +236,44 @@ const FimFiaSection: React.FC<FimFiaSectionProps> = ({
   );
 };
 
-export default function FimFiaTable() {
+interface FimFiaTableProps {
+  totalCarteira?: number;
+}
+
+export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
   const { data, loading, error, formatCurrency, formatPercentage, updateObjetivo } = useFimFia();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.fimFia ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['fim', 'fia'])
   );
+
+  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  const dataComRisco = useMemo(() => {
+    if (!data || totalCarteira <= 0) return data;
+    
+    const secoesComRisco = data.secoes.map(secao => ({
+      ...secao,
+      ativos: secao.ativos.map(ativo => ({
+        ...ativo,
+        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+      })),
+      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
+    }));
+    
+    const totalGeralRisco = secoesComRisco.reduce((sum, secao) => 
+      sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0), 0
+    );
+    
+    return {
+      ...data,
+      secoes: secoesComRisco,
+      totalGeral: {
+        ...data.totalGeral,
+        risco: totalGeralRisco,
+      },
+    };
+  }, [data, totalCarteira]);
 
   const toggleSection = (tipo: string) => {
     const newExpanded = new Set(expandedSections);
@@ -399,7 +430,7 @@ export default function FimFiaTable() {
                   % da Carteira
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco por Ativo
+                  Risco Por Ativo (Carteira Total)
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   Objetivo
@@ -416,7 +447,7 @@ export default function FimFiaTable() {
               </tr>
             </thead>
             <tbody>
-              {data.secoes.map((secao) => (
+              {dataComRisco?.secoes.map((secao) => (
                 <FimFiaSection
                   key={secao.tipo}
                   secao={secao}
@@ -438,32 +469,32 @@ export default function FimFiaTable() {
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data.totalGeral.valorAplicado)}
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
       <td className="px-2 py-2 text-xs text-right font-bold text-black">
-        {formatCurrency(data.totalGeral.aporte)}
+        {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
       </td>
       <td className="px-2 py-2 text-xs text-right font-bold text-black">
-        {formatCurrency(data.totalGeral.resgate)}
+        {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
       </td>
       <td className="px-2 py-2 text-xs text-right font-bold text-black">
-        {formatCurrency(data.totalGeral.valorAtualizado)}
+        {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">100.00%</td>
       <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(data.totalGeral.risco)}
+        {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(data.totalGeral.objetivo)}
+        {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(data.totalGeral.quantoFalta)}
+        {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
       </td>
       <td className="px-2 py-2 text-xs text-right font-bold text-black">
-        {formatCurrency(data.totalGeral.necessidadeAporte)}
+        {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(data.totalGeral.rentabilidade)}
+        {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
       </td>
               </tr>
             </tbody>

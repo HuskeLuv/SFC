@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { useReservaOportunidade } from "@/hooks/useReservaOportunidade";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -32,8 +32,125 @@ const ReservaOportunidadeMetricCard: React.FC<ReservaOportunidadeMetricCardProps
   );
 };
 
-export default function ReservaOportunidadeTable() {
-  const { data, loading, error } = useReservaOportunidade();
+interface ReservaOportunidadeTableRowProps {
+  ativo: {
+    id: string;
+    nome: string;
+    cotizacaoResgate: string;
+    liquidacaoResgate: string;
+    vencimento: Date;
+    benchmark: string;
+    valorInicial: number;
+    aporte: number;
+    resgate: number;
+    valorAtualizado: number;
+    percentualCarteira: number;
+    riscoAtivo: number;
+    rentabilidade: number;
+    observacoes?: string;
+  };
+  formatCurrency: (value: number) => string;
+  formatPercentage: (value: number) => string;
+  onUpdateValorAtualizado?: (portfolioId: string, novoValor: number) => void;
+}
+
+const ReservaOportunidadeTableRow: React.FC<ReservaOportunidadeTableRowProps> = ({
+  ativo,
+  formatCurrency,
+  formatPercentage,
+  onUpdateValorAtualizado,
+}) => {
+  const [isEditingValor, setIsEditingValor] = useState(false);
+  const [valorValue, setValorValue] = useState(ativo.valorAtualizado.toString());
+
+  const handleValorSubmit = () => {
+    if (!onUpdateValorAtualizado) return;
+    
+    const novoValor = parseFloat(valorValue);
+    if (!isNaN(novoValor) && novoValor > 0) {
+      onUpdateValorAtualizado(ativo.id, novoValor);
+      setIsEditingValor(false);
+    } else {
+      setValorValue(ativo.valorAtualizado.toString());
+      setIsEditingValor(false);
+    }
+  };
+
+  const handleValorKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleValorSubmit();
+    } else if (e.key === 'Escape') {
+      setValorValue(ativo.valorAtualizado.toString());
+      setIsEditingValor(false);
+    }
+  };
+
+  return (
+    <StandardTableRow>
+      <StandardTableBodyCell align="left">{ativo.nome}</StandardTableBodyCell>
+      <StandardTableBodyCell align="center">{ativo.cotizacaoResgate}</StandardTableBodyCell>
+      <StandardTableBodyCell align="center">{ativo.liquidacaoResgate}</StandardTableBodyCell>
+      <StandardTableBodyCell align="center">{ativo.vencimento.toLocaleDateString("pt-BR")}</StandardTableBodyCell>
+      <StandardTableBodyCell align="center">{ativo.benchmark}</StandardTableBodyCell>
+      <StandardTableBodyCell align="right">{formatCurrency(ativo.valorInicial)}</StandardTableBodyCell>
+      <StandardTableBodyCell align="right">{formatCurrency(ativo.aporte)}</StandardTableBodyCell>
+      <StandardTableBodyCell align="right">{formatCurrency(ativo.resgate)}</StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
+        {isEditingValor ? (
+          <div className="flex items-center justify-end space-x-1">
+            <input
+              type="number"
+              step="0.01"
+              value={valorValue}
+              onChange={(e) => setValorValue(e.target.value)}
+              onKeyDown={handleValorKeyPress}
+              onBlur={handleValorSubmit}
+              className="w-24 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              autoFocus
+            />
+          </div>
+        ) : (
+          <div 
+            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded inline-block"
+            onClick={() => onUpdateValorAtualizado && setIsEditingValor(true)}
+            tabIndex={0}
+            role="button"
+            aria-label="Editar valor atual"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onUpdateValorAtualizado && setIsEditingValor(true);
+              }
+            }}
+          >
+            {formatCurrency(ativo.valorAtualizado)}
+          </div>
+        )}
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">{formatPercentage(ativo.percentualCarteira)}</StandardTableBodyCell>
+      <StandardTableBodyCell align="right">{formatPercentage(ativo.riscoAtivo)}</StandardTableBodyCell>
+      <StandardTableBodyCell align="right">{formatPercentage(ativo.rentabilidade)}</StandardTableBodyCell>
+      <StandardTableBodyCell align="center">{ativo.observacoes || "-"}</StandardTableBodyCell>
+    </StandardTableRow>
+  );
+};
+
+interface ReservaOportunidadeTableProps {
+  totalCarteira?: number;
+}
+
+export default function ReservaOportunidadeTable({ totalCarteira = 0 }: ReservaOportunidadeTableProps) {
+  const { data, loading, error, updateValorAtualizado } = useReservaOportunidade();
+
+  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  const ativosComRisco = useMemo(() => {
+    if (totalCarteira <= 0) return data.ativos;
+    
+    return data.ativos.map(ativo => ({
+      ...ativo,
+      riscoAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+    }));
+  }, [data.ativos, totalCarteira]);
 
   const formatCurrency = (value: number): string => {
     return value.toLocaleString("pt-BR", {
@@ -99,7 +216,7 @@ export default function ReservaOportunidadeTable() {
     );
   }
 
-  const totais = data.ativos.reduce((acc, ativo) => ({
+  const totais = ativosComRisco.reduce((acc, ativo) => ({
     valorInicial: acc.valorInicial + ativo.valorInicial,
     aporte: acc.aporte + ativo.aporte,
     resgate: acc.resgate + ativo.resgate,
@@ -145,28 +262,20 @@ export default function ReservaOportunidadeTable() {
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Resgate</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Valor Atual</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">% Carteira</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Risco</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Risco Por Ativo (Carteira Total)</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Rentab.</StandardTableHeaderCell>
               <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">Observações</StandardTableHeaderCell>
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
-            {data.ativos.map((ativo) => (
-              <StandardTableRow key={ativo.id}>
-                <StandardTableBodyCell align="left">{ativo.nome}</StandardTableBodyCell>
-                <StandardTableBodyCell align="center">{ativo.cotizacaoResgate}</StandardTableBodyCell>
-                <StandardTableBodyCell align="center">{ativo.liquidacaoResgate}</StandardTableBodyCell>
-                <StandardTableBodyCell align="center">{ativo.vencimento.toLocaleDateString("pt-BR")}</StandardTableBodyCell>
-                <StandardTableBodyCell align="center">{ativo.benchmark}</StandardTableBodyCell>
-                <StandardTableBodyCell align="right">{formatCurrency(ativo.valorInicial)}</StandardTableBodyCell>
-                <StandardTableBodyCell align="right">{formatCurrency(ativo.aporte)}</StandardTableBodyCell>
-                <StandardTableBodyCell align="right">{formatCurrency(ativo.resgate)}</StandardTableBodyCell>
-                <StandardTableBodyCell align="right">{formatCurrency(ativo.valorAtualizado)}</StandardTableBodyCell>
-                <StandardTableBodyCell align="right">{formatPercentage(ativo.percentualCarteira)}</StandardTableBodyCell>
-                <StandardTableBodyCell align="right">{formatPercentage(ativo.riscoAtivo)}</StandardTableBodyCell>
-                <StandardTableBodyCell align="right">{formatPercentage(ativo.rentabilidade)}</StandardTableBodyCell>
-                <StandardTableBodyCell align="center">{ativo.observacoes || "-"}</StandardTableBodyCell>
-              </StandardTableRow>
+            {ativosComRisco.map((ativo) => (
+              <ReservaOportunidadeTableRow
+                key={ativo.id}
+                ativo={ativo}
+                formatCurrency={formatCurrency}
+                formatPercentage={formatPercentage}
+                onUpdateValorAtualizado={updateValorAtualizado}
+              />
             ))}
 
             {/* Linha de totalização */}

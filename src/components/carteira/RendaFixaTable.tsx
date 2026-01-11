@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useRendaFixa } from "@/hooks/useRendaFixa";
 import { RendaFixaSecao, RendaFixaAtivo } from "@/types/rendaFixa";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -186,13 +186,36 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
   );
 };
 
-export default function RendaFixaTable() {
+interface RendaFixaTableProps {
+  totalCarteira?: number;
+}
+
+export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProps) {
   const { data, loading, error, formatCurrency, formatPercentage } = useRendaFixa();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteCalculada = necessidadeAporteMap.rendaFixaFundos ?? data?.resumo?.necessidadeAporte ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['pos-fixada', 'prefixada', 'hibrida'])
   );
+
+  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  const dataComRisco = useMemo(() => {
+    if (!data || totalCarteira <= 0) return data;
+    
+    const secoesComRisco = data.secoes.map(secao => ({
+      ...secao,
+      ativos: secao.ativos.map(ativo => ({
+        ...ativo,
+        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+      })),
+      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
+    }));
+    
+    return {
+      ...data,
+      secoes: secoesComRisco,
+    };
+  }, [data, totalCarteira]);
 
   const toggleSection = (tipo: string) => {
     const newExpanded = new Set(expandedSections);
@@ -310,7 +333,7 @@ export default function RendaFixaTable() {
                   % Carteira
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco por Ativo
+                  Risco Por Ativo (Carteira Total)
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Rentabilidade
@@ -318,7 +341,7 @@ export default function RendaFixaTable() {
               </tr>
             </thead>
             <tbody>
-              {data.secoes.map((secao) => (
+              {dataComRisco?.secoes.map((secao) => (
                 <RendaFixaSection
                   key={secao.tipo}
                   secao={secao}
@@ -340,23 +363,23 @@ export default function RendaFixaTable() {
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data.totalGeral.valorAplicado)}
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data.totalGeral.aporte)}
+                  {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data.totalGeral.resgate)}
+                  {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data.totalGeral.valorAtualizado)}
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
                   100.00%
                 </td>
                 <td className="px-2 py-2 text-xs text-center">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatPercentage(data.totalGeral.rentabilidade)}
+                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
             </tbody>

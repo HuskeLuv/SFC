@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useOpcoes } from "@/hooks/useOpcoes";
 import { OpcaoAtivo, OpcaoSecao } from "@/types/opcoes";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -310,13 +310,44 @@ const OpcoesSection: React.FC<OpcoesSectionProps> = ({
   );
 };
 
-export default function OpcoesTable() {
+interface OpcoesTableProps {
+  totalCarteira?: number;
+}
+
+export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = useOpcoes();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.opcoes ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['put', 'call'])
   );
+
+  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  const dataComRisco = useMemo(() => {
+    if (!data || totalCarteira <= 0) return data;
+    
+    const secoesComRisco = data.secoes.map(secao => ({
+      ...secao,
+      ativos: secao.ativos.map(ativo => ({
+        ...ativo,
+        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+      })),
+      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
+    }));
+    
+    const totalGeralRisco = secoesComRisco.reduce((sum, secao) => 
+      sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0), 0
+    );
+    
+    return {
+      ...data,
+      secoes: secoesComRisco,
+      totalGeral: {
+        ...data.totalGeral,
+        risco: totalGeralRisco,
+      },
+    };
+  }, [data, totalCarteira]);
 
   const toggleSection = (tipo: string) => {
     const newExpanded = new Set(expandedSections);
@@ -471,7 +502,7 @@ export default function OpcoesTable() {
                   Valor Atualizado
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco por Ativo
+                  Risco Por Ativo (Carteira Total)
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   % da Carteira
@@ -491,7 +522,7 @@ export default function OpcoesTable() {
               </tr>
             </thead>
             <tbody>
-              {data.secoes.map((secao) => (
+              {dataComRisco?.secoes.map((secao) => (
                 <OpcoesSection
                   key={secao.tipo}
                   secao={secao}
@@ -513,33 +544,33 @@ export default function OpcoesTable() {
                 <td className="px-2 py-2 text-xs text-center text-black">-</td>
                 <td className="px-2 py-2 text-xs text-center text-black">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatNumber(data.totalGeral.quantidade)}
+                  {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center text-black">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data.totalGeral.valorAplicado)}
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center text-black">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data.totalGeral.valorAtualizado)}
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-black font-bold">
-                  {formatPercentage(data.totalGeral.risco)}
+                  {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-black font-bold">
                   100.00%
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-black font-bold">
-                  {formatPercentage(data.totalGeral.objetivo)}
+                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right">
-                  {formatPercentage(data.totalGeral.quantoFalta)}
+                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data.totalGeral.necessidadeAporte)}
+                  {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-black font-bold">
-                  {formatPercentage(data.totalGeral.rentabilidade)}
+                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
             </tbody>

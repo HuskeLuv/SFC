@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useFii } from "@/hooks/useFii";
 import { FiiAtivo, FiiSecao } from "@/types/fii";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -286,13 +286,44 @@ const FiiSection: React.FC<FiiSectionProps> = ({
   );
 };
 
-export default function FiiTable() {
+interface FiiTableProps {
+  totalCarteira?: number;
+}
+
+export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = useFii();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.fiis ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['fof', 'tvm', 'ijol', 'hibrido', 'renda'])
   );
+
+  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  const dataComRisco = useMemo(() => {
+    if (!data || totalCarteira <= 0) return data;
+    
+    const secoesComRisco = data.secoes.map(secao => ({
+      ...secao,
+      ativos: secao.ativos.map(ativo => ({
+        ...ativo,
+        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+      })),
+      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
+    }));
+    
+    const totalGeralRisco = secoesComRisco.reduce((sum, secao) => 
+      sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0), 0
+    );
+    
+    return {
+      ...data,
+      secoes: secoesComRisco,
+      totalGeral: {
+        ...data.totalGeral,
+        risco: totalGeralRisco,
+      },
+    };
+  }, [data, totalCarteira]);
 
   const toggleSection = (tipo: string) => {
     const newExpanded = new Set(expandedSections);
@@ -438,7 +469,7 @@ export default function FiiTable() {
                 Valor Atualizado
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
-                Risco por Ativo
+                Risco Por Ativo (Carteira Total)
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
                 % da Carteira
@@ -458,7 +489,7 @@ export default function FiiTable() {
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
-              {data.secoes.map((secao) => (
+              {dataComRisco?.secoes.map((secao) => (
                 <FiiSection
                   key={secao.tipo}
                   secao={secao}
@@ -480,35 +511,35 @@ export default function FiiTable() {
                 <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
                 <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal className="w-[80px]">
-                  {formatNumber(data.totalGeral.quantidade)}
+                  {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatCurrency(data.totalGeral.valorAplicado)}
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatCurrency(data.totalGeral.valorAtualizado)}
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatPercentage(data.totalGeral.risco)}
+                  {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
                   100.00%
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatPercentage(data.totalGeral.objetivo)}
+                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatPercentage(data.totalGeral.quantoFalta)}
+                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
                   <span>
-                    {formatCurrency(data.totalGeral.necessidadeAporte)}
+                    {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
                   </span>
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatPercentage(data.totalGeral.rentabilidade)}
+                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </StandardTableBodyCell>
               </StandardTableRow>
             </TableBody>

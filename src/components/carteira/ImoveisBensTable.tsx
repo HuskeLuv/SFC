@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useImoveisBens } from "@/hooks/useImoveisBens";
 import { ImovelBemAtivo } from "@/types/imoveis-bens";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -51,10 +51,26 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
   const [isEditingValor, setIsEditingValor] = useState(false);
   const [valorValue, setValorValue] = useState(ativo.valorAtualizado.toString());
 
-  const handleValorSubmit = () => {
+  // Atualizar valorValue quando ativo.valorAtualizado mudar
+  React.useEffect(() => {
+    if (!isEditingValor) {
+      setValorValue(ativo.valorAtualizado.toString());
+    }
+  }, [ativo.valorAtualizado, isEditingValor]);
+
+  const handleValorSubmit = async () => {
     const novoValor = parseFloat(valorValue);
     if (!isNaN(novoValor) && novoValor > 0) {
-      onUpdateValorAtualizado(ativo.id, novoValor);
+      try {
+        await onUpdateValorAtualizado(ativo.id, novoValor);
+        setIsEditingValor(false);
+      } catch (error) {
+        console.error("Erro ao atualizar valor:", error);
+        setValorValue(ativo.valorAtualizado.toString()); // Reverter se houver erro
+        setIsEditingValor(false);
+      }
+    } else {
+      setValorValue(ativo.valorAtualizado.toString()); // Reverter se inválido
       setIsEditingValor(false);
     }
   };
@@ -137,8 +153,35 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
   );
 };
 
-export default function ImoveisBensTable() {
+interface ImoveisBensTableProps {
+  totalCarteira?: number;
+}
+
+export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTableProps) {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateValorAtualizado } = useImoveisBens();
+
+  // Calcular risco e percentual da carteira para cada ativo
+  const dataComRisco = useMemo(() => {
+    if (!data || totalCarteira <= 0) return data;
+    
+    const ativosComRisco = data.ativos.map(ativo => ({
+      ...ativo,
+      riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+      percentualCarteira: (ativo.valorAtualizado / totalCarteira) * 100, // Corrigir cálculo de % da carteira
+    }));
+    
+    const totalGeralRisco = ativosComRisco.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
+    
+    return {
+      ...data,
+      ativos: ativosComRisco,
+      totalGeral: {
+        ...data.totalGeral,
+        risco: totalGeralRisco,
+        percentualCarteira: (data.totalGeral.valorAtualizado / totalCarteira) * 100, // Corrigir % da carteira total
+      },
+    };
+  }, [data, totalCarteira]);
 
   const handleUpdateValorAtualizado = async (ativoId: string, novoValor: number) => {
     await updateValorAtualizado(ativoId, novoValor);
@@ -269,7 +312,7 @@ export default function ImoveisBensTable() {
                   Valor Atualizado
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco por Ativo
+                  Risco Por Ativo (Carteira Total)
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   % da Carteira Total
@@ -280,7 +323,7 @@ export default function ImoveisBensTable() {
               </tr>
             </thead>
             <tbody>
-              {data?.ativos?.map((ativo) => (
+              {dataComRisco?.ativos?.map((ativo) => (
                 <ImoveisBensTableRow
                   key={ativo.id}
                   ativo={ativo}
@@ -299,24 +342,24 @@ export default function ImoveisBensTable() {
                 <td className="px-2 py-2 text-xs text-center text-black">-</td>
                 <td className="px-2 py-2 text-xs text-center text-black">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatNumber(data?.totalGeral?.quantidade)}
+                  {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center text-black">-</td>
                 <td className="px-2 py-2 text-xs text-center text-black">-</td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data?.totalGeral?.valorAplicado)}
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right font-bold text-black">
-                  {formatCurrency(data?.totalGeral?.valorAtualizado)}
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-black font-bold">
-                  {formatPercentage(data?.totalGeral?.risco)}
+                  {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-black font-bold">
-                  100.00%
+                  {formatPercentage(dataComRisco?.totalGeral?.percentualCarteira || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-black font-bold">
-                  {formatPercentage(data?.totalGeral?.rentabilidade)}
+                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
             </tbody>

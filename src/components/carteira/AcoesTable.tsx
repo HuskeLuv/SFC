@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAcoes } from "@/hooks/useAcoes";
 import { AcaoAtivo, AcaoSecao } from "@/types/acoes";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -267,13 +267,44 @@ const AcoesSection: React.FC<AcoesSectionProps> = ({
   );
 };
 
-export default function AcoesTable() {
+interface AcoesTableProps {
+  totalCarteira?: number;
+}
+
+export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo } = useAcoes();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.acoes ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['value', 'growth', 'risk'])
   );
+
+  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  const dataComRisco = useMemo(() => {
+    if (!data || totalCarteira <= 0) return data;
+    
+    const secoesComRisco = data.secoes.map(secao => ({
+      ...secao,
+      ativos: secao.ativos.map(ativo => ({
+        ...ativo,
+        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+      })),
+      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
+    }));
+    
+    const totalGeralRisco = secoesComRisco.reduce((sum, secao) => 
+      sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0), 0
+    );
+    
+    return {
+      ...data,
+      secoes: secoesComRisco,
+      totalGeral: {
+        ...data.totalGeral,
+        risco: totalGeralRisco,
+      },
+    };
+  }, [data, totalCarteira]);
 
   const toggleSection = (estrategia: string) => {
     const newExpanded = new Set(expandedSections);
@@ -406,7 +437,7 @@ export default function AcoesTable() {
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Valor Total</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Cotação Atual</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Valor Atualizado</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Risco por Ativo</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Risco Por Ativo (Carteira Total)</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">% da Carteira</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Objetivo</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Quanto Falta</StandardTableHeaderCell>
@@ -415,7 +446,7 @@ export default function AcoesTable() {
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
-              {data.secoes.map((secao) => (
+              {dataComRisco?.secoes.map((secao) => (
                 <AcoesSection
                   key={secao.estrategia}
                   secao={secao}
@@ -436,35 +467,35 @@ export default function AcoesTable() {
                 <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
                 <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatNumber(data.totalGeral.quantidade)}
+                  {formatNumber(dataComRisco?.totalGeral.quantidade || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatCurrency(data.totalGeral.valorAplicado)}
+                  {formatCurrency(dataComRisco?.totalGeral.valorAplicado || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatCurrency(data.totalGeral.valorAtualizado)}
+                  {formatCurrency(dataComRisco?.totalGeral.valorAtualizado || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatPercentage(data.totalGeral.risco)}
+                  {formatPercentage(dataComRisco?.totalGeral.risco || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
                   100.00%
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatPercentage(data.totalGeral.objetivo)}
+                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatPercentage(data.totalGeral.quantoFalta)}
+                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
                   <span>
-                    {formatCurrency(data.totalGeral.necessidadeAporte)}
+                    {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
                   </span>
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right" isTotal>
-                  {formatPercentage(data.totalGeral.rentabilidade)}
+                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </StandardTableBodyCell>
               </StandardTableRow>
             </TableBody>

@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import ComponentCard from "../common/ComponentCard";
 import { DollarLineIcon } from "@/icons";
@@ -25,6 +25,8 @@ interface ReservaEmergenciaTableProps {
   saldoInicioMes: number;
   rendimento: number;
   rentabilidade: number;
+  onUpdateValorAtualizado?: (portfolioId: string, novoValor: number) => void;
+  totalCarteira?: number;
 }
 
 interface ReservaEmergenciaMetricCardProps {
@@ -53,19 +55,144 @@ const ReservaEmergenciaMetricCard: React.FC<ReservaEmergenciaMetricCardProps> = 
   );
 };
 
+interface ReservaEmergenciaTableRowProps {
+  ativo: ReservaEmergenciaAtivo;
+  formatCurrency: (value: number) => string;
+  formatPercentage: (value: number) => string;
+  formatDate: (date: Date) => string;
+  onUpdateValorAtualizado?: (portfolioId: string, novoValor: number) => void;
+}
+
+const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
+  ativo,
+  formatCurrency,
+  formatPercentage,
+  formatDate,
+  onUpdateValorAtualizado,
+}) => {
+  const [isEditingValor, setIsEditingValor] = useState(false);
+  const [valorValue, setValorValue] = useState(ativo.valorAtualizado.toString());
+
+  const handleValorSubmit = () => {
+    if (!onUpdateValorAtualizado) return;
+    
+    const novoValor = parseFloat(valorValue);
+    if (!isNaN(novoValor) && novoValor > 0) {
+      onUpdateValorAtualizado(ativo.id, novoValor);
+      setIsEditingValor(false);
+    } else {
+      setValorValue(ativo.valorAtualizado.toString());
+      setIsEditingValor(false);
+    }
+  };
+
+  const handleValorKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleValorSubmit();
+    } else if (e.key === 'Escape') {
+      setValorValue(ativo.valorAtualizado.toString());
+      setIsEditingValor(false);
+    }
+  };
+
+  return (
+    <TableRow 
+      className="border-b border-gray-100 hover:bg-gray-50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
+    >
+      <TableCell className="px-2 py-2 text-xs font-medium text-black">
+        {ativo.nome}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-center">
+        {ativo.cotizacaoResgate}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-center">
+        {ativo.liquidacaoResgate}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-center">
+        {formatDate(ativo.vencimento)}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-center">
+        {ativo.benchmark}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
+        {formatCurrency(ativo.valorInicial)}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
+        {formatCurrency(ativo.aporte)}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
+        {formatCurrency(ativo.resgate)}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs font-semibold text-black text-right font-mono">
+        {isEditingValor ? (
+          <div className="flex items-center justify-end space-x-1">
+            <input
+              type="number"
+              step="0.01"
+              value={valorValue}
+              onChange={(e) => setValorValue(e.target.value)}
+              onKeyDown={handleValorKeyPress}
+              onBlur={handleValorSubmit}
+              className="w-24 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              autoFocus
+            />
+          </div>
+        ) : (
+          <div 
+            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded inline-block"
+            onClick={() => onUpdateValorAtualizado && setIsEditingValor(true)}
+            tabIndex={0}
+            role="button"
+            aria-label="Editar valor atual"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onUpdateValorAtualizado && setIsEditingValor(true);
+              }
+            }}
+          >
+            {formatCurrency(ativo.valorAtualizado)}
+          </div>
+        )}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-center">
+        {formatPercentage(ativo.percentualCarteira)}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-center">
+        {formatPercentage(ativo.riscoAtivo)}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-center font-medium text-black">
+        {formatPercentage(ativo.rentabilidade)}
+      </TableCell>
+    </TableRow>
+  );
+};
+
 export default function ReservaEmergenciaTable({ 
   ativos, 
   saldoInicioMes, 
   rendimento, 
-  rentabilidade 
+  rentabilidade,
+  onUpdateValorAtualizado,
+  totalCarteira = 0
 }: ReservaEmergenciaTableProps) {
 
+  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  const ativosComRisco = useMemo(() => {
+    if (totalCarteira <= 0) return ativos;
+    
+    return ativos.map(ativo => ({
+      ...ativo,
+      riscoAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+    }));
+  }, [ativos, totalCarteira]);
+
   const totais = useMemo(() => {
-    const totalValorInicial = ativos.reduce((sum, ativo) => sum + ativo.valorInicial, 0);
-    const totalAporte = ativos.reduce((sum, ativo) => sum + ativo.aporte, 0);
-    const totalResgate = ativos.reduce((sum, ativo) => sum + ativo.resgate, 0);
-    const totalValorAtualizado = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-    const totalRisco = ativos.reduce((sum, ativo) => sum + ativo.riscoAtivo, 0);
+    const totalValorInicial = ativosComRisco.reduce((sum, ativo) => sum + ativo.valorInicial, 0);
+    const totalAporte = ativosComRisco.reduce((sum, ativo) => sum + ativo.aporte, 0);
+    const totalResgate = ativosComRisco.reduce((sum, ativo) => sum + ativo.resgate, 0);
+    const totalValorAtualizado = ativosComRisco.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+    const totalRisco = ativosComRisco.reduce((sum, ativo) => sum + ativo.riscoAtivo, 0);
     
     return {
       valorInicial: totalValorInicial,
@@ -74,7 +201,7 @@ export default function ReservaEmergenciaTable({
       valorAtualizado: totalValorAtualizado,
       risco: totalRisco,
     };
-  }, [ativos]);
+  }, [ativosComRisco]);
 
   const formatCurrency = (value: number): string => {
     return value.toLocaleString('pt-BR', {
@@ -91,7 +218,7 @@ export default function ReservaEmergenciaTable({
     return date.toLocaleDateString('pt-BR');
   };
 
-  const sortedAtivos = ativos;
+  const sortedAtivos = ativosComRisco;
   // Verificar se há dados para exibir
   if (ativos.length === 0) {
     return (
@@ -236,7 +363,7 @@ export default function ReservaEmergenciaTable({
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  Risco
+                  Risco Por Ativo (Carteira Total)
                 </TableCell>
                 <TableCell 
                   isHeader 
@@ -249,47 +376,14 @@ export default function ReservaEmergenciaTable({
             </TableHeader>
             <TableBody>
               {sortedAtivos.map((ativo) => (
-                <TableRow 
+                <ReservaEmergenciaTableRow
                   key={ativo.id}
-                  className="border-b border-gray-100 hover:bg-gray-50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
-                >
-                  <TableCell className="px-2 py-2 text-xs font-medium text-black">
-                    {ativo.nome}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-black text-center">
-                    {ativo.cotizacaoResgate}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-black text-center">
-                    {ativo.liquidacaoResgate}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-black text-center">
-                    {formatDate(ativo.vencimento)}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-black text-center">
-                    {ativo.benchmark}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
-                    {formatCurrency(ativo.valorInicial)}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
-                    {formatCurrency(ativo.aporte)}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
-                    {formatCurrency(ativo.resgate)}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs font-semibold text-black text-right font-mono">
-                    {formatCurrency(ativo.valorAtualizado)}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-black text-center">
-                    {formatPercentage(ativo.percentualCarteira)}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-black text-center">
-                    {formatPercentage(ativo.riscoAtivo)}
-                  </TableCell>
-                  <TableCell className="px-2 py-2 text-xs text-center font-medium text-black">
-                    {formatPercentage(ativo.rentabilidade)}
-                  </TableCell>
-                </TableRow>
+                  ativo={ativo}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  formatDate={formatDate}
+                  onUpdateValorAtualizado={onUpdateValorAtualizado}
+                />
               ))}
               
               <TableRow className="border-t-2 border-gray-200 bg-gray-50 dark:border-white/[0.1] dark:bg-gray-900/50">

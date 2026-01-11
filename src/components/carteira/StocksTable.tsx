@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useCarteiraStocks } from "@/hooks/useStocks";
 import { CarteiraStockAtivo, CarteiraStockSecao } from "@/types/carteiraStocks";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -269,13 +269,44 @@ const StocksSection: React.FC<StocksSectionProps> = ({
   );
 };
 
-export default function StocksTable() {
+interface StocksTableProps {
+  totalCarteira?: number;
+}
+
+export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo } = useCarteiraStocks();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.stocks ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['value', 'growth', 'risk'])
   );
+
+  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  const dataComRisco = useMemo(() => {
+    if (!data || totalCarteira <= 0) return data;
+    
+    const secoesComRisco = data.secoes.map(secao => ({
+      ...secao,
+      ativos: secao.ativos.map(ativo => ({
+        ...ativo,
+        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+      })),
+      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
+    }));
+    
+    const totalGeralRisco = secoesComRisco.reduce((sum, secao) => 
+      sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0), 0
+    );
+    
+    return {
+      ...data,
+      secoes: secoesComRisco,
+      totalGeral: {
+        ...data.totalGeral,
+        risco: totalGeralRisco,
+      },
+    };
+  }, [data, totalCarteira]);
 
   const toggleSection = (estrategia: string) => {
     const newExpanded = new Set(expandedSections);
@@ -427,7 +458,7 @@ export default function StocksTable() {
                   Valor Atualizado
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco por Ativo
+                  Risco Por Ativo (Carteira Total)
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   % da Carteira
@@ -447,7 +478,7 @@ export default function StocksTable() {
               </tr>
             </thead>
             <tbody>
-              {data?.secoes?.map((secao) => (
+              {dataComRisco?.secoes?.map((secao) => (
                 <StocksSection
                   key={secao.estrategia}
                   secao={secao}
@@ -479,7 +510,7 @@ export default function StocksTable() {
                   {formatCurrency(data?.totalGeral?.valorAtualizado)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-black font-bold">
-                  {formatPercentage(data?.totalGeral?.risco)}
+                  {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-black font-bold">
                   100.00%
