@@ -41,14 +41,25 @@ export async function POST(request: NextRequest) {
       liquidacaoResgate,
       vencimento,
       benchmark,
+      estrategia,
+      tipoFii,
+      metodo,
       // percentualCDI,
       // indexador
     } = requestBody;
 
     // Validações básicas
-    if (!tipoAtivo || !instituicaoId || !assetId) {
+    // Para reservas (emergency e opportunity) e personalizado, assetId não é obrigatório pois será criado automaticamente
+    const isReserva = tipoAtivo === "emergency" || tipoAtivo === "opportunity";
+    const isPersonalizado = tipoAtivo === "personalizado";
+    if (!tipoAtivo || !instituicaoId) {
       return NextResponse.json({ 
-        error: 'Campos obrigatórios: tipoAtivo, instituicaoId, assetId' 
+        error: 'Campos obrigatórios: tipoAtivo, instituicaoId' 
+      }, { status: 400 });
+    }
+    if (!isReserva && !isPersonalizado && !assetId) {
+      return NextResponse.json({ 
+        error: 'Campo obrigatório: assetId' 
       }, { status: 400 });
     }
 
@@ -72,9 +83,15 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
     } else if (tipoAtivo === "personalizado") {
-      if (!dataInicio || !nomePersonalizado || !quantidade || !precoUnitario) {
+      if (!dataInicio || !nomePersonalizado || !quantidade || !precoUnitario || !requestBody.metodo) {
         return NextResponse.json({ 
-          error: 'Campos obrigatórios para este tipo: dataInicio, nomePersonalizado, quantidade, precoUnitario' 
+          error: 'Campos obrigatórios para este tipo: dataInicio, nomePersonalizado, quantidade, precoUnitario, metodo' 
+        }, { status: 400 });
+      }
+      // Validar método
+      if (!['valor', 'percentual'].includes(requestBody.metodo)) {
+        return NextResponse.json({ 
+          error: 'Método deve ser: valor ou percentual' 
         }, { status: 400 });
       }
     } else if (tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
@@ -90,9 +107,15 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
     } else if (tipoAtivo === "fii") {
-      if (!dataCompra || !quantidade || !cotacaoUnitaria) {
+      if (!dataCompra || !quantidade || !cotacaoUnitaria || !tipoFii) {
         return NextResponse.json({ 
-          error: 'Campos obrigatórios para este tipo: dataCompra, quantidade, cotacaoUnitaria' 
+          error: 'Campos obrigatórios para FII: dataCompra, quantidade, cotacaoUnitaria, tipoFii' 
+        }, { status: 400 });
+      }
+      // Validar tipoFii
+      if (!['fofi', 'tvm', 'tijolo'].includes(tipoFii)) {
+        return NextResponse.json({ 
+          error: 'Tipo de FII deve ser: fofi, tvm ou tijolo' 
         }, { status: 400 });
       }
     } else if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
@@ -102,8 +125,21 @@ export async function POST(request: NextRequest) {
           error: 'Campos obrigatórios para este tipo: dataCompra, valorInvestido' 
         }, { status: 400 });
       }
+    } else if (tipoAtivo === "acao") {
+      // Para ações, estratégia é obrigatória
+      if (!dataCompra || !quantidade || !cotacaoUnitaria || !estrategia) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para ações: dataCompra, quantidade, cotacaoUnitaria, estrategia' 
+        }, { status: 400 });
+      }
+      // Validar estratégia
+      if (!['value', 'growth', 'risk'].includes(estrategia)) {
+        return NextResponse.json({ 
+          error: 'Estratégia deve ser: value, growth ou risk' 
+        }, { status: 400 });
+      }
     } else {
-      // Para ações, BDRs, ETFs, REITs, etc.
+      // Para BDRs, ETFs, REITs, etc.
       if (!dataCompra || !quantidade || !cotacaoUnitaria) {
         return NextResponse.json({ 
           error: 'Campos obrigatórios para este tipo: dataCompra, quantidade, cotacaoUnitaria' 
@@ -172,39 +208,79 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verificar se o ativo existe ou criar para reservas
+    // Verificar se o ativo existe ou criar para reservas e personalizados
     let asset = null;
     let stock = null;
     
-    // Se é reserva de emergência ou oportunidade, buscar ou criar o asset
-    if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
-      const assetSymbol = tipoAtivo === "emergency" ? "RESERVA-EMERG" : "RESERVA-OPORT";
-      const assetName = tipoAtivo === "emergency" ? "Reserva de Emergência" : "Reserva de Oportunidade";
+    // Se é reserva de emergência, oportunidade ou personalizado, criar um asset único para cada investimento
+    // Isso permite ter múltiplos investimentos de reserva/personalizado separados
+    if (tipoAtivo === "emergency" || tipoAtivo === "opportunity" || tipoAtivo === "personalizado") {
+      let baseName = "";
+      let baseSymbol = "";
       
-      // Verificar se já existe um asset com esse símbolo
-      asset = await prisma.asset.findUnique({
-        where: { symbol: assetSymbol },
-      });
-
-      if (!asset) {
-        // Criar novo asset para reserva
-        asset = await prisma.asset.create({
-          data: {
-            symbol: assetSymbol,
-            name: assetName,
-            type: tipoAtivo,
-            currency: 'BRL',
-            source: 'manual',
-          },
-        });
+      if (tipoAtivo === "emergency") {
+        baseName = "Reserva de Emergência";
+        baseSymbol = "RESERVA-EMERG";
+      } else if (tipoAtivo === "opportunity") {
+        baseName = "Reserva de Oportunidade";
+        baseSymbol = "RESERVA-OPORT";
+      } else if (tipoAtivo === "personalizado") {
+        baseName = nomePersonalizado || "Personalizado";
+        baseSymbol = "PERSONALIZADO";
       }
-    } else if (tipoAtivo === "acao") {
-      // Para ações, buscar na tabela Stock
+      
+      // Criar um asset único para cada investimento usando timestamp e UUID
+      // Isso garante que cada investimento tenha seu próprio portfolio
+      const timestamp = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 9);
+      const assetSymbol = `${baseSymbol}-${timestamp}-${uniqueId}`;
+      
+      // Nome mais descritivo com data e valor
+      const dataFormatada = new Date(dataCompra || dataInicio || new Date()).toLocaleDateString('pt-BR');
+      
+      let assetName = "";
+      if (tipoAtivo === "personalizado") {
+        // Para personalizado, usar o nome fornecido pelo usuário
+        const valorTotal = quantidade * precoUnitario;
+        const valorFormatado = valorTotal ? new Intl.NumberFormat('pt-BR', { 
+          style: 'currency', 
+          currency: 'BRL',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
+        }).format(valorTotal) : '';
+        assetName = `${baseName}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+      } else {
+        const valorFormatado = valorInvestido ? new Intl.NumberFormat('pt-BR', { 
+          style: 'currency', 
+          currency: 'BRL',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
+        }).format(valorInvestido) : '';
+        assetName = `${baseName}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+      }
+      
+      // Criar novo asset único para este investimento
+      asset = await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: tipoAtivo === "personalizado" ? "personalizado" : tipoAtivo,
+          currency: 'BRL',
+          source: 'manual',
+        },
+      });
+    } else if (tipoAtivo === "acao" || tipoAtivo === "fii") {
+      // Para ações e FIIs, buscar na tabela Stock
+      if (!assetId) {
+        return NextResponse.json({ error: 'assetId é obrigatório para ações e FIIs' }, { status: 400 });
+      }
+      
       stock = await prisma.stock.findUnique({
         where: { id: assetId },
       });
 
       if (!stock) {
+        console.error(`Stock não encontrado para assetId: ${assetId}, tipoAtivo: ${tipoAtivo}`);
         return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
       }
     } else {
@@ -274,13 +350,35 @@ export async function POST(request: NextRequest) {
       }
       
       notesData = JSON.stringify(reservaMetadata);
+    } else if (tipoAtivo === "personalizado") {
+      const personalizadoMetadata: any = {
+        metodo: metodo || 'valor', // 'valor' ou 'percentual'
+      };
+      
+      // Adicionar observações se houver
+      if (observacoes) {
+        personalizadoMetadata.observacoes = observacoes;
+      }
+      
+      notesData = JSON.stringify(personalizadoMetadata);
+    }
+
+    // Verificar se asset ou stock foi criado/encontrado
+    if (!isReserva && !isPersonalizado && (tipoAtivo === "acao" || tipoAtivo === "fii") && !stock) {
+      return NextResponse.json({ error: 'Stock não encontrado' }, { status: 404 });
+    }
+    if (!isReserva && !isPersonalizado && tipoAtivo !== "acao" && tipoAtivo !== "fii" && !asset) {
+      return NextResponse.json({ error: 'Asset não encontrado' }, { status: 404 });
+    }
+    if ((isReserva || isPersonalizado) && !asset) {
+      return NextResponse.json({ error: `Erro ao criar asset para ${isPersonalizado ? 'personalizado' : 'reserva'}` }, { status: 500 });
     }
 
     // Criar transação de compra
     const transacao = await prisma.stockTransaction.create({
       data: {
         userId: targetUserId,
-        ...(tipoAtivo === "acao" ? { stockId: stock!.id } : { assetId: asset!.id }),
+        ...(tipoAtivo === "acao" || tipoAtivo === "fii" ? { stockId: stock!.id } : { assetId: asset!.id }),
         type: 'compra',
         quantity: quantidadeFinal,
         price: precoFinal,
@@ -292,40 +390,61 @@ export async function POST(request: NextRequest) {
     });
 
     // Atualizar ou criar portfolio
-    const portfolioExistente = await prisma.portfolio.findFirst({
-      where: {
-        userId: targetUserId,
-        ...(tipoAtivo === "acao" ? { stockId: stock!.id } : { assetId: asset!.id }),
-      },
-    });
-
-    if (portfolioExistente) {
-      // Atualizar portfolio existente
-      const novaQuantidade = portfolioExistente.quantity + quantidadeFinal;
-      const novoTotalInvestido = portfolioExistente.totalInvested + valorFinal;
-      const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
-
-      await prisma.portfolio.update({
-        where: { id: portfolioExistente.id },
-        data: {
-          quantity: novaQuantidade,
-          avgPrice: novoPrecoMedio,
-          totalInvested: novoTotalInvestido,
-          lastUpdate: new Date(),
-        },
-      });
-    } else {
-      // Criar novo portfolio
+    // Para reservas (emergency e opportunity) e personalizado, sempre criar um novo portfolio
+    // Para outros tipos, atualizar se existir ou criar novo
+    if (isReserva || isPersonalizado) {
+      // Para reservas, sempre criar um novo portfolio (não somar com existente)
       await prisma.portfolio.create({
         data: {
           userId: targetUserId,
-          ...(tipoAtivo === "acao" ? { stockId: stock!.id } : { assetId: asset!.id }),
+          assetId: asset!.id,
           quantity: quantidadeFinal,
           avgPrice: precoFinal,
           totalInvested: valorFinal,
           lastUpdate: new Date(),
         },
       });
+    } else {
+      // Para outros tipos, verificar se existe e atualizar ou criar
+        const portfolioExistente = await prisma.portfolio.findFirst({
+          where: {
+            userId: targetUserId,
+            ...(tipoAtivo === "acao" || tipoAtivo === "fii" ? { stockId: stock!.id } : { assetId: asset!.id }),
+          },
+        });
+
+      if (portfolioExistente) {
+        // Atualizar portfolio existente
+        const novaQuantidade = portfolioExistente.quantity + quantidadeFinal;
+        const novoTotalInvestido = portfolioExistente.totalInvested + valorFinal;
+        const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
+
+        await prisma.portfolio.update({
+          where: { id: portfolioExistente.id },
+          data: {
+            quantity: novaQuantidade,
+            avgPrice: novoPrecoMedio,
+            totalInvested: novoTotalInvestido,
+            ...(tipoAtivo === "acao" && estrategia ? { estrategia } : {}),
+            ...(tipoAtivo === "fii" && tipoFii ? { tipoFii } : {}),
+            lastUpdate: new Date(),
+          },
+        });
+      } else {
+        // Criar novo portfolio
+        await prisma.portfolio.create({
+          data: {
+            userId: targetUserId,
+            ...(tipoAtivo === "acao" || tipoAtivo === "fii" ? { stockId: stock!.id } : { assetId: asset!.id }),
+            quantity: quantidadeFinal,
+            avgPrice: precoFinal,
+            totalInvested: valorFinal,
+            ...(tipoAtivo === "acao" && estrategia ? { estrategia } : {}),
+            ...(tipoAtivo === "fii" && tipoFii ? { tipoFii } : {}),
+            lastUpdate: new Date(),
+          },
+        });
+      }
     }
 
     const result = NextResponse.json({ 
@@ -377,8 +496,16 @@ export async function POST(request: NextRequest) {
     }
     
     console.error('Erro ao adicionar investimento:', error);
+    
+    // Retornar mensagem de erro mais detalhada em desenvolvimento
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { 
+        error: isDevelopment ? errorMessage : 'Erro interno do servidor',
+        ...(isDevelopment && error instanceof Error && error.stack ? { details: error.stack } : {})
+      },
       { status: 500 }
     );
   }
