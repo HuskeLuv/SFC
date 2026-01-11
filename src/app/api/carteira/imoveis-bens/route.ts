@@ -14,12 +14,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
-    // Buscar portfolio do usuário com ativos do tipo correspondente
+    // Buscar portfolio do usuário com ativos do tipo imovel e personalizado
     const portfolio = await prisma.portfolio.findMany({
       where: { 
         userId: user.id,
         asset: {
-          type: 'imovel'
+          type: {
+            in: ['imovel', 'personalizado']
+          }
         }
       },
       include: {
@@ -30,29 +32,37 @@ export async function GET(request: NextRequest) {
     // Converter portfolio para formato esperado
     const imoveisBensAtivos = portfolio
       .filter(item => item.asset) // Filtrar apenas itens com asset
-      .map(item => ({
-        id: item.id,
-        nome: item.asset!.name,
-      tipo: 'outros', // Asset não tem tipo específico
-      endereco: '',
-      quantidade: item.quantity,
-      valorAquisicao: item.avgPrice,
-      valorMelhorias: 0, // Sem melhorias por enquanto
-      valorAtualizado: item.totalInvested,
-      riscoPorAtivo: 0, // Calcular depois
-      percentualCarteira: 0, // Calcular depois
-      objetivo: 0, // Sem objetivo por enquanto
-      quantoFalta: 0, // Calcular depois
-      necessidadeAporte: 0, // Calcular depois
-      rentabilidade: 0, // Sem variação por enquanto
-      observacoes: undefined,
-      dataUltimaAtualizacao: item.lastUpdate
-    }));
+      .map(item => {
+        // Para imóveis, valorAtualizado = totalInvested (que é atualizado quando o usuário edita manualmente)
+        // Se quantity > 0, usar totalInvested diretamente (já está atualizado)
+        // Caso contrário, calcular como quantity * avgPrice
+        const valorAtualizado = item.totalInvested > 0 ? item.totalInvested : (item.quantity * item.avgPrice);
+        const valorTotal = item.quantity * item.avgPrice; // Valor total (aquisição + melhorias)
+        
+        return {
+          id: item.id,
+          nome: item.asset!.name,
+          cidade: '', // Asset não tem cidade por enquanto
+          mandato: 'Estratégico', // Padrão
+          quantidade: item.quantity,
+          precoAquisicao: item.avgPrice,
+          melhorias: 0, // Sem melhorias por enquanto
+          valorTotal,
+          valorAtualizado,
+          riscoPorAtivo: 0, // Calcular depois no frontend com totalCarteira
+          percentualCarteira: 0, // Calcular depois no frontend com totalCarteira
+          rentabilidade: 0, // Sem variação por enquanto
+          observacoes: undefined,
+          objetivo: 0, // Não aplicável para imóveis e bens
+          quantoFalta: 0, // Não aplicável para imóveis e bens
+          necessidadeAporte: 0, // Não aplicável para imóveis e bens
+        };
+      });
 
     // Calcular totais gerais
     const totalQuantidade = imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
-    const totalValorAplicado = imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.valorAquisicao, 0);
-    const totalValorMelhorias = imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.valorMelhorias, 0);
+    const totalValorAplicado = imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+    const totalValorMelhorias = imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.melhorias, 0);
     const totalValorAtualizado = imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
     const totalObjetivo = imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
     const totalQuantoFalta = imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
