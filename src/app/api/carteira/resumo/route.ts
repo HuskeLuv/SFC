@@ -85,9 +85,13 @@ export async function GET(request: NextRequest) {
     const investments = allInvestmentGroups.flatMap(group => group.items || []);
 
     // Buscar cotações atuais dos ativos no portfolio
-    // Excluir símbolos de reserva (RESERVA-EMERG, RESERVA-OPORT) pois são assets manuais sem cotações externas
+    // Excluir símbolos de reserva, imóveis/bens e personalizados pois são assets manuais sem cotações externas
     const symbols = portfolio
       .map(item => {
+        // Não incluir imóveis/bens e personalizados na busca de cotações
+        if (item.asset && (item.asset.type === 'imovel' || item.asset.type === 'personalizado')) {
+          return null;
+        }
         if (item.asset) {
           return item.asset.symbol;
         } else if (item.stock) {
@@ -97,11 +101,29 @@ export async function GET(request: NextRequest) {
       })
       .filter((symbol): symbol is string => 
         symbol !== null && 
-        symbol !== 'RESERVA-EMERG' && 
-        symbol !== 'RESERVA-OPORT'
+        !symbol.startsWith('RESERVA-EMERG') && 
+        !symbol.startsWith('RESERVA-OPORT') &&
+        !symbol.startsWith('PERSONALIZADO')
       );
 
     const quotes = await fetchQuotes(symbols);
+
+    // Inicializar contadores para cada categoria (antes do loop)
+    const categorias = {
+      reservaEmergencia: 0,
+      reservaOportunidade: 0,
+      rendaFixaFundos: 0,
+      fimFia: 0,
+      fiis: 0,
+      acoes: 0,
+      stocks: 0,
+      reits: 0,
+      etfs: 0,
+      moedasCriptos: 0,
+      previdenciaSeguros: 0,
+      opcoes: 0,
+      imoveisBens: 0,
+    };
 
     // Calcular totais do portfolio de ações
     const stocksTotalInvested = portfolio.reduce((sum, item) => sum + item.totalInvested, 0);
@@ -110,17 +132,33 @@ export async function GET(request: NextRequest) {
     let stocksCurrentValue = 0;
     for (const item of portfolio) {
       const symbol = item.asset?.symbol || item.stock?.ticker;
-      if (symbol) {
+      const isReserva = item.asset?.type === 'emergency' || item.asset?.type === 'opportunity' ||
+                        item.asset?.symbol?.startsWith('RESERVA-EMERG') || item.asset?.symbol?.startsWith('RESERVA-OPORT');
+      const isImovelBem = item.asset?.type === 'imovel';
+      const isPersonalizado = item.asset?.type === 'personalizado' || item.asset?.symbol?.startsWith('PERSONALIZADO');
+      
+      // Para reservas, não buscar cotação na brapi
+      // Imóveis/bens e personalizados serão contabilizados separadamente na categoria imoveisBens
+      if (isReserva) {
+        // Usar quantity * avgPrice (sem cotação)
+        stocksCurrentValue += item.quantity * item.avgPrice;
+      } else if (isImovelBem || isPersonalizado) {
+        // Imóveis e bens + Personalizados: usar totalInvested (valor atualizado manualmente) ou quantity * avgPrice
+        const valorImovel = item.totalInvested > 0 ? item.totalInvested : (item.quantity * item.avgPrice);
+        // Não adicionar ao stocksCurrentValue (será contabilizado separadamente)
+        categorias.imoveisBens += valorImovel;
+      } else if (symbol) {
         const currentPrice = quotes.get(symbol);
         if (currentPrice) {
           // Valor atual = quantidade * cotação atual
           stocksCurrentValue += item.quantity * currentPrice;
         } else {
-          // Se não conseguir a cotação, usar valor investido como fallback
-          stocksCurrentValue += item.totalInvested;
+          // Se não conseguir a cotação, usar quantity * avgPrice como fallback
+          stocksCurrentValue += item.quantity * item.avgPrice;
         }
       } else {
-        stocksCurrentValue += item.totalInvested;
+        // Para outros casos, usar quantity * avgPrice
+        stocksCurrentValue += item.quantity * item.avgPrice;
       }
     }
 
@@ -247,21 +285,7 @@ export async function GET(request: NextRequest) {
     // Usar os investimentos já buscados acima
     const categorizedInvestments = investments;
 
-    // Inicializar contadores para cada categoria
-    const categorias = {
-      reservaEmergencia: 0,
-      reservaOportunidade: 0,
-      rendaFixaFundos: 0,
-      fimFia: 0,
-      fiis: 0,
-      acoes: 0,
-      stocks: 0,
-      reits: 0,
-      etfs: 0,
-      moedasCriptos: 0,
-      previdenciaSeguros: 0,
-      opcoes: 0,
-    };
+    // categorias já foi inicializado antes do loop do portfolio
 
     // Categorizar portfolio baseado no tipo do ativo
     for (const item of portfolio) {
@@ -274,83 +298,101 @@ export async function GET(request: NextRequest) {
       });
 
       // Calcular valor atual com cotação
+      const isReserva = asset?.type === 'emergency' || asset?.type === 'opportunity' ||
+                        symbol?.startsWith('RESERVA-EMERG') || symbol?.startsWith('RESERVA-OPORT');
       const currentPrice = quotes.get(symbol);
-      const valorAtual = currentPrice 
+      const valorAtual = currentPrice && !isReserva
         ? item.quantity * currentPrice 
-        : item.totalInvested; // Fallback para valor investido
+        : item.quantity * item.avgPrice; // Para reservas ou fallback, usar quantity * avgPrice
       
       if (asset) {
         const tipo = asset.type?.toLowerCase() || '';
         
-        switch (tipo) {
-          case 'ação':
-          case 'acao':
-          case 'stock': {
-            if (asset.currency === 'BRL') {
-              categorias.acoes += valorAtual;
-            } else {
+        // Verificar se é reserva antes de categorizar
+        // Reservas não devem aparecer no gráfico de tipos de investimento
+        if (isReserva) {
+          // Não adicionar reservas ao gráfico - devem ser desconsideradas
+        } else {
+          switch (tipo) {
+            case 'ação':
+            case 'acao':
+            case 'stock': {
+              if (asset.currency === 'BRL') {
+                categorias.acoes += valorAtual;
+              } else {
+                categorias.stocks += valorAtual;
+              }
+              break;
+            }
+            case 'bdr':
+            case 'brd':
               categorias.stocks += valorAtual;
-            }
-            break;
-          }
-          case 'bdr':
-          case 'brd':
-            categorias.stocks += valorAtual;
-            break;
-          case 'fii':
-            categorias.fiis += valorAtual;
-            break;
-          case 'fund':
-          case 'funds': {
-            const symbolUpper = symbol.toUpperCase();
-            const nameLower = (asset.name || '').toLowerCase();
-            if (symbolUpper.endsWith('11') || nameLower.includes('fii') || nameLower.includes('imobili')) {
+              break;
+            case 'fii':
               categorias.fiis += valorAtual;
-            } else {
-              categorias.fimFia += valorAtual;
+              break;
+            case 'fund':
+            case 'funds': {
+              const symbolUpper = symbol.toUpperCase();
+              const nameLower = (asset.name || '').toLowerCase();
+              if (symbolUpper.endsWith('11') || nameLower.includes('fii') || nameLower.includes('imobili')) {
+                categorias.fiis += valorAtual;
+              } else {
+                categorias.fimFia += valorAtual;
+              }
+              break;
             }
-            break;
+            case 'etf':
+              categorias.etfs += valorAtual;
+              break;
+            case 'reit':
+              categorias.reits += valorAtual;
+              break;
+            case 'crypto':
+              categorias.moedasCriptos += valorAtual;
+              break;
+            case 'bond':
+              categorias.rendaFixaFundos += valorAtual;
+              break;
+            case 'insurance':
+              categorias.previdenciaSeguros += valorAtual;
+              break;
+            case 'currency':
+              categorias.moedasCriptos += valorAtual;
+              break;
+            case 'cash':
+              categorias.reservaOportunidade += valorAtual;
+              break;
+            case 'emergency':
+              // Reserva de emergência não deve aparecer no gráfico de tipos de investimento
+              break;
+            case 'opportunity':
+              // Reserva de oportunidade não deve aparecer no gráfico de tipos de investimento
+              break;
+            case 'custom':
+            case 'personalizado':
+              // Personalizado não deve aparecer no gráfico de tipos de investimento (vai para Imóveis e Bens)
+              break;
+            case 'imovel':
+              // Imóveis e bens não devem aparecer no gráfico de tipos de investimento
+              break;
+            default:
+              // Verificar se é reserva pelo símbolo - reservas não devem aparecer no gráfico
+              if (symbol?.startsWith('RESERVA-EMERG') || symbol?.startsWith('RESERVA-OPORT')) {
+                // Não adicionar reservas ao gráfico - devem ser desconsideradas
+              } else if (symbol?.includes('11')) {
+                categorias.fiis += valorAtual;
+              } else {
+                categorias.acoes += valorAtual;
+              }
           }
-          case 'etf':
-            categorias.etfs += valorAtual;
-            break;
-          case 'reit':
-            categorias.reits += valorAtual;
-            break;
-          case 'crypto':
-            categorias.moedasCriptos += valorAtual;
-            break;
-          case 'bond':
-            categorias.rendaFixaFundos += valorAtual;
-            break;
-          case 'insurance':
-            categorias.previdenciaSeguros += valorAtual;
-            break;
-          case 'currency':
-            categorias.moedasCriptos += valorAtual;
-            break;
-          case 'cash':
-            categorias.reservaOportunidade += valorAtual;
-            break;
-          case 'emergency':
-            categorias.reservaEmergencia += valorAtual;
-            break;
-          case 'opportunity':
-            categorias.reservaOportunidade += valorAtual;
-            break;
-          case 'custom':
-            categorias.fimFia += valorAtual;
-            break;
-          default:
-            if (symbol.includes('11')) {
-              categorias.fiis += valorAtual;
-            } else {
-              categorias.acoes += valorAtual;
-            }
         }
       } else {
         // Se não encontrar o asset, usar heurística baseada no ticker
-        if (symbol.includes('11')) {
+        // Verificar se é reserva primeiro - reservas não devem aparecer no gráfico
+        if (symbol?.startsWith('RESERVA-EMERG') || symbol?.startsWith('RESERVA-OPORT')) {
+          // Não adicionar reservas ao gráfico - devem ser desconsideradas
+        } else if (symbol?.includes('11')) {
           categorias.fiis += valorAtual; // FIIs geralmente terminam em 11
         } else {
           categorias.acoes += valorAtual; // Assumir ação por padrão
@@ -364,18 +406,20 @@ export async function GET(request: NextRequest) {
       const name = investment.name.toLowerCase();
 
       // Lógica de categorização baseada em palavras-chave no nome
+      // Reservas não devem aparecer no gráfico de tipos de investimento
       if (name.includes('reserva') && name.includes('emergencia')) {
-        categorias.reservaEmergencia += totalValor;
+        // Não adicionar reserva de emergência ao gráfico
       } else if (name.includes('reserva') && name.includes('oportunidade')) {
-        categorias.reservaOportunidade += totalValor;
+        // Não adicionar reserva de oportunidade ao gráfico
       } else if (name.includes('emergencia')) {
-        categorias.reservaEmergencia += totalValor;
+        // Não adicionar reserva de emergência ao gráfico
       } else if (name.includes('reserva')) {
-        categorias.reservaOportunidade += totalValor;
+        // Não adicionar reservas ao gráfico
       } else if (name.includes('cdb') || name.includes('lci') || name.includes('lca') || 
                  name.includes('tesouro') || name.includes('renda fixa')) {
         categorias.rendaFixaFundos += totalValor;
-      } else if (name.includes('fim') || name.includes('fia') || name.includes('fundo')) {
+      } else if ((name.includes('fim') || name.includes('fia')) && !name.includes('fii') && !name.includes('imobiliario')) {
+        // Apenas FIM/FIA específicos, excluindo FIIs e imobiliários
         categorias.fimFia += totalValor;
       } else if (name.includes('fii') || name.includes('imobiliario')) {
         categorias.fiis += totalValor;
@@ -452,6 +496,10 @@ export async function GET(request: NextRequest) {
       opcoes: {
         valor: Math.round(categorias.opcoes * 100) / 100,
         percentual: baseValue > 0 ? Math.round((categorias.opcoes / baseValue) * 10000) / 100 : 0,
+      },
+      imoveisBens: {
+        valor: Math.round(categorias.imoveisBens * 100) / 100,
+        percentual: baseValue > 0 ? Math.round((categorias.imoveisBens / baseValue) * 10000) / 100 : 0,
       },
     };
 
