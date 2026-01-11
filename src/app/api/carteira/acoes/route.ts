@@ -26,8 +26,14 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     }
   });
 
-  // Filtrar apenas itens com stock válido
-  const acoesPortfolio = portfolio.filter(item => item.stock);
+  // Filtrar apenas itens com stock válido e que NÃO sejam FIIs
+  // FIIs geralmente têm ticker terminando em '11'
+  const acoesPortfolio = portfolio.filter(item => {
+    if (!item.stock) return false;
+    // Excluir FIIs: tickers que terminam em '11'
+    const ticker = item.stock.ticker.toUpperCase();
+    return !ticker.endsWith('11');
+  });
 
   // Buscar cotações atuais dos ativos
   // Sempre forçar busca fresca para garantir valores atualizados
@@ -75,6 +81,11 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
         ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 
         : 0;
       
+      // Usar estratégia do portfolio ou padrão 'value'
+      const estrategia = (item.estrategia && ['value', 'growth', 'risk'].includes(item.estrategia)) 
+        ? item.estrategia as 'value' | 'growth' | 'risk'
+        : 'value';
+      
       return {
         id: item.id,
         ticker: ticker,
@@ -92,7 +103,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
         quantoFalta: 0, // Calcular depois
         necessidadeAporte: 0, // Calcular depois
         rentabilidade,
-        estrategia: 'value', // Padrão
+        estrategia,
         observacoes: undefined,
         dataUltimaAtualizacao: item.lastUpdate
       };
@@ -110,12 +121,20 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     ? acoesAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / acoesAtivos.length 
     : 0;
 
-  // Agrupar por estratégia (todos como 'value' por enquanto)
-  const secoes: AcaoSecao[] = [
-    {
-      estrategia: 'value',
-      nome: 'Ações',
-      ativos: acoesAtivos,
+  // Agrupar por estratégia (value, growth, risk)
+  const estrategias: ('value' | 'growth' | 'risk')[] = ['value', 'growth', 'risk'];
+  const secoes: AcaoSecao[] = estrategias.map(estrategia => {
+    const ativosDaEstrategia = acoesAtivos.filter(ativo => ativo.estrategia === estrategia);
+    const nomesEstrategia = {
+      'value': 'Value',
+      'growth': 'Growth',
+      'risk': 'Risk'
+    };
+    
+    return {
+      estrategia,
+      nome: nomesEstrategia[estrategia],
+      ativos: ativosDaEstrategia,
       totalQuantidade: 0,
       totalValorAplicado: 0,
       totalValorAtualizado: 0,
@@ -125,8 +144,8 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       totalQuantoFalta: 0,
       totalNecessidadeAporte: 0,
       rentabilidadeMedia: 0
-    }
-  ];
+    };
+  }).filter(secao => secao.ativos.length > 0); // Remover seções vazias
 
   // Calcular valores das seções
   secoes.forEach(secao => {
