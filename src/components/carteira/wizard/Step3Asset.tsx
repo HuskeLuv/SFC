@@ -29,14 +29,25 @@ export default function Step3Asset({
       return;
     }
 
-    // Para reserva de emergência e oportunidade, criar automaticamente sem busca
-    if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade") {
-      const nome = formData.tipoAtivo === "reserva-emergencia" ? "Reserva de Emergência" : "Reserva de Oportunidade";
-      const symbol = formData.tipoAtivo === "reserva-emergencia" ? "RESERVA-EMERG" : "RESERVA-OPORT";
-      onFormDataChange({
-        ativo: nome,
-        assetId: symbol, // Será processado pela API
-      });
+    // Para reserva de emergência, oportunidade e personalizado, criar automaticamente sem busca
+    if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado") {
+      if (formData.tipoAtivo === "reserva-emergencia") {
+        onFormDataChange({
+          ativo: "Reserva de Emergência",
+          assetId: "RESERVA-EMERG", // Será processado pela API
+        });
+      } else if (formData.tipoAtivo === "reserva-oportunidade") {
+        onFormDataChange({
+          ativo: "Reserva de Oportunidade",
+          assetId: "RESERVA-OPORT", // Será processado pela API
+        });
+      } else if (formData.tipoAtivo === "personalizado") {
+        // Para personalizado, o nome será definido no Step4
+        onFormDataChange({
+          ativo: "Personalizado",
+          assetId: "PERSONALIZADO", // Será processado pela API
+        });
+      }
       return;
     }
 
@@ -113,14 +124,24 @@ export default function Step3Asset({
     if (formData.tipoAtivo) {
       onErrorsChange({ ativo: undefined });
       
-      // Para reserva de emergência e oportunidade, definir automaticamente
-      if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade") {
-        const nome = formData.tipoAtivo === "reserva-emergencia" ? "Reserva de Emergência" : "Reserva de Oportunidade";
-        const symbol = formData.tipoAtivo === "reserva-emergencia" ? "RESERVA-EMERG" : "RESERVA-OPORT";
-        onFormDataChange({
-          ativo: nome,
-          assetId: symbol, // Será processado pela API
-        });
+      // Para reserva de emergência, oportunidade e personalizado, definir automaticamente
+      if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado") {
+        if (formData.tipoAtivo === "reserva-emergencia") {
+          onFormDataChange({
+            ativo: "Reserva de Emergência",
+            assetId: "RESERVA-EMERG", // Será processado pela API
+          });
+        } else if (formData.tipoAtivo === "reserva-oportunidade") {
+          onFormDataChange({
+            ativo: "Reserva de Oportunidade",
+            assetId: "RESERVA-OPORT", // Será processado pela API
+          });
+        } else if (formData.tipoAtivo === "personalizado") {
+          onFormDataChange({
+            ativo: "Personalizado",
+            assetId: "PERSONALIZADO", // Será processado pela API
+          });
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -151,9 +172,22 @@ export default function Step3Asset({
     return placeholders[formData.tipoAtivo] || "Digite pelo menos 2 caracteres para buscar";
   };
 
-  // Para reserva de emergência e oportunidade, não mostrar campo de busca
-  if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade") {
-    const nome = formData.tipoAtivo === "reserva-emergencia" ? "Reserva de Emergência" : "Reserva de Oportunidade";
+  // Para reserva de emergência, oportunidade e personalizado, não mostrar campo de busca
+  if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado") {
+    let nome = "";
+    let descricao = "";
+    
+    if (formData.tipoAtivo === "reserva-emergencia") {
+      nome = "Reserva de Emergência";
+      descricao = `O ativo será criado automaticamente como "${nome}". Continue para o próximo passo para informar o valor e a data.`;
+    } else if (formData.tipoAtivo === "reserva-oportunidade") {
+      nome = "Reserva de Oportunidade";
+      descricao = `O ativo será criado automaticamente como "${nome}". Continue para o próximo passo para informar o valor e a data.`;
+    } else if (formData.tipoAtivo === "personalizado") {
+      nome = "Personalizado";
+      descricao = "O ativo personalizado será criado com o nome que você informar. Continue para o próximo passo para preencher os dados do investimento.";
+    }
+    
     return (
       <div className="space-y-6">
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
@@ -161,7 +195,7 @@ export default function Step3Asset({
             {nome}
           </h4>
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            O ativo será criado automaticamente como "{nome}". Continue para o próximo passo para informar o valor e a data.
+            {descricao}
           </p>
         </div>
         {formData.assetId && (

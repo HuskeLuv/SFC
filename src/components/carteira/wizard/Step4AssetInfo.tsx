@@ -75,10 +75,13 @@ export default function Step4AssetInfo({
   // Calcular valor total automaticamente para alguns tipos
   useEffect(() => {
     if (formData.tipoAtivo === "fii" && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
-      const valorCalculado = (formData.quantidade * formData.cotacaoUnitaria) + formData.taxaCorretagem;
-      onFormDataChange({ valorInvestido: valorCalculado });
+      const valorCalculado = (formData.quantidade * formData.cotacaoUnitaria) + (formData.taxaCorretagem || 0);
+      // Só atualizar se o valor realmente mudou para evitar loops infinitos
+      if (Math.abs(formData.valorInvestido - valorCalculado) > 0.01) {
+        onFormDataChange({ valorInvestido: valorCalculado });
+      }
     }
-  }, [formData.quantidade, formData.cotacaoUnitaria, formData.taxaCorretagem, formData.tipoAtivo, onFormDataChange]);
+  }, [formData.quantidade, formData.cotacaoUnitaria, formData.taxaCorretagem, formData.tipoAtivo]);
 
   const renderFieldsByAssetType = () => {
     switch (formData.tipoAtivo) {
@@ -395,13 +398,17 @@ export default function Step4AssetInfo({
               <Label htmlFor="metodo">Método de Acompanhamento *</Label>
               <Select
                 options={[
-                  { value: "valor", label: "Por Valor Financeiro" },
-                  { value: "percentual", label: "Por Variação Percentual" }
+                  { value: "valor", label: "Por Valor Financeiro: A cada mês você informa o valor atualizado do seu investimento" },
+                  { value: "percentual", label: "Por Variação Percentual: A cada mês, você informa quantos % seu investimento rendeu" }
                 ]}
                 placeholder="Selecione o método"
                 defaultValue={formData.metodo}
                 onChange={(value) => handleInputChange('metodo', value)}
+                className={errors.metodo ? 'border-red-500' : ''}
               />
+              {errors.metodo && (
+                <p className="mt-1 text-sm text-red-500">{errors.metodo}</p>
+              )}
             </div>
           </>
         );
@@ -696,6 +703,23 @@ export default function Step4AssetInfo({
               )}
             </div>
             <div>
+              <Label htmlFor="tipoFii">Tipo de FII *</Label>
+              <Select
+                options={[
+                  { value: "fofi", label: "FOFI (Fundos de Fundos)" },
+                  { value: "tvm", label: "TVM (Títulos e Valores Mobiliários)" },
+                  { value: "tijolo", label: "Tijolo" }
+                ]}
+                placeholder="Selecione o tipo"
+                defaultValue={formData.tipoFii}
+                onChange={(value) => handleInputChange('tipoFii', value)}
+                className={errors.tipoFii ? 'border-red-500' : ''}
+              />
+              {errors.tipoFii && (
+                <p className="mt-1 text-sm text-red-500">{errors.tipoFii}</p>
+              )}
+            </div>
+            <div>
               <Label htmlFor="quantidade">Quantidade de Cotas *</Label>
               <Input
                 id="quantidade"
@@ -752,8 +776,88 @@ export default function Step4AssetInfo({
           </>
         );
 
+      case "acao":
+        // Para ações, adicionar campo de estratégia
+        return (
+          <>
+            <div>
+              <DatePicker
+                id="dataCompra"
+                label="Data de Compra *"
+                placeholder="Selecione a data"
+                defaultDate={formData.dataCompra}
+                onChange={(selectedDates) => {
+                  if (selectedDates && selectedDates.length > 0) {
+                    handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
+                  }
+                }}
+              />
+              {errors.dataCompra && (
+                <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="estrategia">Estratégia *</Label>
+              <Select
+                options={[
+                  { value: "value", label: "Value" },
+                  { value: "growth", label: "Growth" },
+                  { value: "risk", label: "Risk" }
+                ]}
+                placeholder="Selecione a estratégia"
+                defaultValue={formData.estrategia}
+                onChange={(value) => handleInputChange('estrategia', value)}
+                className={errors.estrategia ? 'border-red-500' : ''}
+              />
+              {errors.estrategia && (
+                <p className="mt-1 text-sm text-red-500">{errors.estrategia}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="quantidade">Quantidade *</Label>
+              <Input
+                id="quantidade"
+                type="number"
+                placeholder="Ex: 100"
+                value={formData.quantidade}
+                onChange={(e) => handleInputChange('quantidade', parseFloat(e.target.value) || 0)}
+                error={!!errors.quantidade}
+                hint={errors.quantidade}
+                min="0"
+                step="1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cotacaoUnitaria">Cotação Unitária (R$) *</Label>
+              <Input
+                id="cotacaoUnitaria"
+                type="number"
+                placeholder="Ex: 25.50"
+                value={formData.cotacaoUnitaria}
+                onChange={(e) => handleInputChange('cotacaoUnitaria', parseFloat(e.target.value) || 0)}
+                error={!!errors.cotacaoUnitaria}
+                hint={errors.cotacaoUnitaria}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <Label htmlFor="taxaCorretagem">Taxa de Corretagem (R$)</Label>
+              <Input
+                id="taxaCorretagem"
+                type="number"
+                placeholder="Ex: 2.50"
+                value={formData.taxaCorretagem}
+                onChange={(e) => handleInputChange('taxaCorretagem', parseFloat(e.target.value) || 0)}
+                min="0"
+                step="0.01"
+              />
+            </div>
+          </>
+        );
+
       default:
-        // Para ações, BDRs, ETFs, REITs, etc.
+        // Para BDRs, ETFs, REITs, etc.
         return (
           <>
             <div>

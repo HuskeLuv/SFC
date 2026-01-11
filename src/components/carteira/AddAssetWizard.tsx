@@ -46,6 +46,8 @@ const INITIAL_FORM_DATA: WizardFormData = {
   liquidacaoResgate: "",
   vencimento: "",
   benchmark: "",
+  estrategia: "",
+  tipoFii: "",
 };
 
 const STEPS: WizardStep[] = [
@@ -93,7 +95,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       }
       
       if (tipoAtivo === "personalizado") {
-        return !!(dataInicio && formData.nomePersonalizado && formData.quantidade > 0 && formData.precoUnitario > 0);
+        return !!(dataInicio && formData.nomePersonalizado && formData.quantidade > 0 && formData.precoUnitario > 0 && formData.metodo);
       }
       
       if (tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
@@ -105,10 +107,14 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       }
       
       if (tipoAtivo === "fii") {
-        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.taxaCorretagem >= 0);
+        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.taxaCorretagem >= 0 && formData.tipoFii);
       }
       
-      // Para ações, BDRs, ETFs, REITs, etc.
+      if (tipoAtivo === "acao") {
+        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.estrategia);
+      }
+      
+      // Para BDRs, ETFs, REITs, etc.
       return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0);
     };
 
@@ -124,8 +130,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
             isValid = !!formData.instituicaoId;
             break;
           case "asset":
-            // Para reserva de emergência e oportunidade, o assetId será um placeholder
-            isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade";
+            // Para reserva de emergência, oportunidade e personalizado, o assetId será um placeholder
+            isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado";
             break;
           case "info":
             isValid = validateStep4();
@@ -142,13 +148,25 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
 
 
   const handleNext = () => {
-    if (currentStep < steps.length - 1) {
+    // Para ativos personalizados, pular o passo 3 (Step3Asset)
+    const isPersonalizado = formData.tipoAtivo === "personalizado";
+    
+    if (isPersonalizado && currentStep === 2) {
+      // Do passo 2 (institution) pular para passo 4 (info)
+      setCurrentStep(3);
+    } else if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   };
 
   const handlePrevious = () => {
-    if (currentStep > 0) {
+    // Para ativos personalizados, pular o passo 3 (Step3Asset)
+    const isPersonalizado = formData.tipoAtivo === "personalizado";
+    
+    if (isPersonalizado && currentStep === 3) {
+      // Do passo 4 (info) voltar para passo 2 (institution)
+      setCurrentStep(1);
+    } else if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
   };
@@ -199,7 +217,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         handleCancel();
       } else {
         const errorData = await response.json();
-        console.error('Erro ao adicionar investimento:', errorData.error);
+        const errorMessage = errorData.error || errorData.message || 'Erro desconhecido';
+        console.error('Erro ao adicionar investimento:', errorMessage);
+        if (errorData.details) {
+          console.error('Detalhes do erro:', errorData.details);
+        }
         // Aqui você pode mostrar uma notificação de erro
       }
     } catch (error) {
@@ -217,24 +239,50 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       onErrorsChange: handleErrorsChange,
     };
 
+    const isPersonalizado = formData.tipoAtivo === "personalizado";
+
     switch (currentStep) {
       case 0:
         return <Step1AssetType {...stepProps} />;
       case 1:
         return <Step2Institution {...stepProps} />;
       case 2:
+        // Para personalizado, pular Step3Asset e ir direto para Step4AssetInfo
+        if (isPersonalizado) {
+          return <Step4AssetInfo {...stepProps} />;
+        }
         return <Step3Asset {...stepProps} />;
       case 3:
+        // Para personalizado, este é o Step5Confirmation
+        if (isPersonalizado) {
+          return <Step5Confirmation {...stepProps} onSubmit={handleSubmit} loading={loading} autoSubmit={true} />;
+        }
         return <Step4AssetInfo {...stepProps} />;
       case 4:
-        return <Step5Confirmation {...stepProps} onSubmit={handleSubmit} loading={loading} />;
+        // Auto-submit apenas para personalizado, reserva-emergencia e reserva-oportunidade
+        const shouldAutoSubmit = formData.tipoAtivo === "personalizado" || 
+                                 formData.tipoAtivo === "reserva-emergencia" || 
+                                 formData.tipoAtivo === "reserva-oportunidade";
+        return <Step5Confirmation {...stepProps} onSubmit={handleSubmit} loading={loading} autoSubmit={shouldAutoSubmit} />;
       default:
         return null;
     }
   };
 
-  const canProceed = steps[currentStep]?.isValid || false;
-  const isLastStep = currentStep === steps.length - 1;
+  const isPersonalizado = formData.tipoAtivo === "personalizado";
+  
+  const canProceed = (() => {
+    // Para personalizado, ajustar validação dos passos
+    if (isPersonalizado) {
+      if (currentStep === 0) return steps[0]?.isValid || false;
+      if (currentStep === 1) return steps[1]?.isValid || false;
+      if (currentStep === 2) return steps[3]?.isValid || false; // Info (step 3 no array)
+      if (currentStep === 3) return true; // Confirmation sempre válido
+    }
+    return steps[currentStep]?.isValid || false;
+  })();
+  
+  const isLastStep = isPersonalizado ? currentStep === 3 : currentStep === steps.length - 1;
 
   return (
     <Sidebar
@@ -244,28 +292,65 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     >
       <div className="space-y-6">
         {/* Progress Indicator */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-            <span>Passo {currentStep + 1} de {steps.length}</span>
-            <span>{Math.round(((currentStep + 1) / steps.length) * 100)}%</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              className="bg-brand-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
-            />
-          </div>
-        </div>
+        {(() => {
+          const isPersonalizado = formData.tipoAtivo === "personalizado";
+          const totalSteps = isPersonalizado ? 4 : 5;
+          const currentStepNumber = isPersonalizado 
+            ? (currentStep === 0 ? 1 : currentStep === 1 ? 2 : currentStep === 2 ? 3 : 4)
+            : currentStep + 1;
+          
+          return (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                <span>Passo {currentStepNumber} de {totalSteps}</span>
+                <span>{Math.round((currentStepNumber / totalSteps) * 100)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-brand-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(currentStepNumber / totalSteps) * 100}%` }}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Step Title */}
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {steps[currentStep]?.title}
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {steps[currentStep]?.description}
-          </p>
-        </div>
+        {(() => {
+          const isPersonalizado = formData.tipoAtivo === "personalizado";
+          let stepTitle = "";
+          let stepDescription = "";
+          
+          if (isPersonalizado) {
+            if (currentStep === 0) {
+              stepTitle = steps[0].title;
+              stepDescription = steps[0].description;
+            } else if (currentStep === 1) {
+              stepTitle = steps[1].title;
+              stepDescription = steps[1].description;
+            } else if (currentStep === 2) {
+              stepTitle = steps[3].title; // Info
+              stepDescription = steps[3].description;
+            } else if (currentStep === 3) {
+              stepTitle = steps[4].title; // Confirmation
+              stepDescription = steps[4].description;
+            }
+          } else {
+            stepTitle = steps[currentStep]?.title || "";
+            stepDescription = steps[currentStep]?.description || "";
+          }
+          
+          return (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {stepTitle}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {stepDescription}
+              </p>
+            </div>
+          );
+        })()}
 
         {/* Step Content */}
         <div className="min-h-[400px]">
