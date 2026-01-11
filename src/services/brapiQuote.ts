@@ -120,10 +120,13 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
       return new Map();
     }
 
-    // Filtrar símbolos únicos, remover vazios e excluir símbolos de reserva
-    // (RESERVA-EMERG e RESERVA-OPORT são assets manuais sem cotações externas)
+    // Filtrar símbolos únicos, remover vazios e excluir símbolos de reserva, imóveis/bens e personalizados
+    // (RESERVA-EMERG, RESERVA-OPORT, PERSONALIZADO e imóveis são assets manuais sem cotações externas)
     const uniqueSymbols = [...new Set(symbols.filter(s => 
-      s && s.trim() && s !== 'RESERVA-EMERG' && s !== 'RESERVA-OPORT'
+      s && s.trim() && 
+      !s.startsWith('RESERVA-EMERG') && 
+      !s.startsWith('RESERVA-OPORT') && 
+      !s.startsWith('PERSONALIZADO')
     ))];
     
     if (uniqueSymbols.length === 0) {
@@ -167,7 +170,9 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
     
     for (let i = 0; i < symbolsToFetch.length; i += BATCH_SIZE) {
       const batch = symbolsToFetch.slice(i, i + BATCH_SIZE);
-      const symbolsString = batch.join(',');
+      // Normalizar símbolos para maiúsculas e remover espaços
+      const normalizedBatch = batch.map(s => s.trim().toUpperCase());
+      const symbolsString = normalizedBatch.join(',');
       
       try {
         const client = getBrapiClient();
@@ -191,18 +196,39 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
         }
         
         // Verificar quais símbolos não foram retornados
-        const returnedSymbols = new Set(response.results?.map(r => r.symbol) || []);
-        const missingSymbols = batch.filter(s => !returnedSymbols.has(s));
+        const returnedSymbols = new Set(response.results?.map(r => r.symbol?.toUpperCase()) || []);
+        const missingSymbols = batch.filter(s => {
+          const symbolUpper = s.toUpperCase();
+          return !returnedSymbols.has(symbolUpper);
+        });
         
         for (const symbol of missingSymbols) {
-          console.warn(`⚠️  Não foi possível obter cotação de ${symbol}`);
+          console.warn(`⚠️  Não foi possível obter cotação de ${symbol} - tentando busca individual...`);
+          
+          // Tentar buscar individualmente antes de usar cache
+          try {
+            const price = await fetchSingleQuote(symbol, forceRefresh);
+            if (price !== null) {
+              quotes.set(symbol, price);
+              quoteCache[symbol] = { price, timestamp: now };
+              console.log(`✅ ${symbol}: R$ ${price.toFixed(2)} (busca individual)`);
+              continue; // Símbolo encontrado, não precisa usar cache
+            }
+          } catch (singleError) {
+            console.warn(`⚠️  Erro ao buscar cotação individual de ${symbol}:`, singleError);
+          }
+          
           // Se falhou mas temos cache antigo, usar cache como fallback apenas se não for forceRefresh
           if (!forceRefresh) {
             const cached = quoteCache[symbol];
             if (cached) {
               quotes.set(symbol, cached.price);
               console.log(`📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+            } else {
+              console.warn(`❌ ${symbol} não encontrado na API e não há cache disponível`);
             }
+          } else {
+            console.warn(`❌ ${symbol} não encontrado na API (forceRefresh=true, sem cache)`);
           }
         }
         
@@ -317,10 +343,13 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
     return [];
   }
 
-  // Filtrar símbolos únicos, remover vazios e excluir símbolos de reserva
-  // (RESERVA-EMERG e RESERVA-OPORT são assets manuais sem cotações externas)
+  // Filtrar símbolos únicos, remover vazios e excluir símbolos de reserva, imóveis/bens e personalizados
+  // (RESERVA-EMERG, RESERVA-OPORT, PERSONALIZADO e imóveis são assets manuais sem cotações externas)
   const uniqueSymbols = [...new Set(symbols.filter(s => 
-    s && s.trim() && s !== 'RESERVA-EMERG' && s !== 'RESERVA-OPORT'
+    s && s.trim() && 
+    !s.startsWith('RESERVA-EMERG') && 
+    !s.startsWith('RESERVA-OPORT') && 
+    !s.startsWith('PERSONALIZADO')
   ))];
   
   if (uniqueSymbols.length === 0) {
