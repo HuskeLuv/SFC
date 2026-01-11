@@ -60,6 +60,30 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   // Mocked dark mode state (replace with actual context/state if applicable)
   const isDarkMode = true; // Change this to your dark mode logic
 
+  // Calcular total aplicado uma vez para reutilizar e formatar
+  const totalAplicadoFormatado = useMemo(() => {
+    const total = 
+      (distribuicao.reservaOportunidade.valor || 0) +
+      (distribuicao.rendaFixaFundos.valor || 0) +
+      (distribuicao.fimFia.valor || 0) +
+      (distribuicao.fiis.valor || 0) +
+      (distribuicao.acoes.valor || 0) +
+      (distribuicao.stocks.valor || 0) +
+      (distribuicao.reits.valor || 0) +
+      (distribuicao.etfs.valor || 0) +
+      (distribuicao.moedasCriptos.valor || 0) +
+      (distribuicao.previdenciaSeguros.valor || 0) +
+      (distribuicao.opcoes.valor || 0);
+    // Arredondar para 2 casas decimais e formatar
+    const totalArredondado = Number((Math.round(total * 100) / 100).toFixed(2));
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(totalArredondado);
+  }, [distribuicao]);
+
   // Chart configuration - memoized to prevent unnecessary re-renders
   const options: ApexOptions = useMemo(
     () => ({
@@ -132,21 +156,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
                 color: isDarkMode ? "#ffffff" : "#000000",
                 fontSize: "16px",
                 fontWeight: "bold",
-                formatter: () => {
-                  const totalSemReservaEmergencia = 
-                    distribuicao.reservaOportunidade.percentual +
-                    distribuicao.rendaFixaFundos.percentual +
-                    distribuicao.fimFia.percentual +
-                    distribuicao.fiis.percentual +
-                    distribuicao.acoes.percentual +
-                    distribuicao.stocks.percentual +
-                    distribuicao.reits.percentual +
-                    distribuicao.etfs.percentual +
-                    distribuicao.moedasCriptos.percentual +
-                    distribuicao.previdenciaSeguros.percentual +
-                    distribuicao.opcoes.percentual;
-                  return `${totalSemReservaEmergencia.toFixed(2)}%`;
-                },
+                formatter: () => totalAplicadoFormatado,
               },
             },
           },
@@ -159,10 +169,13 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
       tooltip: {
         enabled: true,
         y: {
-          formatter: (_val, opts) => {
-            const seriesValue = opts?.series?.[opts.seriesIndex] ?? 0;
-            const numeric = Number(seriesValue);
-            return Number.isFinite(numeric) ? `${numeric.toFixed(2)}%` : "0.00%";
+          formatter: function(val: number, opts: any) {
+            // O val já vem como percentual do ApexCharts
+            const percentual = Number(val);
+            if (Number.isFinite(percentual)) {
+              return `${percentual.toFixed(2)}%`;
+            }
+            return "0.00%";
           },
         },
       },
@@ -222,7 +235,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
         },
       ],
     }),
-    [isDarkMode, distribuicao]
+    [isDarkMode, distribuicao, totalAplicadoFormatado]
   );
 
   const series = useMemo(() => [
