@@ -245,6 +245,8 @@ model Portfolio {
   quantity      Int // Quantidade de ações
   avgPrice      Float // Preço médio de compra
   totalInvested Float // Total investido
+  estrategia    String? // Estratégia da ação: 'value', 'growth' ou 'risk'
+  tipoFii       String? // Tipo do FII: 'fofi', 'tvm' ou 'tijolo'
   lastUpdate    DateTime @default(now())
 
   @@unique([userId, stockId])
