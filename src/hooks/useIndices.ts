@@ -18,7 +18,7 @@ interface UseIndicesResult {
   refetch: () => void;
 }
 
-export const useIndices = (range: '1d' | '1mo' | '1y' = '1y'): UseIndicesResult => {
+export const useIndices = (range: '1d' | '1mo' | '1y' = '1y', startDate?: number): UseIndicesResult => {
   const [indices, setIndices] = useState<IndexResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +28,12 @@ export const useIndices = (range: '1d' | '1mo' | '1y' = '1y'): UseIndicesResult 
     setError(null);
     
     try {
-      const response = await fetch(`/api/analises/indices?range=${range}`);
+      let url = `/api/analises/indices?range=${range}`;
+      if (startDate) {
+        url += `&startDate=${startDate}`;
+      }
+      
+      const response = await fetch(url);
       
       if (!response.ok) {
         throw new Error('Erro ao buscar dados de índices');
@@ -46,7 +51,8 @@ export const useIndices = (range: '1d' | '1mo' | '1y' = '1y'): UseIndicesResult 
 
   useEffect(() => {
     void fetchIndices();
-  }, [range]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, startDate]);
 
   return {
     indices,

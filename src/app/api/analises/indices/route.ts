@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 
-// Tipos de índices disponíveis
+// Tipos de índices disponíveis - todos buscados da brapi
+// Nota: CDI não está disponível na brapi, então foi removido
 const INDICES = {
   IBOV: '^BVSP',
-  IFIX: 'IFIX.SA',
-  IBRX: 'IBRX.SA',
-  'IMA-B': 'IMAB11.SA',
 };
-
-// Poupança e IPCA são calculados de forma diferente
-const POUPANCA_ANUAL = 0.0685; // 6.85% ao ano (aproximado)
-const IPCA_ANUAL = 0.045; // 4.5% ao ano (aproximado, deve vir de API externa)
 
 interface IndexData {
   date: number;
@@ -25,53 +19,9 @@ interface IndexResponse {
 }
 
 /**
- * Calcula dados de Poupança baseado em taxa anual
+ * Busca dados históricos de CDI (usando SELIC como proxy) da brapi via endpoint /api/v2/prime-rate
  */
-const calculatePoupancaData = (days: number): IndexData[] => {
-  const data: IndexData[] = [];
-  const today = new Date();
-  const dailyRate = Math.pow(1 + POUPANCA_ANUAL, 1 / 365) - 1;
-  
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const daysFromStart = days - i;
-    const value = Math.pow(1 + dailyRate, daysFromStart) * 100;
-    data.push({
-      date: date.getTime(),
-      value: value - 100, // Retorno percentual
-    });
-  }
-  
-  return data;
-};
-
-/**
- * Calcula dados de IPCA baseado em taxa anual
- */
-const calculateIPCAData = (days: number): IndexData[] => {
-  const data: IndexData[] = [];
-  const today = new Date();
-  const dailyRate = Math.pow(1 + IPCA_ANUAL, 1 / 365) - 1;
-  
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const daysFromStart = days - i;
-    const value = Math.pow(1 + dailyRate, daysFromStart) * 100;
-    data.push({
-      date: date.getTime(),
-      value: value - 100, // Retorno percentual
-    });
-  }
-  
-  return data;
-};
-
-/**
- * Busca dados históricos de um índice da brapi
- */
-const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y'): Promise<IndexData[]> => {
+const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
   try {
     const apiKey = process.env.BRAPI_API_KEY;
     const headers: HeadersInit = {
@@ -82,15 +32,158 @@ const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y'): Pr
       headers['Authorization'] = `Bearer ${apiKey}`;
     }
 
+    // Formatar datas no formato DD/MM/YYYY
+    const hoje = new Date();
+    const endStr = `${hoje.getDate().toString().padStart(2, '0')}/${(hoje.getMonth() + 1).toString().padStart(2, '0')}/${hoje.getFullYear()}`;
+    
+    // Se não temos startDate, usar uma data de início padrão (1 ano atrás)
+    const dataInicio = startDate || new Date(hoje.getFullYear() - 1, hoje.getMonth(), hoje.getDate());
+    const startStr = `${dataInicio.getDate().toString().padStart(2, '0')}/${(dataInicio.getMonth() + 1).toString().padStart(2, '0')}/${dataInicio.getFullYear()}`;
+    
+    let url = `https://brapi.dev/api/v2/prime-rate?country=brazil&start=${startStr}&end=${endStr}&historical=true&sortBy=date&sortOrder=asc`;
+    
+    if (apiKey) {
+      url += `&token=${apiKey}`;
+    }
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      console.warn(`Erro ao buscar CDI (SELIC): HTTP ${response.status}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    if (!data['prime-rate'] || !Array.isArray(data['prime-rate']) || data['prime-rate'].length === 0) {
+      return [];
+    }
+    
+    // Converter dados do SELIC (usado como CDI) para o formato IndexData
+    // O endpoint retorna epochDate em milissegundos e value como string
+    let indexData = data['prime-rate'].map((item: any) => ({
+      date: item.epochDate || new Date(item.date.split('/').reverse().join('-')).getTime(),
+      value: parseFloat(item.value) || 0,
+    }));
+
+    // Filtrar por startDate se fornecido
+    if (startDate) {
+      const startTimestamp = startDate.getTime();
+      indexData = indexData.filter((item: IndexData) => item.date >= startTimestamp);
+    }
+    
+    // Filtrar dados futuros (não mostrar além do dia atual)
+    hoje.setHours(23, 59, 59, 999);
+    const hojeTimestamp = hoje.getTime();
+      indexData = indexData.filter((item: IndexData) => item.date <= hojeTimestamp);
+    
+    return indexData;
+  } catch (error) {
+    console.error('Erro ao buscar histórico de CDI (SELIC):', error);
+    return [];
+  }
+};
+
+/**
+ * Busca dados históricos de IPCA da brapi via endpoint /api/v2/inflation
+ */
+const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
+  try {
+    const apiKey = process.env.BRAPI_API_KEY;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    // Formatar datas no formato DD/MM/YYYY
+    const hoje = new Date();
+    const endStr = `${hoje.getDate().toString().padStart(2, '0')}/${(hoje.getMonth() + 1).toString().padStart(2, '0')}/${hoje.getFullYear()}`;
+    
+    // Se não temos startDate, usar uma data de início padrão (1 ano atrás)
+    const dataInicio = startDate || new Date(hoje.getFullYear() - 1, hoje.getMonth(), hoje.getDate());
+    const startStr = `${dataInicio.getDate().toString().padStart(2, '0')}/${(dataInicio.getMonth() + 1).toString().padStart(2, '0')}/${dataInicio.getFullYear()}`;
+    
+    let url = `https://brapi.dev/api/v2/inflation?country=brazil&start=${startStr}&end=${endStr}&historical=true&sortBy=date&sortOrder=asc`;
+    
+    if (apiKey) {
+      url += `&token=${apiKey}`;
+    }
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      console.warn(`Erro ao buscar IPCA: HTTP ${response.status}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    if (!data.inflation || !Array.isArray(data.inflation) || data.inflation.length === 0) {
+      return [];
+    }
+    
+    // Converter dados do IPCA para o formato IndexData
+    // O endpoint retorna epochDate em milissegundos e value como string
+    let indexData = data.inflation.map((item: any) => ({
+      date: item.epochDate || new Date(item.date.split('/').reverse().join('-')).getTime(),
+      value: parseFloat(item.value) || 0,
+    }));
+
+    // Filtrar por startDate se fornecido
+    if (startDate) {
+      const startTimestamp = startDate.getTime();
+      indexData = indexData.filter((item: IndexData) => item.date >= startTimestamp);
+    }
+    
+    // Filtrar dados futuros (não mostrar além do dia atual)
+    hoje.setHours(23, 59, 59, 999);
+    const hojeTimestamp = hoje.getTime();
+      indexData = indexData.filter((item: IndexData) => item.date <= hojeTimestamp);
+    
+    return indexData;
+  } catch (error) {
+    console.error('Erro ao buscar histórico de IPCA:', error);
+    return [];
+  }
+};
+
+/**
+ * Busca dados históricos de um índice da brapi via endpoint /api/quote
+ */
+const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y', startDate?: Date): Promise<IndexData[]> => {
+  try {
+    const apiKey = process.env.BRAPI_API_KEY;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    // Se temos uma startDate, usar range maior para garantir que temos dados suficientes
+    // e depois filtrar. Para períodos 1d e 1mo com startDate, buscar range maior
+    let brapiRange: '1d' | '1mo' | '1y' | '2y' = range;
+    if ((range === '1d' || range === '1mo') && startDate) {
+      // Calcular quantos dias desde startDate
+      const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      // Se mais de 1 ano, usar 2y, caso contrário usar 1y
+      brapiRange = daysSinceStart > 365 ? '2y' : '1y';
+    }
+
     // Mapear range para formato da brapi
     const rangeMap: Record<string, string> = {
       '1d': '1d',
       '1mo': '1mo',
       '1y': '1y',
+      '2y': '2y',
     };
 
     const tokenParam = apiKey ? `&token=${apiKey}` : '';
-    const url = `https://brapi.dev/api/quote/${symbol}?range=${rangeMap[range]}&interval=1d${tokenParam}`;
+    const url = `https://brapi.dev/api/quote/${symbol}?range=${rangeMap[brapiRange]}&interval=1d${tokenParam}`;
     
     const response = await fetch(url, { headers });
     
@@ -112,10 +205,24 @@ const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y'): Pr
       return [];
     }
     
-    return historicalData.map((item: any) => ({
+    let indexData = historicalData.map((item: any) => ({
       date: item.date * 1000, // Converter de segundos para milissegundos
       value: item.close || 0,
     }));
+
+    // Filtrar por startDate se fornecido
+    if (startDate) {
+      const startTimestamp = startDate.getTime();
+      indexData = indexData.filter((item: IndexData) => item.date >= startTimestamp);
+    }
+    
+    // Filtrar dados futuros (não mostrar além do dia atual)
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+    const hojeTimestamp = hoje.getTime();
+      indexData = indexData.filter((item: IndexData) => item.date <= hojeTimestamp);
+    
+    return indexData;
   } catch (error) {
     console.error(`Erro ao buscar histórico de ${symbol}:`, error);
     return [];
@@ -123,7 +230,8 @@ const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y'): Pr
 };
 
 /**
- * Calcula retorno percentual baseado no primeiro valor
+ * Calcula retorno percentual do índice baseado no primeiro valor
+ * Este percentual representa quanto qualquer valor inicial teria rendido se investido no índice
  */
 const calculateReturns = (data: IndexData[]): IndexData[] => {
   if (data.length === 0) return [];
@@ -131,6 +239,7 @@ const calculateReturns = (data: IndexData[]): IndexData[] => {
   const firstValue = data[0].value;
   if (firstValue === 0) return data;
   
+  // Calcular variação percentual do índice (quanto qualquer valor inicial teria rendido)
   return data.map(item => ({
     date: item.date,
     value: ((item.value - firstValue) / firstValue) * 100,
@@ -143,12 +252,18 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const range = (searchParams.get('range') || '1y') as '1d' | '1mo' | '1y';
+    const startDateParam = searchParams.get('startDate');
+    
+    let startDate: Date | undefined;
+    if (startDateParam) {
+      startDate = new Date(parseInt(startDateParam, 10));
+    }
     
     const results: IndexResponse[] = [];
     
-    // Buscar dados de índices da brapi
+    // Buscar IBOV via endpoint /api/quote
     for (const [name, symbol] of Object.entries(INDICES)) {
-      const data = await fetchIndexHistory(symbol, range);
+      const data = await fetchIndexHistory(symbol, range, startDate);
       if (data.length > 0) {
         const returns = calculateReturns(data);
         results.push({
@@ -159,20 +274,27 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Adicionar Poupança
-    const days = range === '1d' ? 1 : range === '1mo' ? 30 : 365;
-    results.push({
-      symbol: 'POUPANCA',
-      name: 'Poupança',
-      data: calculatePoupancaData(days),
-    });
+    // Buscar CDI (usando SELIC) via endpoint /api/v2/prime-rate
+    const cdiData = await fetchCDIHistory(startDate);
+    if (cdiData.length > 0) {
+      const cdiReturns = calculateReturns(cdiData);
+      results.push({
+        symbol: 'CDI',
+        name: 'CDI',
+        data: cdiReturns,
+      });
+    }
     
-    // Adicionar IPCA
-    results.push({
-      symbol: 'IPCA',
-      name: 'IPCA',
-      data: calculateIPCAData(days),
-    });
+    // Buscar IPCA via endpoint /api/v2/inflation
+    const ipcaData = await fetchIPCAHistory(startDate);
+    if (ipcaData.length > 0) {
+      const ipcaReturns = calculateReturns(ipcaData);
+      results.push({
+        symbol: 'IPCA',
+        name: 'IPCA',
+        data: ipcaReturns,
+      });
+    }
     
     return NextResponse.json({ indices: results });
   } catch (error) {
