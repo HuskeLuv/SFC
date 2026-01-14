@@ -64,6 +64,48 @@ const COLORS = [
   '#84CC16', // IMA-B (verde claro)
 ];
 
+// Função para agrupar dados por mês (pega o último valor de cada mês)
+const groupByMonth = (data: IndexData[]): IndexData[] => {
+  if (data.length === 0) return [];
+  
+  const monthlyMap = new Map<number, IndexData>();
+  
+  data.forEach(item => {
+    const date = new Date(item.date);
+    // Criar chave para o mês (primeiro dia do mês)
+    const monthKey = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
+    
+    // Sempre pegar o último valor do mês (sobrescrever se já existir)
+    monthlyMap.set(monthKey, {
+      date: monthKey,
+      value: item.value,
+    });
+  });
+  
+  return Array.from(monthlyMap.values()).sort((a, b) => a.date - b.date);
+};
+
+// Função para agrupar dados por ano (pega o último valor de cada ano)
+const groupByYear = (data: IndexData[]): IndexData[] => {
+  if (data.length === 0) return [];
+  
+  const yearlyMap = new Map<number, IndexData>();
+  
+  data.forEach(item => {
+    const date = new Date(item.date);
+    // Criar chave para o ano (primeiro dia do ano)
+    const yearKey = new Date(date.getFullYear(), 0, 1).getTime();
+    
+    // Sempre pegar o último valor do ano (sobrescrever se já existir)
+    yearlyMap.set(yearKey, {
+      date: yearKey,
+      value: item.value,
+    });
+  });
+  
+  return Array.from(yearlyMap.values()).sort((a, b) => a.date - b.date);
+};
+
 export default function RentabilidadeChart({
   carteiraData,
   indicesData,
@@ -72,76 +114,119 @@ export default function RentabilidadeChart({
   const series = useMemo(() => {
     const seriesData: Array<{ name: string; data: number[][] }> = [];
 
+    // Agrupar dados conforme o período
+    let processedCarteiraData: IndexData[];
+    if (period === '1mo') {
+      processedCarteiraData = groupByMonth(carteiraData);
+    } else if (period === '1y') {
+      processedCarteiraData = groupByYear(carteiraData);
+    } else {
+      processedCarteiraData = carteiraData;
+    }
+
     // Adicionar série da Carteira
-    if (carteiraData.length > 0) {
+    if (processedCarteiraData.length > 0) {
       seriesData.push({
         name: 'Carteira',
-        data: carteiraData.map(item => [item.date, item.value]),
+        data: processedCarteiraData.map(item => [item.date, item.value]),
       });
     }
 
-    // Adicionar séries dos índices
-    indicesData.forEach((index, idx) => {
-      if (index.data.length > 0) {
+    // Filtrar e adicionar apenas os índices desejados: CDI, IBOV, IPCA e Poupança
+    const allowedIndices = ['CDI', 'IBOV', 'IPCA', 'Poupança'];
+    indicesData.forEach((index) => {
+      if (index.data.length > 0 && allowedIndices.includes(index.name)) {
+        let processedIndexData: IndexData[];
+        if (period === '1mo') {
+          processedIndexData = groupByMonth(index.data);
+        } else if (period === '1y') {
+          processedIndexData = groupByYear(index.data);
+        } else {
+          processedIndexData = index.data;
+        }
         seriesData.push({
           name: index.name,
-          data: index.data.map(item => [item.date, item.value]),
+          data: processedIndexData.map(item => [item.date, item.value]),
         });
       }
     });
 
     return seriesData;
-  }, [carteiraData, indicesData]);
+  }, [carteiraData, indicesData, period]);
 
-  const options: ApexOptions = useMemo(() => ({
-    legend: {
-      show: true,
-      position: "top",
-      horizontalAlign: "left",
-      fontFamily: "Outfit, sans-serif",
-      fontSize: "14px",
-      fontWeight: 400,
-      markers: {
-        size: 5,
-        shape: "circle",
-        strokeWidth: 0,
+  const chartType = period === '1mo' || period === '1y' ? 'bar' : 'line';
+
+  // Calcular número de anos únicos quando período for anual (após agrupamento)
+  const uniqueYearsCount = useMemo(() => {
+    if (period !== '1y') return undefined;
+    
+    // Agrupar dados para contar anos únicos
+    let processedCarteiraData: IndexData[];
+    if (carteiraData.length > 0) {
+      processedCarteiraData = groupByYear(carteiraData);
+    } else {
+      processedCarteiraData = [];
+    }
+    
+    const allDates: number[] = [];
+    if (processedCarteiraData.length > 0) {
+      allDates.push(...processedCarteiraData.map(item => item.date));
+    }
+    indicesData.forEach(index => {
+      if (index.data.length > 0) {
+        const processedIndexData = groupByYear(index.data);
+        allDates.push(...processedIndexData.map(item => item.date));
+      }
+    });
+    
+    const uniqueYears = new Set(allDates.map(date => new Date(date).getFullYear()));
+    return uniqueYears.size > 0 ? uniqueYears.size : undefined;
+  }, [period, carteiraData, indicesData]);
+
+  const options: ApexOptions = useMemo(() => {
+    const baseOptions: ApexOptions = {
+      legend: {
+        show: true,
+        position: "top",
+        horizontalAlign: "left",
+        fontFamily: "Outfit, sans-serif",
+        fontSize: "14px",
+        fontWeight: 400,
+        markers: {
+          size: 5,
+          shape: "circle",
+          strokeWidth: 0,
+        },
       },
-    },
-    colors: COLORS,
-    chart: {
-      fontFamily: "Outfit, sans-serif",
-      height: 400,
-      type: "line",
-      toolbar: {
-        show: false,
+      colors: COLORS,
+      chart: {
+        fontFamily: "Outfit, sans-serif",
+        height: 300,
+        type: chartType,
+        width: '100%',
+        toolbar: {
+          show: false,
+        },
+        zoom: {
+          enabled: false,
+        },
+        locales: [{
+          name: 'pt-BR',
+          options: {
+            months: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
+            shortMonths: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+            days: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'],
+            shortDays: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
+          }
+        }],
+        defaultLocale: 'pt-BR',
       },
-      zoom: {
+      dataLabels: {
         enabled: false,
       },
-      locales: [{
-        name: 'pt-BR',
-        options: {
-          months: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
-          shortMonths: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
-          days: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'],
-          shortDays: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
-        }
-      }],
-      defaultLocale: 'pt-BR',
-    },
-    stroke: {
-      curve: "smooth",
-      width: [2, 2, 2, 2, 2, 2, 2],
-    },
-    dataLabels: {
-      enabled: false,
-    },
-    markers: {
-      size: 0,
-    },
     xaxis: {
       type: "datetime",
-      tickAmount: 6,
+      tickAmount: period === '1y' ? uniqueYearsCount : 6,
       axisBorder: {
         show: false,
       },
@@ -153,17 +238,12 @@ export default function RentabilidadeChart({
           colors: "#64748B",
           fontSize: "12px",
         },
+        showDuplicates: false,
         formatter: (val: string) => {
           const date = new Date(Number(val));
-          const months = [
-            'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
-            'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
-          ];
           if (period === '1d') {
             return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
           }
-          // Para períodos mensais e anuais, usar abreviação em português
-          // Se o período for mensal, mostrar mês completo
           if (period === '1mo') {
             const monthsFull = [
               'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
@@ -171,6 +251,13 @@ export default function RentabilidadeChart({
             ];
             return `${monthsFull[date.getMonth()]} ${date.getFullYear()}`;
           }
+          if (period === '1y') {
+            return date.getFullYear().toString();
+          }
+          const months = [
+            'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+            'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+          ];
           return `${months[date.getMonth()]} ${date.getFullYear()}`;
         },
       },
@@ -179,7 +266,7 @@ export default function RentabilidadeChart({
       decimalsInFloat: 2,
       forceNiceScale: true,
       title: {
-        text: "Retorno (%)",
+        text: period === '1mo' ? "% por mês" : period === '1y' ? "% por ano" : "Retorno (%)",
         style: {
           fontSize: "12px",
           color: "#64748B",
@@ -200,16 +287,21 @@ export default function RentabilidadeChart({
       },
     },
     tooltip: {
+      shared: true,
+      intersect: false,
       x: {
         formatter: (val: number) => {
           const date = new Date(val);
+          if (period === '1d') {
+            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+          }
+          if (period === '1y') {
+            return date.getFullYear().toString();
+          }
           const months = [
             'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
           ];
-          if (period === '1d') {
-            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
-          }
           return `${months[date.getMonth()]} ${date.getFullYear()}`;
         },
       },
@@ -232,16 +324,50 @@ export default function RentabilidadeChart({
       },
       borderColor: "#E5E7EB",
     },
-  }), [period]);
+    };
+
+    // Configurações específicas para gráfico de linha
+    if (chartType === 'line') {
+      baseOptions.stroke = {
+        curve: "smooth",
+        width: [2, 2, 2, 2, 2, 2, 2],
+      };
+      baseOptions.markers = {
+        size: 0,
+      };
+    }
+
+    // Configurações específicas para gráfico de barras
+    if (chartType === 'bar') {
+      baseOptions.plotOptions = {
+        bar: {
+          horizontal: false,
+          columnWidth: "55%",
+          borderRadius: 4,
+          borderRadiusApplication: "end",
+        },
+      };
+      baseOptions.fill = {
+        opacity: 1,
+      };
+      baseOptions.stroke = {
+        show: true,
+        width: 2,
+        colors: ["transparent"],
+      };
+    }
+
+    return baseOptions;
+  }, [period, chartType, uniqueYearsCount]);
 
   return (
-    <div className="max-w-full overflow-x-auto custom-scrollbar">
-      <div id="chartRentabilidade" className="min-w-[600px] xl:min-w-full">
+    <div className="w-full">
+      <div id="chartRentabilidade" className="w-full">
         <ApexChartWrapper
           options={options}
           series={series}
-          type="line"
-          height={400}
+          type={chartType}
+          height={300}
         />
       </div>
     </div>
