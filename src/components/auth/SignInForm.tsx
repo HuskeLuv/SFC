@@ -45,7 +45,11 @@ export default function SignInForm() {
       const role = data?.user?.role ?? "user";
       const destination =
         role === "consultant" ? "/dashboard/consultor" : "/carteira";
-      router.push(destination);
+      if (typeof window !== "undefined") {
+        window.location.assign(destination);
+        return;
+      }
+      router.replace(destination);
     } catch {
       setError("Erro ao entrar. Tente novamente.");
     } finally {
