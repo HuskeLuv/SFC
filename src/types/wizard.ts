@@ -34,6 +34,7 @@ export interface Emissor {
 }
 
 export interface WizardFormData {
+  operacao: 'compra' | 'aporte';
   // Passo 1: Tipo de Ativo
   tipoAtivo: string;
   
@@ -73,9 +74,17 @@ export interface WizardFormData {
   benchmark: string;
   estrategia: 'value' | 'growth' | 'risk' | '';
   tipoFii: 'fofi' | 'tvm' | 'tijolo' | '';
+
+  // Aporte
+  portfolioId: string;
+  dataAporte: string;
+  valorAporte: number;
+  availableQuantity: number;
+  availableTotal: number;
 }
 
 export interface WizardErrors {
+  operacao?: string;
   tipoAtivo?: string;
   instituicao?: string;
   ativo?: string;
@@ -103,6 +112,8 @@ export interface WizardErrors {
   metodo?: string;
   estrategia?: string;
   tipoFii?: string;
+  dataAporte?: string;
+  valorAporte?: string;
 }
 
 export const TIPOS_ATIVO = [

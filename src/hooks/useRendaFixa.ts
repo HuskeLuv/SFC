@@ -11,28 +11,18 @@ export const useRendaFixa = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // Retornar dados vazios por enquanto
-      const emptyData: RendaFixaData = {
-        resumo: {
-          necessidadeAporte: 0,
-          caixaParaInvestir: 0,
-          saldoInicioMes: 0,
-          saldoAtual: 0,
-          rendimento: 0,
-          rentabilidade: 0
-        },
-        secoes: [],
-        totalGeral: {
-          valorAplicado: 0,
-          aporte: 0,
-          resgate: 0,
-          valorAtualizado: 0,
-          rentabilidade: 0
-        }
-      };
-      
-      setData(emptyData);
+
+      const response = await fetch('/api/carteira/renda-fixa', {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao carregar dados Renda Fixa');
+      }
+
+      const responseData = await response.json();
+      setData(responseData as RendaFixaData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
     } finally {

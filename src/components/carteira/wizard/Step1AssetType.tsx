@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { WizardFormData, WizardErrors, TIPOS_ATIVO } from "@/types/wizard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
@@ -17,6 +17,49 @@ export default function Step1AssetType({
   onFormDataChange,
   onErrorsChange,
 }: Step1AssetTypeProps) {
+  const [aporteTipos, setAporteTipos] = useState<{ value: string; label: string }[]>([]);
+  const [loadingTipos, setLoadingTipos] = useState(false);
+
+  useEffect(() => {
+    if (formData.operacao === "aporte") {
+      fetchTiposAporte();
+    }
+  }, [formData.operacao]);
+
+  const fetchTiposAporte = async () => {
+    setLoadingTipos(true);
+    try {
+      const response = await fetch("/api/carteira/resgate/tipos", {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAporteTipos(data.tipos || []);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar tipos para aporte:", error);
+    } finally {
+      setLoadingTipos(false);
+    }
+  };
+
+  const handleOperacaoChange = (value: string) => {
+    onFormDataChange({
+      operacao: value as WizardFormData["operacao"],
+      tipoAtivo: "",
+      ativo: "",
+      assetId: "",
+      portfolioId: "",
+      availableQuantity: 0,
+      availableTotal: 0,
+      instituicaoId: "",
+      instituicao: "",
+    });
+    if (errors.operacao) {
+      onErrorsChange({ operacao: undefined });
+    }
+  };
+
   const handleTipoAtivoChange = (value: string) => {
     onFormDataChange({ tipoAtivo: value, ativo: "", assetId: "" });
     
@@ -29,10 +72,26 @@ export default function Step1AssetType({
   return (
     <div className="space-y-6">
       <div>
+        <Label htmlFor="operacao">Operação *</Label>
+        <Select
+          options={[
+            { value: "compra", label: "Adicionar investimento" },
+            { value: "aporte", label: "Aporte" },
+          ]}
+          placeholder="Selecione a operação"
+          defaultValue={formData.operacao}
+          onChange={handleOperacaoChange}
+          className={errors.operacao ? 'border-red-500' : ''}
+        />
+        {errors.operacao && (
+          <p className="mt-1 text-sm text-red-500">{errors.operacao}</p>
+        )}
+      </div>
+      <div>
         <Label htmlFor="tipoAtivo">Tipo de Ativo *</Label>
         <Select
-          options={TIPOS_ATIVO}
-          placeholder="Selecione o tipo de ativo que deseja adicionar"
+          options={formData.operacao === "aporte" ? aporteTipos : TIPOS_ATIVO}
+          placeholder={formData.operacao === "aporte" ? (loadingTipos ? "Carregando tipos..." : "Selecione o tipo para aporte") : "Selecione o tipo de ativo que deseja adicionar"}
           defaultValue={formData.tipoAtivo}
           onChange={handleTipoAtivoChange}
           className={errors.tipoAtivo ? 'border-red-500' : ''}
@@ -43,7 +102,7 @@ export default function Step1AssetType({
       </div>
 
       {/* Informações sobre o tipo selecionado */}
-      {formData.tipoAtivo && (
+      {formData.tipoAtivo && formData.operacao !== "aporte" && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
             Informações sobre {TIPOS_ATIVO.find(t => t.value === formData.tipoAtivo)?.label}

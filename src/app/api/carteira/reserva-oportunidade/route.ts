@@ -3,6 +3,15 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
+const parseNotes = (notes?: string | null) => {
+  if (!notes) return null;
+  try {
+    return JSON.parse(notes);
+  } catch {
+    return null;
+  }
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
@@ -54,30 +63,30 @@ export async function GET(request: NextRequest) {
     // Calcular saldo bruto total da carteira
     let saldoBrutoTotal = 0;
     for (const item of allPortfolio) {
-      // Para reservas, usar quantity * avgPrice para valor atual (sem cotação)
+      // Para reservas, usar o totalInvested atualizado (já deduz resgates)
       if (item.asset?.type === 'emergency' || item.asset?.symbol?.startsWith('RESERVA-EMERG') ||
           item.asset?.type === 'opportunity' || item.asset?.symbol?.startsWith('RESERVA-OPORT')) {
-        saldoBrutoTotal += item.quantity * item.avgPrice;
+        saldoBrutoTotal += item.totalInvested;
       } else {
         // Para outros ativos, usar valor investido (as cotações serão aplicadas pelo resumo)
         saldoBrutoTotal += item.totalInvested;
       }
     }
 
-    // Buscar transações para obter metadata armazenada em notes
+    // Buscar transações para obter metadata e calcular resgates
     const assetIds = portfolio.map(p => p.assetId).filter((id): id is string => id !== null);
     const transactions = assetIds.length > 0 ? await prisma.stockTransaction.findMany({
       where: {
         userId: targetUserId,
         assetId: { in: assetIds },
-        type: 'compra',
+        type: { in: ['compra', 'venda'] },
       },
       orderBy: {
         date: 'desc',
       },
     }) : [];
 
-    // Criar mapa de metadata por assetId (usar a transação mais recente)
+    // Criar mapa de metadata por assetId (usar a transação de compra mais recente)
     const metadataMap = new Map<string, {
       cotizacaoResgate: string;
       liquidacaoResgate: string;
@@ -86,6 +95,9 @@ export async function GET(request: NextRequest) {
     }>();
 
     transactions.forEach(transaction => {
+      if (transaction.type !== 'compra') {
+        return;
+      }
       if (transaction.assetId && transaction.notes && !metadataMap.has(transaction.assetId)) {
         try {
           const parsed = JSON.parse(transaction.notes);
@@ -103,11 +115,35 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    const comprasMap = new Map<string, number>();
+    const aportesMap = new Map<string, number>();
+    const resgatesMap = new Map<string, number>();
+
+    transactions.forEach(transaction => {
+      if (!transaction.assetId) return;
+      if (transaction.type === 'compra') {
+        const parsed = parseNotes(transaction.notes);
+        const action = parsed?.operation?.action || 'compra';
+        if (action === 'aporte') {
+          aportesMap.set(transaction.assetId, (aportesMap.get(transaction.assetId) || 0) + transaction.total);
+        } else {
+          comprasMap.set(transaction.assetId, (comprasMap.get(transaction.assetId) || 0) + transaction.total);
+        }
+      } else if (transaction.type === 'venda') {
+        resgatesMap.set(transaction.assetId, (resgatesMap.get(transaction.assetId) || 0) + transaction.total);
+      }
+    });
+
     // Transformar dados do portfolio para o formato esperado
     const ativos = portfolio.map(item => {
-      // Para reservas, valor atual = quantity * avgPrice (sem cotação)
-      const valorAtualizado = item.quantity * item.avgPrice;
-      const valorInicial = item.totalInvested;
+      const assetId = item.assetId || '';
+      const totalCompras = assetId ? (comprasMap.get(assetId) || 0) : 0;
+      const totalAportes = assetId ? (aportesMap.get(assetId) || 0) : 0;
+      const totalResgates = assetId ? (resgatesMap.get(assetId) || 0) : 0;
+      const valorInicial = totalCompras > 0 ? totalCompras : item.totalInvested;
+      const aporte = totalAportes;
+      const resgate = totalResgates;
+      const valorAtualizado = valorInicial + aporte - resgate;
       
       // Calcular percentual da carteira
       const percentualCarteira = saldoBrutoTotal > 0 
@@ -125,8 +161,8 @@ export async function GET(request: NextRequest) {
         vencimento: metadata?.vencimento ? new Date(metadata.vencimento) : new Date(),
         benchmark: metadata?.benchmark || 'CDI',
         valorInicial,
-        aporte: 0, // TODO: Calcular aportes se necessário
-        resgate: 0, // TODO: Calcular resgates se necessário
+        aporte,
+        resgate,
         valorAtualizado,
         percentualCarteira: Math.round(percentualCarteira * 100) / 100,
         riscoAtivo: 0, // Baixo risco para reserva de oportunidade

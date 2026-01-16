@@ -330,38 +330,49 @@ export async function POST(request: NextRequest) {
     const valorFinal = valorTotal || valorCalculado;
     const dataTransacao = new Date(dataFinal);
 
-    // Preparar notes com campos específicos para reserva de emergência e oportunidade
-    let notesData = observacoes || null;
+    // Preparar notes com metadados e log da operação
+    const metadata: Record<string, unknown> = {};
     if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
-      const reservaMetadata: any = {
-        cotizacaoResgate: cotizacaoResgate || 'D+0',
-        liquidacaoResgate: liquidacaoResgate || 'Imediata',
-        benchmark: benchmark || 'CDI',
-      };
-      
-      // Adicionar vencimento apenas se fornecido
+      metadata.cotizacaoResgate = cotizacaoResgate || "D+0";
+      metadata.liquidacaoResgate = liquidacaoResgate || "Imediata";
+      metadata.benchmark = benchmark || "CDI";
       if (vencimento) {
-        reservaMetadata.vencimento = vencimento;
+        metadata.vencimento = vencimento;
       }
-      
-      // Adicionar observações se houver
-      if (observacoes) {
-        reservaMetadata.observacoes = observacoes;
-      }
-      
-      notesData = JSON.stringify(reservaMetadata);
-    } else if (tipoAtivo === "personalizado") {
-      const personalizadoMetadata: any = {
-        metodo: metodo || 'valor', // 'valor' ou 'percentual'
-      };
-      
-      // Adicionar observações se houver
-      if (observacoes) {
-        personalizadoMetadata.observacoes = observacoes;
-      }
-      
-      notesData = JSON.stringify(personalizadoMetadata);
     }
+    if (tipoAtivo === "personalizado") {
+      metadata.metodo = metodo || "valor";
+    }
+    if (observacoes) {
+      metadata.observacoes = observacoes;
+    }
+
+    const notesData = JSON.stringify({
+      ...metadata,
+      operation: {
+        action: "compra",
+        performedBy: {
+          userId: payload.id,
+          role: payload.role,
+          actingClient: actingClient || null,
+        },
+        targetUserId,
+        tipoAtivo,
+        instituicaoId,
+        assetId: asset?.id || null,
+        stockId: stock?.id || null,
+        symbol: stock?.ticker || asset?.symbol || null,
+        name: stock?.companyName || asset?.name || null,
+        quantity: quantidadeFinal,
+        price: precoFinal,
+        total: valorFinal,
+        fees: taxaCorretagem || 0,
+        date: dataTransacao.toISOString(),
+        estrategia: estrategia || null,
+        tipoFii: tipoFii || null,
+        moeda: moeda || null,
+      },
+    });
 
     // Verificar se asset ou stock foi criado/encontrado
     if (!isReserva && !isPersonalizado && (tipoAtivo === "acao" || tipoAtivo === "fii") && !stock) {

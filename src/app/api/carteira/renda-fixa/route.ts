@@ -12,6 +12,12 @@ const parseNotes = (notes?: string | null) => {
   }
 };
 
+const mapTipoRendaFixa = (tipoAtivo?: string) => {
+  if (tipoAtivo === 'renda-fixa-posfixada') return 'pos-fixada';
+  if (tipoAtivo === 'renda-fixa-prefixada') return 'prefixada';
+  return 'hibrida';
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
@@ -21,22 +27,16 @@ export async function GET(request: NextRequest) {
       payload,
       targetUserId,
       actingClient,
-      '/api/carteira/fim-fia',
+      '/api/carteira/renda-fixa',
       'GET',
     );
 
-    const user = await prisma.user.findUnique({
-      where: { id: targetUserId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
-    }
-
     const portfolio = await prisma.portfolio.findMany({
       where: {
-        userId: user.id,
-        asset: { type: { in: ['fund', 'funds'] } },
+        userId: targetUserId,
+        asset: {
+          type: { in: ['bond', 'cash'] },
+        },
       },
       include: { asset: true },
     });
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const assetIds = portfolio.map(p => p.assetId).filter((id): id is string => id !== null);
     const transactions = assetIds.length > 0 ? await prisma.stockTransaction.findMany({
       where: {
-        userId: user.id,
+        userId: targetUserId,
         assetId: { in: assetIds },
         type: { in: ['compra', 'venda'] },
       },
@@ -84,116 +84,96 @@ export async function GET(request: NextRequest) {
       const resgate = totalResgates;
       const valorAtualizado = valorInicial + aporte - resgate;
       const notes = assetId ? latestCompraNotes.get(assetId) : null;
+      const tipoAtivo = notes?.operation?.tipoAtivo;
+      const tipo = mapTipoRendaFixa(tipoAtivo);
 
       return {
         id: item.id,
-        nome: item.asset?.name || 'Fundo',
+        nome: item.asset?.name || 'Renda Fixa',
+        percentualRentabilidade: 0,
         cotizacaoResgate: notes?.cotizacaoResgate || 'D+0',
         liquidacaoResgate: notes?.liquidacaoResgate || 'Imediata',
-        categoriaNivel1: notes?.categoriaNivel1 || '',
-        subcategoriaNivel2: notes?.subcategoriaNivel2 || '',
+        vencimento: notes?.vencimento ? new Date(notes.vencimento) : new Date(),
+        benchmark: notes?.benchmark || 'CDI',
         valorInicialAplicado: valorInicial,
         aporte,
         resgate,
         valorAtualizado,
         percentualCarteira: 0,
         riscoPorAtivo: 0,
-        objetivo: 0,
-        quantoFalta: 0,
-        necessidadeAporte: 0,
-        rentabilidade: valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0,
-        tipo: 'fim',
+        rentabilidade: 0,
         observacoes: notes?.observacoes,
+        tipo,
       };
     });
 
     const totalCarteira = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+
     const ativosComPercentuais = ativos.map(ativo => ({
       ...ativo,
       percentualCarteira: totalCarteira > 0 ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
       riscoPorAtivo: totalCarteira > 0 ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+      rentabilidade: ativo.valorInicialAplicado > 0
+        ? ((ativo.valorAtualizado - ativo.valorInicialAplicado) / ativo.valorInicialAplicado) * 100
+        : 0,
     }));
 
-    const secoes = [{
-      tipo: 'fim',
-      nome: 'FIM/FIA',
-      ativos: ativosComPercentuais,
-      totalValorAplicado: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorInicialAplicado, 0),
-      totalAporte: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.aporte, 0),
-      totalResgate: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.resgate, 0),
-      totalValorAtualizado: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0),
-      totalPercentualCarteira: totalCarteira > 0 ? 100 : 0,
-      totalRisco: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0),
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: ativosComPercentuais.length > 0
-        ? ativosComPercentuais.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / ativosComPercentuais.length
-        : 0,
-    }];
+    const secoesMap = new Map<string, any>();
+    ativosComPercentuais.forEach(ativo => {
+      const current = secoesMap.get(ativo.tipo) || { tipo: ativo.tipo, nome: ativo.tipo, ativos: [] };
+      current.ativos.push(ativo);
+      secoesMap.set(ativo.tipo, current);
+    });
+
+    const secoes = Array.from(secoesMap.values()).map(secao => {
+      const totalValorAplicado = secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.valorInicialAplicado, 0);
+      const totalAporte = secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.aporte, 0);
+      const totalResgate = secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.resgate, 0);
+      const totalValorAtualizado = secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.valorAtualizado, 0);
+      const percentualTotal = totalCarteira > 0 ? (totalValorAtualizado / totalCarteira) * 100 : 0;
+      const rentabilidadeMedia = secao.ativos.length > 0
+        ? secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.rentabilidade, 0) / secao.ativos.length
+        : 0;
+
+      return {
+        ...secao,
+        totalValorAplicado,
+        totalAporte,
+        totalResgate,
+        totalValorAtualizado,
+        percentualTotal,
+        rentabilidadeMedia,
+      };
+    });
 
     const totalValorAplicado = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorInicialAplicado, 0);
-    const totalValorAtualizado = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-    const totalResgate = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.resgate, 0);
     const totalAporte = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.aporte, 0);
+    const totalResgate = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.resgate, 0);
+    const totalValorAtualizado = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
     const rentabilidade = totalValorAplicado > 0
       ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100
       : 0;
 
     return NextResponse.json({
       resumo: {
-        necessidadeAporteTotal: 0,
+        necessidadeAporte: 0,
         caixaParaInvestir: 0,
         saldoInicioMes: totalValorAplicado,
-        valorAtualizado: totalValorAtualizado,
+        saldoAtual: totalValorAtualizado,
         rendimento: totalValorAtualizado - totalValorAplicado,
         rentabilidade,
       },
       secoes,
       totalGeral: {
-        quantidade: ativosComPercentuais.length,
         valorAplicado: totalValorAplicado,
         aporte: totalAporte,
         resgate: totalResgate,
         valorAtualizado: totalValorAtualizado,
-        percentualCarteira: totalCarteira > 0 ? 100 : 0,
-        risco: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0),
-        objetivo: 0,
-        quantoFalta: 0,
-        necessidadeAporte: 0,
         rentabilidade,
       },
     });
   } catch (error) {
-    console.error('Erro ao buscar dados FIM/FIA:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { ativoId } = body;
-
-    if (!ativoId) {
-      return NextResponse.json(
-        { error: 'Parâmetro obrigatório: ativoId' },
-        { status: 400 }
-      );
-    }
-
-    // Simular delay de rede
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Dados atualizados com sucesso' 
-    });
-  } catch (error) {
-    console.error('Erro ao atualizar dados FIM/FIA:', error);
+    console.error('Erro ao buscar dados renda fixa:', error);
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

@@ -19,7 +19,8 @@ import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarte
 import ComponentCard from "@/components/common/ComponentCard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import AddAssetWizard from "./AddAssetWizard";
-import { PencilIcon, PlusIcon } from "@/icons";
+import RedeemAssetWizard from "./RedeemAssetWizard";
+import { DownloadIcon, PencilIcon, PlusIcon } from "@/icons";
 import { useReservaEmergencia } from "@/hooks/useReservaEmergencia";
 import { useCarteira } from "@/hooks/useCarteira";
 import { useAlocacaoConfig } from "@/hooks/useAlocacaoConfig";
@@ -102,6 +103,7 @@ const tabs = [
 export default function CarteiraResumo() {
   const [activeTab, setActiveTab] = useState("consolidada");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRedeemSidebarOpen, setIsRedeemSidebarOpen] = useState(false);
   const { resumo, loading, error, formatCurrency, formatPercentage, refetch, updateMeta } = useCarteira();
   const alocacaoConfig = useAlocacaoConfig();
   const [isEditingMeta, setIsEditingMeta] = useState(false);
@@ -200,13 +202,22 @@ export default function CarteiraResumo() {
               Gerencie e acompanhe seus investimentos por categoria
             </p>
           </div>
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="flex items-center space-x-2 rounded-lg bg-brand-500 px-4 py-2 text-white transition-colors hover:bg-brand-600"
-          >
-            <PlusIcon className="h-4 w-4" />
-            <span>Adicionar Investimento</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex items-center space-x-2 rounded-lg bg-brand-500 px-4 py-2 text-white transition-colors hover:bg-brand-600"
+            >
+              <PlusIcon className="h-4 w-4" />
+              <span>Adicionar Investimento</span>
+            </button>
+            <button
+              onClick={() => setIsRedeemSidebarOpen(true)}
+              className="flex items-center space-x-2 rounded-lg bg-gray-700 px-4 py-2 text-white transition-colors hover:bg-gray-800"
+            >
+              <DownloadIcon className="h-4 w-4" />
+              <span>Resgatar Investimento</span>
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -354,6 +365,13 @@ export default function CarteiraResumo() {
         <AddAssetWizard
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
+          onSuccess={() => {
+            refetch();
+          }}
+        />
+        <RedeemAssetWizard
+          isOpen={isRedeemSidebarOpen}
+          onClose={() => setIsRedeemSidebarOpen(false)}
           onSuccess={() => {
             refetch();
           }}

@@ -8,6 +8,10 @@ import Step2Institution from "./wizard/Step2Institution";
 import Step3Asset from "./wizard/Step3Asset";
 import Step4AssetInfo from "./wizard/Step4AssetInfo";
 import Step5Confirmation from "./wizard/Step5Confirmation";
+import Step2AporteInstitution from "./wizard/Step2AporteInstitution";
+import Step3AporteAsset from "./wizard/Step3AporteAsset";
+import Step4AporteInfo from "./wizard/Step4AporteInfo";
+import Step5AporteConfirmation from "./wizard/Step5AporteConfirmation";
 
 interface AddAssetWizardProps {
   isOpen: boolean;
@@ -16,6 +20,7 @@ interface AddAssetWizardProps {
 }
 
 const INITIAL_FORM_DATA: WizardFormData = {
+  operacao: "compra",
   tipoAtivo: "",
   instituicao: "",
   instituicaoId: "",
@@ -48,6 +53,11 @@ const INITIAL_FORM_DATA: WizardFormData = {
   benchmark: "",
   estrategia: "",
   tipoFii: "",
+  portfolioId: "",
+  dataAporte: "",
+  valorAporte: 0,
+  availableQuantity: 0,
+  availableTotal: 0,
 };
 
 const STEPS: WizardStep[] = [
@@ -69,6 +79,9 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   useEffect(() => {
     const validateStep4 = (): boolean => {
       const { tipoAtivo, dataCompra, dataInicio } = formData;
+      if (formData.operacao === "aporte") {
+        return !!(formData.dataAporte && formData.valorAporte > 0);
+      }
       
       // Validação básica - cada tipo terá validações específicas
       if (tipoAtivo === "reserva-emergencia" || tipoAtivo === "reserva-oportunidade") {
@@ -124,14 +137,18 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         
         switch (step.id) {
           case "asset-type":
-            isValid = !!formData.tipoAtivo;
+            isValid = !!formData.operacao && !!formData.tipoAtivo;
             break;
           case "institution":
             isValid = !!formData.instituicaoId;
             break;
           case "asset":
-            // Para reserva de emergência, oportunidade e personalizado, o assetId será um placeholder
-            isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado";
+            if (formData.operacao === "aporte") {
+              isValid = !!formData.portfolioId;
+            } else {
+              // Para reserva de emergência, oportunidade e personalizado, o assetId será um placeholder
+              isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado";
+            }
             break;
           case "info":
             isValid = validateStep4();
@@ -189,6 +206,33 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const handleSubmit = async () => {
     setLoading(true);
     try {
+      if (formData.operacao === "aporte") {
+        const response = await fetch('/api/carteira/aporte', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            portfolioId: formData.portfolioId,
+            dataAporte: formData.dataAporte,
+            valorAporte: formData.valorAporte,
+            tipoAtivo: formData.tipoAtivo,
+            instituicaoId: formData.instituicaoId,
+          }),
+        });
+
+        if (response.ok) {
+          onSuccess();
+          handleCancel();
+        } else {
+          const errorData = await response.json();
+          const errorMessage = errorData.error || errorData.message || 'Erro desconhecido';
+          console.error('Erro ao realizar aporte:', errorMessage);
+        }
+        return;
+      }
+
       // Converter 'reserva-emergencia' e 'reserva-oportunidade' para o formato da API
       const apiFormData = { ...formData };
       if (apiFormData.tipoAtivo === "reserva-emergencia") {
@@ -240,25 +284,29 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     };
 
     const isPersonalizado = formData.tipoAtivo === "personalizado";
+    const isAporte = formData.operacao === "aporte";
 
     switch (currentStep) {
       case 0:
         return <Step1AssetType {...stepProps} />;
       case 1:
-        return <Step2Institution {...stepProps} />;
+        return isAporte ? <Step2AporteInstitution {...stepProps} /> : <Step2Institution {...stepProps} />;
       case 2:
         // Para personalizado, pular Step3Asset e ir direto para Step4AssetInfo
         if (isPersonalizado) {
           return <Step4AssetInfo {...stepProps} />;
         }
-        return <Step3Asset {...stepProps} />;
+        return isAporte ? <Step3AporteAsset {...stepProps} /> : <Step3Asset {...stepProps} />;
       case 3:
         // Para personalizado, este é o Step5Confirmation
         if (isPersonalizado) {
           return <Step5Confirmation {...stepProps} onSubmit={handleSubmit} loading={loading} autoSubmit={true} />;
         }
-        return <Step4AssetInfo {...stepProps} />;
+        return isAporte ? <Step4AporteInfo {...stepProps} /> : <Step4AssetInfo {...stepProps} />;
       case 4:
+        if (isAporte) {
+          return <Step5AporteConfirmation {...stepProps} />;
+        }
         // Auto-submit apenas para personalizado, reserva-emergencia e reserva-oportunidade
         const shouldAutoSubmit = formData.tipoAtivo === "personalizado" || 
                                  formData.tipoAtivo === "reserva-emergencia" || 
