@@ -97,6 +97,8 @@ const fetchSingleQuote = async (symbol: string, forceRefresh: boolean = false): 
     if (error instanceof Brapi.APIError) {
       if (error.status === 429) {
         console.warn(`Rate limit atingido para ${symbol}, SDK fará retry automático`);
+      } else if (error.status === 404 || error.message.includes('Não encontramos a ação')) {
+        console.warn(`⚠️  Ação não encontrada na API para ${symbol}`);
       } else {
         console.error(`Erro ao buscar cotação de ${symbol}: ${error.status} - ${error.message}`);
       }
@@ -168,13 +170,21 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
     // A API brapi permite buscar até 20 símbolos por requisição separados por vírgula
     const BATCH_SIZE = 20;
     
+    const invalidSymbols = new Set<string>();
+
     for (let i = 0; i < symbolsToFetch.length; i += BATCH_SIZE) {
       const batch = symbolsToFetch.slice(i, i + BATCH_SIZE);
       // Normalizar símbolos para maiúsculas e remover espaços
-      const normalizedBatch = batch.map(s => s.trim().toUpperCase());
+      const normalizedBatch = batch
+        .map(s => s.trim().toUpperCase())
+        .filter(symbol => !invalidSymbols.has(symbol));
       const symbolsString = normalizedBatch.join(',');
       
       try {
+        if (!symbolsString) {
+          continue;
+        }
+
         const client = getBrapiClient();
         const response = await client.quote.retrieve(symbolsString);
 
@@ -241,6 +251,7 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
         // Verificar se é um erro de API (500, 429, etc.)
         let errorStatus: number | null = null;
         let errorMessage = '';
+        let invalidSymbolFromMessage: string | null = null;
         
         // Extrair informações do erro
         if (error && typeof error === 'object') {
@@ -260,6 +271,75 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
           }
         } else if (typeof error === 'string') {
           errorMessage = error;
+        }
+
+        if (errorMessage.includes('Não encontramos a ação')) {
+          const match = errorMessage.match(/Não encontramos a ação\s+([A-Z0-9]+)/i);
+          if (match?.[1]) {
+            invalidSymbolFromMessage = match[1].toUpperCase();
+            invalidSymbols.add(invalidSymbolFromMessage);
+          }
+        }
+
+        if (errorStatus === 404 && invalidSymbolFromMessage) {
+          console.warn(`⚠️  Símbolo inválido na API: ${invalidSymbolFromMessage}. Reprocessando batch sem ele.`);
+          const retryBatch = normalizedBatch.filter(symbol => symbol !== invalidSymbolFromMessage);
+          if (!retryBatch.length) {
+            continue;
+          }
+
+          try {
+            const client = getBrapiClient();
+            const retryResponse = await client.quote.retrieve(retryBatch.join(','));
+
+            if (retryResponse.results && Array.isArray(retryResponse.results)) {
+              for (const result of retryResponse.results) {
+                if (result.symbol && result.regularMarketPrice !== undefined && result.regularMarketPrice !== null) {
+                  const price = result.regularMarketPrice;
+                  quotes.set(result.symbol, price);
+                  quoteCache[result.symbol] = { price, timestamp: now };
+                  console.log(`✅ ${result.symbol}: R$ ${price.toFixed(2)}`);
+                }
+              }
+            }
+
+            // Após retry, seguir fluxo normal para missingSymbols
+            const returnedSymbols = new Set(retryResponse.results?.map(r => r.symbol?.toUpperCase()) || []);
+            const missingSymbols = retryBatch.filter(s => !returnedSymbols.has(s.toUpperCase()));
+            for (const symbol of missingSymbols) {
+              console.warn(`⚠️  Não foi possível obter cotação de ${symbol} - tentando busca individual...`);
+              try {
+                const price = await fetchSingleQuote(symbol, forceRefresh);
+                if (price !== null) {
+                  quotes.set(symbol, price);
+                  quoteCache[symbol] = { price, timestamp: now };
+                  console.log(`✅ ${symbol}: R$ ${price.toFixed(2)} (busca individual)`);
+                  continue;
+                }
+              } catch (singleError) {
+                console.warn(`⚠️  Erro ao buscar cotação individual de ${symbol}:`, singleError);
+              }
+
+              if (!forceRefresh) {
+                const cached = quoteCache[symbol];
+                if (cached) {
+                  quotes.set(symbol, cached.price);
+                  console.log(`📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+                } else {
+                  console.warn(`❌ ${symbol} não encontrado na API e não há cache disponível`);
+                }
+              } else {
+                console.warn(`❌ ${symbol} não encontrado na API (forceRefresh=true, sem cache)`);
+              }
+            }
+
+            if (i + BATCH_SIZE < symbolsToFetch.length) {
+              await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
+            }
+          } catch (retryError) {
+            console.error(`❌ Erro ao reprocessar batch sem ${invalidSymbolFromMessage}:`, retryError);
+          }
+          continue;
         }
         
         // Verificar se é erro 500 (pode estar na mensagem ou no status)
