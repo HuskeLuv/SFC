@@ -6,6 +6,7 @@ interface AlocacaoConfig {
   minimo: number;
   maximo: number;
   target: number;
+  descricao?: string;
 }
 
 // Configurações padrão - serão armazenadas em memória por sessão
@@ -13,18 +14,18 @@ const userConfigurations: { [userId: string]: AlocacaoConfig[] } = {};
 
 // Configurações padrão baseadas na imagem original
 const defaultConfig: AlocacaoConfig[] = [
-  { categoria: "reservaEmergencia", minimo: 5, maximo: 15, target: 10 },
-  { categoria: "reservaOportunidade", minimo: 5, maximo: 10, target: 7 },
-  { categoria: "rendaFixaFundos", minimo: 25, maximo: 60, target: 30 },
-  { categoria: "fimFia", minimo: 0, maximo: 10, target: 5 },
-  { categoria: "fiis", minimo: 20, maximo: 70, target: 25 },
-  { categoria: "acoes", minimo: 0, maximo: 10, target: 5 },
-  { categoria: "stocks", minimo: 0, maximo: 10, target: 8 },
-  { categoria: "reits", minimo: 0, maximo: 10, target: 5 },
-  { categoria: "etfs", minimo: 0, maximo: 10, target: 10 },
-  { categoria: "moedasCriptos", minimo: 0, maximo: 5, target: 2 },
-  { categoria: "previdenciaSeguros", minimo: 0, maximo: 5, target: 2 },
-  { categoria: "opcoes", minimo: 0, maximo: 5, target: 1 },
+  { categoria: "reservaEmergencia", minimo: 5, maximo: 15, target: 10, descricao: "" },
+  { categoria: "reservaOportunidade", minimo: 5, maximo: 10, target: 7, descricao: "" },
+  { categoria: "rendaFixaFundos", minimo: 25, maximo: 60, target: 30, descricao: "" },
+  { categoria: "fimFia", minimo: 0, maximo: 10, target: 5, descricao: "" },
+  { categoria: "fiis", minimo: 20, maximo: 70, target: 25, descricao: "" },
+  { categoria: "acoes", minimo: 0, maximo: 10, target: 5, descricao: "" },
+  { categoria: "stocks", minimo: 0, maximo: 10, target: 8, descricao: "" },
+  { categoria: "reits", minimo: 0, maximo: 10, target: 5, descricao: "" },
+  { categoria: "etfs", minimo: 0, maximo: 10, target: 10, descricao: "" },
+  { categoria: "moedasCriptos", minimo: 0, maximo: 5, target: 2, descricao: "" },
+  { categoria: "previdenciaSeguros", minimo: 0, maximo: 5, target: 2, descricao: "" },
+  { categoria: "opcoes", minimo: 0, maximo: 5, target: 1, descricao: "" },
 ];
 
 // GET - Buscar configurações de alocação do usuário
@@ -67,6 +68,13 @@ export async function PUT(request: NextRequest) {
           typeof config.target !== 'number') {
         return NextResponse.json(
           { error: 'Formato de configuração inválido' },
+          { status: 400 }
+        );
+      }
+
+      if (config.descricao !== undefined && typeof config.descricao !== 'string') {
+        return NextResponse.json(
+          { error: 'Formato de descrição inválido' },
           { status: 400 }
         );
       }

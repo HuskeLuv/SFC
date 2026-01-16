@@ -89,7 +89,7 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs font-medium text-black">
         <div>
-          <div className="font-semibold">{ativo.nome}</div>
+          <div>{ativo.nome}</div>
           {ativo.observacoes && (
             <div className="text-xs text-black mt-1">
               {ativo.observacoes}
@@ -97,22 +97,22 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
           )}
         </div>
       </td>
-      <td className="px-2 py-2 text-xs text-center font-medium text-black">
+      <td className="px-2 py-2 text-xs text-center text-black">
         {ativo.cidade}
       </td>
-      <td className="px-2 py-2 text-xs text-center font-medium text-black">
+      <td className="px-2 py-2 text-xs text-center text-black">
         {ativo.mandato}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatNumber(ativo.quantidade)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.precoAquisicao)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.melhorias)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-semibold text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorTotal)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
@@ -134,9 +134,7 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingValor(true)}
           >
-            <span className="font-semibold text-black">
-              {formatCurrency(ativo.valorAtualizado)}
-            </span>
+            <span className="text-black">{formatCurrency(ativo.valorAtualizado)}</span>
           </div>
         )}
       </td>
@@ -160,25 +158,28 @@ interface ImoveisBensTableProps {
 export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTableProps) {
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateValorAtualizado } = useImoveisBens();
 
-  // Calcular risco e percentual da carteira para cada ativo
+  // Calcular risco (carteira total) e percentual da carteira da aba
   const dataComRisco = useMemo(() => {
-    if (!data || totalCarteira <= 0) return data;
-    
+    if (!data) return data;
+
+    const totalTabValue = data.totalGeral?.valorAtualizado || 0;
+    const shouldCalculateRisco = totalCarteira > 0;
+
     const ativosComRisco = data.ativos.map(ativo => ({
       ...ativo,
-      riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
-      percentualCarteira: (ativo.valorAtualizado / totalCarteira) * 100, // Corrigir cálculo de % da carteira
+      riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+      percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
     }));
-    
+
     const totalGeralRisco = ativosComRisco.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-    
+
     return {
       ...data,
       ativos: ativosComRisco,
       totalGeral: {
         ...data.totalGeral,
         risco: totalGeralRisco,
-        percentualCarteira: (data.totalGeral.valorAtualizado / totalCarteira) * 100, // Corrigir % da carteira total
+        percentualCarteira: totalTabValue > 0 ? 100 : 0,
       },
     };
   }, [data, totalCarteira]);
@@ -312,7 +313,8 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
                   Valor Atualizado
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco Por Ativo (Carteira Total)
+                  <span className="block">Risco Por Ativo</span>
+                  <span className="block">(Carteira Total)</span>
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   % da Carteira Total
@@ -335,30 +337,30 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
               )) || []}
 
               {/* Linha de totalização */}
-              <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-black">
+              <tr className="bg-[#808080] border-t-2 border-gray-300">
+                <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.percentualCarteira || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>

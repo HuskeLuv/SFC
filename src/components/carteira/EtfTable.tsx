@@ -97,7 +97,7 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs font-medium text-black">
         <div>
-          <div className="font-semibold">{ativo.ticker}</div>
+          <div>{ativo.ticker}</div>
           <div className="text-xs text-black">{ativo.nome}</div>
           {ativo.observacoes && (
             <div className="text-xs text-black mt-1">
@@ -109,13 +109,13 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
       <td className="px-2 py-2 text-xs text-center">
         {ativo.indiceRastreado.charAt(0).toUpperCase() + ativo.indiceRastreado.slice(1).replace('_', ' ')}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatNumber(ativo.quantidade)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.precoAquisicao, currency)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorTotal, currency)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
@@ -137,13 +137,11 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingCotacao(true)}
           >
-            <span className="font-medium text-black">
-              {formatCurrency(ativo.cotacaoAtual, currency)}
-            </span>
+            <span className="text-black">{formatCurrency(ativo.cotacaoAtual, currency)}</span>
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-semibold text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorAtualizado, currency)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
@@ -179,7 +177,7 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatPercentage(ativo.quantoFalta)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.necessidadeAporte, currency)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
@@ -217,10 +215,10 @@ const EtfSection: React.FC<EtfSectionProps> = ({
     <>
       {/* Cabeçalho da seção */}
       <tr 
-        className="bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+        className="bg-[#808080] cursor-pointer"
         onClick={onToggle}
       >
-        <td className="px-2 py-2 text-xs font-bold text-black">
+        <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -228,39 +226,37 @@ const EtfSection: React.FC<EtfSectionProps> = ({
               <ChevronDownIcon className="w-4 h-4" />
             )}
             <span>{secao.nome}</span>
-            <span className="text-xs">
-              ({secao.regiao === 'brasil' ? 'BRASIL' : 'EUA'}) {secao.ativos.length} {secao.ativos.length === 1 ? 'ETF' : 'ETFs'}
-            </span>
+            <span className="text-xs">({secao.regiao === 'brasil' ? 'BRASIL' : 'EUA'})</span>
           </div>
         </td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatNumber(secao.totalQuantidade)}
         </td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAplicado, currency)}
         </td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAtualizado, currency)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalRisco)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalPercentualCarteira)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalObjetivo)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalQuantoFalta)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalNecessidadeAporte, currency)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.rentabilidadeMedia)}
         </td>
       </tr>
@@ -293,29 +289,45 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     new Set(['brasil', 'estados_unidos'])
   );
 
-  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  // Calcular risco (carteira total) e percentual da carteira da aba
   const dataComRisco = useMemo(() => {
-    if (!data || totalCarteira <= 0) return data;
-    
-    const secoesComRisco = data.secoes.map(secao => ({
-      ...secao,
-      ativos: secao.ativos.map(ativo => ({
-        ...ativo,
-        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
-      })),
-      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
-    }));
-    
-    const totalGeralRisco = secoesComRisco.reduce((sum, secao) => 
-      sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0), 0
+    if (!data) return data;
+
+    const totalTabValue = data.totalGeral?.valorAtualizado || 0;
+    const shouldCalculateRisco = totalCarteira > 0;
+
+    const secoesComRisco = data.secoes.map(secao => {
+      const totalPercentualCarteira = totalTabValue > 0
+        ? (secao.totalValorAtualizado / totalTabValue) * 100
+        : 0;
+
+      return {
+        ...secao,
+        ativos: secao.ativos.map(ativo => ({
+          ...ativo,
+          riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+          percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
+        })),
+        totalPercentualCarteira,
+        totalRisco: secao.ativos.reduce(
+          (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
+          0
+        ),
+      };
+    });
+
+    const totalGeralRisco = secoesComRisco.reduce(
+      (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
+      0
     );
-    
+
     return {
       ...data,
       secoes: secoesComRisco,
       totalGeral: {
         ...data.totalGeral,
         risco: totalGeralRisco,
+        percentualCarteira: totalTabValue > 0 ? 100 : 0,
       },
     };
   }, [data, totalCarteira]);
@@ -470,7 +482,8 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                   Valor Atualizado
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco Por Ativo (Carteira Total)
+                  <span className="block">Risco Por Ativo</span>
+                  <span className="block">(Carteira Total)</span>
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   % da Carteira
@@ -505,36 +518,36 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
               )) || []}
 
               {/* Linha de totalização */}
-              <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-black">
+              <tr className="bg-[#808080] border-t-2 border-gray-300">
+                <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black">100.00%</td>
-                <td className="px-2 py-2 text-xs text-right text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>

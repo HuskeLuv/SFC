@@ -4,7 +4,6 @@ import { useReit } from "@/hooks/useReit";
 import { ReitAtivo, ReitSecao } from "@/types/reit";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import Badge from "@/components/ui/badge/Badge";
 import PieChartReitAtivo from "@/components/charts/pie/PieChartReitAtivo";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
@@ -91,27 +90,11 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
     }
   };
 
-  const getSetorColor = (setor: string) => {
-    const colors = {
-      'residential': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
-      'commercial': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      'retail': 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300',
-      'healthcare': 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
-      'industrial': 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300',
-      'office': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300',
-      'data_center': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300',
-      'self_storage': 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-300',
-      'hotel': 'bg-teal-100 text-teal-800 dark:bg-teal-900/20 dark:text-teal-300',
-      'other': 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300',
-    };
-    return colors[setor as keyof typeof colors] || colors.other;
-  };
-
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs font-medium text-black">
         <div>
-          <div className="font-semibold">{ativo.ticker}</div>
+          <div>{ativo.ticker}</div>
           <div className="text-xs text-black">{ativo.nome}</div>
           {ativo.observacoes && (
             <div className="text-xs text-black mt-1">
@@ -121,17 +104,17 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
         </div>
       </td>
       <td className="px-2 py-2 text-xs text-center">
-        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getSetorColor(ativo.setor)}`}>
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
           {ativo.setor.charAt(0).toUpperCase() + ativo.setor.slice(1).replace('_', ' ')}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatNumber(ativo.quantidade)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.precoAquisicao)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorTotal)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
@@ -153,13 +136,11 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingCotacao(true)}
           >
-            <span className="font-medium text-black">
-              {formatCurrency(ativo.cotacaoAtual)}
-            </span>
+            <span className="text-black">{formatCurrency(ativo.cotacaoAtual)}</span>
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-semibold text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorAtualizado)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
@@ -197,7 +178,7 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatPercentage(ativo.quantoFalta)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.necessidadeAporte)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
@@ -228,22 +209,14 @@ const ReitSection: React.FC<ReitSectionProps> = ({
   onUpdateObjetivo,
   onUpdateCotacao,
 }) => {
-  const getEstrategiaColor = (estrategia: string) => {
-    const colors = {
-      'value': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      'growth': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
-    };
-    return colors[estrategia as keyof typeof colors] || colors.value;
-  };
-
   return (
     <>
       {/* Cabeçalho da seção */}
       <tr 
-        className="bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+        className="bg-[#808080] cursor-pointer"
         onClick={onToggle}
       >
-        <td className="px-2 py-2 text-xs font-bold text-black">
+        <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -251,42 +224,36 @@ const ReitSection: React.FC<ReitSectionProps> = ({
               <ChevronDownIcon className="w-4 h-4" />
             )}
             <span>{secao.nome}</span>
-            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getEstrategiaColor(secao.estrategia)}`}>
-              {secao.estrategia.toUpperCase()}
-            </span>
-            <Badge color="primary" size="sm">
-              {secao.ativos.length} {secao.ativos.length === 1 ? 'REIT' : 'REITs'}
-            </Badge>
           </div>
         </td>
-        <td className="px-2 py-2 text-xs text-center text-black">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatNumber(secao.totalQuantidade)}
         </td>
-        <td className="px-2 py-2 text-xs text-center text-black">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAplicado)}
         </td>
-        <td className="px-2 py-2 text-xs text-center text-black">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAtualizado)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalRisco)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalPercentualCarteira)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalObjetivo)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalQuantoFalta)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalNecessidadeAporte)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.rentabilidadeMedia)}
         </td>
       </tr>
@@ -319,29 +286,45 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     new Set(['value', 'growth'])
   );
 
-  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  // Calcular risco (carteira total) e percentual da carteira da aba
   const dataComRisco = useMemo(() => {
-    if (!data || totalCarteira <= 0) return data;
-    
-    const secoesComRisco = data.secoes.map(secao => ({
-      ...secao,
-      ativos: secao.ativos.map(ativo => ({
-        ...ativo,
-        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
-      })),
-      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
-    }));
-    
-    const totalGeralRisco = secoesComRisco.reduce((sum, secao) => 
-      sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0), 0
+    if (!data) return data;
+
+    const totalTabValue = data.totalGeral?.valorAtualizado || 0;
+    const shouldCalculateRisco = totalCarteira > 0;
+
+    const secoesComRisco = data.secoes.map(secao => {
+      const totalPercentualCarteira = totalTabValue > 0
+        ? (secao.totalValorAtualizado / totalTabValue) * 100
+        : 0;
+
+      return {
+        ...secao,
+        ativos: secao.ativos.map(ativo => ({
+          ...ativo,
+          riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+          percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
+        })),
+        totalPercentualCarteira,
+        totalRisco: secao.ativos.reduce(
+          (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
+          0
+        ),
+      };
+    });
+
+    const totalGeralRisco = secoesComRisco.reduce(
+      (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
+      0
     );
-    
+
     return {
       ...data,
       secoes: secoesComRisco,
       totalGeral: {
         ...data.totalGeral,
         risco: totalGeralRisco,
+        percentualCarteira: totalTabValue > 0 ? 100 : 0,
       },
     };
   }, [data, totalCarteira]);
@@ -497,7 +480,8 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                   Valor Atualizado
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco Por Ativo (Carteira Total)
+                  <span className="block">Risco Por Ativo</span>
+                  <span className="block">(Carteira Total)</span>
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   % da Carteira
@@ -532,38 +516,38 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
               )) || []}
 
               {/* Linha de totalização */}
-              <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-black">
+              <tr className="bg-[#808080] border-t-2 border-gray-300">
+                <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   100.00%
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>

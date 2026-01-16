@@ -99,7 +99,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
     <TableRow 
       className="border-b border-gray-100 hover:bg-gray-50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
     >
-      <TableCell className="px-2 py-2 text-xs font-medium text-black">
+      <TableCell className="px-2 py-2 text-xs text-black">
         {ativo.nome}
       </TableCell>
       <TableCell className="px-2 py-2 text-xs text-black text-center">
@@ -123,7 +123,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
       <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
         {formatCurrency(ativo.resgate)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs font-semibold text-black text-right font-mono">
+      <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
         {isEditingValor ? (
           <div className="flex items-center justify-end space-x-1">
             <input
@@ -177,13 +177,15 @@ export default function ReservaEmergenciaTable({
   totalCarteira = 0
 }: ReservaEmergenciaTableProps) {
 
-  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  // Calcular risco (carteira total) e percentual da carteira da aba
   const ativosComRisco = useMemo(() => {
-    if (totalCarteira <= 0) return ativos;
-    
+    const totalTabValue = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+    const shouldCalculateRisco = totalCarteira > 0;
+
     return ativos.map(ativo => ({
       ...ativo,
-      riscoAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+      riscoAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+      percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
     }));
   }, [ativos, totalCarteira]);
 
@@ -363,7 +365,8 @@ export default function ReservaEmergenciaTable({
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  Risco Por Ativo (Carteira Total)
+                  <span className="block">Risco Por Ativo</span>
+                  <span className="block">(Carteira Total)</span>
                 </TableCell>
                 <TableCell 
                   isHeader 
@@ -386,33 +389,33 @@ export default function ReservaEmergenciaTable({
                 />
               ))}
               
-              <TableRow className="border-t-2 border-gray-200 bg-gray-50 dark:border-white/[0.1] dark:bg-gray-900/50">
-                <TableCell className="px-2 py-2 text-xs font-bold text-black">
+              <TableRow className="border-t-2 border-gray-200 bg-[#808080]">
+                <TableCell className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </TableCell>
-                <TableCell className="px-2 py-2"></TableCell>
-                <TableCell className="px-2 py-2"></TableCell>
-                <TableCell className="px-2 py-2"></TableCell>
-                <TableCell className="px-2 py-2"></TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-black text-right font-mono">
+                <TableCell className="px-2 py-2 text-white font-bold"></TableCell>
+                <TableCell className="px-2 py-2 text-white font-bold"></TableCell>
+                <TableCell className="px-2 py-2 text-white font-bold"></TableCell>
+                <TableCell className="px-2 py-2 text-white font-bold"></TableCell>
+                <TableCell className="px-2 py-2 text-xs text-white font-bold text-right font-mono">
                   {formatCurrency(totais.valorInicial)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-black text-right font-mono">
+                <TableCell className="px-2 py-2 text-xs text-white font-bold text-right font-mono">
                   {formatCurrency(totais.aporte)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-black text-right font-mono">
+                <TableCell className="px-2 py-2 text-xs text-white font-bold text-right font-mono">
                   {formatCurrency(totais.resgate)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-black text-right font-mono">
+                <TableCell className="px-2 py-2 text-xs text-white font-bold text-right font-mono">
                   {formatCurrency(totais.valorAtualizado)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-center text-black">
+                <TableCell className="px-2 py-2 text-xs text-white font-bold text-center">
                   100,00%
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-center text-black">
+                <TableCell className="px-2 py-2 text-xs text-white font-bold text-center">
                   {formatPercentage(totais.risco)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs font-bold text-center text-black">
+                <TableCell className="px-2 py-2 text-xs text-white font-bold text-center">
                   {formatPercentage(rentabilidade)}
                 </TableCell>
               </TableRow>

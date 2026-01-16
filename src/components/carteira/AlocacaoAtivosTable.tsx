@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import type { UseAlocacaoConfigReturn } from "@/hooks/useAlocacaoConfig";
 import EditableCell from "./EditableCell";
+import EditableTextCell from "./EditableTextCell";
 import Alert from "../ui/alert/Alert";
 import ComponentCard from "../common/ComponentCard";
 
@@ -15,6 +16,7 @@ interface AlocacaoAtivo {
   percentualTarget: number;
   quantoFalta: number;
   necessidadeAporte: number;
+  descricao: string;
 }
 
 interface AlocacaoAtivosTableProps {
@@ -68,9 +70,10 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
       min: config.minimo,
       max: config.maximo,
       target: config.target,
+      descricao: config.descricao || "",
     };
     return acc;
-  }, {} as { [key: string]: { min: number; max: number; target: number } });
+  }, {} as { [key: string]: { min: number; max: number; target: number; descricao: string } });
 
   // Mapeamento de nomes amigáveis
   const getNomeAmigavel = (categoria: string): string => {
@@ -135,6 +138,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
           percentualTarget: 0,
           quantoFalta: 0,
           necessidadeAporte: 0,
+          descricao: "",
         });
       } else {
         const diferenca = config.target - percentualAtual;
@@ -149,6 +153,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
           percentualTarget: config.target,
           quantoFalta: diferenca,
           necessidadeAporte: valorNecessario,
+          descricao: config.descricao || "",
         });
       }
     });
@@ -186,6 +191,10 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
 
   const handleConfigChange = (categoria: string, field: 'minimo' | 'maximo' | 'target', valor: number) => {
     updateConfiguracao(categoria, field, valor);
+  };
+
+  const handleDescricaoChange = (categoria: string, valor: string) => {
+    updateConfiguracao(categoria, "descricao", valor);
   };
 
   if (configLoading) {
@@ -298,11 +307,20 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               </TableCell>
               <TableCell 
                 isHeader 
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap w-36"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
                   Necessidade de aporte em
+                </p>
+              </TableCell>
+              <TableCell 
+                isHeader 
+                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  Descrição
                 </p>
               </TableCell>
             </TableRow>
@@ -314,10 +332,10 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                 className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-white dark:bg-gray-900"
                 style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
               >
-                <TableCell className="px-2 font-medium text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-b border-l border-gray-200 border-r-0">
+                <TableCell className="px-2 font-medium text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-l border-gray-200 border-r-0">
                   {ativo.classeAtivo}
                 </TableCell>
-                <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-right h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 font-mono">
+                <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 font-mono">
                   {formatarMoeda(ativo.total)}
                 </TableCell>
                 <TableCell className={`px-2 text-xs text-center font-medium h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 ${getCorCelula(ativo.percentualAtual, ativo.percentualTarget)}`}>
@@ -365,10 +383,20 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                       'No target'
                   }
                 </TableCell>
-                <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-right h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r border-gray-300 font-mono">
+                <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 font-mono w-36">
                   <span className={ativo.necessidadeAporte > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
                     {ativo.necessidadeAporte > 0 ? formatarMoeda(ativo.necessidadeAporte) : '-'}
                   </span>
+                </TableCell>
+                <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 border-b border-gray-200 border-l-0 border-r border-gray-300">
+                  <EditableTextCell
+                    value={ativo.descricao}
+                    isEditing={isEditing(getChaveCategoria(ativo.classeAtivo), "descricao")}
+                    onStartEdit={() => startEditing(getChaveCategoria(ativo.classeAtivo), "descricao")}
+                    onStopEdit={stopEditing}
+                    onValueChange={(valor) => handleDescricaoChange(getChaveCategoria(ativo.classeAtivo), valor)}
+                    className="text-xs"
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -378,10 +406,11 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               className="h-6 bg-gray-50 dark:bg-gray-900" 
               style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
             >
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
                 Total Dinheiro
               </TableCell>
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
                 {formatarMoeda(totalDinheiro)}
               </TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
@@ -392,10 +421,10 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
                 100,00%
               </TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300 font-mono">
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300 font-mono">
                 {formatarMoeda(dados.filter(item => item.classeAtivo !== 'Imóveis e Bens').reduce((sum, item) => sum + (item.necessidadeAporte > 0 ? item.necessidadeAporte : 0), 0))}
               </TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
             </TableRow>
             
             {/* Linha de Total Dinheiro + Bens */}
@@ -403,10 +432,11 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               className="h-6 bg-gray-100 dark:bg-gray-800" 
               style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
             >
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
                 Total Dinheiro + Bens
               </TableCell>
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-right h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
                 {formatarMoeda(totalDinheiroMaisBens)}
               </TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
@@ -415,7 +445,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
             </TableRow>
           </TableBody>

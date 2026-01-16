@@ -5,15 +5,16 @@ export interface AlocacaoConfig {
   minimo: number;
   maximo: number;
   target: number;
+  descricao?: string;
 }
 
-export type AlocacaoConfigField = 'minimo' | 'maximo' | 'target';
+export type AlocacaoConfigField = 'minimo' | 'maximo' | 'target' | 'descricao';
 
 export interface UseAlocacaoConfigReturn {
   configuracoes: AlocacaoConfig[];
   loading: boolean;
   error: string | null;
-  updateConfiguracao: (categoria: string, field: AlocacaoConfigField, valor: number) => void;
+  updateConfiguracao: (categoria: string, field: AlocacaoConfigField, valor: number | string) => void;
   saveChanges: () => Promise<boolean>;
   startEditing: (categoria: string, field: AlocacaoConfigField) => void;
   stopEditing: () => void;
@@ -81,7 +82,7 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
   }, []);
 
   // Atualizar uma configuração específica
-  const updateConfiguracao = useCallback((categoria: string, field: AlocacaoConfigField, valor: number) => {
+  const updateConfiguracao = useCallback((categoria: string, field: AlocacaoConfigField, valor: number | string) => {
     const novasConfiguracoes = configuracoes.map(config => 
       config.categoria === categoria 
         ? { ...config, [field]: valor }

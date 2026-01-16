@@ -4,7 +4,6 @@ import { useRendaFixa } from "@/hooks/useRendaFixa";
 import { RendaFixaSecao, RendaFixaAtivo } from "@/types/rendaFixa";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import Badge from "@/components/ui/badge/Badge";
 import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
@@ -55,9 +54,9 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
 }) => {
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs font-medium text-black">
+      <td className="px-2 py-2 text-xs text-black">
         <div>
-          <div className="font-semibold">{ativo.nome}</div>
+          <div>{ativo.nome}</div>
           {ativo.observacoes && (
             <div className="text-xs text-black mt-1">
               {ativo.observacoes}
@@ -66,9 +65,9 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
         </div>
       </td>
       <td className="px-2 py-2 text-xs text-center">
-        <Badge color="primary" size="sm">
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
           {ativo.percentualRentabilidade}%
-        </Badge>
+        </span>
       </td>
       <td className="px-2 py-2 text-xs text-center text-black">
         {ativo.cotizacaoResgate}
@@ -82,30 +81,25 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
       <td className="px-2 py-2 text-xs text-center text-black">
         {ativo.benchmark}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorInicialAplicado)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.aporte)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.resgate)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-semibold text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorAtualizado)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatPercentageSimple(ativo.percentualCarteira)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <Badge 
-          color={ativo.riscoPorAtivo > 20 ? "error" : "primary"} 
-          size="sm"
-        >
-          {formatPercentage(ativo.riscoPorAtivo)}
-        </Badge>
+      <td className="px-2 py-2 text-xs text-right text-black">
+        {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatPercentage(ativo.rentabilidade)}
       </td>
     </tr>
@@ -131,10 +125,10 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
     <>
       {/* Cabeçalho da seção */}
       <tr 
-        className="bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+        className="bg-[#808080] cursor-pointer"
         onClick={onToggle}
       >
-        <td className="px-2 py-2 text-xs font-bold text-black">
+        <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -142,33 +136,30 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
               <ChevronDownIcon className="w-4 h-4" />
             )}
             <span>{secao.nome}</span>
-            <Badge color="primary" size="sm">
-              {secao.ativos.length} {secao.ativos.length === 1 ? 'ativo' : 'ativos'}
-            </Badge>
           </div>
         </td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAplicado)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalAporte)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalResgate)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAtualizado)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentageSimple(secao.percentualTotal)}
         </td>
-        <td className="px-2 py-2 text-xs text-center">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.rentabilidadeMedia)}
         </td>
       </tr>
@@ -198,19 +189,27 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
     new Set(['pos-fixada', 'prefixada', 'hibrida'])
   );
 
-  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  // Calcular risco (carteira total) e percentual da carteira da aba
   const dataComRisco = useMemo(() => {
-    if (!data || totalCarteira <= 0) return data;
-    
+    if (!data) return data;
+
+    const totalTabValue = data.totalGeral?.valorAtualizado || 0;
+    const shouldCalculateRisco = totalCarteira > 0;
+
     const secoesComRisco = data.secoes.map(secao => ({
       ...secao,
+      percentualTotal: totalTabValue > 0 ? (secao.totalValorAtualizado / totalTabValue) * 100 : 0,
       ativos: secao.ativos.map(ativo => ({
         ...ativo,
-        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
+        riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+        percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
       })),
-      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
+      totalRisco: secao.ativos.reduce(
+        (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
+        0
+      ),
     }));
-    
+
     return {
       ...data,
       secoes: secoesComRisco,
@@ -333,7 +332,8 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
                   % Carteira
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco Por Ativo (Carteira Total)
+                  <span className="block">Risco Por Ativo</span>
+                  <span className="block">(Carteira Total)</span>
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
                   Rentabilidade
@@ -353,32 +353,32 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
               ))}
 
               {/* Linha de totalização */}
-              <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-black">
+              <tr className="bg-[#808080] border-t-2 border-gray-300">
+                <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   100.00%
                 </td>
-                <td className="px-2 py-2 text-xs text-center">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>

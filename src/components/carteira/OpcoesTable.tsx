@@ -4,7 +4,6 @@ import { useOpcoes } from "@/hooks/useOpcoes";
 import { OpcaoAtivo, OpcaoSecao } from "@/types/opcoes";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import Badge from "@/components/ui/badge/Badge";
 import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
@@ -90,14 +89,6 @@ const OpcoesTableRow: React.FC<OpcoesTableRowProps> = ({
     }
   };
 
-  const getCompraVendaColor = (compraVenda: string) => {
-    const colors = {
-      'compra': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      'venda': 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
-    };
-    return colors[compraVenda as keyof typeof colors] || colors.compra;
-  };
-
   const formatVencimento = (vencimento: string) => {
     const date = new Date(vencimento);
     return date.toLocaleDateString('pt-BR', {
@@ -120,20 +111,20 @@ const OpcoesTableRow: React.FC<OpcoesTableRowProps> = ({
         </div>
       </td>
       <td className="px-2 py-2 text-xs text-center">
-        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getCompraVendaColor(ativo.compraVenda)}`}>
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
           {ativo.compraVenda.charAt(0).toUpperCase() + ativo.compraVenda.slice(1)}
         </span>
       </td>
       <td className="px-2 py-2 text-xs text-center font-medium text-black">
         {formatVencimento(ativo.vencimento)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatNumber(ativo.quantidade)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.precoAquisicao)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorTotal)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
@@ -155,13 +146,11 @@ const OpcoesTableRow: React.FC<OpcoesTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingCotacao(true)}
           >
-            <span className="font-medium text-black">
-              {formatCurrency(ativo.cotacaoAtual)}
-            </span>
+            <span className="text-black">{formatCurrency(ativo.cotacaoAtual)}</span>
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-semibold text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorAtualizado)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
@@ -199,7 +188,7 @@ const OpcoesTableRow: React.FC<OpcoesTableRowProps> = ({
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatPercentage(ativo.quantoFalta)}
       </td>
-      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+      <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.necessidadeAporte)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
@@ -230,22 +219,14 @@ const OpcoesSection: React.FC<OpcoesSectionProps> = ({
   onUpdateObjetivo,
   onUpdateCotacao,
 }) => {
-  const getTipoColor = (tipo: string) => {
-    const colors = {
-      'put': 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
-      'call': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-    };
-    return colors[tipo as keyof typeof colors] || colors.put;
-  };
-
   return (
     <>
       {/* Cabeçalho da seção */}
       <tr 
-        className="bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+        className="bg-[#808080] cursor-pointer"
         onClick={onToggle}
       >
-        <td className="px-2 py-2 text-xs font-bold text-black">
+        <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -253,43 +234,40 @@ const OpcoesSection: React.FC<OpcoesSectionProps> = ({
               <ChevronDownIcon className="w-4 h-4" />
             )}
             <span>{secao.nome}</span>
-            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getTipoColor(secao.tipo)}`}>
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
               {secao.tipo === 'put' ? 'PUT' : 'CALL'}
             </span>
-            <Badge color="primary" size="sm">
-              {secao.ativos.length} {secao.ativos.length === 1 ? 'Ativo' : 'Ativos'}
-            </Badge>
           </div>
         </td>
-        <td className="px-2 py-2 text-xs text-center text-black">-</td>
-        <td className="px-2 py-2 text-xs text-center text-black">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatNumber(secao.totalQuantidade)}
         </td>
-        <td className="px-2 py-2 text-xs text-center text-black">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAplicado)}
         </td>
-        <td className="px-2 py-2 text-xs text-center text-black">-</td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAtualizado)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalRisco)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalPercentualCarteira)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalObjetivo)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalQuantoFalta)}
         </td>
-        <td className="px-2 py-2 text-xs text-right font-bold text-black">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalNecessidadeAporte)}
         </td>
-        <td className="px-2 py-2 text-xs text-right text-black font-bold">
+        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
           {formatPercentage(secao.rentabilidadeMedia)}
         </td>
       </tr>
@@ -322,29 +300,45 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     new Set(['put', 'call'])
   );
 
-  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  // Calcular risco (carteira total) e percentual da carteira da aba
   const dataComRisco = useMemo(() => {
-    if (!data || totalCarteira <= 0) return data;
-    
-    const secoesComRisco = data.secoes.map(secao => ({
-      ...secao,
-      ativos: secao.ativos.map(ativo => ({
-        ...ativo,
-        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
-      })),
-      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
-    }));
-    
-    const totalGeralRisco = secoesComRisco.reduce((sum, secao) => 
-      sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0), 0
+    if (!data) return data;
+
+    const totalTabValue = data.totalGeral?.valorAtualizado || 0;
+    const shouldCalculateRisco = totalCarteira > 0;
+
+    const secoesComRisco = data.secoes.map(secao => {
+      const totalPercentualCarteira = totalTabValue > 0
+        ? (secao.totalValorAtualizado / totalTabValue) * 100
+        : 0;
+
+      return {
+        ...secao,
+        ativos: secao.ativos.map(ativo => ({
+          ...ativo,
+          riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+          percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
+        })),
+        totalPercentualCarteira,
+        totalRisco: secao.ativos.reduce(
+          (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
+          0
+        ),
+      };
+    });
+
+    const totalGeralRisco = secoesComRisco.reduce(
+      (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
+      0
     );
-    
+
     return {
       ...data,
       secoes: secoesComRisco,
       totalGeral: {
         ...data.totalGeral,
         risco: totalGeralRisco,
+        percentualCarteira: totalTabValue > 0 ? 100 : 0,
       },
     };
   }, [data, totalCarteira]);
@@ -502,7 +496,8 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
                   Valor Atualizado
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Risco Por Ativo (Carteira Total)
+                  <span className="block">Risco Por Ativo</span>
+                  <span className="block">(Carteira Total)</span>
                 </th>
                 <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
                   % da Carteira
@@ -537,39 +532,39 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
               ))}
 
               {/* Linha de totalização */}
-              <tr className="bg-gray-50 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                <td className="px-2 py-2 text-xs font-bold text-black">
+              <tr className="bg-[#808080] border-t-2 border-gray-300">
+                <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-black">-</td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   100.00%
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right font-bold text-black">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-black font-bold">
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>

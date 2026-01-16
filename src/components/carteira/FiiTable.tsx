@@ -97,7 +97,7 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
     <StandardTableRow>
       <StandardTableBodyCell align="left" className="min-w-[220px] w-3/12">
         <div>
-          <div className="font-semibold">{ativo.ticker}</div>
+          <div>{ativo.ticker}</div>
           <div className="text-xs">{ativo.nome}</div>
           {ativo.observacoes && (
             <div className="text-xs mt-1">
@@ -110,7 +110,7 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
         {ativo.mandato}
       </StandardTableBodyCell>
       <StandardTableBodyCell align="center">
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium">
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
           {ativo.segmento.charAt(0).toUpperCase() + ativo.segmento.slice(1)}
         </span>
       </StandardTableBodyCell>
@@ -142,9 +142,7 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingCotacao(true)}
           >
-            <span className="font-medium">
-              {formatCurrency(ativo.cotacaoAtual)}
-            </span>
+            <span>{formatCurrency(ativo.cotacaoAtual)}</span>
           </div>
         )}
       </StandardTableBodyCell>
@@ -221,10 +219,10 @@ const FiiSection: React.FC<FiiSectionProps> = ({
     <>
       {/* Cabeçalho da seção */}
       <StandardTableRow 
-        className="bg-gray-100 dark:bg-gray-800 cursor-pointer"
+        className="bg-[#808080] cursor-pointer"
         onClick={onToggle}
       >
-        <StandardTableBodyCell align="left" className="min-w-[220px] w-3/12">
+        <StandardTableBodyCell align="left" className="min-w-[220px] w-3/12 bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -232,40 +230,39 @@ const FiiSection: React.FC<FiiSectionProps> = ({
               <ChevronDownIcon className="w-4 h-4" />
             )}
             <span className="font-bold">{secao.nome}</span>
-            {secao.ativos.length} {secao.ativos.length === 1 ? 'FII' : 'FIIs'}
           </div>
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="center">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="w-[80px] font-semibold">
+        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="w-[80px] bg-[#808080] text-white font-bold">
           {formatNumber(secao.totalQuantidade)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="font-semibold">
+        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAplicado)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="font-semibold">
+        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAtualizado)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right">
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalRisco)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right">
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalPercentualCarteira)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right">
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalObjetivo)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right">
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalQuantoFalta)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="font-semibold">
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           <span>
             {formatCurrency(secao.totalNecessidadeAporte)}
           </span>
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right">
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.rentabilidadeMedia)}
         </StandardTableBodyCell>
       </StandardTableRow>
@@ -298,29 +295,45 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     new Set(['fof', 'tvm', 'ijol', 'hibrido', 'renda'])
   );
 
-  // Calcular risco para cada ativo: (valorAtualizado / totalCarteira) * 100
+  // Calcular risco (carteira total) e percentual da carteira da aba
   const dataComRisco = useMemo(() => {
-    if (!data || totalCarteira <= 0) return data;
-    
-    const secoesComRisco = data.secoes.map(secao => ({
-      ...secao,
-      ativos: secao.ativos.map(ativo => ({
-        ...ativo,
-        riscoPorAtivo: (ativo.valorAtualizado / totalCarteira) * 100,
-      })),
-      totalRisco: secao.ativos.reduce((sum, ativo) => sum + ((ativo.valorAtualizado / totalCarteira) * 100), 0),
-    }));
-    
-    const totalGeralRisco = secoesComRisco.reduce((sum, secao) => 
-      sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0), 0
+    if (!data) return data;
+
+    const totalTabValue = data.totalGeral?.valorAtualizado || 0;
+    const shouldCalculateRisco = totalCarteira > 0;
+
+    const secoesComRisco = data.secoes.map(secao => {
+      const totalPercentualCarteira = totalTabValue > 0
+        ? (secao.totalValorAtualizado / totalTabValue) * 100
+        : 0;
+
+      return {
+        ...secao,
+        ativos: secao.ativos.map(ativo => ({
+          ...ativo,
+          riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+          percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
+        })),
+        totalPercentualCarteira,
+        totalRisco: secao.ativos.reduce(
+          (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
+          0
+        ),
+      };
+    });
+
+    const totalGeralRisco = secoesComRisco.reduce(
+      (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
+      0
     );
-    
+
     return {
       ...data,
       secoes: secoesComRisco,
       totalGeral: {
         ...data.totalGeral,
         risco: totalGeralRisco,
+        percentualCarteira: totalTabValue > 0 ? 100 : 0,
       },
     };
   }, [data, totalCarteira]);
@@ -469,7 +482,8 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
                 Valor Atualizado
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
-                Risco Por Ativo (Carteira Total)
+                <span className="block">Risco Por Ativo</span>
+                <span className="block">(Carteira Total)</span>
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
                 % da Carteira
@@ -504,41 +518,41 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
               ))}
 
               {/* Linha de totalização */}
-              <StandardTableRow isTotal>
-                <StandardTableBodyCell align="left" isTotal className="min-w-[220px] w-3/12">
+              <StandardTableRow isTotal className="bg-[#808080]">
+              <StandardTableBodyCell align="left" isTotal className="min-w-[220px] w-3/12 bg-[#808080] text-white font-bold">
                   TOTAL GERAL
                 </StandardTableBodyCell>
-                <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
-                <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
-                <StandardTableBodyCell align="right" isTotal className="w-[80px]">
+              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="w-[80px] bg-[#808080] text-white font-bold">
                   {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
                 </StandardTableBodyCell>
-                <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
-                <StandardTableBodyCell align="right" isTotal>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </StandardTableBodyCell>
-                <StandardTableBodyCell align="center" isTotal>-</StandardTableBodyCell>
-                <StandardTableBodyCell align="right" isTotal>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </StandardTableBodyCell>
-                <StandardTableBodyCell align="right" isTotal>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </StandardTableBodyCell>
-                <StandardTableBodyCell align="right" isTotal>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
                   100.00%
                 </StandardTableBodyCell>
-                <StandardTableBodyCell align="right" isTotal>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
                 </StandardTableBodyCell>
-                <StandardTableBodyCell align="right" isTotal>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
                 </StandardTableBodyCell>
-                <StandardTableBodyCell align="right" isTotal>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
                   <span>
                     {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
                   </span>
                 </StandardTableBodyCell>
-                <StandardTableBodyCell align="right" isTotal>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </StandardTableBodyCell>
               </StandardTableRow>
