@@ -15,6 +15,8 @@ type PropsType = {
   defaultDate?: DateOption;
   label?: string;
   placeholder?: string;
+  staticPosition?: boolean;
+  appendToBody?: boolean;
 };
 
 export default function DatePicker({
@@ -24,15 +26,18 @@ export default function DatePicker({
   label,
   defaultDate,
   placeholder,
+  staticPosition = true,
+  appendToBody = false,
 }: PropsType) {
   useEffect(() => {
     const flatPickr = flatpickr(`#${id}`, {
       mode: mode || "single",
-      static: true,
+      static: staticPosition,
       monthSelectorType: "static",
       dateFormat: "Y-m-d",
       defaultDate,
       onChange,
+      ...(appendToBody ? { appendTo: document.body } : {}),
     });
 
     return () => {
@@ -40,7 +45,7 @@ export default function DatePicker({
         flatPickr.destroy();
       }
     };
-  }, [mode, onChange, id, defaultDate]);
+  }, [mode, onChange, id, defaultDate, staticPosition, appendToBody]);
 
   return (
     <div>
