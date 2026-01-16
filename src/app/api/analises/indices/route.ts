@@ -46,10 +46,14 @@ const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
       url += `&token=${apiKey}`;
     }
     
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { 
+      headers,
+      cache: 'no-store',
+    });
     
     if (!response.ok) {
-      console.warn(`Erro ao buscar CDI (SELIC): HTTP ${response.status}`);
+      const errorText = await response.text().catch(() => '');
+      console.error(`Erro ao buscar CDI (SELIC): HTTP ${response.status} - ${errorText}`);
       return [];
     }
     
@@ -112,10 +116,14 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
       url += `&token=${apiKey}`;
     }
     
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { 
+      headers,
+      cache: 'no-store',
+    });
     
     if (!response.ok) {
-      console.warn(`Erro ao buscar IPCA: HTTP ${response.status}`);
+      const errorText = await response.text().catch(() => '');
+      console.error(`Erro ao buscar IPCA: HTTP ${response.status} - ${errorText}`);
       return [];
     }
     
@@ -146,6 +154,9 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
     return indexData;
   } catch (error) {
     console.error('Erro ao buscar histórico de IPCA:', error);
+    if (error instanceof Error) {
+      console.error('Detalhes do erro:', error.message, error.stack);
+    }
     return [];
   }
 };
@@ -185,10 +196,14 @@ const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y', sta
     const tokenParam = apiKey ? `&token=${apiKey}` : '';
     const url = `https://brapi.dev/api/quote/${symbol}?range=${rangeMap[brapiRange]}&interval=1d${tokenParam}`;
     
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { 
+      headers,
+      cache: 'no-store',
+    });
     
     if (!response.ok) {
-      console.warn(`Erro ao buscar ${symbol}: HTTP ${response.status}`);
+      const errorText = await response.text().catch(() => '');
+      console.error(`Erro ao buscar ${symbol}: HTTP ${response.status} - ${errorText}`);
       return [];
     }
     
@@ -225,6 +240,9 @@ const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y', sta
     return indexData;
   } catch (error) {
     console.error(`Erro ao buscar histórico de ${symbol}:`, error);
+    if (error instanceof Error) {
+      console.error('Detalhes do erro:', error.message, error.stack);
+    }
     return [];
   }
 };
@@ -263,39 +281,61 @@ export async function GET(request: NextRequest) {
     
     // Buscar IBOV via endpoint /api/quote
     for (const [name, symbol] of Object.entries(INDICES)) {
-      const data = await fetchIndexHistory(symbol, range, startDate);
-      if (data.length > 0) {
-        const returns = calculateReturns(data);
-        results.push({
-          symbol,
-          name,
-          data: returns,
-        });
+      try {
+        const data = await fetchIndexHistory(symbol, range, startDate);
+        if (data.length > 0) {
+          const returns = calculateReturns(data);
+          results.push({
+            symbol,
+            name,
+            data: returns,
+          });
+          console.log(`✅ ${name} (${symbol}): ${data.length} pontos de dados`);
+        } else {
+          console.warn(`⚠️ ${name} (${symbol}): Nenhum dado retornado`);
+        }
+      } catch (error) {
+        console.error(`❌ Erro ao buscar ${name} (${symbol}):`, error);
       }
     }
     
     // Buscar CDI (usando SELIC) via endpoint /api/v2/prime-rate
-    const cdiData = await fetchCDIHistory(startDate);
-    if (cdiData.length > 0) {
-      const cdiReturns = calculateReturns(cdiData);
-      results.push({
-        symbol: 'CDI',
-        name: 'CDI',
-        data: cdiReturns,
-      });
+    try {
+      const cdiData = await fetchCDIHistory(startDate);
+      if (cdiData.length > 0) {
+        const cdiReturns = calculateReturns(cdiData);
+        results.push({
+          symbol: 'CDI',
+          name: 'CDI',
+          data: cdiReturns,
+        });
+        console.log(`✅ CDI: ${cdiData.length} pontos de dados`);
+      } else {
+        console.warn(`⚠️ CDI: Nenhum dado retornado`);
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao buscar CDI:`, error);
     }
     
     // Buscar IPCA via endpoint /api/v2/inflation
-    const ipcaData = await fetchIPCAHistory(startDate);
-    if (ipcaData.length > 0) {
-      const ipcaReturns = calculateReturns(ipcaData);
-      results.push({
-        symbol: 'IPCA',
-        name: 'IPCA',
-        data: ipcaReturns,
-      });
+    try {
+      const ipcaData = await fetchIPCAHistory(startDate);
+      if (ipcaData.length > 0) {
+        const ipcaReturns = calculateReturns(ipcaData);
+        results.push({
+          symbol: 'IPCA',
+          name: 'IPCA',
+          data: ipcaReturns,
+        });
+        console.log(`✅ IPCA: ${ipcaData.length} pontos de dados`);
+      } else {
+        console.warn(`⚠️ IPCA: Nenhum dado retornado`);
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao buscar IPCA:`, error);
     }
     
+    console.log(`📊 Total de índices retornados: ${results.length}`);
     return NextResponse.json({ indices: results });
   } catch (error) {
     console.error('Erro ao buscar índices:', error);
