@@ -12,9 +12,39 @@ const ApexChartWrapper = React.memo(({ options, series, type, height }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
 
+  const hasFunctionValue = (value: unknown): boolean => {
+    if (typeof value === "function") {
+      return true;
+    }
+
+    if (!value) {
+      return false;
+    }
+
+    if (Array.isArray(value)) {
+      return value.some((item) => hasFunctionValue(item));
+    }
+
+    if (typeof value !== "object") {
+      return false;
+    }
+
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      if (hasFunctionValue((value as Record<string, unknown>)[key])) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   // IMPORTANTE: useMemo deve ser chamado antes de qualquer early return para manter ordem dos hooks
   // Sanitizar options para evitar enumeração de searchParams pelo ApexCharts
   const sanitizedOptions = useMemo(() => {
+    if (hasFunctionValue(options)) {
+      return options;
+    }
+
     try {
       return JSON.parse(JSON.stringify(options)) as ApexOptions;
     } catch {
@@ -147,7 +177,7 @@ export default function LineChartCarteiraHistorico({ data: historicoData }: Line
       },
       y: {
         formatter: (val: number) => {
-          return `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+          return `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         },
       },
     },
