@@ -3,6 +3,45 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
+const mapTransactionToTipo = (transaction: { stock?: { ticker: string } | null; asset?: { type?: string | null } | null }) => {
+  if (transaction.stock?.ticker) {
+    const ticker = transaction.stock.ticker.toUpperCase();
+    return ticker.endsWith("11") ? "fii" : "stock";
+  }
+
+  const assetType = transaction.asset?.type || "";
+  switch (assetType) {
+    case "emergency":
+      return "emergency";
+    case "opportunity":
+      return "opportunity";
+    case "personalizado":
+      return "personalizado";
+    case "imovel":
+      return "real_estate";
+    case "crypto":
+      return "crypto";
+    case "currency":
+      return "currency";
+    case "etf":
+      return "etf";
+    case "reit":
+      return "reit";
+    case "bdr":
+      return "bdr";
+    case "fund":
+      return "fund";
+    case "bond":
+      return "bond";
+    case "insurance":
+      return "insurance";
+    case "cash":
+      return "cash";
+    default:
+      return assetType || "outros";
+  }
+};
+
 /**
  * API para calcular investimentos por mês a partir das transações reais
  * Usado pelo fluxo de caixa para exibir gastos com investimentos
@@ -29,14 +68,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
-    // Buscar todas as transações de compra do usuário
+    // Buscar todas as transações de compra e venda do usuário
     const transacoes = await prisma.stockTransaction.findMany({
       where: {
         userId: targetUserId,
-        type: 'compra',
+        type: { in: ['compra', 'venda'] },
       },
       include: {
         asset: true,
+        stock: true,
       },
       orderBy: {
         date: 'asc',
@@ -61,12 +101,14 @@ export async function GET(request: NextRequest) {
 
     // Processar cada transação
     for (const transacao of transacoes) {
-      if (!transacao.asset) continue;
+      if (!transacao.asset && !transacao.stock) continue;
 
       const transactionYear = transacao.date.getFullYear();
       const mes = transacao.date.getMonth(); // 0 = Janeiro, 11 = Dezembro
-      const valor = transacao.total + (transacao.fees || 0); // Total + taxas
-      const tipoAtivo = transacao.asset.type || 'outros';
+      const valorBase = transacao.total + (transacao.fees || 0); // Total + taxas
+      const sinal = transacao.type === 'venda' ? -1 : 1;
+      const valor = valorBase * sinal;
+      const tipoAtivo = mapTransactionToTipo(transacao);
 
       // Filtrar apenas transações do ano solicitado
       if (transactionYear !== targetYear) {
@@ -106,6 +148,8 @@ export async function GET(request: NextRequest) {
       'real_estate': 'Imóveis Físicos',
       'emergency': 'Reserva Emergência',
       'opportunity': 'Reserva Oportunidade',
+      'personalizado': 'Personalizado',
+      'cash': 'Conta Corrente',
       'outros': 'Outros',
     };
 
@@ -123,7 +167,9 @@ export async function GET(request: NextRequest) {
       'currency': 10,
       'insurance': 11,
       'real_estate': 12,
-      'outros': 13,
+      'personalizado': 13,
+      'cash': 14,
+      'outros': 15,
     };
 
     // Criar itens para TODAS as categorias (mesmo as sem transações)
