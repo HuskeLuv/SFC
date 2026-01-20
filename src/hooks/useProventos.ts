@@ -5,6 +5,7 @@ export interface ProventoData {
   data: string;
   ativo: string;
   tipo: string;
+  classe?: string;
   valor: number;
   quantidade: number;
   valorUnitario: number;

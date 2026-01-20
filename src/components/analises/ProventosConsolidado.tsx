@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import ComponentCard from "@/components/common/ComponentCard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { useProventos } from "@/hooks/useProventos";
@@ -26,32 +26,6 @@ export default function ProventosConsolidado() {
     endDate || undefined,
     groupBy
   );
-
-  // Calcular dados históricos agrupados por mês
-  const historicoData = useMemo(() => {
-    const monthlyData: Record<string, number> = {};
-    
-    proventos.forEach(provento => {
-      const date = new Date(provento.data);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
-      if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = 0;
-      }
-      
-      monthlyData[monthKey] += provento.valor;
-    });
-
-    return Object.entries(monthlyData)
-      .map(([key, value]) => {
-        const [year, month] = key.split('-');
-        return {
-          date: new Date(Number(year), Number(month) - 1, 1).getTime(),
-          valor: value,
-        };
-      })
-      .sort((a, b) => a.date - b.date);
-  }, [proventos]);
 
   if (loading) {
     return <LoadingSpinner text="Carregando dados de proventos..." />;
@@ -126,7 +100,7 @@ export default function ProventosConsolidado() {
 
       {/* Gráfico de Histórico */}
       <ComponentCard title="Histórico de Proventos">
-        <ProventosHistoricoChart data={historicoData} />
+        <ProventosHistoricoChart proventos={proventos} />
       </ComponentCard>
 
       {/* Distribuição de Proventos */}
