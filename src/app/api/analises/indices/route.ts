@@ -18,6 +18,172 @@ interface IndexResponse {
   data: IndexData[];
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const normalizeDateStart = (date: Date) => {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+};
+
+const normalizeToStartZero = (data: IndexData[], startDate?: Date): IndexData[] => {
+  if (data.length === 0) return [];
+
+  const sorted = [...data].sort((a, b) => a.date - b.date);
+  const filtered = startDate
+    ? sorted.filter(item => item.date >= normalizeDateStart(startDate).getTime())
+    : sorted;
+
+  if (filtered.length === 0) return [];
+
+  const baseValue = filtered[0].value;
+  if (!Number.isFinite(baseValue) || baseValue === 0) {
+    return filtered.map(item => ({
+      date: item.date,
+      value: 0,
+    }));
+  }
+
+  return filtered.map(item => ({
+    date: item.date,
+    value: ((item.value / baseValue) - 1) * 100,
+  }));
+};
+
+const fillMissingDaily = (data: IndexData[], endDate?: Date): IndexData[] => {
+  if (data.length === 0) return [];
+
+  const sorted = [...data].sort((a, b) => a.date - b.date);
+  const start = normalizeDateStart(new Date(sorted[0].date)).getTime();
+  const end = normalizeDateStart(endDate || new Date(sorted[sorted.length - 1].date)).getTime();
+
+  const byDate = new Map(sorted.map(item => [normalizeDateStart(new Date(item.date)).getTime(), item.value]));
+  const filled: IndexData[] = [];
+
+  let lastValue = byDate.get(start) ?? sorted[0].value;
+  for (let day = start; day <= end; day += DAY_MS) {
+    const currentValue = byDate.get(day);
+    if (Number.isFinite(currentValue)) {
+      lastValue = currentValue as number;
+    }
+
+    filled.push({
+      date: day,
+      value: lastValue,
+    });
+  }
+
+  return filled;
+};
+
+const normalizeMonthlySeries = (data: IndexData[]) => {
+  const monthlyMap = new Map<number, IndexData>();
+  data.forEach(item => {
+    const date = new Date(item.date);
+    const monthKey = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
+    monthlyMap.set(monthKey, { date: monthKey, value: item.value });
+  });
+
+  return Array.from(monthlyMap.values()).sort((a, b) => a.date - b.date);
+};
+
+const buildMonthlyIndex = (monthlyRates: IndexData[]): IndexData[] => {
+  if (monthlyRates.length === 0) return [];
+
+  const sorted = normalizeMonthlySeries(monthlyRates);
+  const indexSeries: IndexData[] = [];
+  let indexValue = 100;
+
+  const firstMonth = normalizeDateStart(new Date(sorted[0].date));
+  indexSeries.push({
+    date: firstMonth.getTime(),
+    value: indexValue,
+  });
+
+  sorted.forEach(item => {
+    const rate = Number(item.value);
+    if (!Number.isFinite(rate)) return;
+
+    indexValue *= 1 + (rate / 100);
+    const monthStart = normalizeDateStart(new Date(item.date));
+    const nextMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+    indexSeries.push({
+      date: nextMonthStart.getTime(),
+      value: indexValue,
+    });
+  });
+
+  return indexSeries;
+};
+
+const interpolateDailyIndex = (monthlyIndex: IndexData[], endDate?: Date): IndexData[] => {
+  if (monthlyIndex.length === 0) return [];
+
+  const sorted = normalizeMonthlySeries(monthlyIndex);
+  const lastDate = normalizeDateStart(endDate || new Date()).getTime();
+  const daily: IndexData[] = [];
+
+  for (let i = 0; i < sorted.length; i += 1) {
+    const current = sorted[i];
+    const next = sorted[i + 1];
+    const startDate = normalizeDateStart(new Date(current.date)).getTime();
+    const endDateRange = next ? normalizeDateStart(new Date(next.date)).getTime() - DAY_MS : lastDate;
+
+    const rangeDays = Math.max(1, Math.round((endDateRange - startDate) / DAY_MS));
+    for (let step = 0; step <= rangeDays; step += 1) {
+      const day = startDate + (step * DAY_MS);
+      if (day > lastDate) break;
+
+      if (next) {
+        const progress = rangeDays === 0 ? 1 : step / rangeDays;
+        const interpolatedValue = current.value + (next.value - current.value) * progress;
+        daily.push({ date: day, value: interpolatedValue });
+      } else {
+        daily.push({ date: day, value: current.value });
+      }
+    }
+  }
+
+  return daily;
+};
+
+const buildDailyIndexFromAnnualRate = (rateSeries: IndexData[], endDate?: Date): IndexData[] => {
+  if (rateSeries.length === 0) return [];
+
+  const sorted = [...rateSeries].sort((a, b) => a.date - b.date);
+  const start = normalizeDateStart(new Date(sorted[0].date)).getTime();
+  const end = normalizeDateStart(endDate || new Date()).getTime();
+  let indexValue = 100;
+
+  const byDate = new Map(sorted.map(item => [normalizeDateStart(new Date(item.date)).getTime(), item.value]));
+  let currentRate = byDate.get(start) ?? sorted[0].value;
+  const daily: IndexData[] = [{ date: start, value: indexValue }];
+
+  for (let day = start + DAY_MS; day <= end; day += DAY_MS) {
+    const newRate = byDate.get(day);
+    if (Number.isFinite(newRate)) {
+      currentRate = newRate as number;
+    }
+
+    const dailyFactor = Math.pow(1 + (Number(currentRate) / 100), 1 / 365);
+    indexValue *= dailyFactor;
+    daily.push({ date: day, value: indexValue });
+  }
+
+  return daily;
+};
+
+const isMonthlyRateSeries = (data: IndexData[]): boolean => {
+  if (data.length === 0) return true;
+  const values = data
+    .map(item => Math.abs(Number(item.value)))
+    .filter(val => Number.isFinite(val));
+  if (values.length === 0) return true;
+
+  const maxValue = Math.max(...values);
+  return maxValue <= 20;
+};
+
 /**
  * Busca dados históricos de CDI (usando SELIC como proxy) da brapi via endpoint /api/v2/prime-rate
  */
@@ -107,7 +273,9 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
     const endStr = `${hoje.getDate().toString().padStart(2, '0')}/${(hoje.getMonth() + 1).toString().padStart(2, '0')}/${hoje.getFullYear()}`;
     
     // Se não temos startDate, usar uma data de início padrão (1 ano atrás)
-    const dataInicio = startDate || new Date(hoje.getFullYear() - 1, hoje.getMonth(), hoje.getDate());
+    // Para IPCA mensal, alinhar o início ao primeiro dia do mês
+    const rawStart = startDate || new Date(hoje.getFullYear() - 1, hoje.getMonth(), hoje.getDate());
+    const dataInicio = new Date(rawStart.getFullYear(), rawStart.getMonth(), 1);
     const startStr = `${dataInicio.getDate().toString().padStart(2, '0')}/${(dataInicio.getMonth() + 1).toString().padStart(2, '0')}/${dataInicio.getFullYear()}`;
     
     let url = `https://brapi.dev/api/v2/inflation?country=brazil&start=${startStr}&end=${endStr}&historical=true&sortBy=date&sortOrder=asc`;
@@ -140,17 +308,6 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
       value: parseFloat(item.value) || 0,
     }));
 
-    // Filtrar por startDate se fornecido
-    if (startDate) {
-      const startTimestamp = startDate.getTime();
-      indexData = indexData.filter((item: IndexData) => item.date >= startTimestamp);
-    }
-    
-    // Filtrar dados futuros (não mostrar além do dia atual)
-    hoje.setHours(23, 59, 59, 999);
-    const hojeTimestamp = hoje.getTime();
-      indexData = indexData.filter((item: IndexData) => item.date <= hojeTimestamp);
-    
     return indexData;
   } catch (error) {
     console.error('Erro ao buscar histórico de IPCA:', error);
@@ -247,23 +404,6 @@ const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y', sta
   }
 };
 
-/**
- * Calcula retorno percentual do índice baseado no primeiro valor
- * Este percentual representa quanto qualquer valor inicial teria rendido se investido no índice
- */
-const calculateReturns = (data: IndexData[]): IndexData[] => {
-  if (data.length === 0) return [];
-  
-  const firstValue = data[0].value;
-  if (firstValue === 0) return data;
-  
-  // Calcular variação percentual do índice (quanto qualquer valor inicial teria rendido)
-  return data.map(item => ({
-    date: item.date,
-    value: ((item.value - firstValue) / firstValue) * 100,
-  }));
-};
-
 export async function GET(request: NextRequest) {
   try {
     await requireAuthWithActing(request);
@@ -284,7 +424,8 @@ export async function GET(request: NextRequest) {
       try {
         const data = await fetchIndexHistory(symbol, range, startDate);
         if (data.length > 0) {
-          const returns = calculateReturns(data);
+          const filled = fillMissingDaily(data, new Date());
+          const returns = normalizeToStartZero(filled, startDate);
           results.push({
             symbol,
             name,
@@ -303,7 +444,8 @@ export async function GET(request: NextRequest) {
     try {
       const cdiData = await fetchCDIHistory(startDate);
       if (cdiData.length > 0) {
-        const cdiReturns = calculateReturns(cdiData);
+        const dailyIndex = buildDailyIndexFromAnnualRate(cdiData);
+        const cdiReturns = normalizeToStartZero(dailyIndex, startDate);
         results.push({
           symbol: 'CDI',
           name: 'CDI',
@@ -321,7 +463,11 @@ export async function GET(request: NextRequest) {
     try {
       const ipcaData = await fetchIPCAHistory(startDate);
       if (ipcaData.length > 0) {
-        const ipcaReturns = calculateReturns(ipcaData);
+        const monthlyIndex = isMonthlyRateSeries(ipcaData)
+          ? buildMonthlyIndex(ipcaData)
+          : normalizeMonthlySeries(ipcaData);
+        const dailyIndex = interpolateDailyIndex(monthlyIndex);
+        const ipcaReturns = normalizeToStartZero(dailyIndex, startDate);
         results.push({
           symbol: 'IPCA',
           name: 'IPCA',

@@ -263,6 +263,7 @@ export default function RentabilidadeChart({
       },
     },
     yaxis: {
+      min: 0,
       decimalsInFloat: 2,
       forceNiceScale: true,
       title: {
