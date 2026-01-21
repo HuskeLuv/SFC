@@ -229,13 +229,19 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
         ];
         const title = date ? `${months[date.getMonth()]} ${date.getFullYear()}` : "";
 
-        const entries = series
+        type TooltipEntry = {
+          name: string;
+          value: number;
+          color: string;
+        };
+
+        const entries: TooltipEntry[] = series
           .map((values: number[], index: number) => ({
             name: seriesNames[index] || "Ativo",
             value: values?.[dataPointIndex] ?? 0,
             color: colorsList[index] || "#465FFF",
           }))
-          .filter((item) => item.value > 0);
+          .filter((item: TooltipEntry) => item.value > 0);
 
         const total = entries.reduce((sum, item) => sum + item.value, 0);
         const formatCurrency = (value: number) =>
