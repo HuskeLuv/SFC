@@ -8,12 +8,11 @@ import { useCarteiraHistorico } from "@/hooks/useCarteiraHistorico";
 import RentabilidadeChart from "./RentabilidadeChart";
 import RentabilidadeResumo from "./RentabilidadeResumo";
 
-type RentabilidadeRangeValue = "inicio" | "ano" | "12m" | "2y" | "3y" | "5y" | "10y";
+type RentabilidadeRangeValue = "inicio" | "ano" | "2y" | "3y" | "5y" | "10y";
 
 const RENTABILIDADE_RANGE_OPTIONS: Array<{ value: RentabilidadeRangeValue; label: string }> = [
   { value: "inicio", label: "Do início" },
   { value: "ano", label: "No ano" },
-  { value: "12m", label: "Últimos 12 meses" },
   { value: "2y", label: "Últimos 2 anos" },
   { value: "3y", label: "Últimos 3 anos" },
   { value: "5y", label: "Últimos 5 anos" },
@@ -41,12 +40,6 @@ export default function RentabilidadeGeral() {
     if (range === "ano") {
       const yearStart = new Date(now.getFullYear(), 0, 1);
       return normalizeStartDate(yearStart);
-    }
-
-    if (range === "12m") {
-      const start = new Date(now);
-      start.setMonth(start.getMonth() - 12);
-      return normalizeStartDate(start);
     }
 
     if (range === "2y") {

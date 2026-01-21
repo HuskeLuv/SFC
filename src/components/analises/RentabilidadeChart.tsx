@@ -126,16 +126,21 @@ export default function RentabilidadeChart({
 
     // Adicionar série da Carteira
     if (processedCarteiraData.length > 0) {
-      seriesData.push({
-        name: 'Carteira',
-        data: processedCarteiraData.map(item => [item.date, item.value]),
-      });
+      const carteiraPoints = processedCarteiraData
+        .map(item => [item.date, item.value] as number[])
+        .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+      if (carteiraPoints.length > 0) {
+        seriesData.push({
+          name: 'Carteira',
+          data: carteiraPoints,
+        });
+      }
     }
 
     // Filtrar e adicionar apenas os índices desejados: CDI, IBOV, IPCA e Poupança
     const allowedIndices = ['CDI', 'IBOV', 'IPCA', 'Poupança'];
     indicesData.forEach((index) => {
-      if (index.data.length > 0 && allowedIndices.includes(index.name)) {
+      if (Array.isArray(index.data) && index.data.length > 0 && allowedIndices.includes(index.name)) {
         let processedIndexData: IndexData[];
         if (period === '1mo') {
           processedIndexData = groupByMonth(index.data);
@@ -144,10 +149,15 @@ export default function RentabilidadeChart({
         } else {
           processedIndexData = index.data;
         }
-        seriesData.push({
-          name: index.name,
-          data: processedIndexData.map(item => [item.date, item.value]),
-        });
+        const indexPoints = processedIndexData
+          .map(item => [item.date, item.value] as number[])
+          .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+        if (indexPoints.length > 0) {
+          seriesData.push({
+            name: index.name,
+            data: indexPoints,
+          });
+        }
       }
     });
 
@@ -263,7 +273,6 @@ export default function RentabilidadeChart({
       },
     },
     yaxis: {
-      min: 0,
       decimalsInFloat: 2,
       forceNiceScale: true,
       title: {
@@ -361,16 +370,24 @@ export default function RentabilidadeChart({
     return baseOptions;
   }, [period, chartType, uniqueYearsCount]);
 
+  const hasSeriesData = series.length > 0;
+
   return (
     <div className="w-full">
-      <div id="chartRentabilidade" className="w-full">
-        <ApexChartWrapper
-          options={options}
-          series={series}
-          type={chartType}
-          height={300}
-        />
-      </div>
+      {hasSeriesData ? (
+        <div className="w-full">
+          <ApexChartWrapper
+            options={options}
+            series={series}
+            type={chartType}
+            height={300}
+          />
+        </div>
+      ) : (
+        <div className="flex h-80 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+          Sem dados para o período selecionado.
+        </div>
+      )}
     </div>
   );
 }
