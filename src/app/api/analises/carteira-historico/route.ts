@@ -48,6 +48,18 @@ const buildDailyPriceMap = (history: IndexData[], timeline: number[]) => {
   return map;
 };
 
+const logSeriesStats = (data: IndexData[], name: string) => {
+  if (data.length < 2) return;
+  const sorted = [...data].sort((a, b) => a.date - b.date);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const years = Math.max(1 / 365, (last.date - first.date) / (365 * DAY_MS));
+  const cagr = Math.pow(last.value / first.value, 1 / years) - 1;
+  console.log(
+    `[${name}] inicial=${first.value.toFixed(2)} final=${last.value.toFixed(2)} CAGR=${(cagr * 100).toFixed(2)}%`
+  );
+};
+
 const getTransactionValue = (transaction: { total: number; quantity: number; price: number }) => {
   const total = Number(transaction.total);
   if (Number.isFinite(total) && total > 0) {
@@ -64,32 +76,28 @@ const calculateTwrSeries = (
 ) => {
   if (portfolioValues.length === 0) return [];
 
-  const firstNonZeroIndex = portfolioValues.findIndex(item => item.value > 0);
-  if (firstNonZeroIndex === -1) return [];
-
-  const filtered = portfolioValues.slice(firstNonZeroIndex);
   const returns: IndexData[] = [];
   let cumulative = 1;
 
-  filtered.forEach((item, index) => {
+  portfolioValues.forEach((item, index) => {
     if (index === 0) {
       returns.push({ date: item.date, value: 0 });
       return;
     }
 
-    const previousValue = filtered[index - 1]?.value || 0;
+    const previousValue = portfolioValues[index - 1]?.value || 0;
     const currentValue = item.value;
     const cashFlow = cashFlowsByDay.get(item.date) || 0;
 
     let dailyReturn = 0;
     if (previousValue > 0) {
-      dailyReturn = (currentValue - previousValue - cashFlow) / previousValue;
+      dailyReturn = (currentValue - cashFlow) / previousValue - 1;
     }
 
     cumulative *= 1 + dailyReturn;
     returns.push({
       date: item.date,
-      value: Math.max(0, (cumulative - 1) * 100),
+      value: (cumulative - 1) * 100,
     });
   });
 
@@ -234,18 +242,32 @@ export async function GET(request: NextRequest) {
     // Buscar histórico de preços para cada ativo
     const historicosPorAtivo = new Map<string, IndexData[]>();
     
-    let earliestTransactionDate = transactionsFiltradas[0].date;
-    transactionsFiltradas.forEach(trans => {
-      if (trans.date < earliestTransactionDate) {
-        earliestTransactionDate = trans.date;
+    const positiveTransactions = transactionsFiltradas.filter(trans => {
+      if (trans.type !== 'compra') return false;
+      return getTransactionValue(trans) > 0;
+    });
+
+    if (positiveTransactions.length === 0) {
+      return NextResponse.json({ data: [] });
+    }
+
+    let firstAporteDate = positiveTransactions[0].date;
+    positiveTransactions.forEach(trans => {
+      if (trans.date < firstAporteDate) {
+        firstAporteDate = trans.date;
       }
     });
 
-    const timelineStart = startDate ? normalizeDateStart(startDate) : normalizeDateStart(earliestTransactionDate);
+    const effectiveStartDate = startDate
+      ? new Date(Math.max(normalizeDateStart(startDate).getTime(), normalizeDateStart(firstAporteDate).getTime()))
+      : normalizeDateStart(firstAporteDate);
+
+    const timelineStart = normalizeDateStart(effectiveStartDate);
     const timeline = buildDailyTimeline(timelineStart, today);
 
     const cashFlowsByDay = new Map<number, number>();
     const quantityDeltasBySymbol = new Map<string, Map<number, number>>();
+    const preStartQuantities = new Map<string, number>();
 
     transactionsFiltradas.forEach(trans => {
       const symbol = trans.stock?.ticker || trans.asset?.symbol;
@@ -253,13 +275,18 @@ export async function GET(request: NextRequest) {
 
       const dayKey = normalizeDateStart(trans.date).getTime();
       const value = getTransactionValue(trans);
+      const qtyDelta = trans.type === 'compra' ? trans.quantity : -trans.quantity;
+
+      if (dayKey < timelineStart.getTime()) {
+        preStartQuantities.set(symbol, (preStartQuantities.get(symbol) || 0) + qtyDelta);
+        return;
+      }
 
       if (!quantityDeltasBySymbol.has(symbol)) {
         quantityDeltasBySymbol.set(symbol, new Map());
       }
 
       const symbolDeltas = quantityDeltasBySymbol.get(symbol)!;
-      const qtyDelta = trans.type === 'compra' ? trans.quantity : -trans.quantity;
       symbolDeltas.set(dayKey, (symbolDeltas.get(dayKey) || 0) + qtyDelta);
 
       const cashFlowDelta = trans.type === 'compra' ? value : -value;
@@ -267,10 +294,7 @@ export async function GET(request: NextRequest) {
     });
 
     for (const symbol of transactionsPorSimbolo.keys()) {
-      // Usar a data da primeira transação como startDate se não foi fornecido
-      const primeiraTransacao = transactionsPorSimbolo.get(symbol)![0];
-      const dataInicial = startDate || primeiraTransacao.date;
-      const historico = await fetchAssetHistory(symbol, dataInicial);
+      const historico = await fetchAssetHistory(symbol, timelineStart);
       historicosPorAtivo.set(symbol, historico);
     }
 
@@ -281,7 +305,7 @@ export async function GET(request: NextRequest) {
 
     const quantitiesBySymbol = new Map<string, number>();
     transactionsPorSimbolo.forEach((_value, symbol) => {
-      quantitiesBySymbol.set(symbol, 0);
+      quantitiesBySymbol.set(symbol, Math.max(0, preStartQuantities.get(symbol) || 0));
     });
 
     const portfolioValues: IndexData[] = [];
@@ -308,6 +332,10 @@ export async function GET(request: NextRequest) {
         date: day,
         value: Math.round(portfolioTotal * 100) / 100,
       });
+    }
+
+    if (portfolioValues.length > 1) {
+      logSeriesStats(portfolioValues, 'Carteira-Valor');
     }
 
     const twrSeries = calculateTwrSeries(portfolioValues, cashFlowsByDay);

@@ -36,6 +36,7 @@ const normalizeToStartZero = (data: IndexData[], startDate?: Date): IndexData[] 
 
   if (filtered.length === 0) return [];
 
+  const values = filtered.map(item => Number(item.value)).filter(val => Number.isFinite(val));
   const baseValue = filtered[0].value;
   if (!Number.isFinite(baseValue) || baseValue === 0) {
     return filtered.map(item => ({
@@ -44,10 +45,85 @@ const normalizeToStartZero = (data: IndexData[], startDate?: Date): IndexData[] 
     }));
   }
 
+  const maxValue = values.length > 0 ? Math.max(...values) : baseValue;
+  if (Math.abs(baseValue) < 1 && maxValue <= 300) {
+    console.error('[normalizeToStartZero] Série já parece estar em % acumulado. Normalização abortada.');
+    return [];
+  }
+
   return filtered.map(item => ({
     date: item.date,
     value: ((item.value / baseValue) - 1) * 100,
   }));
+};
+
+const isBusinessDay = (date: Date) => {
+  const day = date.getDay();
+  return day !== 0 && day !== 6;
+};
+
+const countBusinessDaysBetween = (start: number, end: number) => {
+  let count = 0;
+  for (let day = start; day <= end; day += DAY_MS) {
+    if (isBusinessDay(new Date(day))) {
+      count += 1;
+    }
+  }
+  return count;
+};
+
+const validateIndexSeries = (data: IndexData[], name: string) => {
+  if (data.length === 0) return false;
+
+  const values = data.map(item => Number(item.value)).filter(val => Number.isFinite(val));
+  if (values.length === 0) {
+    console.error(`[${name}] Série inválida: valores não numéricos.`);
+    return false;
+  }
+
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+
+  if (minValue <= 0) {
+    console.error(`[${name}] Série inválida: índice não pode ser <= 0.`);
+    return false;
+  }
+
+  if (maxValue < 20) {
+    console.error(`[${name}] Série inválida: parece taxa/percentual, não índice base 100.`);
+    return false;
+  }
+
+  if (maxValue > 1_000_000 || maxValue / Math.max(minValue, 1e-6) > 1000) {
+    console.error(`[${name}] Série inválida: crescimento exponencial detectado.`);
+    return false;
+  }
+
+  return true;
+};
+
+const logSeriesStats = (data: IndexData[], name: string) => {
+  if (data.length < 2) return;
+  const sorted = [...data].sort((a, b) => a.date - b.date);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const years = Math.max(1 / 365, (last.date - first.date) / (365 * DAY_MS));
+  const cagr = Math.pow(last.value / first.value, 1 / years) - 1;
+  console.log(
+    `[${name}] inicial=${first.value.toFixed(2)} final=${last.value.toFixed(2)} CAGR=${(cagr * 100).toFixed(2)}%`
+  );
+};
+
+const getSeriesRangeYears = (data: IndexData[]) => {
+  if (data.length < 2) return 0;
+  const sorted = [...data].sort((a, b) => a.date - b.date);
+  return (sorted[sorted.length - 1].date - sorted[0].date) / (365 * DAY_MS);
+};
+
+const getLastValue = (data: IndexData[]) => {
+  if (data.length === 0) return undefined;
+  const sorted = [...data].sort((a, b) => a.date - b.date);
+  return sorted[sorted.length - 1].value;
 };
 
 const fillMissingDaily = (data: IndexData[], endDate?: Date): IndexData[] => {
@@ -104,9 +180,9 @@ const buildMonthlyIndex = (monthlyRates: IndexData[]): IndexData[] => {
     const rate = Number(item.value);
     if (!Number.isFinite(rate)) return;
 
-    indexValue *= 1 + (rate / 100);
     const monthStart = normalizeDateStart(new Date(item.date));
     const nextMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+    indexValue *= 1 + (rate / 100);
     indexSeries.push({
       date: nextMonthStart.getTime(),
       value: indexValue,
@@ -127,20 +203,18 @@ const interpolateDailyIndex = (monthlyIndex: IndexData[], endDate?: Date): Index
     const current = sorted[i];
     const next = sorted[i + 1];
     const startDate = normalizeDateStart(new Date(current.date)).getTime();
-    const endDateRange = next ? normalizeDateStart(new Date(next.date)).getTime() - DAY_MS : lastDate;
+    const endDateRange = next ? normalizeDateStart(new Date(next.date)).getTime() : lastDate + DAY_MS;
 
-    const rangeDays = Math.max(1, Math.round((endDateRange - startDate) / DAY_MS));
-    for (let step = 0; step <= rangeDays; step += 1) {
+    const totalDays = Math.max(1, Math.round((endDateRange - startDate) / DAY_MS));
+    let currentValue = current.value;
+    const targetValue = next ? next.value : current.value;
+    const dailyFactor = next ? Math.pow(targetValue / current.value, 1 / totalDays) : 1;
+
+    for (let step = 0; step < totalDays; step += 1) {
       const day = startDate + (step * DAY_MS);
       if (day > lastDate) break;
-
-      if (next) {
-        const progress = rangeDays === 0 ? 1 : step / rangeDays;
-        const interpolatedValue = current.value + (next.value - current.value) * progress;
-        daily.push({ date: day, value: interpolatedValue });
-      } else {
-        daily.push({ date: day, value: current.value });
-      }
+      daily.push({ date: day, value: currentValue });
+      currentValue *= dailyFactor;
     }
   }
 
@@ -165,8 +239,11 @@ const buildDailyIndexFromAnnualRate = (rateSeries: IndexData[], endDate?: Date):
       currentRate = newRate as number;
     }
 
-    const dailyFactor = Math.pow(1 + (Number(currentRate) / 100), 1 / 365);
-    indexValue *= dailyFactor;
+    if (isBusinessDay(new Date(day))) {
+      const dailyFactor = Math.pow(1 + (Number(currentRate) / 100), 1 / 252);
+      indexValue *= dailyFactor;
+    }
+
     daily.push({ date: day, value: indexValue });
   }
 
@@ -404,6 +481,21 @@ const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y', sta
   }
 };
 
+const validateIbovGaps = (data: IndexData[]) => {
+  if (data.length < 2) return true;
+  const sorted = [...data].sort((a, b) => a.date - b.date);
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = normalizeDateStart(new Date(sorted[i - 1].date)).getTime();
+    const current = normalizeDateStart(new Date(sorted[i].date)).getTime();
+    const businessDays = countBusinessDaysBetween(prev + DAY_MS, current);
+    if (businessDays > 5) {
+      console.error(`[IBOV] Buraco de ${businessDays} dias úteis sem dados.`);
+      return false;
+    }
+  }
+  return true;
+};
+
 export async function GET(request: NextRequest) {
   try {
     await requireAuthWithActing(request);
@@ -424,13 +516,22 @@ export async function GET(request: NextRequest) {
       try {
         const data = await fetchIndexHistory(symbol, range, startDate);
         if (data.length > 0) {
-          const filled = fillMissingDaily(data, new Date());
-          const returns = normalizeToStartZero(filled, startDate);
-          results.push({
-            symbol,
-            name,
-            data: returns,
-          });
+          if (!validateIbovGaps(data)) {
+            console.error(`[${name}] Série ignorada por buracos excessivos.`);
+          } else {
+            const filled = fillMissingDaily(data, new Date());
+            if (!validateIndexSeries(filled, name)) {
+              console.error(`[${name}] Série ignorada por validação.`);
+            } else {
+              logSeriesStats(filled, name);
+              const returns = normalizeToStartZero(filled, startDate);
+              results.push({
+                symbol,
+                name,
+                data: returns,
+              });
+            }
+          }
           console.log(`✅ ${name} (${symbol}): ${data.length} pontos de dados`);
         } else {
           console.warn(`⚠️ ${name} (${symbol}): Nenhum dado retornado`);
@@ -445,12 +546,17 @@ export async function GET(request: NextRequest) {
       const cdiData = await fetchCDIHistory(startDate);
       if (cdiData.length > 0) {
         const dailyIndex = buildDailyIndexFromAnnualRate(cdiData);
-        const cdiReturns = normalizeToStartZero(dailyIndex, startDate);
-        results.push({
-          symbol: 'CDI',
-          name: 'CDI',
-          data: cdiReturns,
-        });
+        if (!validateIndexSeries(dailyIndex, 'CDI')) {
+          console.error('[CDI] Série ignorada por validação.');
+        } else {
+          logSeriesStats(dailyIndex, 'CDI');
+          const cdiReturns = normalizeToStartZero(dailyIndex, startDate);
+          results.push({
+            symbol: 'CDI',
+            name: 'CDI',
+            data: cdiReturns,
+          });
+        }
         console.log(`✅ CDI: ${cdiData.length} pontos de dados`);
       } else {
         console.warn(`⚠️ CDI: Nenhum dado retornado`);
@@ -467,12 +573,17 @@ export async function GET(request: NextRequest) {
           ? buildMonthlyIndex(ipcaData)
           : normalizeMonthlySeries(ipcaData);
         const dailyIndex = interpolateDailyIndex(monthlyIndex);
-        const ipcaReturns = normalizeToStartZero(dailyIndex, startDate);
-        results.push({
-          symbol: 'IPCA',
-          name: 'IPCA',
-          data: ipcaReturns,
-        });
+        if (!validateIndexSeries(dailyIndex, 'IPCA')) {
+          console.error('[IPCA] Série ignorada por validação.');
+        } else {
+          logSeriesStats(dailyIndex, 'IPCA');
+          const ipcaReturns = normalizeToStartZero(dailyIndex, startDate);
+          results.push({
+            symbol: 'IPCA',
+            name: 'IPCA',
+            data: ipcaReturns,
+          });
+        }
         console.log(`✅ IPCA: ${ipcaData.length} pontos de dados`);
       } else {
         console.warn(`⚠️ IPCA: Nenhum dado retornado`);
@@ -482,6 +593,29 @@ export async function GET(request: NextRequest) {
     }
     
     console.log(`📊 Total de índices retornados: ${results.length}`);
+    const ipcaSeries = results.find(item => item.name === 'IPCA')?.data || [];
+    const cdiSeries = results.find(item => item.name === 'CDI')?.data || [];
+    const ibovSeries = results.find(item => item.name === 'IBOV')?.data || [];
+
+    const ipcaYears = getSeriesRangeYears(ipcaSeries);
+    const ipcaLast = getLastValue(ipcaSeries);
+    if (ipcaYears >= 8 && typeof ipcaLast === 'number' && ipcaLast > 200) {
+      console.error(`[IPCA] Acumulado em ${ipcaYears.toFixed(1)} anos > 200% (valor=${ipcaLast.toFixed(2)}%).`);
+    }
+
+    const cdiYears = getSeriesRangeYears(cdiSeries);
+    const cdiLast = getLastValue(cdiSeries);
+    const ibovLast = getLastValue(ibovSeries);
+    if (cdiYears >= 5 && typeof cdiLast === 'number' && typeof ibovLast === 'number' && cdiLast > ibovLast) {
+      console.error(`[CDI] Acumulado maior que IBOV no longo prazo (CDI=${cdiLast.toFixed(2)}% IBOV=${ibovLast.toFixed(2)}%).`);
+    }
+
+    results.forEach(series => {
+      const lastValue = getLastValue(series.data);
+      if (typeof lastValue === 'number' && lastValue > 300) {
+        console.error(`[${series.name}] Acumulado acima de 300% (valor=${lastValue.toFixed(2)}%).`);
+      }
+    });
     return NextResponse.json({ indices: results });
   } catch (error) {
     console.error('Erro ao buscar índices:', error);
