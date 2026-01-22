@@ -11,11 +11,13 @@ import { useCarteiraHistorico } from "@/hooks/useCarteiraHistorico";
 import { useCarteira } from "@/hooks/useCarteira";
 import { useProventos } from "@/hooks/useProventos";
 import { useCashflowData, useProcessedData } from "@/hooks/useCashflow";
+import { useInstituicaoDistribuicao } from "@/hooks/useInstituicaoDistribuicao";
 import RentabilidadeChart from "@/components/analises/RentabilidadeChart";
 import ProventosHistoricoChart from "@/components/analises/ProventosHistoricoChart";
 import ProventosDistribuicaoChart from "@/components/analises/ProventosDistribuicaoChart";
 import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarteiraInvestimentos";
 import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCarteiraHistorico";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DollarLineIcon,
   PieChartIcon,
@@ -111,6 +113,10 @@ export default function RelatoriosPage() {
   );
   const { data: cashflowData, loading: loadingCashflow } = useCashflowData();
   const cashflowProcessed = useProcessedData(cashflowData);
+  const {
+    grouped: instituicaoGrouped,
+    loading: loadingInstituicaoDistribuicao,
+  } = useInstituicaoDistribuicao();
 
   const filterByRange = <T extends { date: number }>(data: T[]) => {
     if (!endTimestamp) return data;
@@ -151,11 +157,30 @@ export default function RelatoriosPage() {
 
   const filteredPatrimonio = useMemo(() => {
     if (!resumo?.historicoPatrimonio) return [];
-    return resumo.historicoPatrimonio.filter((item) => {
+    const historico = resumo.historicoPatrimonio;
+    const filtered = historico.filter((item) => {
       if (startTimestamp && item.data < startTimestamp) return false;
       if (endTimestamp && item.data > endTimestamp) return false;
       return true;
     });
+
+    if (!startTimestamp) {
+      return filtered;
+    }
+
+    const lastBeforeStart = historico
+      .filter((item) => item.data < startTimestamp)
+      .sort((a, b) => b.data - a.data)[0];
+
+    if (!lastBeforeStart) {
+      return filtered;
+    }
+
+    if (filtered.some((item) => item.data === lastBeforeStart.data)) {
+      return filtered;
+    }
+
+    return [lastBeforeStart, ...filtered];
   }, [resumo?.historicoPatrimonio, startTimestamp, endTimestamp]);
 
   const cashflowTotals = useMemo(() => {
@@ -183,8 +208,84 @@ export default function RelatoriosPage() {
     };
   }, [cashflowProcessed, startDate, endDate]);
 
+  const cashflowCategoryRows = useMemo(() => {
+    const groups = cashflowProcessed.groups || [];
+    if (groups.length === 0) {
+      return [];
+    }
+
+    const startMonth = startDate?.getMonth();
+    const endMonth = endDate?.getMonth();
+    const hasValidRange =
+      startMonth !== undefined &&
+      endMonth !== undefined &&
+      (!startDate || !endDate || startDate.getFullYear() === endDate.getFullYear());
+
+    const getTotal = (groupId: string) => {
+      const monthlyTotals = cashflowProcessed.groupTotals[groupId] || [];
+      if (hasValidRange && startMonth !== undefined && endMonth !== undefined) {
+        return monthlyTotals.slice(startMonth, endMonth + 1).reduce((sum, value) => sum + value, 0);
+      }
+      return cashflowProcessed.groupAnnualTotals[groupId] || 0;
+    };
+
+    const ignoredGroupNames = new Set([
+      "despesas",
+      "despesas fixas",
+      "despesas variaveis",
+      "despesas variáveis",
+      "entradas",
+      "entradas fixas",
+      "entradas variaveis",
+      "entradas variáveis",
+    ]);
+
+    const buildRows = (
+      groupList: typeof groups,
+      depth = 0
+    ): Array<{ id: string; name: string; total: number; depth: number }> => {
+      return groupList.flatMap((group) => {
+        const normalizedName = group.name.toLowerCase();
+        const isIgnored = ignoredGroupNames.has(normalizedName);
+        const children = group.children || [];
+        const childDepth = isIgnored ? depth : depth + 1;
+        const childRows = children.length > 0 ? buildRows(children, childDepth) : [];
+        const total = getTotal(group.id);
+        const hasData = total !== 0 || childRows.length > 0;
+
+        if (!hasData) {
+          return [];
+        }
+
+        if (isIgnored) {
+          return childRows;
+        }
+
+        return [
+          {
+            id: group.id,
+            name: group.name,
+            total,
+            depth,
+          },
+          ...childRows,
+        ];
+      });
+    };
+
+    return buildRows(groups);
+  }, [cashflowProcessed, startDate, endDate]);
+
+  const formatCurrencyValue = (value: number) =>
+    value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   const isLoading =
-    carteiraLoading || loadingCarteiraHistorico || loadingIndices || loadingProventos || loadingCashflow;
+    carteiraLoading ||
+    loadingCarteiraHistorico ||
+    loadingIndices ||
+    loadingProventos ||
+    loadingCashflow ||
+    loadingInstituicaoDistribuicao;
 
   const handleExportPdf = () => {
     window.print();
@@ -193,7 +294,22 @@ export default function RelatoriosPage() {
   const periodLabel = `${label} • ${formatDateLabel(startDate)} - ${formatDateLabel(endDate)}`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" id="relatorios-print">
+      <style jsx global>{`
+        @media print {
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          #relatorios-print .print-hidden {
+            display: none !important;
+          }
+          #relatorios-print .avoid-break {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+        }
+      `}</style>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Relatórios</h1>
@@ -201,7 +317,7 @@ export default function RelatoriosPage() {
             Visualize relatórios detalhados da carteira conforme o período selecionado.
           </p>
         </div>
-        <div className="w-full max-w-[260px]">
+        <div className="w-full max-w-[260px] print-hidden">
           <label htmlFor="report-period" className="sr-only">
             Filtro de período
           </label>
@@ -262,26 +378,26 @@ export default function RelatoriosPage() {
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-              <Button size="sm" variant="primary" onClick={handleExportPdf}>
+              <Button size="sm" variant="primary" onClick={handleExportPdf} className="print-hidden">
                 Exportar PDF
               </Button>
             </div>
             <div className="space-y-6">
-              <ComponentCard title="Rentabilidade Por Dia">
+              <ComponentCard title="Rentabilidade Por Dia" className="avoid-break">
                 <RentabilidadeChart
                   carteiraData={filteredCarteiraHistorico}
                   indicesData={filteredIndices1d}
                   period="1d"
                 />
               </ComponentCard>
-              <ComponentCard title="Rentabilidade Por Mês">
+              <ComponentCard title="Rentabilidade Por Mês" className="avoid-break">
                 <RentabilidadeChart
                   carteiraData={filteredCarteiraHistorico}
                   indicesData={filteredIndices1mo}
                   period="1mo"
                 />
               </ComponentCard>
-              <ComponentCard title="Rentabilidade Por Ano">
+              <ComponentCard title="Rentabilidade Por Ano" className="avoid-break">
                 <RentabilidadeChart
                   carteiraData={filteredCarteiraHistorico}
                   indicesData={filteredIndices1y}
@@ -297,12 +413,9 @@ export default function RelatoriosPage() {
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-              <Button size="sm" variant="primary" onClick={handleExportPdf}>
-                Exportar PDF
-              </Button>
             </div>
             <div className="space-y-6">
-              <ComponentCard title="Histórico de Proventos">
+              <ComponentCard title="Histórico de Proventos" className="avoid-break">
                 {proventos.length > 0 ? (
                   <ProventosHistoricoChart proventos={proventos} />
                 ) : (
@@ -311,7 +424,7 @@ export default function RelatoriosPage() {
                   </div>
                 )}
               </ComponentCard>
-              <ComponentCard title="Distribuição de Proventos">
+              <ComponentCard title="Distribuição de Proventos" className="avoid-break">
                 {Object.keys(grouped).length > 0 ? (
                   <ProventosDistribuicaoChart grouped={grouped} viewMode="total" />
                 ) : (
@@ -329,19 +442,27 @@ export default function RelatoriosPage() {
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-              <Button size="sm" variant="primary" onClick={handleExportPdf}>
-                Exportar PDF
-              </Button>
             </div>
-            <ComponentCard title="Distribuição Atual de Ativos">
-              {resumo?.distribuicao && Object.values(resumo.distribuicao).length > 0 ? (
-                <PieChartCarteiraInvestimentos distribuicao={resumo.distribuicao} />
-              ) : (
-                <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                  Sem dados para exibir.
-                </div>
-              )}
-            </ComponentCard>
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <ComponentCard title="Distribuição Atual de Ativos" className="avoid-break">
+                {resumo?.distribuicao && Object.values(resumo.distribuicao).length > 0 ? (
+                  <PieChartCarteiraInvestimentos distribuicao={resumo.distribuicao} />
+                ) : (
+                  <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                    Sem dados para exibir.
+                  </div>
+                )}
+              </ComponentCard>
+              <ComponentCard title="Divisão por Instituição Financeira" className="avoid-break">
+                {Object.keys(instituicaoGrouped).length > 0 ? (
+                  <ProventosDistribuicaoChart grouped={instituicaoGrouped} viewMode="total" />
+                ) : (
+                  <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                    Sem dados para exibir.
+                  </div>
+                )}
+              </ComponentCard>
+            </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -350,11 +471,8 @@ export default function RelatoriosPage() {
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-              <Button size="sm" variant="primary" onClick={handleExportPdf}>
-                Exportar PDF
-              </Button>
             </div>
-            <ComponentCard title="Evolução Patrimonial">
+            <ComponentCard title="Evolução Patrimonial" className="avoid-break">
               {filteredPatrimonio.length > 0 ? (
                 <LineChartCarteiraHistorico data={filteredPatrimonio} />
               ) : (
@@ -371,30 +489,76 @@ export default function RelatoriosPage() {
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-              <Button size="sm" variant="primary" onClick={handleExportPdf}>
-                Exportar PDF
-              </Button>
             </div>
-            <ComponentCard title="Fluxo de Caixa Consolidado">
+            <ComponentCard title="Fluxo de Caixa Consolidado" className="avoid-break">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
                   <p className="text-sm text-gray-500 dark:text-gray-400">Entradas</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    R$ {cashflowTotals.entradas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    R$ {formatCurrencyValue(cashflowTotals.entradas)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
                   <p className="text-sm text-gray-500 dark:text-gray-400">Saídas</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    R$ {cashflowTotals.despesas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    R$ {formatCurrencyValue(cashflowTotals.despesas)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
                   <p className="text-sm text-gray-500 dark:text-gray-400">Saldo</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    R$ {cashflowTotals.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    R$ {formatCurrencyValue(cashflowTotals.total)}
                   </p>
                 </div>
+              </div>
+              <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+                <Table className="w-full">
+                  <TableHeader className="bg-gray-50 dark:bg-gray-900">
+                    <TableRow>
+                      <TableCell
+                        isHeader
+                        className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                      >
+                        Categoria
+                      </TableCell>
+                      <TableCell
+                        isHeader
+                        className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                      >
+                        Orçamento
+                      </TableCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cashflowCategoryRows.length > 0 ? (
+                      cashflowCategoryRows.map((row) => (
+                        <TableRow key={row.id} className="border-t border-gray-200 dark:border-gray-800">
+                          <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                            <span
+                              className="inline-flex items-center"
+                              style={{ paddingLeft: `${row.depth * 16}px` }}
+                            >
+                              {row.depth > 0 && <span className="mr-2 h-2 w-2 rounded-full bg-gray-300" />}
+                              {row.name}
+                            </span>
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
+                            R$ {formatCurrencyValue(row.total)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow className="border-t border-gray-200 dark:border-gray-800">
+                        <TableCell
+                          colSpan={2}
+                          className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
+                        >
+                          Sem dados para o período selecionado.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
             </ComponentCard>
 
@@ -405,11 +569,8 @@ export default function RelatoriosPage() {
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-              <Button size="sm" variant="primary" onClick={handleExportPdf}>
-                Exportar PDF
-              </Button>
             </div>
-            <ComponentCard title="Comparativo com Índices">
+            <ComponentCard title="Comparativo com Índices" className="avoid-break">
               <RentabilidadeChart carteiraData={[]} indicesData={filteredIndices1d} period="1d" />
             </ComponentCard>
           </div>

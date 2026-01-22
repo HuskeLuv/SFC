@@ -118,6 +118,9 @@ export default function LineChartCarteiraHistorico({ data: historicoData }: Line
     },
     markers: {
       size: 0,
+      hover: {
+        size: 4,
+      },
     },
     xaxis: {
       type: "datetime",
@@ -164,6 +167,8 @@ export default function LineChartCarteiraHistorico({ data: historicoData }: Line
       },
     },
     tooltip: {
+      shared: true,
+      intersect: false,
       x: {
         format: "MMM yyyy",
         formatter: (val: number) => {
