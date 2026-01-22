@@ -1,12 +1,12 @@
 "use client";
 import React from "react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import RelatoriosTabs from "@/components/relatorios/RelatoriosTabs";
+import RelatoriosPage from "@/components/relatorios/RelatoriosPage";
 
 export default function Relatorios() {
   return (
     <ProtectedRoute>
-      <RelatoriosTabs />
+      <RelatoriosPage />
     </ProtectedRoute>
   );
 }
