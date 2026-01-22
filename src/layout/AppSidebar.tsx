@@ -100,6 +100,10 @@ const AppSidebar: React.FC = () => {
         : item,
     );
 
+    if (user?.role !== "consultant") {
+      items = items.filter((item) => item.name !== "Dashboard");
+    }
+
     // Se estiver personificado, mostrar apenas: Dashboard, Fluxo de Caixa, Carteira e Relatórios
     if (actingClient) {
       const allowedItems = ["Dashboard", "Fluxo de Caixa", "Carteira", "Relatórios"];
@@ -107,7 +111,7 @@ const AppSidebar: React.FC = () => {
     }
 
     return items;
-  }, [dashboardPath, actingClient]);
+  }, [dashboardPath, actingClient, user?.role]);
 
   const renderMenuItems = (
     navItems: NavItem[],

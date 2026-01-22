@@ -8,6 +8,9 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    if (payload.role !== 'consultant') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const userId = payload.id;
     const data = await prisma.dashboardData.findMany({ where: { userId } });
     return NextResponse.json(data);
