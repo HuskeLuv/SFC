@@ -7,7 +7,8 @@ export interface CarteiraResumo {
   metaPatrimonio: number;
   historicoPatrimonio: Array<{
     data: number;
-    valor: number;
+    valorAplicado: number;
+    saldoBruto: number;
   }>;
   distribuicao: {
     reservaEmergencia: {

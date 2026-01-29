@@ -75,7 +75,7 @@ export default function RentabilidadeGeral() {
       return undefined;
     }
     // Encontrar o primeiro valor não-zero (ignorar pontos iniciais com valor zero)
-    const firstNonZeroItem = resumo.historicoPatrimonio.find(item => item.valor > 0);
+    const firstNonZeroItem = resumo.historicoPatrimonio.find(item => item.saldoBruto > 0);
     return firstNonZeroItem?.data;
   }, [resumo?.historicoPatrimonio]);
 
@@ -105,13 +105,13 @@ export default function RentabilidadeGeral() {
     const historico = resumo.historicoPatrimonio;
     
     // Encontrar o primeiro valor não-zero (ignorar pontos iniciais com valor zero)
-    const firstNonZeroIndex = historico.findIndex(item => item.valor > 0);
+    const firstNonZeroIndex = historico.findIndex(item => item.saldoBruto > 0);
     if (firstNonZeroIndex === -1) {
       return [];
     }
     
     const firstNonZeroItem = historico[firstNonZeroIndex];
-    const firstValue = firstNonZeroItem.valor;
+    const firstValue = firstNonZeroItem.saldoBruto;
     const firstDate = firstNonZeroItem.data;
     
     // Limite: fim do dia atual (não mostrar dados futuros)
@@ -124,7 +124,7 @@ export default function RentabilidadeGeral() {
       .filter(item => item.data >= firstDate && item.data <= hojeTimestamp)
       .map(item => ({
         date: item.data,
-        value: ((item.valor - firstValue) / firstValue) * 100,
+        value: ((item.saldoBruto - firstValue) / firstValue) * 100,
       }));
   }, [resumo?.historicoPatrimonio]);
 

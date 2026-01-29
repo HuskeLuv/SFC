@@ -4,8 +4,225 @@ import { prisma } from '@/lib/prisma';
 import { fetchQuotes } from '@/services/brapiQuote';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const normalizeDateStart = (date: Date) => {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+};
+
+const buildDailyTimeline = (startDate: Date, endDate: Date) => {
+  const start = normalizeDateStart(startDate).getTime();
+  const end = normalizeDateStart(endDate).getTime();
+  const timeline: number[] = [];
+
+  for (let day = start; day <= end; day += DAY_MS) {
+    timeline.push(day);
+  }
+
+  return timeline;
+};
+
+const getTransactionValue = (transaction: { total: number; quantity: number; price: number }) => {
+  const total = Number(transaction.total);
+  if (Number.isFinite(total) && total > 0) {
+    return total;
+  }
+
+  const fallback = Number(transaction.quantity) * Number(transaction.price);
+  return Number.isFinite(fallback) ? fallback : 0;
+};
+
+const buildDailyPriceMap = (
+  history: Array<{ date: number; value: number }>,
+  timeline: number[],
+  initialPrice?: number,
+) => {
+  const sorted = [...history]
+    .filter((item) => Number.isFinite(item.value) && item.value > 0)
+    .sort((a, b) => a.date - b.date);
+  const map = new Map<number, number>();
+
+  let lastPrice = Number.isFinite(initialPrice) && initialPrice && initialPrice > 0 ? initialPrice : undefined;
+  let historyIndex = 0;
+
+  for (const day of timeline) {
+    while (historyIndex < sorted.length) {
+      const historyDate = normalizeDateStart(new Date(sorted[historyIndex].date)).getTime();
+      if (historyDate > day) break;
+      lastPrice = sorted[historyIndex].value;
+      historyIndex += 1;
+    }
+
+    if (Number.isFinite(lastPrice) && lastPrice && lastPrice > 0) {
+      map.set(day, lastPrice);
+    }
+  }
+
+  return map;
+};
+
+const fetchAssetHistory = async (symbol: string, startDate?: Date): Promise<Array<{ date: number; value: number }>> => {
+  try {
+    const apiKey = process.env.BRAPI_API_KEY;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    let brapiRange = '1y';
+    if (startDate) {
+      const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / DAY_MS);
+      brapiRange = daysSinceStart > 365 ? '2y' : '1y';
+    }
+
+    const tokenParam = apiKey ? `&token=${apiKey}` : '';
+    const url = `https://brapi.dev/api/quote/${symbol}?range=${brapiRange}&interval=1d${tokenParam}`;
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      console.warn(`Erro ao buscar histórico de ${symbol}: HTTP ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
+      return [];
+    }
+
+    const result = data.results[0];
+    const historicalData = result.historicalDataPrice || [];
+    if (!historicalData || historicalData.length === 0) {
+      return [];
+    }
+
+    let assetData = historicalData.map((item: { date: number; close: number }) => ({
+      date: item.date * 1000,
+      value: item.close || 0,
+    }));
+
+    if (startDate) {
+      const startTimestamp = startDate.getTime();
+      assetData = assetData.filter((item) => item.date >= startTimestamp);
+    }
+
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+    const hojeTimestamp = hoje.getTime();
+    assetData = assetData.filter((item) => item.date <= hojeTimestamp);
+
+    return assetData;
+  } catch (error) {
+    console.error(`Erro ao buscar histórico de ${symbol}:`, error);
+    return [];
+  }
+};
+
+const runPatrimonioScenarioTest = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+
+  const start = normalizeDateStart(new Date(2025, 0, 29));
+  const end = normalizeDateStart(new Date(2025, 1, 5));
+  const timeline = buildDailyTimeline(start, end);
+
+  const dayKey = start.getTime();
+  const compras = [
+    { symbol: 'ITUB4', quantity: 10, price: 30, day: dayKey },
+    { symbol: 'VALE3', quantity: 5, price: 60, day: dayKey },
+  ];
+
+  const cashDeltasByDay = new Map<number, number>();
+  const appliedDeltasByDay = new Map<number, number>();
+  const aportesByDay = new Map<number, number>();
+  const rendimentosByDay = new Map<number, number>();
+  const txDeltasBySymbol = new Map<string, Map<number, number>>();
+  const priceHistoryBySymbol = new Map<string, Array<{ date: number; value: number }>>();
+
+  const totalCompras = compras.reduce((sum, compra) => sum + compra.quantity * compra.price, 0);
+  cashDeltasByDay.set(dayKey, -totalCompras);
+  appliedDeltasByDay.set(dayKey, totalCompras);
+  aportesByDay.set(dayKey, totalCompras);
+  rendimentosByDay.set(dayKey + DAY_MS * 2, 50);
+
+  compras.forEach((compra) => {
+    if (!txDeltasBySymbol.has(compra.symbol)) {
+      txDeltasBySymbol.set(compra.symbol, new Map());
+    }
+    const deltas = txDeltasBySymbol.get(compra.symbol)!;
+    deltas.set(compra.day, (deltas.get(compra.day) || 0) + compra.quantity);
+
+    if (!priceHistoryBySymbol.has(compra.symbol)) {
+      priceHistoryBySymbol.set(compra.symbol, []);
+    }
+    priceHistoryBySymbol.get(compra.symbol)!.push(
+      { date: compra.day, value: compra.price },
+      { date: compra.day + DAY_MS, value: compra.price + 1 },
+    );
+  });
+
+  const priceMapBySymbol = new Map<string, Map<number, number>>();
+  for (const [symbol, history] of priceHistoryBySymbol.entries()) {
+    priceMapBySymbol.set(symbol, buildDailyPriceMap(history, timeline));
+  }
+
+  const quantitiesBySymbol = new Map<string, number>();
+  txDeltasBySymbol.forEach((_value, symbol) => {
+    quantitiesBySymbol.set(symbol, 0);
+  });
+
+  let cashBalance = 0;
+  let valorAplicado = 0;
+  let rendimentosAcumulados = 0;
+  const patrimonioSeries: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
+
+  for (const day of timeline) {
+    cashBalance += aportesByDay.get(day) || 0;
+    cashBalance += cashDeltasByDay.get(day) || 0;
+    valorAplicado += appliedDeltasByDay.get(day) || 0;
+    if (rendimentosByDay.has(day)) {
+      const rendimento = rendimentosByDay.get(day) || 0;
+      cashBalance += rendimento;
+      rendimentosAcumulados += rendimento;
+    }
+
+    txDeltasBySymbol.forEach((deltas, symbol) => {
+      const delta = deltas.get(day) || 0;
+      quantitiesBySymbol.set(symbol, (quantitiesBySymbol.get(symbol) || 0) + delta);
+    });
+
+    let patrimonio = cashBalance + rendimentosAcumulados;
+    quantitiesBySymbol.forEach((quantity, symbol) => {
+      const price = priceMapBySymbol.get(symbol)?.get(day);
+      if (!price || price <= 0) return;
+      patrimonio += quantity * price;
+    });
+
+    patrimonioSeries.push({ data: day, valorAplicado, saldoBruto: patrimonio });
+  }
+
+  const minPatrimonio = Math.min(...patrimonioSeries.map((ponto) => ponto.saldoBruto));
+  const aplicadoFinal = patrimonioSeries[patrimonioSeries.length - 1]?.valorAplicado ?? 0;
+  const appliedNeverDecreases = patrimonioSeries.every((ponto, index, arr) => {
+    if (index === 0) return true;
+    return ponto.valorAplicado >= arr[index - 1].valorAplicado;
+  });
+  const valid = Number.isFinite(minPatrimonio) && minPatrimonio >= 0 && aplicadoFinal === totalCompras && appliedNeverDecreases;
+  if (!valid) {
+    console.warn('[Patrimonio] cenário de teste inválido', { minPatrimonio, aplicadoFinal, totalCompras, appliedNeverDecreases });
+  } else {
+    console.info('[Patrimonio] cenário OK', { minPatrimonio, aplicadoFinal });
+  }
+};
+
 export async function GET(request: NextRequest) {
   try {
+    runPatrimonioScenarioTest();
     const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
     
     // Registrar acesso se estiver personificado
@@ -187,6 +404,10 @@ export async function GET(request: NextRequest) {
     // Buscar transações de ações para gerar histórico real
     const stockTransactions = await prisma.stockTransaction.findMany({
       where: { userId: targetUserId },
+      include: {
+        stock: true,
+        asset: true,
+      },
       orderBy: { date: 'asc' },
     });
 
@@ -197,87 +418,254 @@ export async function GET(request: NextRequest) {
     // Gerar histórico baseado nas transações reais
     const historicoPatrimonio = [];
     
-    if (stockTransactions.length > 0 || cashflowInvestments.length > 0) {
-      // Criar mapa de datas e valores acumulados
-      const patrimonioPorData = new Map<number, number>();
-      
-      // Processar transações de ações
-      let patrimonioAcoes = 0;
-      stockTransactions.forEach(transaction => {
+    if (stockTransactions.length > 0 || cashflowInvestments.length > 0 || portfolio.length > 0) {
+      const hoje = normalizeDateStart(new Date());
+
+      const portfolioBySymbol = new Map<string, { quantity: number; avgPrice: number; isManual: boolean }>();
+      portfolio.forEach((item) => {
+        const symbol = item.asset?.symbol || item.stock?.ticker;
+        if (!symbol) return;
+
+        const isManual = item.asset?.type === 'emergency' || item.asset?.type === 'opportunity' ||
+          item.asset?.type === 'personalizado' || item.asset?.type === 'imovel' ||
+          symbol.startsWith('RESERVA-EMERG') || symbol.startsWith('RESERVA-OPORT') || symbol.startsWith('PERSONALIZADO');
+
+        portfolioBySymbol.set(symbol, {
+          quantity: item.quantity,
+          avgPrice: item.avgPrice,
+          isManual,
+        });
+      });
+
+      const manualValuesByDay = new Map<number, number>();
+      cashflowInvestments.forEach((investment) => {
+        (investment.values || []).forEach((value) => {
+          const day = normalizeDateStart(new Date(value.year, value.month, 1)).getTime();
+          manualValuesByDay.set(day, (manualValuesByDay.get(day) || 0) + value.value);
+        });
+      });
+
+      const transactionsBySymbol = new Map<string, Map<number, number>>();
+      const cashDeltasByDay = new Map<number, number>();
+      const appliedDeltasByDay = new Map<number, number>();
+      const aportesByDay = new Map<number, number>();
+      const pricePointsBySymbol = new Map<string, Array<{ date: number; value: number }>>();
+      const firstTransactionBySymbol = new Map<string, number>();
+
+      stockTransactions.forEach((transaction) => {
+        const symbol = transaction.stock?.ticker || transaction.asset?.symbol;
+        if (!symbol) return;
+
+        const day = normalizeDateStart(transaction.date).getTime();
+        const qtyDelta = transaction.type === 'compra' ? transaction.quantity : -transaction.quantity;
+
+        if (!transactionsBySymbol.has(symbol)) {
+          transactionsBySymbol.set(symbol, new Map());
+        }
+        const symbolDeltas = transactionsBySymbol.get(symbol)!;
+        symbolDeltas.set(day, (symbolDeltas.get(day) || 0) + qtyDelta);
+
+        const totalValue = getTransactionValue(transaction);
+        const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
+        const appliedDelta = transaction.type === 'compra' ? totalValue : -totalValue;
         if (transaction.type === 'compra') {
-          patrimonioAcoes += transaction.total;
-        } else if (transaction.type === 'venda') {
-          patrimonioAcoes -= transaction.total;
+          aportesByDay.set(day, (aportesByDay.get(day) || 0) + totalValue);
         }
-        
-        const dataKey = new Date(transaction.date.getFullYear(), transaction.date.getMonth(), 1).getTime();
-        patrimonioPorData.set(dataKey, (patrimonioPorData.get(dataKey) || 0) + patrimonioAcoes);
+        cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
+        appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
+
+        const priceValue = transaction.price > 0
+          ? transaction.price
+          : (transaction.quantity > 0 ? totalValue / transaction.quantity : 0);
+        if (priceValue > 0) {
+          if (!pricePointsBySymbol.has(symbol)) {
+            pricePointsBySymbol.set(symbol, []);
+          }
+          pricePointsBySymbol.get(symbol)!.push({ date: day, value: priceValue });
+        }
+
+        if (!firstTransactionBySymbol.has(symbol)) {
+          firstTransactionBySymbol.set(symbol, day);
+        }
       });
-      
-      // Processar investimentos em cashflow
-      let patrimonioCashflow = 0;
-      cashflowInvestments.forEach(investment => {
-        const totalValor = (investment.values || []).reduce((sum, value) => sum + value.value, 0);
-        patrimonioCashflow += totalValor;
-        
-        // Usar data atual (campo dataVencimento não existe mais)
-        const dataReferencia = new Date();
-        const dataKey = new Date(dataReferencia.getFullYear(), dataReferencia.getMonth(), 1).getTime();
-        patrimonioPorData.set(dataKey, (patrimonioPorData.get(dataKey) || 0) + patrimonioCashflow);
+
+      portfolio.forEach((item) => {
+        const symbol = item.asset?.symbol || item.stock?.ticker;
+        if (!symbol) return;
+        if (transactionsBySymbol.has(symbol)) return;
+
+        const day = normalizeDateStart(item.lastUpdate || new Date()).getTime();
+        if (!transactionsBySymbol.has(symbol)) {
+          transactionsBySymbol.set(symbol, new Map());
+        }
+        const symbolDeltas = transactionsBySymbol.get(symbol)!;
+        symbolDeltas.set(day, (symbolDeltas.get(day) || 0) + item.quantity);
+
+        const investedValue = item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
+        const cashDelta = -investedValue;
+        const appliedDelta = investedValue;
+        cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
+        appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
+        aportesByDay.set(day, (aportesByDay.get(day) || 0) + investedValue);
+
+        if (item.avgPrice > 0) {
+          if (!pricePointsBySymbol.has(symbol)) {
+            pricePointsBySymbol.set(symbol, []);
+          }
+          pricePointsBySymbol.get(symbol)!.push({ date: day, value: item.avgPrice });
+        }
+
+        if (!firstTransactionBySymbol.has(symbol)) {
+          firstTransactionBySymbol.set(symbol, day);
+        }
       });
-      
-      // Converter para array e ordenar por data
-      const historicoArray = Array.from(patrimonioPorData.entries())
-        .map(([data, valor]) => ({ data, valor: Math.round(valor * 100) / 100 }))
-        .sort((a, b) => a.data - b.data);
-      
-      // Se não há transações, usar valor atual
-      if (historicoArray.length === 0) {
-        historicoArray.push({
-          data: new Date().getTime(),
-          valor: Math.round(valorAplicado * 100) / 100,
+
+      const allSymbols = new Set<string>([
+        ...Array.from(transactionsBySymbol.keys()),
+        ...Array.from(portfolioBySymbol.keys()),
+      ]);
+
+      const timelineStartCandidates: number[] = [];
+      if (stockTransactions.length > 0) {
+        timelineStartCandidates.push(normalizeDateStart(stockTransactions[0].date).getTime());
+      }
+      if (manualValuesByDay.size > 0) {
+        timelineStartCandidates.push(Math.min(...Array.from(manualValuesByDay.keys())));
+      }
+      if (portfolio.length > 0) {
+        const earliestPortfolioDate = Math.min(
+          ...portfolio
+            .map((item) => normalizeDateStart(item.lastUpdate || new Date()).getTime())
+            .filter((value) => Number.isFinite(value))
+        );
+        if (Number.isFinite(earliestPortfolioDate)) {
+          timelineStartCandidates.push(earliestPortfolioDate);
+        }
+      }
+      const timelineStart = timelineStartCandidates.length > 0
+        ? new Date(Math.min(...timelineStartCandidates))
+        : new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1);
+
+      const timeline = buildDailyTimeline(timelineStart, hoje);
+
+      const pricesBySymbol = new Map<string, Map<number, number>>();
+      const fallbackPriceBySymbol = new Map<string, number>();
+      for (const symbol of allSymbols) {
+        const portfolioInfo = portfolioBySymbol.get(symbol);
+        const isManual = portfolioInfo?.isManual ?? false;
+        const pricePoints = pricePointsBySymbol.get(symbol) || [];
+
+        let history: Array<{ date: number; value: number }> = [];
+        if (!isManual) {
+          const fetchedHistory = await fetchAssetHistory(symbol, timelineStart);
+          history = [...fetchedHistory, ...pricePoints];
+        } else {
+          history = [...pricePoints];
+        }
+
+        const initialPrice = pricePoints.length > 0
+          ? pricePoints[0]?.value
+          : portfolioInfo?.avgPrice;
+
+        if (history.length === 0 && initialPrice && initialPrice > 0) {
+          history.push({ date: timelineStart.getTime(), value: initialPrice });
+        }
+
+        if (initialPrice && initialPrice > 0) {
+          fallbackPriceBySymbol.set(symbol, initialPrice);
+        }
+
+        pricesBySymbol.set(symbol, buildDailyPriceMap(history, timeline, initialPrice));
+      }
+
+      const quantitiesBySymbol = new Map<string, number>();
+      allSymbols.forEach((symbol) => {
+        const portfolioInfo = portfolioBySymbol.get(symbol);
+        if (portfolioInfo && !firstTransactionBySymbol.has(symbol)) {
+          quantitiesBySymbol.set(symbol, portfolioInfo.quantity);
+        } else {
+          quantitiesBySymbol.set(symbol, 0);
+        }
+      });
+
+      const rendimentosByDay = new Map<number, number>();
+      let cashBalance = 0;
+      let rendimentosAcumulados = 0;
+      let manualInvestmentsValue = 0;
+      let valorAplicadoDia = 0;
+      const patrimonioSeries: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
+
+      for (const day of timeline) {
+        if (manualValuesByDay.has(day)) {
+          manualInvestmentsValue = manualValuesByDay.get(day) || 0;
+        }
+
+        if (aportesByDay.has(day)) {
+          cashBalance += aportesByDay.get(day) || 0;
+        }
+
+        if (cashDeltasByDay.has(day)) {
+          cashBalance += cashDeltasByDay.get(day) || 0;
+        }
+
+        if (rendimentosByDay.has(day)) {
+          const rendimento = rendimentosByDay.get(day) || 0;
+          cashBalance += rendimento;
+          rendimentosAcumulados += rendimento;
+        }
+
+        if (appliedDeltasByDay.has(day)) {
+          valorAplicadoDia += appliedDeltasByDay.get(day) || 0;
+        }
+
+        transactionsBySymbol.forEach((deltas, symbol) => {
+          const qtyDelta = deltas.get(day);
+          if (!qtyDelta) return;
+          quantitiesBySymbol.set(symbol, (quantitiesBySymbol.get(symbol) || 0) + qtyDelta);
+        });
+
+        let valorMercadoAtivos = 0;
+        allSymbols.forEach((symbol) => {
+          const quantity = quantitiesBySymbol.get(symbol) || 0;
+          if (!quantity) return;
+
+          const priceMap = pricesBySymbol.get(symbol);
+          const price = priceMap?.get(day) ?? fallbackPriceBySymbol.get(symbol);
+          if (!price || !Number.isFinite(price) || price <= 0) return;
+          valorMercadoAtivos += quantity * price;
+        });
+
+        const saldoBrutoDia = valorMercadoAtivos + manualInvestmentsValue + cashBalance + rendimentosAcumulados;
+
+        patrimonioSeries.push({
+          data: day,
+          valorAplicado: Math.round(valorAplicadoDia * 100) / 100,
+          saldoBruto: Math.round(saldoBrutoDia * 100) / 100,
         });
       }
-      
-      // Adicionar pontos intermediários para suavizar o gráfico
-      const hoje = new Date();
-      const primeiroAporte = new Date(Math.min(...historicoArray.map(h => h.data)));
-      
-      // Adicionar ponto inicial (antes do primeiro aporte)
-      historicoPatrimonio.push({
-        data: new Date(primeiroAporte.getFullYear(), primeiroAporte.getMonth() - 1, 1).getTime(),
-        valor: 0,
-      });
-      
-      // Adicionar pontos do histórico real
-      historicoArray.forEach(ponto => {
-        historicoPatrimonio.push(ponto);
-      });
-      
-      // Adicionar ponto atual com valor atualizado (usando cotações)
-      const mesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1).getTime();
-      const ultimoMesHistorico = Math.max(...historicoArray.map(h => h.data));
-      
-      if (mesAtual > ultimoMesHistorico) {
-        historicoPatrimonio.push({
-          data: mesAtual,
-          valor: Math.round(saldoBruto * 100) / 100, // Usar saldo bruto com cotações atuais
-        });
+
+      const saldoBrutoAtual = Math.round((saldoBruto > 0 ? saldoBruto : valorAplicado) * 100) / 100;
+      const valorAplicadoAtual = Math.round(valorAplicado * 100) / 100;
+      if (patrimonioSeries.length > 0) {
+        patrimonioSeries[patrimonioSeries.length - 1].saldoBruto = saldoBrutoAtual;
+        patrimonioSeries[patrimonioSeries.length - 1].valorAplicado = valorAplicadoAtual;
       } else {
-        // Se o último ponto já é do mês atual, atualizá-lo com valor real
-        const ultimoIndice = historicoPatrimonio.findIndex(p => p.data === mesAtual);
-        if (ultimoIndice !== -1) {
-          historicoPatrimonio[ultimoIndice].valor = Math.round(saldoBruto * 100) / 100;
-        }
+        patrimonioSeries.push({
+          data: hoje.getTime(),
+          valorAplicado: valorAplicadoAtual,
+          saldoBruto: saldoBrutoAtual,
+        });
       }
+
+      historicoPatrimonio.push(...patrimonioSeries);
     } else {
-      // Se não há transações, mostrar linha plana com valor atual
       const hoje = new Date();
       for (let i = 11; i >= 0; i--) {
         const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
         historicoPatrimonio.push({
           data: data.getTime(),
-          valor: Math.round(valorAplicado * 100) / 100,
+          valorAplicado: 0,
+          saldoBruto: Math.round(saldoBruto * 100) / 100,
         });
       }
     }

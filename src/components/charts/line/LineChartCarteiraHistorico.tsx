@@ -82,24 +82,28 @@ ApexChartWrapper.displayName = 'ApexChartWrapper';
 interface LineChartCarteiraHistoricoProps {
   data: Array<{
     data: number;
-    valor: number;
+    valorAplicado: number;
+    saldoBruto: number;
   }>;
 }
 
 export default function LineChartCarteiraHistorico({ data: historicoData }: LineChartCarteiraHistoricoProps) {
-  // Converter dados recebidos para formato do gráfico
-  const data = useMemo(() => 
-    historicoData.map(item => [item.data, item.valor]),
+  const appliedSeries = useMemo(
+    () => historicoData.map((item) => [item.data, item.valorAplicado]),
+    [historicoData]
+  );
+  const grossSeries = useMemo(
+    () => historicoData.map((item) => [item.data, item.saldoBruto]),
     [historicoData]
   );
 
   const options: ApexOptions = useMemo(() => ({
     legend: {
-      show: false,
+      show: true,
       position: "top",
       horizontalAlign: "left",
     },
-    colors: ["#465FFF"],
+    colors: ["#10B981", "#465FFF"],
     chart: {
       fontFamily: "Outfit, sans-serif",
       height: 335,
@@ -150,6 +154,7 @@ export default function LineChartCarteiraHistorico({ data: historicoData }: Line
       },
     },
     yaxis: {
+      min: 0,
       title: {
         text: "",
         style: {
@@ -211,10 +216,14 @@ export default function LineChartCarteiraHistorico({ data: historicoData }: Line
 
   const series = useMemo(() => [
     {
-      name: "Patrimônio",
-      data: data,
+      name: "Valor Aplicado",
+      data: appliedSeries,
     },
-  ], [data]);
+    {
+      name: "Valor Atual",
+      data: grossSeries,
+    },
+  ], [appliedSeries, grossSeries]);
 
   return (
     <div className="max-w-full overflow-x-auto custom-scrollbar">

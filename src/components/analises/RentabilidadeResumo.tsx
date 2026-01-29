@@ -17,7 +17,7 @@ export default function RentabilidadeResumo() {
     if (!resumo?.historicoPatrimonio || resumo.historicoPatrimonio.length === 0) {
       return undefined;
     }
-    const firstNonZeroItem = resumo.historicoPatrimonio.find(item => item.valor > 0);
+    const firstNonZeroItem = resumo.historicoPatrimonio.find(item => item.saldoBruto > 0);
     return firstNonZeroItem?.data;
   }, [resumo?.historicoPatrimonio]);
 
