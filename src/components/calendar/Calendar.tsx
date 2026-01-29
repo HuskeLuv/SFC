@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -10,6 +10,7 @@ import {
   EventClickArg,
   EventContentArg,
 } from "@fullcalendar/core";
+import ptBrLocale from "@fullcalendar/core/locales/pt-br";
 import { useModal } from "@/hooks/useModal";
 import { Modal } from "@/components/ui/modal";
 
@@ -37,31 +38,12 @@ const Calendar: React.FC = () => {
     Primary: "primary",
     Warning: "warning",
   };
-
-  useEffect(() => {
-    // Initialize with some events
-    setEvents([
-      {
-        id: "1",
-        title: "Event Conf.",
-        start: new Date().toISOString().split("T")[0],
-        extendedProps: { calendar: "Danger" },
-      },
-      {
-        id: "2",
-        title: "Meeting",
-        start: new Date(Date.now() + 86400000).toISOString().split("T")[0],
-        extendedProps: { calendar: "Success" },
-      },
-      {
-        id: "3",
-        title: "Workshop",
-        start: new Date(Date.now() + 172800000).toISOString().split("T")[0],
-        end: new Date(Date.now() + 259200000).toISOString().split("T")[0],
-        extendedProps: { calendar: "Primary" },
-      },
-    ]);
-  }, []);
+  const calendarLabels: Record<keyof typeof calendarsEvents, string> = {
+    Danger: "Urgente",
+    Success: "Confirmado",
+    Primary: "Principal",
+    Warning: "Alerta",
+  };
 
   const handleDateSelect = (selectInfo: DateSelectArg) => {
     resetModalFields();
@@ -126,6 +108,7 @@ const Calendar: React.FC = () => {
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          locale={ptBrLocale}
           initialView="dayGridMonth"
           headerToolbar={{
             left: "prev,next addEventButton",
@@ -139,7 +122,7 @@ const Calendar: React.FC = () => {
           eventContent={renderEventContent}
           customButtons={{
             addEventButton: {
-              text: "Add Event +",
+              text: "Adicionar evento +",
               click: openModal,
             },
           }}
@@ -153,18 +136,17 @@ const Calendar: React.FC = () => {
         <div className="flex flex-col px-2 overflow-y-auto custom-scrollbar">
           <div>
             <h5 className="mb-2 font-semibold text-gray-800 modal-title text-theme-xl dark:text-white/90 lg:text-2xl">
-              {selectedEvent ? "Edit Event" : "Add Event"}
+              {selectedEvent ? "Editar evento" : "Adicionar evento"}
             </h5>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Plan your next big moment: schedule or edit an event to stay on
-              track
+              Planeje seu próximo compromisso: agende ou edite um evento.
             </p>
           </div>
           <div className="mt-8">
             <div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Event Title
+                  Título do evento
                 </label>
                 <input
                   id="event-title"
@@ -177,7 +159,7 @@ const Calendar: React.FC = () => {
             </div>
             <div className="mt-6">
               <label className="block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">
-                Event Color
+                Cor do evento
               </label>
               <div className="flex flex-wrap items-center gap-4 sm:gap-5">
                 {Object.entries(calendarsEvents).map(([key, value]) => (
@@ -207,7 +189,7 @@ const Calendar: React.FC = () => {
                             ></span>
                           </span>
                         </span>
-                        {key}
+                        {calendarLabels[key as keyof typeof calendarLabels]}
                       </label>
                     </div>
                   </div>
@@ -217,7 +199,7 @@ const Calendar: React.FC = () => {
 
             <div className="mt-6">
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                Enter Start Date
+                Data inicial
               </label>
               <div className="relative">
                 <input
@@ -232,7 +214,7 @@ const Calendar: React.FC = () => {
 
             <div className="mt-6">
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                Enter End Date
+                Data final
               </label>
               <div className="relative">
                 <input
@@ -251,14 +233,14 @@ const Calendar: React.FC = () => {
               type="button"
               className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
             >
-              Close
+              Fechar
             </button>
             <button
               onClick={handleAddOrUpdateEvent}
               type="button"
               className="btn btn-success btn-update-event flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 sm:w-auto"
             >
-              {selectedEvent ? "Update Changes" : "Add Event"}
+              {selectedEvent ? "Atualizar" : "Adicionar"}
             </button>
           </div>
         </div>
