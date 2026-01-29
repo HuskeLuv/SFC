@@ -166,7 +166,10 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
       <StandardTableBodyCell align="right">
         {formatPercentage(ativo.percentualCarteira)}
       </StandardTableBodyCell>
-      <StandardTableBodyCell align="right">
+      <StandardTableBodyCell
+        align="right"
+        className="border border-black"
+      >
         {isEditingObjetivo ? (
           <div className="flex items-center space-x-1">
             <input

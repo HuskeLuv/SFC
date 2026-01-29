@@ -168,7 +168,7 @@ const OpcoesTableRow: React.FC<OpcoesTableRowProps> = ({
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatPercentage(ativo.percentualCarteira)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
+      <td className="px-2 py-2 text-xs text-right border border-black">
         {isEditingObjetivo ? (
           <div className="flex items-center space-x-1">
             <input
