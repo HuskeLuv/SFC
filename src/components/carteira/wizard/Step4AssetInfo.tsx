@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { WizardFormData, WizardErrors, AutocompleteOption, INDEXADORES, PERIODOS, MOEDAS_FIXAS } from "@/types/wizard";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -72,6 +72,62 @@ export default function Step4AssetInfo({
     });
   };
 
+  const [decimalInputValues, setDecimalInputValues] = useState<Record<string, string>>({});
+
+  const parseDecimalValue = (rawValue: string): number | null => {
+    const trimmedValue = rawValue.trim();
+    if (!trimmedValue) {
+      return null;
+    }
+    const normalizedValue = trimmedValue.replace(/\s/g, "");
+    const hasComma = normalizedValue.includes(",");
+    const cleanedValue = hasComma
+      ? normalizedValue.replace(/\./g, "").replace(",", ".")
+      : normalizedValue;
+    const numericValue = Number.parseFloat(cleanedValue.replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(numericValue) ? numericValue : null;
+  };
+
+  const getDecimalInputValue = (field: keyof WizardFormData) => {
+    const localValue = decimalInputValues[field];
+    if (localValue !== undefined) {
+      return localValue;
+    }
+    const numericValue = formData[field];
+    if (typeof numericValue !== "number" || Number.isNaN(numericValue)) {
+      return "";
+    }
+    return String(numericValue).replace(".", ",");
+  };
+
+  const handleDecimalInputChange = (field: keyof WizardFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    setDecimalInputValues((prev) => ({ ...prev, [field]: rawValue }));
+
+    if (!rawValue.trim()) {
+      handleInputChange(field, 0);
+      return;
+    }
+
+    const parsedValue = parseDecimalValue(rawValue);
+    if (parsedValue === null) {
+      return;
+    }
+    handleInputChange(field, parsedValue);
+  };
+
+  const decimalInputProps = {
+    type: "text" as const,
+    inputMode: "decimal" as const,
+    pattern: "[0-9]*[.,]?[0-9]*",
+  };
+
+  const integerInputProps = {
+    type: "text" as const,
+    inputMode: "numeric" as const,
+    pattern: "[0-9]*",
+  };
+
   // Calcular valor total automaticamente para alguns tipos
   useEffect(() => {
     if (formData.tipoAtivo === "fii" && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
@@ -109,10 +165,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="valorInvestido">Valor (R$) *</Label>
               <Input
                 id="valorInvestido"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 10000.00"
-                value={formData.valorInvestido}
-                onChange={(e) => handleInputChange('valorInvestido', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("valorInvestido")}
+                onChange={handleDecimalInputChange("valorInvestido")}
                 error={!!errors.valorInvestido}
                 hint={errors.valorInvestido}
                 min="0"
@@ -197,10 +253,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="valorAplicado">Valor Aplicado (R$) *</Label>
               <Input
                 id="valorAplicado"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 10000.00"
-                value={formData.valorAplicado}
-                onChange={(e) => handleInputChange('valorAplicado', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("valorAplicado")}
+                onChange={handleDecimalInputChange("valorAplicado")}
                 error={!!errors.valorAplicado}
                 hint={errors.valorAplicado}
                 min="0"
@@ -211,10 +267,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="percentualCDI">Percentual sobre o CDI (%)</Label>
               <Input
                 id="percentualCDI"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 100"
-                value={formData.percentualCDI}
-                onChange={(e) => handleInputChange('percentualCDI', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("percentualCDI")}
+                onChange={handleDecimalInputChange("percentualCDI")}
                 min="0"
                 step="0.01"
               />
@@ -245,10 +301,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="quantidade">Quantidade *</Label>
               <Input
                 id="quantidade"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 0.5"
-                value={formData.quantidade}
-                onChange={(e) => handleInputChange('quantidade', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("quantidade")}
+                onChange={handleDecimalInputChange("quantidade")}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -259,10 +315,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="cotacaoCompra">Cotação de Compra (R$) *</Label>
               <Input
                 id="cotacaoCompra"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 150000.00"
-                value={formData.cotacaoCompra}
-                onChange={(e) => handleInputChange('cotacaoCompra', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("cotacaoCompra")}
+                onChange={handleDecimalInputChange("cotacaoCompra")}
                 error={!!errors.cotacaoCompra}
                 hint={errors.cotacaoCompra}
                 min="0"
@@ -308,10 +364,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="cotacaoCompra">Cotação de Compra (R$) *</Label>
               <Input
                 id="cotacaoCompra"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 5.20"
-                value={formData.cotacaoCompra}
-                onChange={(e) => handleInputChange('cotacaoCompra', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("cotacaoCompra")}
+                onChange={handleDecimalInputChange("cotacaoCompra")}
                 error={!!errors.cotacaoCompra}
                 hint={errors.cotacaoCompra}
                 min="0"
@@ -322,10 +378,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="valorInvestido">Valor do Investimento (R$) *</Label>
               <Input
                 id="valorInvestido"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 1000.00"
-                value={formData.valorInvestido}
-                onChange={(e) => handleInputChange('valorInvestido', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("valorInvestido")}
+                onChange={handleDecimalInputChange("valorInvestido")}
                 error={!!errors.valorInvestido}
                 hint={errors.valorInvestido}
                 min="0"
@@ -370,10 +426,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="quantidade">Quantidade de Cotas *</Label>
               <Input
                 id="quantidade"
-                type="number"
+                {...integerInputProps}
                 placeholder="Ex: 1000"
-                value={formData.quantidade}
-                onChange={(e) => handleInputChange('quantidade', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("quantidade")}
+                onChange={handleDecimalInputChange("quantidade")}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -384,10 +440,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="precoUnitario">Preço Unitário (R$) *</Label>
               <Input
                 id="precoUnitario"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 10.50"
-                value={formData.precoUnitario}
-                onChange={(e) => handleInputChange('precoUnitario', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("precoUnitario")}
+                onChange={handleDecimalInputChange("precoUnitario")}
                 error={!!errors.precoUnitario}
                 hint={errors.precoUnitario}
                 min="0"
@@ -436,10 +492,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="valorAplicado">Valor Aplicado (R$) *</Label>
               <Input
                 id="valorAplicado"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 5000.00"
-                value={formData.valorAplicado}
-                onChange={(e) => handleInputChange('valorAplicado', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("valorAplicado")}
+                onChange={handleDecimalInputChange("valorAplicado")}
                 error={!!errors.valorAplicado}
                 hint={errors.valorAplicado}
                 min="0"
@@ -500,10 +556,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="valorAplicado">Valor Aplicado (R$) *</Label>
               <Input
                 id="valorAplicado"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 10000.00"
-                value={formData.valorAplicado}
-                onChange={(e) => handleInputChange('valorAplicado', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("valorAplicado")}
+                onChange={handleDecimalInputChange("valorAplicado")}
                 error={!!errors.valorAplicado}
                 hint={errors.valorAplicado}
                 min="0"
@@ -530,10 +586,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="taxaJurosAnual">Taxa de Juros Anual (%) *</Label>
               <Input
                 id="taxaJurosAnual"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 12.5"
-                value={formData.taxaJurosAnual}
-                onChange={(e) => handleInputChange('taxaJurosAnual', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("taxaJurosAnual")}
+                onChange={handleDecimalInputChange("taxaJurosAnual")}
                 error={!!errors.taxaJurosAnual}
                 hint={errors.taxaJurosAnual}
                 min="0"
@@ -624,10 +680,10 @@ export default function Step4AssetInfo({
                 <Label htmlFor="valorInvestido">Valor Investido (R$) *</Label>
                 <Input
                   id="valorInvestido"
-                  type="number"
+                  {...decimalInputProps}
                   placeholder="Ex: 10000.00"
-                  value={formData.valorInvestido}
-                  onChange={(e) => handleInputChange('valorInvestido', parseFloat(e.target.value) || 0)}
+                  value={getDecimalInputValue("valorInvestido")}
+                  onChange={handleDecimalInputChange("valorInvestido")}
                   error={!!errors.valorInvestido}
                   hint={errors.valorInvestido}
                   min="0"
@@ -640,10 +696,10 @@ export default function Step4AssetInfo({
                   <Label htmlFor="cotacaoUnitaria">Preço por Cota (R$) *</Label>
                   <Input
                     id="cotacaoUnitaria"
-                    type="number"
+                    {...decimalInputProps}
                     placeholder="Ex: 150.00"
-                    value={formData.cotacaoUnitaria}
-                    onChange={(e) => handleInputChange('cotacaoUnitaria', parseFloat(e.target.value) || 0)}
+                    value={getDecimalInputValue("cotacaoUnitaria")}
+                    onChange={handleDecimalInputChange("cotacaoUnitaria")}
                     error={!!errors.cotacaoUnitaria}
                     hint={errors.cotacaoUnitaria}
                     min="0"
@@ -654,10 +710,10 @@ export default function Step4AssetInfo({
                   <Label htmlFor="quantidade">Quantidade de Cotas *</Label>
                   <Input
                     id="quantidade"
-                    type="number"
+                    {...decimalInputProps}
                     placeholder="Ex: 100"
-                    value={formData.quantidade}
-                    onChange={(e) => handleInputChange('quantidade', parseFloat(e.target.value) || 0)}
+                    value={getDecimalInputValue("quantidade")}
+                    onChange={handleDecimalInputChange("quantidade")}
                     error={!!errors.quantidade}
                     hint={errors.quantidade}
                     min="0"
@@ -668,7 +724,7 @@ export default function Step4AssetInfo({
                   <Label htmlFor="valorInvestido">Total Investido (R$)</Label>
                   <Input
                     id="valorInvestido"
-                    type="number"
+                    {...decimalInputProps}
                     placeholder="Calculado automaticamente"
                     value={formData.quantidade * formData.cotacaoUnitaria}
                     disabled
@@ -723,10 +779,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="quantidade">Quantidade de Cotas *</Label>
               <Input
                 id="quantidade"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 100"
-                value={formData.quantidade}
-                onChange={(e) => handleInputChange('quantidade', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("quantidade")}
+                onChange={handleDecimalInputChange("quantidade")}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -737,10 +793,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="cotacaoUnitaria">Cotação Unitária (R$) *</Label>
               <Input
                 id="cotacaoUnitaria"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 95.50"
-                value={formData.cotacaoUnitaria}
-                onChange={(e) => handleInputChange('cotacaoUnitaria', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("cotacaoUnitaria")}
+                onChange={handleDecimalInputChange("cotacaoUnitaria")}
                 error={!!errors.cotacaoUnitaria}
                 hint={errors.cotacaoUnitaria}
                 min="0"
@@ -751,10 +807,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="taxaCorretagem">Taxa de Corretagem (R$)</Label>
               <Input
                 id="taxaCorretagem"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 2.50"
-                value={formData.taxaCorretagem}
-                onChange={(e) => handleInputChange('taxaCorretagem', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("taxaCorretagem")}
+                onChange={handleDecimalInputChange("taxaCorretagem")}
                 min="0"
                 step="0.01"
               />
@@ -763,7 +819,7 @@ export default function Step4AssetInfo({
               <Label htmlFor="valorInvestido">Total Investido (R$)</Label>
               <Input
                 id="valorInvestido"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Calculado automaticamente"
                 value={formData.valorInvestido}
                 disabled
@@ -817,10 +873,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="quantidade">Quantidade *</Label>
               <Input
                 id="quantidade"
-                type="number"
+                {...integerInputProps}
                 placeholder="Ex: 100"
-                value={formData.quantidade}
-                onChange={(e) => handleInputChange('quantidade', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("quantidade")}
+                onChange={handleDecimalInputChange("quantidade")}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -831,10 +887,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="cotacaoUnitaria">Cotação Unitária (R$) *</Label>
               <Input
                 id="cotacaoUnitaria"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 25.50"
-                value={formData.cotacaoUnitaria}
-                onChange={(e) => handleInputChange('cotacaoUnitaria', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("cotacaoUnitaria")}
+                onChange={handleDecimalInputChange("cotacaoUnitaria")}
                 error={!!errors.cotacaoUnitaria}
                 hint={errors.cotacaoUnitaria}
                 min="0"
@@ -845,10 +901,99 @@ export default function Step4AssetInfo({
               <Label htmlFor="taxaCorretagem">Taxa de Corretagem (R$)</Label>
               <Input
                 id="taxaCorretagem"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 2.50"
-                value={formData.taxaCorretagem}
-                onChange={(e) => handleInputChange('taxaCorretagem', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("taxaCorretagem")}
+                onChange={handleDecimalInputChange("taxaCorretagem")}
+                min="0"
+                step="0.01"
+              />
+            </div>
+          </>
+        );
+
+      case "stock":
+        return (
+          <>
+            <div>
+              <DatePicker
+                id="dataCompra"
+                label="Data de Compra *"
+                placeholder="Selecione a data"
+                defaultDate={formData.dataCompra}
+                onChange={(selectedDates) => {
+                  if (selectedDates && selectedDates.length > 0) {
+                    handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
+                  }
+                }}
+              />
+              {errors.dataCompra && (
+                <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="moeda">Moeda *</Label>
+              <Select
+                options={MOEDAS_FIXAS}
+                placeholder="Selecione a moeda"
+                defaultValue={formData.moeda}
+                onChange={(value) => handleInputChange('moeda', value)}
+                className={errors.moeda ? 'border-red-500' : ''}
+              />
+              {errors.moeda && (
+                <p className="mt-1 text-sm text-red-500">{errors.moeda}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="cotacaoMoeda">Cotação da Moeda (R$) *</Label>
+              <Input
+                id="cotacaoMoeda"
+                {...decimalInputProps}
+                placeholder="Ex: 5.20"
+                value={getDecimalInputValue("cotacaoMoeda")}
+                onChange={handleDecimalInputChange("cotacaoMoeda")}
+                error={!!errors.cotacaoMoeda}
+                hint={errors.cotacaoMoeda}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <Label htmlFor="quantidade">Quantidade *</Label>
+              <Input
+                id="quantidade"
+                {...integerInputProps}
+                placeholder="Ex: 10"
+                value={getDecimalInputValue("quantidade")}
+                onChange={handleDecimalInputChange("quantidade")}
+                error={!!errors.quantidade}
+                hint={errors.quantidade}
+                min="0"
+                step="1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cotacaoUnitaria">Preço por Ação (moeda selecionada) *</Label>
+              <Input
+                id="cotacaoUnitaria"
+                {...decimalInputProps}
+                placeholder="Ex: 120.50"
+                value={getDecimalInputValue("cotacaoUnitaria")}
+                onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                error={!!errors.cotacaoUnitaria}
+                hint={errors.cotacaoUnitaria}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <Label htmlFor="taxaCorretagem">Taxa de Corretagem (R$)</Label>
+              <Input
+                id="taxaCorretagem"
+                {...decimalInputProps}
+                placeholder="Ex: 2.50"
+                value={getDecimalInputValue("taxaCorretagem")}
+                onChange={handleDecimalInputChange("taxaCorretagem")}
                 min="0"
                 step="0.01"
               />
@@ -880,10 +1025,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="quantidade">Quantidade *</Label>
               <Input
                 id="quantidade"
-                type="number"
+                {...integerInputProps}
                 placeholder="Ex: 100"
-                value={formData.quantidade}
-                onChange={(e) => handleInputChange('quantidade', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("quantidade")}
+                onChange={handleDecimalInputChange("quantidade")}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -894,10 +1039,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="cotacaoUnitaria">Cotação Unitária (R$) *</Label>
               <Input
                 id="cotacaoUnitaria"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 25.50"
-                value={formData.cotacaoUnitaria}
-                onChange={(e) => handleInputChange('cotacaoUnitaria', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("cotacaoUnitaria")}
+                onChange={handleDecimalInputChange("cotacaoUnitaria")}
                 error={!!errors.cotacaoUnitaria}
                 hint={errors.cotacaoUnitaria}
                 min="0"
@@ -908,10 +1053,10 @@ export default function Step4AssetInfo({
               <Label htmlFor="taxaCorretagem">Taxa de Corretagem (R$)</Label>
               <Input
                 id="taxaCorretagem"
-                type="number"
+                {...decimalInputProps}
                 placeholder="Ex: 2.50"
-                value={formData.taxaCorretagem}
-                onChange={(e) => handleInputChange('taxaCorretagem', parseFloat(e.target.value) || 0)}
+                value={getDecimalInputValue("taxaCorretagem")}
+                onChange={handleDecimalInputChange("taxaCorretagem")}
                 min="0"
                 step="0.01"
               />

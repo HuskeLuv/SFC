@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       quantidade,
       cotacaoUnitaria,
       cotacaoCompra,
+      cotacaoMoeda,
       valorAplicado,
       valorInvestido,
       taxaCorretagem = 0,
@@ -118,6 +119,12 @@ export async function POST(request: NextRequest) {
           error: 'Tipo de FII deve ser: fofi, tvm ou tijolo' 
         }, { status: 400 });
       }
+    } else if (tipoAtivo === "stock") {
+      if (!dataCompra || !quantidade || !cotacaoUnitaria || !moeda || !cotacaoMoeda) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para stocks: dataCompra, quantidade, cotacaoUnitaria, moeda, cotacaoMoeda' 
+        }, { status: 400 });
+      }
     } else if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
       // Para reserva de emergência e oportunidade, apenas valor e data são necessários
       if (!dataCompra || !valorInvestido) {
@@ -151,6 +158,12 @@ export async function POST(request: NextRequest) {
     if ((tipoAtivo === "acao" || tipoAtivo === "bdr" || tipoAtivo === "fii") && (quantidade <= 0 || cotacaoUnitaria <= 0)) {
       return NextResponse.json({ 
         error: 'Quantidade e cotação unitária devem ser maiores que zero' 
+      }, { status: 400 });
+    }
+
+    if (tipoAtivo === "stock" && (quantidade <= 0 || cotacaoUnitaria <= 0 || cotacaoMoeda <= 0)) {
+      return NextResponse.json({ 
+        error: 'Quantidade, cotação unitária e cotação da moeda devem ser maiores que zero' 
       }, { status: 400 });
     }
     
@@ -304,6 +317,10 @@ export async function POST(request: NextRequest) {
       valorCalculado = (quantidade * cotacaoUnitaria) + (taxaCorretagem || 0);
       quantidadeFinal = quantidade;
       precoFinal = cotacaoUnitaria;
+    } else if (tipoAtivo === "stock") {
+      valorCalculado = (quantidade * cotacaoUnitaria * cotacaoMoeda) + (taxaCorretagem || 0);
+      quantidadeFinal = quantidade;
+      precoFinal = cotacaoUnitaria * cotacaoMoeda;
     } else if (tipoAtivo === "criptoativo") {
       valorCalculado = quantidade * cotacaoCompra;
       quantidadeFinal = quantidade;
@@ -343,6 +360,9 @@ export async function POST(request: NextRequest) {
     if (tipoAtivo === "personalizado") {
       metadata.metodo = metodo || "valor";
     }
+    if (tipoAtivo === "stock") {
+      metadata.cotacaoMoeda = cotacaoMoeda || null;
+    }
     if (observacoes) {
       metadata.observacoes = observacoes;
     }
@@ -371,6 +391,7 @@ export async function POST(request: NextRequest) {
         estrategia: estrategia || null,
         tipoFii: tipoFii || null,
         moeda: moeda || null,
+        cotacaoMoeda: cotacaoMoeda || null,
       },
     });
 

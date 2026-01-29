@@ -107,6 +107,7 @@ export async function GET(request: NextRequest) {
         'bdr': ['brd', 'bdr'],
         'etf': ['etf'],
         'reit': ['reit'],
+        'stock': ['stock'],
         'debenture': ['bond'],
         'fundo': ['fund', 'funds'],
         'tesouro-direto': ['bond'],

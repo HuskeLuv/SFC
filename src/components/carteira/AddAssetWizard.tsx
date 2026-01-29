@@ -32,6 +32,7 @@ const INITIAL_FORM_DATA: WizardFormData = {
   quantidade: 0,
   cotacaoUnitaria: 0,
   cotacaoCompra: 0,
+  cotacaoMoeda: 0,
   valorInvestido: 0,
   valorAplicado: 0,
   taxaCorretagem: 0,
@@ -125,6 +126,16 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       
       if (tipoAtivo === "acao") {
         return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.estrategia);
+      }
+
+      if (tipoAtivo === "stock") {
+        return !!(
+          dataCompra &&
+          formData.quantidade > 0 &&
+          formData.cotacaoUnitaria > 0 &&
+          formData.moeda &&
+          formData.cotacaoMoeda > 0
+        );
       }
       
       // Para BDRs, ETFs, REITs, etc.

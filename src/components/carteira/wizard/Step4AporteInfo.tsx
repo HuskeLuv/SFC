@@ -50,7 +50,9 @@ export default function Step4AporteInfo({
         <Label htmlFor="valorAporte">Valor do Aporte (R$) *</Label>
         <Input
           id="valorAporte"
-          type="number"
+          type="text"
+          inputMode="decimal"
+          pattern="[0-9]*[.,]?[0-9]*"
           placeholder="Ex: 1000.00"
           value={formData.valorAporte}
           onChange={(e) => handleInputChange("valorAporte", parseFloat(e.target.value) || 0)}

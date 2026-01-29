@@ -53,6 +53,7 @@ export interface WizardFormData {
   quantidade: number;
   cotacaoUnitaria: number;
   cotacaoCompra: number;
+  cotacaoMoeda: number;
   valorInvestido: number;
   valorAplicado: number;
   taxaCorretagem: number;
@@ -94,6 +95,7 @@ export interface WizardErrors {
   quantidade?: string;
   cotacaoUnitaria?: string;
   cotacaoCompra?: string;
+  cotacaoMoeda?: string;
   valorInvestido?: string;
   valorAplicado?: string;
   taxaJurosAnual?: string;
@@ -125,7 +127,9 @@ export const TIPOS_ATIVO = [
   { value: "criptoativo", label: "Criptoativos" },
   { value: "debenture", label: "Debêntures" },
   { value: "fundo", label: "Fundos" },
-  { value: "fii", label: "Fundos Imobiliários e REITs" },
+  { value: "fii", label: "Fundos Imobiliários (FII's)" },
+  { value: "reit", label: "REIT's" },
+  { value: "stock", label: "Stocks" },
   { value: "moeda", label: "Moedas" },
   { value: "personalizado", label: "Personalizado" },
   { value: "poupanca", label: "Poupança" },

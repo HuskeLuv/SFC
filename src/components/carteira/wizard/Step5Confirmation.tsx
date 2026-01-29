@@ -178,6 +178,23 @@ export default function Step5Confirmation({
           </>
         );
 
+      case "stock":
+        return (
+          <>
+            {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}
+            {renderFieldValue("Moeda", formData.moeda, getMoedaLabel)}
+            {renderFieldValue("Cotação da Moeda (R$)", formData.cotacaoMoeda, formatCurrency)}
+            {renderFieldValue("Quantidade", formData.quantidade)}
+            {renderFieldValue("Preço por Ação (moeda selecionada)", formData.cotacaoUnitaria)}
+            {renderFieldValue("Taxa de Corretagem", formData.taxaCorretagem, formatCurrency)}
+            {renderFieldValue(
+              "Total em R$",
+              (formData.quantidade || 0) * (formData.cotacaoUnitaria || 0) * (formData.cotacaoMoeda || 0) + (formData.taxaCorretagem || 0),
+              formatCurrency
+            )}
+          </>
+        );
+
       default:
         // Para ações, BDRs, ETFs, REITs, etc.
         return (

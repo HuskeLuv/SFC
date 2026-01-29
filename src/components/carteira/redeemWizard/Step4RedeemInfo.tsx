@@ -92,7 +92,9 @@ export default function Step4RedeemInfo({
             <Label htmlFor="quantidade">Quantidade a resgatar *</Label>
             <Input
               id="quantidade"
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="Ex: 10"
               value={formData.quantidade}
               onChange={(e) => handleInputChange("quantidade", parseInt(e.target.value, 10) || 0)}
@@ -106,7 +108,9 @@ export default function Step4RedeemInfo({
             <Label htmlFor="cotacaoUnitaria">Cotação unitária (R$) *</Label>
             <Input
               id="cotacaoUnitaria"
-              type="number"
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*[.,]?[0-9]*"
               placeholder="Ex: 32.50"
               value={formData.cotacaoUnitaria}
               onChange={(e) => handleInputChange("cotacaoUnitaria", parseFloat(e.target.value) || 0)}
@@ -122,7 +126,9 @@ export default function Step4RedeemInfo({
           <Label htmlFor="valorResgate">Valor do resgate (R$) *</Label>
           <Input
             id="valorResgate"
-            type="number"
+          type="text"
+          inputMode="decimal"
+          pattern="[0-9]*[.,]?[0-9]*"
             placeholder="Ex: 1000.00"
             value={formData.valorResgate}
             onChange={(e) => handleInputChange("valorResgate", parseFloat(e.target.value) || 0)}
