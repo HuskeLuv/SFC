@@ -1,12 +1,22 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { useEtf } from "@/hooks/useEtf";
-import { EtfAtivo, EtfSecao } from "@/types/etf";
+import { EtfAtivo, EtfSecao, RegiaoEtf } from "@/types/etf";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import PieChartEtfAtivo from "@/components/charts/pie/PieChartEtfAtivo";
-import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const ETF_COLUMN_COUNT = 13;
+const ETF_AUX_COLUMN_COUNT = 4;
+const ETF_SECTION_ORDER = ["brasil", "estados_unidos"] as const;
+const ETF_SECTION_NAMES: Record<(typeof ETF_SECTION_ORDER)[number], string> = {
+  brasil: "Brasil",
+  estados_unidos: "EUA",
+};
 
 interface EtfMetricCardProps {
   title: string;
@@ -208,6 +218,7 @@ const EtfSection: React.FC<EtfSectionProps> = ({
   onUpdateObjetivo,
   onUpdateCotacao,
 }) => {
+  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
 
   const currency = secao.regiao === 'estados_unidos' ? 'USD' : 'BRL';
 
@@ -226,7 +237,6 @@ const EtfSection: React.FC<EtfSectionProps> = ({
               <ChevronDownIcon className="w-4 h-4" />
             )}
             <span>{secao.nome}</span>
-            <span className="text-xs">({secao.regiao === 'brasil' ? 'BRASIL' : 'EUA'})</span>
           </div>
         </td>
         <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
@@ -273,6 +283,12 @@ const EtfSection: React.FC<EtfSectionProps> = ({
           onUpdateCotacao={onUpdateCotacao}
         />
       ))}
+      {isExpanded && (
+        <BasicTablePlaceholderRows
+          count={placeholderCount}
+          colSpan={ETF_COLUMN_COUNT}
+        />
+      )}
     </>
   );
 };
@@ -286,7 +302,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.etfs ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['brasil', 'estados_unidos'])
+    new Set(ETF_SECTION_ORDER)
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -350,6 +366,37 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     await updateCotacao(ativoId, novaCotacao);
   };
 
+  const normalizedSections = useMemo(() => {
+    const createEmptySection = (
+      regiao: (typeof ETF_SECTION_ORDER)[number],
+      nome: string
+    ): EtfSecao => ({
+      regiao: regiao as RegiaoEtf,
+      nome,
+      ativos: [],
+      totalQuantidade: 0,
+      totalValorAplicado: 0,
+      totalValorAtualizado: 0,
+      totalPercentualCarteira: 0,
+      totalRisco: 0,
+      totalObjetivo: 0,
+      totalQuantoFalta: 0,
+      totalNecessidadeAporte: 0,
+      rentabilidadeMedia: 0,
+    });
+
+    const sectionMap = new Map<string, EtfSecao>();
+    (dataComRisco?.secoes || []).forEach((secao) => {
+      const nome = secao.nome || ETF_SECTION_NAMES[secao.regiao];
+      sectionMap.set(secao.regiao, { ...secao, nome });
+    });
+
+    return ETF_SECTION_ORDER.map((regiao) => {
+      const nome = ETF_SECTION_NAMES[regiao];
+      return sectionMap.get(regiao) ?? createEmptySection(regiao, nome);
+    });
+  }, [dataComRisco?.secoes]);
+
   if (loading) {
     return <LoadingSpinner text="Carregando dados ETF..." />;
   }
@@ -367,59 +414,6 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <EtfMetricCard
-            title="Necessidade de Aporte Total"
-            value={formatCurrency(necessidadeAporteTotalCalculada)}
-            color="warning"
-          />
-          <EtfMetricCard
-            title="Caixa para Investir"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <EtfMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(0)}
-          />
-          <EtfMetricCard
-            title="Valor Atualizado"
-            value={formatCurrency(0)}
-          />
-          <EtfMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <EtfMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="ETF's - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhum ETF encontrado
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-                Adicione ETFs para começar a acompanhar sua carteira de fundos de índice.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
@@ -431,25 +425,25 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
         />
         <EtfMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data?.resumo?.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
           color="success"
         />
         <EtfMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data?.resumo?.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <EtfMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data?.resumo?.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
         />
         <EtfMetricCard
           title="Rendimento"
-          value={formatCurrency(data?.resumo?.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <EtfMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data?.resumo?.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -457,7 +451,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       {/* Tabela principal */}
       <ComponentCard title="ETF's - Detalhamento">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
                 <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
@@ -503,22 +497,8 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
               </tr>
             </thead>
             <tbody>
-              {dataComRisco?.secoes?.map((secao) => (
-                <EtfSection
-                  key={secao.regiao}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  isExpanded={expandedSections.has(secao.regiao)}
-                  onToggle={() => toggleSection(secao.regiao)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateCotacao={handleUpdateCotacao}
-                />
-              )) || []}
-
               {/* Linha de totalização */}
-              <tr className="bg-[#808080] border-t-2 border-gray-300">
+              <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
@@ -551,6 +531,20 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
+
+              {normalizedSections.map((secao) => (
+                <EtfSection
+                  key={secao.regiao}
+                  secao={secao}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  formatNumber={formatNumber}
+                  isExpanded={expandedSections.has(secao.regiao)}
+                  onToggle={() => toggleSection(secao.regiao)}
+                  onUpdateObjetivo={handleUpdateObjetivo}
+                  onUpdateCotacao={handleUpdateCotacao}
+                />
+              ))}
             </tbody>
           </table>
         </div>
@@ -561,7 +555,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
         <div className="xl:col-span-6">
           <ComponentCard title="Resumo de Aportes">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700">
                     <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -579,7 +573,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.tabelaAuxiliar?.map((item, index) => (
+                  {(data?.tabelaAuxiliar || []).map((item, index) => (
                     <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
                       <td className="px-2 py-2 text-xs font-medium text-black">
                         {item.ticker}
@@ -597,6 +591,10 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                       </td>
                     </tr>
                   ))}
+                  <BasicTablePlaceholderRows
+                    count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
+                    colSpan={ETF_AUX_COLUMN_COUNT}
+                  />
                 </tbody>
               </table>
             </div>

@@ -1,11 +1,14 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { usePrevidenciaSeguros } from "@/hooks/usePrevidenciaSeguros";
-import { PrevidenciaSegurosAtivo, PrevidenciaSegurosSecao } from "@/types/previdencia-seguros";
+import { PrevidenciaSegurosAtivo } from "@/types/previdencia-seguros";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const PREVIDENCIA_SEGUROS_COLUMN_COUNT = 17;
 
 interface PrevidenciaSegurosMetricCardProps {
   title: string;
@@ -200,99 +203,6 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
   );
 };
 
-interface PrevidenciaSegurosSectionProps {
-  secao: PrevidenciaSegurosSecao;
-  formatCurrency: (value: number, currency?: 'BRL' | 'USD') => string;
-  formatPercentage: (value: number) => string;
-  formatNumber: (value: number) => string;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-  onUpdateCotacao: (ativoId: string, novaCotacao: number) => void;
-}
-
-const PrevidenciaSegurosSection: React.FC<PrevidenciaSegurosSectionProps> = ({
-  secao,
-  formatCurrency,
-  formatPercentage,
-  formatNumber,
-  isExpanded,
-  onToggle,
-  onUpdateObjetivo,
-  onUpdateCotacao,
-}) => {
-  return (
-    <>
-      {/* Cabeçalho da seção */}
-      <tr 
-        className="bg-[#808080] cursor-pointer"
-        onClick={onToggle}
-      >
-        <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
-          <div className="flex items-center space-x-2">
-            {isExpanded ? (
-              <ChevronUpIcon className="w-4 h-4" />
-            ) : (
-              <ChevronDownIcon className="w-4 h-4" />
-            )}
-            <span>{secao.nome}</span>
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-              {secao.tipo === 'seguro' ? 'SEGURO' : 'FUNDOS PREV'}
-            </span>
-          </div>
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatNumber(secao.totalQuantidade)}
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatCurrency(secao.totalValorAplicado)}
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatCurrency(secao.totalValorAtualizado)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalRisco)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalPercentualCarteira)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalObjetivo)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalQuantoFalta)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatCurrency(secao.totalNecessidadeAporte)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.rentabilidadeMedia)}
-        </td>
-      </tr>
-
-      {/* Ativos da seção */}
-      {isExpanded && secao.ativos.map((ativo) => (
-        <PrevidenciaSegurosTableRow
-          key={ativo.id}
-          ativo={ativo}
-          formatCurrency={formatCurrency}
-          formatPercentage={formatPercentage}
-          formatNumber={formatNumber}
-          onUpdateObjetivo={onUpdateObjetivo}
-          onUpdateCotacao={onUpdateCotacao}
-        />
-      ))}
-    </>
-  );
-};
-
 interface PrevidenciaSegurosTableProps {
   totalCarteira?: number;
 }
@@ -301,62 +211,19 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
   const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = usePrevidenciaSeguros();
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.previdenciaSeguros ?? data?.resumo?.necessidadeAporteTotal ?? 0;
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['seguro', 'growth_fundos_prev'])
-  );
+  const ativosComRisco = useMemo(() => {
+    if (!data) return [];
 
-  // Calcular risco (carteira total) e percentual da carteira da aba
-  const dataComRisco = useMemo(() => {
-    if (!data) return data;
-
-    const totalTabValue = data.totalGeral?.valorAtualizado || 0;
+    const ativos = data.secoes.flatMap((secao) => secao.ativos);
+    const totalTabValue = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
     const shouldCalculateRisco = totalCarteira > 0;
 
-    const secoesComRisco = data.secoes.map(secao => {
-      const totalPercentualCarteira = totalTabValue > 0
-        ? (secao.totalValorAtualizado / totalTabValue) * 100
-        : 0;
-
-      return {
-        ...secao,
-        ativos: secao.ativos.map(ativo => ({
-          ...ativo,
-          riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
-          percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
-        })),
-        totalPercentualCarteira,
-        totalRisco: secao.ativos.reduce(
-          (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
-          0
-        ),
-      };
-    });
-
-    const totalGeralRisco = secoesComRisco.reduce(
-      (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
-      0
-    );
-
-    return {
-      ...data,
-      secoes: secoesComRisco,
-      totalGeral: {
-        ...data.totalGeral,
-        risco: totalGeralRisco,
-        percentualCarteira: totalTabValue > 0 ? 100 : 0,
-      },
-    };
+    return ativos.map((ativo) => ({
+      ...ativo,
+      riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+      percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
+    }));
   }, [data, totalCarteira]);
-
-  const toggleSection = (tipo: string) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(tipo)) {
-      newExpanded.delete(tipo);
-    } else {
-      newExpanded.add(tipo);
-    }
-    setExpandedSections(newExpanded);
-  };
 
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
@@ -365,6 +232,7 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
   const handleUpdateCotacao = async (ativoId: string, novaCotacao: number) => {
     await updateCotacao(ativoId, novaCotacao);
   };
+
 
   if (loading) {
     return <LoadingSpinner text="Carregando dados de previdência e seguros..." />;
@@ -383,60 +251,6 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
     );
   }
 
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        {/* Cards de resumo */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <PrevidenciaSegurosMetricCard
-            title="Necessidade de Aporte Total"
-            value={formatCurrency(necessidadeAporteTotalCalculada)}
-            color="warning"
-          />
-          <PrevidenciaSegurosMetricCard
-            title="Caixa para Investir"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <PrevidenciaSegurosMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(0)}
-          />
-          <PrevidenciaSegurosMetricCard
-            title="Valor Atualizado"
-            value={formatCurrency(0)}
-          />
-          <PrevidenciaSegurosMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <PrevidenciaSegurosMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="Previdência & Seguros - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhum ativo encontrado
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-                Adicione produtos de previdência e seguros para começar a acompanhar sua carteira de proteção e aposentadoria.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
@@ -448,25 +262,25 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
         />
         <PrevidenciaSegurosMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data.resumo.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
           color="success"
         />
         <PrevidenciaSegurosMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data.resumo.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <PrevidenciaSegurosMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data.resumo.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
         />
         <PrevidenciaSegurosMetricCard
           title="Rendimento"
-          value={formatCurrency(data.resumo.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <PrevidenciaSegurosMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.resumo.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -474,7 +288,7 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
       {/* Tabela principal */}
       <ComponentCard title="Previdência & Seguros - Detalhamento">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
                 <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
@@ -532,22 +346,8 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
               </tr>
             </thead>
             <tbody>
-              {dataComRisco?.secoes.map((secao) => (
-                <PrevidenciaSegurosSection
-                  key={secao.tipo}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  isExpanded={expandedSections.has(secao.tipo)}
-                  onToggle={() => toggleSection(secao.tipo)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateCotacao={handleUpdateCotacao}
-                />
-              ))}
-
               {/* Linha de totalização */}
-              <tr className="bg-[#808080] border-t-2 border-gray-300">
+              <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
@@ -557,35 +357,51 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
+                  {formatNumber(data?.totalGeral?.quantidade || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                  {formatCurrency(data?.totalGeral?.valorAplicado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                  {formatCurrency(data?.totalGeral?.valorAtualizado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
+                  {formatPercentage(data?.totalGeral?.risco || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   100.00%
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
+                  {formatPercentage(data?.totalGeral?.objetivo || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
+                  {formatPercentage(data?.totalGeral?.quantoFalta || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
+                  {formatCurrency(data?.totalGeral?.necessidadeAporte || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
+                  {formatPercentage(data?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
+
+              {ativosComRisco.map((ativo) => (
+                <PrevidenciaSegurosTableRow
+                  key={ativo.id}
+                  ativo={ativo}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  formatNumber={formatNumber}
+                  onUpdateObjetivo={handleUpdateObjetivo}
+                  onUpdateCotacao={handleUpdateCotacao}
+                />
+              ))}
+              <BasicTablePlaceholderRows
+                count={Math.max(0, MIN_PLACEHOLDER_ROWS - ativosComRisco.length)}
+                colSpan={PREVIDENCIA_SEGUROS_COLUMN_COUNT}
+              />
             </tbody>
           </table>
         </div>

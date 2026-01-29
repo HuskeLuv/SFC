@@ -1,6 +1,6 @@
 // Tipos para REIT (Real Estate Investment Trusts)
 
-export type EstrategiaReit = 'value' | 'growth';
+export type EstrategiaReit = 'value' | 'growth' | 'risk';
 
 export type SetorReit = 'residential' | 'commercial' | 'retail' | 'healthcare' | 'industrial' | 'office' | 'data_center' | 'self_storage' | 'hotel' | 'other';
 

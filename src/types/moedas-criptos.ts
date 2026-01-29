@@ -21,7 +21,14 @@ export interface MoedaCriptoAtivo {
 
 export interface MoedaCriptoSecao {
   nome: string;
-  tipo: 'moedas_metais' | 'etf_estados_unidos';
+  tipo:
+    | 'moedas_metais'
+    | 'etf_estados_unidos'
+    | 'moedas'
+    | 'criptomoedas'
+    | 'metais'
+    | 'joias'
+    | 'metais_joias';
   regiao: 'brasil' | 'estados_unidos' | 'internacional';
   ativos: MoedaCriptoAtivo[];
   totalQuantidade: number;

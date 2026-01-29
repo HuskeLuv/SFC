@@ -4,8 +4,17 @@ import { useOpcoes } from "@/hooks/useOpcoes";
 import { OpcaoAtivo, OpcaoSecao } from "@/types/opcoes";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const OPCOES_COLUMN_COUNT = 14;
+const OPCOES_SECTION_ORDER = ["put", "call"] as const;
+const OPCOES_SECTION_NAMES: Record<(typeof OPCOES_SECTION_ORDER)[number], string> = {
+  put: "PUT",
+  call: "CALL",
+};
 
 interface OpcoesMetricCardProps {
   title: string;
@@ -219,6 +228,8 @@ const OpcoesSection: React.FC<OpcoesSectionProps> = ({
   onUpdateObjetivo,
   onUpdateCotacao,
 }) => {
+  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
+
   return (
     <>
       {/* Cabeçalho da seção */}
@@ -284,6 +295,12 @@ const OpcoesSection: React.FC<OpcoesSectionProps> = ({
           onUpdateCotacao={onUpdateCotacao}
         />
       ))}
+      {isExpanded && (
+        <BasicTablePlaceholderRows
+          count={placeholderCount}
+          colSpan={OPCOES_COLUMN_COUNT}
+        />
+      )}
     </>
   );
 };
@@ -297,7 +314,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.opcoes ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['put', 'call'])
+    new Set(OPCOES_SECTION_ORDER)
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -361,6 +378,37 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     await updateCotacao(ativoId, novaCotacao);
   };
 
+  const normalizedSections = useMemo(() => {
+    const createEmptySection = (
+      tipo: (typeof OPCOES_SECTION_ORDER)[number],
+      nome: string
+    ): OpcaoSecao => ({
+      tipo,
+      nome,
+      ativos: [],
+      totalQuantidade: 0,
+      totalValorAplicado: 0,
+      totalValorAtualizado: 0,
+      totalRisco: 0,
+      totalPercentualCarteira: 0,
+      totalObjetivo: 0,
+      totalQuantoFalta: 0,
+      totalNecessidadeAporte: 0,
+      rentabilidadeMedia: 0,
+    });
+
+    const sectionMap = new Map<string, OpcaoSecao>();
+    (dataComRisco?.secoes || []).forEach((secao) => {
+      const nome = secao.nome || OPCOES_SECTION_NAMES[secao.tipo];
+      sectionMap.set(secao.tipo, { ...secao, nome });
+    });
+
+    return OPCOES_SECTION_ORDER.map((tipo) => {
+      const nome = OPCOES_SECTION_NAMES[tipo];
+      return sectionMap.get(tipo) ?? createEmptySection(tipo, nome);
+    });
+  }, [dataComRisco?.secoes]);
+
   if (loading) {
     return <LoadingSpinner text="Carregando dados de opções..." />;
   }
@@ -378,59 +426,6 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <OpcoesMetricCard
-            title="Necessidade de Aporte Total"
-            value={formatCurrency(necessidadeAporteTotalCalculada)}
-            color="warning"
-          />
-          <OpcoesMetricCard
-            title="Caixa para Investir"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <OpcoesMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(0)}
-          />
-          <OpcoesMetricCard
-            title="Valor Atualizado"
-            value={formatCurrency(0)}
-          />
-          <OpcoesMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <OpcoesMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="Opções - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhum ativo encontrado
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-                Adicione opções de compra e venda para começar a acompanhar sua carteira de derivativos.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
@@ -442,25 +437,25 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
         />
         <OpcoesMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data.resumo.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
           color="success"
         />
         <OpcoesMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data.resumo.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <OpcoesMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data.resumo.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
         />
         <OpcoesMetricCard
           title="Rendimento"
-          value={formatCurrency(data.resumo.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <OpcoesMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.resumo.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -468,7 +463,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       {/* Tabela principal */}
       <ComponentCard title="Opções - Detalhamento">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
                 <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
@@ -517,22 +512,8 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
               </tr>
             </thead>
             <tbody>
-              {dataComRisco?.secoes.map((secao) => (
-                <OpcoesSection
-                  key={secao.tipo}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  isExpanded={expandedSections.has(secao.tipo)}
-                  onToggle={() => toggleSection(secao.tipo)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateCotacao={handleUpdateCotacao}
-                />
-              ))}
-
               {/* Linha de totalização */}
-              <tr className="bg-[#808080] border-t-2 border-gray-300">
+              <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
@@ -568,6 +549,20 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
+
+              {normalizedSections.map((secao) => (
+                <OpcoesSection
+                  key={secao.tipo}
+                  secao={secao}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  formatNumber={formatNumber}
+                  isExpanded={expandedSections.has(secao.tipo)}
+                  onToggle={() => toggleSection(secao.tipo)}
+                  onUpdateObjetivo={handleUpdateObjetivo}
+                  onUpdateCotacao={handleUpdateCotacao}
+                />
+              ))}
             </tbody>
           </table>
         </div>

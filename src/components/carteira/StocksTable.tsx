@@ -1,12 +1,23 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { useCarteiraStocks } from "@/hooks/useStocks";
-import { CarteiraStockAtivo, CarteiraStockSecao } from "@/types/carteiraStocks";
+import { CarteiraStockAtivo, CarteiraStockSecao, EstrategiaCarteiraStock } from "@/types/carteiraStocks";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import PieChartStocksAtivo from "@/components/charts/pie/PieChartStocksAtivo";
-import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const STOCKS_COLUMN_COUNT = 14;
+const STOCKS_AUX_COLUMN_COUNT = 5;
+const STOCKS_SECTION_ORDER = ["value", "growth", "risk"] as const;
+const STOCKS_SECTION_NAMES: Record<(typeof STOCKS_SECTION_ORDER)[number], string> = {
+  value: "Value",
+  growth: "Growth",
+  risk: "Risk",
+};
 
 interface StocksMetricCardProps {
   title: string;
@@ -169,6 +180,8 @@ const StocksSection: React.FC<StocksSectionProps> = ({
   onToggle,
   onUpdateObjetivo,
 }) => {
+  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
+
   return (
     <>
       {/* Cabeçalho da seção */}
@@ -230,6 +243,12 @@ const StocksSection: React.FC<StocksSectionProps> = ({
           onUpdateObjetivo={onUpdateObjetivo}
         />
       ))}
+      {isExpanded && (
+        <BasicTablePlaceholderRows
+          count={placeholderCount}
+          colSpan={STOCKS_COLUMN_COUNT}
+        />
+      )}
     </>
   );
 };
@@ -243,7 +262,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.stocks ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['value', 'growth', 'risk'])
+    new Set(STOCKS_SECTION_ORDER)
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -303,6 +322,37 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
+  const normalizedSections = useMemo(() => {
+    const createEmptySection = (
+      estrategia: (typeof STOCKS_SECTION_ORDER)[number],
+      nome: string
+    ): CarteiraStockSecao => ({
+      estrategia: estrategia as EstrategiaCarteiraStock,
+      nome,
+      ativos: [],
+      totalQuantidade: 0,
+      totalValorAplicado: 0,
+      totalValorAtualizado: 0,
+      totalPercentualCarteira: 0,
+      totalRisco: 0,
+      totalObjetivo: 0,
+      totalQuantoFalta: 0,
+      totalNecessidadeAporte: 0,
+      rentabilidadeMedia: 0,
+    });
+
+    const sectionMap = new Map<string, CarteiraStockSecao>();
+    (dataComRisco?.secoes || []).forEach((secao) => {
+      const nome = STOCKS_SECTION_NAMES[secao.estrategia];
+      sectionMap.set(secao.estrategia, { ...secao, nome });
+    });
+
+    return STOCKS_SECTION_ORDER.map((estrategia) => {
+      const nome = STOCKS_SECTION_NAMES[estrategia];
+      return sectionMap.get(estrategia) ?? createEmptySection(estrategia, nome);
+    });
+  }, [dataComRisco?.secoes]);
+
   if (loading) {
     return <LoadingSpinner text="Carregando dados Stocks..." />;
   }
@@ -320,60 +370,6 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        {/* Cards de resumo */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <StocksMetricCard
-            title="Necessidade de Aporte Total"
-            value={formatCurrency(necessidadeAporteTotalCalculada)}
-            color="warning"
-          />
-          <StocksMetricCard
-            title="Caixa para Investir"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <StocksMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(0)}
-          />
-          <StocksMetricCard
-            title="Valor Atualizado"
-            value={formatCurrency(0)}
-          />
-          <StocksMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <StocksMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="Stocks - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhum stock encontrado
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-                Adicione stocks para começar a acompanhar sua carteira internacional.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
@@ -385,25 +381,25 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
         />
         <StocksMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data?.resumo?.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
           color="success"
         />
         <StocksMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data?.resumo?.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <StocksMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data?.resumo?.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
         />
         <StocksMetricCard
           title="Rendimento"
-          value={formatCurrency(data?.resumo?.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <StocksMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data?.resumo?.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -411,7 +407,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       {/* Tabela principal */}
       <ComponentCard title="Stocks - Detalhamento">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
                 <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
@@ -460,21 +456,8 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
               </tr>
             </thead>
             <tbody>
-              {dataComRisco?.secoes?.map((secao) => (
-                <StocksSection
-                  key={secao.estrategia}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  isExpanded={expandedSections.has(secao.estrategia)}
-                  onToggle={() => toggleSection(secao.estrategia)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                />
-              )) || []}
-
               {/* Linha de totalização */}
-              <tr className="bg-[#808080] border-t-2 border-gray-300">
+              <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
@@ -510,6 +493,19 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                   {formatPercentage(data?.totalGeral?.rentabilidade)}
                 </td>
               </tr>
+
+              {normalizedSections.map((secao) => (
+                <StocksSection
+                  key={secao.estrategia}
+                  secao={secao}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  formatNumber={formatNumber}
+                  isExpanded={expandedSections.has(secao.estrategia)}
+                  onToggle={() => toggleSection(secao.estrategia)}
+                  onUpdateObjetivo={handleUpdateObjetivo}
+                />
+              ))}
             </tbody>
           </table>
         </div>
@@ -525,7 +521,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
         <div className="xl:col-span-6">
           <ComponentCard title="Resumo de Aportes">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700">
                     <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -546,7 +542,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.tabelaAuxiliar?.map((item, index) => (
+                  {(data?.tabelaAuxiliar || []).map((item, index) => (
                     <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
                       <td className="px-2 py-2 text-xs text-black">
                         {item.ticker}
@@ -565,6 +561,10 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                       </td>
                     </tr>
                   ))}
+                  <BasicTablePlaceholderRows
+                    count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
+                    colSpan={STOCKS_AUX_COLUMN_COUNT}
+                  />
                 </tbody>
               </table>
             </div>

@@ -1,12 +1,22 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { useAcoes } from "@/hooks/useAcoes";
-import { AcaoAtivo, AcaoSecao } from "@/types/acoes";
+import { AcaoAtivo, AcaoSecao, EstrategiaAcao } from "@/types/acoes";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableRow, StandardTableBodyCell, TableBody } from "@/components/ui/table/StandardTable";
+import { StandardTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const ACOES_COLUMN_COUNT = 14;
+const ACOES_SECTION_ORDER = ["value", "growth", "risk"] as const;
+const ACOES_SECTION_NAMES: Record<(typeof ACOES_SECTION_ORDER)[number], string> = {
+  value: "Value",
+  growth: "Growth",
+  risk: "Risk",
+};
 
 interface AcoesMetricCardProps {
   title: string;
@@ -184,6 +194,8 @@ const AcoesSection: React.FC<AcoesSectionProps> = ({
   onToggle,
   onUpdateObjetivo,
 }) => {
+  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
+
   return (
     <>
       {/* Cabeçalho da seção */}
@@ -191,7 +203,7 @@ const AcoesSection: React.FC<AcoesSectionProps> = ({
         className="bg-[#808080] cursor-pointer"
         onClick={onToggle}
       >
-        <StandardTableBodyCell align="left" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="left" isTotal className="bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -201,37 +213,37 @@ const AcoesSection: React.FC<AcoesSectionProps> = ({
             <span>{secao.nome || secao.estrategia}</span>
           </div>
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatNumber(secao.totalQuantidade)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAplicado)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAtualizado)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalRisco)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalPercentualCarteira)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalObjetivo)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalQuantoFalta)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           <span>
             {formatCurrency(secao.totalNecessidadeAporte)}
           </span>
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.rentabilidadeMedia)}
         </StandardTableBodyCell>
       </StandardTableRow>
@@ -247,6 +259,12 @@ const AcoesSection: React.FC<AcoesSectionProps> = ({
           onUpdateObjetivo={onUpdateObjetivo}
         />
       ))}
+      {isExpanded && (
+        <StandardTablePlaceholderRows
+          count={placeholderCount}
+          colSpan={ACOES_COLUMN_COUNT}
+        />
+      )}
     </>
   );
 };
@@ -260,7 +278,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.acoes ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['value', 'growth', 'risk'])
+    new Set(ACOES_SECTION_ORDER)
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -320,6 +338,34 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
+  const normalizedSections = useMemo(() => {
+    const createEmptySection = (estrategia: (typeof ACOES_SECTION_ORDER)[number], nome: string): AcaoSecao => ({
+      estrategia: estrategia as EstrategiaAcao,
+      nome,
+      ativos: [],
+      totalQuantidade: 0,
+      totalValorAplicado: 0,
+      totalValorAtualizado: 0,
+      totalPercentualCarteira: 0,
+      totalRisco: 0,
+      totalObjetivo: 0,
+      totalQuantoFalta: 0,
+      totalNecessidadeAporte: 0,
+      rentabilidadeMedia: 0,
+    });
+
+    const sectionMap = new Map<string, AcaoSecao>();
+    (dataComRisco?.secoes || []).forEach((secao) => {
+      const nome = secao.nome || ACOES_SECTION_NAMES[secao.estrategia];
+      sectionMap.set(secao.estrategia, { ...secao, nome });
+    });
+
+    return ACOES_SECTION_ORDER.map((estrategia) => {
+      const nome = ACOES_SECTION_NAMES[estrategia];
+      return sectionMap.get(estrategia) ?? createEmptySection(estrategia, nome);
+    });
+  }, [dataComRisco?.secoes]);
+
   if (loading) {
     return <LoadingSpinner text="Carregando dados Ações..." />;
   }
@@ -337,59 +383,6 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <AcoesMetricCard
-            title="Necessidade de Aporte Total"
-            value={formatCurrency(necessidadeAporteTotalCalculada)}
-            color="warning"
-          />
-          <AcoesMetricCard
-            title="Caixa para Investir"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <AcoesMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(0)}
-          />
-          <AcoesMetricCard
-            title="Valor Atualizado"
-            value={formatCurrency(0)}
-          />
-          <AcoesMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <AcoesMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="Ações - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhuma ação encontrada
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-                Adicione ações para começar a acompanhar sua carteira de ações.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
@@ -401,25 +394,25 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
         />
         <AcoesMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data.resumo.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
           color="success"
         />
         <AcoesMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data.resumo.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <AcoesMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data.resumo.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
         />
         <AcoesMetricCard
           title="Rendimento"
-          value={formatCurrency(data.resumo.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <AcoesMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.resumo.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -449,7 +442,47 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
-              {dataComRisco?.secoes.map((secao) => (
+              {/* Linha de totalização */}
+              <StandardTableRow isTotal className="bg-[#404040]">
+              <StandardTableBodyCell align="left" isTotal className="bg-[#404040] text-white font-bold">
+                  TOTAL GERAL
+                </StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                  {formatNumber(dataComRisco?.totalGeral.quantidade || 0)}
+                </StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                  {formatCurrency(dataComRisco?.totalGeral.valorAplicado || 0)}
+                </StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                  {formatCurrency(dataComRisco?.totalGeral.valorAtualizado || 0)}
+                </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                  {formatPercentage(dataComRisco?.totalGeral.risco || 0)}
+                </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                  100.00%
+                </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
+                </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
+                </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                  <span>
+                    {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
+                  </span>
+                </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
+                </StandardTableBodyCell>
+              </StandardTableRow>
+
+              {normalizedSections.map((secao) => (
                 <AcoesSection
                   key={secao.estrategia}
                   secao={secao}
@@ -461,46 +494,6 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
                   onUpdateObjetivo={handleUpdateObjetivo}
                 />
               ))}
-
-              {/* Linha de totalização */}
-              <StandardTableRow isTotal className="bg-[#808080]">
-              <StandardTableBodyCell align="left" isTotal className="bg-[#808080] text-white font-bold">
-                  TOTAL GERAL
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-                  {formatNumber(dataComRisco?.totalGeral.quantidade || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral.valorAplicado || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral.valorAtualizado || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral.risco || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-                  100.00%
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-                  <span>
-                    {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
-                  </span>
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
-                </StandardTableBodyCell>
-              </StandardTableRow>
             </TableBody>
         </StandardTable>
       </ComponentCard>

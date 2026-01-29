@@ -2,7 +2,10 @@
 import React, { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import ComponentCard from "../common/ComponentCard";
-import { DollarLineIcon } from "@/icons";
+import { UiTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const RESERVA_EMERGENCIA_COLUMN_COUNT = 12;
 
 interface ReservaEmergenciaAtivo {
   id: string;
@@ -97,7 +100,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
 
   return (
     <TableRow 
-      className="border-b border-gray-100 hover:bg-gray-50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
+      className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.02]"
     >
       <TableCell className="px-2 py-2 text-xs text-black">
         {ativo.nome}
@@ -221,48 +224,6 @@ export default function ReservaEmergenciaTable({
   };
 
   const sortedAtivos = ativosComRisco;
-  // Verificar se há dados para exibir
-  if (ativos.length === 0) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-          <ReservaEmergenciaMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(saldoInicioMes)}
-          />
-          <ReservaEmergenciaMetricCard
-            title="Rendimento"
-            value={formatCurrency(rendimento)}
-            color="success"
-          />
-          <ReservaEmergenciaMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(rentabilidade)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="Reserva de Emergência - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Nenhum investimento encontrado
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-                Adicione investimentos de reserva de emergência para começar a acompanhar seus ativos de liquidez.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
-
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
@@ -284,7 +245,7 @@ export default function ReservaEmergenciaTable({
 
       <ComponentCard title="Reserva de Emergência - Detalhamento">
         <div className="max-w-full overflow-x-auto">
-          <Table>
+          <Table className="text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <TableHeader 
               style={{ backgroundColor: '#9E8A58' }}
               className="border-t border-gray-100 border-y"
@@ -378,18 +339,7 @@ export default function ReservaEmergenciaTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedAtivos.map((ativo) => (
-                <ReservaEmergenciaTableRow
-                  key={ativo.id}
-                  ativo={ativo}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatDate={formatDate}
-                  onUpdateValorAtualizado={onUpdateValorAtualizado}
-                />
-              ))}
-              
-              <TableRow className="border-t-2 border-gray-200 bg-[#808080]">
+              <TableRow className="border-t-2 border-gray-200 bg-[#404040]">
                 <TableCell className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </TableCell>
@@ -419,6 +369,21 @@ export default function ReservaEmergenciaTable({
                   {formatPercentage(rentabilidade)}
                 </TableCell>
               </TableRow>
+
+              {sortedAtivos.map((ativo) => (
+                <ReservaEmergenciaTableRow
+                  key={ativo.id}
+                  ativo={ativo}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  formatDate={formatDate}
+                  onUpdateValorAtualizado={onUpdateValorAtualizado}
+                />
+              ))}
+              <UiTablePlaceholderRows
+                count={Math.max(0, MIN_PLACEHOLDER_ROWS - sortedAtivos.length)}
+                colSpan={RESERVA_EMERGENCIA_COLUMN_COUNT}
+              />
             </TableBody>
           </Table>
         </div>

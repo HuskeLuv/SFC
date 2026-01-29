@@ -5,7 +5,10 @@ import { ImovelBemAtivo } from "@/types/imoveis-bens";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import Badge from "@/components/ui/badge/Badge";
-import { DollarLineIcon } from "@/icons";
+import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const IMOVEIS_BENS_COLUMN_COUNT = 11;
 
 interface ImoveisBensMetricCardProps {
   title: string;
@@ -205,79 +208,31 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
     );
   }
 
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-          <ImoveisBensMetricCard
-            title="Valor Total Aquisições"
-            value={formatCurrency(0)}
-          />
-          <ImoveisBensMetricCard
-            title="Valor Total Melhorias"
-            value={formatCurrency(0)}
-            color="warning"
-          />
-          <ImoveisBensMetricCard
-            title="Valor Atualizado"
-            value={formatCurrency(0)}
-          />
-          <ImoveisBensMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <ImoveisBensMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="Imóveis & Bens - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhum ativo encontrado
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-                Adicione imóveis, veículos, joias e outros bens para começar a acompanhar sua carteira de ativos físicos.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         <ImoveisBensMetricCard
           title="Valor Total Aquisições"
-          value={formatCurrency(data?.resumo?.valorTotalAquisicoes)}
+          value={formatCurrency(data?.resumo?.valorTotalAquisicoes ?? 0)}
         />
         <ImoveisBensMetricCard
           title="Valor Total Melhorias"
-          value={formatCurrency(data?.resumo?.valorTotalMelhorias)}
+          value={formatCurrency(data?.resumo?.valorTotalMelhorias ?? 0)}
           color="warning"
         />
         <ImoveisBensMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data?.resumo?.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
         />
         <ImoveisBensMetricCard
           title="Rendimento"
-          value={formatCurrency(data?.resumo?.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <ImoveisBensMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data?.resumo?.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -285,7 +240,7 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
       {/* Tabela principal */}
       <ComponentCard title="Imóveis & Bens - Detalhamento">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
                 <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
@@ -325,19 +280,8 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
               </tr>
             </thead>
             <tbody>
-              {dataComRisco?.ativos?.map((ativo) => (
-                <ImoveisBensTableRow
-                  key={ativo.id}
-                  ativo={ativo}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  onUpdateValorAtualizado={handleUpdateValorAtualizado}
-                />
-              )) || []}
-
               {/* Linha de totalização */}
-              <tr className="bg-[#808080] border-t-2 border-gray-300">
+              <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
@@ -364,6 +308,21 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
+
+              {dataComRisco?.ativos?.map((ativo) => (
+                <ImoveisBensTableRow
+                  key={ativo.id}
+                  ativo={ativo}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  formatNumber={formatNumber}
+                  onUpdateValorAtualizado={handleUpdateValorAtualizado}
+                />
+              )) || []}
+              <BasicTablePlaceholderRows
+                count={Math.max(0, MIN_PLACEHOLDER_ROWS - (dataComRisco?.ativos?.length || 0))}
+                colSpan={IMOVEIS_BENS_COLUMN_COUNT}
+              />
             </tbody>
           </table>
         </div>

@@ -1,10 +1,20 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { useRendaFixa } from "@/hooks/useRendaFixa";
-import { RendaFixaSecao, RendaFixaAtivo } from "@/types/rendaFixa";
+import { RendaFixaSecao, RendaFixaAtivo, TipoRendaFixa } from "@/types/rendaFixa";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
+import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const RENDA_FIXA_COLUMN_COUNT = 13;
+const RENDA_FIXA_SECTION_ORDER = ["pos-fixada", "prefixada", "hibrida"] as const;
+const RENDA_FIXA_SECTION_NAMES: Record<(typeof RENDA_FIXA_SECTION_ORDER)[number], string> = {
+  "pos-fixada": "Pós-fixada",
+  prefixada: "Prefixada",
+  hibrida: "Híbrida",
+};
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 
 interface RendaFixaMetricCardProps {
@@ -121,6 +131,8 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
   isExpanded,
   onToggle,
 }) => {
+  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
+
   return (
     <>
       {/* Cabeçalho da seção */}
@@ -173,6 +185,12 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
           formatPercentage={formatPercentage}
         />
       ))}
+      {isExpanded && (
+        <BasicTablePlaceholderRows
+          count={placeholderCount}
+          colSpan={RENDA_FIXA_COLUMN_COUNT}
+        />
+      )}
     </>
   );
 };
@@ -186,7 +204,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteCalculada = necessidadeAporteMap.rendaFixaFundos ?? data?.resumo?.necessidadeAporte ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['pos-fixada', 'prefixada', 'hibrida'])
+    new Set(RENDA_FIXA_SECTION_ORDER)
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -226,6 +244,34 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
     setExpandedSections(newExpanded);
   };
 
+  const normalizedSections = useMemo(() => {
+    const createEmptySection = (
+      tipo: (typeof RENDA_FIXA_SECTION_ORDER)[number],
+      nome: string
+    ): RendaFixaSecao => ({
+      tipo: tipo as TipoRendaFixa,
+      nome,
+      ativos: [],
+      totalValorAplicado: 0,
+      totalAporte: 0,
+      totalResgate: 0,
+      totalValorAtualizado: 0,
+      percentualTotal: 0,
+      rentabilidadeMedia: 0,
+    });
+
+    const sectionMap = new Map<string, RendaFixaSecao>();
+    (dataComRisco?.secoes || []).forEach((secao) => {
+      const nome = secao.nome || RENDA_FIXA_SECTION_NAMES[secao.tipo];
+      sectionMap.set(secao.tipo, { ...secao, nome });
+    });
+
+    return RENDA_FIXA_SECTION_ORDER.map((tipo) => {
+      const nome = RENDA_FIXA_SECTION_NAMES[tipo];
+      return sectionMap.get(tipo) ?? createEmptySection(tipo, nome);
+    });
+  }, [dataComRisco?.secoes]);
+
   if (loading) {
     return <LoadingSpinner text="Carregando dados de renda fixa..." />;
   }
@@ -243,21 +289,6 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
     );
   }
 
-  if (!data) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-black mb-2">
-            Nenhum dado encontrado
-          </h3>
-          <p className="text-xs text-black">
-            Adicione seus primeiros investimentos em renda fixa para começar.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
@@ -269,25 +300,25 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
         />
         <RendaFixaMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data.resumo.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
           color="success"
         />
         <RendaFixaMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data.resumo.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <RendaFixaMetricCard
           title="Saldo Atual"
-          value={formatCurrency(data.resumo.saldoAtual)}
+          value={formatCurrency(data?.resumo?.saldoAtual ?? 0)}
         />
         <RendaFixaMetricCard
           title="Rendimento"
-          value={formatCurrency(data.resumo.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <RendaFixaMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.resumo.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -295,7 +326,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
       {/* Tabela principal */}
       <ComponentCard title="Renda Fixa & Fundos">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
                 <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
@@ -341,19 +372,8 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
               </tr>
             </thead>
             <tbody>
-              {dataComRisco?.secoes.map((secao) => (
-                <RendaFixaSection
-                  key={secao.tipo}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  isExpanded={expandedSections.has(secao.tipo)}
-                  onToggle={() => toggleSection(secao.tipo)}
-                />
-              ))}
-
               {/* Linha de totalização */}
-              <tr className="bg-[#808080] border-t-2 border-gray-300">
+              <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
@@ -382,6 +402,17 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
+
+              {normalizedSections.map((secao) => (
+                <RendaFixaSection
+                  key={secao.tipo}
+                  secao={secao}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  isExpanded={expandedSections.has(secao.tipo)}
+                  onToggle={() => toggleSection(secao.tipo)}
+                />
+              ))}
             </tbody>
           </table>
         </div>

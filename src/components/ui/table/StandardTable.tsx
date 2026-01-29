@@ -176,7 +176,7 @@ export const StandardTable: React.FC<StandardTableProps> = ({
 }) => {
   return (
     <div className="overflow-x-auto">
-      <Table className={`w-full ${className}`}>
+      <Table className={`w-full text-xs ${className}`}>
         {children}
       </Table>
     </div>

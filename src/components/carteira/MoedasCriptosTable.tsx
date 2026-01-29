@@ -4,8 +4,18 @@ import { useMoedasCriptos } from "@/hooks/useMoedasCriptos";
 import { MoedaCriptoAtivo, MoedaCriptoSecao } from "@/types/moedas-criptos";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const MOEDAS_CRIPTOS_COLUMN_COUNT = 13;
+const MOEDAS_CRIPTOS_SECTION_ORDER = ["moedas", "criptomoedas", "metais_joias"] as const;
+const MOEDAS_CRIPTOS_SECTION_NAMES: Record<(typeof MOEDAS_CRIPTOS_SECTION_ORDER)[number], string> = {
+  moedas: "Moedas",
+  criptomoedas: "Criptomoedas",
+  metais_joias: "Metais e Joias",
+};
 
 interface MoedasCriptosMetricCardProps {
   title: string;
@@ -211,6 +221,7 @@ const MoedasCriptosSection: React.FC<MoedasCriptosSectionProps> = ({
   onUpdateObjetivo,
   onUpdateCotacao,
 }) => {
+  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
   const currency = secao.regiao === 'estados_unidos' ? 'USD' : 'BRL';
 
   return (
@@ -228,9 +239,6 @@ const MoedasCriptosSection: React.FC<MoedasCriptosSectionProps> = ({
               <ChevronDownIcon className="w-4 h-4" />
             )}
             <span>{secao.nome}</span>
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-              {secao.tipo === 'moedas_metais' ? 'MOEDAS & METAIS' : "ETF's EUA"}
-            </span>
           </div>
         </td>
         <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
@@ -277,6 +285,12 @@ const MoedasCriptosSection: React.FC<MoedasCriptosSectionProps> = ({
           onUpdateCotacao={onUpdateCotacao}
         />
       ))}
+      {isExpanded && (
+        <BasicTablePlaceholderRows
+          count={placeholderCount}
+          colSpan={MOEDAS_CRIPTOS_COLUMN_COUNT}
+        />
+      )}
     </>
   );
 };
@@ -290,50 +304,21 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.moedasCriptos ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['moedas_metais', 'etf_estados_unidos'])
+    new Set(MOEDAS_CRIPTOS_SECTION_ORDER)
   );
 
-  // Calcular risco (carteira total) e percentual da carteira da aba
-  const dataComRisco = useMemo(() => {
-    if (!data) return data;
+  const ativosComRisco = useMemo(() => {
+    if (!data) return [];
 
-    const totalTabValue = data.totalGeral?.valorAtualizado || 0;
+    const ativos = data.secoes.flatMap((secao) => secao.ativos);
+    const totalTabValue = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
     const shouldCalculateRisco = totalCarteira > 0;
 
-    const secoesComRisco = data.secoes.map(secao => {
-      const totalPercentualCarteira = totalTabValue > 0
-        ? (secao.totalValorAtualizado / totalTabValue) * 100
-        : 0;
-
-      return {
-        ...secao,
-        ativos: secao.ativos.map(ativo => ({
-          ...ativo,
-          riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
-          percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
-        })),
-        totalPercentualCarteira,
-        totalRisco: secao.ativos.reduce(
-          (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
-          0
-        ),
-      };
-    });
-
-    const totalGeralRisco = secoesComRisco.reduce(
-      (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
-      0
-    );
-
-    return {
-      ...data,
-      secoes: secoesComRisco,
-      totalGeral: {
-        ...data.totalGeral,
-        risco: totalGeralRisco,
-        percentualCarteira: totalTabValue > 0 ? 100 : 0,
-      },
-    };
+    return ativos.map((ativo) => ({
+      ...ativo,
+      riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+      percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
+    }));
   }, [data, totalCarteira]);
 
   const toggleSection = (tipo: string) => {
@@ -354,6 +339,77 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     await updateCotacao(ativoId, novaCotacao);
   };
 
+  const normalizedSections = useMemo(() => {
+    const resolveSectionRegion = (ativos: MoedaCriptoAtivo[]) => {
+      const hasUs = ativos.some((ativo) => ativo.regiao === "estados_unidos");
+      const hasBr = ativos.some((ativo) => ativo.regiao === "brasil");
+      if (hasUs && hasBr) return "internacional";
+      if (hasUs) return "estados_unidos";
+      return "brasil";
+    };
+
+    const buildSection = (
+      tipo: (typeof MOEDAS_CRIPTOS_SECTION_ORDER)[number],
+      nome: string,
+      ativos: MoedaCriptoAtivo[]
+    ): MoedaCriptoSecao => {
+      const totalQuantidade = ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+      const totalValorAplicado = ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+      const totalValorAtualizado = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+      const totalRisco = ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
+      const totalPercentualCarteira = ativos.reduce((sum, ativo) => sum + ativo.percentualCarteira, 0);
+      const totalObjetivo = ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+      const totalQuantoFalta = ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
+      const totalNecessidadeAporte = ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+      const rentabilidadeMedia = ativos.length
+        ? ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / ativos.length
+        : 0;
+
+      return {
+        tipo,
+        nome,
+        regiao: resolveSectionRegion(ativos),
+        ativos,
+        totalQuantidade,
+        totalValorAplicado,
+        totalValorAtualizado,
+        totalRisco,
+        totalPercentualCarteira,
+        totalObjetivo,
+        totalQuantoFalta,
+        totalNecessidadeAporte,
+        rentabilidadeMedia,
+      };
+    };
+
+    const grouped = {
+      moedas: [] as MoedaCriptoAtivo[],
+      criptomoedas: [] as MoedaCriptoAtivo[],
+      metais_joias: [] as MoedaCriptoAtivo[],
+    };
+
+    ativosComRisco.forEach((ativo) => {
+      if (ativo.tipo === "moeda") {
+        grouped.moedas.push(ativo);
+        return;
+      }
+      if (ativo.tipo === "criptomoeda") {
+        grouped.criptomoedas.push(ativo);
+        return;
+      }
+      if (ativo.tipo === "metal") {
+        grouped.metais_joias.push(ativo);
+        return;
+      }
+      grouped.metais_joias.push(ativo);
+    });
+
+    return MOEDAS_CRIPTOS_SECTION_ORDER.map((tipo) => {
+      const nome = MOEDAS_CRIPTOS_SECTION_NAMES[tipo];
+      return buildSection(tipo, nome, grouped[tipo]);
+    });
+  }, [ativosComRisco]);
+
   if (loading) {
     return <LoadingSpinner text="Carregando dados de moedas e criptomoedas..." />;
   }
@@ -371,60 +427,6 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     );
   }
 
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        {/* Cards de resumo */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <MoedasCriptosMetricCard
-            title="Necessidade de Aporte Total"
-            value={formatCurrency(necessidadeAporteTotalCalculada)}
-            color="warning"
-          />
-          <MoedasCriptosMetricCard
-            title="Caixa para Investir"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <MoedasCriptosMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(0)}
-          />
-          <MoedasCriptosMetricCard
-            title="Valor Atualizado"
-            value={formatCurrency(0)}
-          />
-          <MoedasCriptosMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <MoedasCriptosMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="Moedas, Criptomoedas & Outros - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhum ativo encontrado
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-                Adicione moedas, criptomoedas e outros ativos para começar a acompanhar sua carteira diversificada.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
@@ -436,25 +438,25 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
         />
         <MoedasCriptosMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data.resumo.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
           color="success"
         />
         <MoedasCriptosMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data.resumo.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <MoedasCriptosMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data.resumo.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
         />
         <MoedasCriptosMetricCard
           title="Rendimento"
-          value={formatCurrency(data.resumo.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <MoedasCriptosMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.resumo.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -462,7 +464,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       {/* Tabela principal */}
       <ComponentCard title="Moedas, Criptomoedas & Outros - Detalhamento">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
                 <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
@@ -508,7 +510,44 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
               </tr>
             </thead>
             <tbody>
-              {dataComRisco?.secoes.map((secao) => (
+              {/* Linha de totalização */}
+              <tr className="bg-[#404040] border-t-2 border-gray-300">
+                <td className="px-2 py-2 text-xs text-white font-bold">
+                  TOTAL GERAL
+                </td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatNumber(data?.totalGeral?.quantidade || 0)}
+                </td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatCurrency(data?.totalGeral?.valorAplicado || 0)}
+                </td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatCurrency(data?.totalGeral?.valorAtualizado || 0)}
+                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatPercentage(data?.totalGeral?.risco || 0)}
+                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  100.00%
+                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatPercentage(data?.totalGeral?.objetivo || 0)}
+                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatPercentage(data?.totalGeral?.quantoFalta || 0)}
+                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatCurrency(data?.totalGeral?.necessidadeAporte || 0)}
+                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatPercentage(data?.totalGeral?.rentabilidade || 0)}
+                </td>
+              </tr>
+
+              {normalizedSections.map((secao) => (
                 <MoedasCriptosSection
                   key={secao.tipo}
                   secao={secao}
@@ -521,43 +560,6 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
                   onUpdateCotacao={handleUpdateCotacao}
                 />
               ))}
-
-              {/* Linha de totalização */}
-              <tr className="bg-[#808080] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">
-                  TOTAL GERAL
-                </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  100.00%
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>

@@ -224,7 +224,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
       )}
 
       <div className="max-w-full overflow-x-auto">
-        <Table className="relative" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+        <Table className="relative text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <TableHeader 
             style={{ 
               position: 'sticky',

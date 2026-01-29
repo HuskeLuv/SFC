@@ -5,6 +5,10 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableBodyCell, StandardTableRow } from "@/components/ui/table/StandardTable";
 import { TableBody } from "@/components/ui/table";
+import { StandardTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const RESERVA_OPORTUNIDADE_COLUMN_COUNT = 13;
 
 interface ReservaOportunidadeMetricCardProps {
   title: string;
@@ -144,15 +148,16 @@ export default function ReservaOportunidadeTable({ totalCarteira = 0 }: ReservaO
 
   // Calcular risco (carteira total) e percentual da carteira da aba
   const ativosComRisco = useMemo(() => {
-    const totalTabValue = data.ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+    const ativos = data?.ativos ?? [];
+    const totalTabValue = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
     const shouldCalculateRisco = totalCarteira > 0;
 
-    return data.ativos.map(ativo => ({
+    return ativos.map(ativo => ({
       ...ativo,
       riscoAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
       percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
     }));
-  }, [data.ativos, totalCarteira]);
+  }, [data?.ativos, totalCarteira]);
 
   const formatCurrency = (value: number): string => {
     return value.toLocaleString("pt-BR", {
@@ -182,42 +187,6 @@ export default function ReservaOportunidadeTable({ totalCarteira = 0 }: ReservaO
     );
   }
 
-  if (!data || data.ativos.length === 0) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-3">
-          <ReservaOportunidadeMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(0)}
-          />
-          <ReservaOportunidadeMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <ReservaOportunidadeMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="Reserva de Oportunidade - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhum investimento encontrado
-              </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Adicione seus primeiros investimentos de reserva de oportunidade para começar.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   const totais = ativosComRisco.reduce((acc, ativo) => ({
     valorInicial: acc.valorInicial + ativo.valorInicial,
     aporte: acc.aporte + ativo.aporte,
@@ -235,16 +204,16 @@ export default function ReservaOportunidadeTable({ totalCarteira = 0 }: ReservaO
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-3">
         <ReservaOportunidadeMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data.saldoInicioMes)}
+          value={formatCurrency(data?.saldoInicioMes ?? 0)}
         />
         <ReservaOportunidadeMetricCard
           title="Rendimento"
-          value={formatCurrency(data.rendimento)}
+          value={formatCurrency(data?.rendimento ?? 0)}
           color="success"
         />
         <ReservaOportunidadeMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.rentabilidade)}
+          value={formatPercentage(data?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -273,6 +242,23 @@ export default function ReservaOportunidadeTable({ totalCarteira = 0 }: ReservaO
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
+            {/* Linha de totalização */}
+            <StandardTableRow isTotal className="bg-[#404040]">
+              <StandardTableBodyCell align="left" isTotal className="bg-[#404040] text-white font-bold">TOTAL GERAL</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">{formatCurrency(totais.valorInicial)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">{formatCurrency(totais.aporte)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">{formatCurrency(totais.resgate)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">{formatCurrency(totais.valorAtualizado)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">100.00%</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">{formatPercentage(rentabilidadeTotal)}</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+            </StandardTableRow>
+
             {ativosComRisco.map((ativo) => (
               <ReservaOportunidadeTableRow
                 key={ativo.id}
@@ -282,23 +268,10 @@ export default function ReservaOportunidadeTable({ totalCarteira = 0 }: ReservaO
                 onUpdateValorAtualizado={updateValorAtualizado}
               />
             ))}
-
-            {/* Linha de totalização */}
-            <StandardTableRow isTotal className="bg-[#808080]">
-              <StandardTableBodyCell align="left" isTotal className="bg-[#808080] text-white font-bold">TOTAL GERAL</StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">{formatCurrency(totais.valorInicial)}</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">{formatCurrency(totais.aporte)}</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">{formatCurrency(totais.resgate)}</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">{formatCurrency(totais.valorAtualizado)}</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">100.00%</StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">{formatPercentage(rentabilidadeTotal)}</StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-            </StandardTableRow>
+            <StandardTablePlaceholderRows
+              count={Math.max(0, MIN_PLACEHOLDER_ROWS - ativosComRisco.length)}
+              colSpan={RESERVA_OPORTUNIDADE_COLUMN_COUNT}
+            />
           </TableBody>
         </StandardTable>
       </ComponentCard>

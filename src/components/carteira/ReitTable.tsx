@@ -1,12 +1,23 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { useReit } from "@/hooks/useReit";
-import { ReitAtivo, ReitSecao } from "@/types/reit";
+import { EstrategiaReit, ReitAtivo, ReitSecao } from "@/types/reit";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import PieChartReitAtivo from "@/components/charts/pie/PieChartReitAtivo";
-import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const REIT_COLUMN_COUNT = 14;
+const REIT_AUX_COLUMN_COUNT = 4;
+const REIT_SECTION_ORDER = ["value", "growth", "risk"] as const;
+const REIT_SECTION_NAMES: Record<(typeof REIT_SECTION_ORDER)[number], string> = {
+  value: "Value",
+  growth: "Growth",
+  risk: "Risk",
+};
 
 interface ReitMetricCardProps {
   title: string;
@@ -209,6 +220,8 @@ const ReitSection: React.FC<ReitSectionProps> = ({
   onUpdateObjetivo,
   onUpdateCotacao,
 }) => {
+  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
+
   return (
     <>
       {/* Cabeçalho da seção */}
@@ -270,6 +283,12 @@ const ReitSection: React.FC<ReitSectionProps> = ({
           onUpdateCotacao={onUpdateCotacao}
         />
       ))}
+      {isExpanded && (
+        <BasicTablePlaceholderRows
+          count={placeholderCount}
+          colSpan={REIT_COLUMN_COUNT}
+        />
+      )}
     </>
   );
 };
@@ -283,7 +302,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.reits ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['value', 'growth'])
+    new Set(REIT_SECTION_ORDER)
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -347,6 +366,37 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     await updateCotacao(ativoId, novaCotacao);
   };
 
+  const normalizedSections = useMemo(() => {
+    const createEmptySection = (
+      estrategia: (typeof REIT_SECTION_ORDER)[number],
+      nome: string
+    ): ReitSecao => ({
+      estrategia: estrategia as EstrategiaReit,
+      nome,
+      ativos: [],
+      totalQuantidade: 0,
+      totalValorAplicado: 0,
+      totalValorAtualizado: 0,
+      totalPercentualCarteira: 0,
+      totalRisco: 0,
+      totalObjetivo: 0,
+      totalQuantoFalta: 0,
+      totalNecessidadeAporte: 0,
+      rentabilidadeMedia: 0,
+    });
+
+    const sectionMap = new Map<string, ReitSecao>();
+    (dataComRisco?.secoes || []).forEach((secao) => {
+      const nome = REIT_SECTION_NAMES[secao.estrategia];
+      sectionMap.set(secao.estrategia, { ...secao, nome });
+    });
+
+    return REIT_SECTION_ORDER.map((estrategia) => {
+      const nome = REIT_SECTION_NAMES[estrategia];
+      return sectionMap.get(estrategia) ?? createEmptySection(estrategia, nome);
+    });
+  }, [dataComRisco?.secoes]);
+
   if (loading) {
     return <LoadingSpinner text="Carregando dados REIT..." />;
   }
@@ -364,60 +414,6 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        {/* Cards de resumo */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <ReitMetricCard
-            title="Necessidade de Aporte Total"
-            value={formatCurrency(necessidadeAporteTotalCalculada)}
-            color="warning"
-          />
-          <ReitMetricCard
-            title="Caixa para Investir"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <ReitMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(0)}
-          />
-          <ReitMetricCard
-            title="Valor Atualizado"
-            value={formatCurrency(0)}
-          />
-          <ReitMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <ReitMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="REIT - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhum REIT encontrado
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-                Adicione REITs para começar a acompanhar sua carteira de imóveis.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
@@ -429,25 +425,25 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
         />
         <ReitMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data?.resumo?.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
           color="success"
         />
         <ReitMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data?.resumo?.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <ReitMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data?.resumo?.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
         />
         <ReitMetricCard
           title="Rendimento"
-          value={formatCurrency(data?.resumo?.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <ReitMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data?.resumo?.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -455,7 +451,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       {/* Tabela principal */}
       <ComponentCard title="REIT - Detalhamento">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
                 <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
@@ -501,22 +497,8 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
               </tr>
             </thead>
             <tbody>
-              {dataComRisco?.secoes?.map((secao) => (
-                <ReitSection
-                  key={secao.estrategia}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  isExpanded={expandedSections.has(secao.estrategia)}
-                  onToggle={() => toggleSection(secao.estrategia)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateCotacao={handleUpdateCotacao}
-                />
-              )) || []}
-
               {/* Linha de totalização */}
-              <tr className="bg-[#808080] border-t-2 border-gray-300">
+              <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
@@ -551,6 +533,20 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
+
+              {normalizedSections.map((secao) => (
+                <ReitSection
+                  key={secao.estrategia}
+                  secao={secao}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  formatNumber={formatNumber}
+                  isExpanded={expandedSections.has(secao.estrategia)}
+                  onToggle={() => toggleSection(secao.estrategia)}
+                  onUpdateObjetivo={handleUpdateObjetivo}
+                  onUpdateCotacao={handleUpdateCotacao}
+                />
+              ))}
             </tbody>
           </table>
         </div>
@@ -561,7 +557,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
         <div className="xl:col-span-6">
           <ComponentCard title="Resumo de Aportes">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700">
                     <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -579,7 +575,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.tabelaAuxiliar?.map((item, index) => (
+                  {(data?.tabelaAuxiliar || []).map((item, index) => (
                     <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
                       <td className="px-2 py-2 text-xs font-medium text-black">
                         {item.ticker}
@@ -595,6 +591,10 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                       </td>
                     </tr>
                   ))}
+                  <BasicTablePlaceholderRows
+                    count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
+                    colSpan={REIT_AUX_COLUMN_COUNT}
+                  />
                 </tbody>
               </table>
             </div>

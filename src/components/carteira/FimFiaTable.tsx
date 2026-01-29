@@ -1,13 +1,22 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { useFimFia } from "@/hooks/useFimFia";
-import { FimFiaAtivo, FimFiaSecao } from "@/types/fimFia";
+import { FimFiaAtivo, FimFiaSecao, TipoFimFia } from "@/types/fimFia";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableBodyCell, StandardTableRow } from "@/components/ui/table/StandardTable";
 import { TableBody } from "@/components/ui/table";
-import { ChevronDownIcon, ChevronUpIcon, DollarLineIcon } from "@/icons";
+import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+
+const MIN_PLACEHOLDER_ROWS = 4;
+const FIM_FIA_COLUMN_COUNT = 15;
+const FIM_FIA_SECTION_ORDER = ["fim", "fia"] as const;
+const FIM_FIA_SECTION_NAMES: Record<(typeof FIM_FIA_SECTION_ORDER)[number], string> = {
+  fim: "FIM",
+  fia: "FIA",
+};
 
 interface FimFiaMetricCardProps {
   title: string;
@@ -166,6 +175,8 @@ const FimFiaSection: React.FC<FimFiaSectionProps> = ({
   onToggle,
   onUpdateObjetivo,
 }) => {
+  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
+
   return (
     <>
       {/* Cabeçalho da seção */}
@@ -229,6 +240,12 @@ const FimFiaSection: React.FC<FimFiaSectionProps> = ({
           onUpdateObjetivo={onUpdateObjetivo}
         />
       ))}
+      {isExpanded && (
+        <BasicTablePlaceholderRows
+          count={placeholderCount}
+          colSpan={FIM_FIA_COLUMN_COUNT}
+        />
+      )}
     </>
   );
 };
@@ -242,7 +259,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.fimFia ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['fim', 'fia'])
+    new Set(FIM_FIA_SECTION_ORDER)
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -302,6 +319,38 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
+  const normalizedSections = useMemo(() => {
+    const createEmptySection = (
+      tipo: (typeof FIM_FIA_SECTION_ORDER)[number],
+      nome: string
+    ): FimFiaSecao => ({
+      tipo: tipo as TipoFimFia,
+      nome,
+      ativos: [],
+      totalValorAplicado: 0,
+      totalAporte: 0,
+      totalResgate: 0,
+      totalValorAtualizado: 0,
+      totalPercentualCarteira: 0,
+      totalRisco: 0,
+      totalObjetivo: 0,
+      totalQuantoFalta: 0,
+      totalNecessidadeAporte: 0,
+      rentabilidadeMedia: 0,
+    });
+
+    const sectionMap = new Map<string, FimFiaSecao>();
+    (dataComRisco?.secoes || []).forEach((secao) => {
+      const nome = FIM_FIA_SECTION_NAMES[secao.tipo];
+      sectionMap.set(secao.tipo, { ...secao, nome });
+    });
+
+    return FIM_FIA_SECTION_ORDER.map((tipo) => {
+      const nome = FIM_FIA_SECTION_NAMES[tipo];
+      return sectionMap.get(tipo) ?? createEmptySection(tipo, nome);
+    });
+  }, [dataComRisco?.secoes]);
+
   if (loading) {
     return <LoadingSpinner text="Carregando dados FIM/FIA..." />;
   }
@@ -319,59 +368,6 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <FimFiaMetricCard
-            title="Necessidade de Aporte Total"
-            value={formatCurrency(necessidadeAporteTotalCalculada)}
-            color="warning"
-          />
-          <FimFiaMetricCard
-            title="Caixa para Investir"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <FimFiaMetricCard
-            title="Saldo Início do Mês"
-            value={formatCurrency(0)}
-          />
-          <FimFiaMetricCard
-            title="Valor Atualizado"
-            value={formatCurrency(0)}
-          />
-          <FimFiaMetricCard
-            title="Rendimento"
-            value={formatCurrency(0)}
-            color="success"
-          />
-          <FimFiaMetricCard
-            title="Rentabilidade"
-            value={formatPercentage(0)}
-            color="success"
-          />
-        </div>
-
-        <ComponentCard title="FIM/FIA - Detalhamento">
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-              <DollarLineIcon className="w-8 h-8 text-gray-400" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">
-                Nenhum investimento encontrado
-              </h3>
-              <p className="text-sm text-black max-w-md">
-                Adicione investimentos FIM/FIA para começar a acompanhar seus fundos multimercado e de ações.
-              </p>
-            </div>
-          </div>
-        </ComponentCard>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Cards de resumo */}
@@ -383,25 +379,25 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
         />
         <FimFiaMetricCard
           title="Caixa para Investir"
-          value={formatCurrency(data.resumo.caixaParaInvestir)}
+          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
           color="success"
         />
         <FimFiaMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data.resumo.saldoInicioMes)}
+          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <FimFiaMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data.resumo.valorAtualizado)}
+          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
         />
         <FimFiaMetricCard
           title="Rendimento"
-          value={formatCurrency(data.resumo.rendimento)}
+          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <FimFiaMetricCard
           title="Rentabilidade"
-          value={formatPercentage(data.resumo.rentabilidade)}
+          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
@@ -409,7 +405,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       {/* Tabela principal */}
       <ComponentCard title="FIM/FIA - Detalhamento">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
                 <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
@@ -461,20 +457,8 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
               </tr>
             </thead>
             <tbody>
-              {dataComRisco?.secoes.map((secao) => (
-                <FimFiaSection
-                  key={secao.tipo}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  isExpanded={expandedSections.has(secao.tipo)}
-                  onToggle={() => toggleSection(secao.tipo)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                />
-              ))}
-
               {/* Linha de totalização */}
-              <tr className="bg-[#808080] border-t-2 border-gray-300">
+              <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
                 </td>
@@ -511,6 +495,18 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
         {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
       </td>
               </tr>
+
+              {normalizedSections.map((secao) => (
+                <FimFiaSection
+                  key={secao.tipo}
+                  secao={secao}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  isExpanded={expandedSections.has(secao.tipo)}
+                  onToggle={() => toggleSection(secao.tipo)}
+                  onUpdateObjetivo={handleUpdateObjetivo}
+                />
+              ))}
             </tbody>
           </table>
         </div>
