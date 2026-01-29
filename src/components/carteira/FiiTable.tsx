@@ -580,12 +580,12 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="xl:col-span-6">
           <ComponentCard title="Alocação por Segmento">
-            <PieChartFiiSegmento data={data.alocacaoSegmento} />
+            <PieChartFiiSegmento data={data?.alocacaoSegmento ?? []} />
           </ComponentCard>
         </div>
         <div className="xl:col-span-6">
           <ComponentCard title="Alocação por Ativo">
-            <PieChartFiiAtivo data={data.alocacaoAtivo} />
+            <PieChartFiiAtivo data={data?.alocacaoAtivo ?? []} />
           </ComponentCard>
         </div>
       </div>

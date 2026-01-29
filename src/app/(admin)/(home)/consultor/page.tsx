@@ -489,7 +489,8 @@ const ConsultantDashboardPage = () => {
   const performanceHistory = useMemo(() => {
     return performanceSeries.map((point) => ({
       data: point.timestamp,
-      valor: point.value,
+      valorAplicado: point.value,
+      saldoBruto: point.value,
     }));
   }, [performanceSeries]);
 

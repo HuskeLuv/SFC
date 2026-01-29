@@ -515,7 +515,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="xl:col-span-6">
           <ComponentCard title="Distribuição por Ativo">
-            <PieChartStocksAtivo data={data?.alocacaoAtivo} />
+            <PieChartStocksAtivo data={data?.alocacaoAtivo ?? []} />
           </ComponentCard>
         </div>
         <div className="xl:col-span-6">

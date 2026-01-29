@@ -602,7 +602,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
         </div>
         <div className="xl:col-span-6">
           <ComponentCard title="Distribuição por Ativo">
-            <PieChartReitAtivo data={data?.alocacaoAtivo} />
+            <PieChartReitAtivo data={data?.alocacaoAtivo ?? []} />
           </ComponentCard>
         </div>
       </div>

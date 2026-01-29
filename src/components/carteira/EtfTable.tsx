@@ -602,7 +602,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
         </div>
         <div className="xl:col-span-6">
           <ComponentCard title="Distribuição por Ativo">
-            <PieChartEtfAtivo data={data?.alocacaoAtivo} />
+            <PieChartEtfAtivo data={data?.alocacaoAtivo ?? []} />
           </ComponentCard>
         </div>
       </div>
