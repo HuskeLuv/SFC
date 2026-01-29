@@ -2,17 +2,18 @@
 import React, { useMemo, useState } from "react";
 import ComponentCard from "@/components/common/ComponentCard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
-import { useIndices } from "@/hooks/useIndices";
+import { useIndices, IndexData } from "@/hooks/useIndices";
 import { useCarteira } from "@/hooks/useCarteira";
 import { useCarteiraHistorico } from "@/hooks/useCarteiraHistorico";
 import RentabilidadeChart from "./RentabilidadeChart";
 import RentabilidadeResumo from "./RentabilidadeResumo";
 
-type RentabilidadeRangeValue = "inicio" | "ano" | "2y" | "3y" | "5y" | "10y";
+type RentabilidadeRangeValue = "inicio" | "ano" | "12m" | "2y" | "3y" | "5y" | "10y";
 
 const RENTABILIDADE_RANGE_OPTIONS: Array<{ value: RentabilidadeRangeValue; label: string }> = [
   { value: "inicio", label: "Do início" },
   { value: "ano", label: "No ano" },
+  { value: "12m", label: "Últimos 12 meses" },
   { value: "2y", label: "Últimos 2 anos" },
   { value: "3y", label: "Últimos 3 anos" },
   { value: "5y", label: "Últimos 5 anos" },
@@ -41,6 +42,12 @@ export default function RentabilidadeGeral() {
       const yearStart = new Date(now.getFullYear(), 0, 1);
       return normalizeStartDate(yearStart);
     }
+
+  if (range === "12m") {
+    const start = new Date(now);
+    start.setMonth(start.getMonth() - 12);
+    return normalizeStartDate(start);
+  }
 
     if (range === "2y") {
       const start = new Date(now);
@@ -75,7 +82,9 @@ export default function RentabilidadeGeral() {
       return undefined;
     }
     // Encontrar o primeiro valor não-zero (ignorar pontos iniciais com valor zero)
-    const firstNonZeroItem = resumo.historicoPatrimonio.find(item => item.saldoBruto > 0);
+    const firstNonZeroItem = resumo.historicoPatrimonio.find(
+      item => item.saldoBruto > 0 || item.valorAplicado > 0
+    );
     return firstNonZeroItem?.data;
   }, [resumo?.historicoPatrimonio]);
 
@@ -105,7 +114,9 @@ export default function RentabilidadeGeral() {
     const historico = resumo.historicoPatrimonio;
     
     // Encontrar o primeiro valor não-zero (ignorar pontos iniciais com valor zero)
-    const firstNonZeroIndex = historico.findIndex(item => item.saldoBruto > 0);
+    const firstNonZeroIndex = historico.findIndex(
+      item => item.saldoBruto > 0 || item.valorAplicado > 0
+    );
     if (firstNonZeroIndex === -1) {
       return [];
     }
@@ -129,8 +140,10 @@ export default function RentabilidadeGeral() {
   }, [resumo?.historicoPatrimonio]);
 
   // Buscar dados para os 3 períodos simultaneamente
+  // Para "Últimos 12 meses", usar range 1y na BRAPI para evitar saltos fora do período
+  const indicesDailyRange = selectedRange === "12m" ? "1y" : "1d";
   // Para os períodos "1d" e "1mo", passar a data do primeiro investimento
-  const { indices: indices1d, loading: loading1d, error: error1d } = useIndices("1d", selectedRangeStart);
+  const { indices: indices1d, loading: loading1d, error: error1d } = useIndices(indicesDailyRange, selectedRangeStart);
   const { indices: indices1mo, loading: loading1mo, error: error1mo } = useIndices("1mo", selectedRangeStart);
   const { indices: indices1y, loading: loading1y, error: error1y } = useIndices("1y", selectedRangeStart);
 
@@ -141,10 +154,19 @@ export default function RentabilidadeGeral() {
     return data.filter((item) => item.date >= startDate);
   };
 
-  const filteredCarteiraHistorico = useMemo(
-    () => filterDataByStart(carteiraHistoricoDiario, selectedRangeStart),
-    [carteiraHistoricoDiario, selectedRangeStart]
-  );
+  const rebaseToStart = (data: IndexData[]): IndexData[] => {
+    if (data.length === 0) return data;
+    const baseValue = data[0]?.value ?? 0;
+    return data.map((item) => ({
+      ...item,
+      value: item.value - baseValue,
+    }));
+  };
+
+  const filteredCarteiraHistorico = useMemo(() => {
+    const filtered = filterDataByStart(carteiraHistoricoDiario, selectedRangeStart);
+    return selectedRangeStart ? rebaseToStart(filtered) : filtered;
+  }, [carteiraHistoricoDiario, selectedRangeStart]);
 
   const filteredIndices1d = useMemo(
     () =>

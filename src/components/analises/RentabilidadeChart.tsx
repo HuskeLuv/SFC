@@ -6,7 +6,7 @@ import { IndexData, IndexResponse } from "@/hooks/useIndices";
 // Componente wrapper para o ReactApexChart
 const ApexChartWrapper = React.memo(({ options, series, type, height }: {
   options: ApexOptions;
-  series: Array<{ name: string; data: number[][] }>;
+  series: Array<{ name: string; data: (number | null)[][] }>;
   type: string;
   height: number;
 }) => {
@@ -161,7 +161,34 @@ export default function RentabilidadeChart({
       }
     });
 
-    return seriesData;
+    if (period !== '1d' || seriesData.length === 0) {
+      return seriesData;
+    }
+
+    const allDates = Array.from(
+      new Set(seriesData.flatMap((serie) => serie.data.map((point) => point[0])))
+    ).sort((a, b) => a - b);
+
+    return seriesData.map((serie) => {
+      const valueByDate = new Map(serie.data.map(([date, value]) => [date, value]));
+      let lastValue: number | null = null;
+
+      const alignedData = allDates.map((date) => {
+        if (valueByDate.has(date)) {
+          lastValue = valueByDate.get(date) ?? null;
+          return [date, lastValue] as (number | null)[];
+        }
+        if (lastValue === null) {
+          return [date, null] as (number | null)[];
+        }
+        return [date, lastValue] as (number | null)[];
+      });
+
+      return {
+        ...serie,
+        data: alignedData,
+      };
+    });
   }, [carteiraData, indicesData, period]);
 
   const chartType = period === '1mo' || period === '1y' ? 'bar' : 'line';

@@ -77,7 +77,13 @@ const fetchAssetHistory = async (symbol: string, startDate?: Date): Promise<Arra
     let brapiRange = '1y';
     if (startDate) {
       const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / DAY_MS);
-      brapiRange = daysSinceStart > 365 ? '2y' : '1y';
+      if (daysSinceStart > 1825) {
+        brapiRange = '5y';
+      } else if (daysSinceStart > 730) {
+        brapiRange = '2y';
+      } else {
+        brapiRange = '1y';
+      }
     }
 
     const tokenParam = apiKey ? `&token=${apiKey}` : '';
@@ -100,10 +106,12 @@ const fetchAssetHistory = async (symbol: string, startDate?: Date): Promise<Arra
       return [];
     }
 
-    let assetData = historicalData.map((item: { date: number; close: number }) => ({
+    let assetData: Array<{ date: number; value: number }> = historicalData.map(
+      (item: { date: number; close: number }) => ({
       date: item.date * 1000,
       value: item.close || 0,
-    }));
+    })
+    );
 
     if (startDate) {
       const startTimestamp = startDate.getTime();

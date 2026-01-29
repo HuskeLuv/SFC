@@ -27,11 +27,13 @@ const buildDailyTimeline = (startDate: Date, endDate: Date) => {
   return timeline;
 };
 
-const buildDailyPriceMap = (history: IndexData[], timeline: number[]) => {
-  const sorted = [...history].sort((a, b) => a.date - b.date);
+const buildDailyPriceMap = (history: IndexData[], timeline: number[], initialPrice?: number) => {
+  const sorted = [...history]
+    .filter((item) => Number.isFinite(item.value) && item.value > 0)
+    .sort((a, b) => a.date - b.date);
   const map = new Map<number, number>();
 
-  let lastPrice = 0;
+  let lastPrice = Number.isFinite(initialPrice) && initialPrice && initialPrice > 0 ? initialPrice : undefined;
   let historyIndex = 0;
 
   for (const day of timeline) {
@@ -42,7 +44,9 @@ const buildDailyPriceMap = (history: IndexData[], timeline: number[]) => {
       historyIndex += 1;
     }
 
-    map.set(day, lastPrice);
+    if (Number.isFinite(lastPrice) && lastPrice && lastPrice > 0) {
+      map.set(day, lastPrice);
+    }
   }
 
   return map;
@@ -122,7 +126,13 @@ const fetchAssetHistory = async (symbol: string, startDate?: Date): Promise<Inde
     let brapiRange = '1y';
     if (startDate) {
       const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      brapiRange = daysSinceStart > 365 ? '2y' : '1y';
+      if (daysSinceStart > 1825) {
+        brapiRange = '5y';
+      } else if (daysSinceStart > 730) {
+        brapiRange = '2y';
+      } else {
+        brapiRange = '1y';
+      }
     }
 
     const tokenParam = apiKey ? `&token=${apiKey}` : '';
@@ -268,6 +278,7 @@ export async function GET(request: NextRequest) {
     const cashFlowsByDay = new Map<number, number>();
     const quantityDeltasBySymbol = new Map<string, Map<number, number>>();
     const preStartQuantities = new Map<string, number>();
+    const pricePointsBySymbol = new Map<string, IndexData[]>();
 
     transactionsFiltradas.forEach(trans => {
       const symbol = trans.stock?.ticker || trans.asset?.symbol;
@@ -291,6 +302,16 @@ export async function GET(request: NextRequest) {
 
       const cashFlowDelta = trans.type === 'compra' ? value : -value;
       cashFlowsByDay.set(dayKey, (cashFlowsByDay.get(dayKey) || 0) + cashFlowDelta);
+
+      const priceValue = trans.price > 0
+        ? trans.price
+        : (trans.quantity > 0 ? value / trans.quantity : 0);
+      if (priceValue > 0) {
+        if (!pricePointsBySymbol.has(symbol)) {
+          pricePointsBySymbol.set(symbol, []);
+        }
+        pricePointsBySymbol.get(symbol)!.push({ date: dayKey, value: priceValue });
+      }
     });
 
     for (const symbol of transactionsPorSimbolo.keys()) {
@@ -300,7 +321,10 @@ export async function GET(request: NextRequest) {
 
     const pricesBySymbol = new Map<string, Map<number, number>>();
     historicosPorAtivo.forEach((historico, symbol) => {
-      pricesBySymbol.set(symbol, buildDailyPriceMap(historico, timeline));
+      const pricePoints = pricePointsBySymbol.get(symbol) || [];
+      const history = [...historico, ...pricePoints];
+      const initialPrice = pricePoints.length > 0 ? pricePoints[0]?.value : undefined;
+      pricesBySymbol.set(symbol, buildDailyPriceMap(history, timeline, initialPrice));
     });
 
     const quantitiesBySymbol = new Map<string, number>();
@@ -322,8 +346,8 @@ export async function GET(request: NextRequest) {
         const quantity = quantitiesBySymbol.get(symbol) || 0;
         if (quantity <= 0) return;
 
-        const price = priceMap.get(day) || 0;
-        if (price > 0) {
+        const price = priceMap.get(day);
+        if (price && price > 0) {
           portfolioTotal += quantity * price;
         }
       });
