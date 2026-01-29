@@ -20,10 +20,10 @@ export default function ProventosDistribuicaoTable({ grouped, viewMode }: Proven
               {viewMode === "yield" ? "Ativo" : "Categoria"}
             </th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {viewMode === "yield" ? "Yield on Cost" : "Total"}
+              {viewMode === "yield" ? "Dividend Yield" : "Total"}
             </th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Média
+              {viewMode === "yield" ? "YOC" : "Média"}
             </th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
               %
@@ -41,13 +41,16 @@ export default function ProventosDistribuicaoTable({ grouped, viewMode }: Proven
                   {name}
                 </td>
                 <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white font-medium">
-                  {viewMode === "yield" 
-                    ? `${((data.total / 1000) * 100).toFixed(2)}%` // Placeholder para yield real
+                  {viewMode === "yield"
+                    ? `${(data.dividendYield ?? 0).toFixed(2)}%`
                     : `R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                   }
                 </td>
                 <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
-                  R$ {average.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {viewMode === "yield"
+                    ? `${(data.yoc ?? 0).toFixed(2)}%`
+                    : `R$ ${average.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  }
                 </td>
                 <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
                   {percentage.toFixed(2)}%

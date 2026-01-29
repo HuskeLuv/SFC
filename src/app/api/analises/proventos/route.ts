@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { fetchQuotes } from '@/services/brapiQuote';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
 interface ProventoData {
   id: string;
   data: string;
+  symbol: string;
   ativo: string;
   tipo: string;
   classe: string;
@@ -20,6 +22,9 @@ interface PortfolioAssetEntry {
   name: string;
   assetType: string;
   quantity: number;
+  totalInvested: number;
+  avgPrice: number;
+  lastUpdate: Date;
   stockId?: string | null;
   assetId?: string | null;
 }
@@ -174,6 +179,26 @@ const extractDividendType = (dividend: Record<string, any>) => {
   );
 };
 
+const normalizeDividendContainer = (container: unknown): Array<Record<string, any>> => {
+  if (!container || typeof container !== 'object') {
+    return [];
+  }
+  if (Array.isArray(container)) {
+    return container as Array<Record<string, any>>;
+  }
+
+  const possibleArrays = [
+    (container as Record<string, any>).dividends,
+    (container as Record<string, any>).cashDividends,
+    (container as Record<string, any>).dividendsHistory,
+    (container as Record<string, any>).events,
+    (container as Record<string, any>).history,
+    (container as Record<string, any>).data,
+  ].filter(Array.isArray) as Array<Record<string, any>[]>;
+
+  return possibleArrays.flat();
+};
+
 const fetchDividends = async (symbol: string) => {
   const apiKey = process.env.BRAPI_API_KEY;
   const headers: HeadersInit = {
@@ -212,20 +237,24 @@ const fetchDividends = async (symbol: string) => {
       result.events ||
       [];
 
-    if (Array.isArray(rawDividends)) {
-      return rawDividends;
+    const normalized = normalizeDividendContainer(rawDividends);
+    if (normalized.length > 0) {
+      return normalized;
     }
 
     if (rawDividends && typeof rawDividends === 'object') {
-      const nestedArrays = [
+      const nested = [
         (rawDividends as Record<string, any>).cashDividends,
         (rawDividends as Record<string, any>).dividends,
         (rawDividends as Record<string, any>).dividendsHistory,
         (rawDividends as Record<string, any>).stockDividends,
         (rawDividends as Record<string, any>).subscriptions,
-      ].filter(Array.isArray) as Array<Record<string, any>[]>;
+        (rawDividends as Record<string, any>).events,
+        (rawDividends as Record<string, any>).history,
+        (rawDividends as Record<string, any>).data,
+      ];
 
-      const flattened = nestedArrays.flat();
+      const flattened = nested.flatMap((item) => normalizeDividendContainer(item));
       if (flattened.length > 0) {
         return flattened;
       }
@@ -305,6 +334,9 @@ export async function GET(request: NextRequest) {
           name: item.stock?.companyName || item.asset?.name || symbol,
           assetType: item.stock ? 'stock' : item.asset?.type || 'outros',
           quantity: item.quantity || 0,
+          totalInvested: item.totalInvested || 0,
+          avgPrice: item.avgPrice || 0,
+          lastUpdate: item.lastUpdate,
           stockId: item.stockId,
           assetId: item.assetId,
         };
@@ -334,6 +366,7 @@ export async function GET(request: NextRequest) {
     });
 
     const transactionsBySymbol = new Map<string, TransactionPoint[]>();
+    const purchaseDateBySymbol = new Map<string, number>();
     transactions.forEach((transaction) => {
       const symbol = transaction.stock?.ticker || transaction.asset?.symbol;
       if (!symbol || isBlockedSymbol(symbol)) {
@@ -349,6 +382,14 @@ export async function GET(request: NextRequest) {
         date: transaction.date.getTime(),
         quantity: quantityChange,
       });
+
+      if (transaction.type === 'compra') {
+        const purchaseTime = transaction.date.getTime();
+        const existing = purchaseDateBySymbol.get(symbol);
+        if (!existing || purchaseTime < existing) {
+          purchaseDateBySymbol.set(symbol, purchaseTime);
+        }
+      }
     });
 
     const timelinesBySymbol = new Map<string, TransactionPoint[]>();
@@ -357,9 +398,23 @@ export async function GET(request: NextRequest) {
     });
 
     portfolioAssets.forEach((asset) => {
-      if (!timelinesBySymbol.has(asset.symbol) && asset.quantity > 0) {
-        timelinesBySymbol.set(asset.symbol, [{ date: 0, quantity: asset.quantity }]);
+      if (!purchaseDateBySymbol.has(asset.symbol)) {
+        purchaseDateBySymbol.set(asset.symbol, asset.lastUpdate.getTime());
       }
+      if (!timelinesBySymbol.has(asset.symbol) && asset.quantity > 0) {
+        timelinesBySymbol.set(asset.symbol, [{ date: asset.lastUpdate.getTime(), quantity: asset.quantity }]);
+      }
+    });
+
+    const symbols = portfolioAssets.map((asset) => asset.symbol);
+    const quotes = await fetchQuotes(symbols);
+    const assetValuesBySymbol = new Map<string, { invested: number; current: number }>();
+    portfolioAssets.forEach((asset) => {
+      const quote = quotes.get(asset.symbol);
+      const price = quote || asset.avgPrice;
+      const current = price > 0 ? price * asset.quantity : 0;
+      const invested = asset.totalInvested > 0 ? asset.totalInvested : asset.avgPrice * asset.quantity;
+      assetValuesBySymbol.set(asset.symbol, { invested, current });
     });
 
     const startDateTime = startDate ? new Date(startDate).getTime() : undefined;
@@ -375,6 +430,8 @@ export async function GET(request: NextRequest) {
       const timeline = timelinesBySymbol.get(asset.symbol) || [];
       const classe = mapAssetTypeToClasse(asset);
 
+      const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
+
       dividends.forEach((dividend, index) => {
         const date = extractDividendDate(dividend);
         if (!date) {
@@ -382,6 +439,9 @@ export async function GET(request: NextRequest) {
         }
 
         const dateTime = date.getTime();
+        if (purchaseDateTime && dateTime < purchaseDateTime) {
+          return;
+        }
         if (startDateTime && dateTime < startDateTime) {
           return;
         }
@@ -410,6 +470,7 @@ export async function GET(request: NextRequest) {
         proventos.push({
           id: `${asset.symbol}-${dateTime}-${index}`,
           data: date.toISOString(),
+          symbol: asset.symbol,
           ativo: asset.name || asset.symbol,
           tipo,
           classe,
@@ -424,7 +485,8 @@ export async function GET(request: NextRequest) {
     proventos.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
     // Agrupar dados conforme solicitado
-    let groupedData: Record<string, { total: number; count: number; items: ProventoData[] }> = {};
+    const groupedData: Record<string, { total: number; count: number; items: ProventoData[]; invested: number; currentValue: number; dividendYield: number; yoc: number }> = {};
+    const groupAssets = new Map<string, Set<string>>();
 
     proventos.forEach(provento => {
       let key = '';
@@ -444,17 +506,59 @@ export async function GET(request: NextRequest) {
       }
 
       if (!groupedData[key]) {
-        groupedData[key] = { total: 0, count: 0, items: [] };
+        groupedData[key] = { total: 0, count: 0, items: [], invested: 0, currentValue: 0, dividendYield: 0, yoc: 0 };
       }
 
       groupedData[key].total += provento.valor;
       groupedData[key].count += 1;
       groupedData[key].items.push(provento);
+
+      if (!groupAssets.has(key)) {
+        groupAssets.set(key, new Set());
+      }
+      if (provento.symbol) {
+        groupAssets.get(key)!.add(provento.symbol);
+      }
+    });
+
+    Object.entries(groupedData).forEach(([key, data]) => {
+      const symbolsSet = groupAssets.get(key) || new Set();
+      symbolsSet.forEach((symbol) => {
+        const values = assetValuesBySymbol.get(symbol);
+        if (!values) return;
+        data.invested += values.invested;
+        data.currentValue += values.current;
+      });
+
+      data.dividendYield = data.currentValue > 0 ? (data.total / data.currentValue) * 100 : 0;
+      data.yoc = data.invested > 0 ? (data.total / data.invested) * 100 : 0;
+    });
+
+    const monthlySummary: Record<string, { total: number; count: number }> = {};
+    const yearlySummary: Record<string, { total: number; count: number }> = {};
+    proventos.forEach((provento) => {
+      const date = new Date(provento.data);
+      if (Number.isNaN(date.getTime())) return;
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const yearKey = `${date.getFullYear()}`;
+
+      if (!monthlySummary[monthKey]) {
+        monthlySummary[monthKey] = { total: 0, count: 0 };
+      }
+      if (!yearlySummary[yearKey]) {
+        yearlySummary[yearKey] = { total: 0, count: 0 };
+      }
+      monthlySummary[monthKey].total += provento.valor;
+      monthlySummary[monthKey].count += 1;
+      yearlySummary[yearKey].total += provento.valor;
+      yearlySummary[yearKey].count += 1;
     });
 
     return NextResponse.json({
       proventos,
       grouped: groupedData,
+      monthly: monthlySummary,
+      yearly: yearlySummary,
       total: proventos.reduce((sum, p) => sum + p.valor, 0),
       media: proventos.length > 0 
         ? proventos.reduce((sum, p) => sum + p.valor, 0) / proventos.length 

@@ -62,9 +62,7 @@ export default function ProventosDistribuicaoChart({ grouped, viewMode }: Proven
     
     const data = entries.map(([, data]) => {
       if (viewMode === "yield") {
-        // Yield on Cost seria calculado com base no custo dos ativos
-        // Por enquanto, retornamos o total
-        return data.total;
+        return data.yoc || 0;
       }
       return data.total;
     });
@@ -98,12 +96,15 @@ export default function ProventosDistribuicaoChart({ grouped, viewMode }: Proven
     dataLabels: {
       enabled: true,
       formatter: (val: number) => {
-        return `${val.toFixed(2)}%`;
+        return viewMode === "yield" ? `${val.toFixed(2)}%` : `${val.toFixed(2)}%`;
       },
     },
     tooltip: {
       y: {
         formatter: (val: number) => {
+          if (viewMode === "yield") {
+            return `${val.toFixed(2)}%`;
+          }
           return `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
         },
       },
@@ -134,6 +135,9 @@ export default function ProventosDistribuicaoChart({ grouped, viewMode }: Proven
               fontWeight: 600,
               formatter: () => {
                 const total = series.reduce((sum, val) => sum + val, 0);
+                if (viewMode === "yield") {
+                  return `${total.toFixed(2)}%`;
+                }
                 return `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
               },
             },

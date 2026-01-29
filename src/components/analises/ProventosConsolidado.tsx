@@ -21,7 +21,7 @@ export default function ProventosConsolidado() {
   const [endDate, setEndDate] = useState<string>("");
   const [viewMode, setViewMode] = useState<"total" | "yield">("total");
   
-  const { proventos, grouped, total, media, loading, error } = useProventos(
+  const { proventos, grouped, monthly, yearly, total, media, loading, error } = useProventos(
     startDate || undefined,
     endDate || undefined,
     groupBy
@@ -155,6 +155,84 @@ export default function ProventosConsolidado() {
           />
         </div>
       </ComponentCard>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <ComponentCard title="Proventos por Mês">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Mês
+                  </th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(monthly)
+                  .sort((a, b) => a[0].localeCompare(b[0]))
+                  .map(([month, data]) => (
+                    <tr key={month} className="border-b border-gray-100 dark:border-gray-800">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                        {month}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                        R$ {data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                {Object.keys(monthly).length === 0 && (
+                  <tr>
+                    <td colSpan={2} className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                      Nenhum provento encontrado no período selecionado
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </ComponentCard>
+
+        <ComponentCard title="Consolidado Anual">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Ano
+                  </th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(yearly)
+                  .sort((a, b) => a[0].localeCompare(b[0]))
+                  .map(([year, data]) => (
+                    <tr key={year} className="border-b border-gray-100 dark:border-gray-800">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                        {year}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                        R$ {data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                {Object.keys(yearly).length === 0 && (
+                  <tr>
+                    <td colSpan={2} className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                      Nenhum provento encontrado no período selecionado
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </ComponentCard>
+      </div>
     </div>
   );
 }
