@@ -9,6 +9,7 @@ import {
   useAlert, 
   useProcessedData 
 } from "@/hooks/useCashflow";
+import { useProventos } from "@/hooks/useProventos";
 import { validateNewRow } from "@/utils/validation";
 import {
   TableHeaderComponent,
@@ -20,7 +21,9 @@ import {
   FinancialPeaceIndexRow,
   InflationPedroRow,
   NewItemRow,
-  PreviousMonthBalanceRow
+  PreviousMonthBalanceRow,
+  InvestmentIncomeRow,
+  EvolutionRow
 } from "@/components/cashflow";
 import { EditableItemRow } from "@/components/cashflow/EditableItemRow";
 import { CashflowItem, CashflowGroup } from "@/types/cashflow";
@@ -34,6 +37,10 @@ import { CommentModal } from "@/components/cashflow/CommentModal";
 
 export default function DataTableTwo() {
   const { data, loading, error, refetch } = useCashflowData();
+  const currentYear = new Date().getFullYear();
+  const startDateISO = useMemo(() => new Date(currentYear, 0, 1).toISOString(), [currentYear]);
+  const endDateISO = useMemo(() => new Date(currentYear, 11, 31, 23, 59, 59).toISOString(), [currentYear]);
+  const { proventos } = useProventos(startDateISO, endDateISO);
   const { 
     collapsed, 
     addingRow, 
@@ -82,16 +89,47 @@ export default function DataTableTwo() {
     };
   }, [findDespesasFixasGroup, processedData.groupTotals, processedData.groupAnnualTotals]);
 
-  // Proventos recebidos (por enquanto vazio, preparado para futuro)
-  const proventosByMonth = useMemo(() => Array(12).fill(0), []);
-  const proventosAnnual = useMemo(() => 0, []);
+  // Proventos recebidos (apenas realizados no ano atual)
+  const proventosByMonth = useMemo(() => {
+    const totals = Array(12).fill(0);
+    proventos.forEach((provento) => {
+      if (provento.status !== "realizado") {
+        return;
+      }
+      const date = new Date(provento.data);
+      if (Number.isNaN(date.getTime()) || date.getFullYear() !== currentYear) {
+        return;
+      }
+      totals[date.getMonth()] += provento.valor;
+    });
+    return totals;
+  }, [proventos, currentYear]);
+  const proventosAnnual = useMemo(
+    () => proventosByMonth.reduce((sum, value) => sum + value, 0),
+    [proventosByMonth]
+  );
 
-  // Calcular Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior
-  const previousMonthBalance = useMemo(() => {
-    // Encontrar o grupo "Investimentos" para obter valores de aportes/resgates
+  const entradasByMonthWithProventos = useMemo(
+    () => processedData.entradasByMonth.map((value, index) => value + (proventosByMonth[index] || 0)),
+    [processedData.entradasByMonth, proventosByMonth]
+  );
+  const entradasAnnualWithProventos = useMemo(
+    () => processedData.entradasTotal + proventosAnnual,
+    [processedData.entradasTotal, proventosAnnual]
+  );
+  const totalByMonthWithProventos = useMemo(
+    () => processedData.totalByMonth.map((value, index) => value + (proventosByMonth[index] || 0)),
+    [processedData.totalByMonth, proventosByMonth]
+  );
+  const totalAnnualWithProventos = useMemo(
+    () => totalByMonthWithProventos.reduce((sum, value) => sum + value, 0),
+    [totalByMonthWithProventos]
+  );
+
+  const investimentosByMonth = useMemo(() => {
     const findInvestimentosGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
       for (const group of groups) {
-        if (group.name === 'Investimentos' || group.type === 'investimento') {
+        if (group.name === "Investimentos" || group.type === "investimento") {
           return group;
         }
         if (group.children) {
@@ -101,19 +139,31 @@ export default function DataTableTwo() {
       }
       return null;
     };
-    
+
     const investimentosGroup = findInvestimentosGroup(processedData.groups);
-    const investimentosByMonth = investimentosGroup 
+    return investimentosGroup
       ? (processedData.groupTotals[investimentosGroup.id] || Array(12).fill(0))
       : Array(12).fill(0);
-    
+  }, [processedData.groups, processedData.groupTotals]);
+
+  const evolucaoPatrimonioByMonth = useMemo(
+    () => totalByMonthWithProventos.map((value, index) => value + (investimentosByMonth[index] || 0)),
+    [totalByMonthWithProventos, investimentosByMonth]
+  );
+  const evolucaoPatrimonioAnnual = useMemo(
+    () => evolucaoPatrimonioByMonth.reduce((sum, value) => sum + value, 0),
+    [evolucaoPatrimonioByMonth]
+  );
+
+  // Calcular Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior
+  const previousMonthBalance = useMemo(() => {
     const saldo: number[] = [];
     // Calcular fluxo de caixa livre acumulado usando a fórmula:
     // Fluxo de Caixa Livre = (Saldo do mês atual) - (Aportes/Resgates) + (Saldo do mês anterior)
     const fluxoCaixaLivreAcumulado: number[] = [];
     for (let index = 0; index < 12; index++) {
       // Saldo do mês atual = Entradas - Despesas
-      const saldoMesAtual = processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
+      const saldoMesAtual = entradasByMonthWithProventos[index] - processedData.despesasByMonth[index];
       // Aportes/Resgates do mês atual
       const aportesResgates = investimentosByMonth[index] || 0;
       // Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior
@@ -127,7 +177,7 @@ export default function DataTableTwo() {
       saldo.push(saldoNaoInvestidoMesAnterior);
     }
     return saldo;
-  }, [processedData.entradasByMonth, processedData.despesasByMonth, processedData.groups, processedData.groupTotals]);
+  }, [entradasByMonthWithProventos, processedData.despesasByMonth, investimentosByMonth]);
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
@@ -821,6 +871,13 @@ export default function DataTableTwo() {
                                   onCancel={() => cancelAddingRow(subgroup.id)}
                                 />
                               )}
+                              {subgroup.name === "Entradas Variáveis" && (
+                                <InvestmentIncomeRow
+                                  valuesByMonth={proventosByMonth}
+                                  totalAnnual={proventosAnnual}
+                                  showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
+                                />
+                              )}
                             </>
                           )}
                           {/* Espaçamento depois de subgrupos com margem embaixo (após todos os itens) */}
@@ -891,22 +948,33 @@ export default function DataTableTwo() {
             
             {/* Renderizar Saldo antes de Investimentos */}
             <TotalRow
-              totalByMonth={processedData.totalByMonth}
-              totalAnnual={processedData.totalAnnual}
+              totalByMonth={totalByMonthWithProventos}
+              totalAnnual={totalAnnualWithProventos}
               showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
             />
             
-            {/* Espaçamento depois do Saldo */}
+            {/* Espaçamento entre Saldo e Evolução do Patrimônio */}
+            <TableRow>
+              <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
+            </TableRow>
+            
+            <EvolutionRow
+              valuesByMonth={evolucaoPatrimonioByMonth}
+              totalAnnual={evolucaoPatrimonioAnnual}
+              showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
+            />
+            
+            {/* Espaçamento depois da Evolução do Patrimônio */}
             <TableRow>
               <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
             </TableRow>
             
             {/* Renderizar Índice de Poupança após o Saldo */}
             <SavingsIndexRow
-              totalByMonth={processedData.totalByMonth}
-              entradasByMonth={processedData.entradasByMonth}
-              totalAnnual={processedData.totalAnnual}
-              entradasAnnual={processedData.entradasTotal}
+              totalByMonth={totalByMonthWithProventos}
+              entradasByMonth={entradasByMonthWithProventos}
+              totalAnnual={totalAnnualWithProventos}
+              entradasAnnual={entradasAnnualWithProventos}
               showActionsColumn={processedData.groups.some(g => isGroupEditing(g.id))}
             />
             
@@ -1161,31 +1229,12 @@ export default function DataTableTwo() {
             
             {/* Linha Fluxo de Caixa livre */}
             {(() => {
-              // Encontrar o grupo "Investimentos" para obter valores de aportes/resgates
-              const findInvestimentosGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
-                for (const group of groups) {
-                  if (group.name === 'Investimentos' || group.type === 'investimento') {
-                    return group;
-                  }
-                  if (group.children) {
-                    const found = findInvestimentosGroup(group.children);
-                    if (found) return found;
-                  }
-                }
-                return null;
-              };
-              
-              const investimentosGroup = findInvestimentosGroup(processedData.groups);
-              const investimentosByMonth = investimentosGroup 
-                ? (processedData.groupTotals[investimentosGroup.id] || Array(12).fill(0))
-                : Array(12).fill(0);
-              
               // Calcular Fluxo de Caixa Livre usando a fórmula:
               // Fluxo de Caixa Livre = (Saldo do mês atual) - (Aportes/Resgates) + (Saldo Não Investido no Mês Anterior)
               const fluxoCaixaLivreAcumulado: number[] = [];
               for (let index = 0; index < 12; index++) {
                 // Saldo do mês atual = Entradas - Despesas
-                const saldoMesAtual = processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
+                const saldoMesAtual = entradasByMonthWithProventos[index] - processedData.despesasByMonth[index];
                 // Aportes/Resgates do mês atual
                 const aportesResgates = investimentosByMonth[index] || 0;
                 // Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior

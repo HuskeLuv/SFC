@@ -14,6 +14,8 @@ export { TotalRow } from './TotalRow';
 export { SavingsIndexRow } from './SavingsIndexRow';
 export { FinancialPeaceIndexRow } from './FinancialPeaceIndexRow';
 export { PreviousMonthBalanceRow } from './PreviousMonthBalanceRow';
+export { InvestmentIncomeRow } from './InvestmentIncomeRow';
+export { EvolutionRow } from './EvolutionRow';
 export { InflationPedroRow } from './InflationPedroRow';
 export { NewItemRow } from './NewItemRow';
 export { default as NewEditableCell } from './NewEditableCell';
