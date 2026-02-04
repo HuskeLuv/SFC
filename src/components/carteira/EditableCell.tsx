@@ -11,6 +11,9 @@ interface EditableCellProps {
   suffix?: string;
   min?: number;
   max?: number;
+  formatValue?: (value: number) => string;
+  parseValue?: (rawValue: string) => number;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }
 
 export default function EditableCell({
@@ -23,6 +26,9 @@ export default function EditableCell({
   suffix = "%",
   min = 0,
   max = 100,
+  formatValue,
+  parseValue,
+  inputMode,
 }: EditableCellProps) {
   const [tempValue, setTempValue] = useState(value.toString());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -39,7 +45,7 @@ export default function EditableCell({
   }, [value]);
 
   const handleSave = () => {
-    const numValue = parseFloat(tempValue);
+    const numValue = parseValue ? parseValue(tempValue) : parseFloat(tempValue);
     if (!isNaN(numValue) && numValue >= min && numValue <= max) {
       onValueChange(numValue);
     } else {
@@ -67,7 +73,7 @@ export default function EditableCell({
       <div className="relative">
         <input
           ref={inputRef}
-          type="number"
+          type="text"
           value={tempValue}
           onChange={(e) => setTempValue(e.target.value)}
           onKeyDown={handleKeyPress}
@@ -75,6 +81,7 @@ export default function EditableCell({
           min={min}
           max={max}
           step="0.1"
+          inputMode={inputMode}
           className="w-full px-2 py-1 text-sm border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
       </div>
@@ -86,7 +93,7 @@ export default function EditableCell({
       onClick={onStartEdit}
       className={`cursor-pointer px-2 py-1 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${className}`}
     >
-      {value.toFixed(1)}{suffix}
+      {formatValue ? formatValue(value) : `${value.toFixed(1)}${suffix}`}
     </div>
   );
 } 

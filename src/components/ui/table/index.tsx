@@ -34,6 +34,7 @@ interface TableCellProps {
   isHeader?: boolean; // If true, renders as <th>, otherwise <td>
   className?: string; // Optional className for styling
   colSpan?: number; // Column span
+  rowSpan?: number; // Row span
   style?: React.CSSProperties; // Optional inline styles
   id?: string; // Optional id attribute
 }
@@ -64,11 +65,23 @@ const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(({
   isHeader = false,
   className,
   colSpan,
+  rowSpan,
   style,
   id,
 }, ref) => {
   const CellTag = isHeader ? "th" : "td";
-  return <CellTag ref={ref} id={id} className={` ${className}`} colSpan={colSpan} style={style}>{children}</CellTag>;
+  return (
+    <CellTag
+      ref={ref}
+      id={id}
+      className={` ${className}`}
+      colSpan={colSpan}
+      rowSpan={rowSpan}
+      style={style}
+    >
+      {children}
+    </CellTag>
+  );
 });
 
 TableCell.displayName = "TableCell";

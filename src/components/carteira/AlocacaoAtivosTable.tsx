@@ -8,6 +8,7 @@ import Alert from "../ui/alert/Alert";
 import ComponentCard from "../common/ComponentCard";
 
 interface AlocacaoAtivo {
+  categoria: string;
   classeAtivo: string;
   total: number;
   percentualAtual: number;
@@ -95,31 +96,11 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
     return nomes[categoria] || categoria;
   };
 
-  const getChaveCategoria = (nome: string): string => {
-    const chaves: { [key: string]: string } = {
-      "Reserva de Emergência": "reservaEmergencia",
-      "Reserva Oportunidade": "reservaOportunidade",
-      "Renda Fixa & Fundos Renda Fixa": "rendaFixaFundos",
-      "Fundos (FIM / FIA)": "fimFia",
-      "FII's": "fiis",
-      "Ações": "acoes",
-      "STOCKS": "stocks",
-      "REIT's": "reits",
-      "ETF's": "etfs",
-      "Moedas, Criptomoedas & Outros": "moedasCriptos",
-      "Previdência & Seguros": "previdenciaSeguros",
-      "Opções": "opcoes",
-      "Imóveis e Bens": "imoveisBens",
-    };
-    return chaves[nome] || nome;
-  };
-
   const calcularDados = (): AlocacaoAtivo[] => {
     const dados: AlocacaoAtivo[] = [];
 
     Object.entries(distribuicao).forEach(([key, value]) => {
-      const config = targetConfigMap[key];
-      if (!config) return; // Skip if no config found
+      const config = targetConfigMap[key] || { min: 0, max: 0, target: 0, descricao: "" };
       
       // Para Imóveis e Bens, usar totalDinheiroMaisBens para percentual
       // Para outros, usar totalCarteira (totalDinheiro)
@@ -130,6 +111,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
       // (não faz sentido ter target para imóveis na alocação de dinheiro)
       if (key === 'imoveisBens') {
         dados.push({
+          categoria: key,
           classeAtivo: getNomeAmigavel(key),
           total: value.valor,
           percentualAtual: percentualAtual,
@@ -145,6 +127,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
         const valorNecessario = (diferenca / 100) * totalCarteira;
 
         dados.push({
+          categoria: key,
           classeAtivo: getNomeAmigavel(key),
           total: value.valor,
           percentualAtual: percentualAtual,
@@ -172,6 +155,25 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
 
   const formatarPercentual = (valor: number): string => {
     return `${valor.toFixed(2)}%`;
+  };
+
+  const formatarValorReserva = (valorPercentual: number): string => {
+    const valorMonetario = totalCarteira > 0 ? (valorPercentual / 100) * totalCarteira : 0;
+    return formatarMoeda(valorMonetario);
+  };
+
+  const parseValorReserva = (rawValue: string): number => {
+    const cleanedValue = rawValue
+      .trim()
+      .replace(/\s/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".")
+      .replace(/[^0-9.-]/g, "");
+    const parsedValue = Number.parseFloat(cleanedValue);
+    if (!Number.isFinite(parsedValue)) {
+      return Number.NaN;
+    }
+    return totalCarteira > 0 ? (parsedValue / totalCarteira) * 100 : 0;
   };
 
   const getCorCelula = (atual: number, target: number): string => {
@@ -243,16 +245,18 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               }}
             >
               <TableCell 
-                isHeader 
-                className="px-2 border-t border-b border-l border-gray-200 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                isHeader
+                rowSpan={2}
+                className="px-2 border-t border-b border-l border-gray-200 border-r-0 text-left h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
-                  Classe de Ativos
+                  Classe de ativos
                 </p>
               </TableCell>
               <TableCell 
-                isHeader 
+                isHeader
+                rowSpan={2}
                 className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
@@ -261,7 +265,8 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                 </p>
               </TableCell>
               <TableCell 
-                isHeader 
+                isHeader
+                rowSpan={2}
                 className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
@@ -270,25 +275,18 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                 </p>
               </TableCell>
               <TableCell 
-                isHeader 
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                isHeader
+                colSpan={2}
+                className="px-2 border-t border-b-0 border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
-                  Mínimo
+                  Alocação
                 </p>
               </TableCell>
               <TableCell 
-                isHeader 
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
-              >
-                <p className="font-bold text-black text-xs whitespace-nowrap">
-                  Máximo
-                </p>
-              </TableCell>
-              <TableCell 
-                isHeader 
+                isHeader
+                rowSpan={2}
                 className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
@@ -297,7 +295,8 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                 </p>
               </TableCell>
               <TableCell 
-                isHeader 
+                isHeader
+                rowSpan={2}
                 className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
@@ -306,16 +305,19 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                 </p>
               </TableCell>
               <TableCell 
-                isHeader 
+                isHeader
+                rowSpan={2}
                 className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap w-36"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
-                  Necessidade de aporte em
+                  <span className="block">Necessidade de</span>
+                  <span className="block">aporte em</span>
                 </p>
               </TableCell>
               <TableCell 
-                isHeader 
+                isHeader
+                rowSpan={2}
                 className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
@@ -324,9 +326,41 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                 </p>
               </TableCell>
             </TableRow>
+            <TableRow 
+              className="h-6" 
+              style={{ 
+                fontFamily: 'Calibri, sans-serif', 
+                fontSize: '12px',
+                backgroundColor: '#9E8A58'
+              }}
+            >
+              <TableCell 
+                isHeader 
+                className="px-2 border-t-0 border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  Mínimo
+                </p>
+              </TableCell>
+              <TableCell 
+                isHeader 
+                className="px-2 border-t-0 border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <p className="font-bold text-black text-xs whitespace-nowrap">
+                  Máximo
+                </p>
+              </TableCell>
+            </TableRow>
           </TableHeader>
           <TableBody>
-            {dados.map((ativo) => (
+            {dados.map((ativo) => {
+              const isReservaEmergencia = ativo.categoria === "reservaEmergencia";
+              const isImoveisBens = ativo.categoria === "imoveisBens";
+              const minMaxDisplayValue = (valor: number) =>
+                isReservaEmergencia ? formatarValorReserva(valor) : formatarPercentual(valor);
+              return (
               <TableRow 
                 key={ativo.classeAtivo}
                 className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-white dark:bg-gray-900"
@@ -342,46 +376,77 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                   {formatarPercentual(ativo.percentualAtual)}
                 </TableCell>
                 <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0">
-                  <EditableCell
-                    value={ativo.alocacaoMinimo}
-                    isEditing={isEditing(getChaveCategoria(ativo.classeAtivo), 'minimo')}
-                    onStartEdit={() => startEditing(getChaveCategoria(ativo.classeAtivo), 'minimo')}
-                    onStopEdit={stopEditing}
-                    onValueChange={(valor) => handleConfigChange(getChaveCategoria(ativo.classeAtivo), 'minimo', valor)}
-                    min={0}
-                    max={100}
-                  />
+                  {isImoveisBens ? (
+                    <span className="text-gray-500 dark:text-gray-500">-</span>
+                  ) : (
+                    <EditableCell
+                      value={ativo.alocacaoMinimo}
+                      isEditing={isEditing(ativo.categoria, 'minimo')}
+                      onStartEdit={() => startEditing(ativo.categoria, 'minimo')}
+                      onStopEdit={stopEditing}
+                      onValueChange={(valor) => handleConfigChange(ativo.categoria, 'minimo', valor)}
+                      min={0}
+                      max={100}
+                      suffix={isReservaEmergencia ? "" : "%"}
+                      formatValue={minMaxDisplayValue}
+                      parseValue={isReservaEmergencia ? parseValorReserva : undefined}
+                      inputMode={isReservaEmergencia ? "decimal" : "numeric"}
+                    />
+                  )}
                 </TableCell>
                 <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0">
-                  <EditableCell
-                    value={ativo.alocacaoMaximo}
-                    isEditing={isEditing(getChaveCategoria(ativo.classeAtivo), 'maximo')}
-                    onStartEdit={() => startEditing(getChaveCategoria(ativo.classeAtivo), 'maximo')}
-                    onStopEdit={stopEditing}
-                    onValueChange={(valor) => handleConfigChange(getChaveCategoria(ativo.classeAtivo), 'maximo', valor)}
-                    min={0}
-                    max={100}
-                  />
+                  {isImoveisBens ? (
+                    <span className="text-gray-500 dark:text-gray-500">-</span>
+                  ) : (
+                    <EditableCell
+                      value={ativo.alocacaoMaximo}
+                      isEditing={isEditing(ativo.categoria, 'maximo')}
+                      onStartEdit={() => startEditing(ativo.categoria, 'maximo')}
+                      onStopEdit={stopEditing}
+                      onValueChange={(valor) => handleConfigChange(ativo.categoria, 'maximo', valor)}
+                      min={0}
+                      max={100}
+                      suffix={isReservaEmergencia ? "" : "%"}
+                      formatValue={minMaxDisplayValue}
+                      parseValue={isReservaEmergencia ? parseValorReserva : undefined}
+                      inputMode={isReservaEmergencia ? "decimal" : "numeric"}
+                    />
+                  )}
                 </TableCell>
-                <TableCell className={`px-2 text-xs font-medium text-center h-6 leading-6 whitespace-nowrap border-2 border-t-2 border-b-2 border-l-2 border-r-2 border-black bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400`}>
-                  <EditableCell
-                    value={ativo.percentualTarget}
-                    isEditing={isEditing(getChaveCategoria(ativo.classeAtivo), 'target')}
-                    onStartEdit={() => startEditing(getChaveCategoria(ativo.classeAtivo), 'target')}
-                    onStopEdit={stopEditing}
-                    onValueChange={(valor) => handleConfigChange(getChaveCategoria(ativo.classeAtivo), 'target', valor)}
-                    min={0}
-                    max={100}
-                    className="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                  />
+                <TableCell className={`px-2 text-xs font-medium text-center h-6 leading-6 whitespace-nowrap ${
+                  isImoveisBens
+                    ? "border-b border-gray-200 border-l-0 border-r-0 text-gray-500 dark:text-gray-500"
+                    : "border-2 border-t-2 border-b-2 border-l-2 border-r-2 border-black bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                }`}>
+                  {isImoveisBens ? (
+                    <span className="text-gray-500 dark:text-gray-500">-</span>
+                  ) : (
+                    <EditableCell
+                      value={ativo.percentualTarget}
+                      isEditing={isEditing(ativo.categoria, 'target')}
+                      onStartEdit={() => startEditing(ativo.categoria, 'target')}
+                      onStopEdit={stopEditing}
+                      onValueChange={(valor) => handleConfigChange(ativo.categoria, 'target', valor)}
+                      min={0}
+                      max={100}
+                      suffix={isReservaEmergencia ? "" : "%"}
+                      formatValue={minMaxDisplayValue}
+                      parseValue={isReservaEmergencia ? parseValorReserva : undefined}
+                      inputMode={isReservaEmergencia ? "decimal" : "numeric"}
+                      className="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                    />
+                  )}
                 </TableCell>
-                <TableCell className={`px-2 text-xs text-center font-medium h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 ${ativo.quantoFalta > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                  {ativo.quantoFalta > 0 ? 
-                    `Falta ${formatarPercentual(ativo.quantoFalta)}` : 
-                    ativo.quantoFalta < 0 ? 
-                      `Excesso ${formatarPercentual(Math.abs(ativo.quantoFalta))}` : 
-                      'No target'
-                  }
+                <TableCell className={`px-2 text-xs text-center font-medium h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 ${
+                  ativo.quantoFalta > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                }`}>
+                  {isImoveisBens ? "" : (
+                    ativo.quantoFalta > 0
+                      ? `Falta ${formatarPercentual(ativo.quantoFalta)}`
+                      : ativo.quantoFalta < 0
+                        ? `Excesso ${formatarPercentual(Math.abs(ativo.quantoFalta))}`
+                        : 'No target'
+                  )}
                 </TableCell>
                 <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 font-mono w-36">
                   <span className={ativo.necessidadeAporte > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
@@ -391,15 +456,15 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
                 <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 border-b border-gray-200 border-l-0 border-r border-gray-300">
                   <EditableTextCell
                     value={ativo.descricao}
-                    isEditing={isEditing(getChaveCategoria(ativo.classeAtivo), "descricao")}
-                    onStartEdit={() => startEditing(getChaveCategoria(ativo.classeAtivo), "descricao")}
+                    isEditing={isEditing(ativo.categoria, "descricao")}
+                    onStartEdit={() => startEditing(ativo.categoria, "descricao")}
                     onStopEdit={stopEditing}
-                    onValueChange={(valor) => handleDescricaoChange(getChaveCategoria(ativo.classeAtivo), valor)}
+                    onValueChange={(valor) => handleDescricaoChange(ativo.categoria, valor)}
                     className="text-xs"
                   />
                 </TableCell>
               </TableRow>
-            ))}
+            )})}
             
             {/* Linha de Total Dinheiro (exclui Imóveis e Bens) */}
             <TableRow 
@@ -409,21 +474,19 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
                 Total Dinheiro
               </TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
                 {formatarMoeda(totalDinheiro)}
               </TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
-                {formatarPercentual((totalDinheiro / totalDinheiroMaisBens) * 100)}
+                
               </TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
-                100,00%
+                
               </TableCell>
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300 font-mono">
-                {formatarMoeda(dados.filter(item => item.classeAtivo !== 'Imóveis e Bens').reduce((sum, item) => sum + (item.necessidadeAporte > 0 ? item.necessidadeAporte : 0), 0))}
-              </TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
             </TableRow>
             
@@ -435,16 +498,16 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
                 Total Dinheiro + Bens
               </TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
                 {formatarMoeda(totalDinheiroMaisBens)}
               </TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
-                100,00%
+                
               </TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
             </TableRow>
