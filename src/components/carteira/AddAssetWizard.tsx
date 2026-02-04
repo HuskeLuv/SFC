@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/ui/sidebar/Sidebar";
 import Button from "@/components/ui/button/Button";
 import { WizardFormData, WizardErrors, WizardStep } from "@/types/wizard";
@@ -75,6 +75,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const [errors, setErrors] = useState<WizardErrors>({});
   const [loading, setLoading] = useState(false);
   const [steps, setSteps] = useState<WizardStep[]>(STEPS);
+  const isSubmittingRef = useRef(false);
 
   // Atualizar validação dos passos
   useEffect(() => {
@@ -215,6 +216,10 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   };
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current) {
+      return;
+    }
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       if (formData.operacao === "aporte") {
@@ -283,6 +288,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       console.error('Erro ao adicionar investimento:', error);
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -318,10 +324,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         if (isAporte) {
           return <Step5AporteConfirmation {...stepProps} />;
         }
-        // Auto-submit apenas para personalizado, reserva-emergencia e reserva-oportunidade
-        const shouldAutoSubmit = formData.tipoAtivo === "personalizado" || 
-                                 formData.tipoAtivo === "reserva-emergencia" || 
-                                 formData.tipoAtivo === "reserva-oportunidade";
+        // Auto-submit apenas para personalizado
+        const shouldAutoSubmit = formData.tipoAtivo === "personalizado";
         return <Step5Confirmation {...stepProps} onSubmit={handleSubmit} loading={loading} autoSubmit={shouldAutoSubmit} />;
       default:
         return null;
