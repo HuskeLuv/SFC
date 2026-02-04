@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "flatpickr/dist/flatpickr.css";
 
 @custom-variant dark (&:is(.dark *));
 
