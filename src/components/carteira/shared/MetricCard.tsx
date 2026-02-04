@@ -7,12 +7,16 @@ interface MetricCardProps {
   title: string;
   value: string;
   color?: "primary" | "success" | "warning" | "error";
+  change?: string;
+  changeDirection?: "up" | "down";
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({
   title,
   value,
   color = "primary",
+  change,
+  changeDirection,
 }) => {
   const colorClasses = {
     primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
@@ -25,6 +29,15 @@ const MetricCard: React.FC<MetricCardProps> = ({
     <div className={`rounded-lg p-4 ${colorClasses[color]}`}>
       <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
       <p className="text-xl font-semibold">{value}</p>
+      {change ? (
+        <p
+          className={`mt-1 text-xs font-semibold ${
+            changeDirection === "down" ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400"
+          }`}
+        >
+          {change}
+        </p>
+      ) : null}
     </div>
   );
 };

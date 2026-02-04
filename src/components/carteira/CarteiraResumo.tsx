@@ -18,6 +18,7 @@ import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCartei
 import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarteiraInvestimentos";
 import ComponentCard from "@/components/common/ComponentCard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import MarketIndicatorsCards from "./MarketIndicatorsCards";
 import AddAssetWizard from "./AddAssetWizard";
 import RedeemAssetWizard from "./RedeemAssetWizard";
 import { DownloadIcon, PencilIcon, PlusIcon } from "@/icons";
@@ -256,6 +257,7 @@ export default function CarteiraResumo() {
                 </div>
 
                 {/* Tabela de Alocação de Ativos */}
+                <MarketIndicatorsCards />
                 <AlocacaoAtivosTable
                   distribuicao={resumo.distribuicao}
                   alocacaoConfig={alocacaoConfig}
