@@ -705,9 +705,11 @@ export async function GET(request: NextRequest) {
         const tipo = asset.type?.toLowerCase() || '';
         
         // Verificar se é reserva antes de categorizar
-        // Reservas não devem aparecer no gráfico de tipos de investimento
         if (isReserva) {
-          // Não adicionar reservas ao gráfico - devem ser desconsideradas
+          if (tipo === 'opportunity' || symbol?.startsWith('RESERVA-OPORT')) {
+            categorias.reservaOportunidade += valorAtual;
+          }
+          // Reserva de emergência permanece fora do gráfico
         } else {
           switch (tipo) {
             case 'ação':
@@ -763,7 +765,7 @@ export async function GET(request: NextRequest) {
               // Reserva de emergência não deve aparecer no gráfico de tipos de investimento
               break;
             case 'opportunity':
-              // Reserva de oportunidade não deve aparecer no gráfico de tipos de investimento
+              categorias.reservaOportunidade += valorAtual;
               break;
             case 'custom':
             case 'personalizado':
@@ -774,8 +776,10 @@ export async function GET(request: NextRequest) {
               break;
             default:
               // Verificar se é reserva pelo símbolo - reservas não devem aparecer no gráfico
-              if (symbol?.startsWith('RESERVA-EMERG') || symbol?.startsWith('RESERVA-OPORT')) {
-                // Não adicionar reservas ao gráfico - devem ser desconsideradas
+              if (symbol?.startsWith('RESERVA-OPORT')) {
+                categorias.reservaOportunidade += valorAtual;
+              } else if (symbol?.startsWith('RESERVA-EMERG')) {
+                // Reserva de emergência não deve aparecer no gráfico
               } else if (symbol?.includes('11')) {
                 categorias.fiis += valorAtual;
               } else {
@@ -786,8 +790,10 @@ export async function GET(request: NextRequest) {
       } else {
         // Se não encontrar o asset, usar heurística baseada no ticker
         // Verificar se é reserva primeiro - reservas não devem aparecer no gráfico
-        if (symbol?.startsWith('RESERVA-EMERG') || symbol?.startsWith('RESERVA-OPORT')) {
-          // Não adicionar reservas ao gráfico - devem ser desconsideradas
+        if (symbol?.startsWith('RESERVA-OPORT')) {
+          categorias.reservaOportunidade += valorAtual;
+        } else if (symbol?.startsWith('RESERVA-EMERG')) {
+          // Reserva de emergência não deve aparecer no gráfico
         } else if (symbol?.includes('11')) {
           categorias.fiis += valorAtual; // FIIs geralmente terminam em 11
         } else {
