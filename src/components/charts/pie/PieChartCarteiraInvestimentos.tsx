@@ -63,6 +63,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   // Calcular total aplicado uma vez para reutilizar e formatar
   const totalAplicadoFormatado = useMemo(() => {
     const total = 
+      (distribuicao.reservaEmergencia.valor || 0) +
       (distribuicao.reservaOportunidade.valor || 0) +
       (distribuicao.rendaFixaFundos.valor || 0) +
       (distribuicao.fimFia.valor || 0) +
@@ -88,6 +89,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   const options: ApexOptions = useMemo(
     () => ({
       colors: [
+        "#4F81BD", // Reserva de Emergência
         "#DDD9C3", // Reserva de Oportunidade
         "#404040", // Renda Fixa & Fundos
         "#B9CDE5", // FIM/FIA
@@ -101,6 +103,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
         "#00CCFF", // Opções
       ],
       labels: [
+        "Reserva de Emergência",
         "Reserva de Oportunidade",
         "Renda Fixa & Fundos de Renda Fixa", 
         "FIM/FIA",
@@ -239,6 +242,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
   );
 
   const series = useMemo(() => [
+    Number(distribuicao.reservaEmergencia.percentual.toFixed(2)),
     Number(distribuicao.reservaOportunidade.percentual.toFixed(2)),
     Number(distribuicao.rendaFixaFundos.percentual.toFixed(2)),
     Number(distribuicao.fimFia.percentual.toFixed(2)),
