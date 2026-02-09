@@ -143,7 +143,11 @@ export async function GET(request: NextRequest) {
       const valorInicial = totalCompras > 0 ? totalCompras : item.totalInvested;
       const aporte = totalAportes;
       const resgate = totalResgates;
-      const valorAtualizado = valorInicial + aporte - resgate;
+      // Usar avgPrice * quantity se disponível (valor editado manualmente), senão calcular
+      const valorAtualizadoCalculado = valorInicial + aporte - resgate;
+      const valorAtualizado = (item.avgPrice && item.avgPrice > 0 && item.quantity > 0) 
+        ? item.avgPrice * item.quantity 
+        : valorAtualizadoCalculado;
       
       // Calcular percentual da carteira
       const percentualCarteira = saldoBrutoTotal > 0 
