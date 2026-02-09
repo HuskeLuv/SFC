@@ -106,7 +106,7 @@ export default function CarteiraResumo() {
   const [activeTab, setActiveTab] = useState("consolidada");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRedeemSidebarOpen, setIsRedeemSidebarOpen] = useState(false);
-  const { resumo, loading, error, formatCurrency, formatPercentage, refetch, updateMeta } = useCarteira();
+  const { resumo, loading, error, formatCurrency, formatPercentage, refetch, updateMeta, updateCaixaParaInvestir } = useCarteira();
   const alocacaoConfig = useAlocacaoConfig();
   const [isEditingMeta, setIsEditingMeta] = useState(false);
   const [metaInputValue, setMetaInputValue] = useState("");
@@ -264,7 +264,8 @@ export default function CarteiraResumo() {
                       key="caixa-para-investir-resumo"
                       value={resumo.caixaParaInvestir ?? 0}
                       formatCurrency={formatCurrency}
-                      readOnly={true}
+                      onSave={updateCaixaParaInvestir}
+                      color="success"
                     />
                   }
                 />

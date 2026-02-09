@@ -144,6 +144,44 @@ export const useCarteira = () => {
     }
   }, [fetchResumo]);
 
+  const updateCaixaParaInvestir = useCallback(async (novoCaixa: number) => {
+    if (!resumo) {
+      return false;
+    }
+
+    // Salvar estado anterior para rollback em caso de erro
+    const previousResumo = resumo;
+
+    // Atualização otimista: atualizar o estado local imediatamente
+    setResumo({
+      ...resumo,
+      caixaParaInvestir: novoCaixa,
+    });
+
+    try {
+      const response = await fetch('/api/carteira/resumo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar caixa para investir');
+      }
+
+      return true;
+    } catch (err) {
+      // Rollback em caso de erro
+      setResumo(previousResumo);
+      console.error('Erro ao atualizar caixa para investir:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
+      return false;
+    }
+  }, [resumo]);
+
 
   const formatCurrency = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) {
@@ -184,6 +222,7 @@ export const useCarteira = () => {
     error,
     refetch,
     updateMeta,
+    updateCaixaParaInvestir,
     formatCurrency,
     formatPercentage,
   };

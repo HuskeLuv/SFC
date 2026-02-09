@@ -134,6 +134,7 @@ export default function MarketIndicatorsCards({ extraCards }: MarketIndicatorsCa
 
   return (
     <div className={`grid grid-cols-2 gap-4 ${gridColsClass}`}>
+      {extraCards}
       {cards.map((card) => (
         <MetricCard
           key={card.title}
@@ -144,7 +145,6 @@ export default function MarketIndicatorsCards({ extraCards }: MarketIndicatorsCa
           changeDirection={card.changeDirection}
         />
       ))}
-      {extraCards}
     </div>
   );
 }
