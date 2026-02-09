@@ -21,6 +21,7 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import MarketIndicatorsCards from "./MarketIndicatorsCards";
 import AddAssetWizard from "./AddAssetWizard";
 import RedeemAssetWizard from "./RedeemAssetWizard";
+import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
 import { DownloadIcon, PencilIcon, PlusIcon } from "@/icons";
 import { useReservaEmergencia } from "@/hooks/useReservaEmergencia";
 import { useCarteira } from "@/hooks/useCarteira";
@@ -88,7 +89,7 @@ const tabs = [
   { id: "consolidada", label: "Carteira Consolidada" },
   { id: "reserva-emergencia", label: "Reserva Emergência" },
   { id: "reserva-oportunidade", label: "Reserva Oportunidade" },
-  { id: "renda-fixa", label: "Renda Fixa & Fundos" },
+  { id: "renda-fixa", label: "Renda Fixa" },
   { id: "fim-fia", label: "FIM/FIA" },
   { id: "fiis", label: "FII's" },
   { id: "acoes", label: "Ações" },
@@ -105,7 +106,7 @@ export default function CarteiraResumo() {
   const [activeTab, setActiveTab] = useState("consolidada");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRedeemSidebarOpen, setIsRedeemSidebarOpen] = useState(false);
-  const { resumo, loading, error, formatCurrency, formatPercentage, refetch, updateMeta } = useCarteira();
+  const { resumo, loading, error, formatCurrency, formatPercentage, refetch, updateMeta, updateCaixaParaInvestir } = useCarteira();
   const alocacaoConfig = useAlocacaoConfig();
   const [isEditingMeta, setIsEditingMeta] = useState(false);
   const [metaInputValue, setMetaInputValue] = useState("");
@@ -257,10 +258,20 @@ export default function CarteiraResumo() {
                 </div>
 
                 {/* Tabela de Alocação de Ativos */}
-                <MarketIndicatorsCards />
+                <MarketIndicatorsCards
+                  extraCards={
+                    <CaixaParaInvestirCard
+                      key="caixa-para-investir-resumo"
+                      value={resumo.caixaParaInvestir ?? 0}
+                      formatCurrency={formatCurrency}
+                      readOnly={true}
+                    />
+                  }
+                />
                 <AlocacaoAtivosTable
                   distribuicao={resumo.distribuicao}
                   alocacaoConfig={alocacaoConfig}
+                  caixaParaInvestir={resumo.caixaParaInvestir ?? 0}
                 />
               </div>
             </TabContent>
@@ -282,7 +293,7 @@ export default function CarteiraResumo() {
               <ReservaOportunidadeTable totalCarteira={resumo?.saldoBruto || 0} />
             </TabContent>
 
-            {/* Renda Fixa & Fundos */}
+            {/* Renda Fixa */}
             <TabContent id="renda-fixa" isActive={activeTab === "renda-fixa"}>
               <RendaFixaTable totalCarteira={resumo?.saldoBruto || 0} />
             </TabContent>

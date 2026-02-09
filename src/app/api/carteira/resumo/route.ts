@@ -3,8 +3,26 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { fetchQuotes } from '@/services/brapiQuote';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
+import { Prisma } from '@prisma/client';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+type FixedIncomeAssetWithAsset = {
+  id: string;
+  userId: string;
+  assetId: string;
+  type: string;
+  description: string;
+  startDate: Date;
+  maturityDate: Date;
+  investedAmount: number;
+  annualRate: number;
+  indexer: string | null;
+  indexerPercent: number | null;
+  liquidityType: string | null;
+  taxExempt: boolean;
+  asset: { symbol: string; name: string; type?: string | null } | null;
+};
 
 const normalizeDateStart = (date: Date) => {
   const normalized = new Date(date);
@@ -61,6 +79,20 @@ const buildDailyPriceMap = (
   }
 
   return map;
+};
+
+const calculateFixedIncomeValue = (fixedIncome: FixedIncomeAssetWithAsset, referenceDate: Date) => {
+  const start = normalizeDateStart(new Date(fixedIncome.startDate));
+  const maturity = normalizeDateStart(new Date(fixedIncome.maturityDate));
+  const current = normalizeDateStart(referenceDate);
+  const endDate = current.getTime() > maturity.getTime() ? maturity : current;
+  if (endDate.getTime() <= start.getTime()) {
+    return fixedIncome.investedAmount;
+  }
+  const days = Math.floor((endDate.getTime() - start.getTime()) / DAY_MS);
+  const rate = fixedIncome.annualRate / 100;
+  const valorAtual = fixedIncome.investedAmount * Math.pow(1 + rate, days / 365);
+  return Math.round(valorAtual * 100) / 100;
 };
 
 const fetchAssetHistory = async (symbol: string, startDate?: Date): Promise<Array<{ date: number; value: number }>> => {
@@ -260,6 +292,25 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    let fixedIncomeAssets: FixedIncomeAssetWithAsset[] = [];
+    try {
+      fixedIncomeAssets = await prisma.fixedIncomeAsset.findMany({
+        where: { userId: targetUserId },
+        include: { asset: true },
+      }) as FixedIncomeAssetWithAsset[];
+    } catch (error) {
+      const prismaError = error as Prisma.PrismaClientKnownRequestError;
+      if (prismaError?.code !== 'P2021') {
+        throw error;
+      }
+      fixedIncomeAssets = [];
+    }
+
+    const fixedIncomeByAssetId = new Map<string, FixedIncomeAssetWithAsset>();
+    fixedIncomeAssets.forEach((fixedIncome) => {
+      fixedIncomeByAssetId.set(fixedIncome.assetId, fixedIncome);
+    });
+
     // Buscar investimentos em cashflow (grupos tipo 'investimento')
     // Buscar templates e personalizações
     const investmentGroupsTemplate = await prisma.cashflowGroup.findMany({
@@ -317,6 +368,9 @@ export async function GET(request: NextRequest) {
         if (item.asset && (item.asset.type === 'imovel' || item.asset.type === 'personalizado')) {
           return null;
         }
+        if (item.assetId && fixedIncomeByAssetId.has(item.assetId)) {
+          return null;
+        }
         if (item.asset) {
           return item.asset.symbol;
         } else if (item.stock) {
@@ -357,6 +411,7 @@ export async function GET(request: NextRequest) {
     let stocksCurrentValue = 0;
     for (const item of portfolio) {
       const symbol = item.asset?.symbol || item.stock?.ticker;
+      const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
       const isReserva = item.asset?.type === 'emergency' || item.asset?.type === 'opportunity' ||
                         item.asset?.symbol?.startsWith('RESERVA-EMERG') || item.asset?.symbol?.startsWith('RESERVA-OPORT');
       const isImovelBem = item.asset?.type === 'imovel';
@@ -367,6 +422,8 @@ export async function GET(request: NextRequest) {
       if (isReserva) {
         // Usar quantity * avgPrice (sem cotação)
         stocksCurrentValue += item.quantity * item.avgPrice;
+      } else if (fixedIncome) {
+        stocksCurrentValue += calculateFixedIncomeValue(fixedIncome, new Date());
       } else if (isImovelBem || isPersonalizado) {
         // Imóveis e bens + Personalizados: usar totalInvested (valor atualizado manualmente) ou quantity * avgPrice
         const valorImovel = item.totalInvested > 0 ? item.totalInvested : (item.quantity * item.avgPrice);
@@ -401,13 +458,33 @@ export async function GET(request: NextRequest) {
     const saldoBruto = stocksCurrentValue + otherInvestmentsCurrentValue;
     const rentabilidade = valorAplicado > 0 ? ((saldoBruto - valorAplicado) / valorAplicado) * 100 : 0;
 
-    // Buscar meta de patrimônio (se existir no DashboardData)
-    const metaPatrimonio = await prisma.dashboardData.findFirst({
+    // Buscar métricas de patrimônio (se existir no DashboardData)
+    const dashboardMetrics = await prisma.dashboardData.findMany({
       where: {
         userId: targetUserId,
-        metric: 'meta_patrimonio',
+        metric: { 
+          in: [
+            'meta_patrimonio', 
+            'caixa_para_investir_acoes',
+            'caixa_para_investir_fii',
+            'caixa_para_investir_etf',
+            'caixa_para_investir_reit',
+            'caixa_para_investir_stocks',
+            'caixa_para_investir_moedas_criptos',
+            'caixa_para_investir_previdencia_seguros',
+            'caixa_para_investir_opcoes',
+            'caixa_para_investir_fim_fia',
+            'caixa_para_investir_renda_fixa',
+          ] 
+        },
       },
     });
+    const metaPatrimonio = dashboardMetrics.find((item) => item.metric === 'meta_patrimonio');
+    
+    // Somar todos os caixas para investir de cada tipo
+    const caixaParaInvestir = dashboardMetrics
+      .filter((item) => item.metric.startsWith('caixa_para_investir_'))
+      .reduce((sum, item) => sum + item.value, 0);
 
     // Buscar transações de ações para gerar histórico real
     const stockTransactions = await prisma.stockTransaction.findMany({
@@ -434,9 +511,11 @@ export async function GET(request: NextRequest) {
         const symbol = item.asset?.symbol || item.stock?.ticker;
         if (!symbol) return;
 
+        const isFixedIncome = item.assetId ? fixedIncomeByAssetId.has(item.assetId) : false;
         const isManual = item.asset?.type === 'emergency' || item.asset?.type === 'opportunity' ||
           item.asset?.type === 'personalizado' || item.asset?.type === 'imovel' ||
-          symbol.startsWith('RESERVA-EMERG') || symbol.startsWith('RESERVA-OPORT') || symbol.startsWith('PERSONALIZADO');
+          symbol.startsWith('RESERVA-EMERG') || symbol.startsWith('RESERVA-OPORT') || symbol.startsWith('PERSONALIZADO') ||
+          isFixedIncome;
 
         portfolioBySymbol.set(symbol, {
           quantity: item.quantity,
@@ -550,11 +629,32 @@ export async function GET(request: NextRequest) {
           timelineStartCandidates.push(earliestPortfolioDate);
         }
       }
+      if (fixedIncomeAssets.length > 0) {
+        const earliestFixedIncomeDate = Math.min(
+          ...fixedIncomeAssets
+            .map((item) => normalizeDateStart(new Date(item.startDate)).getTime())
+            .filter((value) => Number.isFinite(value))
+        );
+        if (Number.isFinite(earliestFixedIncomeDate)) {
+          timelineStartCandidates.push(earliestFixedIncomeDate);
+        }
+      }
       const timelineStart = timelineStartCandidates.length > 0
         ? new Date(Math.min(...timelineStartCandidates))
         : new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1);
 
       const timeline = buildDailyTimeline(timelineStart, hoje);
+
+      const fixedIncomePricePointsBySymbol = new Map<string, Array<{ date: number; value: number }>>();
+      fixedIncomeAssets.forEach((fixedIncome) => {
+        const symbol = fixedIncome.asset?.symbol;
+        if (!symbol) return;
+        const points = timeline.map((day) => ({
+          date: day,
+          value: calculateFixedIncomeValue(fixedIncome, new Date(day)),
+        }));
+        fixedIncomePricePointsBySymbol.set(symbol, points);
+      });
 
       const pricesBySymbol = new Map<string, Map<number, number>>();
       const fallbackPriceBySymbol = new Map<string, number>();
@@ -562,13 +662,14 @@ export async function GET(request: NextRequest) {
         const portfolioInfo = portfolioBySymbol.get(symbol);
         const isManual = portfolioInfo?.isManual ?? false;
         const pricePoints = pricePointsBySymbol.get(symbol) || [];
+        const fixedIncomePoints = fixedIncomePricePointsBySymbol.get(symbol) || [];
 
         let history: Array<{ date: number; value: number }> = [];
         if (!isManual) {
           const fetchedHistory = await fetchAssetHistory(symbol, timelineStart);
           history = [...fetchedHistory, ...pricePoints];
         } else {
-          history = [...pricePoints];
+          history = [...pricePoints, ...fixedIncomePoints];
         }
 
         const initialPrice = pricePoints.length > 0
@@ -692,14 +793,17 @@ export async function GET(request: NextRequest) {
       const asset = item.asset || await prisma.asset.findUnique({
         where: { symbol }
       });
+      const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
 
       // Calcular valor atual com cotação
       const isReserva = asset?.type === 'emergency' || asset?.type === 'opportunity' ||
                         symbol?.startsWith('RESERVA-EMERG') || symbol?.startsWith('RESERVA-OPORT');
       const currentPrice = quotes.get(symbol);
-      const valorAtual = currentPrice && !isReserva
+      const valorAtual = fixedIncome
+        ? calculateFixedIncomeValue(fixedIncome, new Date())
+        : (currentPrice && !isReserva
         ? item.quantity * currentPrice 
-        : item.quantity * item.avgPrice; // Para reservas ou fallback, usar quantity * avgPrice
+          : item.quantity * item.avgPrice); // Para reservas ou fallback, usar quantity * avgPrice
       
       if (asset) {
         const tipo = asset.type?.toLowerCase() || '';
@@ -910,6 +1014,7 @@ export async function GET(request: NextRequest) {
       valorAplicado: Math.round(valorAplicado * 100) / 100,
       rentabilidade: Math.round(rentabilidade * 100) / 100,
       metaPatrimonio: metaPatrimonio?.value || 0,
+      caixaParaInvestir: caixaParaInvestir || 0,
       historicoPatrimonio,
       distribuicao,
       portfolioDetalhes: {
@@ -944,13 +1049,22 @@ export async function POST(request: NextRequest) {
 
     const { metaPatrimonio } = await request.json();
 
-    if (!metaPatrimonio || metaPatrimonio <= 0) {
+    if (metaPatrimonio !== undefined) {
+      if (typeof metaPatrimonio !== 'number' || metaPatrimonio <= 0) {
       return NextResponse.json({ 
         error: 'Meta de patrimônio deve ser um valor positivo' 
+        }, { status: 400 });
+      }
+    }
+
+    if (metaPatrimonio === undefined) {
+      return NextResponse.json({ 
+        error: 'Informe metaPatrimonio' 
       }, { status: 400 });
     }
 
     // Criar ou atualizar meta no DashboardData
+    if (metaPatrimonio !== undefined) {
     const existingMeta = await prisma.dashboardData.findFirst({
       where: {
         userId: targetUserId,
@@ -971,6 +1085,7 @@ export async function POST(request: NextRequest) {
           value: metaPatrimonio,
         },
       });
+    }
     }
 
     return NextResponse.json({ success: true, metaPatrimonio });

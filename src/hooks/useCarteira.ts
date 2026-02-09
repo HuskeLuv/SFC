@@ -5,6 +5,7 @@ export interface CarteiraResumo {
   valorAplicado: number;
   rentabilidade: number;
   metaPatrimonio: number;
+  caixaParaInvestir: number;
   historicoPatrimonio: Array<{
     data: number;
     valorAplicado: number;
@@ -142,6 +143,7 @@ export const useCarteira = () => {
       return false;
     }
   }, [fetchResumo]);
+
 
   const formatCurrency = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) {
