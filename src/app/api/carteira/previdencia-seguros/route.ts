@@ -14,6 +14,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
+    // Buscar caixa para investir específico de Previdência/Seguros
+    const caixaParaInvestirData = await prisma.dashboardData.findFirst({
+      where: {
+        userId: targetUserId,
+        metric: 'caixa_para_investir_previdencia_seguros',
+      },
+    });
+    const caixaParaInvestir = caixaParaInvestirData?.value || 0;
+
     // Buscar portfolio do usuário com ativos do tipo correspondente
     // const portfolio = await prisma.portfolio.findMany({
     //   where: { 
@@ -31,9 +40,9 @@ export async function GET(request: NextRequest) {
     const data = {
       resumo: {
         necessidadeAporteTotal: 0,
-        caixaParaInvestir: 0,
+        caixaParaInvestir: caixaParaInvestir,
         saldoInicioMes: 0,
-        valorAtualizado: 0,
+        valorAtualizado: caixaParaInvestir,
         rendimento: 0,
         rentabilidade: 0
       },
@@ -41,7 +50,7 @@ export async function GET(request: NextRequest) {
       totalGeral: {
         quantidade: 0,
         valorAplicado: 0,
-        valorAtualizado: 0,
+        valorAtualizado: caixaParaInvestir,
         percentualCarteira: 0,
         risco: 0,
         objetivo: 0,
@@ -63,8 +72,46 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId } = body;
+    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+
+    if (caixaParaInvestir !== undefined) {
+      if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
+        return NextResponse.json({
+          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
+        }, { status: 400 });
+      }
+
+      // Salvar ou atualizar caixa para investir de Previdência/Seguros
+      const existingCaixa = await prisma.dashboardData.findFirst({
+        where: {
+          userId: targetUserId,
+          metric: 'caixa_para_investir_previdencia_seguros',
+        },
+      });
+
+      if (existingCaixa) {
+        await prisma.dashboardData.update({
+          where: { id: existingCaixa.id },
+          data: { value: caixaParaInvestir },
+        });
+      } else {
+        await prisma.dashboardData.create({
+          data: {
+            userId: targetUserId,
+            metric: 'caixa_para_investir_previdencia_seguros',
+            value: caixaParaInvestir,
+          },
+        });
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Caixa para investir atualizado com sucesso',
+        caixaParaInvestir
+      });
+    }
 
     if (!ativoId) {
       return NextResponse.json(

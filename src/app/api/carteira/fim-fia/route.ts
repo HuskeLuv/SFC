@@ -33,6 +33,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
+    // Buscar caixa para investir específico de FIM/FIA
+    const caixaParaInvestirData = await prisma.dashboardData.findFirst({
+      where: {
+        userId: targetUserId,
+        metric: 'caixa_para_investir_fim_fia',
+      },
+    });
+    const caixaParaInvestir = caixaParaInvestirData?.value || 0;
+
     const portfolio = await prisma.portfolio.findMany({
       where: {
         userId: user.id,
@@ -98,7 +107,7 @@ export async function GET(request: NextRequest) {
         valorAtualizado,
         percentualCarteira: 0,
         riscoPorAtivo: 0,
-        objetivo: 0,
+        objetivo: item.objetivo ?? 0,
         quantoFalta: 0,
         necessidadeAporte: 0,
         rentabilidade: valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0,
@@ -136,17 +145,18 @@ export async function GET(request: NextRequest) {
     const totalValorAtualizado = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
     const totalResgate = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.resgate, 0);
     const totalAporte = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.aporte, 0);
+    const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
     const rentabilidade = totalValorAplicado > 0
-      ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100
+      ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
       : 0;
 
     return NextResponse.json({
       resumo: {
         necessidadeAporteTotal: 0,
-        caixaParaInvestir: 0,
+        caixaParaInvestir: caixaParaInvestir,
         saldoInicioMes: totalValorAplicado,
-        valorAtualizado: totalValorAtualizado,
-        rendimento: totalValorAtualizado - totalValorAplicado,
+        valorAtualizado: valorAtualizadoComCaixa,
+        rendimento: valorAtualizadoComCaixa - totalValorAplicado,
         rentabilidade,
       },
       secoes,
@@ -155,7 +165,7 @@ export async function GET(request: NextRequest) {
         valorAplicado: totalValorAplicado,
         aporte: totalAporte,
         resgate: totalResgate,
-        valorAtualizado: totalValorAtualizado,
+        valorAtualizado: valorAtualizadoComCaixa, // Incluir caixa no total
         percentualCarteira: totalCarteira > 0 ? 100 : 0,
         risco: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0),
         objetivo: 0,
@@ -175,8 +185,46 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId } = body;
+    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+
+    if (caixaParaInvestir !== undefined) {
+      if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
+        return NextResponse.json({
+          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
+        }, { status: 400 });
+      }
+
+      // Salvar ou atualizar caixa para investir de FIM/FIA
+      const existingCaixa = await prisma.dashboardData.findFirst({
+        where: {
+          userId: targetUserId,
+          metric: 'caixa_para_investir_fim_fia',
+        },
+      });
+
+      if (existingCaixa) {
+        await prisma.dashboardData.update({
+          where: { id: existingCaixa.id },
+          data: { value: caixaParaInvestir },
+        });
+      } else {
+        await prisma.dashboardData.create({
+          data: {
+            userId: targetUserId,
+            metric: 'caixa_para_investir_fim_fia',
+            value: caixaParaInvestir,
+          },
+        });
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Caixa para investir atualizado com sucesso',
+        caixaParaInvestir
+      });
+    }
 
     if (!ativoId) {
       return NextResponse.json(
