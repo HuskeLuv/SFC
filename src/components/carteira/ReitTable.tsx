@@ -52,7 +52,6 @@ interface ReitTableRowProps {
   formatPercentage: (value: number) => string;
   formatNumber: (value: number) => string;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-  onUpdateCotacao: (ativoId: string, novaCotacao: number) => void;
 }
 
 const ReitTableRow: React.FC<ReitTableRowProps> = ({
@@ -61,26 +60,15 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
   formatPercentage,
   formatNumber,
   onUpdateObjetivo,
-  onUpdateCotacao,
 }) => {
   const [isEditingObjetivo, setIsEditingObjetivo] = useState(false);
-  const [isEditingCotacao, setIsEditingCotacao] = useState(false);
   const [objetivoValue, setObjetivoValue] = useState(ativo.objetivo.toString());
-  const [cotacaoValue, setCotacaoValue] = useState(ativo.cotacaoAtual.toString());
 
   const handleObjetivoSubmit = () => {
     const novoObjetivo = parseFloat(objetivoValue);
     if (!isNaN(novoObjetivo) && novoObjetivo >= 0) {
       onUpdateObjetivo(ativo.id, novoObjetivo);
       setIsEditingObjetivo(false);
-    }
-  };
-
-  const handleCotacaoSubmit = () => {
-    const novaCotacao = parseFloat(cotacaoValue);
-    if (!isNaN(novaCotacao) && novaCotacao > 0) {
-      onUpdateCotacao(ativo.id, novaCotacao);
-      setIsEditingCotacao(false);
     }
   };
 
@@ -93,14 +81,6 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
     }
   };
 
-  const handleCotacaoKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleCotacaoSubmit();
-    } else if (e.key === 'Escape') {
-      setCotacaoValue(ativo.cotacaoAtual.toString());
-      setIsEditingCotacao(false);
-    }
-  };
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
@@ -130,27 +110,7 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
         {formatCurrency(ativo.valorTotal)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
-        {isEditingCotacao ? (
-          <div className="flex items-center space-x-1">
-            <input
-              type="number"
-              step="0.01"
-              value={cotacaoValue}
-              onChange={(e) => setCotacaoValue(e.target.value)}
-              onKeyDown={handleCotacaoKeyPress}
-              onBlur={handleCotacaoSubmit}
-              className="w-20 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-              autoFocus
-            />
-          </div>
-        ) : (
-          <div 
-            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
-            onClick={() => setIsEditingCotacao(true)}
-          >
-            <span className="text-black">{formatCurrency(ativo.cotacaoAtual)}</span>
-          </div>
-        )}
+        <span className="text-black">{formatCurrency(ativo.cotacaoAtual)}</span>
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorAtualizado)}
@@ -208,7 +168,6 @@ interface ReitSectionProps {
   isExpanded: boolean;
   onToggle: () => void;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-  onUpdateCotacao: (ativoId: string, novaCotacao: number) => void;
 }
 
 const ReitSection: React.FC<ReitSectionProps> = ({
@@ -219,7 +178,6 @@ const ReitSection: React.FC<ReitSectionProps> = ({
   isExpanded,
   onToggle,
   onUpdateObjetivo,
-  onUpdateCotacao,
 }) => {
   const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
 
@@ -281,7 +239,6 @@ const ReitSection: React.FC<ReitSectionProps> = ({
           formatPercentage={formatPercentage}
           formatNumber={formatNumber}
           onUpdateObjetivo={onUpdateObjetivo}
-          onUpdateCotacao={onUpdateCotacao}
         />
       ))}
       {isExpanded && (
@@ -299,7 +256,7 @@ interface ReitTableProps {
 }
 
 export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao, updateCaixaParaInvestir } = useReit();
+  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir } = useReit();
   const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.reits ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -394,9 +351,6 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
-  const handleUpdateCotacao = async (ativoId: string, novaCotacao: number) => {
-    await updateCotacao(ativoId, novaCotacao);
-  };
 
   const normalizedSections = useMemo(() => {
     const createEmptySection = (
@@ -577,7 +531,6 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                   isExpanded={expandedSections.has(secao.estrategia)}
                   onToggle={() => toggleSection(secao.estrategia)}
                   onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateCotacao={handleUpdateCotacao}
                 />
               ))}
             </tbody>

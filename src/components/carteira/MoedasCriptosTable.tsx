@@ -50,7 +50,6 @@ interface MoedasCriptosTableRowProps {
   formatPercentage: (value: number) => string;
   formatNumber: (value: number) => string;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-  onUpdateCotacao: (ativoId: string, novaCotacao: number) => void;
 }
 
 const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
@@ -59,26 +58,15 @@ const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
   formatPercentage,
   formatNumber,
   onUpdateObjetivo,
-  onUpdateCotacao,
 }) => {
   const [isEditingObjetivo, setIsEditingObjetivo] = useState(false);
-  const [isEditingCotacao, setIsEditingCotacao] = useState(false);
   const [objetivoValue, setObjetivoValue] = useState(ativo.objetivo.toString());
-  const [cotacaoValue, setCotacaoValue] = useState(ativo.cotacaoAtual.toString());
 
   const handleObjetivoSubmit = () => {
     const novoObjetivo = parseFloat(objetivoValue);
     if (!isNaN(novoObjetivo) && novoObjetivo >= 0) {
       onUpdateObjetivo(ativo.id, novoObjetivo);
       setIsEditingObjetivo(false);
-    }
-  };
-
-  const handleCotacaoSubmit = () => {
-    const novaCotacao = parseFloat(cotacaoValue);
-    if (!isNaN(novaCotacao) && novaCotacao > 0) {
-      onUpdateCotacao(ativo.id, novaCotacao);
-      setIsEditingCotacao(false);
     }
   };
 
@@ -91,14 +79,6 @@ const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
     }
   };
 
-  const handleCotacaoKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleCotacaoSubmit();
-    } else if (e.key === 'Escape') {
-      setCotacaoValue(ativo.cotacaoAtual.toString());
-      setIsEditingCotacao(false);
-    }
-  };
 
 
   const currency = ativo.regiao === 'estados_unidos' ? 'USD' : 'BRL';
@@ -131,27 +111,7 @@ const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
         {formatCurrency(ativo.valorTotal, currency)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
-        {isEditingCotacao ? (
-          <div className="flex items-center space-x-1">
-            <input
-              type="number"
-              step="0.01"
-              value={cotacaoValue}
-              onChange={(e) => setCotacaoValue(e.target.value)}
-              onKeyDown={handleCotacaoKeyPress}
-              onBlur={handleCotacaoSubmit}
-              className="w-20 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-              autoFocus
-            />
-          </div>
-        ) : (
-          <div 
-            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
-            onClick={() => setIsEditingCotacao(true)}
-          >
-            <span className="text-black">{formatCurrency(ativo.cotacaoAtual, currency)}</span>
-          </div>
-        )}
+        <span className="text-black">{formatCurrency(ativo.cotacaoAtual, currency)}</span>
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorAtualizado, currency)}
@@ -209,7 +169,6 @@ interface MoedasCriptosSectionProps {
   isExpanded: boolean;
   onToggle: () => void;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-  onUpdateCotacao: (ativoId: string, novaCotacao: number) => void;
 }
 
 const MoedasCriptosSection: React.FC<MoedasCriptosSectionProps> = ({
@@ -220,7 +179,6 @@ const MoedasCriptosSection: React.FC<MoedasCriptosSectionProps> = ({
   isExpanded,
   onToggle,
   onUpdateObjetivo,
-  onUpdateCotacao,
 }) => {
   const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
   const currency = secao.regiao === 'estados_unidos' ? 'USD' : 'BRL';
@@ -283,7 +241,6 @@ const MoedasCriptosSection: React.FC<MoedasCriptosSectionProps> = ({
           formatPercentage={formatPercentage}
           formatNumber={formatNumber}
           onUpdateObjetivo={onUpdateObjetivo}
-          onUpdateCotacao={onUpdateCotacao}
         />
       ))}
       {isExpanded && (
@@ -301,7 +258,7 @@ interface MoedasCriptosTableProps {
 }
 
 export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao, updateCaixaParaInvestir } = useMoedasCriptos();
+  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir } = useMoedasCriptos();
   const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.moedasCriptos ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -350,9 +307,6 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
-  const handleUpdateCotacao = async (ativoId: string, novaCotacao: number) => {
-    await updateCotacao(ativoId, novaCotacao);
-  };
 
   const normalizedSections = useMemo(() => {
     const resolveSectionRegion = (ativos: MoedaCriptoAtivo[]) => {
@@ -573,7 +527,6 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
                   isExpanded={expandedSections.has(secao.tipo)}
                   onToggle={() => toggleSection(secao.tipo)}
                   onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateCotacao={handleUpdateCotacao}
                 />
               ))}
             </tbody>
