@@ -74,10 +74,15 @@ export const useEtf = () => {
     const valorTotal = quantidade * precoAquisicao;
     const valorAtualizado = quantidade * cotacaoAtual;
     const riscoPorAtivo = totalCarteiraEtf > 0 ? (valorAtualizado / totalCarteiraEtf) * 100 : 0;
-    const percentualCarteira = totalCarteiraGeral > 0 ? (valorAtualizado / totalCarteiraGeral) * 100 : 0;
+    // Percentual daquele tipo de ativo (não da carteira total)
+    const percentualCarteira = totalCarteiraEtf > 0 ? (valorAtualizado / totalCarteiraEtf) * 100 : 0;
     const objetivo = ativo.objetivo || 0;
+    // Quanto falta = diferença entre % atual e objetivo (em %)
     const quantoFalta = objetivo - percentualCarteira;
-    const necessidadeAporte = totalCarteiraGeral > 0 ? (quantoFalta / 100) * totalCarteiraGeral : 0;
+    // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
+    const necessidadeAporte = totalCarteiraEtf > 0 && quantoFalta > 0 
+      ? (quantoFalta / 100) * totalCarteiraEtf 
+      : 0;
     const rentabilidade = precoAquisicao > 0 ? ((cotacaoAtual - precoAquisicao) / precoAquisicao) * 100 : 0;
 
     return {
@@ -129,8 +134,105 @@ export const useEtf = () => {
     };
   };
 
-  const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
+  const updateCaixaParaInvestir = useCallback(async (novoCaixa: number) => {
     try {
+      const response = await fetch('/api/carteira/etf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar caixa para investir');
+      }
+
+      // Recarregar dados após atualização
+      await fetchData(true);
+      return true;
+    } catch (err) {
+      console.error('Erro ao atualizar caixa para investir:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
+      return false;
+    }
+  }, [fetchData]);
+
+  const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
+    if (!data) return false;
+
+    // Backup do estado atual para rollback em caso de erro
+    const previousData = JSON.parse(JSON.stringify(data));
+
+    try {
+      // Atualização otimista: atualizar estado local imediatamente
+      setData((prevData) => {
+        if (!prevData) return prevData;
+        
+        const updatedSecoes = prevData.secoes.map((secao) => ({
+          ...secao,
+          ativos: secao.ativos.map((ativo) =>
+            ativo.id === ativoId
+              ? {
+                  ...ativo,
+                  objetivo: novoObjetivo,
+                  // Recalcular percentualCarteira baseado no total daquele tipo de ativo
+                  percentualCarteira: prevData.totalGeral.valorAtualizado > 0
+                    ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
+                    : ativo.percentualCarteira,
+                  quantoFalta: (() => {
+                    const novoPercentualCarteira = prevData.totalGeral.valorAtualizado > 0
+                      ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
+                      : ativo.percentualCarteira;
+                    return novoObjetivo - novoPercentualCarteira;
+                  })(),
+                  necessidadeAporte: (() => {
+                    // Recalcular percentualCarteira baseado no total daquele tipo de ativo
+                    const novoPercentualCarteira = prevData.totalGeral.valorAtualizado > 0
+                      ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
+                      : ativo.percentualCarteira;
+                    const novoQuantoFalta = novoObjetivo - novoPercentualCarteira;
+                    return prevData.totalGeral.valorAtualizado > 0 && novoQuantoFalta > 0
+                      ? (novoQuantoFalta / 100) * prevData.totalGeral.valorAtualizado
+                      : 0;
+                  })(),
+                }
+              : ativo
+          ),
+        }));
+
+        // Recalcular totais das seções
+        const secoesComTotais = updatedSecoes.map((secao) => {
+          const totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+          const totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
+          const totalNecessidadeAporte = secao.ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+          return {
+            ...secao,
+            totalObjetivo,
+            totalQuantoFalta,
+            totalNecessidadeAporte,
+          };
+        });
+
+        // Recalcular totais gerais
+        const totalObjetivo = secoesComTotais.reduce((sum, secao) => sum + secao.totalObjetivo, 0);
+        const totalQuantoFalta = secoesComTotais.reduce((sum, secao) => sum + secao.totalQuantoFalta, 0);
+        const totalNecessidadeAporte = secoesComTotais.reduce((sum, secao) => sum + secao.totalNecessidadeAporte, 0);
+
+        return {
+          ...prevData,
+          secoes: secoesComTotais,
+          totalGeral: {
+            ...prevData.totalGeral,
+            objetivo: totalObjetivo,
+            quantoFalta: totalQuantoFalta,
+            necessidadeAporte: totalNecessidadeAporte,
+          },
+        };
+      });
+
+      // Fazer chamada à API
       const response = await fetch('/api/carteira/etf/objetivo', {
         method: 'POST',
         headers: {
@@ -144,10 +246,10 @@ export const useEtf = () => {
         throw new Error('Erro ao atualizar objetivo');
       }
 
-      // Recarregar dados após atualização (forçar reload)
-      await fetchData(true);
       return true;
     } catch (err) {
+      // Rollback em caso de erro
+      setData(previousData);
       console.error('Erro ao atualizar objetivo:', err);
       setError(err instanceof Error ? err.message : 'Erro ao atualizar objetivo');
       return false;
@@ -202,6 +304,7 @@ export const useEtf = () => {
     refetch,
     updateObjetivo,
     updateCotacao,
+    updateCaixaParaInvestir,
     formatCurrency,
     formatPercentage,
     formatNumber,
