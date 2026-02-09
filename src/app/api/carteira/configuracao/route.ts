@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
 
 interface AlocacaoConfig {
   categoria: string;
@@ -8,9 +9,6 @@ interface AlocacaoConfig {
   target: number;
   descricao?: string;
 }
-
-// Configurações padrão - serão armazenadas em memória por sessão
-const userConfigurations: { [userId: string]: AlocacaoConfig[] } = {};
 
 // Configurações padrão baseadas na imagem original
 const defaultConfig: AlocacaoConfig[] = [
@@ -33,10 +31,33 @@ export async function GET(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     
-    // Retorna configurações salvas ou defaults
-    const alocacaoConfig = userConfigurations[targetUserId] || defaultConfig;
-    
-    return NextResponse.json({ configuracoes: alocacaoConfig });
+    // Buscar configurações do banco de dados
+    const savedConfigs = await prisma.alocacaoConfig.findMany({
+      where: { userId: targetUserId },
+    });
+
+    // Se não houver configurações salvas, retornar defaults
+    if (savedConfigs.length === 0) {
+      return NextResponse.json({ configuracoes: defaultConfig });
+    }
+
+    // Converter para o formato esperado
+    const alocacaoConfig = savedConfigs.map(config => ({
+      categoria: config.categoria,
+      minimo: config.minimo,
+      maximo: config.maximo,
+      target: config.target,
+      descricao: config.descricao || "",
+    }));
+
+    // Garantir que todas as categorias padrão estejam presentes
+    const configMap = new Map(alocacaoConfig.map(c => [c.categoria, c]));
+    const completeConfig = defaultConfig.map(defaultItem => {
+      const saved = configMap.get(defaultItem.categoria);
+      return saved || defaultItem;
+    });
+
+    return NextResponse.json({ configuracoes: completeConfig });
 
   } catch (error) {
     console.error('Erro ao buscar configurações de alocação:', error);
@@ -93,16 +114,21 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      if (config.target < config.minimo || config.target > config.maximo) {
-        return NextResponse.json(
-          { error: 'Valor target deve estar entre mínimo e máximo' },
-          { status: 400 }
-        );
+      // Pular validação de target entre min/max para reserva de emergência
+      if (config.categoria !== 'reservaEmergencia') {
+        if (config.target < config.minimo || config.target > config.maximo) {
+          return NextResponse.json(
+            { error: 'Valor target deve estar entre mínimo e máximo' },
+            { status: 400 }
+          );
+        }
       }
     }
 
-    // Verificar se soma dos targets não excede 100%
-    const totalTargets = configuracoes.reduce((sum: number, config: AlocacaoConfig) => sum + config.target, 0);
+    // Verificar se soma dos targets não excede 100% (excluindo reserva de emergência)
+    const totalTargets = configuracoes
+      .filter((config: AlocacaoConfig) => config.categoria !== 'reservaEmergencia')
+      .reduce((sum: number, config: AlocacaoConfig) => sum + config.target, 0);
     if (totalTargets > 100) {
       return NextResponse.json(
         { error: 'A soma dos targets não pode exceder 100%' },
@@ -110,8 +136,33 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Salvar configurações em memória (temporário)
-    userConfigurations[targetUserId] = configuracoes;
+    // Salvar configurações no banco de dados
+    await Promise.all(
+      configuracoes.map(async (config: AlocacaoConfig) => {
+        await prisma.alocacaoConfig.upsert({
+          where: {
+            userId_categoria: {
+              userId: targetUserId,
+              categoria: config.categoria,
+            },
+          },
+          update: {
+            minimo: config.minimo,
+            maximo: config.maximo,
+            target: config.target,
+            descricao: config.descricao || "",
+          },
+          create: {
+            userId: targetUserId,
+            categoria: config.categoria,
+            minimo: config.minimo,
+            maximo: config.maximo,
+            target: config.target,
+            descricao: config.descricao || "",
+          },
+        });
+      })
+    );
 
     return NextResponse.json({ 
       success: true, 
