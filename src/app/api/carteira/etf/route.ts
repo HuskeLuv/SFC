@@ -21,6 +21,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
+    // Buscar caixa para investir específico de ETF
+    const caixaParaInvestirData = await prisma.dashboardData.findFirst({
+      where: {
+        userId: targetUserId,
+        metric: 'caixa_para_investir_etf',
+      },
+    });
+    const caixaParaInvestir = caixaParaInvestirData?.value || 0;
+
     // Buscar portfolio do usuário com ativos do tipo correspondente
     const portfolio = await prisma.portfolio.findMany({
       where: { 
@@ -50,7 +59,7 @@ export async function GET(request: NextRequest) {
       valorAtualizado: item.totalInvested,
       riscoPorAtivo: 0, // Calcular depois
       percentualCarteira: 0, // Calcular depois
-      objetivo: 0, // Sem objetivo por enquanto
+      objetivo: item.objetivo ?? 0,
       quantoFalta: 0, // Calcular depois
       necessidadeAporte: 0, // Calcular depois
       rentabilidade: 0, // Sem variação por enquanto
@@ -104,13 +113,14 @@ export async function GET(request: NextRequest) {
     });
 
     // Calcular resumo
+    const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
     const resumo = {
       necessidadeAporteTotal: totalNecessidadeAporte,
-      caixaParaInvestir: 0, // Sem caixa por enquanto
-      saldoInicioMes: totalValorAtualizado,
-      valorAtualizado: totalValorAtualizado,
-      rendimento: totalValorAtualizado - totalValorAplicado,
-      rentabilidade: totalValorAplicado > 0 ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100 : 0
+      caixaParaInvestir: caixaParaInvestir,
+      saldoInicioMes: totalValorAplicado,
+      valorAtualizado: valorAtualizadoComCaixa,
+      rendimento: valorAtualizadoComCaixa - totalValorAplicado,
+      rentabilidade: totalValorAplicado > 0 ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100 : 0
     };
 
     // Calcular alocação por ativo
@@ -136,7 +146,7 @@ export async function GET(request: NextRequest) {
       totalGeral: {
         quantidade: totalQuantidade,
         valorAplicado: totalValorAplicado,
-        valorAtualizado: totalValorAtualizado,
+        valorAtualizado: valorAtualizadoComCaixa, // Incluir caixa no total
         percentualCarteira: 100.0,
         risco: totalRisco,
         objetivo: totalObjetivo,
@@ -160,8 +170,46 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId } = body;
+    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+
+    if (caixaParaInvestir !== undefined) {
+      if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
+        return NextResponse.json({
+          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
+        }, { status: 400 });
+      }
+
+      // Salvar ou atualizar caixa para investir de ETF
+      const existingCaixa = await prisma.dashboardData.findFirst({
+        where: {
+          userId: targetUserId,
+          metric: 'caixa_para_investir_etf',
+        },
+      });
+
+      if (existingCaixa) {
+        await prisma.dashboardData.update({
+          where: { id: existingCaixa.id },
+          data: { value: caixaParaInvestir },
+        });
+      } else {
+        await prisma.dashboardData.create({
+          data: {
+            userId: targetUserId,
+            metric: 'caixa_para_investir_etf',
+            value: caixaParaInvestir,
+          },
+        });
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Caixa para investir atualizado com sucesso',
+        caixaParaInvestir
+      });
+    }
 
     if (!ativoId) {
       return NextResponse.json(
