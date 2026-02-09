@@ -8,6 +8,7 @@ import PieChartEtfAtivo from "@/components/charts/pie/PieChartEtfAtivo";
 import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const ETF_COLUMN_COUNT = 13;
@@ -298,8 +299,8 @@ interface EtfTableProps {
 }
 
 export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao } = useEtf();
-  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCotacao, updateCaixaParaInvestir } = useEtf();
+  const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.etfs ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(ETF_SECTION_ORDER)
@@ -319,16 +320,41 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
 
       return {
         ...secao,
-        ativos: secao.ativos.map(ativo => ({
-          ...ativo,
-          riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
-          percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
-        })),
+        ativos: secao.ativos.map(ativo => {
+          // Percentual daquele tipo de ativo (não da carteira total)
+          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const objetivo = ativo.objetivo || 0;
+          // Quanto falta = diferença entre % atual e objetivo (em %)
+          const quantoFalta = objetivo - percentualCarteira;
+          // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
+          const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 
+            ? (quantoFalta / 100) * totalTabValue 
+            : 0;
+          
+          return {
+            ...ativo,
+            riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+            percentualCarteira,
+            quantoFalta,
+            necessidadeAporte,
+          };
+        }),
         totalPercentualCarteira,
         totalRisco: secao.ativos.reduce(
           (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
           0
         ),
+        totalQuantoFalta: secao.ativos.reduce((sum, ativo) => {
+          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const objetivo = ativo.objetivo || 0;
+          return sum + (objetivo - percentualCarteira);
+        }, 0),
+        totalNecessidadeAporte: secao.ativos.reduce((sum, ativo) => {
+          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const objetivo = ativo.objetivo || 0;
+          const quantoFalta = objetivo - percentualCarteira;
+          return sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0);
+        }, 0),
       };
     });
 
@@ -337,6 +363,10 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       0
     );
 
+    // Recalcular totais gerais
+    const totalQuantoFalta = secoesComRisco.reduce((sum, secao) => sum + secao.totalQuantoFalta, 0);
+    const totalNecessidadeAporte = secoesComRisco.reduce((sum, secao) => sum + secao.totalNecessidadeAporte, 0);
+
     return {
       ...data,
       secoes: secoesComRisco,
@@ -344,6 +374,8 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
         ...data.totalGeral,
         risco: totalGeralRisco,
         percentualCarteira: totalTabValue > 0 ? 100 : 0,
+        quantoFalta: totalQuantoFalta,
+        necessidadeAporte: totalNecessidadeAporte,
       },
     };
   }, [data, totalCarteira]);
@@ -423,9 +455,10 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
           value={formatCurrency(necessidadeAporteTotalCalculada)}
           color="warning"
         />
-        <EtfMetricCard
-          title="Caixa para Investir"
-          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
+        <CaixaParaInvestirCard
+          value={data?.resumo?.caixaParaInvestir ?? 0}
+          formatCurrency={formatCurrency}
+          onSave={updateCaixaParaInvestir}
           color="success"
         />
         <EtfMetricCard
