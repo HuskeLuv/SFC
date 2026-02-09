@@ -37,13 +37,14 @@ interface AlocacaoAtivosTableProps {
     imoveisBens: { valor: number; percentual: number; };
   };
   alocacaoConfig: UseAlocacaoConfigReturn;
+  caixaParaInvestir?: number;
 }
 
-export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: AlocacaoAtivosTableProps) {
+export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caixaParaInvestir = 0 }: AlocacaoAtivosTableProps) {
   // Total Dinheiro: exclui Imóveis e Bens
   const totalDinheiro = Object.entries(distribuicao)
     .filter(([key]) => key !== 'imoveisBens')
-    .reduce((sum, [, item]) => sum + item.valor, 0);
+    .reduce((sum, [, item]) => sum + item.valor, 0) + caixaParaInvestir;
   
   // Total Dinheiro + Bens: inclui tudo (dinheiro + imóveis e bens)
   const valorImoveisBens = distribuicao.imoveisBens?.valor || 0;
@@ -145,6 +146,9 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
   };
 
   const dados = calcularDados();
+  const totalPercentualTarget = dados
+    .filter((ativo) => ativo.categoria !== "imoveisBens")
+    .reduce((sum, ativo) => sum + ativo.percentualTarget, 0);
 
   const formatarMoeda = (valor: number): string => {
     return valor.toLocaleString('pt-BR', {
@@ -483,7 +487,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig }: Al
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
               <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
-                
+                {formatarPercentual(totalPercentualTarget)}
               </TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
               <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>

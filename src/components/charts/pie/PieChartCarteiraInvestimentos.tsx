@@ -91,7 +91,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
       colors: [
         "#4F81BD", // Reserva de Emergência
         "#DDD9C3", // Reserva de Oportunidade
-        "#404040", // Renda Fixa & Fundos
+        "#404040", // Renda Fixa
         "#B9CDE5", // FIM/FIA
         "#9E8A58", // FII's
         "#FFC000", // Ações
@@ -105,7 +105,7 @@ export default function PieChartCarteiraInvestimentos({ distribuicao }: PieChart
       labels: [
         "Reserva de Emergência",
         "Reserva de Oportunidade",
-        "Renda Fixa & Fundos de Renda Fixa", 
+        "Renda Fixa", 
         "FIM/FIA",
         "FII's",
         "Ações",

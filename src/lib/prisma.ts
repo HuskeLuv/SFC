@@ -16,9 +16,20 @@ const createPrismaClient = () =>
     },
   });
 
+const hasPortfolioObjetivoField = (client?: PrismaClient) => {
+  if (!client) return false;
+  const dmmf = (client as any)._dmmf;
+  const fields = dmmf?.modelMap?.Portfolio?.fields;
+  if (!Array.isArray(fields)) return false;
+  return fields.some((field: { name?: string }) => field?.name === "objetivo");
+};
+
 if (
   process.env.NODE_ENV !== 'production' &&
-  (!globalForPrisma.prisma || typeof (globalForPrisma.prisma as any).consultantInvite === 'undefined')
+  (!globalForPrisma.prisma ||
+    typeof (globalForPrisma.prisma as any).consultantInvite === 'undefined' ||
+    typeof (globalForPrisma.prisma as any).fixedIncomeAsset === 'undefined' ||
+    !hasPortfolioObjetivoField(globalForPrisma.prisma))
 ) {
   globalForPrisma.prisma = createPrismaClient();
 }

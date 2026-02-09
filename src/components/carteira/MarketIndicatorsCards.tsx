@@ -43,7 +43,11 @@ const formatChange = (value: number | null) => {
   return `${sign}${value.toFixed(2)}%`;
 };
 
-export default function MarketIndicatorsCards() {
+type MarketIndicatorsCardsProps = {
+  extraCards?: React.ReactNode;
+};
+
+export default function MarketIndicatorsCards({ extraCards }: MarketIndicatorsCardsProps) {
   const [data, setData] = useState<IndicatorsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -125,8 +129,11 @@ export default function MarketIndicatorsCards() {
     [data, loading]
   );
 
+  const totalCards = cards.length + (extraCards ? React.Children.count(extraCards) : 0);
+  const gridColsClass = totalCards > 4 ? "md:grid-cols-5" : "md:grid-cols-4";
+
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+    <div className={`grid grid-cols-2 gap-4 ${gridColsClass}`}>
       {cards.map((card) => (
         <MetricCard
           key={card.title}
@@ -137,6 +144,7 @@ export default function MarketIndicatorsCards() {
           changeDirection={card.changeDirection}
         />
       ))}
+      {extraCards}
     </div>
   );
 }
