@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect } from "react";
-import { WizardFormData, TIPOS_ATIVO, MOEDAS_FIXAS, INDEXADORES, PERIODOS } from "@/types/wizard";
+import { WizardFormData, TIPOS_ATIVO, MOEDAS_FIXAS, INDEXADORES, PERIODOS, RENDA_FIXA_TIPOS } from "@/types/wizard";
 import Button from "@/components/ui/button/Button";
 
 interface Step5ConfirmationProps {
@@ -40,6 +40,11 @@ export default function Step5Confirmation({
   const getPeriodoLabel = (value: string | number | Date | null | undefined) => {
     if (typeof value !== 'string') return '-';
     return PERIODOS.find(p => p.value === value)?.label || value;
+  };
+
+  const getRendaFixaTipoLabel = (value: string | number | Date | null | undefined) => {
+    if (typeof value !== 'string') return '-';
+    return RENDA_FIXA_TIPOS.find(t => t.value === value)?.label || value;
   };
 
   const formatCurrency = (value: string | number | Date | null | undefined) => {
@@ -130,6 +135,18 @@ export default function Step5Confirmation({
             {renderFieldValue("Data de Vencimento", formData.dataVencimento, formatDate)}
             {renderFieldValue("Taxa de Juros Anual", formData.taxaJurosAnual, (val) => `${val}%`)}
             {formData.tipoAtivo === "renda-fixa-posfixada" && renderFieldValue("Indexador", formData.indexador, getIndexadorLabel)}
+            {renderFieldValue("Descrição", formData.descricao)}
+          </>
+        );
+
+      case "renda-fixa":
+        return (
+          <>
+            {renderFieldValue("Tipo de Renda Fixa", formData.rendaFixaTipo, getRendaFixaTipoLabel)}
+            {renderFieldValue("Data de Início", formData.dataInicio, formatDate)}
+            {renderFieldValue("Valor Aplicado", formData.valorAplicado, formatCurrency)}
+            {renderFieldValue("Data de Vencimento", formData.dataVencimento, formatDate)}
+            {renderFieldValue("Taxa de Juros Anual", formData.taxaJurosAnual, (val) => `${val}%`)}
             {renderFieldValue("Descrição", formData.descricao)}
           </>
         );

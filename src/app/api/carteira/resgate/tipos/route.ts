@@ -14,6 +14,7 @@ const TIPO_LABELS: Record<string, string> = {
   moeda: "Moedas",
   fundo: "Fundos",
   "renda-fixa-prefixada": "Renda Fixa Prefixada",
+  "renda-fixa": "Renda Fixa",
   previdencia: "Previdência",
   "conta-corrente": "Conta Corrente",
   personalizado: "Personalizado",
@@ -49,7 +50,7 @@ const mapPortfolioToTipo = (item: { stock?: { ticker: string } | null; asset?: {
     case "fund":
       return "fundo";
     case "bond":
-      return "renda-fixa-prefixada";
+      return "renda-fixa";
     case "insurance":
       return "previdencia";
     case "cash":

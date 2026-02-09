@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { WizardFormData, WizardErrors, Asset, AutocompleteOption } from "@/types/wizard";
+import { WizardFormData, WizardErrors, Asset, AutocompleteOption, RENDA_FIXA_TIPOS } from "@/types/wizard";
 import AutocompleteInput from "@/components/form/AutocompleteInput";
 
 interface Step3AssetProps {
@@ -18,6 +18,7 @@ export default function Step3Asset({
 }: Step3AssetProps) {
   const [assetOptions, setAssetOptions] = useState<AutocompleteOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const selectedRendaFixaType = RENDA_FIXA_TIPOS.find((tipo) => tipo.value === formData.rendaFixaTipo);
 
   // Não carregar ativos iniciais - apenas quando o usuário digitar
 
@@ -147,6 +148,18 @@ export default function Step3Asset({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.tipoAtivo]);
 
+  const handleRendaFixaSelect = (tipoValue: string) => {
+    const tipoSelecionado = RENDA_FIXA_TIPOS.find((tipo) => tipo.value === tipoValue);
+    onFormDataChange({
+      rendaFixaTipo: tipoValue,
+      ativo: tipoSelecionado?.label || "Renda Fixa",
+      assetId: "",
+    });
+    if (errors.rendaFixaTipo) {
+      onErrorsChange({ rendaFixaTipo: undefined });
+    }
+  };
+
   const getPlaceholderText = () => {
     const placeholders: Record<string, string> = {
       "reserva-emergencia": "Reserva de Emergência (automático)",
@@ -162,6 +175,7 @@ export default function Step3Asset({
       "tesouro-direto": "Digite pelo menos 2 caracteres (ex: Tesouro Selic 2029)",
       "renda-fixa-prefixada": "Digite pelo menos 2 caracteres (nome do título)",
       "renda-fixa-posfixada": "Digite pelo menos 2 caracteres (nome do título)",
+      "renda-fixa": "Selecione o tipo de renda fixa abaixo",
       "previdencia": "Digite pelo menos 2 caracteres (nome do plano)",
       "criptoativo": "Digite pelo menos 2 caracteres (ex: Bitcoin, Ethereum)",
       "moeda": "Digite pelo menos 2 caracteres (ex: Dólar, Euro)",
@@ -206,6 +220,79 @@ export default function Step3Asset({
             </h4>
             <p className="text-sm text-green-700 dark:text-green-300">
               {formData.ativo}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (formData.tipoAtivo === "renda-fixa") {
+    return (
+      <div className="space-y-6">
+        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:bg-brand-400/20 dark:text-brand-200">
+              <span className="text-sm font-semibold">RF</span>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Renda Fixa Prefixada
+              </h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Escolha o tipo de título para continuar o cadastro.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Tipos disponíveis *
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {RENDA_FIXA_TIPOS.map((tipo) => {
+              const isSelected = formData.rendaFixaTipo === tipo.value;
+              const baseClasses = "flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left text-sm transition-colors";
+              const selectedClasses = "border-brand-500 bg-brand-500/10 text-brand-700 dark:border-brand-400 dark:bg-brand-400/10 dark:text-brand-200";
+              const defaultClasses = "border-gray-200 bg-white text-gray-700 hover:border-brand-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-400 dark:hover:bg-gray-800";
+              const cardClasses = `${baseClasses} ${isSelected ? selectedClasses : defaultClasses}`;
+
+              return (
+                <button
+                  key={tipo.value}
+                  type="button"
+                  className={cardClasses}
+                  onClick={() => handleRendaFixaSelect(tipo.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleRendaFixaSelect(tipo.value);
+                    }
+                  }}
+                  aria-pressed={isSelected}
+                  aria-label={`Selecionar ${tipo.label}`}
+                >
+                  <span className="font-medium">{tipo.label}</span>
+                  {isSelected && (
+                    <span className="text-xs font-semibold">Selecionado</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {errors.rendaFixaTipo && (
+            <p className="mt-1 text-sm text-red-500">{errors.rendaFixaTipo}</p>
+          )}
+        </div>
+
+        {selectedRendaFixaType && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">
+              Tipo selecionado
+            </h4>
+            <p className="text-sm text-green-700 dark:text-green-300">
+              {selectedRendaFixaType.label}
             </p>
           </div>
         )}
@@ -270,6 +357,7 @@ function getSearchInstructions(tipoAtivo: string): string {
     "tesouro-direto": "Digite pelo menos 2 caracteres do nome do título do Tesouro Direto (ex: Tesouro Selic 2029).",
     "renda-fixa-prefixada": "Digite pelo menos 2 caracteres do nome do título de renda fixa com taxa prefixada.",
     "renda-fixa-posfixada": "Digite pelo menos 2 caracteres do nome do título de renda fixa com taxa pós-fixada.",
+    "renda-fixa": "Selecione o tipo de renda fixa prefixada disponível para continuar.",
     "previdencia": "Digite pelo menos 2 caracteres do nome do plano de previdência privada.",
     "criptoativo": "Digite pelo menos 2 caracteres do nome da criptomoeda (ex: Bitcoin, Ethereum, Cardano).",
     "moeda": "Digite pelo menos 2 caracteres do nome da moeda estrangeira (ex: Dólar Americano, Euro).",

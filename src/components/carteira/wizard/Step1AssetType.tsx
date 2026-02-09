@@ -61,7 +61,16 @@ export default function Step1AssetType({
   };
 
   const handleTipoAtivoChange = (value: string) => {
-    onFormDataChange({ tipoAtivo: value, ativo: "", assetId: "" });
+    onFormDataChange({ 
+      tipoAtivo: value, 
+      ativo: "", 
+      assetId: "",
+      rendaFixaTipo: "",
+      rendaFixaIndexer: "",
+      rendaFixaIndexerPercent: 0,
+      rendaFixaLiquidity: "",
+      rendaFixaTaxExempt: false,
+    });
     
     // Limpar erro quando usuário selecionar
     if (errors.tipoAtivo) {
@@ -133,8 +142,7 @@ function getAssetTypeDescription(tipoAtivo: string): string {
     "personalizado": "Ativos personalizados permitem criar investimentos customizados com suas próprias regras.",
     "poupanca": "Poupança é uma aplicação de renda fixa com liquidez diária e rendimento baseado na poupança.",
     "previdencia": "Previdência privada e seguros para aposentadoria e proteção financeira.",
-    "renda-fixa-prefixada": "Renda fixa com taxa de juros fixa definida no momento da aplicação.",
-    "renda-fixa-posfixada": "Renda fixa com taxa de juros variável baseada em índices como CDI, IPCA, etc.",
+    "renda-fixa": "Renda fixa prefixada com taxa definida no momento da aplicação, ideal para objetivos com prazo e retorno conhecidos.",
     "tesouro-direto": "Títulos públicos federais negociados diretamente com o Tesouro Nacional.",
   };
   

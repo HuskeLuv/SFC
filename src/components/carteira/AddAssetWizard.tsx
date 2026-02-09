@@ -22,6 +22,11 @@ interface AddAssetWizardProps {
 const INITIAL_FORM_DATA: WizardFormData = {
   operacao: "compra",
   tipoAtivo: "",
+  rendaFixaTipo: "",
+  rendaFixaIndexer: "",
+  rendaFixaIndexerPercent: 0,
+  rendaFixaLiquidity: "",
+  rendaFixaTaxExempt: false,
   instituicao: "",
   instituicaoId: "",
   ativo: "",
@@ -116,6 +121,30 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       if (tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
         return !!(dataInicio && formData.emissorId && formData.periodo && formData.valorAplicado > 0 && formData.taxaJurosAnual > 0);
       }
+
+      if (tipoAtivo === "renda-fixa") {
+        const dataInicioParsed = dataInicio ? new Date(dataInicio) : null;
+        const dataVencimentoParsed = formData.dataVencimento ? new Date(formData.dataVencimento) : null;
+        const hasValidDates = !!(
+          dataInicioParsed &&
+          dataVencimentoParsed &&
+          Number.isFinite(dataInicioParsed.getTime()) &&
+          Number.isFinite(dataVencimentoParsed.getTime()) &&
+          dataInicioParsed.getTime() < dataVencimentoParsed.getTime()
+        );
+        const isTaxaJurosValida = formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000;
+        const isIndexerPercentValid = !formData.rendaFixaIndexerPercent || (formData.rendaFixaIndexerPercent >= 0 && formData.rendaFixaIndexerPercent <= 1000);
+
+        return !!(
+          formData.rendaFixaTipo &&
+          dataInicio &&
+          formData.valorAplicado > 0 &&
+          isTaxaJurosValida &&
+          formData.descricao &&
+          hasValidDates &&
+          isIndexerPercentValid
+        );
+      }
       
       if (tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
         return !!(dataCompra && formData.valorInvestido > 0);
@@ -159,7 +188,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               isValid = !!formData.portfolioId;
             } else {
               // Para reserva de emergência, oportunidade e personalizado, o assetId será um placeholder
+              if (formData.tipoAtivo === "renda-fixa") {
+                isValid = !!formData.rendaFixaTipo;
+              } else {
               isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado";
+              }
             }
             break;
           case "info":

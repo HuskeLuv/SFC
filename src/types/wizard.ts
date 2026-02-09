@@ -37,6 +37,11 @@ export interface WizardFormData {
   operacao: 'compra' | 'aporte';
   // Passo 1: Tipo de Ativo
   tipoAtivo: string;
+  rendaFixaTipo?: string;
+  rendaFixaIndexer?: string;
+  rendaFixaIndexerPercent?: number;
+  rendaFixaLiquidity?: string;
+  rendaFixaTaxExempt?: boolean;
   
   // Passo 2: Instituição
   instituicao: string;
@@ -87,6 +92,11 @@ export interface WizardFormData {
 export interface WizardErrors {
   operacao?: string;
   tipoAtivo?: string;
+  rendaFixaTipo?: string;
+  rendaFixaIndexer?: string;
+  rendaFixaIndexerPercent?: string;
+  rendaFixaLiquidity?: string;
+  rendaFixaTaxExempt?: string;
   instituicao?: string;
   ativo?: string;
   dataCompra?: string;
@@ -134,9 +144,23 @@ export const TIPOS_ATIVO = [
   { value: "personalizado", label: "Personalizado" },
   { value: "poupanca", label: "Poupança" },
   { value: "previdencia", label: "Previdência" },
-  { value: "renda-fixa-prefixada", label: "Renda Fixa Prefixada" },
-  { value: "renda-fixa-posfixada", label: "Renda Fixa Pós-Fixada" },
+  { value: "renda-fixa", label: "Renda Fixa" },
   { value: "tesouro-direto", label: "Tesouro Direto" },
+];
+
+export const RENDA_FIXA_TIPOS = [
+  { value: "CDB_PRE", label: "CDB Pré" },
+  { value: "LC_PRE", label: "LC Pré" },
+  { value: "LCI_PRE", label: "LCI Pré" },
+  { value: "LCA_PRE", label: "LCA Pré" },
+  { value: "RDB_PRE", label: "RDB Pré" },
+  { value: "LF_PRE", label: "LF Pré" },
+  { value: "LFS_PRE", label: "LFS Pré" },
+  { value: "CRI_PRE", label: "CRI Pré" },
+  { value: "CRA_PRE", label: "CRA Pré" },
+  { value: "DPGE_PRE", label: "DPGE Pré" },
+  { value: "RDC_PRE", label: "RDC Pré" },
+  { value: "LIG_PRE", label: "LIG Pré" },
 ];
 
 export const MOEDAS_FIXAS = [

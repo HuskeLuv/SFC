@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       assetId,
       dataCompra,
       dataInicio,
+      dataVencimento,
       quantidade,
       cotacaoUnitaria,
       cotacaoCompra,
@@ -32,12 +33,18 @@ export async function POST(request: NextRequest) {
       taxaCorretagem = 0,
       valorTotal,
       observacoes,
+      descricao,
       moeda,
       nomePersonalizado,
       precoUnitario,
       emissorId,
       periodo,
       taxaJurosAnual,
+      rendaFixaTipo,
+      rendaFixaIndexer,
+      rendaFixaIndexerPercent,
+      rendaFixaLiquidity,
+      rendaFixaTaxExempt,
       cotizacaoResgate,
       liquidacaoResgate,
       vencimento,
@@ -58,7 +65,8 @@ export async function POST(request: NextRequest) {
         error: 'Campos obrigatórios: tipoAtivo, instituicaoId' 
       }, { status: 400 });
     }
-    if (!isReserva && !isPersonalizado && !assetId) {
+    const isRendaFixa = tipoAtivo === "renda-fixa";
+    if (!isReserva && !isPersonalizado && !isRendaFixa && !assetId) {
       return NextResponse.json({ 
         error: 'Campo obrigatório: assetId' 
       }, { status: 400 });
@@ -99,6 +107,24 @@ export async function POST(request: NextRequest) {
       if (!dataInicio || !emissorId || !periodo || !valorAplicado || !taxaJurosAnual) {
         return NextResponse.json({ 
           error: 'Campos obrigatórios para este tipo: dataInicio, emissorId, periodo, valorAplicado, taxaJurosAnual' 
+        }, { status: 400 });
+      }
+    } else if (tipoAtivo === "renda-fixa") {
+      if (!rendaFixaTipo || !dataInicio || !dataVencimento || !valorAplicado || !taxaJurosAnual || !descricao) {
+        return NextResponse.json({
+          error: 'Campos obrigatórios para este tipo: rendaFixaTipo, dataInicio, dataVencimento, valorAplicado, taxaJurosAnual, descricao'
+        }, { status: 400 });
+      }
+      const inicio = new Date(dataInicio);
+      const vencimentoDate = new Date(dataVencimento);
+      if (!Number.isFinite(inicio.getTime()) || !Number.isFinite(vencimentoDate.getTime())) {
+        return NextResponse.json({
+          error: 'Datas inválidas para este tipo: dataInicio, dataVencimento'
+        }, { status: 400 });
+      }
+      if (inicio.getTime() >= vencimentoDate.getTime()) {
+        return NextResponse.json({
+          error: 'A data de início deve ser anterior à data de vencimento'
         }, { status: 400 });
       }
     } else if (tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
@@ -179,10 +205,28 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    if ((tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca" || tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") && valorAplicado <= 0) {
+    if ((tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca" || tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada" || tipoAtivo === "renda-fixa") && valorAplicado <= 0) {
       return NextResponse.json({ 
         error: 'Valor aplicado deve ser maior que zero' 
       }, { status: 400 });
+    }
+
+    if (tipoAtivo === "renda-fixa" && taxaJurosAnual <= 0) {
+      return NextResponse.json({
+        error: 'Taxa de juros anual deve ser maior que zero'
+      }, { status: 400 });
+    }
+    if (tipoAtivo === "renda-fixa" && taxaJurosAnual > 1000) {
+      return NextResponse.json({
+        error: 'Taxa de juros anual deve ser menor ou igual a 1000%'
+      }, { status: 400 });
+    }
+    if (tipoAtivo === "renda-fixa" && rendaFixaIndexerPercent !== undefined && rendaFixaIndexerPercent !== null) {
+      if (rendaFixaIndexerPercent < 0 || rendaFixaIndexerPercent > 1000) {
+        return NextResponse.json({
+          error: 'Percentual do indexador deve estar entre 0% e 1000%'
+        }, { status: 400 });
+      }
     }
     
     if ((tipoAtivo === "moeda" || tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia" || tipoAtivo === "emergency" || tipoAtivo === "opportunity") && valorInvestido <= 0) {
@@ -227,7 +271,7 @@ export async function POST(request: NextRequest) {
     
     // Se é reserva de emergência, oportunidade ou personalizado, criar um asset único para cada investimento
     // Isso permite ter múltiplos investimentos de reserva/personalizado separados
-    if (tipoAtivo === "emergency" || tipoAtivo === "opportunity" || tipoAtivo === "personalizado") {
+    if (tipoAtivo === "emergency" || tipoAtivo === "opportunity" || tipoAtivo === "personalizado" || tipoAtivo === "renda-fixa") {
       let baseName = "";
       let baseSymbol = "";
       
@@ -240,6 +284,9 @@ export async function POST(request: NextRequest) {
       } else if (tipoAtivo === "personalizado") {
         baseName = nomePersonalizado || "Personalizado";
         baseSymbol = "PERSONALIZADO";
+      } else if (tipoAtivo === "renda-fixa") {
+        baseName = descricao || "Renda Fixa";
+        baseSymbol = "RENDA-FIXA";
       }
       
       // Criar um asset único para cada investimento usando timestamp e UUID
@@ -262,6 +309,14 @@ export async function POST(request: NextRequest) {
           maximumFractionDigits: 0
         }).format(valorTotal) : '';
         assetName = `${baseName}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+      } else if (tipoAtivo === "renda-fixa") {
+        const valorFormatado = valorAplicado ? new Intl.NumberFormat('pt-BR', { 
+          style: 'currency', 
+          currency: 'BRL',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
+        }).format(valorAplicado) : '';
+        assetName = `${baseName}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
       } else {
         const valorFormatado = valorInvestido ? new Intl.NumberFormat('pt-BR', { 
           style: 'currency', 
@@ -277,7 +332,7 @@ export async function POST(request: NextRequest) {
         data: {
           symbol: assetSymbol,
           name: assetName,
-          type: tipoAtivo === "personalizado" ? "personalizado" : tipoAtivo,
+          type: tipoAtivo === "personalizado" ? "personalizado" : (tipoAtivo === "renda-fixa" ? "bond" : tipoAtivo),
           currency: 'BRL',
           source: 'manual',
         },
@@ -329,7 +384,7 @@ export async function POST(request: NextRequest) {
       valorCalculado = quantidade * precoUnitario;
       quantidadeFinal = quantidade;
       precoFinal = precoUnitario;
-    } else if (tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca" || tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
+    } else if (tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca" || tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada" || tipoAtivo === "renda-fixa") {
       valorCalculado = valorAplicado;
       quantidadeFinal = 1; // Para contas e renda fixa, consideramos como 1 unidade
       precoFinal = valorAplicado;
@@ -356,6 +411,17 @@ export async function POST(request: NextRequest) {
       if (vencimento) {
         metadata.vencimento = vencimento;
       }
+    }
+    if (tipoAtivo === "renda-fixa") {
+      metadata.rendaFixaTipo = rendaFixaTipo || null;
+      metadata.dataInicio = dataInicio || null;
+      metadata.dataVencimento = dataVencimento || null;
+      metadata.taxaJurosAnual = taxaJurosAnual || null;
+      metadata.descricao = descricao || null;
+      metadata.indexador = rendaFixaIndexer || null;
+      metadata.indexadorPercent = rendaFixaIndexerPercent || null;
+      metadata.liquidez = rendaFixaLiquidity || null;
+      metadata.taxExempt = rendaFixaTaxExempt ?? false;
     }
     if (tipoAtivo === "personalizado") {
       metadata.metodo = metodo || "valor";
@@ -399,11 +465,12 @@ export async function POST(request: NextRequest) {
     if (!isReserva && !isPersonalizado && (tipoAtivo === "acao" || tipoAtivo === "fii") && !stock) {
       return NextResponse.json({ error: 'Stock não encontrado' }, { status: 404 });
     }
-    if (!isReserva && !isPersonalizado && tipoAtivo !== "acao" && tipoAtivo !== "fii" && !asset) {
+    if (!isReserva && !isPersonalizado && !isRendaFixa && tipoAtivo !== "acao" && tipoAtivo !== "fii" && !asset) {
       return NextResponse.json({ error: 'Asset não encontrado' }, { status: 404 });
     }
-    if ((isReserva || isPersonalizado) && !asset) {
-      return NextResponse.json({ error: `Erro ao criar asset para ${isPersonalizado ? 'personalizado' : 'reserva'}` }, { status: 500 });
+    if ((isReserva || isPersonalizado || isRendaFixa) && !asset) {
+      const tipoErro = isPersonalizado ? 'personalizado' : (isRendaFixa ? 'renda fixa' : 'reserva');
+      return NextResponse.json({ error: `Erro ao criar asset para ${tipoErro}` }, { status: 500 });
     }
 
     // Criar transação de compra
@@ -424,7 +491,7 @@ export async function POST(request: NextRequest) {
     // Atualizar ou criar portfolio
     // Para reservas (emergency e opportunity) e personalizado, sempre criar um novo portfolio
     // Para outros tipos, atualizar se existir ou criar novo
-    if (isReserva || isPersonalizado) {
+    if (isReserva || isPersonalizado || isRendaFixa) {
       // Para reservas, sempre criar um novo portfolio (não somar com existente)
       await prisma.portfolio.create({
         data: {
@@ -476,6 +543,35 @@ export async function POST(request: NextRequest) {
             lastUpdate: new Date(),
           },
         });
+      }
+    }
+
+    if (isRendaFixa && asset?.id) {
+      try {
+        await prisma.fixedIncomeAsset.create({
+          data: {
+            userId: targetUserId,
+            assetId: asset.id,
+            type: rendaFixaTipo,
+            description: descricao,
+            startDate: new Date(dataInicio),
+            maturityDate: new Date(dataVencimento),
+            investedAmount: valorAplicado,
+            annualRate: taxaJurosAnual,
+            indexer: rendaFixaIndexer || null,
+            indexerPercent: rendaFixaIndexerPercent || null,
+            liquidityType: rendaFixaLiquidity || null,
+            taxExempt: Boolean(rendaFixaTaxExempt),
+          },
+        });
+      } catch (error) {
+        const prismaError = error as { code?: string };
+        if (prismaError?.code === 'P2021') {
+          return NextResponse.json({
+            error: 'Tabela de renda fixa não encontrada. Execute as migrations antes de adicionar ativos de renda fixa.'
+          }, { status: 500 });
+        }
+        throw error;
       }
     }
 
