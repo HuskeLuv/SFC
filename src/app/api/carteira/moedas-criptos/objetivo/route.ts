@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuthWithActing } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
+    const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
     const { ativoId, objetivo } = body;
 
@@ -21,7 +24,17 @@ export async function POST(request: NextRequest) {
 
     // Aqui você faria a atualização no banco de dados
     // Por enquanto, apenas simula o sucesso
-    console.log(`Atualizando objetivo do ativo ${ativoId} para ${objetivo}%`);
+    const updateResult = await prisma.portfolio.updateMany({
+      where: { id: ativoId, userId: targetUserId },
+      data: { objetivo },
+    });
+
+    if (updateResult.count === 0) {
+      return NextResponse.json(
+        { error: 'Ativo não encontrado' },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({ 
       success: true, 
