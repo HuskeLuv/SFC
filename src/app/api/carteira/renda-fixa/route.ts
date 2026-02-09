@@ -48,6 +48,46 @@ export async function GET(request: NextRequest) {
       fixedIncomeByAssetId.set(fixedIncome.assetId, fixedIncome);
     });
 
+    // Buscar transações para obter metadados editados
+    const assetIds = portfolio.map(p => p.assetId).filter((id): id is string => id !== null);
+    const transactions = assetIds.length > 0 ? await prisma.stockTransaction.findMany({
+      where: {
+        userId: targetUserId,
+        assetId: { in: assetIds },
+        type: { in: ['compra', 'venda'] },
+      },
+      orderBy: {
+        date: 'desc',
+      },
+    }) : [];
+
+    // Criar mapa de metadados por assetId (usar a transação mais recente)
+    const metadataMap = new Map<string, {
+      cotizacaoResgate?: string;
+      liquidacaoResgate?: string;
+      benchmark?: string;
+      observacoes?: string;
+    }>();
+
+    transactions.forEach(transaction => {
+      if (!transaction.assetId) return;
+      if (transaction.notes && !metadataMap.has(transaction.assetId)) {
+        try {
+          const parsed = JSON.parse(transaction.notes);
+          if (parsed.cotizacaoResgate || parsed.liquidacaoResgate || parsed.benchmark || parsed.observacoes) {
+            metadataMap.set(transaction.assetId, {
+              cotizacaoResgate: parsed.cotizacaoResgate,
+              liquidacaoResgate: parsed.liquidacaoResgate,
+              benchmark: parsed.benchmark,
+              observacoes: parsed.observacoes,
+            });
+          }
+        } catch (e) {
+          // Se não for JSON válido, ignorar
+        }
+      }
+    });
+
     // Buscar caixa para investir específico de Renda Fixa
     const caixaParaInvestirData = await prisma.dashboardData.findFirst({
       where: {
@@ -93,18 +133,25 @@ export async function GET(request: NextRequest) {
         if (!fixedIncome) {
           return null;
         }
-        const valorAtualizado = calculateFixedIncomeValue(fixedIncome);
+        // Usar valor atualizado do portfolio (avgPrice) se foi editado manualmente
+        const valorAtualizadoCalculado = calculateFixedIncomeValue(fixedIncome);
+        const valorAtualizado = (item.avgPrice && item.avgPrice > 0 && item.quantity > 0)
+          ? item.avgPrice * item.quantity
+          : valorAtualizadoCalculado;
         const valorInicial = fixedIncome.investedAmount;
         const rentabilidade = valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0;
+
+        // Buscar metadados editados das transações
+        const metadata = metadataMap.get(assetId) || {};
 
       return {
           id: item.id,
           nome: fixedIncome.description || item.asset?.name || 'Renda Fixa',
           percentualRentabilidade: Math.round(rentabilidade * 100) / 100,
-          cotizacaoResgate: getLiquidityLabel(fixedIncome),
-          liquidacaoResgate: getLiquidityLabel(fixedIncome),
+          cotizacaoResgate: metadata.cotizacaoResgate || getLiquidityLabel(fixedIncome),
+          liquidacaoResgate: metadata.liquidacaoResgate || getLiquidityLabel(fixedIncome),
           vencimento: new Date(fixedIncome.maturityDate),
-          benchmark: getBenchmarkLabel(fixedIncome),
+          benchmark: metadata.benchmark || getBenchmarkLabel(fixedIncome),
           valorInicialAplicado: valorInicial,
           aporte: 0,
           resgate: 0,
@@ -112,7 +159,7 @@ export async function GET(request: NextRequest) {
           percentualCarteira: 0,
           riscoPorAtivo: 0,
           rentabilidade,
-          observacoes: undefined,
+          observacoes: metadata.observacoes,
           tipo: 'prefixada',
         };
       })
@@ -120,24 +167,32 @@ export async function GET(request: NextRequest) {
 
     const legacyAssets = portfolio
       .filter((item) => item.assetId && !fixedIncomeByAssetId.has(item.assetId))
-      .map((item) => ({
-        id: item.id,
-        nome: item.asset?.name || 'Renda Fixa',
-        percentualRentabilidade: 0,
-        cotizacaoResgate: 'D+0',
-        liquidacaoResgate: 'Imediata',
-        vencimento: new Date(),
-        benchmark: 'CDI',
-        valorInicialAplicado: item.totalInvested,
-        aporte: 0,
-        resgate: 0,
-        valorAtualizado: item.totalInvested,
-        percentualCarteira: 0,
-        riscoPorAtivo: 0,
-        rentabilidade: 0,
-        observacoes: undefined,
-        tipo: 'prefixada' as const,
-      }));
+      .map((item) => {
+        const assetId = item.assetId as string;
+        const metadata = metadataMap.get(assetId) || {};
+        const valorAtualizado = (item.avgPrice && item.avgPrice > 0 && item.quantity > 0)
+          ? item.avgPrice * item.quantity
+          : item.totalInvested;
+        
+        return {
+          id: item.id,
+          nome: item.asset?.name || 'Renda Fixa',
+          percentualRentabilidade: 0,
+          cotizacaoResgate: metadata.cotizacaoResgate || 'D+0',
+          liquidacaoResgate: metadata.liquidacaoResgate || 'Imediata',
+          vencimento: new Date(),
+          benchmark: metadata.benchmark || 'CDI',
+          valorInicialAplicado: item.totalInvested,
+          aporte: 0,
+          resgate: 0,
+          valorAtualizado,
+          percentualCarteira: 0,
+          riscoPorAtivo: 0,
+          rentabilidade: 0,
+          observacoes: metadata.observacoes,
+          tipo: 'prefixada' as const,
+        };
+      });
 
     const allAtivos = [...ativos, ...legacyAssets];
 
@@ -220,7 +275,7 @@ export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+    const { ativoId, objetivo, cotacao, caixaParaInvestir, campo, valor } = body;
 
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
@@ -256,6 +311,113 @@ export async function POST(request: NextRequest) {
         success: true, 
         message: 'Caixa para investir atualizado com sucesso',
         caixaParaInvestir
+      });
+    }
+
+    if (campo && valor !== undefined && ativoId) {
+      // Atualizar campo específico do ativo
+      const portfolio = await prisma.portfolio.findUnique({
+        where: { id: ativoId },
+        include: { asset: true },
+      });
+
+      if (!portfolio) {
+        return NextResponse.json(
+          { error: 'Portfolio não encontrado' },
+          { status: 404 }
+        );
+      }
+
+      if (portfolio.userId !== targetUserId) {
+        return NextResponse.json(
+          { error: 'Não autorizado' },
+          { status: 403 }
+        );
+      }
+
+      // Buscar a transação mais recente para atualizar os metadados
+      const transaction = await prisma.stockTransaction.findFirst({
+        where: {
+          userId: targetUserId,
+          assetId: portfolio.assetId,
+          type: 'compra',
+        },
+        orderBy: { date: 'desc' },
+      });
+
+      if (campo === 'valorAtualizado') {
+        // Atualizar avgPrice do portfolio
+        await prisma.portfolio.update({
+          where: { id: ativoId },
+          data: {
+            avgPrice: typeof valor === 'number' ? valor : parseFloat(valor as string),
+            lastUpdate: new Date(),
+          },
+        });
+      } else {
+        // Para outros campos, atualizar metadados na transação
+        if (transaction) {
+          const notes = transaction.notes ? JSON.parse(transaction.notes) : {};
+          // Preservar a estrutura operation se existir
+          const operation = notes.operation || {};
+          notes[campo] = valor;
+          notes.operation = operation;
+          
+          await prisma.stockTransaction.update({
+            where: { id: transaction.id },
+            data: {
+              notes: JSON.stringify(notes),
+            },
+          });
+        } else if (portfolio.assetId) {
+          // Se não houver transação, buscar a primeira transação de compra ou criar uma nova
+          const firstTransaction = await prisma.stockTransaction.findFirst({
+            where: {
+              userId: targetUserId,
+              assetId: portfolio.assetId,
+              type: 'compra',
+            },
+            orderBy: { date: 'asc' },
+          });
+
+          if (firstTransaction) {
+            // Atualizar a primeira transação existente
+            const notes = firstTransaction.notes ? JSON.parse(firstTransaction.notes) : {};
+            const operation = notes.operation || {};
+            notes[campo] = valor;
+            notes.operation = operation;
+            
+            await prisma.stockTransaction.update({
+              where: { id: firstTransaction.id },
+              data: {
+                notes: JSON.stringify(notes),
+              },
+            });
+          } else {
+            // Criar uma nova transação apenas para armazenar os metadados
+            const notes = {
+              [campo]: valor,
+            };
+            
+            await prisma.stockTransaction.create({
+              data: {
+                userId: targetUserId,
+                assetId: portfolio.assetId,
+                type: 'compra',
+                quantity: portfolio.quantity,
+                price: portfolio.avgPrice,
+                date: portfolio.lastUpdate || new Date(),
+                total: portfolio.totalInvested || (portfolio.avgPrice * portfolio.quantity),
+                notes: JSON.stringify(notes),
+              },
+            });
+          }
+        }
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Campo atualizado com sucesso' 
       });
     }
 

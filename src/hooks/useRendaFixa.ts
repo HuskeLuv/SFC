@@ -84,6 +84,39 @@ export const useRendaFixa = () => {
     }
   };
 
+  const updateRendaFixaCampo = async (
+    portfolioId: string,
+    campo: 'cotizacaoResgate' | 'liquidacaoResgate' | 'benchmark' | 'valorAtualizado' | 'observacoes',
+    valor: string | number
+  ) => {
+    try {
+      const response = await fetch('/api/carteira/renda-fixa', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          ativoId: portfolioId,
+          campo,
+          valor,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar campo');
+      }
+
+      // Recarregar dados após atualização
+      await fetchData();
+      return true;
+    } catch (err) {
+      console.error('Erro ao atualizar campo:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar campo');
+      return false;
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -94,6 +127,7 @@ export const useRendaFixa = () => {
     error,
     refetch: fetchData,
     updateCaixaParaInvestir,
+    updateRendaFixaCampo,
     formatCurrency,
     formatPercentage,
   };
