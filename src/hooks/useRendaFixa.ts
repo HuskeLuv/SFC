@@ -22,6 +22,18 @@ export const useRendaFixa = () => {
       }
 
       const responseData = await response.json();
+      
+      // Converter strings de data para objetos Date
+      if (responseData.secoes) {
+        responseData.secoes = responseData.secoes.map((secao: any) => ({
+          ...secao,
+          ativos: secao.ativos.map((ativo: any) => ({
+            ...ativo,
+            vencimento: ativo.vencimento ? new Date(ativo.vencimento) : new Date(),
+          })),
+        }));
+      }
+      
       setData(responseData as RendaFixaData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
