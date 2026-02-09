@@ -30,6 +30,32 @@ enum ConsultantInviteStatus {
   rejected
 }
 
+enum FixedIncomeType {
+  CDB_PRE
+  LC_PRE
+  LCI_PRE
+  LCA_PRE
+  RDB_PRE
+  LF_PRE
+  LFS_PRE
+  CRI_PRE
+  CRA_PRE
+  DPGE_PRE
+  RDC_PRE
+  LIG_PRE
+}
+
+enum FixedIncomeIndexer {
+  PRE
+  CDI
+  IPCA
+}
+
+enum FixedIncomeLiquidity {
+  DAILY
+  MATURITY
+}
+
 model User {
   id                            String                       @id @default(uuid())
   email                         String                       @unique
@@ -51,6 +77,7 @@ model User {
   watchlists                    Watchlist[]
   portfolios                    Portfolio[]
   stockTransactions             StockTransaction[]
+  fixedIncomeAssets             FixedIncomeAsset[]
   notifications                 Notification[]
   consultantInvites             ConsultantInvite[]           @relation("UserConsultantInvites")
   impersonationLogsAsConsultant ConsultantImpersonationLog[] @relation("ImpersonationLogConsultant")
@@ -245,6 +272,7 @@ model Portfolio {
   quantity      Int // Quantidade de ações
   avgPrice      Float // Preço médio de compra
   totalInvested Float // Total investido
+  objetivo      Float    @default(0) // Objetivo percentual do ativo
   estrategia    String? // Estratégia da ação: 'value', 'growth' ou 'risk'
   tipoFii       String? // Tipo do FII: 'fofi', 'tvm' ou 'tijolo'
   lastUpdate    DateTime @default(now())
@@ -291,11 +319,36 @@ model Asset {
   watchlists   Watchlist[]
   portfolios   Portfolio[]
   transactions StockTransaction[]
+  fixedIncomeAsset FixedIncomeAsset?
 
   @@index([symbol])
   @@index([type])
   @@index([source])
   @@map("assets")
+}
+
+model FixedIncomeAsset {
+  id             String               @id @default(uuid())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id])
+  assetId        String               @unique
+  asset          Asset                @relation(fields: [assetId], references: [id])
+  type           FixedIncomeType
+  description    String
+  startDate      DateTime
+  maturityDate   DateTime
+  investedAmount Float
+  annualRate     Float
+  indexer        FixedIncomeIndexer?
+  indexerPercent Float?
+  liquidityType  FixedIncomeLiquidity?
+  taxExempt      Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([userId])
+  @@index([assetId])
+  @@map("fixed_income_assets")
 }
 
 // Enum para status das instituições
