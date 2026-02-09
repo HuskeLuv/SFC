@@ -457,7 +457,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
         />
         <CaixaParaInvestirCard
           value={data?.resumo?.caixaParaInvestir ?? 0}
-          formatCurrency={formatCurrency}
+          formatCurrency={(value) => formatCurrency(value ?? 0)}
           onSave={updateCaixaParaInvestir}
           color="success"
         />

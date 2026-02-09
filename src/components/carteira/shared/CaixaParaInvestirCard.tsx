@@ -64,7 +64,7 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
       return;
     }
     setIsSaving(true);
-    const success = await onSave(parsedValue);
+    const success = onSave ? await onSave(parsedValue) : false;
     setIsSaving(false);
     if (success) {
       setIsEditing(false);

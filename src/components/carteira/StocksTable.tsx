@@ -413,7 +413,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
         />
         <CaixaParaInvestirCard
           value={data?.resumo?.caixaParaInvestir ?? 0}
-          formatCurrency={formatCurrency}
+          formatCurrency={(value) => formatCurrency(value ?? 0)}
           onSave={updateCaixaParaInvestir}
           color="success"
         />

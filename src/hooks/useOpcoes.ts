@@ -11,6 +11,7 @@ interface UseOpcoesReturn {
   formatNumber: (value: number) => string;
   updateObjetivo: (ativoId: string, novoObjetivo: number) => Promise<void>;
   updateCotacao: (ativoId: string, novaCotacao: number) => Promise<void>;
+  updateCaixaParaInvestir: (novoCaixa: number) => Promise<boolean>;
   refetch: () => void;
 }
 

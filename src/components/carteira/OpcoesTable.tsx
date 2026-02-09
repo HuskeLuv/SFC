@@ -469,7 +469,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
         />
         <CaixaParaInvestirCard
           value={data?.resumo?.caixaParaInvestir ?? 0}
-          formatCurrency={formatCurrency}
+          formatCurrency={(value) => formatCurrency(value ?? 0)}
           onSave={updateCaixaParaInvestir}
           color="success"
         />

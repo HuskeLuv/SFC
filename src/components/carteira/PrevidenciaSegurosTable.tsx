@@ -277,7 +277,7 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
         />
         <CaixaParaInvestirCard
           value={data?.resumo?.caixaParaInvestir ?? 0}
-          formatCurrency={formatCurrency}
+          formatCurrency={(value) => formatCurrency(value ?? 0)}
           onSave={updateCaixaParaInvestir}
           color="success"
         />

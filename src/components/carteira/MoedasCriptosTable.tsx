@@ -453,7 +453,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
         />
         <CaixaParaInvestirCard
           value={data?.resumo?.caixaParaInvestir ?? 0}
-          formatCurrency={formatCurrency}
+          formatCurrency={(value) => formatCurrency(value ?? 0)}
           onSave={updateCaixaParaInvestir}
           color="success"
         />
