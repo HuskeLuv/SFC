@@ -47,6 +47,31 @@ export const useRendaFixa = () => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
 
+  const updateCaixaParaInvestir = async (novoCaixa: number) => {
+    try {
+      const response = await fetch('/api/carteira/renda-fixa', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar caixa para investir');
+      }
+
+      // Recarregar dados após atualização
+      await fetchData();
+      return true;
+    } catch (err) {
+      console.error('Erro ao atualizar caixa para investir:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
+      return false;
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -56,6 +81,7 @@ export const useRendaFixa = () => {
     loading,
     error,
     refetch: fetchData,
+    updateCaixaParaInvestir,
     formatCurrency,
     formatPercentage,
   };
