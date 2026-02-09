@@ -114,8 +114,10 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
     fetchConfiguracoes();
   }, [fetchConfiguracoes]);
 
-  // Calcular total de targets
-  const totalTargets = configuracoes.reduce((sum, config) => sum + config.target, 0);
+  // Calcular total de targets (excluindo reservaEmergencia e imoveisBens)
+  const totalTargets = configuracoes
+    .filter((config) => config.categoria !== 'reservaEmergencia' && config.categoria !== 'imoveisBens')
+    .reduce((sum, config) => sum + config.target, 0);
 
   return {
     configuracoes,

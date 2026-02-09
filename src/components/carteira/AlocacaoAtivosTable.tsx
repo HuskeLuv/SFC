@@ -99,7 +99,9 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
 
   const calcularDados = (): AlocacaoAtivo[] => {
     const dados: AlocacaoAtivo[] = [];
+    let totalNecessidadeAporte = 0;
 
+    // Primeiro, calcular todas as necessidades de aporte sem subtrair o caixa
     Object.entries(distribuicao).forEach(([key, value]) => {
       const config = targetConfigMap[key] || { min: 0, max: 0, target: 0, descricao: "" };
       
@@ -125,7 +127,8 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
         });
       } else {
         const diferenca = config.target - percentualAtual;
-        const valorNecessario = (diferenca / 100) * totalCarteira;
+        const valorNecessario = diferenca > 0 ? (diferenca / 100) * totalCarteira : 0;
+        totalNecessidadeAporte += valorNecessario;
 
         dados.push({
           categoria: key,
@@ -142,12 +145,25 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
       }
     });
 
+    // Agora, se houver caixa para investir e necessidade de aporte, distribuir proporcionalmente
+    if (caixaParaInvestir > 0 && totalNecessidadeAporte > 0) {
+      const caixaDisponivel = Math.min(caixaParaInvestir, totalNecessidadeAporte);
+      const fatorReducao = 1 - (caixaDisponivel / totalNecessidadeAporte);
+
+      // Atualizar necessidade de aporte de cada categoria proporcionalmente
+      dados.forEach((item) => {
+        if (item.categoria !== 'imoveisBens' && item.necessidadeAporte > 0) {
+          item.necessidadeAporte = Math.max(0, item.necessidadeAporte * fatorReducao);
+        }
+      });
+    }
+
     return dados;
   };
 
   const dados = calcularDados();
   const totalPercentualTarget = dados
-    .filter((ativo) => ativo.categoria !== "imoveisBens")
+    .filter((ativo) => ativo.categoria !== "imoveisBens" && ativo.categoria !== "reservaEmergencia")
     .reduce((sum, ativo) => sum + ativo.percentualTarget, 0);
 
   const formatarMoeda = (valor: number): string => {
@@ -178,13 +194,6 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
       return Number.NaN;
     }
     return totalCarteira > 0 ? (parsedValue / totalCarteira) * 100 : 0;
-  };
-
-  const getCorCelula = (atual: number, target: number): string => {
-    const diferenca = Math.abs(atual - target);
-    if (diferenca <= 1) return "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400";
-    if (diferenca <= 3) return "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400";
-    return "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400";
   };
 
   const handleSaveConfigurations = async () => {
@@ -251,7 +260,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
               <TableCell 
                 isHeader
                 rowSpan={2}
-                className="px-2 border-t border-b border-l border-gray-200 border-r-0 text-left h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border border-black text-left h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -261,7 +270,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
               <TableCell 
                 isHeader
                 rowSpan={2}
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -271,7 +280,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
               <TableCell 
                 isHeader
                 rowSpan={2}
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -281,7 +290,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
               <TableCell 
                 isHeader
                 colSpan={2}
-                className="px-2 border-t border-b-0 border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border-t border-l border-r border-b border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -291,7 +300,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
               <TableCell 
                 isHeader
                 rowSpan={2}
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -301,7 +310,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
               <TableCell 
                 isHeader
                 rowSpan={2}
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -311,7 +320,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
               <TableCell 
                 isHeader
                 rowSpan={2}
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap w-36"
+                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap w-36"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -322,7 +331,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
               <TableCell 
                 isHeader
                 rowSpan={2}
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -340,7 +349,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
             >
               <TableCell 
                 isHeader 
-                className="px-2 border-t-0 border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -349,7 +358,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
               </TableCell>
               <TableCell 
                 isHeader 
-                className="px-2 border-t-0 border-b border-gray-200 border-l-0 border-r-0 text-center h-6 text-xs leading-6 whitespace-nowrap"
+                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
@@ -376,7 +385,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
                 <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 font-mono">
                   {formatarMoeda(ativo.total)}
                 </TableCell>
-                <TableCell className={`px-2 text-xs text-center font-medium h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 ${getCorCelula(ativo.percentualAtual, ativo.percentualTarget)}`}>
+                <TableCell className="px-2 text-xs text-center font-bold text-gray-800 dark:text-gray-400 h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0">
                   {formatarPercentual(ativo.percentualAtual)}
                 </TableCell>
                 <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0">
@@ -434,7 +443,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
                       onStopEdit={stopEditing}
                       onValueChange={(valor) => handleConfigChange(ativo.categoria, 'target', valor)}
                       min={0}
-                      max={100}
+                      max={999999}
                       suffix={isReservaEmergencia ? "" : "%"}
                       formatValue={minMaxDisplayValue}
                       parseValue={isReservaEmergencia ? parseValorReserva : undefined}

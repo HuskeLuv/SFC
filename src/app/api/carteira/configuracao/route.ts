@@ -113,16 +113,6 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
-
-      // Pular validação de target entre min/max para reserva de emergência
-      if (config.categoria !== 'reservaEmergencia') {
-        if (config.target < config.minimo || config.target > config.maximo) {
-          return NextResponse.json(
-            { error: 'Valor target deve estar entre mínimo e máximo' },
-            { status: 400 }
-          );
-        }
-      }
     }
 
     // Verificar se soma dos targets não excede 100% (excluindo reserva de emergência)
