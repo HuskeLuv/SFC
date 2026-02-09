@@ -420,7 +420,9 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
                 <TableCell className={`px-2 text-xs font-medium text-center h-6 leading-6 whitespace-nowrap ${
                   isImoveisBens
                     ? "border-b border-gray-200 border-l-0 border-r-0 text-gray-500 dark:text-gray-500"
-                    : "border-2 border-t-2 border-b-2 border-l-2 border-r-2 border-black bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                    : isReservaEmergencia
+                    ? "border-b border-gray-200 border-l-0 border-r-0 text-gray-800 dark:text-gray-400"
+                    : "border-2 border-t-2 border-b-2 border-l-2 border-r-2 border-black text-gray-800 dark:text-gray-400"
                 }`}>
                   {isImoveisBens ? (
                     <span className="text-gray-500 dark:text-gray-500">-</span>
@@ -437,7 +439,6 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
                       formatValue={minMaxDisplayValue}
                       parseValue={isReservaEmergencia ? parseValorReserva : undefined}
                       inputMode={isReservaEmergencia ? "decimal" : "numeric"}
-                      className="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
                     />
                   )}
                 </TableCell>
@@ -472,48 +473,48 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
             
             {/* Linha de Total Dinheiro (exclui Imóveis e Bens) */}
             <TableRow 
-              className="h-6 bg-gray-50 dark:bg-gray-900" 
-              style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
+              className="h-6" 
+              style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px', backgroundColor: '#595959' }}
             >
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
+              <TableCell className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0" style={{ backgroundColor: '#595959' }}>
                 Total Dinheiro
               </TableCell>
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
+              <TableCell className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono" style={{ backgroundColor: '#595959' }}>
                 {formatarMoeda(totalDinheiro)}
               </TableCell>
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
+              <TableCell className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0" style={{ backgroundColor: '#595959' }}>
                 
               </TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6" style={{ backgroundColor: '#595959' }}></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6" style={{ backgroundColor: '#595959' }}></TableCell>
+              <TableCell className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0" style={{ backgroundColor: '#595959' }}>
                 {formatarPercentual(totalPercentualTarget)}
               </TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6" style={{ backgroundColor: '#595959' }}></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6" style={{ backgroundColor: '#595959' }}></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6" style={{ backgroundColor: '#595959' }}></TableCell>
             </TableRow>
             
             {/* Linha de Total Dinheiro + Bens */}
             <TableRow 
-              className="h-6 bg-gray-100 dark:bg-gray-800" 
-              style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
+              className="h-6" 
+              style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px', backgroundColor: '#404040' }}
             >
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0">
+              <TableCell className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0" style={{ backgroundColor: '#404040' }}>
                 Total Dinheiro + Bens
               </TableCell>
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono">
+              <TableCell className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono" style={{ backgroundColor: '#404040' }}>
                 {formatarMoeda(totalDinheiroMaisBens)}
               </TableCell>
-              <TableCell className="px-2 font-bold text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0">
+              <TableCell className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0" style={{ backgroundColor: '#404040' }}>
                 
               </TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
-              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6" style={{ backgroundColor: '#404040' }}></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6" style={{ backgroundColor: '#404040' }}></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6" style={{ backgroundColor: '#404040' }}></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6" style={{ backgroundColor: '#404040' }}></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6" style={{ backgroundColor: '#404040' }}></TableCell>
+              <TableCell className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6" style={{ backgroundColor: '#404040' }}></TableCell>
             </TableRow>
           </TableBody>
         </Table>
