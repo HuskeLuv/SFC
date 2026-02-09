@@ -421,7 +421,14 @@ export async function GET(request: NextRequest) {
       // Imóveis/bens e personalizados serão contabilizados separadamente na categoria imoveisBens
       if (isReserva) {
         // Usar quantity * avgPrice (sem cotação)
-        stocksCurrentValue += item.quantity * item.avgPrice;
+        const valorReserva = item.quantity * item.avgPrice;
+        stocksCurrentValue += valorReserva;
+        // Categorizar reservas
+        if (item.asset?.type === 'emergency' || item.asset?.symbol?.startsWith('RESERVA-EMERG')) {
+          categorias.reservaEmergencia += valorReserva;
+        } else if (item.asset?.type === 'opportunity' || item.asset?.symbol?.startsWith('RESERVA-OPORT')) {
+          categorias.reservaOportunidade += valorReserva;
+        }
       } else if (fixedIncome) {
         stocksCurrentValue += calculateFixedIncomeValue(fixedIncome, new Date());
       } else if (isImovelBem || isPersonalizado) {
@@ -481,10 +488,11 @@ export async function GET(request: NextRequest) {
     });
     const metaPatrimonio = dashboardMetrics.find((item) => item.metric === 'meta_patrimonio');
     
-    // Somar todos os caixas para investir de cada tipo
-    const caixaParaInvestir = dashboardMetrics
-      .filter((item) => item.metric.startsWith('caixa_para_investir_'))
-      .reduce((sum, item) => sum + item.value, 0);
+    // Buscar caixa para investir consolidado (não é mais a soma dos outros)
+    const caixaParaInvestirConsolidado = dashboardMetrics.find(
+      (item) => item.metric === 'caixa_para_investir_consolidado'
+    );
+    const caixaParaInvestir = caixaParaInvestirConsolidado?.value || 0;
 
     // Buscar transações de ações para gerar histórico real
     const stockTransactions = await prisma.stockTransaction.findMany({
@@ -676,7 +684,15 @@ export async function GET(request: NextRequest) {
           ? pricePoints[0]?.value
           : portfolioInfo?.avgPrice;
 
-        if (history.length === 0 && initialPrice && initialPrice > 0) {
+        // Para ativos manuais (reservas, imóveis, etc.), usar o preço atual (avgPrice) em todos os dias do histórico
+        if (isManual && portfolioInfo?.avgPrice && portfolioInfo.avgPrice > 0) {
+          // Para ativos manuais, usar o preço atual (avgPrice) como preço em todos os dias
+          // Criar histórico com o preço atual desde o início até hoje
+          history = [
+            { date: timelineStart.getTime(), value: portfolioInfo.avgPrice },
+            { date: hoje.getTime(), value: portfolioInfo.avgPrice },
+          ];
+        } else if (history.length === 0 && initialPrice && initialPrice > 0) {
           history.push({ date: timelineStart.getTime(), value: initialPrice });
         }
 
@@ -812,8 +828,9 @@ export async function GET(request: NextRequest) {
         if (isReserva) {
           if (tipo === 'opportunity' || symbol?.startsWith('RESERVA-OPORT')) {
             categorias.reservaOportunidade += valorAtual;
+          } else if (tipo === 'emergency' || symbol?.startsWith('RESERVA-EMERG')) {
+            categorias.reservaEmergencia += valorAtual;
           }
-          // Reserva de emergência permanece fora do gráfico
         } else {
           switch (tipo) {
             case 'ação':
@@ -866,7 +883,7 @@ export async function GET(request: NextRequest) {
               categorias.reservaOportunidade += valorAtual;
               break;
             case 'emergency':
-              // Reserva de emergência não deve aparecer no gráfico de tipos de investimento
+              categorias.reservaEmergencia += valorAtual;
               break;
             case 'opportunity':
               categorias.reservaOportunidade += valorAtual;
@@ -883,7 +900,7 @@ export async function GET(request: NextRequest) {
               if (symbol?.startsWith('RESERVA-OPORT')) {
                 categorias.reservaOportunidade += valorAtual;
               } else if (symbol?.startsWith('RESERVA-EMERG')) {
-                // Reserva de emergência não deve aparecer no gráfico
+                categorias.reservaEmergencia += valorAtual;
               } else if (symbol?.includes('11')) {
                 categorias.fiis += valorAtual;
               } else {
@@ -897,7 +914,7 @@ export async function GET(request: NextRequest) {
         if (symbol?.startsWith('RESERVA-OPORT')) {
           categorias.reservaOportunidade += valorAtual;
         } else if (symbol?.startsWith('RESERVA-EMERG')) {
-          // Reserva de emergência não deve aparecer no gráfico
+          categorias.reservaEmergencia += valorAtual;
         } else if (symbol?.includes('11')) {
           categorias.fiis += valorAtual; // FIIs geralmente terminam em 11
         } else {
@@ -912,15 +929,15 @@ export async function GET(request: NextRequest) {
       const name = investment.name.toLowerCase();
 
       // Lógica de categorização baseada em palavras-chave no nome
-      // Reservas não devem aparecer no gráfico de tipos de investimento
       if (name.includes('reserva') && name.includes('emergencia')) {
-        // Não adicionar reserva de emergência ao gráfico
+        categorias.reservaEmergencia += totalValor;
       } else if (name.includes('reserva') && name.includes('oportunidade')) {
-        // Não adicionar reserva de oportunidade ao gráfico
+        categorias.reservaOportunidade += totalValor;
       } else if (name.includes('emergencia')) {
-        // Não adicionar reserva de emergência ao gráfico
+        categorias.reservaEmergencia += totalValor;
       } else if (name.includes('reserva')) {
-        // Não adicionar reservas ao gráfico
+        // Se não especificar qual tipo de reserva, assumir oportunidade
+        categorias.reservaOportunidade += totalValor;
       } else if (name.includes('cdb') || name.includes('lci') || name.includes('lca') || 
                  name.includes('tesouro') || name.includes('renda fixa')) {
         categorias.rendaFixaFundos += totalValor;
@@ -946,6 +963,31 @@ export async function GET(request: NextRequest) {
         categorias.rendaFixaFundos += totalValor;
       }
     });
+
+    // Buscar caixa para investir de cada tab e adicionar aos valores calculados
+    // Isso garante que os valores incluam o caixa para investir de cada tab
+    const caixaAcoes = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_acoes')?.value || 0;
+    const caixaFii = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_fii')?.value || 0;
+    const caixaEtf = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_etf')?.value || 0;
+    const caixaReit = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_reit')?.value || 0;
+    const caixaStocks = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_stocks')?.value || 0;
+    const caixaMoedasCriptos = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_moedas_criptos')?.value || 0;
+    const caixaPrevidenciaSeguros = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_previdencia_seguros')?.value || 0;
+    const caixaOpcoes = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_opcoes')?.value || 0;
+    const caixaFimFia = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_fim_fia')?.value || 0;
+    const caixaRendaFixa = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_renda_fixa')?.value || 0;
+
+    // Adicionar caixas aos valores das categorias (que já foram calculados acima)
+    categorias.acoes += caixaAcoes;
+    categorias.fiis += caixaFii;
+    categorias.etfs += caixaEtf;
+    categorias.reits += caixaReit;
+    categorias.stocks += caixaStocks;
+    categorias.moedasCriptos += caixaMoedasCriptos;
+    categorias.previdenciaSeguros += caixaPrevidenciaSeguros;
+    categorias.opcoes += caixaOpcoes;
+    categorias.fimFia += caixaFimFia;
+    categorias.rendaFixaFundos += caixaRendaFixa;
 
     // Calcular total para percentuais
     const totalCategorizado = Object.values(categorias).reduce((sum, valor) => sum + valor, 0);
@@ -1042,60 +1084,93 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST para atualizar meta de patrimônio
+// POST para atualizar meta de patrimônio ou caixa para investir consolidado
 export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
 
-    const { metaPatrimonio } = await request.json();
+    const { metaPatrimonio, caixaParaInvestir } = await request.json();
 
-    if (metaPatrimonio !== undefined) {
-      if (typeof metaPatrimonio !== 'number' || metaPatrimonio <= 0) {
-      return NextResponse.json({ 
-        error: 'Meta de patrimônio deve ser um valor positivo' 
+    // Atualizar caixa para investir consolidado
+    if (caixaParaInvestir !== undefined) {
+      if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
+        return NextResponse.json({
+          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
         }, { status: 400 });
       }
-    }
 
-    if (metaPatrimonio === undefined) {
-      return NextResponse.json({ 
-        error: 'Informe metaPatrimonio' 
-      }, { status: 400 });
-    }
-
-    // Criar ou atualizar meta no DashboardData
-    if (metaPatrimonio !== undefined) {
-    const existingMeta = await prisma.dashboardData.findFirst({
-      where: {
-        userId: targetUserId,
-        metric: 'meta_patrimonio',
-      },
-    });
-
-    if (existingMeta) {
-      await prisma.dashboardData.update({
-        where: { id: existingMeta.id },
-        data: { value: metaPatrimonio },
-      });
-    } else {
-      await prisma.dashboardData.create({
-        data: {
+      const existingCaixa = await prisma.dashboardData.findFirst({
+        where: {
           userId: targetUserId,
-          metric: 'meta_patrimonio',
-          value: metaPatrimonio,
+          metric: 'caixa_para_investir_consolidado',
         },
       });
-    }
+
+      if (existingCaixa) {
+        await prisma.dashboardData.update({
+          where: { id: existingCaixa.id },
+          data: { value: caixaParaInvestir },
+        });
+      } else {
+        await prisma.dashboardData.create({
+          data: {
+            userId: targetUserId,
+            metric: 'caixa_para_investir_consolidado',
+            value: caixaParaInvestir,
+          },
+        });
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Caixa para investir atualizado com sucesso',
+        caixaParaInvestir
+      });
     }
 
-    return NextResponse.json({ success: true, metaPatrimonio });
+    // Atualizar meta de patrimônio (código existente)
+    if (metaPatrimonio !== undefined) {
+      if (typeof metaPatrimonio !== 'number' || metaPatrimonio <= 0) {
+        return NextResponse.json({ 
+          error: 'Meta de patrimônio deve ser um valor positivo' 
+        }, { status: 400 });
+      }
+
+      const existingMeta = await prisma.dashboardData.findFirst({
+        where: {
+          userId: targetUserId,
+          metric: 'meta_patrimonio',
+        },
+      });
+
+      if (existingMeta) {
+        await prisma.dashboardData.update({
+          where: { id: existingMeta.id },
+          data: { value: metaPatrimonio },
+        });
+      } else {
+        await prisma.dashboardData.create({
+          data: {
+            userId: targetUserId,
+            metric: 'meta_patrimonio',
+            value: metaPatrimonio,
+          },
+        });
+      }
+
+      return NextResponse.json({ success: true, metaPatrimonio });
+    }
+
+    return NextResponse.json({ 
+      error: 'Informe metaPatrimonio ou caixaParaInvestir' 
+    }, { status: 400 });
     
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
     
-    console.error('Erro ao atualizar meta de patrimônio:', error);
+    console.error('Erro ao atualizar dados:', error);
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
