@@ -82,6 +82,7 @@ model User {
   consultantInvites             ConsultantInvite[]           @relation("UserConsultantInvites")
   impersonationLogsAsConsultant ConsultantImpersonationLog[] @relation("ImpersonationLogConsultant")
   impersonationLogsAsClient     ConsultantImpersonationLog[] @relation("ImpersonationLogClient")
+  alocacaoConfigs               AlocacaoConfig[]
 }
 
 model Consultant {
@@ -151,6 +152,23 @@ model DashboardData {
   user   User   @relation(fields: [userId], references: [id])
   metric String
   value  Float
+}
+
+model AlocacaoConfig {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  categoria String
+  minimo    Float
+  maximo    Float
+  target    Float
+  descricao String?  @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, categoria])
+  @@index([userId])
+  @@map("alocacao_configs")
 }
 
 model Cashflow {
@@ -316,9 +334,9 @@ model Asset {
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  watchlists   Watchlist[]
-  portfolios   Portfolio[]
-  transactions StockTransaction[]
+  watchlists       Watchlist[]
+  portfolios       Portfolio[]
+  transactions     StockTransaction[]
   fixedIncomeAsset FixedIncomeAsset?
 
   @@index([symbol])
@@ -328,11 +346,11 @@ model Asset {
 }
 
 model FixedIncomeAsset {
-  id             String               @id @default(uuid())
+  id             String                @id @default(uuid())
   userId         String
-  user           User                 @relation(fields: [userId], references: [id])
-  assetId        String               @unique
-  asset          Asset                @relation(fields: [assetId], references: [id])
+  user           User                  @relation(fields: [userId], references: [id])
+  assetId        String                @unique
+  asset          Asset                 @relation(fields: [assetId], references: [id])
   type           FixedIncomeType
   description    String
   startDate      DateTime
@@ -342,9 +360,9 @@ model FixedIncomeAsset {
   indexer        FixedIncomeIndexer?
   indexerPercent Float?
   liquidityType  FixedIncomeLiquidity?
-  taxExempt      Boolean              @default(false)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  taxExempt      Boolean               @default(false)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
   @@index([userId])
   @@index([assetId])
