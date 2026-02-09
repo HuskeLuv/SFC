@@ -6,6 +6,7 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RENDA_FIXA_COLUMN_COUNT = 13;
@@ -200,8 +201,8 @@ interface RendaFixaTableProps {
 }
 
 export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage } = useRendaFixa();
-  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const { data, loading, error, formatCurrency, formatPercentage, updateCaixaParaInvestir } = useRendaFixa();
+  const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
   const necessidadeAporteCalculada = necessidadeAporteMap.rendaFixaFundos ?? data?.resumo?.necessidadeAporte ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(RENDA_FIXA_SECTION_ORDER)
@@ -298,9 +299,10 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
           value={formatCurrency(necessidadeAporteCalculada)}
           color="warning"
         />
-        <RendaFixaMetricCard
-          title="Caixa para Investir"
-          value={formatCurrency(data?.resumo?.caixaParaInvestir ?? 0)}
+        <CaixaParaInvestirCard
+          value={data?.resumo?.caixaParaInvestir ?? 0}
+          formatCurrency={formatCurrency}
+          onSave={updateCaixaParaInvestir}
           color="success"
         />
         <RendaFixaMetricCard
@@ -324,7 +326,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
       </div>
 
       {/* Tabela principal */}
-      <ComponentCard title="Renda Fixa & Fundos">
+      <ComponentCard title="Renda Fixa">
         <div className="overflow-x-auto">
           <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
