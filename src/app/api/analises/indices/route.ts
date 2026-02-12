@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
+import prisma from '@/lib/prisma';
 
 // Tipos de índices disponíveis - todos buscados da brapi
 // Nota: CDI não está disponível na brapi, então foi removido
@@ -262,132 +263,123 @@ const isMonthlyRateSeries = (data: IndexData[]): boolean => {
 };
 
 /**
- * Busca dados históricos de CDI (usando SELIC como proxy) da brapi via endpoint /api/v2/prime-rate
+ * Busca dados históricos de CDI do banco de dados (tabela economic_indexes)
  */
 const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
   try {
-    const apiKey = process.env.BRAPI_API_KEY;
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
+    const where: any = {
+      indexType: 'CDI',
     };
-    
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
 
-    // Formatar datas no formato DD/MM/YYYY
-    const hoje = new Date();
-    const endStr = `${hoje.getDate().toString().padStart(2, '0')}/${(hoje.getMonth() + 1).toString().padStart(2, '0')}/${hoje.getFullYear()}`;
-    
-    // Se não temos startDate, usar uma data de início padrão (1 ano atrás)
-    const dataInicio = startDate || new Date(hoje.getFullYear() - 1, hoje.getMonth(), hoje.getDate());
-    const startStr = `${dataInicio.getDate().toString().padStart(2, '0')}/${(dataInicio.getMonth() + 1).toString().padStart(2, '0')}/${dataInicio.getFullYear()}`;
-    
-    let url = `https://brapi.dev/api/v2/prime-rate?country=brazil&start=${startStr}&end=${endStr}&historical=true&sortBy=date&sortOrder=asc`;
-    
-    if (apiKey) {
-      url += `&token=${apiKey}`;
-    }
-    
-    const response = await fetch(url, { 
-      headers,
-      cache: 'no-store',
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error(`Erro ao buscar CDI (SELIC): HTTP ${response.status} - ${errorText}`);
-      return [];
-    }
-    
-    const data = await response.json();
-    
-    if (!data['prime-rate'] || !Array.isArray(data['prime-rate']) || data['prime-rate'].length === 0) {
-      return [];
-    }
-    
-    // Converter dados do SELIC (usado como CDI) para o formato IndexData
-    // O endpoint retorna epochDate em milissegundos e value como string
-    let indexData = data['prime-rate'].map((item: any) => ({
-      date: item.epochDate || new Date(item.date.split('/').reverse().join('-')).getTime(),
-      value: parseFloat(item.value) || 0,
-    }));
-
-    // Filtrar por startDate se fornecido
+    // Se temos startDate, filtrar por data
     if (startDate) {
-      const startTimestamp = startDate.getTime();
-      indexData = indexData.filter((item: IndexData) => item.date >= startTimestamp);
+      where.date = {
+        gte: startDate,
+      };
     }
-    
-    // Filtrar dados futuros (não mostrar além do dia atual)
+
+    // Buscar dados do banco
+    const cdiRecords = await prisma.economicIndex.findMany({
+      where,
+      orderBy: {
+        date: 'asc',
+      },
+    });
+
+    if (cdiRecords.length === 0) {
+      console.warn('⚠️ CDI: Nenhum dado encontrado no banco de dados');
+      return [];
+    }
+
+    // Converter para o formato IndexData
+    // CDI está armazenado como decimal (ex: 0.00045 = 0.045% ao dia)
+    // Precisamos converter para taxa anual para construir o índice
+    const hoje = new Date();
     hoje.setHours(23, 59, 59, 999);
     const hojeTimestamp = hoje.getTime();
-      indexData = indexData.filter((item: IndexData) => item.date <= hojeTimestamp);
-    
+
+    const indexData: IndexData[] = cdiRecords
+      .filter(record => {
+        const recordDate = new Date(record.date).getTime();
+        return recordDate <= hojeTimestamp;
+      })
+      .map(record => {
+        // Converter decimal para percentual anual
+        // value está em decimal (0.00045 = taxa diária)
+        // CDI diário: converter para taxa anual multiplicando por 252 dias úteis
+        // Exemplo: 0.00045 * 252 * 100 = 11.34% ao ano
+        const dailyRate = Number(record.value); // 0.00045 (taxa diária em decimal)
+        const annualRate = dailyRate * 252 * 100; // Taxa anual em percentual (11.34%)
+        
+        return {
+          date: new Date(record.date).getTime(),
+          value: annualRate, // Taxa anual em percentual (ex: 11.34 para 11.34%)
+        };
+      });
+
     return indexData;
   } catch (error) {
-    console.error('Erro ao buscar histórico de CDI (SELIC):', error);
+    console.error('Erro ao buscar histórico de CDI do banco de dados:', error);
     return [];
   }
 };
 
 /**
- * Busca dados históricos de IPCA da brapi via endpoint /api/v2/inflation
+ * Busca dados históricos de IPCA do banco de dados (tabela economic_indexes)
  */
 const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
   try {
-    const apiKey = process.env.BRAPI_API_KEY;
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
+    const where: any = {
+      indexType: 'IPCA',
     };
-    
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
+
+    // Se temos startDate, filtrar por data
+    if (startDate) {
+      where.date = {
+        gte: startDate,
+      };
     }
 
-    // Formatar datas no formato DD/MM/YYYY
-    const hoje = new Date();
-    const endStr = `${hoje.getDate().toString().padStart(2, '0')}/${(hoje.getMonth() + 1).toString().padStart(2, '0')}/${hoje.getFullYear()}`;
-    
-    // Se não temos startDate, usar uma data de início padrão (1 ano atrás)
-    // Para IPCA mensal, alinhar o início ao primeiro dia do mês
-    const rawStart = startDate || new Date(hoje.getFullYear() - 1, hoje.getMonth(), hoje.getDate());
-    const dataInicio = new Date(rawStart.getFullYear(), rawStart.getMonth(), 1);
-    const startStr = `${dataInicio.getDate().toString().padStart(2, '0')}/${(dataInicio.getMonth() + 1).toString().padStart(2, '0')}/${dataInicio.getFullYear()}`;
-    
-    let url = `https://brapi.dev/api/v2/inflation?country=brazil&start=${startStr}&end=${endStr}&historical=true&sortBy=date&sortOrder=asc`;
-    
-    if (apiKey) {
-      url += `&token=${apiKey}`;
-    }
-    
-    const response = await fetch(url, { 
-      headers,
-      cache: 'no-store',
+    // Buscar dados do banco
+    const ipcaRecords = await prisma.economicIndex.findMany({
+      where,
+      orderBy: {
+        date: 'asc',
+      },
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error(`Erro ao buscar IPCA: HTTP ${response.status} - ${errorText}`);
+
+    if (ipcaRecords.length === 0) {
+      console.warn('⚠️ IPCA: Nenhum dado encontrado no banco de dados');
       return [];
     }
-    
-    const data = await response.json();
-    
-    if (!data.inflation || !Array.isArray(data.inflation) || data.inflation.length === 0) {
-      return [];
-    }
-    
-    // Converter dados do IPCA para o formato IndexData
-    // O endpoint retorna epochDate em milissegundos e value como string
-    let indexData = data.inflation.map((item: any) => ({
-      date: item.epochDate || new Date(item.date.split('/').reverse().join('-')).getTime(),
-      value: parseFloat(item.value) || 0,
-    }));
+
+    // Converter para o formato IndexData
+    // IPCA está armazenado como decimal (ex: 0.0042 = 0.42% ao mês)
+    // Precisamos converter para percentual mensal
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+    const hojeTimestamp = hoje.getTime();
+
+    const indexData: IndexData[] = ipcaRecords
+      .filter(record => {
+        const recordDate = new Date(record.date).getTime();
+        return recordDate <= hojeTimestamp;
+      })
+      .map(record => {
+        // Converter decimal para percentual mensal
+        // value está em decimal (0.0042 = taxa mensal)
+        // Exemplo: 0.0042 * 100 = 0.42% ao mês
+        const monthlyRate = Number(record.value) * 100; // Taxa mensal em percentual (0.42%)
+        
+        return {
+          date: new Date(record.date).getTime(),
+          value: monthlyRate, // Taxa mensal em percentual (ex: 0.42 para 0.42%)
+        };
+      });
 
     return indexData;
   } catch (error) {
-    console.error('Erro ao buscar histórico de IPCA:', error);
+    console.error('Erro ao buscar histórico de IPCA do banco de dados:', error);
     if (error instanceof Error) {
       console.error('Detalhes do erro:', error.message, error.stack);
     }
@@ -541,21 +533,23 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Buscar CDI (usando SELIC) via endpoint /api/v2/prime-rate
+    // Buscar CDI do banco de dados
     try {
       const cdiData = await fetchCDIHistory(startDate);
-      if (cdiData.length > 0) {
+      if (Array.isArray(cdiData) && cdiData.length > 0) {
         const dailyIndex = buildDailyIndexFromAnnualRate(cdiData);
         if (!validateIndexSeries(dailyIndex, 'CDI')) {
           console.error('[CDI] Série ignorada por validação.');
         } else {
           logSeriesStats(dailyIndex, 'CDI');
           const cdiReturns = normalizeToStartZero(dailyIndex, startDate);
-          results.push({
-            symbol: 'CDI',
-            name: 'CDI',
-            data: cdiReturns,
-          });
+          if (Array.isArray(cdiReturns) && cdiReturns.length > 0) {
+            results.push({
+              symbol: 'CDI',
+              name: 'CDI',
+              data: cdiReturns,
+            });
+          }
         }
         console.log(`✅ CDI: ${cdiData.length} pontos de dados`);
       } else {
@@ -565,10 +559,10 @@ export async function GET(request: NextRequest) {
       console.error(`❌ Erro ao buscar CDI:`, error);
     }
     
-    // Buscar IPCA via endpoint /api/v2/inflation
+    // Buscar IPCA do banco de dados
     try {
       const ipcaData = await fetchIPCAHistory(startDate);
-      if (ipcaData.length > 0) {
+      if (Array.isArray(ipcaData) && ipcaData.length > 0) {
         const monthlyIndex = isMonthlyRateSeries(ipcaData)
           ? buildMonthlyIndex(ipcaData)
           : normalizeMonthlySeries(ipcaData);
@@ -578,11 +572,13 @@ export async function GET(request: NextRequest) {
         } else {
           logSeriesStats(dailyIndex, 'IPCA');
           const ipcaReturns = normalizeToStartZero(dailyIndex, startDate);
-          results.push({
-            symbol: 'IPCA',
-            name: 'IPCA',
-            data: ipcaReturns,
-          });
+          if (Array.isArray(ipcaReturns) && ipcaReturns.length > 0) {
+            results.push({
+              symbol: 'IPCA',
+              name: 'IPCA',
+              data: ipcaReturns,
+            });
+          }
         }
         console.log(`✅ IPCA: ${ipcaData.length} pontos de dados`);
       } else {
@@ -592,10 +588,27 @@ export async function GET(request: NextRequest) {
       console.error(`❌ Erro ao buscar IPCA:`, error);
     }
     
-    console.log(`📊 Total de índices retornados: ${results.length}`);
-    const ipcaSeries = results.find(item => item.name === 'IPCA')?.data || [];
-    const cdiSeries = results.find(item => item.name === 'CDI')?.data || [];
-    const ibovSeries = results.find(item => item.name === 'IBOV')?.data || [];
+    // Garantir que todos os resultados têm a estrutura correta
+    const validResults = results.filter(result => 
+      result && 
+      typeof result.name === 'string' &&
+      typeof result.symbol === 'string' &&
+      Array.isArray(result.data) &&
+      result.data.length > 0 &&
+      result.data.every(item => 
+        item && 
+        typeof item.date === 'number' && 
+        typeof item.value === 'number' &&
+        Number.isFinite(item.date) &&
+        Number.isFinite(item.value)
+      )
+    );
+
+    console.log(`📊 Total de índices retornados: ${validResults.length} (${results.length} processados)`);
+    
+    const ipcaSeries = validResults.find(item => item.name === 'IPCA')?.data || [];
+    const cdiSeries = validResults.find(item => item.name === 'CDI')?.data || [];
+    const ibovSeries = validResults.find(item => item.name === 'IBOV')?.data || [];
 
     const ipcaYears = getSeriesRangeYears(ipcaSeries);
     const ipcaLast = getLastValue(ipcaSeries);
@@ -603,20 +616,18 @@ export async function GET(request: NextRequest) {
       console.error(`[IPCA] Acumulado em ${ipcaYears.toFixed(1)} anos > 200% (valor=${ipcaLast.toFixed(2)}%).`);
     }
 
-    const cdiYears = getSeriesRangeYears(cdiSeries);
-    const cdiLast = getLastValue(cdiSeries);
-    const ibovLast = getLastValue(ibovSeries);
-    if (cdiYears >= 5 && typeof cdiLast === 'number' && typeof ibovLast === 'number' && cdiLast > ibovLast) {
-      console.error(`[CDI] Acumulado maior que IBOV no longo prazo (CDI=${cdiLast.toFixed(2)}% IBOV=${ibovLast.toFixed(2)}%).`);
-    }
+    // Validação removida: CDI pode ser maior que IBOV em alguns períodos,
+    // especialmente em períodos de alta taxa de juros ou baixa performance do mercado de ações.
+    // Isso é normal e não deve ser tratado como erro.
 
-    results.forEach(series => {
+    validResults.forEach(series => {
       const lastValue = getLastValue(series.data);
       if (typeof lastValue === 'number' && lastValue > 300) {
         console.error(`[${series.name}] Acumulado acima de 300% (valor=${lastValue.toFixed(2)}%).`);
       }
     });
-    return NextResponse.json({ indices: results });
+    
+    return NextResponse.json({ indices: validResults });
   } catch (error) {
     console.error('Erro ao buscar índices:', error);
     return NextResponse.json(
