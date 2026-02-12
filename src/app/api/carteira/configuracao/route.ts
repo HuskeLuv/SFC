@@ -10,20 +10,22 @@ interface AlocacaoConfig {
   descricao?: string;
 }
 
-// Configurações padrão baseadas na imagem original
+// Configurações padrão zeradas - todas as categorias começam com valores zerados
+// A tabela deve vir zerada e ser preenchida apenas com dados que o usuário registrou
 const defaultConfig: AlocacaoConfig[] = [
-  { categoria: "reservaEmergencia", minimo: 5, maximo: 15, target: 10, descricao: "" },
-  { categoria: "reservaOportunidade", minimo: 5, maximo: 10, target: 7, descricao: "" },
-  { categoria: "rendaFixaFundos", minimo: 25, maximo: 60, target: 30, descricao: "" },
-  { categoria: "fimFia", minimo: 0, maximo: 10, target: 5, descricao: "" },
-  { categoria: "fiis", minimo: 20, maximo: 70, target: 25, descricao: "" },
-  { categoria: "acoes", minimo: 0, maximo: 10, target: 5, descricao: "" },
-  { categoria: "stocks", minimo: 0, maximo: 10, target: 8, descricao: "" },
-  { categoria: "reits", minimo: 0, maximo: 10, target: 5, descricao: "" },
-  { categoria: "etfs", minimo: 0, maximo: 10, target: 10, descricao: "" },
-  { categoria: "moedasCriptos", minimo: 0, maximo: 5, target: 2, descricao: "" },
-  { categoria: "previdenciaSeguros", minimo: 0, maximo: 5, target: 2, descricao: "" },
-  { categoria: "opcoes", minimo: 0, maximo: 5, target: 1, descricao: "" },
+  { categoria: "reservaEmergencia", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "reservaOportunidade", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "rendaFixaFundos", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "fimFia", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "fiis", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "acoes", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "stocks", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "reits", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "etfs", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "moedasCriptos", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "previdenciaSeguros", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "opcoes", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: "imoveisBens", minimo: 0, maximo: 0, target: 0, descricao: "" },
 ];
 
 // GET - Buscar configurações de alocação do usuário
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
       where: { userId: targetUserId },
     });
 
-    // Se não houver configurações salvas, retornar defaults
+    // Se não houver configurações salvas, retornar configurações zeradas
     if (savedConfigs.length === 0) {
       return NextResponse.json({ configuracoes: defaultConfig });
     }
@@ -51,9 +53,12 @@ export async function GET(request: NextRequest) {
     }));
 
     // Garantir que todas as categorias padrão estejam presentes
+    // Se uma categoria não foi salva pelo usuário, usar valores zerados
     const configMap = new Map(alocacaoConfig.map(c => [c.categoria, c]));
     const completeConfig = defaultConfig.map(defaultItem => {
       const saved = configMap.get(defaultItem.categoria);
+      // Retornar apenas configurações que foram salvas pelo usuário
+      // Se não foi salva, usar valores zerados
       return saved || defaultItem;
     });
 

@@ -38,42 +38,42 @@ export default function RentabilidadeGeral() {
       return firstDate;
     }
 
+    let calculatedStart: number | undefined;
+
     if (range === "ano") {
       const yearStart = new Date(now.getFullYear(), 0, 1);
-      return normalizeStartDate(yearStart);
-    }
-
-  if (range === "12m") {
-    const start = new Date(now);
-    start.setMonth(start.getMonth() - 12);
-    return normalizeStartDate(start);
-  }
-
-    if (range === "2y") {
+      calculatedStart = normalizeStartDate(yearStart);
+    } else if (range === "12m") {
+      const start = new Date(now);
+      start.setMonth(start.getMonth() - 12);
+      calculatedStart = normalizeStartDate(start);
+    } else if (range === "2y") {
       const start = new Date(now);
       start.setFullYear(start.getFullYear() - 2);
-      return normalizeStartDate(start);
-    }
-
-    if (range === "3y") {
+      calculatedStart = normalizeStartDate(start);
+    } else if (range === "3y") {
       const start = new Date(now);
       start.setFullYear(start.getFullYear() - 3);
-      return normalizeStartDate(start);
-    }
-
-    if (range === "5y") {
+      calculatedStart = normalizeStartDate(start);
+    } else if (range === "5y") {
       const start = new Date(now);
       start.setFullYear(start.getFullYear() - 5);
-      return normalizeStartDate(start);
-    }
-
-    if (range === "10y") {
+      calculatedStart = normalizeStartDate(start);
+    } else if (range === "10y") {
       const start = new Date(now);
       start.setFullYear(start.getFullYear() - 10);
-      return normalizeStartDate(start);
+      calculatedStart = normalizeStartDate(start);
+    } else {
+      calculatedStart = normalizedNow;
     }
 
-    return normalizedNow;
+    // Se temos uma data de início da carteira e o range calculado é anterior a ela,
+    // usar a data de início da carteira como limite mínimo
+    if (firstDate && calculatedStart && calculatedStart < firstDate) {
+      return firstDate;
+    }
+
+    return calculatedStart;
   };
 
   // Calcular data do primeiro investimento (primeira data com valor não-zero do histórico)
@@ -147,51 +147,128 @@ export default function RentabilidadeGeral() {
   const { indices: indices1mo, loading: loading1mo, error: error1mo } = useIndices("1mo", selectedRangeStart);
   const { indices: indices1y, loading: loading1y, error: error1y } = useIndices("1y", selectedRangeStart);
 
-  const filterDataByStart = <T extends { date: number }>(data: T[], startDate?: number) => {
+  const filterDataByStart = <T extends { date: number }>(data: T[], startDate?: number): T[] => {
+    if (!Array.isArray(data) || data.length === 0) {
+      return [];
+    }
     if (!startDate) {
       return data;
     }
-    return data.filter((item) => item.date >= startDate);
+    // Filtrar dados a partir da data de início
+    const filtered = data.filter((item) => item && typeof item.date === 'number' && item.date >= startDate);
+    
+    // Se não há dados a partir da data solicitada, retornar todos os dados disponíveis
+    // (mostrar dados a partir do início real quando não há dados mais antigos)
+    if (filtered.length === 0) {
+      return data;
+    }
+    
+    return filtered;
   };
 
   const rebaseToStart = (data: IndexData[]): IndexData[] => {
-    if (data.length === 0) return data;
-    const baseValue = data[0]?.value ?? 0;
-    return data.map((item) => ({
+    if (!Array.isArray(data) || data.length === 0) return data;
+    
+    // Encontrar o primeiro valor não-zero para usar como base
+    let baseValue = 0;
+    let baseItem: IndexData | null = null;
+    
+    for (const item of data) {
+      if (item && typeof item.value === 'number' && Number.isFinite(item.value) && item.value !== 0) {
+        baseValue = item.value;
+        baseItem = item;
+        break;
+      }
+    }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeGeral.tsx:169',message:'rebaseToStart - before rebase',data:{dataLength:data.length,firstItemValue:data[0]?.value,baseValue,baseItemDate:baseItem?.date,lastItemValue:data[data.length-1]?.value,lastItemDate:data[data.length-1]?.date},timestamp:Date.now(),runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+    
+    // Se não encontrou valor não-zero, retornar dados sem rebase
+    if (baseValue === 0 || !baseItem) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeGeral.tsx:188',message:'rebaseToStart - no non-zero value found, returning original data',data:{dataLength:data.length},timestamp:Date.now(),runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+      // #endregion
+      return data;
+    }
+    
+    // Rebase simples: apenas subtrair o valor base (não calcular percentual)
+    // O cálculo de percentual já foi feito anteriormente nos dados
+    const rebased = data.map((item) => ({
       ...item,
       value: item.value - baseValue,
     }));
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeGeral.tsx:200',message:'rebaseToStart - after rebase',data:{rebasedLength:rebased.length,firstRebasedValue:rebased[0]?.value,lastRebasedValue:rebased[rebased.length-1]?.value},timestamp:Date.now(),runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+    
+    return rebased;
   };
 
   const filteredCarteiraHistorico = useMemo(() => {
+    if (!Array.isArray(carteiraHistoricoDiario) || carteiraHistoricoDiario.length === 0) {
+      return [];
+    }
     const filtered = filterDataByStart(carteiraHistoricoDiario, selectedRangeStart);
-    return selectedRangeStart ? rebaseToStart(filtered) : filtered;
+    if (filtered.length === 0) {
+      return [];
+    }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeGeral.tsx:195',message:'filteredCarteiraHistorico - before rebase',data:{filteredLength:filtered.length,firstFilteredValue:filtered[0]?.value,lastFilteredValue:filtered[filtered.length-1]?.value,selectedRangeStart},timestamp:Date.now(),runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+    
+    // Sempre rebase para 0% no início quando há um range selecionado
+    const rebased = rebaseToStart(filtered);
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeGeral.tsx:202',message:'filteredCarteiraHistorico - after rebase',data:{rebasedLength:rebased.length,firstRebasedValue:rebased[0]?.value,lastRebasedValue:rebased[rebased.length-1]?.value},timestamp:Date.now(),runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+    
+    return rebased;
   }, [carteiraHistoricoDiario, selectedRangeStart]);
 
   const filteredIndices1d = useMemo(
     () =>
-      indices1d.map((index) => ({
-        ...index,
-        data: filterDataByStart(index.data, selectedRangeStart),
-      })),
+      Array.isArray(indices1d)
+        ? indices1d
+            .filter(index => index && Array.isArray(index.data) && index.data.length > 0)
+            .map((index) => ({
+              ...index,
+              data: filterDataByStart(index.data, selectedRangeStart),
+            }))
+            .filter(index => Array.isArray(index.data) && index.data.length > 0)
+        : [],
     [indices1d, selectedRangeStart]
   );
 
   const filteredIndices1mo = useMemo(
     () =>
-      indices1mo.map((index) => ({
-        ...index,
-        data: filterDataByStart(index.data, selectedRangeStart),
-      })),
+      Array.isArray(indices1mo)
+        ? indices1mo
+            .filter(index => index && Array.isArray(index.data) && index.data.length > 0)
+            .map((index) => ({
+              ...index,
+              data: filterDataByStart(index.data, selectedRangeStart),
+            }))
+            .filter(index => Array.isArray(index.data) && index.data.length > 0)
+        : [],
     [indices1mo, selectedRangeStart]
   );
 
   const filteredIndices1y = useMemo(
     () =>
-      indices1y.map((index) => ({
-        ...index,
-        data: filterDataByStart(index.data, selectedRangeStart),
-      })),
+      Array.isArray(indices1y)
+        ? indices1y
+            .filter(index => index && Array.isArray(index.data) && index.data.length > 0)
+            .map((index) => ({
+              ...index,
+              data: filterDataByStart(index.data, selectedRangeStart),
+            }))
+            .filter(index => Array.isArray(index.data) && index.data.length > 0)
+        : [],
     [indices1y, selectedRangeStart]
   );
 
@@ -250,6 +327,12 @@ export default function RentabilidadeGeral() {
       <div className="lg:col-span-2 space-y-6">
         {/* Gráfico Por Dia - usar histórico diário baseado em investimentos */}
         <ComponentCard title="Rentabilidade Por Dia">
+          {/* #region agent log */}
+          {(() => {
+            fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeGeral.tsx:276',message:'Before RentabilidadeChart render - 1d',data:{selectedRange,selectedRangeStart,filteredCarteiraHistoricoLength:filteredCarteiraHistorico.length,filteredIndices1dLength:filteredIndices1d.length,filteredIndices1dStructure:filteredIndices1d.map(i=>({name:i?.name,dataLength:i?.data?.length})),firstCarteiraValue:filteredCarteiraHistorico[0]?.value,lastCarteiraValue:filteredCarteiraHistorico[filteredCarteiraHistorico.length-1]?.value},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+            return null;
+          })()}
+          {/* #endregion */}
           <RentabilidadeChart
             carteiraData={filteredCarteiraHistorico}
             indicesData={filteredIndices1d}
