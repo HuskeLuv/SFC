@@ -8,7 +8,7 @@ const prismaMock = {
   clientConsultant: { findFirst: vi.fn() },
 };
 
-const fetchQuotesMock = vi.fn(async (symbols: string[]) => {
+const getAssetPricesMock = vi.fn(async (symbols: string[], _options?: { useBrapiFallback?: boolean }) => {
   return new Map(symbols.map((symbol) => [symbol, 100]));
 });
 
@@ -17,12 +17,12 @@ vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
 }));
 
-vi.mock("@/services/brapiQuote", () => ({
-  fetchQuotes: fetchQuotesMock,
+vi.mock("@/services/assetPriceService", () => ({
+  getAssetPrices: getAssetPricesMock,
 }));
 
 const prismaModulePromise = import("@/lib/prisma");
-const brapiModulePromise = import("@/services/brapiQuote");
+const assetPriceModulePromise = import("@/services/assetPriceService");
 const consultantApiPromise = import("@/pages/api/consultant/[...params]");
 const consultantServicePromise = import("@/services/consultantService");
 const actingUtilsPromise = import("@/utils/consultantActing");
@@ -34,7 +34,7 @@ let resolveActingContext: typeof import("@/utils/consultantActing").resolveActin
 
 beforeAll(async () => {
   await prismaModulePromise;
-  await brapiModulePromise;
+  await assetPriceModulePromise;
 
   consultantServiceModule = await consultantServicePromise;
   getClientSummary = consultantServiceModule.getClientSummary;
@@ -54,8 +54,8 @@ describe("Consultant dashboard domain logic", () => {
     prismaMock.cashflow.findMany.mockReset();
     prismaMock.consultant.findFirst.mockReset();
     prismaMock.clientConsultant.findFirst.mockReset();
-    fetchQuotesMock.mockReset();
-    fetchQuotesMock.mockResolvedValue(new Map());
+    getAssetPricesMock.mockReset();
+    getAssetPricesMock.mockResolvedValue(new Map());
   });
 
   it("retorna null quando o cliente não é encontrado", async () => {
@@ -95,7 +95,7 @@ describe("Consultant dashboard domain logic", () => {
       },
     ]);
 
-    fetchQuotesMock.mockResolvedValue(
+    getAssetPricesMock.mockResolvedValue(
       new Map([
         ["AAA", 120],
       ]),
