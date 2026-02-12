@@ -1,12 +1,43 @@
 "use client";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, Component, ErrorInfo, ReactNode } from "react";
 import { ApexOptions } from "apexcharts";
 import { IndexData, IndexResponse } from "@/hooks/useIndices";
+
+// Error Boundary para capturar erros do ApexCharts
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ErrorBoundary:componentDidCatch',message:'ErrorBoundary - caught error',data:{error:error.message,errorStack:error.stack,errorInfo:errorInfo.componentStack},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex h-80 items-center justify-center text-sm text-red-500">
+          Erro ao renderizar gráfico: {this.state.error?.message || 'Erro desconhecido'}
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 // Componente wrapper para o ReactApexChart
 const ApexChartWrapper = React.memo(({ options, series, type, height }: {
   options: ApexOptions;
-  series: Array<{ name: string; data: (number | null)[][] }>;
+  series: Array<{ name: string; data: number[][] }>;
   type: string;
   height: number;
 }) => {
@@ -34,6 +65,37 @@ const ApexChartWrapper = React.memo(({ options, series, type, height }: {
     loadChart();
   }, []);
 
+  // #region agent log
+  // Validar series antes de passar para o Chart (fora de hooks para evitar problemas de ordem)
+  const validatedSeries = series.map(s => {
+    if (!s || !s.name || !Array.isArray(s.data)) {
+      fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ApexChartWrapper:52',message:'ApexChartWrapper - invalid series detected',data:{series:s},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      return null;
+    }
+    return s;
+  }).filter(s => s !== null);
+  // #endregion
+
+  // #region agent log
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ApexChartWrapper:37',message:'ApexChartWrapper - before render',data:{hasChart:!!Chart,seriesLength:series.length,seriesStructure:series.map(s=>({name:s?.name,dataLength:s?.data?.length,firstPoint:s?.data?.[0],dataType:typeof s?.data})),type,height},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+  }, [Chart, series, type, height]);
+  // #endregion
+
+  // #region agent log
+  // Verificar se o componente Chart foi montado (sempre chamado, mesmo se Chart for null)
+  React.useEffect(() => {
+    if (Chart) {
+      // Aguardar um pouco para verificar se o gráfico foi renderizado
+      const timer = setTimeout(() => {
+        const chartElement = document.querySelector('.apexcharts-canvas');
+        fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ApexChartWrapper:105',message:'ApexChartWrapper - checking if chart was rendered',data:{hasChartElement:!!chartElement,seriesLength:series.length,type},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [Chart, series, type]);
+  // #endregion
+
   if (!Chart) {
     return (
       <div className="flex items-center justify-center h-80">
@@ -42,7 +104,58 @@ const ApexChartWrapper = React.memo(({ options, series, type, height }: {
     );
   }
 
-  return <Chart options={sanitizedOptions} series={series} type={type} height={height} />;
+  // #region agent log
+  // Validar e sanitizar as séries antes de passar para o ApexCharts
+  const sanitizedSeries = series.map(s => {
+    if (!s || !s.name || !Array.isArray(s.data)) {
+      return null;
+    }
+    // Garantir que todos os pontos são arrays válidos com 2 elementos
+    const sanitizedData = s.data
+      .map(point => {
+        if (!Array.isArray(point) || point.length !== 2) {
+          return null;
+        }
+        const [date, value] = point;
+        if (typeof date !== 'number' || !Number.isFinite(date)) {
+          return null;
+        }
+        // Garantir que o valor é um número (substituir null/undefined por 0)
+        const numValue = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+        return [date, numValue] as number[];
+      })
+      .filter((point): point is number[] => point !== null);
+    
+    if (sanitizedData.length === 0) {
+      return null;
+    }
+    
+    return {
+      name: s.name,
+      data: sanitizedData,
+    };
+  }).filter((s): s is { name: string; data: number[][] } => s !== null);
+
+  fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ApexChartWrapper:60',message:'ApexChartWrapper - about to render Chart component',data:{originalSeriesLength:series.length,sanitizedSeriesLength:sanitizedSeries.length,firstSeriesDataLength:sanitizedSeries[0]?.data?.length,firstSeriesFirstPoint:sanitizedSeries[0]?.data?.[0],seriesStructure:sanitizedSeries.map(s=>({name:s?.name,dataLength:s?.data?.length}))},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+  // #endregion
+
+  // Validar que temos pelo menos uma série válida
+  if (sanitizedSeries.length === 0) {
+    return (
+      <div className="flex h-80 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+        Sem dados válidos para exibir.
+      </div>
+    );
+  }
+
+  // Usar Error Boundary para capturar erros do ApexCharts
+  return (
+    <ErrorBoundary>
+      <div data-testid="apex-chart-container">
+        <Chart options={sanitizedOptions} series={sanitizedSeries} type={type} height={height} />
+      </div>
+    </ErrorBoundary>
+  );
 });
 
 ApexChartWrapper.displayName = 'ApexChartWrapper';
@@ -66,11 +179,14 @@ const COLORS = [
 
 // Função para agrupar dados por mês (pega o último valor de cada mês)
 const groupByMonth = (data: IndexData[]): IndexData[] => {
-  if (data.length === 0) return [];
+  if (!Array.isArray(data) || data.length === 0) return [];
   
   const monthlyMap = new Map<number, IndexData>();
   
   data.forEach(item => {
+    if (!item || typeof item.date !== 'number' || typeof item.value !== 'number') {
+      return; // Ignorar itens inválidos
+    }
     const date = new Date(item.date);
     // Criar chave para o mês (primeiro dia do mês)
     const monthKey = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
@@ -87,11 +203,14 @@ const groupByMonth = (data: IndexData[]): IndexData[] => {
 
 // Função para agrupar dados por ano (pega o último valor de cada ano)
 const groupByYear = (data: IndexData[]): IndexData[] => {
-  if (data.length === 0) return [];
+  if (!Array.isArray(data) || data.length === 0) return [];
   
   const yearlyMap = new Map<number, IndexData>();
   
   data.forEach(item => {
+    if (!item || typeof item.date !== 'number' || typeof item.value !== 'number') {
+      return; // Ignorar itens inválidos
+    }
     const date = new Date(item.date);
     // Criar chave para o ano (primeiro dia do ano)
     const yearKey = new Date(date.getFullYear(), 0, 1).getTime();
@@ -111,8 +230,28 @@ export default function RentabilidadeChart({
   indicesData,
   period,
 }: RentabilidadeChartProps) {
+  // #region agent log
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeChart.tsx:109',message:'RentabilidadeChart received props',data:{period,carteiraDataLength:Array.isArray(carteiraData)?carteiraData.length:0,indicesDataLength:Array.isArray(indicesData)?indicesData.length:0,indicesDataStructure:Array.isArray(indicesData)?indicesData.map(i=>({name:i?.name,dataLength:i?.data?.length})):[],firstCarteiraValue:carteiraData?.[0]?.value,lastCarteiraValue:carteiraData?.[carteiraData.length-1]?.value},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+  }, [carteiraData, indicesData, period]);
+  // #endregion
+
   const series = useMemo(() => {
     const seriesData: Array<{ name: string; data: number[][] }> = [];
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeChart.tsx:115',message:'series useMemo - start',data:{period,carteiraDataLength:Array.isArray(carteiraData)?carteiraData.length:0,indicesDataLength:Array.isArray(indicesData)?indicesData.length:0},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
+
+    // Validar carteiraData
+    if (!Array.isArray(carteiraData)) {
+      return seriesData;
+    }
+
+    // Validar indicesData
+    if (!Array.isArray(indicesData)) {
+      return seriesData;
+    }
 
     // Agrupar dados conforme o período
     let processedCarteiraData: IndexData[];
@@ -125,10 +264,15 @@ export default function RentabilidadeChart({
     }
 
     // Adicionar série da Carteira
-    if (processedCarteiraData.length > 0) {
+    if (Array.isArray(processedCarteiraData) && processedCarteiraData.length > 0) {
       const carteiraPoints = processedCarteiraData
-        .map(item => [item.date, item.value] as number[])
-        .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+        .map(item => {
+          if (!item || typeof item.date !== 'number' || typeof item.value !== 'number') {
+            return null;
+          }
+          return [item.date, item.value] as [number, number];
+        })
+        .filter((point): point is [number, number] => point !== null && Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1]));
       if (carteiraPoints.length > 0) {
         seriesData.push({
           name: 'Carteira',
@@ -140,8 +284,26 @@ export default function RentabilidadeChart({
     // Filtrar e adicionar apenas os índices desejados: CDI, IBOV, IPCA e Poupança
     const allowedIndices = ['CDI', 'IBOV', 'IPCA', 'Poupança'];
     indicesData.forEach((index) => {
-      if (Array.isArray(index.data) && index.data.length > 0 && allowedIndices.includes(index.name)) {
-        let processedIndexData: IndexData[];
+      // Validações mais rigorosas
+      if (!index || typeof index !== 'object') {
+        return;
+      }
+      if (!index.name || typeof index.name !== 'string') {
+        return;
+      }
+      if (!Array.isArray(index.data)) {
+        return;
+      }
+      if (index.data.length === 0) {
+        return;
+      }
+      if (!allowedIndices.includes(index.name)) {
+        return;
+      }
+
+      // Processar dados do índice
+      let processedIndexData: IndexData[];
+      try {
         if (period === '1mo') {
           processedIndexData = groupByMonth(index.data);
         } else if (period === '1y') {
@@ -149,46 +311,145 @@ export default function RentabilidadeChart({
         } else {
           processedIndexData = index.data;
         }
-        const indexPoints = processedIndexData
-          .map(item => [item.date, item.value] as number[])
-          .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
-        if (indexPoints.length > 0) {
-          seriesData.push({
-            name: index.name,
-            data: indexPoints,
-          });
-        }
+      } catch (error) {
+        console.warn(`Erro ao processar dados do índice ${index.name}:`, error);
+        return;
+      }
+
+      // Validar que processedIndexData é um array válido
+      if (!Array.isArray(processedIndexData) || processedIndexData.length === 0) {
+        return;
+      }
+
+      const indexPoints = processedIndexData
+        .map(item => {
+          if (!item || typeof item !== 'object') {
+            return null;
+          }
+          if (typeof item.date !== 'number' || !Number.isFinite(item.date)) {
+            return null;
+          }
+          // Garantir que o valor é um número válido, substituindo null/undefined por 0
+          const value = typeof item.value === 'number' && Number.isFinite(item.value) ? item.value : 0;
+          return [item.date, value] as number[];
+        })
+        .filter((point): point is number[] => point !== null && Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1]));
+
+      if (indexPoints.length > 0) {
+        seriesData.push({
+          name: index.name,
+          data: indexPoints,
+        });
       }
     });
 
     if (period !== '1d' || seriesData.length === 0) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeChart.tsx:260',message:'series useMemo - early return (not 1d or empty)',data:{period,seriesDataLength:seriesData.length},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
       return seriesData;
     }
 
-    const allDates = Array.from(
-      new Set(seriesData.flatMap((serie) => serie.data.map((point) => point[0])))
-    ).sort((a, b) => a - b);
+    // Validar que todas as séries têm dados válidos
+    const validSeries = seriesData.filter(serie => 
+      Array.isArray(serie.data) && 
+      serie.data.length > 0 &&
+      serie.data.every(point => Array.isArray(point) && point.length >= 2)
+    );
 
-    return seriesData.map((serie) => {
-      const valueByDate = new Map(serie.data.map(([date, value]) => [date, value]));
+    if (validSeries.length === 0) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeChart.tsx:271',message:'series useMemo - no valid series',data:{seriesDataLength:seriesData.length},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      return [];
+    }
+
+    // Coletar todas as datas de todas as séries válidas
+    const allDatesSet = new Set<number>();
+    validSeries.forEach(serie => {
+      serie.data.forEach(point => {
+        if (Array.isArray(point) && point.length >= 2 && typeof point[0] === 'number' && Number.isFinite(point[0])) {
+          allDatesSet.add(point[0]);
+        }
+      });
+    });
+    const allDates = Array.from(allDatesSet).sort((a, b) => a - b);
+
+    if (allDates.length === 0) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeChart.tsx:286',message:'series useMemo - no dates found',data:{validSeriesLength:validSeries.length},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      return [];
+    }
+
+    const finalAlignedSeries = validSeries.map((serie) => {
+      if (!Array.isArray(serie.data) || serie.data.length === 0) {
+        return {
+          name: serie.name,
+          data: [],
+        };
+      }
+
+      const valueByDate = new Map<number, number | null>();
+      serie.data.forEach(point => {
+        if (Array.isArray(point) && point.length >= 2 && typeof point[0] === 'number' && Number.isFinite(point[0])) {
+          const value = point[1];
+          if (value === null || (typeof value === 'number' && Number.isFinite(value))) {
+            valueByDate.set(point[0], value);
+          }
+        }
+      });
+      
       let lastValue: number | null = null;
 
-      const alignedData = allDates.map((date) => {
+      const alignedData: number[][] = allDates.map((date) => {
         if (valueByDate.has(date)) {
           lastValue = valueByDate.get(date) ?? null;
-          return [date, lastValue] as (number | null)[];
+          // Substituir null por 0 para evitar erros no ApexCharts
+          return [date, lastValue !== null && Number.isFinite(lastValue) ? lastValue : 0];
         }
-        if (lastValue === null) {
-          return [date, null] as (number | null)[];
-        }
-        return [date, lastValue] as (number | null)[];
+        // Substituir null por 0 para evitar erros no ApexCharts
+        return [date, lastValue !== null && Number.isFinite(lastValue) ? lastValue : 0];
       });
 
+      // Verificar se a série tem pelo menos um valor válido (não-zero)
+      const hasValidValue = alignedData.some(point => Number.isFinite(point[1]) && point[1] !== 0);
+      
+      if (!hasValidValue) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeChart.tsx:360',message:'series useMemo - skipping series with no valid values',data:{serieName:serie.name,alignedDataLength:alignedData.length},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+        // #endregion
+        return null; // Retornar null para filtrar esta série
+      }
+
+      // Verificar se a série começa apenas com zeros (pode causar problemas no ApexCharts)
+      // Encontrar o primeiro índice com valor válido (não-zero)
+      const firstValidIndex = alignedData.findIndex(point => Number.isFinite(point[1]) && point[1] !== 0);
+      
+      // Se a série começa com muitos nulls (mais de 10% dos dados), remover os nulls iniciais
+      if (firstValidIndex > alignedData.length * 0.1 && firstValidIndex > 0) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeChart.tsx:375',message:'series useMemo - trimming initial nulls',data:{serieName:serie.name,firstValidIndex,alignedDataLength:alignedData.length},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+        // #endregion
+        // Remover os nulls iniciais, mas manter pelo menos o primeiro ponto para manter a estrutura temporal
+        const trimmedData = alignedData.slice(firstValidIndex > 0 ? firstValidIndex - 1 : 0);
+        return {
+          name: serie.name,
+          data: trimmedData,
+        };
+      }
+
       return {
-        ...serie,
+        name: serie.name,
         data: alignedData,
       };
-    });
+    }).filter((serie): serie is { name: string; data: number[][] } => serie !== null);
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeChart.tsx:330',message:'series useMemo - end (1d aligned)',data:{finalAlignedSeriesLength:finalAlignedSeries.length,finalAlignedSeriesStructure:finalAlignedSeries.map(s=>({name:s?.name,dataLength:s?.data?.length,firstPoint:s?.data?.[0]})),period},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
+    
+    return finalAlignedSeries;
   }, [carteiraData, indicesData, period]);
 
   const chartType = period === '1mo' || period === '1y' ? 'bar' : 'line';
@@ -199,20 +460,22 @@ export default function RentabilidadeChart({
     
     // Agrupar dados para contar anos únicos
     let processedCarteiraData: IndexData[];
-    if (carteiraData.length > 0) {
+    if (Array.isArray(carteiraData) && carteiraData.length > 0) {
       processedCarteiraData = groupByYear(carteiraData);
     } else {
       processedCarteiraData = [];
     }
     
     const allDates: number[] = [];
-    if (processedCarteiraData.length > 0) {
+    if (Array.isArray(processedCarteiraData) && processedCarteiraData.length > 0) {
       allDates.push(...processedCarteiraData.map(item => item.date));
     }
     indicesData.forEach(index => {
-      if (index.data.length > 0) {
+      if (Array.isArray(index.data) && index.data.length > 0) {
         const processedIndexData = groupByYear(index.data);
-        allDates.push(...processedIndexData.map(item => item.date));
+        if (Array.isArray(processedIndexData)) {
+          allDates.push(...processedIndexData.map(item => item.date));
+        }
       }
     });
     
@@ -389,7 +652,7 @@ export default function RentabilidadeChart({
       };
       baseOptions.stroke = {
         show: true,
-        width: 2,
+        width: 2, // Número, não array!
         colors: ["transparent"],
       };
     }
@@ -397,7 +660,13 @@ export default function RentabilidadeChart({
     return baseOptions;
   }, [period, chartType, uniqueYearsCount]);
 
-  const hasSeriesData = series.length > 0;
+  const hasSeriesData = Array.isArray(series) && series.length > 0;
+
+  // #region agent log
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/63e9ce93-16ae-4741-838e-6e2533bcb81a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RentabilidadeChart.tsx:507',message:'RentabilidadeChart - before render',data:{hasSeriesData,seriesLength:series.length,seriesStructure:series.map(s=>({name:s?.name,dataLength:s?.data?.length,firstPoint:s?.data?.[0]})),chartType,period},timestamp:Date.now(),runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+  }, [hasSeriesData, series, chartType, period]);
+  // #endregion
 
   return (
     <div className="w-full">
@@ -418,4 +687,3 @@ export default function RentabilidadeChart({
     </div>
   );
 }
-
