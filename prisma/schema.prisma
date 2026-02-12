@@ -325,24 +325,60 @@ model StockTransaction {
 
 // Ativos consolidados (ações, FII, ETF, BDR, REIT, criptos, etc.)
 model Asset {
-  id        String   @id @default(uuid())
-  symbol    String   @unique // Código do ativo (ex: PETR4, VALE3, BTC, ETH)
-  name      String // Nome do ativo (ex: Petrobras PN, Vale ON, Bitcoin)
-  type      String // Tipo: "stock", "etf", "fii", "bdr", "crypto"
-  currency  String // Moeda: "BRL", "USD"
-  source    String   @default("brapi") // Fonte dos dados
-  updatedAt DateTime @updatedAt
+  id             String    @id @default(uuid())
+  symbol         String    @unique // Código do ativo (ex: PETR4, VALE3, BTC, ETH)
+  name           String // Nome do ativo (ex: Petrobras PN, Vale ON, Bitcoin)
+  type           String // Tipo: "stock", "etf", "fii", "bdr", "crypto"
+  currency       String // Moeda: "BRL", "USD"
+  source         String    @default("brapi") // Fonte dos dados
+  currentPrice   Decimal?  @db.Decimal(10, 6) // Preço atual (atualizado pelo cron)
+  priceUpdatedAt DateTime? // Data da última atualização de preço
+  updatedAt      DateTime  @updatedAt
 
   // Relacionamentos
-  watchlists       Watchlist[]
-  portfolios       Portfolio[]
-  transactions     StockTransaction[]
-  fixedIncomeAsset FixedIncomeAsset?
+  watchlists        Watchlist[]
+  portfolios        Portfolio[]
+  transactions      StockTransaction[]
+  fixedIncomeAsset  FixedIncomeAsset?
+  priceHistory      AssetPriceHistory[]
 
   @@index([symbol])
   @@index([type])
   @@index([source])
   @@map("assets")
+}
+
+// Histórico de preços dos ativos (persistido pelo cron, lido pelas telas)
+model AssetPriceHistory {
+  id        String   @id @default(uuid())
+  assetId   String
+  symbol    String
+  price     Decimal  @db.Decimal(10, 6)
+  currency  String?
+  source    String   @default("BRAPI")
+  date      DateTime // Data de referência (normalizada para início do dia)
+  createdAt DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([symbol, date])
+  @@index([symbol, date])
+  @@index([symbol])
+  @@index([date])
+  @@map("asset_price_history")
+}
+
+// Log opcional de execução do sync de preços
+model SyncPriceLog {
+  id            String   @id @default(uuid())
+  totalUpdated  Int      @default(0)
+  totalInserted Int      @default(0)
+  errors        Int      @default(0)
+  duration      Int      // segundos
+  executedAt    DateTime @default(now())
+
+  @@index([executedAt])
+  @@map("sync_price_logs")
 }
 
 model FixedIncomeAsset {
@@ -408,4 +444,21 @@ model ConsultantImpersonationLog {
   @@index([createdAt])
   @@index([action])
   @@map("consultant_impersonation_logs")
+}
+
+// ===== ECONOMIC INDEXES MODULE =====
+
+model EconomicIndex {
+  id         String   @id @default(uuid())
+  indexType  String   // "CDI" | "IPCA"
+  date       DateTime // Data de referência
+  value      Decimal  @db.Decimal(10, 6) // Taxa do período (decimal para precisão)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([indexType, date])
+  @@index([indexType])
+  @@index([date])
+  @@index([indexType, date])
+  @@map("economic_indexes")
 }
