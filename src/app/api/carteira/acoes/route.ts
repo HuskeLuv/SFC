@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { AcaoData, AcaoAtivo, AcaoSecao, SetorAcao } from '@/types/acoes';
-import { fetchQuotes } from '@/services/brapiQuote';
+import { getAssetPrices } from '@/services/assetPriceService';
 
 // Função helper para validar e converter setor para SetorAcao
 function parseSetorAcao(setor: string | null | undefined): SetorAcao {
@@ -44,29 +44,9 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     return !ticker.endsWith('11');
   });
 
-  // Buscar cotações atuais dos ativos
-  // Sempre forçar busca fresca para garantir valores atualizados
-  const symbols = acoesPortfolio
-    .map(item => item.stock!.ticker);
-  
-  // Forçar refresh para sempre obter cotações atualizadas da API
-  let quotes = await fetchQuotes(symbols, true);
-
-  // Verificar se símbolos críticos (PETR4, VALE3) foram encontrados
-  // Se não foram, tentar buscar novamente
-  const criticalSymbols = ['PETR4', 'VALE3'];
-  const missingCriticalSymbols = criticalSymbols.filter(symbol => 
-    symbols.includes(symbol) && !quotes.has(symbol)
-  );
-
-  if (missingCriticalSymbols.length > 0) {
-    console.log(`🔄 Tentando buscar novamente símbolos críticos: ${missingCriticalSymbols.join(', ')}`);
-    const retryQuotes = await fetchQuotes(missingCriticalSymbols, true);
-    // Adicionar resultados do retry ao mapa de cotações
-    retryQuotes.forEach((price, symbol) => {
-      quotes.set(symbol, price);
-    });
-  }
+  // Buscar cotações atuais dos ativos (banco primeiro, fallback BRAPI quando necessário)
+  const symbols = acoesPortfolio.map((item) => item.stock!.ticker);
+  const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
   // Converter para formato AcaoAtivo
   const acoesAtivos: AcaoAtivo[] = acoesPortfolio.map(item => {

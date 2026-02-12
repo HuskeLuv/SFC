@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { fetchQuotes } from '@/services/brapiQuote';
+import { getAssetPrices } from '@/services/assetPriceService';
 
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
@@ -45,12 +45,11 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Buscar cotações atuais dos ativos
+    // Buscar cotações atuais dos ativos (banco primeiro, fallback BRAPI quando necessário)
     const symbols = portfolio
-      .filter(item => item.asset)
-      .map(item => item.asset!.symbol);
-    
-    const quotes = await fetchQuotes(symbols);
+      .filter((item) => item.asset)
+      .map((item) => item.asset!.symbol);
+    const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
     // Converter portfolio para formato esperado
     const stocksAtivos = portfolio

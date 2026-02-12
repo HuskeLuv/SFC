@@ -108,81 +108,17 @@ const calculateTwrSeries = (
   return returns;
 };
 
-/**
- * Busca histórico de preços de um ativo da brapi
- */
-const fetchAssetHistory = async (symbol: string, startDate?: Date): Promise<IndexData[]> => {
-  try {
-    const apiKey = process.env.BRAPI_API_KEY;
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
-    };
-    
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
-
-    // Calcular range baseado na data inicial
-    let brapiRange = '1y';
-    if (startDate) {
-      const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysSinceStart > 1825) {
-        brapiRange = '5y';
-      } else if (daysSinceStart > 730) {
-        brapiRange = '2y';
-      } else {
-        brapiRange = '1y';
-      }
-    }
-
-    const tokenParam = apiKey ? `&token=${apiKey}` : '';
-    const url = `https://brapi.dev/api/quote/${symbol}?range=${brapiRange}&interval=1d${tokenParam}`;
-    
-    const response = await fetch(url, { headers });
-    
-    if (!response.ok) {
-      console.warn(`Erro ao buscar histórico de ${symbol}: HTTP ${response.status}`);
-      return [];
-    }
-    
-    const data = await response.json();
-    
-    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
-      return [];
-    }
-
-    const result = data.results[0];
-    const historicalData = result.historicalDataPrice || [];
-    
-    if (!historicalData || historicalData.length === 0) {
-      return [];
-    }
-    
-    let assetData = historicalData.map((item: any) => ({
-      date: item.date * 1000, // Converter de segundos para milissegundos
-      value: item.close || 0,
-    }));
-
-    // Filtrar por startDate se fornecido
-    if (startDate) {
-      const startTimestamp = startDate.getTime();
-      assetData = assetData.filter((item: IndexData) => item.date >= startTimestamp);
-    }
-    
-    // Filtrar dados futuros
-    const hoje = new Date();
-    hoje.setHours(23, 59, 59, 999);
-    const hojeTimestamp = hoje.getTime();
-    assetData = assetData.filter((item: IndexData) => {
-      const dataTimestamp = item.date;
-      return dataTimestamp <= hojeTimestamp;
-    });
-    
-    return assetData;
-  } catch (error) {
-    console.error(`Erro ao buscar histórico de ${symbol}:`, error);
-    return [];
-  }
+const fetchAssetHistoryFromDb = async (
+  symbol: string,
+  startDate?: Date
+): Promise<IndexData[]> => {
+  const { getAssetHistory } = await import('@/services/assetPriceService');
+  const start = startDate
+    ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+    : new Date(Date.now() - 365 * DAY_MS);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return getAssetHistory(symbol, start, end, { useBrapiFallback: true });
 };
 
 export async function GET(request: NextRequest) {
@@ -315,7 +251,7 @@ export async function GET(request: NextRequest) {
     });
 
     for (const symbol of transactionsPorSimbolo.keys()) {
-      const historico = await fetchAssetHistory(symbol, timelineStart);
+      const historico = await fetchAssetHistoryFromDb(symbol, timelineStart);
       historicosPorAtivo.set(symbol, historico);
     }
 

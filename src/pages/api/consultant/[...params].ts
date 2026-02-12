@@ -19,7 +19,7 @@ import {
   getConsolidatedAssetDistribution,
   getPatrimonyEvolution,
 } from '@/services/consultantService';
-import { fetchQuotes } from '@/services/brapiQuote';
+import { getAssetPrices } from '@/services/assetPriceService';
 
 type ApiError = {
   status: number;
@@ -185,7 +185,7 @@ const getClientPortfolio = async (clientId: string) => {
     .map((item) => item.asset?.symbol ?? item.stock?.ticker ?? null)
     .filter((symbol): symbol is string => Boolean(symbol));
 
-  const quotes = await fetchQuotes(symbols);
+  const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
   let currentValue = 0;
   let totalInvested = 0;

@@ -1,6 +1,6 @@
 import { ConsultantClientStatus, UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
-import { fetchQuotes } from '@/services/brapiQuote';
+import { getAssetPrices } from '@/services/assetPriceService';
 
 export interface ConsultantClientDescriptor {
   id: string;
@@ -77,7 +77,7 @@ const calculatePortfolioSnapshot = async (clientId: string) => {
 
   let quotes = new Map<string, number>();
   try {
-    quotes = await fetchQuotes(symbols);
+    quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
   } catch (error) {
     console.warn('[calculatePortfolioSnapshot] Erro ao buscar cotações, usando preços médios como fallback:', error);
     // Em caso de erro, quotes ficará vazio e usaremos avgPrice como fallback
@@ -481,7 +481,7 @@ const getClientPortfolioConcentration = async (clientId: string): Promise<number
 
   let quotes = new Map<string, number>();
   try {
-    quotes = await fetchQuotes(symbols);
+    quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
   } catch (error) {
     console.warn('[getClientPortfolioConcentration] Erro ao buscar cotações, usando preços médios como fallback:', error);
     // Em caso de erro, quotes ficará vazio e usaremos avgPrice como fallback
@@ -851,7 +851,7 @@ export const getConsolidatedAssetDistribution = async (consultantId: string): Pr
 
     let quotes = new Map<string, number>();
     try {
-      quotes = await fetchQuotes(symbols);
+      quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
     } catch (error) {
       console.warn('[getConsolidatedAssetDistribution] Erro ao buscar cotações, usando preços médios como fallback:', error);
       // Em caso de erro, quotes ficará vazio e usaremos avgPrice como fallback

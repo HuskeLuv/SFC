@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { FiiData, FiiAtivo, FiiSecao } from '@/types/fii';
-import { fetchQuotes } from '@/services/brapiQuote';
+import { getAssetPrices } from '@/services/assetPriceService';
 
 // Funções auxiliares para cores
 function getSegmentColor(tipo: string): string {
@@ -69,16 +69,11 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     return false;
   });
 
-  // Buscar cotações atuais dos FIIs na API brapi
+  // Buscar cotações atuais dos FIIs (banco primeiro, fallback BRAPI quando necessário)
   const symbols = fiiPortfolio
-    .map(item => {
-      const ticker = item.stock?.ticker || item.asset?.symbol || '';
-      return ticker;
-    })
-    .filter(ticker => ticker && ticker.trim());
-  
-  // Buscar cotações (forçar refresh para garantir valores atualizados)
-  const quotes = await fetchQuotes(symbols, true);
+    .map((item) => item.stock?.ticker || item.asset?.symbol || '')
+    .filter((ticker) => ticker && ticker.trim());
+  const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
   // Converter para formato FiiAtivo
   const fiiAtivos: FiiAtivo[] = fiiPortfolio

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { fetchQuotes } from '@/services/brapiQuote';
+import { getAssetPrices } from '@/services/assetPriceService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
 interface ProventoData {
@@ -407,7 +407,7 @@ export async function GET(request: NextRequest) {
     });
 
     const symbols = portfolioAssets.map((asset) => asset.symbol);
-    const quotes = await fetchQuotes(symbols);
+    const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
     const assetValuesBySymbol = new Map<string, { invested: number; current: number }>();
     portfolioAssets.forEach((asset) => {
       const quote = quotes.get(asset.symbol);

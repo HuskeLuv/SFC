@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { fetchQuotes } from '@/services/brapiQuote';
+import { getAssetPrices, getAssetHistory } from '@/services/assetPriceService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { Prisma } from '@prisma/client';
 
@@ -95,71 +95,16 @@ const calculateFixedIncomeValue = (fixedIncome: FixedIncomeAssetWithAsset, refer
   return Math.round(valorAtual * 100) / 100;
 };
 
-const fetchAssetHistory = async (symbol: string, startDate?: Date): Promise<Array<{ date: number; value: number }>> => {
-  try {
-    const apiKey = process.env.BRAPI_API_KEY;
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
-    };
-    
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
-
-    let brapiRange = '1y';
-    if (startDate) {
-      const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / DAY_MS);
-      if (daysSinceStart > 1825) {
-        brapiRange = '5y';
-      } else if (daysSinceStart > 730) {
-        brapiRange = '2y';
-      } else {
-        brapiRange = '1y';
-      }
-    }
-
-    const tokenParam = apiKey ? `&token=${apiKey}` : '';
-    const url = `https://brapi.dev/api/quote/${symbol}?range=${brapiRange}&interval=1d${tokenParam}`;
-
-    const response = await fetch(url, { headers });
-    if (!response.ok) {
-      console.warn(`Erro ao buscar histórico de ${symbol}: HTTP ${response.status}`);
-      return [];
-    }
-
-    const data = await response.json();
-    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
-      return [];
-    }
-
-    const result = data.results[0];
-    const historicalData = result.historicalDataPrice || [];
-    if (!historicalData || historicalData.length === 0) {
-      return [];
-    }
-
-    let assetData: Array<{ date: number; value: number }> = historicalData.map(
-      (item: { date: number; close: number }) => ({
-      date: item.date * 1000,
-      value: item.close || 0,
-    })
-    );
-
-    if (startDate) {
-      const startTimestamp = startDate.getTime();
-      assetData = assetData.filter((item) => item.date >= startTimestamp);
-    }
-
-    const hoje = new Date();
-    hoje.setHours(23, 59, 59, 999);
-    const hojeTimestamp = hoje.getTime();
-    assetData = assetData.filter((item) => item.date <= hojeTimestamp);
-
-    return assetData;
-  } catch (error) {
-    console.error(`Erro ao buscar histórico de ${symbol}:`, error);
-    return [];
-  }
+const fetchAssetHistoryFromDb = async (
+  symbol: string,
+  startDate?: Date
+): Promise<Array<{ date: number; value: number }>> => {
+  const start = startDate
+    ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+    : new Date(Date.now() - 365 * DAY_MS);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return getAssetHistory(symbol, start, end, { useBrapiFallback: true });
 };
 
 const runPatrimonioScenarioTest = () => {
@@ -385,7 +330,7 @@ export async function GET(request: NextRequest) {
         !symbol.startsWith('PERSONALIZADO')
       );
 
-    const quotes = await fetchQuotes(symbols);
+    const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
     // Inicializar contadores para cada categoria (antes do loop)
     const categorias = {
@@ -674,7 +619,7 @@ export async function GET(request: NextRequest) {
 
         let history: Array<{ date: number; value: number }> = [];
         if (!isManual) {
-          const fetchedHistory = await fetchAssetHistory(symbol, timelineStart);
+          const fetchedHistory = await fetchAssetHistoryFromDb(symbol, timelineStart);
           history = [...fetchedHistory, ...pricePoints];
         } else {
           history = [...pricePoints, ...fixedIncomePoints];
