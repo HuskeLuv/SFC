@@ -462,3 +462,15 @@ model EconomicIndex {
   @@index([indexType, date])
   @@map("economic_indexes")
 }
+
+// Cache de indicadores de mercado (IBOV, Dólar, BTC, ETH)
+// Banco primeiro, fallback BRAPI quando cache expirado
+model MarketIndicatorCache {
+  id            String   @id @default(uuid())
+  indicatorKey  String   @unique // "IBOV" | "USD-BRL" | "BTC" | "ETH"
+  price         Decimal  @db.Decimal(18, 4)
+  changePercent Decimal? @db.Decimal(10, 4)
+  updatedAt     DateTime @updatedAt
+
+  @@map("market_indicator_cache")
+}
