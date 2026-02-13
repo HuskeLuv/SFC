@@ -18,7 +18,7 @@ interface UseIndicesResult {
   refetch: () => void;
 }
 
-export const useIndices = (range: '1d' | '1mo' | '1y' = '1y', startDate?: number): UseIndicesResult => {
+export const useIndices = (range: '1d' | '1mo' | '1y' | '2y' = '1y', startDate?: number): UseIndicesResult => {
   const [indices, setIndices] = useState<IndexResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
