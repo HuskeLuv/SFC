@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
           riscoPorAtivo: 0,
           rentabilidade,
           observacoes: metadata.observacoes,
-          tipo: 'prefixada',
+          tipo: (fixedIncome.indexer === 'CDI' || fixedIncome.indexer === 'IPCA') ? 'pos-fixada' : 'prefixada',
         };
       })
       .filter((ativo): ativo is NonNullable<typeof ativo> => Boolean(ativo));

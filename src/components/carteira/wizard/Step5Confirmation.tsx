@@ -124,29 +124,28 @@ export default function Step5Confirmation({
           </>
         );
 
-      case "renda-fixa-prefixada":
+      case "renda-fixa":
       case "renda-fixa-posfixada":
         return (
           <>
-            {renderFieldValue("Emissor", formData.emissor)}
-            {renderFieldValue("Período", formData.periodo, getPeriodoLabel)}
+            {renderFieldValue(
+              "Tipo de Renda Fixa",
+              formData.rendaFixaTipo,
+              (val) => {
+                const label = getRendaFixaTipoLabel(val);
+                return formData.tipoAtivo === "renda-fixa-posfixada" && typeof label === "string"
+                  ? label.replace(/ Pré$/, "")
+                  : label;
+              }
+            )}
             {renderFieldValue("Data de Início", formData.dataInicio, formatDate)}
             {renderFieldValue("Valor Aplicado", formData.valorAplicado, formatCurrency)}
             {renderFieldValue("Data de Vencimento", formData.dataVencimento, formatDate)}
-            {renderFieldValue("Taxa de Juros Anual", formData.taxaJurosAnual, (val) => `${val}%`)}
-            {formData.tipoAtivo === "renda-fixa-posfixada" && renderFieldValue("Indexador", formData.indexador, getIndexadorLabel)}
-            {renderFieldValue("Descrição", formData.descricao)}
-          </>
-        );
-
-      case "renda-fixa":
-        return (
-          <>
-            {renderFieldValue("Tipo de Renda Fixa", formData.rendaFixaTipo, getRendaFixaTipoLabel)}
-            {renderFieldValue("Data de Início", formData.dataInicio, formatDate)}
-            {renderFieldValue("Valor Aplicado", formData.valorAplicado, formatCurrency)}
-            {renderFieldValue("Data de Vencimento", formData.dataVencimento, formatDate)}
-            {renderFieldValue("Taxa de Juros Anual", formData.taxaJurosAnual, (val) => `${val}%`)}
+            {formData.tipoAtivo === "renda-fixa-posfixada"
+              ? renderFieldValue("Taxa sobre o Indexador", formData.taxaJurosAnual, (val) => `${val}%`)
+              : renderFieldValue("Taxa de Juros Anual", formData.taxaJurosAnual, (val) => `${val}%`)}
+            {formData.tipoAtivo === "renda-fixa-posfixada" && renderFieldValue("Indexador", formData.rendaFixaIndexer)}
+            {formData.tipoAtivo === "renda-fixa-posfixada" && (formData.rendaFixaIndexerPercent ?? 0) > 0 && renderFieldValue("% do Indexador", formData.rendaFixaIndexerPercent ?? 0, (val) => `${val}%`)}
             {renderFieldValue("Descrição", formData.descricao)}
           </>
         );

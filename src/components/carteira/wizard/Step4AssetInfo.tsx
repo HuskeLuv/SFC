@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { WizardFormData, WizardErrors, AutocompleteOption, INDEXADORES, PERIODOS, MOEDAS_FIXAS } from "@/types/wizard";
+import { WizardFormData, WizardErrors, AutocompleteOption, PERIODOS, MOEDAS_FIXAS, RENDA_FIXA_INDEXADORES_POS } from "@/types/wizard";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Select from "@/components/form/Select";
@@ -505,126 +505,8 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "renda-fixa-prefixada":
-      case "renda-fixa-posfixada":
-        return (
-          <>
-            <div>
-              <AutocompleteInput
-                id="emissor"
-                label="Emissor *"
-                placeholder="Digite o nome do emissor"
-                value={formData.emissor}
-                onChange={handleEmissorChange}
-                onSelect={handleEmissorSelect}
-                options={[]}
-                loading={false}
-                error={!!errors.emissor}
-                hint={errors.emissor}
-              />
-            </div>
-            <div>
-              <Label htmlFor="periodo">Período *</Label>
-              <Select
-                options={PERIODOS}
-                placeholder="Selecione o período"
-                defaultValue={formData.periodo}
-                onChange={(value) => handleInputChange('periodo', value)}
-                className={errors.periodo ? 'border-red-500' : ''}
-              />
-              {errors.periodo && (
-                <p className="mt-1 text-sm text-red-500">{errors.periodo}</p>
-              )}
-            </div>
-            <div>
-              <DatePicker
-                id="dataInicio"
-                label="Data de Início *"
-                placeholder="Selecione a data"
-                defaultDate={formData.dataInicio}
-                onChange={(selectedDates) => {
-                  if (selectedDates && selectedDates.length > 0) {
-                    handleInputChange('dataInicio', selectedDates[0].toISOString().split('T')[0]);
-                  }
-                }}
-              />
-              {errors.dataInicio && (
-                <p className="mt-1 text-sm text-red-500">{errors.dataInicio}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="valorAplicado">Valor Aplicado (R$) *</Label>
-              <Input
-                id="valorAplicado"
-                {...decimalInputProps}
-                placeholder="Ex: 10000.00"
-                value={getDecimalInputValue("valorAplicado")}
-                onChange={handleDecimalInputChange("valorAplicado")}
-                error={!!errors.valorAplicado}
-                hint={errors.valorAplicado}
-                min="0"
-                step="0.01"
-              />
-            </div>
-            <div>
-              <DatePicker
-                id="dataVencimento"
-                label="Data de Vencimento *"
-                placeholder="Selecione a data"
-                defaultDate={formData.dataVencimento}
-                onChange={(selectedDates) => {
-                  if (selectedDates && selectedDates.length > 0) {
-                    handleInputChange('dataVencimento', selectedDates[0].toISOString().split('T')[0]);
-                  }
-                }}
-              />
-              {errors.dataVencimento && (
-                <p className="mt-1 text-sm text-red-500">{errors.dataVencimento}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="taxaJurosAnual">Taxa de Juros Anual (%) *</Label>
-              <Input
-                id="taxaJurosAnual"
-                {...decimalInputProps}
-                placeholder="Ex: 12.5"
-                value={getDecimalInputValue("taxaJurosAnual")}
-                onChange={handleDecimalInputChange("taxaJurosAnual")}
-                error={!!errors.taxaJurosAnual}
-                hint={errors.taxaJurosAnual}
-                min="0"
-                step="0.01"
-              />
-            </div>
-            {formData.tipoAtivo === "renda-fixa-posfixada" && (
-              <div>
-                <Label htmlFor="indexador">Indexador *</Label>
-                <Select
-                  options={INDEXADORES}
-                  placeholder="Selecione o indexador"
-                  defaultValue={formData.indexador}
-                  onChange={(value) => handleInputChange('indexador', value)}
-                  className={errors.indexador ? 'border-red-500' : ''}
-                />
-                {errors.indexador && (
-                  <p className="mt-1 text-sm text-red-500">{errors.indexador}</p>
-                )}
-              </div>
-            )}
-            <div>
-              <Label htmlFor="descricao">Descrição</Label>
-              <Input
-                id="descricao"
-                type="text"
-                placeholder="Ex: CDB Banco do Brasil 2025"
-                value={formData.descricao}
-                onChange={(e) => handleInputChange('descricao', e.target.value)}
-              />
-            </div>
-          </>
-        );
-
       case "renda-fixa":
+      case "renda-fixa-posfixada":
         return (
           <>
             <div>
@@ -674,11 +556,15 @@ export default function Step4AssetInfo({
               )}
             </div>
             <div>
-              <Label htmlFor="taxaJurosAnual">Taxa de Juros Anual (%) *</Label>
+              <Label htmlFor="taxaJurosAnual">
+                {formData.tipoAtivo === "renda-fixa-posfixada"
+                  ? "Taxa sobre o Indexador (%) *"
+                  : "Taxa de Juros Anual (%) *"}
+              </Label>
               <Input
                 id="taxaJurosAnual"
                 {...decimalInputProps}
-                placeholder="Ex: 12.5"
+                placeholder={formData.tipoAtivo === "renda-fixa-posfixada" ? "Ex: 100 (100% CDI) ou 1.5 (CDI + 1.5%)" : "Ex: 12.5"}
                 value={getDecimalInputValue("taxaJurosAnual")}
                 onChange={handleDecimalInputChange("taxaJurosAnual")}
                 error={!!errors.taxaJurosAnual}
@@ -687,6 +573,35 @@ export default function Step4AssetInfo({
                 step="0.01"
               />
             </div>
+            {formData.tipoAtivo === "renda-fixa-posfixada" && (
+              <>
+                <div>
+                  <Label htmlFor="rendaFixaIndexer">Indexador *</Label>
+                  <Select
+                    options={RENDA_FIXA_INDEXADORES_POS}
+                    placeholder="Selecione o indexador"
+                    defaultValue={formData.rendaFixaIndexer}
+                    onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
+                    className={errors.rendaFixaIndexer ? 'border-red-500' : ''}
+                  />
+                  {errors.rendaFixaIndexer && (
+                    <p className="mt-1 text-sm text-red-500">{errors.rendaFixaIndexer}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="rendaFixaIndexerPercent">% do Indexador</Label>
+                  <Input
+                    id="rendaFixaIndexerPercent"
+                    {...decimalInputProps}
+                    placeholder="Ex: 100 (100% do CDI)"
+                    value={getDecimalInputValue("rendaFixaIndexerPercent")}
+                    onChange={handleDecimalInputChange("rendaFixaIndexerPercent")}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </>
+            )}
             <div>
               <Label htmlFor="descricao">Descrição / Apelido *</Label>
               <Input
@@ -709,18 +624,8 @@ export default function Step4AssetInfo({
                   { value: "IPCA", label: "IPCA" },
                 ]}
                 placeholder="Selecione o indexador"
-                defaultValue={formData.rendaFixaIndexer}
+                defaultValue={formData.tipoAtivo === "renda-fixa" ? "PRE" : formData.rendaFixaIndexer}
                 onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
-              />
-              <Label htmlFor="rendaFixaIndexerPercent">% do Indexador</Label>
-              <Input
-                id="rendaFixaIndexerPercent"
-                {...decimalInputProps}
-                placeholder="Ex: 100"
-                value={getDecimalInputValue("rendaFixaIndexerPercent")}
-                onChange={handleDecimalInputChange("rendaFixaIndexerPercent")}
-                min="0"
-                step="0.01"
               />
               <Label htmlFor="rendaFixaLiquidity">Liquidez</Label>
               <Select
@@ -888,7 +793,7 @@ export default function Step4AssetInfo({
                   { value: "tijolo", label: "Tijolo" }
                 ]}
                 placeholder="Selecione o tipo"
-                defaultValue={formData.tipoFii}
+                value={formData.tipoFii}
                 onChange={(value) => handleInputChange('tipoFii', value)}
                 className={errors.tipoFii ? 'border-red-500' : ''}
               />

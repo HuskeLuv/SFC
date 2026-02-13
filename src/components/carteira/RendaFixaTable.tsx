@@ -13,7 +13,7 @@ const RENDA_FIXA_COLUMN_COUNT = 13;
 const RENDA_FIXA_SECTION_ORDER = ["pos-fixada", "prefixada", "hibrida"] as const;
 const RENDA_FIXA_SECTION_NAMES: Record<(typeof RENDA_FIXA_SECTION_ORDER)[number], string> = {
   "pos-fixada": "Pós-fixada",
-  prefixada: "Pré-Fixada",
+  prefixada: "Pré-fixada",
   hibrida: "Híbrida",
 };
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
@@ -402,7 +402,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
 
     const sectionMap = new Map<string, RendaFixaSecao>();
     (dataComRisco?.secoes || []).forEach((secao) => {
-      const nome = secao.nome || RENDA_FIXA_SECTION_NAMES[secao.tipo];
+      const nome = RENDA_FIXA_SECTION_NAMES[secao.tipo] ?? secao.nome;
       sectionMap.set(secao.tipo, { ...secao, nome });
     });
 

@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
         error: 'Campos obrigatórios: tipoAtivo, instituicaoId' 
       }, { status: 400 });
     }
-    const isRendaFixa = tipoAtivo === "renda-fixa";
+    const isRendaFixa = tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada";
     if (!isReserva && !isPersonalizado && !isRendaFixa && !assetId) {
       return NextResponse.json({ 
         error: 'Campo obrigatório: assetId' 
@@ -109,10 +109,15 @@ export async function POST(request: NextRequest) {
           error: 'Campos obrigatórios para este tipo: dataInicio, emissorId, periodo, valorAplicado, taxaJurosAnual' 
         }, { status: 400 });
       }
-    } else if (tipoAtivo === "renda-fixa") {
+    } else     if (tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") {
       if (!rendaFixaTipo || !dataInicio || !dataVencimento || !valorAplicado || !taxaJurosAnual || !descricao) {
         return NextResponse.json({
           error: 'Campos obrigatórios para este tipo: rendaFixaTipo, dataInicio, dataVencimento, valorAplicado, taxaJurosAnual, descricao'
+        }, { status: 400 });
+      }
+      if (tipoAtivo === "renda-fixa-posfixada" && (!rendaFixaIndexer || !['CDI', 'IPCA'].includes(rendaFixaIndexer))) {
+        return NextResponse.json({
+          error: 'Para Renda Fixa Pós-Fixada, o indexador deve ser CDI ou IPCA'
         }, { status: 400 });
       }
       const inicio = new Date(dataInicio);
@@ -211,17 +216,17 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (tipoAtivo === "renda-fixa" && taxaJurosAnual <= 0) {
+    if ((tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") && taxaJurosAnual <= 0) {
       return NextResponse.json({
         error: 'Taxa de juros anual deve ser maior que zero'
       }, { status: 400 });
     }
-    if (tipoAtivo === "renda-fixa" && taxaJurosAnual > 1000) {
+    if ((tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") && taxaJurosAnual > 1000) {
       return NextResponse.json({
         error: 'Taxa de juros anual deve ser menor ou igual a 1000%'
       }, { status: 400 });
     }
-    if (tipoAtivo === "renda-fixa" && rendaFixaIndexerPercent !== undefined && rendaFixaIndexerPercent !== null) {
+    if ((tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") && rendaFixaIndexerPercent !== undefined && rendaFixaIndexerPercent !== null) {
       if (rendaFixaIndexerPercent < 0 || rendaFixaIndexerPercent > 1000) {
         return NextResponse.json({
           error: 'Percentual do indexador deve estar entre 0% e 1000%'
@@ -271,7 +276,7 @@ export async function POST(request: NextRequest) {
     
     // Se é reserva de emergência, oportunidade ou personalizado, criar um asset único para cada investimento
     // Isso permite ter múltiplos investimentos de reserva/personalizado separados
-    if (tipoAtivo === "emergency" || tipoAtivo === "opportunity" || tipoAtivo === "personalizado" || tipoAtivo === "renda-fixa") {
+    if (tipoAtivo === "emergency" || tipoAtivo === "opportunity" || tipoAtivo === "personalizado" || tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") {
       let baseName = "";
       let baseSymbol = "";
       
@@ -284,7 +289,7 @@ export async function POST(request: NextRequest) {
       } else if (tipoAtivo === "personalizado") {
         baseName = nomePersonalizado || "Personalizado";
         baseSymbol = "PERSONALIZADO";
-      } else if (tipoAtivo === "renda-fixa") {
+      } else if (tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") {
         baseName = descricao || "Renda Fixa";
         baseSymbol = "RENDA-FIXA";
       }
@@ -309,7 +314,7 @@ export async function POST(request: NextRequest) {
           maximumFractionDigits: 0
         }).format(valorTotal) : '';
         assetName = `${baseName}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
-      } else if (tipoAtivo === "renda-fixa") {
+      } else if (tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") {
         const valorFormatado = valorAplicado ? new Intl.NumberFormat('pt-BR', { 
           style: 'currency', 
           currency: 'BRL',
@@ -332,7 +337,7 @@ export async function POST(request: NextRequest) {
         data: {
           symbol: assetSymbol,
           name: assetName,
-          type: tipoAtivo === "personalizado" ? "personalizado" : (tipoAtivo === "renda-fixa" ? "bond" : tipoAtivo),
+          type: tipoAtivo === "personalizado" ? "personalizado" : ((tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") ? "bond" : tipoAtivo),
           currency: 'BRL',
           source: 'manual',
         },
@@ -412,13 +417,13 @@ export async function POST(request: NextRequest) {
         metadata.vencimento = vencimento;
       }
     }
-    if (tipoAtivo === "renda-fixa") {
+    if (tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") {
       metadata.rendaFixaTipo = rendaFixaTipo || null;
       metadata.dataInicio = dataInicio || null;
       metadata.dataVencimento = dataVencimento || null;
       metadata.taxaJurosAnual = taxaJurosAnual || null;
       metadata.descricao = descricao || null;
-      metadata.indexador = rendaFixaIndexer || null;
+      metadata.indexador = (tipoAtivo === "renda-fixa" ? (rendaFixaIndexer || "PRE") : rendaFixaIndexer) || null;
       metadata.indexadorPercent = rendaFixaIndexerPercent || null;
       metadata.liquidez = rendaFixaLiquidity || null;
       metadata.taxExempt = rendaFixaTaxExempt ?? false;

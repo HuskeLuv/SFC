@@ -144,7 +144,8 @@ export const TIPOS_ATIVO = [
   { value: "personalizado", label: "Personalizado" },
   { value: "poupanca", label: "Poupança" },
   { value: "previdencia", label: "Previdência" },
-  { value: "renda-fixa", label: "Renda Fixa" },
+  { value: "renda-fixa", label: "Renda Fixa Pré-Fixada" },
+  { value: "renda-fixa-posfixada", label: "Renda Fixa Pós-Fixada" },
   { value: "tesouro-direto", label: "Tesouro Direto" },
 ];
 
@@ -177,6 +178,12 @@ export const INDEXADORES = [
   { value: "ipca", label: "IPCA" },
   { value: "igp-m", label: "IGP-M" },
   { value: "igp-di", label: "IGP-DI" },
+];
+
+/** Indexadores para Renda Fixa Pós-Fixada (prisma FixedIncomeIndexer: CDI, IPCA) */
+export const RENDA_FIXA_INDEXADORES_POS = [
+  { value: "CDI", label: "CDI" },
+  { value: "IPCA", label: "IPCA" },
 ];
 
 export const PERIODOS = [
