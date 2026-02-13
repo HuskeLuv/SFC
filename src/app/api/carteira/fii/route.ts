@@ -101,9 +101,11 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
         ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 
         : 0;
       
-      // Usar padrão 'fofi' já que não há campo de identificação no schema
-      // O tipo pode ser determinado pelo usuário no wizard, mas não está persistido no banco
-      const tipoFii: 'fofi' | 'tvm' | 'tijolo' = 'fofi';
+      // Usar tipo persistido no portfolio (tipoFii), fallback para 'fofi' quando não definido
+      const tipoFii: 'fofi' | 'tvm' | 'tijolo' =
+        (item.tipoFii && ['fofi', 'tvm', 'tijolo'].includes(item.tipoFii)
+          ? item.tipoFii
+          : 'fofi') as 'fofi' | 'tvm' | 'tijolo';
       
       return {
         id: item.id,
