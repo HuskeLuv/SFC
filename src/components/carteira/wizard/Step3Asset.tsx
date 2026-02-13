@@ -227,7 +227,7 @@ export default function Step3Asset({
     );
   }
 
-  if (formData.tipoAtivo === "renda-fixa") {
+  if (formData.tipoAtivo === "renda-fixa" || formData.tipoAtivo === "renda-fixa-posfixada") {
     return (
       <div className="space-y-6">
         <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -237,7 +237,7 @@ export default function Step3Asset({
             </div>
             <div>
               <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                Renda Fixa Prefixada
+                {formData.tipoAtivo === "renda-fixa" ? "Renda Fixa Pré-Fixada" : "Renda Fixa Pós-Fixada"}
               </h4>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Escolha o tipo de título para continuar o cadastro.
@@ -253,6 +253,9 @@ export default function Step3Asset({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {RENDA_FIXA_TIPOS.map((tipo) => {
               const isSelected = formData.rendaFixaTipo === tipo.value;
+              const displayLabel = formData.tipoAtivo === "renda-fixa-posfixada"
+                ? tipo.label.replace(/ Pré$/, "")
+                : tipo.label;
               const baseClasses = "flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left text-sm transition-colors";
               const selectedClasses = "border-brand-500 bg-brand-500/10 text-brand-700 dark:border-brand-400 dark:bg-brand-400/10 dark:text-brand-200";
               const defaultClasses = "border-gray-200 bg-white text-gray-700 hover:border-brand-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-400 dark:hover:bg-gray-800";
@@ -271,9 +274,9 @@ export default function Step3Asset({
                     }
                   }}
                   aria-pressed={isSelected}
-                  aria-label={`Selecionar ${tipo.label}`}
+                  aria-label={`Selecionar ${displayLabel}`}
                 >
-                  <span className="font-medium">{tipo.label}</span>
+                  <span className="font-medium">{displayLabel}</span>
                   {isSelected && (
                     <span className="text-xs font-semibold">Selecionado</span>
                   )}
@@ -292,7 +295,9 @@ export default function Step3Asset({
               Tipo selecionado
             </h4>
             <p className="text-sm text-green-700 dark:text-green-300">
-              {selectedRendaFixaType.label}
+              {formData.tipoAtivo === "renda-fixa-posfixada"
+                ? selectedRendaFixaType.label.replace(/ Pré$/, "")
+                : selectedRendaFixaType.label}
             </p>
           </div>
         )}
@@ -356,8 +361,8 @@ function getSearchInstructions(tipoAtivo: string): string {
     "fundo": "Digite pelo menos 2 caracteres do nome do fundo de investimento que você possui.",
     "tesouro-direto": "Digite pelo menos 2 caracteres do nome do título do Tesouro Direto (ex: Tesouro Selic 2029).",
     "renda-fixa-prefixada": "Digite pelo menos 2 caracteres do nome do título de renda fixa com taxa prefixada.",
-    "renda-fixa-posfixada": "Digite pelo menos 2 caracteres do nome do título de renda fixa com taxa pós-fixada.",
-    "renda-fixa": "Selecione o tipo de renda fixa prefixada disponível para continuar.",
+    "renda-fixa": "Selecione o tipo de renda fixa pré-fixada disponível para continuar.",
+    "renda-fixa-posfixada": "Selecione o tipo de título de renda fixa pós-fixada.",
     "previdencia": "Digite pelo menos 2 caracteres do nome do plano de previdência privada.",
     "criptoativo": "Digite pelo menos 2 caracteres do nome da criptomoeda (ex: Bitcoin, Ethereum, Cardano).",
     "moeda": "Digite pelo menos 2 caracteres do nome da moeda estrangeira (ex: Dólar Americano, Euro).",

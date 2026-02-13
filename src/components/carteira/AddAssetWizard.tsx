@@ -118,11 +118,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         return !!(dataInicio && formData.nomePersonalizado && formData.quantidade > 0 && formData.precoUnitario > 0 && formData.metodo);
       }
       
-      if (tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
-        return !!(dataInicio && formData.emissorId && formData.periodo && formData.valorAplicado > 0 && formData.taxaJurosAnual > 0);
-      }
-
-      if (tipoAtivo === "renda-fixa") {
+      if (tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") {
         const dataInicioParsed = dataInicio ? new Date(dataInicio) : null;
         const dataVencimentoParsed = formData.dataVencimento ? new Date(formData.dataVencimento) : null;
         const hasValidDates = !!(
@@ -134,6 +130,9 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         );
         const isTaxaJurosValida = formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000;
         const isIndexerPercentValid = !formData.rendaFixaIndexerPercent || (formData.rendaFixaIndexerPercent >= 0 && formData.rendaFixaIndexerPercent <= 1000);
+        const isIndexerValid = tipoAtivo === "renda-fixa"
+          ? true
+          : !!formData.rendaFixaIndexer && ["CDI", "IPCA"].includes(formData.rendaFixaIndexer);
 
         return !!(
           formData.rendaFixaTipo &&
@@ -142,7 +141,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           isTaxaJurosValida &&
           formData.descricao &&
           hasValidDates &&
-          isIndexerPercentValid
+          isIndexerPercentValid &&
+          isIndexerValid
         );
       }
       
@@ -188,7 +188,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               isValid = !!formData.portfolioId;
             } else {
               // Para reserva de emergência, oportunidade e personalizado, o assetId será um placeholder
-              if (formData.tipoAtivo === "renda-fixa") {
+              if (formData.tipoAtivo === "renda-fixa" || formData.tipoAtivo === "renda-fixa-posfixada") {
                 isValid = !!formData.rendaFixaTipo;
               } else {
               isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado";
@@ -284,6 +284,9 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
 
       // Converter 'reserva-emergencia' e 'reserva-oportunidade' para o formato da API
       const apiFormData = { ...formData };
+      if (apiFormData.tipoAtivo === "renda-fixa") {
+        apiFormData.rendaFixaIndexer = apiFormData.rendaFixaIndexer || "PRE";
+      }
       if (apiFormData.tipoAtivo === "reserva-emergencia") {
         apiFormData.tipoAtivo = "emergency" as any;
         // Ajustar campos para formato esperado pela API

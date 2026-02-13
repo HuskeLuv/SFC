@@ -142,7 +142,8 @@ function getAssetTypeDescription(tipoAtivo: string): string {
     "personalizado": "Ativos personalizados permitem criar investimentos customizados com suas próprias regras.",
     "poupanca": "Poupança é uma aplicação de renda fixa com liquidez diária e rendimento baseado na poupança.",
     "previdencia": "Previdência privada e seguros para aposentadoria e proteção financeira.",
-    "renda-fixa": "Renda fixa prefixada com taxa definida no momento da aplicação, ideal para objetivos com prazo e retorno conhecidos.",
+    "renda-fixa": "Renda fixa pré-fixada com taxa definida no momento da aplicação, ideal para objetivos com prazo e retorno conhecidos.",
+    "renda-fixa-posfixada": "Renda fixa pós-fixada com rentabilidade atrelada a um indexador (CDI, IPCA), ideal para proteção contra inflação ou acompanhamento do mercado.",
     "tesouro-direto": "Títulos públicos federais negociados diretamente com o Tesouro Nacional.",
   };
   

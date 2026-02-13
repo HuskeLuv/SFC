@@ -12,6 +12,7 @@ interface SelectProps {
   onChange: (value: string) => void;
   className?: string;
   defaultValue?: string;
+  value?: string; // Controlled: quando informado, sincroniza com o pai
 }
 
 const Select: React.FC<SelectProps> = ({
@@ -20,14 +21,17 @@ const Select: React.FC<SelectProps> = ({
   onChange,
   className = "",
   defaultValue = "",
+  value: controlledValue,
 }) => {
-  // Manage the selected value
-  const [selectedValue, setSelectedValue] = useState<string>(defaultValue);
+  const isControlled = controlledValue !== undefined;
+  const [internalValue, setInternalValue] = useState<string>(defaultValue);
+
+  const selectedValue = isControlled ? controlledValue : internalValue;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
-    setSelectedValue(value);
-    onChange(value); // Trigger parent handler
+    if (!isControlled) setInternalValue(value);
+    onChange(value);
   };
 
   return (
