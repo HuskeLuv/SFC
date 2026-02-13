@@ -265,10 +265,27 @@ const fetchAndPersistHistoryFromBrapi = async (
     const historicalData = result?.historicalDataPrice ?? [];
     if (!historicalData.length) return [];
 
-    const asset = await prisma.asset.findUnique({
+    let asset = await prisma.asset.findUnique({
       where: { symbol },
       select: { id: true, currency: true },
     });
+
+    // Para índices (ex: ^BVSP), criar Asset se não existir
+    if (!asset && symbol.startsWith('^')) {
+      asset = await prisma.asset.upsert({
+        where: { symbol },
+        create: {
+          symbol,
+          name: symbol === '^BVSP' ? 'IBOVESPA' : symbol,
+          type: 'index',
+          currency: 'BRL',
+          source: 'brapi',
+        },
+        update: {},
+        select: { id: true, currency: true },
+      });
+    }
+
     if (!asset) return [];
 
     const toPersist: Array<{ date: Date; value: number }> = [];

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+import { getAssetHistory } from '@/services/assetPriceService';
 
 // Tipos de índices disponíveis - todos buscados da brapi
 // Nota: CDI não está disponível na brapi, então foi removido
@@ -388,89 +389,32 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
 };
 
 /**
- * Busca dados históricos de um índice da brapi via endpoint /api/quote
+ * Calcula startDate e endDate com base no range.
+ * Usa getAssetHistory (DB-first) com fallback BRAPI.
  */
-const fetchIndexHistory = async (symbol: string, range: '1d' | '1mo' | '1y', startDate?: Date): Promise<IndexData[]> => {
-  try {
-    const apiKey = process.env.BRAPI_API_KEY;
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
-    };
-    
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
+const getRangeDates = (range: '1d' | '1mo' | '1y' | '2y', startDateParam?: Date) => {
+  const end = new Date();
+  const start = new Date();
 
-    // Se temos uma startDate, usar range maior para garantir que temos dados suficientes
-    // e depois filtrar. Para períodos 1d e 1mo com startDate, buscar range maior
-    let brapiRange: '1d' | '1mo' | '1y' | '2y' = range;
-    if ((range === '1d' || range === '1mo') && startDate) {
-      // Calcular quantos dias desde startDate
-      const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      // Se mais de 1 ano, usar 2y, caso contrário usar 1y
-      brapiRange = daysSinceStart > 365 ? '2y' : '1y';
-    }
-
-    // Mapear range para formato da brapi
-    const rangeMap: Record<string, string> = {
-      '1d': '1d',
-      '1mo': '1mo',
-      '1y': '1y',
-      '2y': '2y',
-    };
-
-    const tokenParam = apiKey ? `&token=${apiKey}` : '';
-    const url = `https://brapi.dev/api/quote/${symbol}?range=${rangeMap[brapiRange]}&interval=1d${tokenParam}`;
-    
-    const response = await fetch(url, { 
-      headers,
-      cache: 'no-store',
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error(`Erro ao buscar ${symbol}: HTTP ${response.status} - ${errorText}`);
-      return [];
-    }
-    
-    const data = await response.json();
-    
-    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
-      return [];
-    }
-
-    const result = data.results[0];
-    const historicalData = result.historicalDataPrice || [];
-    
-    if (!historicalData || historicalData.length === 0) {
-      return [];
-    }
-    
-    let indexData = historicalData.map((item: any) => ({
-      date: item.date * 1000, // Converter de segundos para milissegundos
-      value: item.close || 0,
-    }));
-
-    // Filtrar por startDate se fornecido
-    if (startDate) {
-      const startTimestamp = startDate.getTime();
-      indexData = indexData.filter((item: IndexData) => item.date >= startTimestamp);
-    }
-    
-    // Filtrar dados futuros (não mostrar além do dia atual)
-    const hoje = new Date();
-    hoje.setHours(23, 59, 59, 999);
-    const hojeTimestamp = hoje.getTime();
-      indexData = indexData.filter((item: IndexData) => item.date <= hojeTimestamp);
-    
-    return indexData;
-  } catch (error) {
-    console.error(`Erro ao buscar histórico de ${symbol}:`, error);
-    if (error instanceof Error) {
-      console.error('Detalhes do erro:', error.message, error.stack);
-    }
-    return [];
+  switch (range) {
+    case '1d':
+      start.setDate(start.getDate() - 1);
+      break;
+    case '1mo':
+      start.setMonth(start.getMonth() - 1);
+      break;
+    case '1y':
+      start.setFullYear(start.getFullYear() - 1);
+      break;
+    case '2y':
+      start.setFullYear(start.getFullYear() - 2);
+      break;
+    default:
+      start.setFullYear(start.getFullYear() - 1);
   }
+
+  const startDate = startDateParam && startDateParam < start ? startDateParam : start;
+  return { startDate, endDate: end };
 };
 
 const validateIbovGaps = (data: IndexData[]) => {
@@ -493,7 +437,7 @@ export async function GET(request: NextRequest) {
     await requireAuthWithActing(request);
     
     const { searchParams } = new URL(request.url);
-    const range = (searchParams.get('range') || '1y') as '1d' | '1mo' | '1y';
+    const range = (searchParams.get('range') || '1y') as '1d' | '1mo' | '1y' | '2y';
     const startDateParam = searchParams.get('startDate');
     
     let startDate: Date | undefined;
@@ -503,10 +447,24 @@ export async function GET(request: NextRequest) {
     
     const results: IndexResponse[] = [];
     
-    // Buscar IBOV via endpoint /api/quote
+    // Buscar IBOV: banco primeiro, fallback BRAPI
+    const { startDate: rangeStart, endDate: rangeEnd } = getRangeDates(range, startDate);
     for (const [name, symbol] of Object.entries(INDICES)) {
       try {
-        const data = await fetchIndexHistory(symbol, range, startDate);
+        const rawData = await getAssetHistory(symbol, rangeStart, rangeEnd);
+        let data: IndexData[] = rawData.map(({ date, value }) => ({ date, value }));
+
+        // Filtrar por startDate se fornecido
+        if (startDate) {
+          const startTimestamp = startDate.getTime();
+          data = data.filter((item) => item.date >= startTimestamp);
+        }
+
+        // Filtrar dados futuros
+        const hoje = new Date();
+        hoje.setHours(23, 59, 59, 999);
+        const hojeTimestamp = hoje.getTime();
+        data = data.filter((item) => item.date <= hojeTimestamp);
         if (data.length > 0) {
           if (!validateIbovGaps(data)) {
             console.error(`[${name}] Série ignorada por buracos excessivos.`);
