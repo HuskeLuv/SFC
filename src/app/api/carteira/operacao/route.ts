@@ -103,13 +103,15 @@ export async function POST(request: NextRequest) {
           error: 'Método deve ser: valor ou percentual' 
         }, { status: 400 });
       }
-    } else if (tipoAtivo === "renda-fixa-prefixada" || tipoAtivo === "renda-fixa-posfixada") {
+    } else if (tipoAtivo === "renda-fixa-prefixada") {
+      // Fluxo com emissor/ativo específico (busca por assetId)
       if (!dataInicio || !emissorId || !periodo || !valorAplicado || !taxaJurosAnual) {
         return NextResponse.json({ 
           error: 'Campos obrigatórios para este tipo: dataInicio, emissorId, periodo, valorAplicado, taxaJurosAnual' 
         }, { status: 400 });
       }
-    } else     if (tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") {
+    } else if (tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada") {
+      // Fluxo com rendaFixaTipo (CDB, LCI, etc.) - sem emissor/periodo
       if (!rendaFixaTipo || !dataInicio || !dataVencimento || !valorAplicado || !taxaJurosAnual || !descricao) {
         return NextResponse.json({
           error: 'Campos obrigatórios para este tipo: rendaFixaTipo, dataInicio, dataVencimento, valorAplicado, taxaJurosAnual, descricao'
