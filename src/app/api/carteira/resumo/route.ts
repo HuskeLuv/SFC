@@ -95,6 +95,19 @@ const calculateFixedIncomeValue = (fixedIncome: FixedIncomeAssetWithAsset, refer
   return Math.round(valorAtual * 100) / 100;
 };
 
+/** Valor atual de renda fixa: usa valor editado manualmente (avgPrice*quantity) se existir, senão calculado */
+const getFixedIncomeCurrentValue = (
+  fixedIncome: FixedIncomeAssetWithAsset | null,
+  portfolioItem: { avgPrice: number; quantity: number },
+  referenceDate: Date
+): number => {
+  if (!fixedIncome) return 0;
+  const valorEditado = portfolioItem.avgPrice > 0 && portfolioItem.quantity > 0
+    ? portfolioItem.avgPrice * portfolioItem.quantity
+    : 0;
+  return valorEditado > 0 ? valorEditado : calculateFixedIncomeValue(fixedIncome, referenceDate);
+};
+
 const fetchAssetHistoryFromDb = async (
   symbol: string,
   startDate?: Date
@@ -305,6 +318,16 @@ export async function GET(request: NextRequest) {
     // Coletar todos os itens de investimento
     const investments = allInvestmentGroups.flatMap(group => group.items || []);
 
+    // Itens de reserva no cashflow não devem ser somados - já estão no portfolio (evita duplicação)
+    const isReservaCashflowItem = (name: string | null) => {
+      if (!name) return false;
+      const n = name.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, ''); // remove acentos
+      return (n.includes('reserva') && n.includes('emergencia')) ||
+        (n.includes('reserva') && n.includes('oportunidade')) ||
+        n.includes('emergencia');
+    };
+    const investmentsExclReservas = investments.filter((item) => !isReservaCashflowItem(item.name));
+
     // Buscar cotações atuais dos ativos no portfolio
     // Excluir símbolos de reserva, imóveis/bens e personalizados pois são assets manuais sem cotações externas
     const symbols = portfolio
@@ -368,14 +391,9 @@ export async function GET(request: NextRequest) {
         // Usar quantity * avgPrice (sem cotação)
         const valorReserva = item.quantity * item.avgPrice;
         stocksCurrentValue += valorReserva;
-        // Categorizar reservas
-        if (item.asset?.type === 'emergency' || item.asset?.symbol?.startsWith('RESERVA-EMERG')) {
-          categorias.reservaEmergencia += valorReserva;
-        } else if (item.asset?.type === 'opportunity' || item.asset?.symbol?.startsWith('RESERVA-OPORT')) {
-          categorias.reservaOportunidade += valorReserva;
-        }
+        // Categorias são preenchidas no loop "Categorizar portfolio" abaixo - não duplicar aqui
       } else if (fixedIncome) {
-        stocksCurrentValue += calculateFixedIncomeValue(fixedIncome, new Date());
+        stocksCurrentValue += getFixedIncomeCurrentValue(fixedIncome, item, new Date());
       } else if (isImovelBem || isPersonalizado) {
         // Imóveis e bens + Personalizados: usar totalInvested (valor atualizado manualmente) ou quantity * avgPrice
         const valorImovel = item.totalInvested > 0 ? item.totalInvested : (item.quantity * item.avgPrice);
@@ -396,8 +414,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Calcular totais dos outros investimentos
-    const otherInvestmentsTotalInvested = investments.reduce((sum, item) => {
+    // Calcular totais dos outros investimentos (excluindo reservas - já estão no portfolio)
+    const otherInvestmentsTotalInvested = investmentsExclReservas.reduce((sum, item) => {
       const totalValues = (item.values || []).reduce((sumValues, value) => sumValues + value.value, 0);
       return sum + totalValues;
     }, 0);
@@ -449,9 +467,8 @@ export async function GET(request: NextRequest) {
       orderBy: { date: 'asc' },
     });
 
-    // Buscar investimentos em cashflow para gerar histórico real
-    // Reutilizar os grupos já buscados acima ou buscar novamente
-    const cashflowInvestments = investments;
+    // Buscar investimentos em cashflow para gerar histórico real (excluindo reservas)
+    const cashflowInvestments = investmentsExclReservas;
 
     // Gerar histórico baseado nas transações reais
     const historicoPatrimonio = [];
@@ -740,8 +757,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Usar os investimentos já buscados acima
-    const categorizedInvestments = investments;
+    // Usar investimentos para categorização (excluindo reservas - já no portfolio)
+    const categorizedInvestments = investmentsExclReservas;
 
     // categorias já foi inicializado antes do loop do portfolio
 
@@ -761,7 +778,7 @@ export async function GET(request: NextRequest) {
                         symbol?.startsWith('RESERVA-EMERG') || symbol?.startsWith('RESERVA-OPORT');
       const currentPrice = quotes.get(symbol);
       const valorAtual = fixedIncome
-        ? calculateFixedIncomeValue(fixedIncome, new Date())
+        ? getFixedIncomeCurrentValue(fixedIncome, item, new Date())
         : (currentPrice && !isReserva
         ? item.quantity * currentPrice 
           : item.quantity * item.avgPrice); // Para reservas ou fallback, usar quantity * avgPrice
