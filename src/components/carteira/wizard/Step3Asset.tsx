@@ -150,9 +150,13 @@ export default function Step3Asset({
 
   const handleRendaFixaSelect = (tipoValue: string) => {
     const tipoSelecionado = RENDA_FIXA_TIPOS.find((tipo) => tipo.value === tipoValue);
+    const label = tipoSelecionado?.label || "Renda Fixa";
+    const ativoLabel = formData.tipoAtivo === "renda-fixa-posfixada"
+      ? label.replace(/ Pré$/, "")
+      : label;
     onFormDataChange({
       rendaFixaTipo: tipoValue,
-      ativo: tipoSelecionado?.label || "Renda Fixa",
+      ativo: ativoLabel,
       assetId: "",
     });
     if (errors.rendaFixaTipo) {
