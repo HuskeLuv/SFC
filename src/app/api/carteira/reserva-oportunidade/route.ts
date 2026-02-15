@@ -153,6 +153,11 @@ export async function GET(request: NextRequest) {
       const percentualCarteira = saldoBrutoTotal > 0 
         ? (valorAtualizado / saldoBrutoTotal) * 100 
         : 0;
+
+      // Calcular rentabilidade por ativo: ((valorAtualizado - valorInicial) / valorInicial) * 100
+      const rentabilidade = valorInicial > 0
+        ? ((valorAtualizado - valorInicial) / valorInicial) * 100
+        : 0;
       
       // Buscar metadata do mapa ou usar valores padrão
       const metadata = item.assetId ? metadataMap.get(item.assetId) : null;
@@ -170,7 +175,7 @@ export async function GET(request: NextRequest) {
         valorAtualizado,
         percentualCarteira: Math.round(percentualCarteira * 100) / 100,
         riscoAtivo: 0, // Baixo risco para reserva de oportunidade
-        rentabilidade: 0, // Para reservas, rentabilidade pode ser calculada com base em rendimentos futuros
+        rentabilidade: Math.round(rentabilidade * 100) / 100,
       };
     });
 
