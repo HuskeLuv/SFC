@@ -14,6 +14,18 @@ const normalizeDateToDayStart = (date: Date): Date => {
   return d;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Símbolos para tentar na Brapi: ações B3 podem precisar do sufixo .SA */
+const getBrapiSymbolsToTry = (symbol: string): string[] => {
+  const s = symbol.trim().toUpperCase();
+  const isB3Stock = /^[A-Z0-9]{4,6}(3|4|11|34)$/.test(s) && !s.startsWith('^');
+  if (isB3Stock && !s.endsWith('.SA')) {
+    return [s, `${s}.SA`];
+  }
+  return [s];
+};
+
 /**
  * Busca preço mais recente de um ativo no banco.
  * Retorna null se não existir.
@@ -197,8 +209,8 @@ export const persistPriceFromBrapi = async (
 };
 
 /**
- * Busca histórico de preços de um ativo no banco.
- * Se não houver dados suficientes e useBrapiFallback, busca na BRAPI e persiste.
+ * Busca histórico de preços de um ativo: banco primeiro, fallback BRAPI com persistência.
+ * Quando o banco tem dados parciais (lacunas), busca na BRAPI para preencher e persiste.
  */
 export const getAssetHistory = async (
   symbol: string,
@@ -227,8 +239,20 @@ export const getAssetHistory = async (
   }));
 
   const useFallback = options?.useBrapiFallback !== false;
-  if (data.length === 0 && useFallback) {
-    data = await fetchAndPersistHistoryFromBrapi(normalized, start, end);
+  const expectedDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS));
+  const hasInsufficientData = data.length < expectedDays * 0.5;
+
+  if (useFallback && (data.length === 0 || hasInsufficientData)) {
+    const fromBrapi = await fetchAndPersistHistoryFromBrapi(normalized, start, end);
+    if (fromBrapi.length > 0) {
+      const byDate = new Map(data.map((d) => [d.date, d]));
+      fromBrapi.forEach((d) => {
+        if (!byDate.has(d.date)) byDate.set(d.date, d);
+      });
+      data = Array.from(byDate.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, v]) => v);
+    }
   }
 
   return data;
@@ -236,21 +260,38 @@ export const getAssetHistory = async (
 
 /**
  * Busca histórico na BRAPI, persiste no banco e retorna.
+ * Tenta múltiplos formatos de símbolo (ex: PETR4 e PETR4.SA para ações B3).
  */
 const fetchAndPersistHistoryFromBrapi = async (
   symbol: string,
   startDate: Date,
   endDate: Date
 ): Promise<Array<{ date: number; value: number }>> => {
+  const symbolsToTry = getBrapiSymbolsToTry(symbol);
+
+  for (const brapiSymbol of symbolsToTry) {
+    const data = await tryFetchHistoryFromBrapi(brapiSymbol, symbol, startDate, endDate);
+    if (data.length > 0) return data;
+  }
+
+  return [];
+};
+
+const tryFetchHistoryFromBrapi = async (
+  brapiSymbol: string,
+  dbSymbol: string,
+  startDate: Date,
+  endDate: Date
+): Promise<Array<{ date: number; value: number }>> => {
   try {
     const apiKey = process.env.BRAPI_API_KEY;
     const tokenParam = apiKey ? `&token=${apiKey}` : '';
-    const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / (24 * 60 * 60 * 1000));
+    const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / DAY_MS);
     let brapiRange = '1y';
     if (daysSinceStart > 1825) brapiRange = '5y';
     else if (daysSinceStart > 730) brapiRange = '2y';
 
-    const url = `https://brapi.dev/api/quote/${symbol}?range=${brapiRange}&interval=1d${tokenParam}`;
+    const url = `https://brapi.dev/api/quote/${encodeURIComponent(brapiSymbol)}?range=${brapiRange}&interval=1d${tokenParam}`;
     const response = await fetch(url, {
       headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
     });
@@ -266,17 +307,16 @@ const fetchAndPersistHistoryFromBrapi = async (
     if (!historicalData.length) return [];
 
     let asset = await prisma.asset.findUnique({
-      where: { symbol },
+      where: { symbol: dbSymbol },
       select: { id: true, currency: true },
     });
 
-    // Para índices (ex: ^BVSP), criar Asset se não existir
-    if (!asset && symbol.startsWith('^')) {
+    if (!asset && dbSymbol.startsWith('^')) {
       asset = await prisma.asset.upsert({
-        where: { symbol },
+        where: { symbol: dbSymbol },
         create: {
-          symbol,
-          name: symbol === '^BVSP' ? 'IBOVESPA' : symbol,
+          symbol: dbSymbol,
+          name: dbSymbol === '^BVSP' ? 'IBOVESPA' : dbSymbol,
           type: 'index',
           currency: 'BRL',
           source: 'brapi',
@@ -291,25 +331,28 @@ const fetchAndPersistHistoryFromBrapi = async (
     const toPersist: Array<{ date: Date; value: number }> = [];
     const data: Array<{ date: number; value: number }> = [];
 
+    const startNorm = normalizeDateToDayStart(startDate);
+    const endNorm = normalizeDateToDayStart(endDate);
+
     for (const item of historicalData) {
       const dateMs = (item.date ?? 0) * 1000;
       const value = item.close ?? 0;
       if (!Number.isFinite(value) || value <= 0) continue;
 
-      const d = new Date(dateMs);
-      if (d >= startDate && d <= endDate) {
-        data.push({ date: normalizeDateToDayStart(d).getTime(), value });
-        toPersist.push({ date: normalizeDateToDayStart(d), value });
+      const d = normalizeDateToDayStart(new Date(dateMs));
+      toPersist.push({ date: d, value });
+      if (d >= startNorm && d <= endNorm) {
+        data.push({ date: d.getTime(), value });
       }
     }
 
     for (const p of toPersist) {
       await prisma.assetPriceHistory.upsert({
-        where: { symbol_date: { symbol, date: p.date } },
+        where: { symbol_date: { symbol: dbSymbol, date: p.date } },
         update: { price: new Decimal(p.value) },
         create: {
           assetId: asset.id,
-          symbol,
+          symbol: dbSymbol,
           price: new Decimal(p.value),
           currency: asset.currency,
           source: 'BRAPI',
@@ -320,7 +363,7 @@ const fetchAndPersistHistoryFromBrapi = async (
 
     return data.sort((a, b) => a.date - b.date);
   } catch (err) {
-    console.error(`[getAssetHistory] Erro ao buscar histórico de ${symbol}:`, err);
+    console.error(`[getAssetHistory] Erro ao buscar histórico de ${brapiSymbol}:`, err);
     return [];
   }
 };

@@ -22,12 +22,24 @@ interface BrapiCrypto {
   currency: string;
 }
 
+/** Formato retornado pela API Brapi v2/crypto (coin, coinName, regularMarketPrice) */
+interface BrapiCryptoApiResponse {
+  coin?: string;
+  coinName?: string;
+  regularMarketPrice?: number;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  marketCap?: number;
+  regularMarketVolume?: number;
+  currency?: string;
+}
+
 interface BrapiStocksResponse {
   stocks: BrapiStock[];
 }
 
 interface BrapiCryptoResponse {
-  coins: BrapiCrypto[];
+  coins?: BrapiCryptoApiResponse[];
 }
 
 interface SyncResult {
@@ -118,8 +130,27 @@ const fetchCrypto = async (): Promise<BrapiCrypto[]> => {
       throw new Error('Formato de resposta inesperado da API brapi.dev para criptos');
     }
     
-    console.log(`✅ ${data.coins.length} criptoativos encontrados na API`);
-    return data.coins;
+    // Normalizar formato da API v2 (coin, coinName, regularMarketPrice) para BrapiCrypto
+    const normalized: BrapiCrypto[] = data.coins
+      .map((c) => {
+        const api = c as BrapiCryptoApiResponse;
+        const legacy = c as BrapiCrypto;
+        const symbol = api.coin ?? legacy.symbol ?? '';
+        return {
+          symbol,
+          name: api.coinName ?? legacy.name ?? symbol,
+          price: api.regularMarketPrice ?? legacy.price ?? 0,
+          change_24h: api.regularMarketChange ?? legacy.change_24h ?? 0,
+          change_percentage_24h: api.regularMarketChangePercent ?? legacy.change_percentage_24h ?? 0,
+          market_cap: api.marketCap ?? legacy.market_cap ?? 0,
+          volume_24h: api.regularMarketVolume ?? legacy.volume_24h ?? 0,
+          currency: api.currency ?? legacy.currency ?? 'USD',
+        };
+      })
+      .filter((c) => c.symbol.length > 0);
+    
+    console.log(`✅ ${normalized.length} criptoativos encontrados na API`);
+    return normalized;
     
   } catch (error) {
     console.error('❌ Erro ao buscar dados de criptos da API brapi.dev:', error);
