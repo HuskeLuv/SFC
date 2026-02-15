@@ -106,13 +106,14 @@ export default function CarteiraResumo() {
   const [activeTab, setActiveTab] = useState("consolidada");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRedeemSidebarOpen, setIsRedeemSidebarOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { resumo, loading, error, formatCurrency, formatPercentage, refetch, updateMeta, updateCaixaParaInvestir } = useCarteira();
   const alocacaoConfig = useAlocacaoConfig();
   const [isEditingMeta, setIsEditingMeta] = useState(false);
   const [metaInputValue, setMetaInputValue] = useState("");
   const [isSavingMeta, setIsSavingMeta] = useState(false);
   const [metaErrorMessage, setMetaErrorMessage] = useState<string | null>(null);
-  const { data: reservaEmergenciaData, updateValorAtualizado: updateReservaEmergenciaValor } = useReservaEmergencia();
+  const { data: reservaEmergenciaData, refetch: refetchReservaEmergencia, updateValorAtualizado: updateReservaEmergenciaValor } = useReservaEmergencia();
 
   // Mover useMemo para antes dos early returns para seguir as regras dos Hooks
   const necessidadeAporteMap = useMemo<NecessidadeAporteMap>(() => {
@@ -189,6 +190,7 @@ export default function CarteiraResumo() {
     refetch,
     necessidadeAporteMap,
     isAlocacaoLoading: alocacaoConfig.loading,
+    refreshTrigger,
   };
 
   return (
@@ -284,14 +286,20 @@ export default function CarteiraResumo() {
                 saldoInicioMes={reservaEmergenciaData.saldoInicioMes}
                 rendimento={reservaEmergenciaData.rendimento}
                 rentabilidade={reservaEmergenciaData.rentabilidade}
-                onUpdateValorAtualizado={updateReservaEmergenciaValor}
+                onUpdateValorAtualizado={async (portfolioId, novoValor) => {
+                  await updateReservaEmergenciaValor(portfolioId, novoValor);
+                  refetch();
+                }}
                 totalCarteira={resumo?.saldoBruto || 0}
               />
             </TabContent>
 
             {/* Reserva de Oportunidade */}
             <TabContent id="reserva-oportunidade" isActive={activeTab === "reserva-oportunidade"}>
-              <ReservaOportunidadeTable totalCarteira={resumo?.saldoBruto || 0} />
+              <ReservaOportunidadeTable
+                totalCarteira={resumo?.saldoBruto || 0}
+                onUpdateSuccess={refetch}
+              />
             </TabContent>
 
             {/* Renda Fixa */}
@@ -381,6 +389,8 @@ export default function CarteiraResumo() {
           onClose={() => setIsSidebarOpen(false)}
           onSuccess={() => {
             refetch();
+            refetchReservaEmergencia();
+            setRefreshTrigger((t) => t + 1);
           }}
         />
         <RedeemAssetWizard
@@ -388,6 +398,8 @@ export default function CarteiraResumo() {
           onClose={() => setIsRedeemSidebarOpen(false)}
           onSuccess={() => {
             refetch();
+            refetchReservaEmergencia();
+            setRefreshTrigger((t) => t + 1);
           }}
         />
       </div>

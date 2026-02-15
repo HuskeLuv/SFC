@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useReservaOportunidade } from "@/hooks/useReservaOportunidade";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
 import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableBodyCell, StandardTableRow } from "@/components/ui/table/StandardTable";
@@ -141,10 +142,23 @@ const ReservaOportunidadeTableRow: React.FC<ReservaOportunidadeTableRowProps> = 
 
 interface ReservaOportunidadeTableProps {
   totalCarteira?: number;
+  onUpdateSuccess?: () => void;
 }
 
-export default function ReservaOportunidadeTable({ totalCarteira = 0 }: ReservaOportunidadeTableProps) {
-  const { data, loading, error, updateValorAtualizado } = useReservaOportunidade();
+export default function ReservaOportunidadeTable({ totalCarteira = 0, onUpdateSuccess }: ReservaOportunidadeTableProps) {
+  const { data, loading, error, updateValorAtualizado, refetch } = useReservaOportunidade();
+  const { refreshTrigger } = useCarteiraResumoContext();
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      refetch();
+    }
+  }, [refreshTrigger, refetch]);
+
+  const handleUpdateValorAtualizado = async (portfolioId: string, novoValor: number) => {
+    await updateValorAtualizado(portfolioId, novoValor);
+    onUpdateSuccess?.();
+  };
 
   // Calcular risco (carteira total) e percentual da carteira da aba
   const ativosComRisco = useMemo(() => {
@@ -265,7 +279,7 @@ export default function ReservaOportunidadeTable({ totalCarteira = 0 }: ReservaO
                 ativo={ativo}
                 formatCurrency={formatCurrency}
                 formatPercentage={formatPercentage}
-                onUpdateValorAtualizado={updateValorAtualizado}
+                onUpdateValorAtualizado={handleUpdateValorAtualizado}
               />
             ))}
             <StandardTablePlaceholderRows

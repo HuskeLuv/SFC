@@ -11,6 +11,8 @@ interface CarteiraResumoContextValue {
   refetch: () => Promise<void>;
   necessidadeAporteMap: NecessidadeAporteMap;
   isAlocacaoLoading: boolean;
+  /** Incrementa quando ativos são adicionados/resgatados - usado para forçar refetch nas tabs */
+  refreshTrigger: number;
 }
 
 const CarteiraResumoContext = createContext<CarteiraResumoContextValue | null>(null);
