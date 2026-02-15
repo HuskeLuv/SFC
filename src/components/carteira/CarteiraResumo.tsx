@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import AlocacaoAtivosTable from "./AlocacaoAtivosTable";
 import ReservaEmergenciaTable from "./ReservaEmergenciaTable";
 import RendaFixaTable from "./RendaFixaTable";
@@ -17,17 +17,14 @@ import ImoveisBensTable from "./ImoveisBensTable";
 import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCarteiraHistorico";
 import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarteiraInvestimentos";
 import ComponentCard from "@/components/common/ComponentCard";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
 import MarketIndicatorsCards from "./MarketIndicatorsCards";
 import AddAssetWizard from "./AddAssetWizard";
 import RedeemAssetWizard from "./RedeemAssetWizard";
 import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
-import { DownloadIcon, PencilIcon, PlusIcon } from "@/icons";
+import { DownloadIcon, PlusIcon } from "@/icons";
 import { useReservaEmergencia } from "@/hooks/useReservaEmergencia";
-import { useCarteira } from "@/hooks/useCarteira";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { useAlocacaoConfig } from "@/hooks/useAlocacaoConfig";
-import { CarteiraResumoProvider } from "@/context/CarteiraResumoContext";
-import type { NecessidadeAporteMap } from "@/context/CarteiraResumoContext";
 
 interface TabButtonProps {
   id: string;
@@ -106,8 +103,7 @@ export default function CarteiraResumo() {
   const [activeTab, setActiveTab] = useState("consolidada");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRedeemSidebarOpen, setIsRedeemSidebarOpen] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const { resumo, loading, error, formatCurrency, formatPercentage, refetch, updateMeta, updateCaixaParaInvestir } = useCarteira();
+  const { resumo, formatCurrency, refetch, updateMeta, updateCaixaParaInvestir, incrementRefreshTrigger } = useCarteiraResumoContext();
   const alocacaoConfig = useAlocacaoConfig();
   const [isEditingMeta, setIsEditingMeta] = useState(false);
   const [metaInputValue, setMetaInputValue] = useState("");
@@ -115,87 +111,8 @@ export default function CarteiraResumo() {
   const [metaErrorMessage, setMetaErrorMessage] = useState<string | null>(null);
   const { data: reservaEmergenciaData, refetch: refetchReservaEmergencia, updateValorAtualizado: updateReservaEmergenciaValor } = useReservaEmergencia();
 
-  // Mover useMemo para antes dos early returns para seguir as regras dos Hooks
-  const necessidadeAporteMap = useMemo<NecessidadeAporteMap>(() => {
-    if (!resumo) {
-      return {};
-    }
-
-    const totalCarteira = Object.values(resumo.distribuicao).reduce((sum, item) => sum + item.valor, 0);
-
-    if (totalCarteira <= 0) {
-      return {};
-    }
-
-    const targetMap = alocacaoConfig.configuracoes.reduce<Record<string, number>>((accumulator, config) => {
-      accumulator[config.categoria] = config.target;
-      return accumulator;
-    }, {});
-
-    return Object.entries(resumo.distribuicao).reduce<NecessidadeAporteMap>((accumulator, [categoria, info]) => {
-      const targetPercentual = targetMap[categoria];
-
-      if (targetPercentual === undefined) {
-        accumulator[categoria] = 0;
-        return accumulator;
-      }
-
-      const percentualAtual = totalCarteira > 0 ? (info.valor / totalCarteira) * 100 : 0;
-      const diferenca = targetPercentual - percentualAtual;
-      const necessidade = diferenca > 0 ? (diferenca / 100) * totalCarteira : 0;
-
-      accumulator[categoria] = Number.isFinite(necessidade) ? necessidade : 0;
-      return accumulator;
-    }, {});
-  }, [resumo, alocacaoConfig.configuracoes]);
-
-  // Early returns após todos os hooks
-  if (loading) {
-    return <LoadingSpinner text="Carregando dados da carteira..." />;
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
-            Erro ao carregar dados
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!resumo) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-            Nenhum dado encontrado
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Adicione seus primeiros investimentos para começar a acompanhar sua carteira.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const carteiraResumoProviderValue = {
-    resumo,
-    formatCurrency,
-    formatPercentage,
-    updateMeta,
-    refetch,
-    necessidadeAporteMap,
-    isAlocacaoLoading: alocacaoConfig.loading,
-    refreshTrigger,
-  };
-
   return (
-    <CarteiraResumoProvider value={carteiraResumoProviderValue}>
-      <div>
+    <div>
         {/* Header com botão de adicionar investimento */}
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -390,7 +307,7 @@ export default function CarteiraResumo() {
           onSuccess={() => {
             refetch();
             refetchReservaEmergencia();
-            setRefreshTrigger((t) => t + 1);
+            incrementRefreshTrigger();
           }}
         />
         <RedeemAssetWizard
@@ -399,11 +316,10 @@ export default function CarteiraResumo() {
           onSuccess={() => {
             refetch();
             refetchReservaEmergencia();
-            setRefreshTrigger((t) => t + 1);
+            incrementRefreshTrigger();
           }}
         />
       </div>
-    </CarteiraResumoProvider>
   );
 }
 

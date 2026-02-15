@@ -5,14 +5,18 @@ export type NecessidadeAporteMap = Record<string, number>;
 
 interface CarteiraResumoContextValue {
   resumo: CarteiraResumo;
+  loading: boolean;
+  error: string | null;
   formatCurrency: (value: number | null | undefined) => string;
   formatPercentage: (value: number | null | undefined) => string;
   updateMeta: (novaMetaPatrimonio: number) => Promise<boolean>;
+  updateCaixaParaInvestir: (novoCaixa: number) => Promise<boolean>;
   refetch: () => Promise<void>;
   necessidadeAporteMap: NecessidadeAporteMap;
   isAlocacaoLoading: boolean;
   /** Incrementa quando ativos são adicionados/resgatados - usado para forçar refetch nas tabs */
   refreshTrigger: number;
+  incrementRefreshTrigger: () => void;
 }
 
 const CarteiraResumoContext = createContext<CarteiraResumoContextValue | null>(null);
