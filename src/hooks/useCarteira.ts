@@ -11,6 +11,7 @@ export interface CarteiraResumo {
     valorAplicado: number;
     saldoBruto: number;
   }>;
+  historicoTWR?: Array<{ data: number; value: number }>;
   distribuicao: {
     reservaEmergencia: {
       valor: number;
