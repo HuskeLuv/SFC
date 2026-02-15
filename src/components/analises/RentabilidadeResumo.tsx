@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo } from "react";
 import ComponentCard from "@/components/common/ComponentCard";
-import { useCarteira } from "@/hooks/useCarteira";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { useIndices } from "@/hooks/useIndices";
 import { useCarteiraHistorico } from "@/hooks/useCarteiraHistorico";
 import dynamic from "next/dynamic";
@@ -10,7 +10,7 @@ import { ApexOptions } from "apexcharts";
 const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function RentabilidadeResumo() {
-  const { resumo, formatPercentage } = useCarteira();
+  const { resumo, formatPercentage } = useCarteiraResumoContext();
 
   // Calcular data do primeiro investimento
   const firstInvestmentDate = useMemo(() => {
@@ -23,11 +23,11 @@ export default function RentabilidadeResumo() {
     return firstNonZeroItem?.data;
   }, [resumo?.historicoPatrimonio]);
 
-  // Buscar dados para os períodos
+  const hasHistoricoTWR = Array.isArray(resumo?.historicoTWR) && resumo.historicoTWR.length > 0;
   const { indices: indices1d } = useIndices("1d", firstInvestmentDate);
   const { indices: indices1mo } = useIndices("1mo", firstInvestmentDate);
   const { indices: indices1y } = useIndices("1y");
-  const { data: carteiraHistoricoDiario } = useCarteiraHistorico(firstInvestmentDate);
+  const { data: carteiraHistoricoDiario } = useCarteiraHistorico(firstInvestmentDate, { enabled: !hasHistoricoTWR });
 
   // Calcular rentabilidades por período
   const rentabilidades = useMemo(() => {
@@ -56,18 +56,23 @@ export default function RentabilidadeResumo() {
     const calcularRentabilidade = (data: Array<{ date: number; value: number }>, dataInicio: number, dataFim: number) => {
       const dadosFiltrados = data.filter(item => item.date >= dataInicio && item.date <= dataFim);
       if (dadosFiltrados.length === 0) return 0;
-      
-      const valorInicio = dadosFiltrados[0]?.value || 0;
-      const valorFim = dadosFiltrados[dadosFiltrados.length - 1]?.value || 0;
-      
+
+      const valorInicio = dadosFiltrados[0]?.value ?? 0;
+      const valorFim = dadosFiltrados[dadosFiltrados.length - 1]?.value ?? 0;
+
       if (valorInicio === 0) return 0;
-      return ((valorFim - valorInicio) / Math.abs(valorInicio)) * 100;
+      const cumInicio = 1 + valorInicio / 100;
+      const cumFim = 1 + valorFim / 100;
+      return ((cumFim / cumInicio) - 1) * 100;
     };
 
-    const carteiraUltimoDia = calcularRentabilidade(carteiraHistoricoDiario, ontemTimestamp, hojeTimestamp);
-    const carteiraMes = calcularRentabilidade(carteiraHistoricoDiario, primeiroDiaMesTimestamp, hojeTimestamp);
-    const carteiraAno = calcularRentabilidade(carteiraHistoricoDiario, primeiroDiaAnoTimestamp, hojeTimestamp);
-    const carteira12Meses = calcularRentabilidade(carteiraHistoricoDiario, dozeMesesAtrasTimestamp, hojeTimestamp);
+    const carteiraData = hasHistoricoTWR
+      ? (resumo?.historicoTWR ?? []).map((t) => ({ date: t.data, value: t.value }))
+      : (carteiraHistoricoDiario ?? []);
+    const carteiraUltimoDia = calcularRentabilidade(carteiraData, ontemTimestamp, hojeTimestamp);
+    const carteiraMes = calcularRentabilidade(carteiraData, primeiroDiaMesTimestamp, hojeTimestamp);
+    const carteiraAno = calcularRentabilidade(carteiraData, primeiroDiaAnoTimestamp, hojeTimestamp);
+    const carteira12Meses = calcularRentabilidade(carteiraData, dozeMesesAtrasTimestamp, hojeTimestamp);
 
     const cdi1d = indices1d.find(i => i.name === 'CDI');
     const cdi1mo = indices1mo.find(i => i.name === 'CDI');
