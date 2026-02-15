@@ -95,6 +95,45 @@ const calculateFixedIncomeValue = (fixedIncome: FixedIncomeAssetWithAsset, refer
   return Math.round(valorAtual * 100) / 100;
 };
 
+/**
+ * Calcula série TWR (Time Weighted Return) diária.
+ * Fórmula: retorno_dia = (valorFinal - valorInicial - fluxoCaixa) / valorInicial
+ * Dividendos não entram em fluxoCaixa (já estão no patrimônio).
+ */
+const calculateHistoricoTWR = (
+  patrimonioSeries: Array<{ data: number; saldoBruto: number }>,
+  cashFlowsByDay: Map<number, number>
+): Array<{ data: number; value: number }> => {
+  if (patrimonioSeries.length === 0) return [];
+
+  const result: Array<{ data: number; value: number }> = [];
+  let cumulative = 1;
+
+  for (let i = 0; i < patrimonioSeries.length; i++) {
+    if (i === 0) {
+      result.push({ data: patrimonioSeries[i].data, value: 0 });
+      continue;
+    }
+
+    const valorInicial = patrimonioSeries[i - 1].saldoBruto;
+    const valorFinal = patrimonioSeries[i].saldoBruto;
+    const fluxo = cashFlowsByDay.get(patrimonioSeries[i].data) ?? 0;
+
+    let retornoDia = 0;
+    if (valorInicial > 0) {
+      retornoDia = (valorFinal - valorInicial - fluxo) / valorInicial;
+    }
+
+    cumulative *= 1 + retornoDia;
+    result.push({
+      data: patrimonioSeries[i].data,
+      value: Math.round((cumulative - 1) * 10000) / 100,
+    });
+  }
+
+  return result;
+};
+
 /** Valor atual de renda fixa: usa valor editado manualmente (avgPrice*quantity) se existir, senão calculado */
 const getFixedIncomeCurrentValue = (
   fixedIncome: FixedIncomeAssetWithAsset | null,
@@ -222,6 +261,10 @@ export async function GET(request: NextRequest) {
   try {
     runPatrimonioScenarioTest();
     const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+
+    const { searchParams } = new URL(request.url);
+    const twrStartDateParam = searchParams.get('twrStartDate');
+    const twrStartDate = twrStartDateParam ? parseInt(twrStartDateParam, 10) : undefined;
     
     // Registrar acesso se estiver personificado
     await logSensitiveEndpointAccess(
@@ -471,8 +514,10 @@ export async function GET(request: NextRequest) {
     const cashflowInvestments = investmentsExclReservas;
 
     // Gerar histórico baseado nas transações reais
-    const historicoPatrimonio = [];
-    
+    const historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
+    const historicoTWR: Array<{ data: number; value: number }> = [];
+    let historicoTWRPeriodo: Array<{ data: number; value: number }> = [];
+
     if (stockTransactions.length > 0 || cashflowInvestments.length > 0 || portfolio.length > 0) {
       const hoje = normalizeDateStart(new Date());
 
@@ -628,6 +673,15 @@ export async function GET(request: NextRequest) {
 
       const pricesBySymbol = new Map<string, Map<number, number>>();
       const fallbackPriceBySymbol = new Map<string, number>();
+
+      const symbolsToFetch = [...allSymbols].filter(
+        (s) => !(portfolioBySymbol.get(s)?.isManual ?? false)
+      );
+      const fetchedHistories = await Promise.all(
+        symbolsToFetch.map((symbol) => fetchAssetHistoryFromDb(symbol, timelineStart))
+      );
+      const historyBySymbol = new Map(symbolsToFetch.map((s, i) => [s, fetchedHistories[i] ?? []]));
+
       for (const symbol of allSymbols) {
         const portfolioInfo = portfolioBySymbol.get(symbol);
         const isManual = portfolioInfo?.isManual ?? false;
@@ -636,8 +690,7 @@ export async function GET(request: NextRequest) {
 
         let history: Array<{ date: number; value: number }> = [];
         if (!isManual) {
-          const fetchedHistory = await fetchAssetHistoryFromDb(symbol, timelineStart);
-          history = [...fetchedHistory, ...pricePoints];
+          history = [...(historyBySymbol.get(symbol) ?? []), ...pricePoints];
         } else {
           history = [...pricePoints, ...fixedIncomePoints];
         }
@@ -646,10 +699,7 @@ export async function GET(request: NextRequest) {
           ? pricePoints[0]?.value
           : portfolioInfo?.avgPrice;
 
-        // Para ativos manuais (reservas, imóveis, etc.), usar o preço atual (avgPrice) em todos os dias do histórico
         if (isManual && portfolioInfo?.avgPrice && portfolioInfo.avgPrice > 0) {
-          // Para ativos manuais, usar o preço atual (avgPrice) como preço em todos os dias
-          // Criar histórico com o preço atual desde o início até hoje
           history = [
             { date: timelineStart.getTime(), value: portfolioInfo.avgPrice },
             { date: hoje.getTime(), value: portfolioInfo.avgPrice },
@@ -745,16 +795,51 @@ export async function GET(request: NextRequest) {
       }
 
       historicoPatrimonio.push(...patrimonioSeries);
+
+      const cashFlowsByDay = new Map<number, number>();
+      timeline.forEach((day) => {
+        const cashDelta = cashDeltasByDay.get(day) ?? 0;
+        const manualVal = manualValuesByDay.get(day) ?? 0;
+        cashFlowsByDay.set(day, -cashDelta + manualVal);
+      });
+
+      historicoTWR.push(...calculateHistoricoTWR(patrimonioSeries, cashFlowsByDay));
+
+      if (typeof twrStartDate === 'number' && Number.isFinite(twrStartDate) && twrStartDate > 0) {
+        const periodStart = normalizeDateStart(new Date(twrStartDate)).getTime();
+        const periodEnd = hoje.getTime();
+        if (periodStart <= periodEnd) {
+          const beforePeriod = patrimonioSeries.filter((p) => p.data < periodStart);
+          const patrimonyAtStart = beforePeriod.length > 0
+            ? beforePeriod[beforePeriod.length - 1].saldoBruto
+            : patrimonioSeries[0]?.saldoBruto ?? 0;
+          const periodPatrimonio = patrimonioSeries.filter((p) => p.data >= periodStart);
+          if (periodPatrimonio.length > 0) {
+            const periodPatrimonioSeries = [
+              { data: periodStart, valorAplicado: 0, saldoBruto: patrimonyAtStart },
+              ...periodPatrimonio,
+            ];
+            const periodCashFlows = new Map<number, number>();
+            periodPatrimonioSeries.forEach((p) => {
+              const cf = cashFlowsByDay.get(p.data);
+              if (cf !== undefined && cf !== 0) periodCashFlows.set(p.data, cf);
+            });
+            historicoTWRPeriodo = calculateHistoricoTWR(periodPatrimonioSeries, periodCashFlows);
+          }
+        }
+      }
     } else {
       const hoje = new Date();
+      const saldo = Math.round(saldoBruto * 100) / 100;
       for (let i = 11; i >= 0; i--) {
         const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
         historicoPatrimonio.push({
           data: data.getTime(),
           valorAplicado: 0,
-          saldoBruto: Math.round(saldoBruto * 100) / 100,
+          saldoBruto: saldo,
         });
       }
+      historicoTWR.push(...historicoPatrimonio.map((item, i) => ({ data: item.data, value: i === 0 ? 0 : 0 })));
     }
 
     // Usar investimentos para categorização (excluindo reservas - já no portfolio)
@@ -1013,13 +1098,14 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    const resumo = {
+    const resumo: Record<string, unknown> = {
       saldoBruto: Math.round(saldoBruto * 100) / 100,
       valorAplicado: Math.round(valorAplicado * 100) / 100,
       rentabilidade: Math.round(rentabilidade * 100) / 100,
       metaPatrimonio: metaPatrimonio?.value || 0,
       caixaParaInvestir: caixaParaInvestir || 0,
       historicoPatrimonio,
+      historicoTWR,
       distribuicao,
       portfolioDetalhes: {
         totalAcoes: portfolio.length,
@@ -1030,6 +1116,10 @@ export async function GET(request: NextRequest) {
         otherInvestmentsCurrentValue: Math.round(otherInvestmentsCurrentValue * 100) / 100,
       },
     };
+
+    if (historicoTWRPeriodo.length > 0) {
+      resumo.historicoTWRPeriodo = historicoTWRPeriodo;
+    }
 
     return NextResponse.json(resumo);
     

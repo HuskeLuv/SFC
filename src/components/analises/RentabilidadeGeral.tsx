@@ -3,8 +3,9 @@ import React, { useMemo, useState } from "react";
 import ComponentCard from "@/components/common/ComponentCard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { useIndices, IndexData } from "@/hooks/useIndices";
-import { useCarteira } from "@/hooks/useCarteira";
+import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { useCarteiraHistorico } from "@/hooks/useCarteiraHistorico";
+import { useRentabilidadePeriodo } from "@/hooks/useRentabilidadePeriodo";
 import RentabilidadeChart from "./RentabilidadeChart";
 import RentabilidadeResumo from "./RentabilidadeResumo";
 
@@ -22,7 +23,7 @@ const RENTABILIDADE_RANGE_OPTIONS: Array<{ value: RentabilidadeRangeValue; label
 
 export default function RentabilidadeGeral() {
   const [selectedRange, setSelectedRange] = useState<RentabilidadeRangeValue>("inicio");
-  const { resumo, loading: carteiraLoading } = useCarteira();
+  const { resumo, loading: carteiraLoading } = useCarteiraResumoContext();
 
   const normalizeStartDate = (date: Date): number => {
     const normalized = new Date(date);
@@ -102,33 +103,16 @@ export default function RentabilidadeGeral() {
     return rangeStart;
   }, [firstInvestmentDate, selectedRange]);
 
-  // Buscar histórico diário da carteira - fallback quando historicoPatrimonio não está disponível
-  const { data: carteiraHistoricoDiario, loading: loadingCarteiraHistorico, error: errorCarteiraHistorico } = useCarteiraHistorico(selectedRangeStart);
-
-  // Dados da carteira para o gráfico: priorizar historicoPatrimonio (resumo) pois inclui
-  // renda fixa, reservas e ativos manuais corretamente. Fallback para carteira-historico API.
-  const carteiraHistoricoParaChart = useMemo(() => {
-    if (resumo?.historicoPatrimonio && resumo.historicoPatrimonio.length > 0) {
-      const historico = resumo.historicoPatrimonio;
-      const firstNonZeroIndex = historico.findIndex(
-        item => item.saldoBruto > 0 || item.valorAplicado > 0
-      );
-      if (firstNonZeroIndex === -1) return [];
-      const firstNonZeroItem = historico[firstNonZeroIndex];
-      const firstValue = firstNonZeroItem.saldoBruto;
-      const firstDate = firstNonZeroItem.data;
-      const hoje = new Date();
-      hoje.setHours(23, 59, 59, 999);
-      const hojeTimestamp = hoje.getTime();
-      return historico
-        .filter(item => item.data >= firstDate && item.data <= hojeTimestamp)
-        .map(item => ({
-          date: item.data,
-          value: ((item.saldoBruto - firstValue) / firstValue) * 100,
-        }));
-    }
-    return carteiraHistoricoDiario || [];
-  }, [resumo?.historicoPatrimonio, carteiraHistoricoDiario]);
+  const hasHistoricoTWR = Array.isArray(resumo?.historicoTWR) && resumo.historicoTWR.length > 0;
+  const isPeriodoInicio = selectedRange === "inicio";
+  const { data: carteiraHistoricoDiario, loading: loadingCarteiraHistorico, error: errorCarteiraHistorico } = useCarteiraHistorico(
+    selectedRangeStart,
+    { enabled: !hasHistoricoTWR }
+  );
+  const { data: rentabilidadePeriodo, loading: loadingRentabilidadePeriodo, error: errorRentabilidadePeriodo } = useRentabilidadePeriodo(
+    isPeriodoInicio ? undefined : selectedRangeStart,
+    { enabled: hasHistoricoTWR && !isPeriodoInicio }
+  );
 
   // Range dos índices deve cobrir o período selecionado para evitar dados incompletos
   const indicesDailyRange = useMemo(() => {
@@ -143,56 +127,42 @@ export default function RentabilidadeGeral() {
   const { indices: indices1mo, loading: loading1mo, error: error1mo } = useIndices("1mo", selectedRangeStart);
   const { indices: indices1y, loading: loading1y, error: error1y } = useIndices("1y", selectedRangeStart);
 
-  const filterDataByStart = <T extends { date: number }>(data: T[], startDate?: number): T[] => {
-    if (!Array.isArray(data) || data.length === 0) {
-      return [];
-    }
-    if (!startDate) {
-      return data;
-    }
-    // Filtrar dados a partir da data de início
-    const filtered = data.filter((item) => item && typeof item.date === 'number' && item.date >= startDate);
-    
-    // Se não há dados a partir da data solicitada, retornar todos os dados disponíveis
-    // (mostrar dados a partir do início real quando não há dados mais antigos)
-    if (filtered.length === 0) {
-      return data;
-    }
-    
-    return filtered;
+  const filterDataByStart = <T extends { date: number } | { data: number }>(
+    data: T[],
+    startDate?: number,
+    dateKey: 'date' | 'data' = 'date'
+  ): T[] => {
+    if (!Array.isArray(data) || data.length === 0) return [];
+    if (!startDate) return data;
+    const key = dateKey;
+    const filtered = data.filter((item) => item && typeof (item as Record<string, number>)[key] === 'number' && (item as Record<string, number>)[key] >= startDate);
+    return filtered.length === 0 ? data : filtered;
   };
 
-  const rebaseToStart = (data: IndexData[]): IndexData[] => {
-    if (!Array.isArray(data) || data.length === 0) return data;
-    
-    // Encontrar o primeiro valor não-zero para usar como base
-    let baseValue = 0;
-    let baseItem: IndexData | null = null;
-    
-    for (const item of data) {
-      if (item && typeof item.value === 'number' && Number.isFinite(item.value) && item.value !== 0) {
-        baseValue = item.value;
-        baseItem = item;
-        break;
-      }
+  /**
+   * Dados TWR para o gráfico - SEMPRE recalculados por período (nunca filtro visual).
+   * - "inicio": historicoTWR completo ou carteira-historico desde primeira transação
+   * - 12m, 2y, etc: API recalcula desde o início do período (primeiro ponto = 0%)
+   */
+  const carteiraTWRParaChart = useMemo((): IndexData[] => {
+    if (hasHistoricoTWR && !isPeriodoInicio && rentabilidadePeriodo.length > 0) {
+      return rentabilidadePeriodo;
     }
-    
-    if (baseValue === 0 || !baseItem) return data;
-
-    return data.map((item) => ({
-      ...item,
-      value: item.value - baseValue,
-    }));
-  };
-
-  const filteredCarteiraHistorico = useMemo(() => {
-    if (!Array.isArray(carteiraHistoricoParaChart) || carteiraHistoricoParaChart.length === 0) {
-      return [];
+    if (hasHistoricoTWR && isPeriodoInicio) {
+      const twr = resumo?.historicoTWR ?? [];
+      return twr.map((item) => ({ date: item.data, value: item.value }));
     }
-    const filtered = filterDataByStart(carteiraHistoricoParaChart, selectedRangeStart);
-    if (filtered.length === 0) return [];
-    return rebaseToStart(filtered);
-  }, [carteiraHistoricoParaChart, selectedRangeStart]);
+    if (carteiraHistoricoDiario && carteiraHistoricoDiario.length > 0) {
+      return carteiraHistoricoDiario.map((item) => ({ date: item.date, value: item.value }));
+    }
+    return [];
+  }, [
+    hasHistoricoTWR,
+    isPeriodoInicio,
+    rentabilidadePeriodo,
+    resumo?.historicoTWR,
+    carteiraHistoricoDiario,
+  ]);
 
   const filteredIndices1d = useMemo(
     () =>
@@ -240,8 +210,8 @@ export default function RentabilidadeGeral() {
     setSelectedRange(event.target.value as RentabilidadeRangeValue);
   };
 
-  const loading = loading1d || loading1mo || loading1y || carteiraLoading || loadingCarteiraHistorico;
-  const error = error1d || error1mo || error1y || errorCarteiraHistorico;
+  const loading = loading1d || loading1mo || loading1y || carteiraLoading || loadingCarteiraHistorico || loadingRentabilidadePeriodo;
+  const error = error1d || error1mo || error1y || errorCarteiraHistorico || errorRentabilidadePeriodo;
 
   if (loading) {
     return <LoadingSpinner text="Carregando dados de rentabilidade..." />;
@@ -289,28 +259,28 @@ export default function RentabilidadeGeral() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Gráficos à esquerda */}
       <div className="lg:col-span-2 space-y-6">
-        {/* Gráfico Por Dia - usar histórico diário baseado em investimentos */}
+        {/* Gráfico Por Dia - TWR acumulado (padrão mercado) */}
         <ComponentCard title="Rentabilidade Por Dia">
           <RentabilidadeChart
-            carteiraData={filteredCarteiraHistorico}
+            carteiraData={carteiraTWRParaChart}
             indicesData={filteredIndices1d}
             period="1d"
           />
         </ComponentCard>
 
-        {/* Gráfico Por Mês - usar histórico diário (será agrupado por mês no chart) */}
+        {/* Gráfico Por Mês - TWR acumulado agrupado por mês */}
         <ComponentCard title="Rentabilidade Por Mês">
           <RentabilidadeChart
-            carteiraData={filteredCarteiraHistorico}
+            carteiraData={carteiraTWRParaChart}
             indicesData={filteredIndices1mo}
             period="1mo"
           />
         </ComponentCard>
 
-        {/* Gráfico Por Ano - usar histórico diário (será agrupado por ano no chart) */}
+        {/* Gráfico Por Ano - TWR acumulado agrupado por ano */}
         <ComponentCard title="Rentabilidade Por Ano">
           <RentabilidadeChart
-            carteiraData={filteredCarteiraHistorico}
+            carteiraData={carteiraTWRParaChart}
             indicesData={filteredIndices1y}
             period="1y"
           />
