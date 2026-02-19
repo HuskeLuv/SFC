@@ -5,7 +5,7 @@
  */
 
 import prisma from '@/lib/prisma';
-import { fetchQuotes } from '@/services/brapiQuote';
+import { fetchQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from '@/services/brapiQuote';
 import { Decimal } from '@prisma/client/runtime/library';
 
 const normalizeDateToDayStart = (date: Date): Date => {
@@ -15,6 +15,8 @@ const normalizeDateToDayStart = (date: Date): Date => {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+const today = (): Date => normalizeDateToDayStart(new Date());
 
 /** Símbolos para tentar na Brapi: ações B3 podem precisar do sufixo .SA */
 const getBrapiSymbolsToTry = (symbol: string): string[] => {
@@ -68,22 +70,62 @@ export const getAssetPrice = async (
 ): Promise<number | null> => {
   if (!symbol?.trim()) return null;
 
-  const useFallback = options?.useBrapiFallback !== false;
   const normalized = symbol.trim().toUpperCase();
+  if (normalized.startsWith('RESERVA-EMERG') || normalized.startsWith('RESERVA-OPORT') ||
+      normalized.startsWith('RENDA-FIXA') || normalized.startsWith('CONTA-CORRENTE') || normalized.startsWith('PERSONALIZADO') ||
+      normalized.startsWith('DEBENTURE-') || normalized.startsWith('FUNDO-') ||
+      /-\d{13}-/.test(normalized) ||
+      normalized.startsWith('-') || /^\d/.test(normalized)) {
+    return null;
+  }
 
-  // 1) Tentar currentPrice do Asset (mais rápido)
-  const fromAsset = await getAssetCurrentPriceFromDb(normalized);
-  if (fromAsset !== null && fromAsset > 0) return fromAsset;
+  const useFallback = options?.useBrapiFallback !== false;
+  const todayDate = today();
 
-  // 2) Tentar histórico
-  const fromHistory = await getAssetPriceFromDb(normalized);
-  if (fromHistory !== null && fromHistory > 0) return fromHistory;
+  // 1) Tentar currentPrice do Asset se priceUpdatedAt for de hoje
+  const asset = await prisma.asset.findUnique({
+    where: { symbol: normalized },
+    select: { currentPrice: true, priceUpdatedAt: true, type: true, currency: true, source: true },
+  });
+  const isManualAsset = asset?.source === 'manual';
+  const effectiveUseFallback = useFallback && !isManualAsset;
+  if (asset?.currentPrice && Number(asset.currentPrice) > 0 && asset.priceUpdatedAt) {
+    const updatedAt = normalizeDateToDayStart(asset.priceUpdatedAt);
+    if (updatedAt.getTime() === todayDate.getTime()) {
+      return Number(asset.currentPrice);
+    }
+  }
 
-  // 3) Fallback BRAPI (apenas 1x)
-  if (!useFallback) return null;
+  // 2) Tentar histórico - apenas se a data mais recente for de hoje
+  const latestHistory = await prisma.assetPriceHistory.findFirst({
+    where: { symbol: normalized },
+    orderBy: { date: 'desc' },
+    select: { price: true, date: true },
+  });
+  if (latestHistory && Number(latestHistory.price) > 0) {
+    const histDate = normalizeDateToDayStart(latestHistory.date);
+    if (histDate.getTime() === todayDate.getTime()) {
+      return Number(latestHistory.price);
+    }
+  }
 
-  const quotes = await fetchQuotes([normalized], false);
-  const price = quotes.get(normalized) ?? null;
+  // 3) Fallback BRAPI (buscar e persistir) - nunca para ativos manuais
+  if (!effectiveUseFallback) return null;
+
+  let price: number | null = null;
+  if (asset?.type === 'crypto') {
+    // Criptoativos são adicionados em reais - sempre buscar cotação em BRL
+    const cryptoQuotes = await fetchCryptoQuotes([normalized], 'BRL');
+    price = cryptoQuotes.get(normalized) ?? null;
+  }
+  if (price === null && asset?.type === 'currency') {
+    const currencyQuotes = await fetchCurrencyQuotes([normalized]);
+    price = currencyQuotes.get(normalized) ?? null;
+  }
+  if (price === null) {
+    const quotes = await fetchQuotes([normalized], false);
+    price = quotes.get(normalized) ?? null;
+  }
 
   if (price !== null && price > 0) {
     await persistPriceFromBrapi(normalized, price);
@@ -108,52 +150,115 @@ export const getAssetPrices = async (
       (s) =>
         !s.startsWith('RESERVA-EMERG') &&
         !s.startsWith('RESERVA-OPORT') &&
-        !s.startsWith('PERSONALIZADO')
+        !s.startsWith('RENDA-FIXA') &&
+        !s.startsWith('CONTA-CORRENTE') &&
+        !s.startsWith('PERSONALIZADO') &&
+        !s.startsWith('DEBENTURE-') &&
+        !s.startsWith('FUNDO-') &&
+        !/-\d{13}-/.test(s) &&
+        !s.startsWith('-') &&
+        /^[A-Za-z]/.test(s)
     );
 
   if (uniqueSymbols.length === 0) return result;
 
   const useFallback = options?.useBrapiFallback !== false;
+  const todayDate = today();
 
-  // 1) Buscar do banco (Asset.currentPrice + AssetPriceHistory)
+  // 1) Buscar do banco - usar apenas se tiver valor do dia (priceUpdatedAt ou history.date = hoje)
   const assetsWithPrice = await prisma.asset.findMany({
     where: { symbol: { in: uniqueSymbols } },
-    select: { symbol: true, currentPrice: true },
+    select: { symbol: true, currentPrice: true, priceUpdatedAt: true },
   });
 
-  for (const a of assetsWithPrice) {
-    if (a.currentPrice && Number(a.currentPrice) > 0) {
-      result.set(a.symbol, Number(a.currentPrice));
+  const historyRows = await prisma.assetPriceHistory.findMany({
+    where: { symbol: { in: uniqueSymbols } },
+    orderBy: { date: 'desc' },
+    select: { symbol: true, price: true, date: true },
+  });
+  const latestHistoryBySymbol = new Map<string, { price: number; date: Date }>();
+  for (const h of historyRows) {
+    if (!latestHistoryBySymbol.has(h.symbol) && Number(h.price) > 0) {
+      latestHistoryBySymbol.set(h.symbol, { price: Number(h.price), date: h.date });
     }
   }
 
-  const missingFromAsset = uniqueSymbols.filter((s) => !result.has(s));
+  for (const a of assetsWithPrice) {
+    if (!a.currentPrice || Number(a.currentPrice) <= 0) continue;
+    const price = Number(a.currentPrice);
+    const assetUpdatedAt = a.priceUpdatedAt ? normalizeDateToDayStart(a.priceUpdatedAt) : null;
+    const historyLatest = latestHistoryBySymbol.get(a.symbol);
+    const hasTodayPrice =
+      (assetUpdatedAt && assetUpdatedAt.getTime() === todayDate.getTime()) ||
+      (historyLatest && normalizeDateToDayStart(historyLatest.date).getTime() === todayDate.getTime());
+    if (hasTodayPrice) {
+      result.set(a.symbol, price);
+    }
+  }
 
-  if (missingFromAsset.length > 0) {
-    const fromHistory = await prisma.assetPriceHistory.findMany({
-      where: { symbol: { in: missingFromAsset } },
-      orderBy: { date: 'desc' },
-      select: { symbol: true, price: true },
-    });
-
-    const latestBySymbol = new Map<string, number>();
-    for (const h of fromHistory) {
-      if (!latestBySymbol.has(h.symbol) && Number(h.price) > 0) {
-        latestBySymbol.set(h.symbol, Number(h.price));
+  for (const symbol of uniqueSymbols) {
+    if (result.has(symbol)) continue;
+    const latest = latestHistoryBySymbol.get(symbol);
+    if (latest && latest.price > 0) {
+      const latestDateNorm = normalizeDateToDayStart(latest.date);
+      if (latestDateNorm.getTime() === todayDate.getTime()) {
+        result.set(symbol, latest.price);
       }
     }
-    latestBySymbol.forEach((v, k) => result.set(k, v));
   }
 
   const stillMissing = uniqueSymbols.filter((s) => !result.has(s));
 
   if (stillMissing.length > 0 && useFallback) {
-    const quotes = await fetchQuotes(stillMissing, false);
-    for (const symbol of stillMissing) {
-      const price = quotes.get(symbol) ?? null;
-      if (price !== null && price > 0) {
-        result.set(symbol, price);
-        await persistPriceFromBrapi(symbol, price);
+    const assetsForMissing = await prisma.asset.findMany({
+      where: { symbol: { in: stillMissing } },
+      select: { symbol: true, type: true, currency: true, source: true },
+    });
+    const assetBySymbol = new Map(assetsForMissing.map((a) => [a.symbol.toUpperCase(), a]));
+
+    const cryptoSymbols = stillMissing.filter(
+      (s) => assetBySymbol.get(s)?.type === 'crypto' && assetBySymbol.get(s)?.source !== 'manual'
+    );
+    const currencySymbols = stillMissing.filter(
+      (s) => assetBySymbol.get(s)?.type === 'currency' && assetBySymbol.get(s)?.source !== 'manual'
+    );
+    const nonCryptoCurrencySymbols = stillMissing.filter(
+      (s) => assetBySymbol.get(s)?.type !== 'crypto' &&
+        assetBySymbol.get(s)?.type !== 'currency' &&
+        assetBySymbol.get(s)?.source !== 'manual'
+    );
+
+    if (cryptoSymbols.length > 0) {
+      // Criptoativos são adicionados em reais (BRL) - sempre buscar cotação em BRL para conversão correta
+      const cryptoQuotes = await fetchCryptoQuotes(cryptoSymbols, 'BRL');
+      for (const symbol of cryptoSymbols) {
+        const price = cryptoQuotes.get(symbol) ?? null;
+        if (price !== null && price > 0) {
+          result.set(symbol, price);
+          await persistPriceFromBrapi(symbol, price, { currency: 'BRL' });
+        }
+      }
+    }
+
+    if (currencySymbols.length > 0) {
+      const currencyQuotes = await fetchCurrencyQuotes(currencySymbols);
+      for (const symbol of currencySymbols) {
+        const price = currencyQuotes.get(symbol) ?? null;
+        if (price !== null && price > 0) {
+          result.set(symbol, price);
+          await persistPriceFromBrapi(symbol, price, { currency: 'BRL' });
+        }
+      }
+    }
+
+    if (nonCryptoCurrencySymbols.length > 0) {
+      const quotes = await fetchQuotes(nonCryptoCurrencySymbols, false);
+      for (const symbol of nonCryptoCurrencySymbols) {
+        const price = quotes.get(symbol) ?? null;
+        if (price !== null && price > 0) {
+          result.set(symbol, price);
+          await persistPriceFromBrapi(symbol, price);
+        }
       }
     }
   }
@@ -221,6 +326,13 @@ export const getAssetHistory = async (
   if (!symbol?.trim()) return [];
 
   const normalized = symbol.trim().toUpperCase();
+  if (normalized.startsWith('RESERVA-EMERG') || normalized.startsWith('RESERVA-OPORT') ||
+      normalized.startsWith('RENDA-FIXA') || normalized.startsWith('CONTA-CORRENTE') || normalized.startsWith('PERSONALIZADO') ||
+      normalized.startsWith('DEBENTURE-') || normalized.startsWith('FUNDO-') ||
+      /-\d{13}-/.test(normalized) ||
+      normalized.startsWith('-') || /^\d/.test(normalized)) {
+    return [];
+  }
   const start = normalizeDateToDayStart(startDate);
   const end = normalizeDateToDayStart(endDate);
 

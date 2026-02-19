@@ -26,6 +26,7 @@ const executeSync = async (): Promise<void> => {
     console.log('📊 Resultado da sincronização:');
     console.log(`   • Ativos B3: ${result.stocks.inserted} inseridos, ${result.stocks.updated} atualizados, ${result.stocks.errors} erros`);
     console.log(`   • Criptoativos: ${result.crypto.inserted} inseridos, ${result.crypto.updated} atualizados, ${result.crypto.errors} erros`);
+    console.log(`   • Moedas: ${result.moedas.inserted} inseridas, ${result.moedas.updated} atualizadas, ${result.moedas.errors} erros`);
     console.log(`   • Preços: ${result.prices.totalInserted} inseridos, ${result.prices.totalUpdated} atualizados, ${result.prices.errors} erros`);
     console.log(`   • Total: ${result.total.inserted} inseridos, ${result.total.updated} atualizados, ${result.total.errors} erros`);
     console.log(`   • Duração: ${result.duration.toFixed(2)}s`);

@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { fetchDetailedQuotes } from '@/services/brapiQuote';
+import { fetchDetailedQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from '@/services/brapiQuote';
 import { Decimal } from '@prisma/client/runtime/library';
 
 // ================== TYPES ==================
@@ -199,6 +199,77 @@ const determineCurrency = (type: string): string => {
   return type === 'crypto' ? 'USD' : 'BRL';
 };
 
+// ================== MOEDAS (Brapi currency) ==================
+
+const MOEDAS_BRAPI = [
+  { symbol: 'USD-BRL', name: 'Dólar Americano (USD)', currency: 'BRL' },
+  { symbol: 'EUR-BRL', name: 'Euro (EUR)', currency: 'BRL' },
+  { symbol: 'GBP-BRL', name: 'Libra Esterlina (GBP)', currency: 'BRL' },
+  { symbol: 'CAD-BRL', name: 'Dólar Canadense (CAD)', currency: 'BRL' },
+  { symbol: 'AUD-BRL', name: 'Dólar Australiano (AUD)', currency: 'BRL' },
+  { symbol: 'JPY-BRL', name: 'Iene Japonês (JPY)', currency: 'BRL' },
+  { symbol: 'CHF-BRL', name: 'Franco Suíço (CHF)', currency: 'BRL' },
+  { symbol: 'CNY-BRL', name: 'Yuan Chinês (CNY)', currency: 'BRL' },
+  { symbol: 'ARS-BRL', name: 'Peso Argentino (ARS)', currency: 'BRL' },
+  { symbol: 'CLP-BRL', name: 'Peso Chileno (CLP)', currency: 'BRL' },
+];
+
+/**
+ * Sincroniza moedas disponíveis na Brapi no banco de dados.
+ * As cotações são atualizadas em syncAssetPrices.
+ */
+const syncMoedas = async (): Promise<SyncResult> => {
+  console.log('💱 Sincronizando moedas disponíveis na Brapi...');
+
+  let inserted = 0;
+  let updated = 0;
+  let errors = 0;
+
+  try {
+    for (const moeda of MOEDAS_BRAPI) {
+      try {
+        const existing = await prisma.asset.findUnique({
+          where: { symbol: moeda.symbol },
+        });
+
+        if (existing) {
+          await prisma.asset.update({
+            where: { symbol: moeda.symbol },
+            data: {
+              name: moeda.name,
+              type: 'currency',
+              currency: moeda.currency,
+              source: 'brapi',
+              updatedAt: new Date(),
+            },
+          });
+          updated++;
+        } else {
+          await prisma.asset.create({
+            data: {
+              symbol: moeda.symbol,
+              name: moeda.name,
+              type: 'currency',
+              currency: moeda.currency,
+              source: 'brapi',
+            },
+          });
+          inserted++;
+        }
+      } catch (error) {
+        console.error(`❌ Erro ao sincronizar moeda ${moeda.symbol}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`✅ Moedas sincronizadas: ${inserted} inseridas, ${updated} atualizadas, ${errors} erros`);
+    return { inserted, updated, errors };
+  } catch (error) {
+    console.error('❌ Erro geral ao sincronizar moedas:', error);
+    throw error;
+  }
+};
+
 // ================== DATABASE SYNC FUNCTIONS ==================
 
 /**
@@ -367,93 +438,151 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
   let errors = 0;
 
   const excludedTypes = ['emergency', 'opportunity', 'personalizado', 'imovel'];
-  const excludedPrefixes = ['RESERVA-EMERG', 'RESERVA-OPORT', 'PERSONALIZADO'];
+  const excludedPrefixes = ['RESERVA-EMERG', 'RESERVA-OPORT', 'PERSONALIZADO', 'RENDA-FIXA', 'CONTA-CORRENTE'];
 
   const assets = await prisma.asset.findMany({
     where: {
       type: { notIn: excludedTypes },
-      symbol: {
-        not: {
-          startsWith: 'RESERVA-',
-        },
-      },
+      source: { not: 'manual' },
+      AND: [
+        { symbol: { not: { startsWith: 'RESERVA-' } } },
+        { symbol: { not: { startsWith: 'RENDA-FIXA' } } },
+        { symbol: { not: { startsWith: 'CONTA-CORRENTE' } } },
+      ],
     },
-    select: { id: true, symbol: true, currency: true },
+    select: { id: true, symbol: true, currency: true, type: true },
   });
 
-  const symbols = assets
-    .map((a) => a.symbol.trim().toUpperCase())
-    .filter((s) => !excludedPrefixes.some((p) => s.startsWith(p)));
+  const assetBySymbol = new Map(assets.map((a) => [a.symbol.toUpperCase(), a]));
+  const cryptoAssets = assets.filter((a) => a.type === 'crypto');
+  const currencyAssets = assets.filter((a) => a.type === 'currency');
+  const nonCryptoCurrencyAssets = assets.filter((a) => a.type !== 'crypto' && a.type !== 'currency');
 
-  if (symbols.length === 0) {
+  if (assets.length === 0) {
     console.log('   Nenhum ativo para sincronizar preços');
     return { totalInserted: 0, totalUpdated: 0, errors: 0, duration: (Date.now() - startTime) / 1000 };
   }
 
-  const BATCH_SIZE = 20;
-  const assetBySymbol = new Map(assets.map((a) => [a.symbol.toUpperCase(), a]));
-
-  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
-    const batch = symbols.slice(i, i + BATCH_SIZE);
-    try {
-      const results = await fetchDetailedQuotes(batch);
-
-      for (const r of results) {
-        if (!r.symbol || r.regularMarketPrice == null || r.regularMarketPrice <= 0) continue;
-
-        const symbolUpper = r.symbol.toUpperCase();
-        const asset = assetBySymbol.get(symbolUpper);
-        if (!asset) continue;
-
-        const marketDate = parseMarketDate(r.regularMarketTime);
-        const currency = r.currency || asset.currency;
-
-        try {
-          const existing = await prisma.assetPriceHistory.findUnique({
+  const processResults = async (results: Array<{ symbol: string; regularMarketPrice: number; regularMarketTime?: string; currency?: string }>) => {
+    for (const r of results) {
+      if (!r.symbol || r.regularMarketPrice == null || r.regularMarketPrice <= 0) continue;
+      const symbolUpper = r.symbol.toUpperCase();
+      const asset = assetBySymbol.get(symbolUpper);
+      if (!asset) continue;
+      const marketDate = parseMarketDate(r.regularMarketTime);
+      const currency = r.currency || asset.currency;
+      try {
+        const existing = await prisma.assetPriceHistory.findUnique({
+          where: {
+            symbol_date: {
+              symbol: symbolUpper,
+              date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
+            },
+          },
+        });
+        await prisma.$transaction([
+          prisma.assetPriceHistory.upsert({
             where: {
               symbol_date: {
                 symbol: symbolUpper,
                 date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
               },
             },
+            update: { price: new Decimal(r.regularMarketPrice) },
+            create: {
+              assetId: asset.id,
+              symbol: symbolUpper,
+              price: new Decimal(r.regularMarketPrice),
+              currency: currency ?? null,
+              source: 'BRAPI',
+              date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
+            },
+          }),
+          prisma.asset.update({
+            where: { id: asset.id },
+            data: {
+              currentPrice: new Decimal(r.regularMarketPrice),
+              priceUpdatedAt: marketDate,
+            },
+          }),
+        ]);
+        if (existing) totalUpdated++;
+        else totalInserted++;
+      } catch (persistErr) {
+        console.warn(`   Erro ao persistir preço de ${r.symbol}:`, persistErr);
+        errors++;
+      }
+    }
+  };
+
+  const BATCH_SIZE = 20;
+
+  for (let i = 0; i < currencyAssets.length; i += BATCH_SIZE) {
+    const batch = currencyAssets.slice(i, i + BATCH_SIZE);
+    const symbols = batch.map((a) => a.symbol.toUpperCase());
+    try {
+      const currencyQuotes = await fetchCurrencyQuotes(symbols);
+      const results: Array<{ symbol: string; regularMarketPrice: number; regularMarketTime?: string; currency?: string }> = [];
+      for (const sym of symbols) {
+        const price = currencyQuotes.get(sym);
+        if (price != null && price > 0) {
+          results.push({
+            symbol: sym,
+            regularMarketPrice: price,
+            regularMarketTime: new Date().toISOString(),
+            currency: 'BRL',
           });
-
-          await prisma.$transaction([
-            prisma.assetPriceHistory.upsert({
-              where: {
-                symbol_date: {
-                  symbol: symbolUpper,
-                  date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
-                },
-              },
-              update: { price: new Decimal(r.regularMarketPrice) },
-              create: {
-                assetId: asset.id,
-                symbol: symbolUpper,
-                price: new Decimal(r.regularMarketPrice),
-                currency: currency ?? null,
-                source: 'BRAPI',
-                date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
-              },
-            }),
-            prisma.asset.update({
-              where: { id: asset.id },
-              data: {
-                currentPrice: new Decimal(r.regularMarketPrice),
-                priceUpdatedAt: marketDate,
-              },
-            }),
-          ]);
-
-          if (existing) totalUpdated++;
-          else totalInserted++;
-        } catch (persistErr) {
-          console.warn(`   Erro ao persistir preço de ${r.symbol}:`, persistErr);
-          errors++;
         }
       }
+      await processResults(results);
+      if (i + BATCH_SIZE < currencyAssets.length) {
+        await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+      }
+    } catch (batchErr) {
+      console.error('   Erro no batch de moedas:', batchErr);
+      errors += batch.length;
+    }
+  }
 
-      if (i + BATCH_SIZE < symbols.length) {
+  for (let i = 0; i < cryptoAssets.length; i += BATCH_SIZE) {
+    const batch = cryptoAssets.slice(i, i + BATCH_SIZE);
+    const symbols = batch.map((a) => a.symbol.toUpperCase());
+    try {
+      const syms = batch.map((a) => a.symbol);
+      const cryptoQuotes = await fetchCryptoQuotes(syms, 'BRL');
+      const results: Array<{ symbol: string; regularMarketPrice: number; regularMarketTime?: string; currency?: string }> = [];
+      for (const sym of syms) {
+        const price = cryptoQuotes.get(sym.toUpperCase());
+        if (price != null && price > 0) {
+          results.push({
+            symbol: sym.toUpperCase(),
+            regularMarketPrice: price,
+            regularMarketTime: new Date().toISOString(),
+            currency: 'BRL',
+          });
+        }
+      }
+      await processResults(results);
+      if (i + BATCH_SIZE < cryptoAssets.length) {
+        await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+      }
+    } catch (batchErr) {
+      console.error(`   Erro no batch de cripto:`, batchErr);
+      errors += batch.length;
+    }
+  }
+
+  const nonCryptoSymbols = nonCryptoCurrencyAssets
+    .map((a) => a.symbol.trim().toUpperCase())
+    .filter((s) => !excludedPrefixes.some((p) => s.startsWith(p)) && !s.startsWith('-') && /^[A-Za-z]/.test(s));
+
+  for (let i = 0; i < nonCryptoSymbols.length; i += BATCH_SIZE) {
+    const batch = nonCryptoSymbols.slice(i, i + BATCH_SIZE);
+    try {
+      const results = await fetchDetailedQuotes(batch);
+      await processResults(results);
+
+      if (i + BATCH_SIZE < nonCryptoSymbols.length) {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
     } catch (batchErr) {
@@ -485,6 +614,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
 export const syncAssets = async (): Promise<{
   stocks: SyncResult;
   crypto: SyncResult;
+  moedas: SyncResult;
   prices: SyncPriceResult;
   total: SyncResult;
   duration: number;
@@ -500,20 +630,21 @@ export const syncAssets = async (): Promise<{
 
     console.log('\n💾 Sincronizando dados no banco...');
 
-    // Sincronizar metadados no banco em paralelo
-    const [stocksResult, cryptoResult] = await Promise.all([
+    // Sincronizar moedas (lista fixa Brapi) + metadados em paralelo
+    const [stocksResult, cryptoResult, moedasResult] = await Promise.all([
       syncStocks(stocks),
       syncCrypto(cryptos),
+      syncMoedas(),
     ]);
 
-    // Sincronizar preços (após metadados)
+    // Sincronizar preços (após metadados - inclui cotações de moedas)
     const pricesResult = await syncAssetPrices();
 
     // Calcular totais
     const total: SyncResult = {
-      inserted: stocksResult.inserted + cryptoResult.inserted,
-      updated: stocksResult.updated + cryptoResult.updated,
-      errors: stocksResult.errors + cryptoResult.errors,
+      inserted: stocksResult.inserted + cryptoResult.inserted + moedasResult.inserted,
+      updated: stocksResult.updated + cryptoResult.updated + moedasResult.updated,
+      errors: stocksResult.errors + cryptoResult.errors + moedasResult.errors,
     };
 
     const endTime = Date.now();
@@ -524,6 +655,7 @@ export const syncAssets = async (): Promise<{
     console.log('📊 RESUMO:');
     console.log(`   • Ativos B3: ${stocksResult.inserted} inseridos, ${stocksResult.updated} atualizados, ${stocksResult.errors} erros`);
     console.log(`   • Criptoativos: ${cryptoResult.inserted} inseridos, ${cryptoResult.updated} atualizados, ${cryptoResult.errors} erros`);
+    console.log(`   • Moedas: ${moedasResult.inserted} inseridas, ${moedasResult.updated} atualizadas, ${moedasResult.errors} erros`);
     console.log(`   • Preços: ${pricesResult.totalInserted} inseridos, ${pricesResult.totalUpdated} atualizados, ${pricesResult.errors} erros`);
     console.log(`   • Total: ${total.inserted} inseridos, ${total.updated} atualizados, ${total.errors} erros`);
     console.log(`   • Tempo total: ${duration.toFixed(2)}s`);
@@ -531,6 +663,7 @@ export const syncAssets = async (): Promise<{
     return {
       stocks: stocksResult,
       crypto: cryptoResult,
+      moedas: moedasResult,
       prices: pricesResult,
       total,
       duration,

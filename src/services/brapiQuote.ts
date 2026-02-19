@@ -59,6 +59,111 @@ const quoteCache: QuoteCache = {};
 // Delay entre requisições para evitar rate limiting (reduzido pois SDK já tem retry)
 const REQUEST_DELAY = 300; // 300ms entre cada requisição
 
+// ================== CRYPTO API (v2/crypto) ==================
+
+/**
+ * Busca cotações de criptomoedas via endpoint v2/crypto da Brapi.
+ * O endpoint quote padrão não suporta criptos; este usa a API específica.
+ * @param symbols - Símbolos (ex: ['BTC', 'ETH'])
+ * @param currency - Moeda desejada (BRL ou USD)
+ * @returns Mapa símbolo -> preço
+ */
+export const fetchCryptoQuotes = async (
+  symbols: string[],
+  currency: 'BRL' | 'USD' = 'BRL'
+): Promise<Map<string, number>> => {
+  const result = new Map<string, number>();
+  if (!symbols?.length) return result;
+
+  const apiKey = process.env.BRAPI_API_KEY;
+  if (!apiKey) {
+    console.warn('⚠️  BRAPI_API_KEY não configurada, não é possível buscar cotações de cripto');
+    return result;
+  }
+
+  const unique = [...new Set(symbols.map((s) => s.trim().toUpperCase()).filter(Boolean))];
+  if (unique.length === 0) return result;
+
+  try {
+    const coinList = unique.join(',');
+    const url = `https://brapi.dev/api/v2/crypto?coin=${encodeURIComponent(coinList)}&currency=${currency}&token=${apiKey}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.warn(`⚠️  Brapi v2/crypto retornou ${response.status} para ${coinList}`);
+      return result;
+    }
+
+    const data = await response.json();
+    const coins = data?.coins;
+    if (!Array.isArray(coins)) return result;
+
+    for (const c of coins) {
+      const symbol = (c.coin ?? c.symbol ?? '').toString().toUpperCase();
+      const price = c.regularMarketPrice ?? c.price;
+      if (symbol && typeof price === 'number' && price > 0) {
+        result.set(symbol, price);
+        console.log(`✅ ${symbol} (crypto): ${currency} ${price.toFixed(2)}`);
+      }
+    }
+  } catch (err) {
+    console.error('[fetchCryptoQuotes] Erro ao buscar cotações de cripto:', err);
+  }
+
+  return result;
+};
+
+// ================== CURRENCY API (v2/currency) ==================
+
+/**
+ * Busca cotações de moedas via endpoint v2/currency da Brapi.
+ * Símbolos no formato XXX-BRL (ex: USD-BRL, EUR-BRL).
+ * @param symbols - Símbolos (ex: ['USD-BRL', 'EUR-BRL'])
+ * @returns Mapa símbolo -> preço em BRL
+ */
+export const fetchCurrencyQuotes = async (
+  symbols: string[]
+): Promise<Map<string, number>> => {
+  const result = new Map<string, number>();
+  if (!symbols?.length) return result;
+
+  const apiKey = process.env.BRAPI_API_KEY;
+  const tokenParam = apiKey ? `&token=${apiKey}` : '';
+
+  const unique = [...new Set(symbols.map((s) => s.trim().toUpperCase()).filter(Boolean))];
+  const currencySymbols = unique.filter((s) => /^[A-Z]{3}-BRL$/.test(s));
+  if (currencySymbols.length === 0) return result;
+
+  for (const symbol of currencySymbols) {
+    try {
+      const url = `https://brapi.dev/api/v2/currency?currency=${encodeURIComponent(symbol)}${tokenParam}`;
+      const response = await fetch(url, { cache: 'no-store' });
+
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const items = Array.isArray(data?.currency) ? data.currency : [];
+      const item = items[0];
+      const bidPrice = item?.bidPrice ?? item?.bid;
+      const askPrice = item?.askPrice ?? item?.ask;
+      const price = Number.isFinite(bidPrice)
+        ? bidPrice
+        : Number.isFinite(askPrice)
+          ? askPrice
+          : null;
+
+      if (price !== null && price > 0) {
+        result.set(symbol, price);
+        console.log(`✅ ${symbol} (currency): R$ ${price.toFixed(2)}`);
+      }
+    } catch (err) {
+      console.error(`[fetchCurrencyQuotes] Erro ao buscar ${symbol}:`, err);
+    }
+  }
+
+  return result;
+};
+
 // ================== API FUNCTIONS ==================
 
 /**
@@ -122,14 +227,18 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
       return new Map();
     }
 
-    // Filtrar símbolos únicos, remover vazios e excluir símbolos de reserva, imóveis/bens e personalizados
-    // (RESERVA-EMERG, RESERVA-OPORT, PERSONALIZADO e imóveis são assets manuais sem cotações externas)
-    const uniqueSymbols = [...new Set(symbols.filter(s => 
-      s && s.trim() && 
-      !s.startsWith('RESERVA-EMERG') && 
-      !s.startsWith('RESERVA-OPORT') && 
-      !s.startsWith('PERSONALIZADO')
-    ))];
+    // Filtrar símbolos únicos, remover vazios e excluir símbolos inválidos para brapi
+    // (reserva, renda fixa, personalizado, ativos manuais: debênture, fundo, REIT)
+    const uniqueSymbols = [...new Set(symbols.filter(s => {
+      if (!s?.trim()) return false;
+      const upper = s.trim().toUpperCase();
+      if (upper.startsWith('RESERVA-EMERG') || upper.startsWith('RESERVA-OPORT') ||
+          upper.startsWith('RENDA-FIXA') || upper.startsWith('CONTA-CORRENTE') || upper.startsWith('PERSONALIZADO')) return false;
+      if (upper.startsWith('DEBENTURE-') || upper.startsWith('FUNDO-')) return false;
+      if (/-\d{13}-/.test(upper)) return false; // ativos manuais com timestamp (ex: PLD-1771516010088-4gvgkb2)
+      if (upper.startsWith('-') || /^\d/.test(upper)) return false;
+      return /^[A-Za-z]/.test(upper);
+    }))];
     
     if (uniqueSymbols.length === 0) {
       return new Map();
@@ -274,11 +383,19 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
         }
 
         if (errorMessage.includes('Não encontramos a ação')) {
-          const match = errorMessage.match(/Não encontramos a ação\s+([A-Z0-9]+)/i);
+          const match = errorMessage.match(/Não encontramos a ação\s+([A-Z0-9.-]+)/i);
           if (match?.[1]) {
             invalidSymbolFromMessage = match[1].toUpperCase();
             invalidSymbols.add(invalidSymbolFromMessage);
           }
+        }
+        // 404 "Nenhum resultado encontrado" = batch inteiro inválido; tratar todos como não encontrados
+        if (errorStatus === 404 && !invalidSymbolFromMessage) {
+          console.warn(`⚠️  API brapi retornou 404 para batch. Símbolos podem ser inválidos (reserva, renda fixa, etc).`);
+          for (const sym of normalizedBatch) {
+            invalidSymbols.add(sym);
+          }
+          continue;
         }
 
         if (errorStatus === 404 && invalidSymbolFromMessage) {
@@ -423,14 +540,16 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
     return [];
   }
 
-  // Filtrar símbolos únicos, remover vazios e excluir símbolos de reserva, imóveis/bens e personalizados
-  // (RESERVA-EMERG, RESERVA-OPORT, PERSONALIZADO e imóveis são assets manuais sem cotações externas)
-  const uniqueSymbols = [...new Set(symbols.filter(s => 
-    s && s.trim() && 
-    !s.startsWith('RESERVA-EMERG') && 
-    !s.startsWith('RESERVA-OPORT') && 
-    !s.startsWith('PERSONALIZADO')
-  ))];
+  // Filtrar símbolos únicos, remover vazios e excluir ativos manuais (sem cotações externas)
+  const upper = (x: string) => x.trim().toUpperCase();
+  const uniqueSymbols = [...new Set(symbols.filter(s => {
+    if (!s?.trim()) return false;
+    const u = upper(s);
+    if (u.startsWith('RESERVA-EMERG') || u.startsWith('RESERVA-OPORT') || u.startsWith('PERSONALIZADO')) return false;
+    if (u.startsWith('DEBENTURE-') || u.startsWith('FUNDO-')) return false;
+    if (/-\d{13}-/.test(u)) return false; // ativos manuais com timestamp
+    return true;
+  }))];
   
   if (uniqueSymbols.length === 0) {
     return [];
