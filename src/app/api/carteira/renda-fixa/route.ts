@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
       liquidacaoResgate?: string;
       benchmark?: string;
       observacoes?: string;
+      debentureTipo?: 'prefixada' | 'pos-fixada' | 'hibrida';
     }>();
 
     transactions.forEach(transaction => {
@@ -74,12 +75,13 @@ export async function GET(request: NextRequest) {
       if (transaction.notes && !metadataMap.has(transaction.assetId)) {
         try {
           const parsed = JSON.parse(transaction.notes);
-          if (parsed.cotizacaoResgate || parsed.liquidacaoResgate || parsed.benchmark || parsed.observacoes) {
+          if (parsed.cotizacaoResgate || parsed.liquidacaoResgate || parsed.benchmark || parsed.observacoes || parsed.debentureTipo) {
             metadataMap.set(transaction.assetId, {
               cotizacaoResgate: parsed.cotizacaoResgate,
               liquidacaoResgate: parsed.liquidacaoResgate,
               benchmark: parsed.benchmark,
               observacoes: parsed.observacoes,
+              debentureTipo: ['prefixada', 'pos-fixada', 'hibrida'].includes(parsed.debentureTipo) ? parsed.debentureTipo : undefined,
             });
           }
         } catch (e) {
@@ -144,6 +146,11 @@ export async function GET(request: NextRequest) {
         // Buscar metadados editados das transações
         const metadata = metadataMap.get(assetId) || {};
 
+        // Classificar seção: híbrido (tipo *_HIB), pós-fixada (indexador CDI/IPCA) ou pré-fixada
+        const isHibrido = String(fixedIncome.type).endsWith('_HIB');
+        const isPosFixada = fixedIncome.indexer === 'CDI' || fixedIncome.indexer === 'IPCA';
+        const tipo = isHibrido ? 'hibrida' : (isPosFixada ? 'pos-fixada' : 'prefixada');
+
       return {
           id: item.id,
           nome: fixedIncome.description || item.asset?.name || 'Renda Fixa',
@@ -160,7 +167,7 @@ export async function GET(request: NextRequest) {
           riscoPorAtivo: 0,
           rentabilidade,
           observacoes: metadata.observacoes,
-          tipo: (fixedIncome.indexer === 'CDI' || fixedIncome.indexer === 'IPCA') ? 'pos-fixada' : 'prefixada',
+          tipo,
         };
       })
       .filter((ativo): ativo is NonNullable<typeof ativo> => Boolean(ativo));
@@ -173,6 +180,9 @@ export async function GET(request: NextRequest) {
         const valorAtualizado = (item.avgPrice && item.avgPrice > 0 && item.quantity > 0)
           ? item.avgPrice * item.quantity
           : item.totalInvested;
+        const tipoLegacy = metadata.debentureTipo && ['prefixada', 'pos-fixada', 'hibrida'].includes(metadata.debentureTipo)
+          ? metadata.debentureTipo
+          : 'prefixada';
         
         return {
           id: item.id,
@@ -190,7 +200,7 @@ export async function GET(request: NextRequest) {
           riscoPorAtivo: 0,
           rentabilidade: 0,
           observacoes: metadata.observacoes,
-          tipo: 'prefixada' as const,
+          tipo: tipoLegacy as 'prefixada' | 'pos-fixada' | 'hibrida',
         };
       });
 

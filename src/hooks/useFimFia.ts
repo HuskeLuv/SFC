@@ -158,6 +158,25 @@ export const useFimFia = () => {
     }
   }, [fetchData]);
 
+  const updateValorAtualizado = useCallback(async (ativoId: string, novoValor: number) => {
+    try {
+      const response = await fetch('/api/carteira/fim-fia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ativoId, campo: 'valorAtualizado', valor: novoValor }),
+      });
+
+      if (!response.ok) throw new Error('Erro ao atualizar valor');
+      await fetchData(true);
+      return true;
+    } catch (err) {
+      console.error('Erro ao atualizar valor:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar valor');
+      return false;
+    }
+  }, [fetchData]);
+
   const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     if (!data) return false;
 
@@ -265,6 +284,7 @@ export const useFimFia = () => {
     error,
     refetch: fetchData,
     updateObjetivo,
+    updateValorAtualizado,
     updateCaixaParaInvestir,
     formatCurrency,
     formatPercentage,

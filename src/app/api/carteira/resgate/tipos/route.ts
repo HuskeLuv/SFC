@@ -15,6 +15,7 @@ const TIPO_LABELS: Record<string, string> = {
   fundo: "Fundos",
   "renda-fixa-prefixada": "Renda Fixa Prefixada",
   "renda-fixa": "Renda Fixa",
+  "renda-fixa-hibrida": "Renda Fixa Híbrida",
   previdencia: "Previdência",
   "conta-corrente": "Conta Corrente",
   personalizado: "Personalizado",

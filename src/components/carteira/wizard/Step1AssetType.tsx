@@ -70,6 +70,7 @@ export default function Step1AssetType({
       rendaFixaIndexerPercent: 0,
       rendaFixaLiquidity: "",
       rendaFixaTaxExempt: false,
+      taxaFixaAnual: 0,
     });
     
     // Limpar erro quando usuário selecionar
@@ -144,6 +145,7 @@ function getAssetTypeDescription(tipoAtivo: string): string {
     "previdencia": "Previdência privada e seguros para aposentadoria e proteção financeira.",
     "renda-fixa": "Renda fixa pré-fixada com taxa definida no momento da aplicação, ideal para objetivos com prazo e retorno conhecidos.",
     "renda-fixa-posfixada": "Renda fixa pós-fixada com rentabilidade atrelada a um indexador (CDI, IPCA), ideal para proteção contra inflação ou acompanhamento do mercado.",
+    "renda-fixa-hibrida": "Renda fixa híbrida combina parte da rentabilidade prefixada com parte atrelada a um indexador (CDI, IPCA), oferecendo proteção e potencial de ganho.",
     "tesouro-direto": "Títulos públicos federais negociados diretamente com o Tesouro Nacional.",
   };
   

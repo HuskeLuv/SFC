@@ -50,6 +50,7 @@ interface FimFiaTableRowProps {
   formatCurrency: (value: number) => string;
   formatPercentage: (value: number) => string;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
+  onUpdateValorAtualizado: (ativoId: string, novoValor: number) => void;
 }
 
 const FimFiaTableRow: React.FC<FimFiaTableRowProps> = ({
@@ -57,9 +58,12 @@ const FimFiaTableRow: React.FC<FimFiaTableRowProps> = ({
   formatCurrency,
   formatPercentage,
   onUpdateObjetivo,
+  onUpdateValorAtualizado,
 }) => {
   const [isEditingObjetivo, setIsEditingObjetivo] = useState(false);
   const [objetivoValue, setObjetivoValue] = useState(ativo.objetivo.toString());
+  const [isEditingValor, setIsEditingValor] = useState(false);
+  const [valorValue, setValorValue] = useState(ativo.valorAtualizado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
   const handleObjetivoSubmit = () => {
     const novoObjetivo = parseFloat(objetivoValue);
@@ -75,6 +79,40 @@ const FimFiaTableRow: React.FC<FimFiaTableRowProps> = ({
     } else if (e.key === 'Escape') {
       setObjetivoValue(ativo.objetivo.toString());
       setIsEditingObjetivo(false);
+    }
+  };
+
+  const parseValorMonetario = (str: string): number | null => {
+    const cleaned = str.replace(/[^\d,.]/g, '').trim();
+    if (!cleaned) return null;
+    const hasComma = cleaned.includes(',');
+    const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+    const num = Number.parseFloat(normalized);
+    return Number.isFinite(num) && num >= 0 ? num : null;
+  };
+
+  const formatValorMonetario = (num: number): string => {
+    return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const handleValorSubmit = (rawValue?: string) => {
+    const str = rawValue !== undefined ? rawValue : valorValue;
+    const numValor = parseValorMonetario(str);
+    if (numValor !== null) {
+      onUpdateValorAtualizado(ativo.id, numValor);
+      setIsEditingValor(false);
+    } else {
+      setValorValue(ativo.valorAtualizado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      setIsEditingValor(false);
+    }
+  };
+
+  const handleValorKeyPress = (e: React.KeyboardEvent, rawValue: string) => {
+    if (e.key === 'Enter') {
+      handleValorSubmit(rawValue);
+    } else if (e.key === 'Escape') {
+      setValorValue(formatValorMonetario(ativo.valorAtualizado));
+      setIsEditingValor(false);
     }
   };
 
@@ -115,7 +153,30 @@ const FimFiaTableRow: React.FC<FimFiaTableRowProps> = ({
         {formatCurrency(ativo.resgate)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.valorAtualizado)}
+        {isEditingValor ? (
+          <input
+            type="text"
+            inputMode="decimal"
+            value={valorValue}
+            onChange={(e) => setValorValue(e.target.value)}
+            onKeyDown={(e) => handleValorKeyPress(e, valorValue)}
+            onBlur={() => handleValorSubmit()}
+            onFocus={(e) => e.target.select()}
+            placeholder="0,00"
+            className="w-28 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white text-right"
+            autoFocus
+          />
+        ) : (
+          <div
+            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
+            onClick={() => {
+              setValorValue(ativo.valorAtualizado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+              setIsEditingValor(true);
+            }}
+          >
+            {formatCurrency(ativo.valorAtualizado)}
+          </div>
+        )}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatPercentage(ativo.percentualCarteira)}
@@ -166,6 +227,7 @@ interface FimFiaSectionProps {
   isExpanded: boolean;
   onToggle: () => void;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
+  onUpdateValorAtualizado: (ativoId: string, novoValor: number) => void;
 }
 
 const FimFiaSection: React.FC<FimFiaSectionProps> = ({
@@ -175,6 +237,7 @@ const FimFiaSection: React.FC<FimFiaSectionProps> = ({
   isExpanded,
   onToggle,
   onUpdateObjetivo,
+  onUpdateValorAtualizado,
 }) => {
   const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
 
@@ -239,6 +302,7 @@ const FimFiaSection: React.FC<FimFiaSectionProps> = ({
           formatCurrency={formatCurrency}
           formatPercentage={formatPercentage}
           onUpdateObjetivo={onUpdateObjetivo}
+          onUpdateValorAtualizado={onUpdateValorAtualizado}
         />
       ))}
       {isExpanded && (
@@ -256,7 +320,7 @@ interface FimFiaTableProps {
 }
 
 export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, updateObjetivo, updateCaixaParaInvestir } = useFimFia();
+  const { data, loading, error, formatCurrency, formatPercentage, updateObjetivo, updateValorAtualizado, updateCaixaParaInvestir } = useFimFia();
   const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.fimFia ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -349,6 +413,10 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
 
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
+  };
+
+  const handleUpdateValorAtualizado = async (ativoId: string, novoValor: number) => {
+    await updateValorAtualizado(ativoId, novoValor);
   };
 
   const normalizedSections = useMemo(() => {
@@ -538,6 +606,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
                   isExpanded={expandedSections.has(secao.tipo)}
                   onToggle={() => toggleSection(secao.tipo)}
                   onUpdateObjetivo={handleUpdateObjetivo}
+                  onUpdateValorAtualizado={handleUpdateValorAtualizado}
                 />
               ))}
             </tbody>

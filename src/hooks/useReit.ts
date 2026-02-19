@@ -48,10 +48,10 @@ export const useReit = () => {
     }
   }, []);
 
-  const formatCurrency = (value: number): string => {
-    return value.toLocaleString('en-US', {
+  const formatCurrency = (value: number, currency: 'USD' | 'BRL' = 'USD'): string => {
+    return value.toLocaleString(currency === 'BRL' ? 'pt-BR' : 'en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency,
     });
   };
 
@@ -256,6 +256,24 @@ export const useReit = () => {
     }
   };
 
+  const updateValorAtualizado = useCallback(async (ativoId: string, novoValor: number) => {
+    try {
+      const response = await fetch('/api/carteira/reit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ativoId, campo: 'valorAtualizado', valor: novoValor }),
+      });
+      if (!response.ok) throw new Error('Erro ao atualizar valor');
+      await fetchData(true);
+      return true;
+    } catch (err) {
+      console.error('Erro ao atualizar valor:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar valor');
+      return false;
+    }
+  }, [fetchData]);
+
   const updateCotacao = async (ativoId: string, novaCotacao: number) => {
     try {
       const response = await fetch('/api/carteira/reit/cotacao', {
@@ -303,6 +321,7 @@ export const useReit = () => {
     error,
     refetch,
     updateObjetivo,
+    updateValorAtualizado,
     updateCotacao,
     updateCaixaParaInvestir,
     formatCurrency,

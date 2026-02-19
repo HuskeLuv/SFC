@@ -52,6 +52,7 @@ interface ReitTableRowProps {
   formatPercentage: (value: number) => string;
   formatNumber: (value: number) => string;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
+  onUpdateValorAtualizado: (ativoId: string, novoValor: number) => void;
 }
 
 const ReitTableRow: React.FC<ReitTableRowProps> = ({
@@ -60,9 +61,46 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
   formatPercentage,
   formatNumber,
   onUpdateObjetivo,
+  onUpdateValorAtualizado,
 }) => {
   const [isEditingObjetivo, setIsEditingObjetivo] = useState(false);
   const [objetivoValue, setObjetivoValue] = useState(ativo.objetivo.toString());
+  const [isEditingValor, setIsEditingValor] = useState(false);
+  const [valorValue, setValorValue] = useState(ativo.valorAtualizado.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+
+  const parseValorMonetario = (str: string): number | null => {
+    const cleaned = str.replace(/[^\d,.]/g, '').trim();
+    if (!cleaned) return null;
+    const hasComma = cleaned.includes(',');
+    const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+    const num = Number.parseFloat(normalized);
+    return Number.isFinite(num) && num >= 0 ? num : null;
+  };
+
+  const formatValorMonetario = (num: number): string => {
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const handleValorSubmit = (rawValue?: string) => {
+    const str = rawValue !== undefined ? rawValue : valorValue;
+    const numValor = parseValorMonetario(str);
+    if (numValor !== null) {
+      onUpdateValorAtualizado(ativo.id, numValor);
+      setIsEditingValor(false);
+    } else {
+      setValorValue(formatValorMonetario(ativo.valorAtualizado));
+      setIsEditingValor(false);
+    }
+  };
+
+  const handleValorKeyPress = (e: React.KeyboardEvent, rawValue: string) => {
+    if (e.key === 'Enter') {
+      handleValorSubmit(rawValue);
+    } else if (e.key === 'Escape') {
+      setValorValue(formatValorMonetario(ativo.valorAtualizado));
+      setIsEditingValor(false);
+    }
+  };
 
   const handleObjetivoSubmit = () => {
     const novoObjetivo = parseFloat(objetivoValue);
@@ -86,8 +124,7 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs font-medium text-black">
         <div>
-          <div>{ativo.ticker}</div>
-          <div className="text-xs text-black">{ativo.nome}</div>
+          <div>{ativo.nome}</div>
           {ativo.observacoes && (
             <div className="text-xs text-black mt-1">
               {ativo.observacoes}
@@ -113,7 +150,30 @@ const ReitTableRow: React.FC<ReitTableRowProps> = ({
         <span className="text-black">{formatCurrency(ativo.cotacaoAtual)}</span>
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.valorAtualizado)}
+        {isEditingValor ? (
+          <input
+            type="text"
+            inputMode="decimal"
+            value={valorValue}
+            onChange={(e) => setValorValue(e.target.value)}
+            onKeyDown={(e) => handleValorKeyPress(e, valorValue)}
+            onBlur={() => handleValorSubmit()}
+            onFocus={(e) => e.target.select()}
+            placeholder="0.00"
+            className="w-28 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white text-right"
+            autoFocus
+          />
+        ) : (
+          <div
+            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
+            onClick={() => {
+              setValorValue(formatValorMonetario(ativo.valorAtualizado));
+              setIsEditingValor(true);
+            }}
+          >
+            {formatCurrency(ativo.valorAtualizado)}
+          </div>
+        )}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatPercentage(ativo.riscoPorAtivo)}
@@ -168,6 +228,7 @@ interface ReitSectionProps {
   isExpanded: boolean;
   onToggle: () => void;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
+  onUpdateValorAtualizado: (ativoId: string, novoValor: number) => void;
 }
 
 const ReitSection: React.FC<ReitSectionProps> = ({
@@ -178,6 +239,7 @@ const ReitSection: React.FC<ReitSectionProps> = ({
   isExpanded,
   onToggle,
   onUpdateObjetivo,
+  onUpdateValorAtualizado,
 }) => {
   const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
 
@@ -239,6 +301,7 @@ const ReitSection: React.FC<ReitSectionProps> = ({
           formatPercentage={formatPercentage}
           formatNumber={formatNumber}
           onUpdateObjetivo={onUpdateObjetivo}
+          onUpdateValorAtualizado={onUpdateValorAtualizado}
         />
       ))}
       {isExpanded && (
@@ -256,7 +319,7 @@ interface ReitTableProps {
 }
 
 export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir } = useReit();
+  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateValorAtualizado, updateCaixaParaInvestir } = useReit();
   const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.reits ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -351,6 +414,16 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
+  const handleUpdateValorAtualizado = async (ativoId: string, novoValor: number) => {
+    await updateValorAtualizado(ativoId, novoValor);
+  };
+
+  const cotacaoDolar = data?.cotacaoDolar ?? null;
+  const formatCurrencyBRL = (valueUSD: number) =>
+    cotacaoDolar != null
+      ? (valueUSD * cotacaoDolar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : formatCurrency(valueUSD);
+
 
   const normalizedSections = useMemo(() => {
     const createEmptySection = (
@@ -402,30 +475,30 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
 
   return (
     <div className="space-y-4">
-      {/* Cards de resumo */}
+      {/* Cards de resumo - em R$ quando cotacaoDolar disponível */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <ReitMetricCard
           title="Necessidade de Aporte Total"
-          value={formatCurrency(necessidadeAporteTotalCalculada)}
+          value={formatCurrencyBRL(necessidadeAporteTotalCalculada)}
           color="warning"
         />
         <CaixaParaInvestirCard
           value={data?.resumo?.caixaParaInvestir ?? 0}
-          formatCurrency={(value) => formatCurrency(value ?? 0)}
+          formatCurrency={(value) => formatCurrencyBRL(value ?? 0)}
           onSave={updateCaixaParaInvestir}
           color="success"
         />
         <ReitMetricCard
           title="Saldo Início do Mês"
-          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
+          value={formatCurrencyBRL(data?.resumo?.saldoInicioMes ?? 0)}
         />
         <ReitMetricCard
           title="Valor Atualizado"
-          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
+          value={formatCurrencyBRL(data?.resumo?.valorAtualizado ?? 0)}
         />
         <ReitMetricCard
           title="Rendimento"
-          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
+          value={formatCurrencyBRL(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
         <ReitMetricCard
@@ -484,7 +557,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
               </tr>
             </thead>
             <tbody>
-              {/* Linha de totalização */}
+              {/* Linha de totalização em R$ (quando cotacaoDolar disponível) */}
               <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">
                   TOTAL GERAL
@@ -495,11 +568,11 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                 </td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                  {formatCurrencyBRL(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                  {formatCurrencyBRL(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
@@ -514,11 +587,34 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                   {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
+                  {formatCurrencyBRL(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
                 </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
+              </tr>
+
+              {/* Linha de total em USD - apenas Valor Total e Valor Atualizado */}
+              <tr className="bg-[#404040] border-b border-gray-300">
+                <td className="px-2 py-2 text-xs text-white font-bold">
+                  TOTAL EM USD
+                </td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                </td>
+                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
               </tr>
 
               {normalizedSections.map((secao) => (
@@ -531,6 +627,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                   isExpanded={expandedSections.has(secao.estrategia)}
                   onToggle={() => toggleSection(secao.estrategia)}
                   onUpdateObjetivo={handleUpdateObjetivo}
+                  onUpdateValorAtualizado={handleUpdateValorAtualizado}
                 />
               ))}
             </tbody>
@@ -564,7 +661,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                   {(data?.tabelaAuxiliar || []).map((item, index) => (
                     <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
                       <td className="px-2 py-2 text-xs font-medium text-black">
-                        {item.ticker}
+                        {item.nome}
                       </td>
                       <td className="px-2 py-2 text-xs text-right font-medium text-black">
                         {formatCurrency(item.cotacaoAtual)}

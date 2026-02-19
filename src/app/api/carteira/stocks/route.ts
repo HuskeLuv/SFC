@@ -66,12 +66,15 @@ export async function GET(request: NextRequest) {
           ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 
           : 0;
 
+        const estrategia = (item.estrategia === 'growth' || item.estrategia === 'risk' || item.estrategia === 'value')
+          ? item.estrategia
+          : 'value';
         return {
           id: item.id,
           ticker: item.asset!.symbol,
           nome: item.asset!.name,
-          setor: 'outros', // Asset não tem setor
-          subsetor: '',
+          sector: 'other',
+          industryCategory: '',
           quantidade: item.quantity,
           precoAquisicao: item.avgPrice,
           valorTotal: item.totalInvested,
@@ -83,11 +86,55 @@ export async function GET(request: NextRequest) {
           quantoFalta: 0, // Calcular depois
           necessidadeAporte: 0, // Calcular depois
           rentabilidade,
-          estrategia: 'value', // Padrão
+          estrategia,
           observacoes: undefined,
           dataUltimaAtualizacao: item.lastUpdate
         };
       });
+
+    // Agrupar por estratégia
+    const STOCKS_SECTION_ORDER = ['value', 'growth', 'risk'] as const;
+    const STOCKS_SECTION_NAMES: Record<string, string> = { value: 'Value', growth: 'Growth', risk: 'Risk' };
+    const secoesMap = new Map<string, typeof stocksAtivos>();
+    stocksAtivos.forEach(ativo => {
+      const e = ativo.estrategia;
+      const list = secoesMap.get(e) || [];
+      list.push(ativo);
+      secoesMap.set(e, list);
+    });
+
+    const secoes = STOCKS_SECTION_ORDER.map(estrategia => {
+      const ativos = secoesMap.get(estrategia) || [];
+      return {
+        estrategia,
+        nome: STOCKS_SECTION_NAMES[estrategia],
+        ativos,
+        totalQuantidade: 0,
+        totalValorAplicado: 0,
+        totalValorAtualizado: 0,
+        totalPercentualCarteira: 0,
+        totalRisco: 0,
+        totalObjetivo: 0,
+        totalQuantoFalta: 0,
+        totalNecessidadeAporte: 0,
+        rentabilidadeMedia: 0
+      };
+    });
+
+    // Calcular valores das seções
+    secoes.forEach(secao => {
+      secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+      secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+      secao.totalValorAtualizado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+      secao.totalPercentualCarteira = secao.ativos.reduce((sum, ativo) => sum + ativo.percentualCarteira, 0);
+      secao.totalRisco = secao.ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
+      secao.totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+      secao.totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
+      secao.totalNecessidadeAporte = secao.ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+      secao.rentabilidadeMedia = secao.ativos.length > 0
+        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
+        : 0;
+    });
 
     // Calcular totais gerais
     const totalQuantidade = stocksAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
@@ -100,39 +147,6 @@ export async function GET(request: NextRequest) {
     const rentabilidadeMedia = stocksAtivos.length > 0 
       ? stocksAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / stocksAtivos.length 
       : 0;
-
-    // Agrupar por estratégia (todos como 'value' por enquanto)
-    const secoes = [
-      {
-        estrategia: 'value',
-        nome: 'Ações',
-        ativos: stocksAtivos,
-        totalQuantidade: 0,
-        totalValorAplicado: 0,
-        totalValorAtualizado: 0,
-        totalPercentualCarteira: 0,
-        totalRisco: 0,
-        totalObjetivo: 0,
-        totalQuantoFalta: 0,
-        totalNecessidadeAporte: 0,
-        rentabilidadeMedia: 0
-      }
-    ];
-
-    // Calcular valores das seções
-    secoes.forEach(secao => {
-      secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
-      secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-      secao.totalValorAtualizado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-      secao.totalPercentualCarteira = secao.ativos.reduce((sum, ativo) => sum + ativo.percentualCarteira, 0);
-      secao.totalRisco = secao.ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-      secao.totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
-      secao.totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-      secao.totalNecessidadeAporte = secao.ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
-      secao.rentabilidadeMedia = secao.ativos.length > 0 
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length 
-        : 0;
-    });
 
     // Calcular resumo
     // Para simplificar, vamos considerar:
@@ -153,21 +167,29 @@ export async function GET(request: NextRequest) {
     };
 
     // Calcular alocação por ativo
+    const totalValor = stocksAtivos.reduce((sum, a) => sum + a.valorAtualizado, 0);
     const alocacaoAtivo = stocksAtivos.map(ativo => ({
-      name: ativo.ticker,
-      value: ativo.valorAtualizado,
-      color: getAtivoColor(ativo.ticker)
+      ticker: ativo.ticker,
+      valor: ativo.valorAtualizado,
+      percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
+      cor: getAtivoColor(ativo.ticker)
     }));
 
-    // Tabela auxiliar (dados adicionais)
-    const tabelaAuxiliar = stocksAtivos.map(ativo => ({
-      ticker: ativo.ticker,
-      nome: ativo.nome,
-      quantidade: ativo.quantidade,
-      valorAplicado: ativo.valorTotal,
-      valorAtualizado: ativo.valorAtualizado,
-      rentabilidade: ativo.rentabilidade
-    }));
+    // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado)
+    const totalTabValue = valorAtualizadoComCaixa;
+    const tabelaAuxiliar = stocksAtivos.map(ativo => {
+      const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+      const quantoFalta = (ativo.objetivo ?? 0) - percentualCarteira;
+      const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+      const loteAproximado = ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
+      return {
+        ticker: ativo.ticker,
+        nome: ativo.nome,
+        cotacaoAtual: ativo.cotacaoAtual,
+        necessidadeAporte,
+        loteAproximado,
+      };
+    });
 
     const data = {
       resumo,

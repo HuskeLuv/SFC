@@ -65,6 +65,7 @@ export interface ReitAlocacaoAtivo {
 }
 
 export interface ReitData {
+  cotacaoDolar?: number | null;
   resumo: ReitResumo;
   secoes: ReitSecao[];
   tabelaAuxiliar: ReitTabelaAuxiliar[];

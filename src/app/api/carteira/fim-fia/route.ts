@@ -91,8 +91,13 @@ export async function GET(request: NextRequest) {
       const valorInicial = totalCompras > 0 ? totalCompras : item.totalInvested;
       const aporte = totalAportes;
       const resgate = totalResgates;
-      const valorAtualizado = valorInicial + aporte - resgate;
+      const valorCalculado = valorInicial + aporte - resgate;
+      const valorAtualizado = (item.avgPrice && item.avgPrice > 0 && item.quantity > 0)
+        ? item.avgPrice * item.quantity
+        : valorCalculado;
       const notes = assetId ? latestCompraNotes.get(assetId) : null;
+
+      const tipoFundo = (notes?.tipoFundo === 'fia' || notes?.tipoFundo === 'fim') ? notes.tipoFundo : 'fim';
 
       return {
         id: item.id,
@@ -111,7 +116,7 @@ export async function GET(request: NextRequest) {
         quantoFalta: 0,
         necessidadeAporte: 0,
         rentabilidade: valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0,
-        tipo: 'fim',
+        tipo: tipoFundo,
         observacoes: notes?.observacoes,
       };
     });
@@ -123,23 +128,37 @@ export async function GET(request: NextRequest) {
       riscoPorAtivo: totalCarteira > 0 ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
     }));
 
-    const secoes = [{
-      tipo: 'fim',
-      nome: 'FIM/FIA',
-      ativos: ativosComPercentuais,
-      totalValorAplicado: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorInicialAplicado, 0),
-      totalAporte: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.aporte, 0),
-      totalResgate: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.resgate, 0),
-      totalValorAtualizado: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0),
-      totalPercentualCarteira: totalCarteira > 0 ? 100 : 0,
-      totalRisco: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0),
+    const FIM_FIA_SECTION_ORDER = ['fim', 'fia'] as const;
+    const FIM_FIA_SECTION_NAMES: Record<string, string> = { fim: 'FIM', fia: 'FIA' };
+    type AtivoFimFia = (typeof ativosComPercentuais)[number];
+    const secoesMap = new Map<string, { tipo: string; nome: string; ativos: AtivoFimFia[] }>();
+    ativosComPercentuais.forEach(ativo => {
+      const tipo = ativo.tipo;
+      const current = secoesMap.get(tipo) || { tipo, nome: FIM_FIA_SECTION_NAMES[tipo] || tipo, ativos: [] as AtivoFimFia[] };
+      current.ativos.push(ativo);
+      secoesMap.set(tipo, current);
+    });
+
+    const secoes = FIM_FIA_SECTION_ORDER.map(tipo => {
+      const secao = secoesMap.get(tipo) || { tipo, nome: FIM_FIA_SECTION_NAMES[tipo], ativos: [] as AtivoFimFia[] };
+      return {
+      tipo: secao.tipo,
+      nome: secao.nome,
+      ativos: secao.ativos,
+      totalValorAplicado: secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.valorInicialAplicado, 0),
+      totalAporte: secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.aporte, 0),
+      totalResgate: secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.resgate, 0),
+      totalValorAtualizado: secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.valorAtualizado, 0),
+      totalPercentualCarteira: totalCarteira > 0 ? (secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.valorAtualizado, 0) / totalCarteira) * 100 : 0,
+      totalRisco: secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.riscoPorAtivo, 0),
       totalObjetivo: 0,
       totalQuantoFalta: 0,
       totalNecessidadeAporte: 0,
-      rentabilidadeMedia: ativosComPercentuais.length > 0
-        ? ativosComPercentuais.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / ativosComPercentuais.length
+      rentabilidadeMedia: secao.ativos.length > 0
+        ? secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.rentabilidade, 0) / secao.ativos.length
         : 0,
-    }];
+    };
+    });
 
     const totalValorAplicado = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorInicialAplicado, 0);
     const totalValorAtualizado = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
@@ -187,7 +206,53 @@ export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+    const { ativoId, objetivo, cotacao, caixaParaInvestir, campo, valor } = body;
+
+    if (campo && valor !== undefined && ativoId) {
+      const portfolio = await prisma.portfolio.findUnique({
+        where: { id: ativoId },
+        include: { asset: true },
+      });
+
+      if (!portfolio) {
+        return NextResponse.json(
+          { error: 'Portfolio não encontrado' },
+          { status: 404 }
+        );
+      }
+
+      if (portfolio.userId !== targetUserId) {
+        return NextResponse.json(
+          { error: 'Não autorizado' },
+          { status: 403 }
+        );
+      }
+
+      if (campo === 'valorAtualizado') {
+        const numValor = typeof valor === 'number' ? valor : parseFloat(valor as string);
+        if (!Number.isFinite(numValor) || numValor < 0) {
+          return NextResponse.json(
+            { error: 'Valor atualizado deve ser um número maior ou igual a zero' },
+            { status: 400 }
+          );
+        }
+        const qty = portfolio.quantity || 1;
+        const novoAvgPrice = qty > 0 ? numValor / qty : numValor;
+
+        await prisma.portfolio.update({
+          where: { id: ativoId },
+          data: {
+            avgPrice: novoAvgPrice,
+            lastUpdate: new Date(),
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: 'Valor atualizado com sucesso',
+        });
+      }
+    }
 
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
