@@ -372,86 +372,6 @@ async function seedDemoUsers() {
   console.log('✅ Usuários de demonstração criados.\n');
 }
 
-// ===== SEED STOCKS =====
-
-async function seedStocks() {
-  try {
-    console.log('🌱 Iniciando seed de ativos da B3...\n');
-
-    // Nota: Esta função requer fetchB3Stocks de '../src/utils/stockData'
-    // Se não estiver disponível, esta etapa será pulada
-    try {
-      // Tentar importar dinamicamente
-      const { fetchB3Stocks } = await import('../src/utils/stockData');
-      
-      console.log('📡 Buscando dados da API da B3...');
-      const stocksData = await fetchB3Stocks();
-      
-      console.log(`✅ ${stocksData.length} ativos encontrados`);
-
-      // Limpar dados existentes apenas se houver dados para inserir
-      if (stocksData.length > 0) {
-        console.log('🧹 Limpando dados existentes...');
-        await prisma.stockTransaction.deleteMany({});
-        await prisma.portfolio.deleteMany({});
-        await prisma.watchlist.deleteMany({});
-        await prisma.stock.deleteMany({});
-
-        // Inserir ativos no banco
-        console.log('📝 Inserindo ativos no banco...');
-        const createdStocks: Array<{
-          id: string;
-          ticker: string;
-          companyName: string;
-          sector: string | null;
-          subsector: string | null;
-          segment: string | null;
-          isActive: boolean;
-          lastUpdate: Date;
-        }> = [];
-        
-        for (const stockData of stocksData) {
-          try {
-            const stock = await prisma.stock.create({
-              data: {
-                ticker: stockData.ticker,
-                companyName: stockData.companyName,
-                sector: stockData.sector || null,
-                subsector: stockData.subsector || null,
-                segment: stockData.segment || null,
-                isActive: true,
-                lastUpdate: new Date(),
-              },
-            });
-            
-            createdStocks.push(stock);
-            console.log(`  ✅ ${stock.ticker} - ${stock.companyName}`);
-            
-          } catch (error) {
-            console.warn(`  ⚠️  Erro ao criar ${stockData.ticker}:`, error);
-          }
-        }
-
-        console.log(`\n🎉 Seed concluído! ${createdStocks.length} ativos inseridos no banco.`);
-        
-        // Mostrar alguns exemplos
-        if (createdStocks.length > 0) {
-          console.log('\n📊 Exemplos de ativos inseridos:');
-          createdStocks.slice(0, 5).forEach(stock => {
-            console.log(`  - ${stock.ticker}: ${stock.companyName} (${stock.sector || 'N/A'})`);
-          });
-        }
-      }
-    } catch (importError) {
-      console.log('⚠️  Função fetchB3Stocks não disponível. Pulando seed de stocks da B3.\n');
-    }
-
-  } catch (error) {
-    console.error('❌ Erro durante o seed de stocks:', error);
-    // Não lançar erro para não interromper o seed completo
-  }
-}
-
 // ===== MAIN SEED FUNCTION =====
 
 async function main() {
@@ -467,8 +387,7 @@ async function main() {
     // Executar seed de usuários de demonstração
     await seedDemoUsers();
 
-    // Executar seed de stocks (ativos da B3)
-    await seedStocks();
+    // Nota: Ações (stocks) e moedas são adicionadas pelo cron de sincronização (brapiSync)
 
     console.log('\n🎉 Seed concluído com sucesso!');
     
