@@ -417,6 +417,42 @@ const getRangeDates = (range: '1d' | '1mo' | '1y' | '2y', startDateParam?: Date)
   return { startDate, endDate: end };
 };
 
+/**
+ * Busca dados de benchmarks na tabela benchmark_cumulative_returns.
+ * Retorna no formato { date, value }[] (value = rentabilidade acumulada %).
+ */
+const toUtcStartOfDay = (d: Date): Date =>
+  new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0));
+
+const toUtcEndOfDay = (d: Date): Date =>
+  new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999));
+
+const fetchBenchmarkCumulativeReturns = async (
+  benchmarkType: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<IndexData[]> => {
+  const where: { benchmarkType: string; date?: { gte?: Date; lte?: Date } } = {
+    benchmarkType,
+  };
+
+  if (startDate || endDate) {
+    where.date = {};
+    if (startDate) where.date.gte = toUtcStartOfDay(startDate);
+    if (endDate) where.date.lte = toUtcEndOfDay(endDate);
+  }
+
+  const records = await prisma.benchmarkCumulativeReturn.findMany({
+    where,
+    orderBy: { date: 'asc' },
+  });
+
+  return records.map((r) => ({
+    date: new Date(r.date).getTime(),
+    value: Number(r.cumulativeReturn),
+  }));
+};
+
 const validateIbovGaps = (data: IndexData[]) => {
   if (data.length < 2) return true;
   const sorted = [...data].sort((a, b) => a.date - b.date);
@@ -445,10 +481,51 @@ export async function GET(request: NextRequest) {
       startDate = new Date(parseInt(startDateParam, 10));
     }
     
+    const { startDate: rangeStart, endDate: rangeEnd } = getRangeDates(range, startDate);
     const results: IndexResponse[] = [];
     
-    // Buscar IBOV: banco primeiro, fallback BRAPI
-    const { startDate: rangeStart, endDate: rangeEnd } = getRangeDates(range, startDate);
+    // Prioridade 1: Buscar em benchmark_cumulative_returns (dados ingeridos externamente)
+    const benchmarkTypes = ['CDI', 'IBOV', 'IPCA', 'POUPANCA'] as const;
+    for (const benchmarkType of benchmarkTypes) {
+      try {
+        const data = await fetchBenchmarkCumulativeReturns(benchmarkType, rangeStart, rangeEnd);
+        if (data.length > 0) {
+          let filtered = data;
+          if (startDate) {
+            const startTs = startDate.getTime();
+            filtered = data.filter((item) => item.date >= startTs);
+          }
+          const hoje = new Date();
+          hoje.setHours(23, 59, 59, 999);
+          filtered = filtered.filter((item) => item.date <= hoje.getTime());
+          if (filtered.length > 0) {
+            results.push({
+              symbol: benchmarkType,
+              name: benchmarkType === 'POUPANCA' ? 'Poupança' : benchmarkType,
+              data: filtered,
+            });
+            console.log(`✅ ${benchmarkType}: ${filtered.length} pontos (benchmark_cumulative_returns)`);
+          }
+        }
+      } catch (err) {
+        console.warn(`⚠️ ${benchmarkType} em benchmark_cumulative_returns:`, err);
+      }
+    }
+    
+    // Se já temos os 4 benchmarks, retornar
+    if (results.length >= 4) {
+      const validResults = results.filter((r) =>
+        r.data.length > 0 &&
+        r.data.every((item) => Number.isFinite(item.date) && Number.isFinite(item.value))
+      );
+      return NextResponse.json({ indices: validResults });
+    }
+    
+    // Prioridade 2: Fallback para fontes originais (apenas para os que faltam)
+    const hasBenchmark = (name: string) => results.some((r) => r.name === name || r.symbol === name);
+    
+    // Buscar IBOV: banco primeiro, fallback BRAPI (se não tiver em benchmark_cumulative_returns)
+    if (!hasBenchmark('IBOV')) {
     for (const [name, symbol] of Object.entries(INDICES)) {
       try {
         const rawData = await getAssetHistory(symbol, rangeStart, rangeEnd);
@@ -490,8 +567,10 @@ export async function GET(request: NextRequest) {
         console.error(`❌ Erro ao buscar ${name} (${symbol}):`, error);
       }
     }
+    }
     
-    // Buscar CDI do banco de dados
+    // Buscar CDI do banco de dados (se não tiver em benchmark_cumulative_returns)
+    if (!hasBenchmark('CDI')) {
     try {
       const cdiData = await fetchCDIHistory(startDate);
       if (Array.isArray(cdiData) && cdiData.length > 0) {
@@ -516,8 +595,10 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error(`❌ Erro ao buscar CDI:`, error);
     }
+    }
     
-    // Buscar IPCA do banco de dados
+    // Buscar IPCA do banco de dados (se não tiver em benchmark_cumulative_returns)
+    if (!hasBenchmark('IPCA')) {
     try {
       const ipcaData = await fetchIPCAHistory(startDate);
       if (Array.isArray(ipcaData) && ipcaData.length > 0) {
@@ -544,6 +625,7 @@ export async function GET(request: NextRequest) {
       }
     } catch (error) {
       console.error(`❌ Erro ao buscar IPCA:`, error);
+    }
     }
     
     // Garantir que todos os resultados têm a estrutura correta
