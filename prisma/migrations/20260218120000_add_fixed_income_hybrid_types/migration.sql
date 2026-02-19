@@ -1,0 +1,13 @@
+-- AlterEnum
+ALTER TYPE "FixedIncomeType" ADD VALUE 'CDB_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'LC_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'LCI_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'LCA_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'RDB_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'LF_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'LFS_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'CRI_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'CRA_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'DPGE_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'RDC_HIB';
+ALTER TYPE "FixedIncomeType" ADD VALUE 'LIG_HIB';
