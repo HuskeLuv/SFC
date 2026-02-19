@@ -63,6 +63,7 @@ export interface WizardFormData {
   valorAplicado: number;
   taxaCorretagem: number;
   taxaJurosAnual: number;
+  taxaFixaAnual?: number; // Parte fixa para Renda Fixa Híbrida
   percentualCDI: number;
   indexador: string;
   emissor: string;
@@ -70,7 +71,7 @@ export interface WizardFormData {
   periodo: string;
   descricao: string;
   observacoes: string;
-  metodo: 'valor' | 'percentual';
+  metodo: 'valor' | 'percentual' | 'cotas';
   moeda: string;
   nomePersonalizado: string;
   precoUnitario: number;
@@ -80,6 +81,18 @@ export interface WizardFormData {
   benchmark: string;
   estrategia: 'value' | 'growth' | 'risk' | '';
   tipoFii: 'fofi' | 'tvm' | 'tijolo' | '';
+
+  /** Para debênture: tipo (Pré, Pós ou Híbrida) - define em qual seção da aba Renda Fixa será exibida */
+  tipoDebenture?: 'prefixada' | 'pos-fixada' | 'hibrida';
+
+  /** Para fundo: tipo (FIM ou FIA) - define em qual seção da aba FIM/FIA será exibido */
+  tipoFundo?: 'fim' | 'fia';
+
+  /** Para REIT: estratégia (Growth, Value, Risk) - define em qual seção da aba REIT será exibido */
+  estrategiaReit?: 'value' | 'growth' | 'risk';
+
+  /** Para conta corrente: onde o investimento deve aparecer */
+  contaCorrenteDestino?: 'reserva-emergencia' | 'reserva-oportunidade';
 
   // Aporte
   portfolioId: string;
@@ -109,6 +122,7 @@ export interface WizardErrors {
   valorInvestido?: string;
   valorAplicado?: string;
   taxaJurosAnual?: string;
+  taxaFixaAnual?: string;
   percentualCDI?: string;
   indexador?: string;
   emissor?: string;
@@ -124,6 +138,10 @@ export interface WizardErrors {
   metodo?: string;
   estrategia?: string;
   tipoFii?: string;
+  tipoDebenture?: string;
+  tipoFundo?: string;
+  estrategiaReit?: string;
+  contaCorrenteDestino?: string;
   dataAporte?: string;
   valorAporte?: string;
 }
@@ -146,6 +164,7 @@ export const TIPOS_ATIVO = [
   { value: "previdencia", label: "Previdência" },
   { value: "renda-fixa", label: "Renda Fixa Pré-Fixada" },
   { value: "renda-fixa-posfixada", label: "Renda Fixa Pós-Fixada" },
+  { value: "renda-fixa-hibrida", label: "Renda Fixa Híbrida" },
   { value: "tesouro-direto", label: "Tesouro Direto" },
 ];
 
@@ -162,6 +181,22 @@ export const RENDA_FIXA_TIPOS = [
   { value: "DPGE_PRE", label: "DPGE Pré" },
   { value: "RDC_PRE", label: "RDC Pré" },
   { value: "LIG_PRE", label: "LIG Pré" },
+];
+
+/** Tipos para Renda Fixa Híbrida (parte fixa + indexador) */
+export const RENDA_FIXA_TIPOS_HIBRIDOS = [
+  { value: "CDB_HIB", label: "CDB Híbrido" },
+  { value: "LC_HIB", label: "LC Híbrida" },
+  { value: "LCI_HIB", label: "LCI Híbrida" },
+  { value: "LCA_HIB", label: "LCA Híbrida" },
+  { value: "RDB_HIB", label: "RDB Híbrido" },
+  { value: "LF_HIB", label: "LF Híbrida" },
+  { value: "LFS_HIB", label: "LFS Híbrida" },
+  { value: "CRI_HIB", label: "CRI Híbrido" },
+  { value: "CRA_HIB", label: "CRA Híbrido" },
+  { value: "DPGE_HIB", label: "DPGE Híbrido" },
+  { value: "RDC_HIB", label: "RDC Híbrido" },
+  { value: "LIG_HIB", label: "LIG Híbrido" },
 ];
 
 export const MOEDAS_FIXAS = [

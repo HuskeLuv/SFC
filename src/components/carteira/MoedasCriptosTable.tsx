@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useMoedasCriptos } from "@/hooks/useMoedasCriptos";
 import { MoedaCriptoAtivo, MoedaCriptoSecao } from "@/types/moedas-criptos";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -258,8 +258,14 @@ interface MoedasCriptosTableProps {
 }
 
 export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir } = useMoedasCriptos();
-  const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
+  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir, refetch } = useMoedasCriptos();
+  const { necessidadeAporteMap, resumo, refreshTrigger } = useCarteiraResumoContext();
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      refetch();
+    }
+  }, [refreshTrigger, refetch]);
   const necessidadeAporteTotalCalculada = necessidadeAporteMap.moedasCriptos ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(MOEDAS_CRIPTOS_SECTION_ORDER)

@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect } from "react";
-import { WizardFormData, TIPOS_ATIVO, MOEDAS_FIXAS, INDEXADORES, PERIODOS, RENDA_FIXA_TIPOS } from "@/types/wizard";
+import { WizardFormData, TIPOS_ATIVO, MOEDAS_FIXAS, INDEXADORES, PERIODOS, RENDA_FIXA_TIPOS, RENDA_FIXA_TIPOS_HIBRIDOS } from "@/types/wizard";
 import Button from "@/components/ui/button/Button";
 
 interface Step5ConfirmationProps {
@@ -42,9 +42,10 @@ export default function Step5Confirmation({
     return PERIODOS.find(p => p.value === value)?.label || value;
   };
 
-  const getRendaFixaTipoLabel = (value: string | number | Date | null | undefined) => {
+  const getRendaFixaTipoLabel = (value: string | number | Date | null | undefined, isHibrido?: boolean) => {
     if (typeof value !== 'string') return '-';
-    return RENDA_FIXA_TIPOS.find(t => t.value === value)?.label || value;
+    const tipos = isHibrido ? RENDA_FIXA_TIPOS_HIBRIDOS : RENDA_FIXA_TIPOS;
+    return tipos.find(t => t.value === value)?.label || value;
   };
 
   const formatCurrency = (value: string | number | Date | null | undefined) => {
@@ -81,7 +82,8 @@ export default function Step5Confirmation({
           <>
             {renderFieldValue("Data de Início", formData.dataInicio, formatDate)}
             {renderFieldValue("Valor Aplicado", formData.valorAplicado, formatCurrency)}
-            {renderFieldValue("Percentual sobre CDI", formData.percentualCDI, (val) => `${val}%`)}
+            {(formData.percentualCDI ?? 0) > 0 && renderFieldValue("Percentual sobre CDI", formData.percentualCDI, (val) => `${val}%`)}
+            {renderFieldValue("Exibir em", formData.contaCorrenteDestino === "reserva-emergencia" ? "Reserva de Emergência" : "Reserva de Oportunidade")}
           </>
         );
 
@@ -97,10 +99,11 @@ export default function Step5Confirmation({
       case "moeda":
         return (
           <>
-            {renderFieldValue("Moeda", formData.moeda, getMoedaLabel)}
+            {renderFieldValue("Moeda", formData.ativo)}
             {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}
-            {renderFieldValue("Cotação de Compra", formData.cotacaoCompra, formatCurrency)}
-            {renderFieldValue("Valor do Investimento", formData.valorInvestido, formatCurrency)}
+            {renderFieldValue("Quantidade", formData.quantidade)}
+            {renderFieldValue("Preço de aquisição (R$/unidade)", formData.cotacaoCompra, formatCurrency)}
+            {renderFieldValue("Valor do Investimento", (formData.quantidade || 0) * (formData.cotacaoCompra || 0), formatCurrency)}
           </>
         );
 
@@ -126,13 +129,14 @@ export default function Step5Confirmation({
 
       case "renda-fixa":
       case "renda-fixa-posfixada":
+      case "renda-fixa-hibrida":
         return (
           <>
             {renderFieldValue(
               "Tipo de Renda Fixa",
               formData.rendaFixaTipo,
               (val) => {
-                const label = getRendaFixaTipoLabel(val);
+                const label = getRendaFixaTipoLabel(val, formData.tipoAtivo === "renda-fixa-hibrida");
                 return formData.tipoAtivo === "renda-fixa-posfixada" && typeof label === "string"
                   ? label.replace(/ Pré$/, "")
                   : label;
@@ -141,11 +145,12 @@ export default function Step5Confirmation({
             {renderFieldValue("Data de Início", formData.dataInicio, formatDate)}
             {renderFieldValue("Valor Aplicado", formData.valorAplicado, formatCurrency)}
             {renderFieldValue("Data de Vencimento", formData.dataVencimento, formatDate)}
-            {formData.tipoAtivo === "renda-fixa-posfixada"
+            {formData.tipoAtivo === "renda-fixa-hibrida" && renderFieldValue("Taxa Fixa Anual", formData.taxaFixaAnual ?? 0, (val) => `${val}%`)}
+            {formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida"
               ? renderFieldValue("Taxa sobre o Indexador", formData.taxaJurosAnual, (val) => `${val}%`)
               : renderFieldValue("Taxa de Juros Anual", formData.taxaJurosAnual, (val) => `${val}%`)}
-            {formData.tipoAtivo === "renda-fixa-posfixada" && renderFieldValue("Indexador", formData.rendaFixaIndexer)}
-            {formData.tipoAtivo === "renda-fixa-posfixada" && (formData.rendaFixaIndexerPercent ?? 0) > 0 && renderFieldValue("% do Indexador", formData.rendaFixaIndexerPercent ?? 0, (val) => `${val}%`)}
+            {(formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida") && renderFieldValue("Indexador", formData.rendaFixaIndexer)}
+            {(formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida") && (formData.rendaFixaIndexerPercent ?? 0) > 0 && renderFieldValue("% do Indexador", formData.rendaFixaIndexerPercent ?? 0, (val) => `${val}%`)}
             {renderFieldValue("Descrição", formData.descricao)}
           </>
         );
@@ -157,12 +162,22 @@ export default function Step5Confirmation({
         return (
           <>
             {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}
-            {renderFieldValue("Método", formData.metodo === 'valor' ? 'Por Valor Investido' : 'Por Preço da Cota e Quantidade')}
+            {formData.tipoAtivo === "debenture" && formData.tipoDebenture && renderFieldValue(
+              "Tipo de Debênture",
+              formData.tipoDebenture,
+              (val) => val === "prefixada" ? "Pré-fixada" : val === "pos-fixada" ? "Pós-fixada" : "Híbrida"
+            )}
+            {formData.tipoAtivo === "fundo" && formData.tipoFundo && renderFieldValue(
+              "Tipo de Fundo",
+              formData.tipoFundo,
+              (val) => val === "fim" ? "FIM (Fundos de Investimento Multimercado)" : "FIA (Fundo de Investimento em Ações)"
+            )}
+            {renderFieldValue("Tipo de Adição", formData.metodo === 'valor' ? 'Por valor investido' : 'Por preço de cota e quantidade')}
             {formData.metodo === 'valor' ? (
               renderFieldValue("Valor Investido", formData.valorInvestido, formatCurrency)
             ) : (
               <>
-                {renderFieldValue("Preço por Cota", formData.cotacaoUnitaria, formatCurrency)}
+                {renderFieldValue("Preço da Cota", formData.cotacaoUnitaria, formatCurrency)}
                 {renderFieldValue("Quantidade de Cotas", formData.quantidade)}
                 {renderFieldValue("Total Investido", formData.quantidade * formData.cotacaoUnitaria, formatCurrency)}
               </>
@@ -194,10 +209,35 @@ export default function Step5Confirmation({
           </>
         );
 
+      case "reit":
+        const formatCurrencyUSD = (value: string | number | Date | null | undefined) => {
+          if (typeof value !== 'number') return '-';
+          return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+        };
+        return (
+          <>
+            {renderFieldValue("REIT", formData.ativo)}
+            {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}
+            {formData.estrategiaReit && renderFieldValue(
+              "Tipo de Investimento",
+              formData.estrategiaReit,
+              (val) => (val === 'value' ? 'Value' : val === 'growth' ? 'Growth' : 'Risk')
+            )}
+            {renderFieldValue("Quantidade de Cotas", formData.quantidade)}
+            {renderFieldValue("Preço da Cota (USD)", formData.cotacaoUnitaria, formatCurrencyUSD)}
+            {renderFieldValue("Total Investido (USD)", (formData.quantidade || 0) * (formData.cotacaoUnitaria || 0), formatCurrencyUSD)}
+          </>
+        );
+
       case "stock":
         return (
           <>
             {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}
+            {formData.estrategia && renderFieldValue(
+              "Estratégia",
+              formData.estrategia,
+              (val) => (val === 'value' ? 'Value' : val === 'growth' ? 'Growth' : 'Risk')
+            )}
             {renderFieldValue("Moeda", formData.moeda, getMoedaLabel)}
             {renderFieldValue("Cotação da Moeda (R$)", formData.cotacaoMoeda, formatCurrency)}
             {renderFieldValue("Quantidade", formData.quantidade)}

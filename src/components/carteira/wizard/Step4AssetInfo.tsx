@@ -132,12 +132,24 @@ export default function Step4AssetInfo({
   useEffect(() => {
     if (formData.tipoAtivo === "fii" && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
       const valorCalculado = (formData.quantidade * formData.cotacaoUnitaria) + (formData.taxaCorretagem || 0);
-      // Só atualizar se o valor realmente mudou para evitar loops infinitos
       if (Math.abs(formData.valorInvestido - valorCalculado) > 0.01) {
         onFormDataChange({ valorInvestido: valorCalculado });
       }
     }
-  }, [formData.quantidade, formData.cotacaoUnitaria, formData.taxaCorretagem, formData.tipoAtivo]);
+    const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
+    if ((formData.tipoAtivo === "debenture" || formData.tipoAtivo === "fundo" || formData.tipoAtivo === "previdencia" || formData.tipoAtivo === "tesouro-direto") && metodoCotas && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
+      const valorCalculado = formData.quantidade * formData.cotacaoUnitaria;
+      if (Math.abs(formData.valorInvestido - valorCalculado) > 0.01) {
+        onFormDataChange({ valorInvestido: valorCalculado });
+      }
+    }
+    if (formData.tipoAtivo === "reit" && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
+      const valorCalculado = formData.quantidade * formData.cotacaoUnitaria;
+      if (Math.abs(formData.valorInvestido - valorCalculado) > 0.01) {
+        onFormDataChange({ valorInvestido: valorCalculado });
+      }
+    }
+  }, [formData.quantidade, formData.cotacaoUnitaria, formData.taxaCorretagem, formData.tipoAtivo, formData.metodo, formData.valorInvestido, onFormDataChange]);
 
   const renderFieldsByAssetType = () => {
     switch (formData.tipoAtivo) {
@@ -268,12 +280,29 @@ export default function Step4AssetInfo({
               <Input
                 id="percentualCDI"
                 {...decimalInputProps}
-                placeholder="Ex: 100"
+                placeholder="Ex: 100 (opcional)"
                 value={getDecimalInputValue("percentualCDI")}
                 onChange={handleDecimalInputChange("percentualCDI")}
                 min="0"
                 step="0.01"
               />
+            </div>
+            <div>
+              <Label htmlFor="contaCorrenteDestino">Onde este investimento deve aparecer *</Label>
+              <Select
+                id="contaCorrenteDestino"
+                options={[
+                  { value: "reserva-emergencia", label: "Reserva de Emergência" },
+                  { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
+                ]}
+                placeholder="Selecione onde exibir"
+                value={formData.contaCorrenteDestino ?? ""}
+                onChange={(value) => handleInputChange('contaCorrenteDestino', value)}
+                className={errors.contaCorrenteDestino ? 'border-red-500' : ''}
+              />
+              {errors.contaCorrenteDestino && (
+                <p className="mt-1 text-sm text-red-500">{errors.contaCorrenteDestino}</p>
+              )}
             </div>
           </>
         );
@@ -333,16 +362,14 @@ export default function Step4AssetInfo({
           <>
             <div>
               <Label htmlFor="moeda">Moeda *</Label>
-              <Select
-                options={MOEDAS_FIXAS}
-                placeholder="Selecione a moeda"
-                defaultValue={formData.moeda}
-                onChange={(value) => handleInputChange('moeda', value)}
-                className={errors.moeda ? 'border-red-500' : ''}
+              <Input
+                id="moeda"
+                type="text"
+                placeholder="Selecionada no passo anterior"
+                value={formData.ativo}
+                disabled
+                className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
               />
-              {errors.moeda && (
-                <p className="mt-1 text-sm text-red-500">{errors.moeda}</p>
-              )}
             </div>
             <div>
               <DatePicker
@@ -361,7 +388,22 @@ export default function Step4AssetInfo({
               )}
             </div>
             <div>
-              <Label htmlFor="cotacaoCompra">Cotação de Compra (R$) *</Label>
+              <Label htmlFor="quantidade">Quantidade de unidades *</Label>
+              <Input
+                id="quantidade"
+                {...decimalInputProps}
+                placeholder="Ex: 100 ou 100.50"
+                value={getDecimalInputValue("quantidade")}
+                onChange={handleDecimalInputChange("quantidade")}
+                error={!!errors.quantidade}
+                hint={errors.quantidade}
+                min="0"
+                step="0.01"
+              />
+              {errors.quantidade && <p className="mt-1 text-sm text-red-500">{errors.quantidade}</p>}
+            </div>
+            <div>
+              <Label htmlFor="cotacaoCompra">Preço de aquisição por unidade (R$) *</Label>
               <Input
                 id="cotacaoCompra"
                 {...decimalInputProps}
@@ -378,14 +420,13 @@ export default function Step4AssetInfo({
               <Label htmlFor="valorInvestido">Valor do Investimento (R$) *</Label>
               <Input
                 id="valorInvestido"
-                {...decimalInputProps}
-                placeholder="Ex: 1000.00"
-                value={getDecimalInputValue("valorInvestido")}
-                onChange={handleDecimalInputChange("valorInvestido")}
-                error={!!errors.valorInvestido}
-                hint={errors.valorInvestido}
-                min="0"
-                step="0.01"
+                type="text"
+                placeholder="Calculado automaticamente"
+                value={formData.quantidade > 0 && formData.cotacaoCompra > 0
+                  ? (formData.quantidade * formData.cotacaoCompra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                  : ''}
+                disabled
+                className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
               />
             </div>
           </>
@@ -507,6 +548,7 @@ export default function Step4AssetInfo({
 
       case "renda-fixa":
       case "renda-fixa-posfixada":
+      case "renda-fixa-hibrida":
         return (
           <>
             <div>
@@ -555,16 +597,40 @@ export default function Step4AssetInfo({
                 <p className="mt-1 text-sm text-red-500">{errors.dataVencimento}</p>
               )}
             </div>
+            {formData.tipoAtivo === "renda-fixa-hibrida" && (
+              <div>
+                <Label htmlFor="taxaFixaAnual">Taxa Fixa Anual (%) *</Label>
+                <Input
+                  id="taxaFixaAnual"
+                  {...decimalInputProps}
+                  placeholder="Ex: 6 (parte prefixada)"
+                  value={getDecimalInputValue("taxaFixaAnual")}
+                  onChange={handleDecimalInputChange("taxaFixaAnual")}
+                  error={!!errors.taxaFixaAnual}
+                  hint={errors.taxaFixaAnual}
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+            )}
             <div>
               <Label htmlFor="taxaJurosAnual">
                 {formData.tipoAtivo === "renda-fixa-posfixada"
                   ? "Taxa sobre o Indexador (%) *"
-                  : "Taxa de Juros Anual (%) *"}
+                  : formData.tipoAtivo === "renda-fixa-hibrida"
+                    ? "Taxa sobre o Indexador (%) *"
+                    : "Taxa de Juros Anual (%) *"}
               </Label>
               <Input
                 id="taxaJurosAnual"
                 {...decimalInputProps}
-                placeholder={formData.tipoAtivo === "renda-fixa-posfixada" ? "Ex: 100 (100% CDI) ou 1.5 (CDI + 1.5%)" : "Ex: 12.5"}
+                placeholder={
+                  formData.tipoAtivo === "renda-fixa-posfixada"
+                    ? "Ex: 100 (100% CDI) ou 1.5 (CDI + 1.5%)"
+                    : formData.tipoAtivo === "renda-fixa-hibrida"
+                      ? "Ex: 100 (100% CDI) ou 5 (IPCA + 5%)"
+                      : "Ex: 12.5"
+                }
                 value={getDecimalInputValue("taxaJurosAnual")}
                 onChange={handleDecimalInputChange("taxaJurosAnual")}
                 error={!!errors.taxaJurosAnual}
@@ -573,7 +639,7 @@ export default function Step4AssetInfo({
                 step="0.01"
               />
             </div>
-            {formData.tipoAtivo === "renda-fixa-posfixada" && (
+            {(formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida") && (
               <>
                 <div>
                   <Label htmlFor="rendaFixaIndexer">Indexador *</Label>
@@ -654,36 +720,15 @@ export default function Step4AssetInfo({
       case "fundo":
       case "previdencia":
       case "tesouro-direto":
+        const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
+        const totalCalculado = formData.quantidade * formData.cotacaoUnitaria;
+        const TIPO_DEBENTURE_OPTIONS = [
+          { value: "prefixada", label: "Pré-fixada" },
+          { value: "pos-fixada", label: "Pós-fixada" },
+          { value: "hibrida", label: "Híbrida" },
+        ];
         return (
           <>
-            <div className="mb-4">
-              <Label>Método de Preenchimento *</Label>
-              <div className="flex space-x-4 mt-2">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="metodo"
-                    value="valor"
-                    checked={formData.metodo === 'valor'}
-                    onChange={(e) => handleInputChange('metodo', e.target.value)}
-                    className="mr-2"
-                  />
-                  Por Valor Investido
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="metodo"
-                    value="percentual"
-                    checked={formData.metodo === 'percentual'}
-                    onChange={(e) => handleInputChange('metodo', e.target.value)}
-                    className="mr-2"
-                  />
-                  Por Preço da Cota e Quantidade
-                </label>
-              </div>
-            </div>
-
             <div>
               <DatePicker
                 id="dataCompra"
@@ -701,7 +746,78 @@ export default function Step4AssetInfo({
               )}
             </div>
 
-            {formData.metodo === 'valor' ? (
+            {formData.tipoAtivo === "debenture" && (
+              <div>
+                <Label htmlFor="tipoDebenture">Tipo de Debênture *</Label>
+                <Select
+                  id="tipoDebenture"
+                  options={TIPO_DEBENTURE_OPTIONS}
+                  placeholder="Selecione o tipo (define em qual seção da aba Renda Fixa será exibida)"
+                  value={formData.tipoDebenture ?? ""}
+                  onChange={(value) => handleInputChange('tipoDebenture', value)}
+                  className={errors.tipoDebenture ? 'border-red-500' : ''}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  A debênture será exibida na seção correspondente: Pré-fixada, Pós-fixada ou Híbrida.
+                </p>
+                {errors.tipoDebenture && (
+                  <p className="mt-1 text-sm text-red-500">{errors.tipoDebenture}</p>
+                )}
+              </div>
+            )}
+
+            {formData.tipoAtivo === "fundo" && (
+              <div>
+                <Label htmlFor="tipoFundo">Tipo de Fundo *</Label>
+                <Select
+                  id="tipoFundo"
+                  options={[
+                    { value: "fim", label: "FIM (Fundos de Investimento Multimercado)" },
+                    { value: "fia", label: "FIA (Fundo de Investimento em Ações)" },
+                  ]}
+                  placeholder="Selecione o tipo (define em qual seção da aba FIM/FIA será exibido)"
+                  value={formData.tipoFundo ?? ""}
+                  onChange={(value) => handleInputChange('tipoFundo', value)}
+                  className={errors.tipoFundo ? 'border-red-500' : ''}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  O fundo será exibido na seção correspondente: FIM ou FIA.
+                </p>
+                {errors.tipoFundo && (
+                  <p className="mt-1 text-sm text-red-500">{errors.tipoFundo}</p>
+                )}
+              </div>
+            )}
+
+            <div className="mb-4">
+              <Label>Tipo de Adição *</Label>
+              <div className="flex flex-col sm:flex-row gap-4 mt-2">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="metodo-debenture"
+                    value="valor"
+                    checked={formData.metodo === 'valor'}
+                    onChange={() => handleInputChange('metodo', 'valor')}
+                    className="mr-2"
+                  />
+                  Por valor investido
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="metodo-debenture"
+                    value="cotas"
+                    checked={metodoCotas}
+                    onChange={() => handleInputChange('metodo', 'cotas')}
+                    className="mr-2"
+                  />
+                  Por preço de cota e quantidade
+                </label>
+              </div>
+            </div>
+
+            {formData.metodo === 'valor' || !metodoCotas ? (
               <div>
                 <Label htmlFor="valorInvestido">Valor Investido (R$) *</Label>
                 <Input
@@ -719,13 +835,18 @@ export default function Step4AssetInfo({
             ) : (
               <>
                 <div>
-                  <Label htmlFor="cotacaoUnitaria">Preço por Cota (R$) *</Label>
+                  <Label htmlFor="cotacaoUnitaria">Preço da Cota (R$) *</Label>
                   <Input
                     id="cotacaoUnitaria"
                     {...decimalInputProps}
                     placeholder="Ex: 150.00"
                     value={getDecimalInputValue("cotacaoUnitaria")}
-                    onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                    onChange={(e) => {
+                      handleDecimalInputChange("cotacaoUnitaria")(e);
+                      const qty = formData.quantidade || 0;
+                      const price = parseDecimalValue(e.target.value) ?? 0;
+                      if (qty > 0 && price > 0) handleInputChange('valorInvestido', qty * price);
+                    }}
                     error={!!errors.cotacaoUnitaria}
                     hint={errors.cotacaoUnitaria}
                     min="0"
@@ -739,7 +860,12 @@ export default function Step4AssetInfo({
                     {...decimalInputProps}
                     placeholder="Ex: 100"
                     value={getDecimalInputValue("quantidade")}
-                    onChange={handleDecimalInputChange("quantidade")}
+                    onChange={(e) => {
+                      handleDecimalInputChange("quantidade")(e);
+                      const qty = parseDecimalValue(e.target.value) ?? 0;
+                      const price = formData.cotacaoUnitaria || 0;
+                      if (qty > 0 && price > 0) handleInputChange('valorInvestido', qty * price);
+                    }}
                     error={!!errors.quantidade}
                     hint={errors.quantidade}
                     min="0"
@@ -747,12 +873,12 @@ export default function Step4AssetInfo({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="valorInvestido">Total Investido (R$)</Label>
+                  <Label htmlFor="totalInvestido">Total Investido (R$)</Label>
                   <Input
-                    id="valorInvestido"
-                    {...decimalInputProps}
+                    id="totalInvestido"
+                    type="text"
                     placeholder="Calculado automaticamente"
-                    value={formData.quantidade * formData.cotacaoUnitaria}
+                    value={totalCalculado > 0 ? totalCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
                     disabled
                     className="bg-gray-50 dark:bg-gray-800"
                   />
@@ -938,6 +1064,103 @@ export default function Step4AssetInfo({
           </>
         );
 
+      case "reit":
+        return (
+          <>
+            <div>
+              <DatePicker
+                id="dataCompra"
+                label="Data de Compra *"
+                placeholder="Selecione a data"
+                defaultDate={formData.dataCompra}
+                onChange={(selectedDates) => {
+                  if (selectedDates && selectedDates.length > 0) {
+                    handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
+                  }
+                }}
+              />
+              {errors.dataCompra && (
+                <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="estrategiaReit">Tipo de Investimento *</Label>
+              <Select
+                id="estrategiaReit"
+                options={[
+                  { value: "value", label: "Value" },
+                  { value: "growth", label: "Growth" },
+                  { value: "risk", label: "Risk" },
+                ]}
+                placeholder="Selecione (define em qual seção da aba REIT será exibido)"
+                value={formData.estrategiaReit ?? ""}
+                onChange={(value) => handleInputChange('estrategiaReit', value as 'value' | 'growth' | 'risk')}
+                className={errors.estrategiaReit ? 'border-red-500' : ''}
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                O REIT será exibido na seção correspondente: Value, Growth ou Risk.
+              </p>
+              {errors.estrategiaReit && (
+                <p className="mt-1 text-sm text-red-500">{errors.estrategiaReit}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="quantidade">Quantidade de Cotas *</Label>
+              <Input
+                id="quantidade"
+                {...integerInputProps}
+                placeholder="Ex: 100"
+                value={getDecimalInputValue("quantidade")}
+                onChange={(e) => {
+                  handleDecimalInputChange("quantidade")(e);
+                  const qty = parseDecimalValue(e.target.value) ?? 0;
+                  const price = formData.cotacaoUnitaria || 0;
+                  if (qty > 0 && price > 0) handleInputChange('valorInvestido', qty * price);
+                }}
+                error={!!errors.quantidade}
+                hint={errors.quantidade}
+                min="0"
+                step="1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cotacaoUnitaria">Preço da Cota (USD) *</Label>
+              <Input
+                id="cotacaoUnitaria"
+                {...decimalInputProps}
+                placeholder="Ex: 45.50"
+                value={getDecimalInputValue("cotacaoUnitaria")}
+                onChange={(e) => {
+                  handleDecimalInputChange("cotacaoUnitaria")(e);
+                  const qty = formData.quantidade || 0;
+                  const price = parseDecimalValue(e.target.value) ?? 0;
+                  if (qty > 0 && price > 0) handleInputChange('valorInvestido', qty * price);
+                }}
+                error={!!errors.cotacaoUnitaria}
+                hint={errors.cotacaoUnitaria}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <Label htmlFor="valorInvestido">Total Investido (USD)</Label>
+              <Input
+                id="valorInvestido"
+                type="text"
+                placeholder="Calculado automaticamente"
+                value={(formData.quantidade * formData.cotacaoUnitaria) > 0 
+                  ? (formData.quantidade * formData.cotacaoUnitaria).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD' 
+                  : ''}
+                disabled
+                className="bg-gray-50 dark:bg-gray-800"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Calculado automaticamente: Quantidade × Preço por Cota (USD)
+              </p>
+            </div>
+          </>
+        );
+
       case "stock":
         return (
           <>
@@ -955,6 +1178,27 @@ export default function Step4AssetInfo({
               />
               {errors.dataCompra && (
                 <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="estrategia">Estratégia *</Label>
+              <Select
+                id="estrategia"
+                options={[
+                  { value: "value", label: "Value" },
+                  { value: "growth", label: "Growth" },
+                  { value: "risk", label: "Risk" },
+                ]}
+                placeholder="Selecione (define em qual seção da aba Stocks será exibido)"
+                value={formData.estrategia ?? ""}
+                onChange={(value) => handleInputChange('estrategia', value)}
+                className={errors.estrategia ? 'border-red-500' : ''}
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                O stock será exibido na seção correspondente: Value, Growth ou Risk.
+              </p>
+              {errors.estrategia && (
+                <p className="mt-1 text-sm text-red-500">{errors.estrategia}</p>
               )}
             </div>
             <div>

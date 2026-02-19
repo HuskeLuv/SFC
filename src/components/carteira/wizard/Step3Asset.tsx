@@ -1,7 +1,10 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { WizardFormData, WizardErrors, Asset, AutocompleteOption, RENDA_FIXA_TIPOS } from "@/types/wizard";
+import { WizardFormData, WizardErrors, Asset, AutocompleteOption, RENDA_FIXA_TIPOS, RENDA_FIXA_TIPOS_HIBRIDOS } from "@/types/wizard";
 import AutocompleteInput from "@/components/form/AutocompleteInput";
+import Label from "@/components/form/Label";
+import Input from "@/components/form/input/InputField";
+import Select from "@/components/form/Select";
 
 interface Step3AssetProps {
   formData: WizardFormData;
@@ -18,7 +21,8 @@ export default function Step3Asset({
 }: Step3AssetProps) {
   const [assetOptions, setAssetOptions] = useState<AutocompleteOption[]>([]);
   const [loading, setLoading] = useState(false);
-  const selectedRendaFixaType = RENDA_FIXA_TIPOS.find((tipo) => tipo.value === formData.rendaFixaTipo);
+  const rendaFixaTipos = formData.tipoAtivo === "renda-fixa-hibrida" ? RENDA_FIXA_TIPOS_HIBRIDOS : RENDA_FIXA_TIPOS;
+  const selectedRendaFixaType = rendaFixaTipos.find((tipo) => tipo.value === formData.rendaFixaTipo);
 
   // Não carregar ativos iniciais - apenas quando o usuário digitar
 
@@ -35,18 +39,17 @@ export default function Step3Asset({
       if (formData.tipoAtivo === "reserva-emergencia") {
         onFormDataChange({
           ativo: "Reserva de Emergência",
-          assetId: "RESERVA-EMERG", // Será processado pela API
+          assetId: "RESERVA-EMERG",
         });
       } else if (formData.tipoAtivo === "reserva-oportunidade") {
         onFormDataChange({
           ativo: "Reserva de Oportunidade",
-          assetId: "RESERVA-OPORT", // Será processado pela API
+          assetId: "RESERVA-OPORT",
         });
       } else if (formData.tipoAtivo === "personalizado") {
-        // Para personalizado, o nome será definido no Step4
         onFormDataChange({
           ativo: "Personalizado",
-          assetId: "PERSONALIZADO", // Será processado pela API
+          assetId: "PERSONALIZADO",
         });
       }
       return;
@@ -149,11 +152,14 @@ export default function Step3Asset({
   }, [formData.tipoAtivo]);
 
   const handleRendaFixaSelect = (tipoValue: string) => {
-    const tipoSelecionado = RENDA_FIXA_TIPOS.find((tipo) => tipo.value === tipoValue);
+    const tipos = formData.tipoAtivo === "renda-fixa-hibrida" ? RENDA_FIXA_TIPOS_HIBRIDOS : RENDA_FIXA_TIPOS;
+    const tipoSelecionado = tipos.find((tipo) => tipo.value === tipoValue);
     const label = tipoSelecionado?.label || "Renda Fixa";
     const ativoLabel = formData.tipoAtivo === "renda-fixa-posfixada"
       ? label.replace(/ Pré$/, "")
-      : label;
+      : formData.tipoAtivo === "renda-fixa-hibrida"
+        ? label.replace(/ Híbrid[oa]$/, "")
+        : label;
     onFormDataChange({
       rendaFixaTipo: tipoValue,
       ativo: ativoLabel,
@@ -180,6 +186,7 @@ export default function Step3Asset({
       "renda-fixa-prefixada": "Digite pelo menos 2 caracteres (nome do título)",
       "renda-fixa-posfixada": "Digite pelo menos 2 caracteres (nome do título)",
       "renda-fixa": "Selecione o tipo de renda fixa abaixo",
+      "renda-fixa-hibrida": "Selecione o tipo de renda fixa híbrida abaixo",
       "previdencia": "Digite pelo menos 2 caracteres (nome do plano)",
       "criptoativo": "Digite pelo menos 2 caracteres (ex: Bitcoin, Ethereum)",
       "moeda": "Digite pelo menos 2 caracteres (ex: Dólar, Euro)",
@@ -231,7 +238,7 @@ export default function Step3Asset({
     );
   }
 
-  if (formData.tipoAtivo === "renda-fixa" || formData.tipoAtivo === "renda-fixa-posfixada") {
+  if (formData.tipoAtivo === "renda-fixa" || formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida") {
     return (
       <div className="space-y-6">
         <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -241,7 +248,11 @@ export default function Step3Asset({
             </div>
             <div>
               <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {formData.tipoAtivo === "renda-fixa" ? "Renda Fixa Pré-Fixada" : "Renda Fixa Pós-Fixada"}
+                {formData.tipoAtivo === "renda-fixa"
+                  ? "Renda Fixa Pré-Fixada"
+                  : formData.tipoAtivo === "renda-fixa-hibrida"
+                    ? "Renda Fixa Híbrida"
+                    : "Renda Fixa Pós-Fixada"}
               </h4>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Escolha o tipo de título para continuar o cadastro.
@@ -255,11 +266,13 @@ export default function Step3Asset({
             Tipos disponíveis *
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {RENDA_FIXA_TIPOS.map((tipo) => {
+            {rendaFixaTipos.map((tipo) => {
               const isSelected = formData.rendaFixaTipo === tipo.value;
               const displayLabel = formData.tipoAtivo === "renda-fixa-posfixada"
                 ? tipo.label.replace(/ Pré$/, "")
-                : tipo.label;
+                : formData.tipoAtivo === "renda-fixa-hibrida"
+                  ? tipo.label
+                  : tipo.label;
               const baseClasses = "flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left text-sm transition-colors";
               const selectedClasses = "border-brand-500 bg-brand-500/10 text-brand-700 dark:border-brand-400 dark:bg-brand-400/10 dark:text-brand-200";
               const defaultClasses = "border-gray-200 bg-white text-gray-700 hover:border-brand-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-400 dark:hover:bg-gray-800";
@@ -301,11 +314,150 @@ export default function Step3Asset({
             <p className="text-sm text-green-700 dark:text-green-300">
               {formData.tipoAtivo === "renda-fixa-posfixada"
                 ? selectedRendaFixaType.label.replace(/ Pré$/, "")
-                : selectedRendaFixaType.label}
+                : formData.tipoAtivo === "renda-fixa-hibrida"
+                  ? selectedRendaFixaType.label
+                  : selectedRendaFixaType.label}
             </p>
           </div>
         )}
       </div>
+    );
+  }
+
+  if (formData.tipoAtivo === "fundo") {
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            💡 Como adicionar fundo manualmente
+          </h4>
+          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-2 list-disc list-inside">
+            <li>Informe o nome completo do fundo de investimento (ex: XP Macro FIM, BTG Pactual FIA)</li>
+            <li>Use o nome como aparece no extrato ou aplicativo da corretora</li>
+            <li>No próximo passo você selecionará se é FIM ou FIA e informará valor ou quantidade de cotas</li>
+          </ul>
+        </div>
+        <div>
+          <Label htmlFor="fundo-nome">Nome do fundo *</Label>
+          <Input
+            id="fundo-nome"
+            type="text"
+            placeholder="Ex: XP Macro FIM, BTG Pactual FIA"
+            value={formData.ativo}
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              onFormDataChange({
+                ativo: value,
+                assetId: value ? "FUNDO-MANUAL" : "",
+              });
+              if (errors.ativo) onErrorsChange({ ativo: undefined });
+            }}
+            error={!!errors.ativo}
+          />
+          {errors.ativo && <p className="mt-1 text-sm text-red-500">{errors.ativo}</p>}
+        </div>
+        {formData.ativo && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">Fundo informado</h4>
+            <p className="text-sm text-green-700 dark:text-green-300">{formData.ativo}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (formData.tipoAtivo === "reit") {
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            💡 Como adicionar REIT manualmente
+          </h4>
+          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-2 list-disc list-inside">
+            <li>Informe o ticker ou nome do REIT (ex: O, AMT, VICI, PLD)</li>
+            <li>REITs são fundos imobiliários estrangeiros negociados em dólares</li>
+            <li>No próximo passo você informará quantidade de cotas, preço em USD e tipo de investimento (Growth, Value ou Risk)</li>
+          </ul>
+        </div>
+        <div>
+          <Label htmlFor="reit-nome">Ticker ou nome do REIT *</Label>
+          <Input
+            id="reit-nome"
+            type="text"
+            placeholder="Ex: O, AMT, VICI, PLD"
+            value={formData.ativo}
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              onFormDataChange({
+                ativo: value,
+                assetId: value ? "REIT-MANUAL" : "",
+              });
+              if (errors.ativo) onErrorsChange({ ativo: undefined });
+            }}
+            error={!!errors.ativo}
+          />
+          {errors.ativo && <p className="mt-1 text-sm text-red-500">{errors.ativo}</p>}
+        </div>
+        {formData.ativo && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">REIT informado</h4>
+            <p className="text-sm text-green-700 dark:text-green-300">{formData.ativo}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (formData.tipoAtivo === "debenture") {
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            💡 Como adicionar debênture manualmente
+          </h4>
+          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-2 list-disc list-inside">
+            <li>Informe o nome completo da debênture ou o código de negociação (ex: PETR33, VALE37)</li>
+            <li>Use o nome da empresa emissora + ano de vencimento quando souber (ex: Debênture Sanepar 2032)</li>
+            <li>No próximo passo você poderá informar valor ou quantidade de cotas e preço unitário</li>
+          </ul>
+        </div>
+        <div>
+          <Label htmlFor="debenture-nome">Nome ou código da debênture *</Label>
+          <Input
+            id="debenture-nome"
+            type="text"
+            placeholder="Ex: Debênture Sanepar 2032, PETR33"
+            value={formData.ativo}
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              onFormDataChange({
+                ativo: value,
+                assetId: value ? "DEBENTURE-MANUAL" : "",
+              });
+              if (errors.ativo) onErrorsChange({ ativo: undefined });
+            }}
+            error={!!errors.ativo}
+          />
+          {errors.ativo && <p className="mt-1 text-sm text-red-500">{errors.ativo}</p>}
+        </div>
+        {formData.ativo && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">Debênture informada</h4>
+            <p className="text-sm text-green-700 dark:text-green-300">{formData.ativo}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (formData.tipoAtivo === "moeda") {
+    return (
+      <MoedaSelect
+        formData={formData}
+        errors={errors}
+        onFormDataChange={onFormDataChange}
+        onErrorsChange={onErrorsChange}
+      />
     );
   }
 
@@ -351,6 +503,106 @@ export default function Step3Asset({
   );
 }
 
+interface MoedaOption {
+  value: string;
+  label: string;
+  symbol: string;
+}
+
+interface MoedaSelectProps {
+  formData: WizardFormData;
+  errors: WizardErrors;
+  onFormDataChange: (data: Partial<WizardFormData>) => void;
+  onErrorsChange: (errors: Partial<WizardErrors>) => void;
+}
+
+const MoedaSelect: React.FC<MoedaSelectProps> = ({
+  formData,
+  errors,
+  onFormDataChange,
+  onErrorsChange,
+}) => {
+  const [moedaOptions, setMoedaOptions] = useState<MoedaOption[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMoedas = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/carteira/moedas', { credentials: 'include' });
+        if (response.ok) {
+          const data = await response.json();
+          setMoedaOptions(data.moedas || []);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar moedas:', err);
+        onErrorsChange({ ativo: 'Não foi possível carregar as moedas.' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMoedas();
+  }, [onErrorsChange]);
+
+  const handleMoedaChange = (value: string) => {
+    const selected = moedaOptions.find((m) => m.value === value);
+    onFormDataChange({
+      assetId: value,
+      ativo: selected?.label ?? '',
+    });
+    onErrorsChange({ ativo: undefined });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <p className="text-sm text-gray-500 dark:text-gray-400">Carregando moedas...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:bg-brand-400/20 dark:text-brand-200">
+            <span className="text-sm font-semibold">💱</span>
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+              Moedas disponíveis para cotação
+            </h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Selecione a moeda que deseja adicionar. As cotações são atualizadas via Brapi.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="moeda-select">Moeda *</Label>
+        <Select
+          options={moedaOptions}
+          placeholder="Selecione a moeda"
+          value={formData.assetId}
+          onChange={handleMoedaChange}
+          className={errors.ativo ? 'border-red-500' : ''}
+        />
+        {errors.ativo && <p className="mt-1 text-sm text-red-500">{errors.ativo}</p>}
+      </div>
+
+      {formData.assetId && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">
+            Moeda selecionada
+          </h4>
+          <p className="text-sm text-green-700 dark:text-green-300">{formData.ativo}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 function getSearchInstructions(tipoAtivo: string): string {
   const instructions: Record<string, string> = {
     "reserva-emergencia": "O ativo será criado automaticamente como Reserva de Emergência.",
@@ -367,6 +619,7 @@ function getSearchInstructions(tipoAtivo: string): string {
     "renda-fixa-prefixada": "Digite pelo menos 2 caracteres do nome do título de renda fixa com taxa prefixada.",
     "renda-fixa": "Selecione o tipo de renda fixa pré-fixada disponível para continuar.",
     "renda-fixa-posfixada": "Selecione o tipo de título de renda fixa pós-fixada.",
+    "renda-fixa-hibrida": "Selecione o tipo de título de renda fixa híbrida.",
     "previdencia": "Digite pelo menos 2 caracteres do nome do plano de previdência privada.",
     "criptoativo": "Digite pelo menos 2 caracteres do nome da criptomoeda (ex: Bitcoin, Ethereum, Cardano).",
     "moeda": "Digite pelo menos 2 caracteres do nome da moeda estrangeira (ex: Dólar Americano, Euro).",
