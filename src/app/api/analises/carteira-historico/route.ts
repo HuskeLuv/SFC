@@ -74,6 +74,13 @@ const getTransactionValue = (transaction: { total: number; quantity: number; pri
   return Number.isFinite(fallback) ? fallback : 0;
 };
 
+/** Retorna chave do dia (meia-noite local) para lookup consistente */
+const getDayKey = (ts: number): number => {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
 const calculateTwrSeries = (
   portfolioValues: IndexData[],
   cashFlowsByDay: Map<number, number>
@@ -91,11 +98,18 @@ const calculateTwrSeries = (
 
     const previousValue = portfolioValues[index - 1]?.value || 0;
     const currentValue = item.value;
-    const cashFlow = cashFlowsByDay.get(item.date) || 0;
+    const dayKey = getDayKey(item.date);
+    const cashFlow = cashFlowsByDay.get(dayKey) ?? cashFlowsByDay.get(item.date) ?? 0;
 
     let dailyReturn = 0;
     if (previousValue > 0) {
-      dailyReturn = (currentValue - cashFlow) / previousValue - 1;
+      const valueFromInvestments = currentValue - cashFlow;
+      dailyReturn = valueFromInvestments / previousValue - 1;
+      if (!Number.isFinite(dailyReturn) || dailyReturn > 0.5 || dailyReturn < -0.5) {
+        dailyReturn = 0;
+      }
+    } else if (currentValue > 0 && cashFlow > 0) {
+      dailyReturn = 0;
     }
 
     cumulative *= 1 + dailyReturn;
@@ -152,14 +166,14 @@ export async function GET(request: NextRequest) {
       const symbol = trans.stock?.ticker || trans.asset?.symbol;
       if (!symbol) return false;
       
-      // Excluir reservas, personalizados, imóveis
+      // Excluir reservas, renda fixa, personalizados, imóveis (sem histórico na brapi)
       if (trans.asset) {
         if (trans.asset.type === 'emergency' || trans.asset.type === 'opportunity' || 
             trans.asset.type === 'personalizado' || trans.asset.type === 'imovel') {
           return false;
         }
         if (symbol.startsWith('RESERVA-EMERG') || symbol.startsWith('RESERVA-OPORT') || 
-            symbol.startsWith('PERSONALIZADO')) {
+            symbol.startsWith('RENDA-FIXA') || symbol.startsWith('PERSONALIZADO')) {
           return false;
         }
       }
@@ -220,7 +234,7 @@ export async function GET(request: NextRequest) {
       const symbol = trans.stock?.ticker || trans.asset?.symbol;
       if (!symbol) return;
 
-      const dayKey = normalizeDateStart(trans.date).getTime();
+      const dayKey = getDayKey(new Date(trans.date).getTime());
       const value = getTransactionValue(trans);
       const qtyDelta = trans.type === 'compra' ? trans.quantity : -trans.quantity;
 

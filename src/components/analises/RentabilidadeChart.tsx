@@ -124,7 +124,17 @@ interface RentabilidadeChartProps {
   carteiraData: IndexData[];
   indicesData: IndexResponse[];
   period: '1d' | '1mo' | '1y';
+  /** Filtra a exibição ao período (ex: Relatórios) */
+  startTimestamp?: number;
+  endTimestamp?: number;
 }
+
+/** Normaliza timestamp para meia-noite local (alinhar datas de timezones diferentes) */
+const toDayKey = (ts: number): number => {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
 
 // Cores para cada série
 const COLORS = [
@@ -189,6 +199,8 @@ export default function RentabilidadeChart({
   carteiraData,
   indicesData,
   period,
+  startTimestamp,
+  endTimestamp,
 }: RentabilidadeChartProps) {
   const series = useMemo(() => {
     const seriesData: Array<{ name: string; data: number[][] }> = [];
@@ -308,16 +320,16 @@ export default function RentabilidadeChart({
       return [];
     }
 
-    // Coletar todas as datas de todas as séries válidas
+    // Coletar todas as datas (normalizadas para meia-noite local) para alinhar timezones
     const allDatesSet = new Set<number>();
     validSeries.forEach(serie => {
       serie.data.forEach(point => {
         if (Array.isArray(point) && point.length >= 2 && typeof point[0] === 'number' && Number.isFinite(point[0])) {
-          allDatesSet.add(point[0]);
+          allDatesSet.add(toDayKey(point[0]));
         }
       });
     });
-    const allDates = Array.from(allDatesSet).sort((a, b) => a - b);
+    let allDates = Array.from(allDatesSet).sort((a, b) => a - b);
 
     if (allDates.length === 0) {
       return [];
@@ -336,7 +348,7 @@ export default function RentabilidadeChart({
         if (Array.isArray(point) && point.length >= 2 && typeof point[0] === 'number' && Number.isFinite(point[0])) {
           const value = point[1];
           if (value === null || (typeof value === 'number' && Number.isFinite(value))) {
-            valueByDate.set(point[0], value);
+            valueByDate.set(toDayKey(point[0]), value);
           }
         }
       });
@@ -346,10 +358,8 @@ export default function RentabilidadeChart({
       const alignedData: number[][] = allDates.map((date) => {
         if (valueByDate.has(date)) {
           lastValue = valueByDate.get(date) ?? null;
-          // Substituir null por 0 para evitar erros no ApexCharts
           return [date, lastValue !== null && Number.isFinite(lastValue) ? lastValue : 0];
         }
-        // Substituir null por 0 para evitar erros no ApexCharts
         return [date, lastValue !== null && Number.isFinite(lastValue) ? lastValue : 0];
       });
 
@@ -361,7 +371,6 @@ export default function RentabilidadeChart({
       }
 
       // Verificar se a série começa apenas com zeros (pode causar problemas no ApexCharts)
-      // Encontrar o primeiro índice com valor válido (não-zero)
       const firstValidIndex = alignedData.findIndex(point => Number.isFinite(point[1]) && point[1] !== 0);
       
       if (firstValidIndex > alignedData.length * 0.1 && firstValidIndex > 0) {
@@ -378,8 +387,21 @@ export default function RentabilidadeChart({
       };
     }).filter((serie): serie is { name: string; data: number[][] } => serie !== null);
 
+    // Filtrar ao período quando startTimestamp/endTimestamp fornecidos (ex: Relatórios)
+    if (startTimestamp != null || endTimestamp != null) {
+      return finalAlignedSeries.map((serie) => ({
+        ...serie,
+        data: serie.data.filter((point) => {
+          const ts = point[0];
+          if (startTimestamp != null && ts < startTimestamp) return false;
+          if (endTimestamp != null && ts > endTimestamp) return false;
+          return true;
+        }),
+      })).filter((serie) => serie.data.length > 0);
+    }
+
     return finalAlignedSeries;
-  }, [carteiraData, indicesData, period]);
+  }, [carteiraData, indicesData, period, startTimestamp, endTimestamp]);
 
   const chartType = period === '1mo' || period === '1y' ? 'bar' : 'line';
 

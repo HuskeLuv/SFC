@@ -95,6 +95,13 @@ const calculateFixedIncomeValue = (fixedIncome: FixedIncomeAssetWithAsset, refer
   return Math.round(valorAtual * 100) / 100;
 };
 
+/** Retorna chave do dia (meia-noite local) para lookup consistente */
+const getDayKey = (ts: number): number => {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
 /**
  * Calcula série TWR (Time Weighted Return) diária.
  * Fórmula: retorno_dia = (valorFinal - valorInicial - fluxoCaixa) / valorInicial
@@ -117,11 +124,17 @@ const calculateHistoricoTWR = (
 
     const valorInicial = patrimonioSeries[i - 1].saldoBruto;
     const valorFinal = patrimonioSeries[i].saldoBruto;
-    const fluxo = cashFlowsByDay.get(patrimonioSeries[i].data) ?? 0;
+    const dayKey = getDayKey(patrimonioSeries[i].data);
+    const fluxo = cashFlowsByDay.get(dayKey) ?? cashFlowsByDay.get(patrimonioSeries[i].data) ?? 0;
 
     let retornoDia = 0;
     if (valorInicial > 0) {
       retornoDia = (valorFinal - valorInicial - fluxo) / valorInicial;
+      if (!Number.isFinite(retornoDia) || retornoDia > 0.5 || retornoDia < -0.5) {
+        retornoDia = 0;
+      }
+    } else if (valorFinal > 0 && fluxo > 0) {
+      retornoDia = 0;
     }
 
     cumulative *= 1 + retornoDia;
@@ -393,7 +406,11 @@ export async function GET(request: NextRequest) {
         symbol !== null && 
         !symbol.startsWith('RESERVA-EMERG') && 
         !symbol.startsWith('RESERVA-OPORT') &&
-        !symbol.startsWith('PERSONALIZADO')
+        !symbol.startsWith('RENDA-FIXA') &&
+        !symbol.startsWith('CONTA-CORRENTE') &&
+        !symbol.startsWith('PERSONALIZADO') &&
+        !symbol.startsWith('-') &&
+        /^[A-Za-z]/.test(symbol)
       );
 
     const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });

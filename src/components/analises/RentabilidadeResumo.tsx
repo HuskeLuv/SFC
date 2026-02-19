@@ -24,7 +24,7 @@ export default function RentabilidadeResumo() {
   }, [resumo?.historicoPatrimonio]);
 
   const hasHistoricoTWR = Array.isArray(resumo?.historicoTWR) && resumo.historicoTWR.length > 0;
-  const { indices: indices1d } = useIndices("1d", firstInvestmentDate);
+  const { indices: indices1d } = useIndices("1y", firstInvestmentDate);
   const { indices: indices1mo } = useIndices("1mo", firstInvestmentDate);
   const { indices: indices1y } = useIndices("1y");
   const { data: carteiraHistoricoDiario } = useCarteiraHistorico(firstInvestmentDate, { enabled: !hasHistoricoTWR });

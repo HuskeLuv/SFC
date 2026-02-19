@@ -103,7 +103,7 @@ export default function RelatoriosPage() {
   const { resumo, loading: carteiraLoading } = useCarteira();
   const { data: carteiraHistorico, loading: loadingCarteiraHistorico } =
     useCarteiraHistorico(startTimestamp);
-  const { indices: indices1d, loading: loadingIndices } = useIndices("1d", startTimestamp);
+  const { indices: indices1d, loading: loadingIndices } = useIndices("1y", startTimestamp);
   const { indices: indices1mo } = useIndices("1mo", startTimestamp);
   const { indices: indices1y } = useIndices("1y", startTimestamp);
   const { proventos, grouped, loading: loadingProventos } = useProventos(
@@ -118,22 +118,37 @@ export default function RelatoriosPage() {
     loading: loadingInstituicaoDistribuicao,
   } = useInstituicaoDistribuicao();
 
-  const filterByRange = <T extends { date: number }>(data: T[]) => {
+  const filterCarteiraByRange = <T extends { date: number }>(data: T[]) => {
+    let filtered = data;
+    if (startTimestamp) {
+      filtered = filtered.filter((item) => item.date >= startTimestamp);
+    }
+    if (endTimestamp) {
+      filtered = filtered.filter((item) => item.date <= endTimestamp);
+    }
+    return filtered;
+  };
+
+  // Índices: filtrar apenas por end (manter dados anteriores para alinhamento no gráfico)
+  const filterIndicesByEnd = <T extends { date: number }>(data: T[]) => {
     if (!endTimestamp) return data;
     return data.filter((item) => item.date <= endTimestamp);
   };
 
   const filteredCarteiraHistorico = useMemo(
-    () => filterByRange(carteiraHistorico),
-    [carteiraHistorico, endTimestamp]
+    () => filterCarteiraByRange(carteiraHistorico),
+    [carteiraHistorico, startTimestamp, endTimestamp]
   );
 
   const filteredIndices1d = useMemo(
     () =>
-      indices1d.map((index) => ({
-        ...index,
-        data: filterByRange(index.data),
-      })),
+      indices1d
+        .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
+        .map((index) => ({
+          ...index,
+          data: filterIndicesByEnd(index.data),
+        }))
+        .filter((index) => Array.isArray(index.data) && index.data.length > 0),
     [indices1d, endTimestamp]
   );
 
@@ -141,7 +156,7 @@ export default function RelatoriosPage() {
     () =>
       indices1mo.map((index) => ({
         ...index,
-        data: filterByRange(index.data),
+        data: filterIndicesByEnd(index.data),
       })),
     [indices1mo, endTimestamp]
   );
@@ -150,7 +165,7 @@ export default function RelatoriosPage() {
     () =>
       indices1y.map((index) => ({
         ...index,
-        data: filterByRange(index.data),
+        data: filterIndicesByEnd(index.data),
       })),
     [indices1y, endTimestamp]
   );
@@ -388,6 +403,8 @@ export default function RelatoriosPage() {
                   carteiraData={filteredCarteiraHistorico}
                   indicesData={filteredIndices1d}
                   period="1d"
+                  startTimestamp={startTimestamp}
+                  endTimestamp={endTimestamp}
                 />
               </ComponentCard>
               <ComponentCard title="Rentabilidade Por Mês" className="avoid-break">
@@ -571,7 +588,13 @@ export default function RelatoriosPage() {
               </div>
             </div>
             <ComponentCard title="Comparativo com Índices" className="avoid-break">
-              <RentabilidadeChart carteiraData={[]} indicesData={filteredIndices1d} period="1d" />
+              <RentabilidadeChart
+                carteiraData={[]}
+                indicesData={filteredIndices1d}
+                period="1d"
+                startTimestamp={startTimestamp}
+                endTimestamp={endTimestamp}
+              />
             </ComponentCard>
           </div>
         </>
