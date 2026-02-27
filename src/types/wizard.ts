@@ -90,6 +90,12 @@ export interface WizardFormData {
   /** Para fundo: tipo (FIM ou FIA) - define em qual seção da aba FIM/FIA será exibido */
   tipoFundo?: 'fim' | 'fia';
 
+  /** Para fundo: onde o fundo deve aparecer (Renda Fixa, Reserva, ou FIM/FIA) */
+  fundoDestino?: 'reserva-emergencia' | 'reserva-oportunidade' | 'renda-fixa' | 'fim' | 'fia';
+
+  /** Para fundo em Renda Fixa: tipo (Pré, Pós ou Híbrida) */
+  fundoRendaFixaTipo?: 'prefixada' | 'pos-fixada' | 'hibrida';
+
   /** Para REIT: estratégia (Growth, Value, Risk) - define em qual seção da aba REIT será exibido */
   estrategiaReit?: 'value' | 'growth' | 'risk';
 
@@ -98,6 +104,10 @@ export interface WizardFormData {
 
   /** Para tesouro direto: onde o título deve aparecer (reserva ou renda fixa com tipo) */
   tesouroDestino?: 'reserva-emergencia' | 'reserva-oportunidade' | 'renda-fixa-prefixada' | 'renda-fixa-posfixada' | 'renda-fixa-hibrida';
+
+  /** Para opções: tipo (put ou call) e operação (compra ou venda) */
+  opcaoTipo?: 'put' | 'call';
+  opcaoCompraVenda?: 'compra' | 'venda';
 
   // Aporte
   portfolioId: string;
@@ -145,9 +155,13 @@ export interface WizardErrors {
   tipoFii?: string;
   tipoDebenture?: string;
   tipoFundo?: string;
+  fundoDestino?: string;
+  fundoRendaFixaTipo?: string;
   estrategiaReit?: string;
   contaCorrenteDestino?: string;
   tesouroDestino?: string;
+  opcaoTipo?: string;
+  opcaoCompraVenda?: string;
   dataAporte?: string;
   valorAporte?: string;
 }
@@ -175,6 +189,7 @@ export const TIPOS_ATIVO_PERMITIDOS = [
   'etf',
   'reit',
   'stock',
+  'opcoes',
 ] as const;
 
 export type TipoAtivoPermitido = (typeof TIPOS_ATIVO_PERMITIDOS)[number];
@@ -203,6 +218,7 @@ export const TIPOS_ATIVO = [
   { value: "debenture", label: "Debêntures" },
   { value: "tesouro-direto", label: "Tesouro Direto" },
   { value: "personalizado", label: "Personalizado" },
+  { value: "opcoes", label: "Opções" },
 ];
 
 export const RENDA_FIXA_TIPOS = [
