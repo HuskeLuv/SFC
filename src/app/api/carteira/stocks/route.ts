@@ -51,6 +51,28 @@ export async function GET(request: NextRequest) {
       .map((item) => item.asset!.symbol);
     const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
+    // Buscar data da primeira compra para cada asset
+    const assetIds = portfolio.filter((p) => p.assetId).map((p) => p.assetId!);
+    const primeirasCompras = assetIds.length > 0
+      ? await prisma.stockTransaction.findMany({
+          where: {
+            userId: targetUserId,
+            assetId: { in: assetIds },
+            type: 'compra',
+          },
+          orderBy: [{ assetId: 'asc' }, { date: 'asc' }],
+          distinct: ['assetId'],
+          select: { assetId: true, date: true },
+        })
+      : [];
+    const dataCompraPorAsset = new Map(primeirasCompras.map((t) => [t.assetId!, t.date]));
+
+    // Extrair ticker do symbol (ex: "AAPL-1234567-abc" -> "AAPL")
+    const extrairTicker = (symbol: string): string => {
+      const parte = symbol.split('-')[0];
+      return parte && /^[A-Za-z]/.test(parte) ? parte : symbol;
+    };
+
     // Converter portfolio para formato esperado
     const stocksAtivos = portfolio
       .filter(item => item.asset) // Filtrar apenas itens com asset
@@ -69,10 +91,13 @@ export async function GET(request: NextRequest) {
         const estrategia = (item.estrategia === 'growth' || item.estrategia === 'risk' || item.estrategia === 'value')
           ? item.estrategia
           : 'value';
+        const nomeExibicao = extrairTicker(item.asset!.symbol);
+        const dataCompra = item.assetId ? dataCompraPorAsset.get(item.assetId) : null;
         return {
           id: item.id,
           ticker: item.asset!.symbol,
-          nome: item.asset!.name,
+          nome: nomeExibicao,
+          dataCompra: dataCompra ? dataCompra.toISOString().split('T')[0] : null,
           sector: 'other',
           industryCategory: '',
           quantidade: item.quantity,
@@ -169,10 +194,10 @@ export async function GET(request: NextRequest) {
     // Calcular alocação por ativo
     const totalValor = stocksAtivos.reduce((sum, a) => sum + a.valorAtualizado, 0);
     const alocacaoAtivo = stocksAtivos.map(ativo => ({
-      ticker: ativo.ticker,
+      ticker: ativo.nome,
       valor: ativo.valorAtualizado,
       percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
-      cor: getAtivoColor(ativo.ticker)
+      cor: getAtivoColor(ativo.nome)
     }));
 
     // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado)
@@ -185,6 +210,7 @@ export async function GET(request: NextRequest) {
       return {
         ticker: ativo.ticker,
         nome: ativo.nome,
+        dataCompra: ativo.dataCompra,
         cotacaoAtual: ativo.cotacaoAtual,
         necessidadeAporte,
         loteAproximado,

@@ -7,7 +7,8 @@ export type SectorCarteiraStock = 'technology' | 'financials' | 'healthcare' | '
 export interface CarteiraStockAtivo {
   id: string;
   ticker: string; // Ex: "AAPL", "MSFT", "GOOGL"
-  nome: string; // Nome completo da empresa
+  nome: string; // Nome completo da empresa ou ticker para exibição
+  dataCompra?: string | null; // Data da primeira compra (YYYY-MM-DD)
   sector: SectorCarteiraStock;
   industryCategory: string; // Ex: "Software", "Banks", "Pharma"
   quantidade: number; // Número de ações
@@ -53,6 +54,7 @@ export interface CarteiraStockResumo {
 export interface CarteiraStockTabelaAuxiliar {
   ticker: string;
   nome: string;
+  dataCompra?: string | null;
   cotacaoAtual: number;
   necessidadeAporte: number;
   loteAproximado: number; // Quantidade de ações necessárias
