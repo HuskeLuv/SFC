@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices, getAssetHistory } from '@/services/assetPriceService';
+import { getIndicator } from '@/services/marketIndicatorService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { Prisma } from '@prisma/client';
 
@@ -415,6 +416,22 @@ export async function GET(request: NextRequest) {
 
     const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
+    // Cotação do dólar para converter ativos em USD para BRL na tabela de alocação
+    let cotacaoDolar: number | null = null;
+    try {
+      const dolarIndicator = await getIndicator('USD-BRL', { useBrapiFallback: true });
+      cotacaoDolar = dolarIndicator?.price ?? null;
+    } catch {
+      // Ignorar erro - valores em USD permanecem sem conversão
+    }
+
+    const toBRL = (valor: number, currency: string | null | undefined): number => {
+      if (currency === 'USD' && cotacaoDolar != null && cotacaoDolar > 0) {
+        return valor * cotacaoDolar;
+      }
+      return valor;
+    };
+
     // Inicializar contadores para cada categoria (antes do loop)
     const categorias = {
       reservaEmergencia: 0,
@@ -446,10 +463,9 @@ export async function GET(request: NextRequest) {
       const isPersonalizado = item.asset?.type === 'personalizado' || item.asset?.symbol?.startsWith('PERSONALIZADO');
       
       // Para reservas, não buscar cotação na brapi
-      // Imóveis/bens e personalizados serão contabilizados separadamente na categoria imoveisBens
+      // Usar totalInvested (atualizado quando usuário edita) ou quantity*avgPrice como fallback
       if (isReserva) {
-        // Usar quantity * avgPrice (sem cotação)
-        const valorReserva = item.quantity * item.avgPrice;
+        const valorReserva = item.totalInvested > 0 ? item.totalInvested : (item.quantity * item.avgPrice);
         stocksCurrentValue += valorReserva;
         // Categorias são preenchidas no loop "Categorizar portfolio" abaixo - não duplicar aqui
       } else if (fixedIncome) {
@@ -461,13 +477,16 @@ export async function GET(request: NextRequest) {
         categorias.imoveisBens += valorImovel;
       } else if (symbol) {
         const currentPrice = quotes.get(symbol);
-        if (currentPrice) {
-          // Valor atual = quantidade * cotação atual
-          stocksCurrentValue += item.quantity * currentPrice;
-        } else {
-          // Se não conseguir a cotação, usar quantity * avgPrice como fallback
-          stocksCurrentValue += item.quantity * item.avgPrice;
+        const currency = item.asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
+        let valorItem = currentPrice
+          ? item.quantity * currentPrice
+          : item.quantity * item.avgPrice;
+        // Stocks em USD: sem cotação Brapi, avgPrice já está em BRL (cotação do dia da compra)
+        const valorJaEmBRL = item.asset?.type === 'stock' && !currentPrice;
+        if (!valorJaEmBRL) {
+          valorItem = toBRL(valorItem, currency);
         }
+        stocksCurrentValue += valorItem;
       } else {
         // Para outros casos, usar quantity * avgPrice
         stocksCurrentValue += item.quantity * item.avgPrice;
@@ -495,6 +514,7 @@ export async function GET(request: NextRequest) {
         metric: { 
           in: [
             'meta_patrimonio', 
+            'caixa_para_investir_consolidado',
             'caixa_para_investir_acoes',
             'caixa_para_investir_fii',
             'caixa_para_investir_etf',
@@ -883,7 +903,12 @@ export async function GET(request: NextRequest) {
         ? getFixedIncomeCurrentValue(fixedIncome, item, new Date())
         : (currentPrice && !isReserva
         ? item.quantity * currentPrice 
-          : item.quantity * item.avgPrice); // Para reservas ou fallback, usar quantity * avgPrice
+          : (isReserva && item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice)); // Reservas: totalInvested (editado) ou quantity*avgPrice
+
+      // Converter USD para BRL (tabela de alocação exibe tudo em R$). Stocks sem cotação Brapi: avgPrice já em BRL
+      const currency = asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
+      const valorJaEmBRL = asset?.type === 'stock' && !currentPrice && !isReserva;
+      const valorAtualBRL = valorJaEmBRL ? valorAtual : toBRL(valorAtual, currency);
       
       if (asset) {
         const tipo = asset.type?.toLowerCase() || '';
@@ -891,9 +916,9 @@ export async function GET(request: NextRequest) {
         // Verificar se é reserva antes de categorizar
         if (isReserva) {
           if (tipo === 'opportunity' || symbol?.startsWith('RESERVA-OPORT')) {
-            categorias.reservaOportunidade += valorAtual;
+            categorias.reservaOportunidade += valorAtualBRL;
           } else if (tipo === 'emergency' || symbol?.startsWith('RESERVA-EMERG')) {
-            categorias.reservaEmergencia += valorAtual;
+            categorias.reservaEmergencia += valorAtualBRL;
           }
         } else {
           switch (tipo) {
@@ -901,56 +926,57 @@ export async function GET(request: NextRequest) {
             case 'acao':
             case 'stock': {
               if (asset.currency === 'BRL') {
-                categorias.acoes += valorAtual;
+                categorias.acoes += valorAtualBRL;
               } else {
-                categorias.stocks += valorAtual;
+                categorias.stocks += valorAtualBRL;
               }
               break;
             }
             case 'bdr':
             case 'brd':
-              categorias.stocks += valorAtual;
+              // BDRs são ativos brasileiros, alinhado com a tab Ações (não Stocks que é US)
+              categorias.acoes += valorAtualBRL;
               break;
             case 'fii':
-              categorias.fiis += valorAtual;
+              categorias.fiis += valorAtualBRL;
               break;
             case 'fund':
             case 'funds': {
               const symbolUpper = symbol.toUpperCase();
               const nameLower = (asset.name || '').toLowerCase();
               if (symbolUpper.endsWith('11') || nameLower.includes('fii') || nameLower.includes('imobili')) {
-                categorias.fiis += valorAtual;
+                categorias.fiis += valorAtualBRL;
               } else {
-                categorias.fimFia += valorAtual;
+                categorias.fimFia += valorAtualBRL;
               }
               break;
             }
             case 'etf':
-              categorias.etfs += valorAtual;
+              categorias.etfs += valorAtualBRL;
               break;
             case 'reit':
-              categorias.reits += valorAtual;
+              categorias.reits += valorAtualBRL;
               break;
             case 'crypto':
-              categorias.moedasCriptos += valorAtual;
+              categorias.moedasCriptos += valorAtualBRL;
               break;
             case 'bond':
-              categorias.rendaFixaFundos += valorAtual;
+              categorias.rendaFixaFundos += valorAtualBRL;
               break;
             case 'insurance':
-              categorias.previdenciaSeguros += valorAtual;
+              categorias.previdenciaSeguros += valorAtualBRL;
               break;
             case 'currency':
-              categorias.moedasCriptos += valorAtual;
+              categorias.moedasCriptos += valorAtualBRL;
               break;
             case 'cash':
-              categorias.reservaOportunidade += valorAtual;
+              categorias.reservaOportunidade += valorAtualBRL;
               break;
             case 'emergency':
-              categorias.reservaEmergencia += valorAtual;
+              categorias.reservaEmergencia += valorAtualBRL;
               break;
             case 'opportunity':
-              categorias.reservaOportunidade += valorAtual;
+              categorias.reservaOportunidade += valorAtualBRL;
               break;
             case 'custom':
             case 'personalizado':
@@ -959,30 +985,43 @@ export async function GET(request: NextRequest) {
             case 'imovel':
               // Imóveis e bens não devem aparecer no gráfico de tipos de investimento
               break;
+            case 'metal':
+            case 'commodity':
+              categorias.moedasCriptos += valorAtualBRL;
+              break;
+            case 'previdencia':
+              categorias.previdenciaSeguros += valorAtualBRL;
+              break;
+            case 'opcao':
+              categorias.opcoes += valorAtualBRL;
+              break;
             default:
-              // Verificar se é reserva pelo símbolo - reservas não devem aparecer no gráfico
+              // Tipos desconhecidos NÃO devem ir para acoes (evita valores fantasmas)
+              // Verificar reserva pelo símbolo; demais vão para renda fixa (conservador)
               if (symbol?.startsWith('RESERVA-OPORT')) {
-                categorias.reservaOportunidade += valorAtual;
+                categorias.reservaOportunidade += valorAtualBRL;
               } else if (symbol?.startsWith('RESERVA-EMERG')) {
-                categorias.reservaEmergencia += valorAtual;
-              } else if (symbol?.includes('11')) {
-                categorias.fiis += valorAtual;
+                categorias.reservaEmergencia += valorAtualBRL;
+              } else if (symbol?.toUpperCase().endsWith('11')) {
+                categorias.fiis += valorAtualBRL;
               } else {
-                categorias.acoes += valorAtual;
+                // Antes: acoes (causava 8787 e outros fantasmas). Agora: renda fixa
+                categorias.rendaFixaFundos += valorAtualBRL;
               }
           }
         }
       } else {
-        // Se não encontrar o asset, usar heurística baseada no ticker
-        // Verificar se é reserva primeiro - reservas não devem aparecer no gráfico
+        // Portfolio com stockId (Stock table) sem Asset correspondente - alinhado com tabs Ações/FII
+        // Ações: stockId + ticker NÃO termina em 11 | FIIs: stockId + ticker termina em 11
+        const tickerUpper = symbol?.toUpperCase() ?? '';
         if (symbol?.startsWith('RESERVA-OPORT')) {
-          categorias.reservaOportunidade += valorAtual;
+          categorias.reservaOportunidade += valorAtualBRL;
         } else if (symbol?.startsWith('RESERVA-EMERG')) {
-          categorias.reservaEmergencia += valorAtual;
-        } else if (symbol?.includes('11')) {
-          categorias.fiis += valorAtual; // FIIs geralmente terminam em 11
+          categorias.reservaEmergencia += valorAtualBRL;
+        } else if (tickerUpper.endsWith('11')) {
+          categorias.fiis += valorAtualBRL; // FIIs terminam em 11 (ex: HGLG11)
         } else {
-          categorias.acoes += valorAtual; // Assumir ação por padrão
+          categorias.acoes += valorAtualBRL; // Ações brasileiras (ex: PETR4, VALE3)
         }
       }
     }

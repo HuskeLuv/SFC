@@ -58,12 +58,14 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Atualizar o avgPrice do portfolio (que representa o valor atual por unidade)
-    // Para reservas, quantity geralmente é 1, então avgPrice = valorAtualizado
+    // Atualizar avgPrice e totalInvested para manter consistência entre resumo e tabs
+    // Para reservas, quantity geralmente é 1, então avgPrice = totalInvested = valorAtualizado
+    const quantity = portfolio.quantity || 1;
     await prisma.portfolio.update({
       where: { id: portfolioId },
       data: {
-        avgPrice: valorAtualizado,
+        avgPrice: quantity > 0 ? valorAtualizado / quantity : valorAtualizado,
+        totalInvested: valorAtualizado,
         lastUpdate: new Date(),
       },
     });
