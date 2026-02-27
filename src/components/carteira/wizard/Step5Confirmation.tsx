@@ -80,9 +80,9 @@ export default function Step5Confirmation({
       case "conta-corrente":
         return (
           <>
-            {renderFieldValue("Data de Início", formData.dataInicio, formatDate)}
-            {renderFieldValue("Valor Aplicado", formData.valorAplicado, formatCurrency)}
-            {(formData.percentualCDI ?? 0) > 0 && renderFieldValue("Percentual sobre CDI", formData.percentualCDI, (val) => `${val}%`)}
+            {renderFieldValue("Banco", formData.instituicao)}
+            {renderFieldValue("Data", formData.dataInicio, formatDate)}
+            {renderFieldValue("Valor", formData.valorAplicado, formatCurrency)}
             {renderFieldValue("Exibir em", formData.contaCorrenteDestino === "reserva-emergencia" ? "Reserva de Emergência" : "Reserva de Oportunidade")}
           </>
         );
@@ -122,8 +122,10 @@ export default function Step5Confirmation({
       case "poupanca":
         return (
           <>
-            {renderFieldValue("Data de Aplicação", formData.dataCompra, formatDate)}
-            {renderFieldValue("Valor Aplicado", formData.valorAplicado, formatCurrency)}
+            {renderFieldValue("Banco", formData.instituicao)}
+            {renderFieldValue("Data", formData.dataInicio, formatDate)}
+            {renderFieldValue("Valor", formData.valorAplicado, formatCurrency)}
+            {renderFieldValue("Exibir em", formData.contaCorrenteDestino === "reserva-emergencia" ? "Reserva de Emergência" : "Reserva de Oportunidade")}
           </>
         );
 
@@ -155,12 +157,68 @@ export default function Step5Confirmation({
           </>
         );
 
+      case "tesouro-direto":
+        const tesouroDestinoLabel = formData.tesouroDestino === "reserva-emergencia"
+          ? "Reserva de Emergência"
+          : formData.tesouroDestino === "reserva-oportunidade"
+            ? "Reserva de Oportunidade"
+            : formData.tesouroDestino === "renda-fixa-prefixada"
+              ? "Renda Fixa (Pré-fixada)"
+              : formData.tesouroDestino === "renda-fixa-posfixada"
+                ? "Renda Fixa (Pós-fixada)"
+                : formData.tesouroDestino === "renda-fixa-hibrida"
+                  ? "Renda Fixa (Híbrida)"
+                  : formData.tesouroDestino;
+        const tesouroEmReserva = formData.tesouroDestino === "reserva-emergencia" || formData.tesouroDestino === "reserva-oportunidade";
+        const tesouroEmRendaFixa = formData.tesouroDestino === "renda-fixa-prefixada" || formData.tesouroDestino === "renda-fixa-posfixada" || formData.tesouroDestino === "renda-fixa-hibrida";
+        return (
+          <>
+            {renderFieldValue("Título", formData.ativo)}
+            {renderFieldValue("Onde exibir", tesouroDestinoLabel)}
+            {tesouroEmReserva && (
+              <>
+                {renderFieldValue("Data", formData.dataCompra, formatDate)}
+                {renderFieldValue("Valor", formData.valorInvestido, formatCurrency)}
+                {renderFieldValue("Cot. Resgate", formData.cotizacaoResgate)}
+                {renderFieldValue("Liq. Resgate", formData.liquidacaoResgate)}
+                {renderFieldValue("Vencimento", formData.vencimento, formatDate)}
+                {renderFieldValue("Benchmark", formData.benchmark)}
+              </>
+            )}
+            {tesouroEmRendaFixa && (
+              <>
+                {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}
+                {renderFieldValue("Tipo de Adição", formData.metodo === 'valor' ? 'Por valor investido' : 'Por preço de cota e quantidade')}
+                {formData.metodo === 'valor' ? (
+                  renderFieldValue("Valor Investido", formData.valorInvestido, formatCurrency)
+                ) : (
+                  <>
+                    {renderFieldValue("Preço da Cota", formData.cotacaoUnitaria, formatCurrency)}
+                    {renderFieldValue("Quantidade de Cotas", formData.quantidade)}
+                    {renderFieldValue("Total Investido", formData.quantidade * formData.cotacaoUnitaria, formatCurrency)}
+                  </>
+                )}
+                {renderFieldValue("Data de Vencimento", formData.dataVencimento, formatDate)}
+                {renderFieldValue("Descrição", formData.descricao)}
+                {formData.tesouroDestino === "renda-fixa-prefixada" && renderFieldValue("Taxa de Juros Anual", formData.taxaJurosAnual, (v) => `${v}%`)}
+                {(formData.tesouroDestino === "renda-fixa-posfixada" || formData.tesouroDestino === "renda-fixa-hibrida") && (
+                  <>
+                    {renderFieldValue("Indexador", formData.rendaFixaIndexer)}
+                    {renderFieldValue("% do Indexador", formData.rendaFixaIndexerPercent ?? 0, (v) => `${v}%`)}
+                    {formData.tesouroDestino === "renda-fixa-hibrida" && renderFieldValue("Taxa Fixa Anual", formData.taxaFixaAnual ?? 0, (v) => `${v}%`)}
+                  </>
+                )}
+              </>
+            )}
+          </>
+        );
+
       case "debenture":
       case "fundo":
       case "previdencia":
-      case "tesouro-direto":
         return (
           <>
+            {formData.tipoAtivo === "previdencia" && renderFieldValue("Plano", formData.ativo)}
             {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}
             {formData.tipoAtivo === "debenture" && formData.tipoDebenture && renderFieldValue(
               "Tipo de Debênture",

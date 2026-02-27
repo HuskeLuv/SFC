@@ -246,9 +246,20 @@ export default function Step4AssetInfo({
         return (
           <>
             <div>
+              <Label htmlFor="instituicao-conta">Banco *</Label>
+              <Input
+                id="instituicao-conta"
+                type="text"
+                placeholder="Selecionado no passo anterior"
+                value={formData.instituicao}
+                disabled
+                className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
+              />
+            </div>
+            <div>
               <DatePicker
                 id="dataInicio"
-                label="Data de Início *"
+                label="Data *"
                 placeholder="Selecione a data"
                 defaultDate={formData.dataInicio}
                 onChange={(selectedDates) => {
@@ -262,7 +273,7 @@ export default function Step4AssetInfo({
               )}
             </div>
             <div>
-              <Label htmlFor="valorAplicado">Valor Aplicado (R$) *</Label>
+              <Label htmlFor="valorAplicado">Valor (R$) *</Label>
               <Input
                 id="valorAplicado"
                 {...decimalInputProps}
@@ -276,19 +287,7 @@ export default function Step4AssetInfo({
               />
             </div>
             <div>
-              <Label htmlFor="percentualCDI">Percentual sobre o CDI (%)</Label>
-              <Input
-                id="percentualCDI"
-                {...decimalInputProps}
-                placeholder="Ex: 100 (opcional)"
-                value={getDecimalInputValue("percentualCDI")}
-                onChange={handleDecimalInputChange("percentualCDI")}
-                min="0"
-                step="0.01"
-              />
-            </div>
-            <div>
-              <Label htmlFor="contaCorrenteDestino">Onde este investimento deve aparecer *</Label>
+              <Label htmlFor="contaCorrenteDestino">Onde este valor deve aparecer *</Label>
               <Select
                 id="contaCorrenteDestino"
                 options={[
@@ -514,23 +513,34 @@ export default function Step4AssetInfo({
         return (
           <>
             <div>
+              <Label htmlFor="instituicao-poupanca">Banco *</Label>
+              <Input
+                id="instituicao-poupanca"
+                type="text"
+                placeholder="Selecionado no passo anterior"
+                value={formData.instituicao}
+                disabled
+                className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
+              />
+            </div>
+            <div>
               <DatePicker
-                id="dataCompra"
-                label="Data de Aplicação *"
+                id="dataInicio"
+                label="Data *"
                 placeholder="Selecione a data"
-                defaultDate={formData.dataCompra}
+                defaultDate={formData.dataInicio}
                 onChange={(selectedDates) => {
                   if (selectedDates && selectedDates.length > 0) {
-                    handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
+                    handleInputChange('dataInicio', selectedDates[0].toISOString().split('T')[0]);
                   }
                 }}
               />
-              {errors.dataCompra && (
-                <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>
+              {errors.dataInicio && (
+                <p className="mt-1 text-sm text-red-500">{errors.dataInicio}</p>
               )}
             </div>
             <div>
-              <Label htmlFor="valorAplicado">Valor Aplicado (R$) *</Label>
+              <Label htmlFor="valorAplicado">Valor (R$) *</Label>
               <Input
                 id="valorAplicado"
                 {...decimalInputProps}
@@ -542,6 +552,23 @@ export default function Step4AssetInfo({
                 min="0"
                 step="0.01"
               />
+            </div>
+            <div>
+              <Label htmlFor="contaCorrenteDestino">Onde este valor deve aparecer *</Label>
+              <Select
+                id="contaCorrenteDestino"
+                options={[
+                  { value: "reserva-emergencia", label: "Reserva de Emergência" },
+                  { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
+                ]}
+                placeholder="Selecione onde exibir"
+                value={formData.contaCorrenteDestino ?? ""}
+                onChange={(value) => handleInputChange('contaCorrenteDestino', value)}
+                className={errors.contaCorrenteDestino ? 'border-red-500' : ''}
+              />
+              {errors.contaCorrenteDestino && (
+                <p className="mt-1 text-sm text-red-500">{errors.contaCorrenteDestino}</p>
+              )}
             </div>
           </>
         );
@@ -716,10 +743,318 @@ export default function Step4AssetInfo({
           </>
         );
 
+      case "tesouro-direto":
+        const TESOURO_DESTINO_OPTIONS = [
+          { value: "reserva-emergencia", label: "Reserva de Emergência" },
+          { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
+          { value: "renda-fixa-prefixada", label: "Renda Fixa (Pré-fixada)" },
+          { value: "renda-fixa-posfixada", label: "Renda Fixa (Pós-fixada)" },
+          { value: "renda-fixa-hibrida", label: "Renda Fixa (Híbrida)" },
+        ];
+        const tesouroDestino = formData.tesouroDestino;
+        const tesouroEmReserva = tesouroDestino === "reserva-emergencia" || tesouroDestino === "reserva-oportunidade";
+        const tesouroEmRendaFixa = tesouroDestino === "renda-fixa-prefixada" || tesouroDestino === "renda-fixa-posfixada" || tesouroDestino === "renda-fixa-hibrida";
+        const metodoCotasTesouro = formData.metodo === 'cotas' || formData.metodo === 'percentual';
+
+        return (
+          <>
+            <div>
+              <Label htmlFor="tesouroDestino">Onde este título deve aparecer *</Label>
+              <Select
+                id="tesouroDestino"
+                options={TESOURO_DESTINO_OPTIONS}
+                placeholder="Selecione onde exibir"
+                value={formData.tesouroDestino ?? ""}
+                onChange={(value) => handleInputChange('tesouroDestino', value)}
+                className={errors.tesouroDestino ? 'border-red-500' : ''}
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                O título será exibido na aba correspondente: Reserva de Emergência, Reserva de Oportunidade ou Renda Fixa.
+              </p>
+              {errors.tesouroDestino && (
+                <p className="mt-1 text-sm text-red-500">{errors.tesouroDestino}</p>
+              )}
+            </div>
+
+            {tesouroEmReserva && (
+              <>
+                <div>
+                  <DatePicker
+                    id="dataCompra"
+                    label="Data de Compra *"
+                    placeholder="Selecione a data"
+                    defaultDate={formData.dataCompra}
+                    onChange={(selectedDates) => {
+                      if (selectedDates && selectedDates.length > 0) {
+                        handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
+                      }
+                    }}
+                  />
+                  {errors.dataCompra && (
+                    <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="valorInvestido">Valor (R$) *</Label>
+                  <Input
+                    id="valorInvestido"
+                    {...decimalInputProps}
+                    placeholder="Ex: 10000.00"
+                    value={getDecimalInputValue("valorInvestido")}
+                    onChange={handleDecimalInputChange("valorInvestido")}
+                    error={!!errors.valorInvestido}
+                    hint={errors.valorInvestido}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="cotizacaoResgate">Cot. Resgate *</Label>
+                  <Input
+                    id="cotizacaoResgate"
+                    type="text"
+                    placeholder="Ex: D+0, D+1, D+30"
+                    value={formData.cotizacaoResgate}
+                    onChange={(e) => handleInputChange('cotizacaoResgate', e.target.value)}
+                    error={!!errors.cotizacaoResgate}
+                    hint={errors.cotizacaoResgate}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="liquidacaoResgate">Liq. Resgate *</Label>
+                  <Input
+                    id="liquidacaoResgate"
+                    type="text"
+                    placeholder="Ex: Imediata, D+1, D+2"
+                    value={formData.liquidacaoResgate}
+                    onChange={(e) => handleInputChange('liquidacaoResgate', e.target.value)}
+                    error={!!errors.liquidacaoResgate}
+                    hint={errors.liquidacaoResgate}
+                  />
+                </div>
+                <div>
+                  <DatePicker
+                    id="vencimento"
+                    label="Vencimento *"
+                    placeholder="Selecione a data"
+                    defaultDate={formData.vencimento}
+                    onChange={(selectedDates) => {
+                      if (selectedDates && selectedDates.length > 0) {
+                        handleInputChange('vencimento', selectedDates[0].toISOString().split('T')[0]);
+                      }
+                    }}
+                  />
+                  {errors.vencimento && (
+                    <p className="mt-1 text-sm text-red-500">{errors.vencimento}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="benchmark">Benchmark *</Label>
+                  <Input
+                    id="benchmark"
+                    type="text"
+                    placeholder="Ex: CDI, IPCA, Selic"
+                    value={formData.benchmark}
+                    onChange={(e) => handleInputChange('benchmark', e.target.value)}
+                    error={!!errors.benchmark}
+                    hint={errors.benchmark}
+                  />
+                </div>
+              </>
+            )}
+
+            {tesouroEmRendaFixa && (
+              <>
+                <div>
+                  <DatePicker
+                    id="dataCompra"
+                    label="Data de Compra *"
+                    placeholder="Selecione a data"
+                    defaultDate={formData.dataCompra}
+                    onChange={(selectedDates) => {
+                      if (selectedDates && selectedDates.length > 0) {
+                        handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
+                      }
+                    }}
+                  />
+                  {errors.dataCompra && (
+                    <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>
+                  )}
+                </div>
+                <div className="mb-4">
+                  <Label>Escolha o tipo de adição *</Label>
+                  <div className="flex flex-col sm:flex-row gap-4 mt-2">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="metodo-tesouro"
+                        value="valor"
+                        checked={formData.metodo === 'valor'}
+                        onChange={() => handleInputChange('metodo', 'valor')}
+                        className="mr-2"
+                      />
+                      Por valor investido
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="metodo-tesouro"
+                        value="cotas"
+                        checked={metodoCotasTesouro}
+                        onChange={() => handleInputChange('metodo', 'cotas')}
+                        className="mr-2"
+                      />
+                      Por preço de cota e quantidade
+                    </label>
+                  </div>
+                </div>
+                {formData.metodo === 'valor' || !metodoCotasTesouro ? (
+                  <div>
+                    <Label htmlFor="valorInvestido">Valor Investido (R$) *</Label>
+                    <Input
+                      id="valorInvestido"
+                      {...decimalInputProps}
+                      placeholder="Ex: 10000.00"
+                      value={getDecimalInputValue("valorInvestido")}
+                      onChange={handleDecimalInputChange("valorInvestido")}
+                      error={!!errors.valorInvestido}
+                      hint={errors.valorInvestido}
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <Label htmlFor="quantidade">Quantidade de cotas *</Label>
+                      <Input
+                        id="quantidade"
+                        {...decimalInputProps}
+                        placeholder="Ex: 100"
+                        value={getDecimalInputValue("quantidade")}
+                        onChange={handleDecimalInputChange("quantidade")}
+                        error={!!errors.quantidade}
+                        hint={errors.quantidade}
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="cotacaoUnitaria">Preço da cota (R$) *</Label>
+                      <Input
+                        id="cotacaoUnitaria"
+                        {...decimalInputProps}
+                        placeholder="Ex: 100.00"
+                        value={getDecimalInputValue("cotacaoUnitaria")}
+                        onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                        error={!!errors.cotacaoUnitaria}
+                        hint={errors.cotacaoUnitaria}
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <DatePicker
+                    id="dataVencimento"
+                    label="Data de Vencimento *"
+                    placeholder="Selecione a data"
+                    defaultDate={formData.dataVencimento}
+                    onChange={(selectedDates) => {
+                      if (selectedDates && selectedDates.length > 0) {
+                        handleInputChange('dataVencimento', selectedDates[0].toISOString().split('T')[0]);
+                      }
+                    }}
+                  />
+                  {errors.dataVencimento && (
+                    <p className="mt-1 text-sm text-red-500">{errors.dataVencimento}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="descricao">Descrição *</Label>
+                  <Input
+                    id="descricao"
+                    type="text"
+                    placeholder="Ex: Tesouro Selic 2029"
+                    value={formData.descricao}
+                    onChange={(e) => handleInputChange('descricao', e.target.value)}
+                    error={!!errors.descricao}
+                    hint={errors.descricao}
+                  />
+                </div>
+                {tesouroDestino === "renda-fixa-prefixada" && (
+                  <div>
+                    <Label htmlFor="taxaJurosAnual">Taxa de juros anual (%) *</Label>
+                    <Input
+                      id="taxaJurosAnual"
+                      {...decimalInputProps}
+                      placeholder="Ex: 12.5"
+                      value={getDecimalInputValue("taxaJurosAnual")}
+                      onChange={handleDecimalInputChange("taxaJurosAnual")}
+                      error={!!errors.taxaJurosAnual}
+                      hint={errors.taxaJurosAnual}
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                )}
+                {(tesouroDestino === "renda-fixa-posfixada" || tesouroDestino === "renda-fixa-hibrida") && (
+                  <>
+                    <div>
+                      <Label htmlFor="rendaFixaIndexer">Indexador *</Label>
+                      <Select
+                        id="rendaFixaIndexer"
+                        options={RENDA_FIXA_INDEXADORES_POS}
+                        placeholder="Selecione (CDI ou IPCA)"
+                        value={formData.rendaFixaIndexer ?? ""}
+                        onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
+                        className={errors.rendaFixaIndexer ? 'border-red-500' : ''}
+                      />
+                      {errors.rendaFixaIndexer && (
+                        <p className="mt-1 text-sm text-red-500">{errors.rendaFixaIndexer}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="rendaFixaIndexerPercent">% do Indexador *</Label>
+                      <Input
+                        id="rendaFixaIndexerPercent"
+                        {...decimalInputProps}
+                        placeholder="Ex: 100 (100% CDI)"
+                        value={getDecimalInputValue("rendaFixaIndexerPercent")}
+                        onChange={handleDecimalInputChange("rendaFixaIndexerPercent")}
+                        error={!!errors.rendaFixaIndexerPercent}
+                        hint={errors.rendaFixaIndexerPercent}
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                    {tesouroDestino === "renda-fixa-hibrida" && (
+                      <div>
+                        <Label htmlFor="taxaFixaAnual">Taxa fixa anual (%) *</Label>
+                        <Input
+                          id="taxaFixaAnual"
+                          {...decimalInputProps}
+                          placeholder="Ex: 5"
+                          value={getDecimalInputValue("taxaFixaAnual")}
+                          onChange={handleDecimalInputChange("taxaFixaAnual")}
+                          error={!!errors.taxaFixaAnual}
+                          hint={errors.taxaFixaAnual}
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </>
+        );
+
       case "debenture":
       case "fundo":
       case "previdencia":
-      case "tesouro-direto":
         const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
         const totalCalculado = formData.quantidade * formData.cotacaoUnitaria;
         const TIPO_DEBENTURE_OPTIONS = [
@@ -790,12 +1125,12 @@ export default function Step4AssetInfo({
             )}
 
             <div className="mb-4">
-              <Label>Tipo de Adição *</Label>
+              <Label>Escolha o tipo de adição *</Label>
               <div className="flex flex-col sm:flex-row gap-4 mt-2">
                 <label className="flex items-center cursor-pointer">
                   <input
                     type="radio"
-                    name="metodo-debenture"
+                    name={`metodo-${formData.tipoAtivo}`}
                     value="valor"
                     checked={formData.metodo === 'valor'}
                     onChange={() => handleInputChange('metodo', 'valor')}
@@ -806,7 +1141,7 @@ export default function Step4AssetInfo({
                 <label className="flex items-center cursor-pointer">
                   <input
                     type="radio"
-                    name="metodo-debenture"
+                    name={`metodo-${formData.tipoAtivo}`}
                     value="cotas"
                     checked={metodoCotas}
                     onChange={() => handleInputChange('metodo', 'cotas')}
@@ -1215,7 +1550,7 @@ export default function Step4AssetInfo({
               )}
             </div>
             <div>
-              <Label htmlFor="cotacaoMoeda">Cotação da Moeda (R$) *</Label>
+              <Label htmlFor="cotacaoMoeda">Cotação do dólar no dia da compra (R$) *</Label>
               <Input
                 id="cotacaoMoeda"
                 {...decimalInputProps}

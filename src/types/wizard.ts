@@ -38,6 +38,8 @@ export interface WizardFormData {
   // Passo 1: Tipo de Ativo
   tipoAtivo: string;
   rendaFixaTipo?: string;
+  /** Variante da renda fixa: '' = não selecionado, 'pre' = pré-fixada, 'pos' = pós-fixada, 'hib' = híbrida */
+  rendaFixaVariante?: '' | 'pre' | 'pos' | 'hib';
   rendaFixaIndexer?: string;
   rendaFixaIndexerPercent?: number;
   rendaFixaLiquidity?: string;
@@ -94,6 +96,9 @@ export interface WizardFormData {
   /** Para conta corrente: onde o investimento deve aparecer */
   contaCorrenteDestino?: 'reserva-emergencia' | 'reserva-oportunidade';
 
+  /** Para tesouro direto: onde o título deve aparecer (reserva ou renda fixa com tipo) */
+  tesouroDestino?: 'reserva-emergencia' | 'reserva-oportunidade' | 'renda-fixa-prefixada' | 'renda-fixa-posfixada' | 'renda-fixa-hibrida';
+
   // Aporte
   portfolioId: string;
   dataAporte: string;
@@ -142,30 +147,62 @@ export interface WizardErrors {
   tipoFundo?: string;
   estrategiaReit?: string;
   contaCorrenteDestino?: string;
+  tesouroDestino?: string;
   dataAporte?: string;
   valorAporte?: string;
 }
 
+/** Tipos de ativo aceitos pela API de operação. Impede adição de tipos desconhecidos. */
+export const TIPOS_ATIVO_PERMITIDOS = [
+  'emergency',
+  'opportunity',
+  'conta-corrente',
+  'poupanca',
+  'criptoativo',
+  'moeda',
+  'personalizado',
+  'renda-fixa-prefixada',
+  'renda-fixa',
+  'renda-fixa-posfixada',
+  'renda-fixa-hibrida',
+  'tesouro-direto',
+  'debenture',
+  'fundo',
+  'previdencia',
+  'fii',
+  'acao',
+  'bdr',
+  'etf',
+  'reit',
+  'stock',
+] as const;
+
+export type TipoAtivoPermitido = (typeof TIPOS_ATIVO_PERMITIDOS)[number];
+
+export const isTipoAtivoPermitido = (tipo: string): tipo is TipoAtivoPermitido =>
+  (TIPOS_ATIVO_PERMITIDOS as readonly string[]).includes(tipo);
+
 export const TIPOS_ATIVO = [
+  // Ordem das tabs (reserva-emergencia, reserva-oportunidade, renda-fixa, fim-fia, fiis, acoes, stocks, reit, etf, moedas-criptos, previdencia)
   { value: "reserva-emergencia", label: "Reserva de Emergência" },
   { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
-  { value: "acao", label: "Ações" },
-  { value: "bdr", label: "BDRs" },
-  { value: "conta-corrente", label: "Conta Corrente" },
-  { value: "criptoativo", label: "Criptoativos" },
-  { value: "debenture", label: "Debêntures" },
+  { value: "renda-fixa", label: "Renda Fixa" },
   { value: "fundo", label: "Fundos" },
   { value: "fii", label: "Fundos Imobiliários (FII's)" },
-  { value: "reit", label: "REIT's" },
+  { value: "acao", label: "Ações" },
+  { value: "bdr", label: "BDRs" },
   { value: "stock", label: "Stocks" },
+  { value: "reit", label: "REIT's" },
+  { value: "etf", label: "ETF's" },
   { value: "moeda", label: "Moedas" },
-  { value: "personalizado", label: "Personalizado" },
-  { value: "poupanca", label: "Poupança" },
+  { value: "criptoativo", label: "Criptomoedas" },
   { value: "previdencia", label: "Previdência" },
-  { value: "renda-fixa", label: "Renda Fixa Pré-Fixada" },
-  { value: "renda-fixa-posfixada", label: "Renda Fixa Pós-Fixada" },
-  { value: "renda-fixa-hibrida", label: "Renda Fixa Híbrida" },
+  // Sem tab - por último
+  { value: "conta-corrente", label: "Conta Corrente" },
+  { value: "poupanca", label: "Poupança" },
+  { value: "debenture", label: "Debêntures" },
   { value: "tesouro-direto", label: "Tesouro Direto" },
+  { value: "personalizado", label: "Personalizado" },
 ];
 
 export const RENDA_FIXA_TIPOS = [

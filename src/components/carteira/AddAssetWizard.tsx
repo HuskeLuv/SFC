@@ -23,6 +23,7 @@ const INITIAL_FORM_DATA: WizardFormData = {
   operacao: "compra",
   tipoAtivo: "",
   rendaFixaTipo: "",
+  rendaFixaVariante: "",
   rendaFixaIndexer: "",
   rendaFixaIndexerPercent: 0,
   rendaFixaLiquidity: "",
@@ -64,6 +65,7 @@ const INITIAL_FORM_DATA: WizardFormData = {
   tipoFundo: undefined,
   estrategiaReit: undefined,
   contaCorrenteDestino: undefined,
+  tesouroDestino: undefined,
   portfolioId: "",
   dataAporte: "",
   valorAporte: 0,
@@ -111,7 +113,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         return !!(dataInicio && formData.valorAplicado > 0 && formData.contaCorrenteDestino);
       }
       if (tipoAtivo === "poupanca") {
-        return !!(dataInicio && formData.valorAplicado > 0);
+        return !!(dataInicio && formData.valorAplicado > 0 && formData.contaCorrenteDestino);
       }
       
       if (tipoAtivo === "criptoativo") {
@@ -161,7 +163,36 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         );
       }
       
-      if (tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
+      if (tipoAtivo === "tesouro-direto") {
+        const dest = formData.tesouroDestino;
+        if (!dest) return false;
+        if (dest === "reserva-emergencia" || dest === "reserva-oportunidade") {
+          return !!(
+            dataCompra &&
+            formData.valorInvestido > 0 &&
+            formData.cotizacaoResgate &&
+            formData.liquidacaoResgate &&
+            formData.vencimento &&
+            formData.benchmark
+          );
+        }
+        if (dest === "renda-fixa-prefixada" || dest === "renda-fixa-posfixada" || dest === "renda-fixa-hibrida") {
+          const metodoCotasTesouro = formData.metodo === 'cotas' || formData.metodo === 'percentual';
+          const valorOk = metodoCotasTesouro
+            ? formData.quantidade > 0 && formData.cotacaoUnitaria > 0
+            : formData.valorInvestido > 0;
+          const dataVencOk = formData.dataVencimento;
+          const descOk = !!formData.descricao;
+          const taxaPreOk = dest !== "renda-fixa-prefixada" || (formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000);
+          const indexadorOk = dest === "renda-fixa-prefixada" || (!!formData.rendaFixaIndexer && ['CDI', 'IPCA'].includes(formData.rendaFixaIndexer));
+          const percentOk = dest === "renda-fixa-prefixada" || (formData.rendaFixaIndexerPercent ?? 0) >= 0;
+          const taxaHibOk = dest !== "renda-fixa-hibrida" || ((formData.taxaFixaAnual ?? 0) > 0 && (formData.taxaFixaAnual ?? 0) <= 1000);
+          return !!(dataCompra && valorOk && dataVencOk && descOk && taxaPreOk && indexadorOk && percentOk && taxaHibOk);
+        }
+        return false;
+      }
+
+      if (tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
         const metodoValor = formData.metodo === 'valor' || !formData.metodo;
         const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
         const debentureTipoRequired = tipoAtivo === "debenture" && !!formData.tipoDebenture;
@@ -240,8 +271,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               isValid = !!formData.portfolioId;
             } else {
               if (formData.tipoAtivo === "renda-fixa" || formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida") {
-                isValid = !!formData.rendaFixaTipo;
-              } else if (formData.tipoAtivo === "conta-corrente") {
+                isValid = !!(formData.rendaFixaVariante && formData.rendaFixaVariante !== "" && formData.rendaFixaTipo);
+              } else if (formData.tipoAtivo === "conta-corrente" || formData.tipoAtivo === "poupanca") {
                 isValid = true;
               } else if (formData.tipoAtivo === "debenture") {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "DEBENTURE-MANUAL");
@@ -249,6 +280,12 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "FUNDO-MANUAL");
               } else if (formData.tipoAtivo === "reit") {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "REIT-MANUAL");
+              } else if (formData.tipoAtivo === "stock") {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === "STOCK-MANUAL");
+              } else if (formData.tipoAtivo === "previdencia") {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === "PREVIDENCIA-MANUAL");
+              } else if (formData.tipoAtivo === "tesouro-direto") {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === "TESOURO-MANUAL");
               } else {
                 isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado";
               }
@@ -269,7 +306,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
 
 
   const handleNext = () => {
-    const skipStep3 = formData.tipoAtivo === "personalizado" || formData.tipoAtivo === "conta-corrente";
+    const skipStep3 = formData.tipoAtivo === "personalizado" || formData.tipoAtivo === "conta-corrente" || formData.tipoAtivo === "poupanca";
 
     if (skipStep3 && currentStep === 2) {
       setCurrentStep(3);
@@ -279,7 +316,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   };
 
   const handlePrevious = () => {
-    const skipStep3 = formData.tipoAtivo === "personalizado" || formData.tipoAtivo === "conta-corrente";
+    const skipStep3 = formData.tipoAtivo === "personalizado" || formData.tipoAtivo === "conta-corrente" || formData.tipoAtivo === "poupanca";
 
     if (skipStep3 && currentStep === 3) {
       setCurrentStep(1);
@@ -354,7 +391,9 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
       } else if (apiFormData.tipoAtivo === "reit") {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
-      } else if ((apiFormData.tipoAtivo === "tesouro-direto" || apiFormData.tipoAtivo === "previdencia") && (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')) {
+      } else if (apiFormData.tipoAtivo === "tesouro-direto" && (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')) {
+        apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
+      } else if (apiFormData.tipoAtivo === "previdencia" && (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')) {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
       } else if (apiFormData.tipoAtivo === "moeda") {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoCompra;
@@ -399,7 +438,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
 
     const isPersonalizado = formData.tipoAtivo === "personalizado";
     const isContaCorrente = formData.tipoAtivo === "conta-corrente";
-    const skipStep3 = isPersonalizado || isContaCorrente;
+    const isPoupanca = formData.tipoAtivo === "poupanca";
+    const skipStep3 = isPersonalizado || isContaCorrente || isPoupanca;
     const isAporte = formData.operacao === "aporte";
 
     switch (currentStep) {
@@ -429,7 +469,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     }
   };
 
-  const skipStep3 = formData.tipoAtivo === "personalizado" || formData.tipoAtivo === "conta-corrente";
+  const skipStep3 = formData.tipoAtivo === "personalizado" || formData.tipoAtivo === "conta-corrente" || formData.tipoAtivo === "poupanca";
 
   const canProceed = (() => {
     if (skipStep3) {

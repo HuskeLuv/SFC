@@ -66,11 +66,13 @@ export default function Step1AssetType({
       ativo: "", 
       assetId: "",
       rendaFixaTipo: "",
+      rendaFixaVariante: "",
       rendaFixaIndexer: "",
       rendaFixaIndexerPercent: 0,
       rendaFixaLiquidity: "",
       rendaFixaTaxExempt: false,
       taxaFixaAnual: 0,
+      tesouroDestino: undefined,
     });
     
     // Limpar erro quando usuário selecionar
@@ -143,9 +145,7 @@ function getAssetTypeDescription(tipoAtivo: string): string {
     "personalizado": "Ativos personalizados permitem criar investimentos customizados com suas próprias regras.",
     "poupanca": "Poupança é uma aplicação de renda fixa com liquidez diária e rendimento baseado na poupança.",
     "previdencia": "Previdência privada e seguros para aposentadoria e proteção financeira.",
-    "renda-fixa": "Renda fixa pré-fixada com taxa definida no momento da aplicação, ideal para objetivos com prazo e retorno conhecidos.",
-    "renda-fixa-posfixada": "Renda fixa pós-fixada com rentabilidade atrelada a um indexador (CDI, IPCA), ideal para proteção contra inflação ou acompanhamento do mercado.",
-    "renda-fixa-hibrida": "Renda fixa híbrida combina parte da rentabilidade prefixada com parte atrelada a um indexador (CDI, IPCA), oferecendo proteção e potencial de ganho.",
+    "renda-fixa": "Renda fixa inclui títulos pré-fixados (taxa definida na aplicação), pós-fixados (atrelados a CDI ou IPCA) ou híbridos (parte fixa + indexador). No próximo passo você escolherá o tipo de rentabilidade.",
     "tesouro-direto": "Títulos públicos federais negociados diretamente com o Tesouro Nacional.",
   };
   

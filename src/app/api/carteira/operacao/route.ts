@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
+import { isTipoAtivoPermitido } from '@/types/wizard';
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
       tipoDebenture,
       tipoFundo,
       estrategiaReit,
+      tesouroDestino,
       // percentualCDI,
       // indexador
     } = requestBody;
@@ -69,12 +71,23 @@ export async function POST(request: NextRequest) {
         error: 'Campos obrigatórios: tipoAtivo, instituicaoId' 
       }, { status: 400 });
     }
+    if (!isTipoAtivoPermitido(tipoAtivo)) {
+      return NextResponse.json({ 
+        error: 'Tipo de ativo inválido. Não é possível adicionar um tipo desconhecido.' 
+      }, { status: 400 });
+    }
     const isRendaFixa = tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada" || tipoAtivo === "renda-fixa-hibrida";
     const isContaCorrente = tipoAtivo === "conta-corrente";
+    const isPoupanca = tipoAtivo === "poupanca";
     const isDebentureManual = tipoAtivo === "debenture" && assetId === "DEBENTURE-MANUAL";
     const isFundoManual = tipoAtivo === "fundo" && assetId === "FUNDO-MANUAL";
     const isReitManual = tipoAtivo === "reit" && assetId === "REIT-MANUAL";
-    if (!isReserva && !isPersonalizado && !isRendaFixa && !isContaCorrente && !isDebentureManual && !isFundoManual && !isReitManual && !assetId) {
+    const isStockManual = tipoAtivo === "stock" && assetId === "STOCK-MANUAL";
+    const isPrevidenciaManual = tipoAtivo === "previdencia" && assetId === "PREVIDENCIA-MANUAL";
+    const isTesouroManual = tipoAtivo === "tesouro-direto" && assetId === "TESOURO-MANUAL";
+    const isTesouroReserva = tipoAtivo === "tesouro-direto" && (tesouroDestino === 'reserva-emergencia' || tesouroDestino === 'reserva-oportunidade');
+    const isTesouroRendaFixa = tipoAtivo === "tesouro-direto" && (tesouroDestino === 'renda-fixa-prefixada' || tesouroDestino === 'renda-fixa-posfixada' || tesouroDestino === 'renda-fixa-hibrida');
+    if (!isReserva && !isPersonalizado && !isRendaFixa && !isContaCorrente && !isPoupanca && !isDebentureManual && !isFundoManual && !isReitManual && !isStockManual && !isPrevidenciaManual && !isTesouroManual && !assetId) {
       return NextResponse.json({ 
         error: 'Campo obrigatório: assetId' 
       }, { status: 400 });
@@ -94,9 +107,15 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
     } else if (tipoAtivo === "poupanca") {
-      if (!dataInicio || !valorAplicado) {
+      const contaCorrenteDestino = requestBody.contaCorrenteDestino;
+      if (!dataInicio || !valorAplicado || !contaCorrenteDestino) {
         return NextResponse.json({ 
-          error: 'Campos obrigatórios para este tipo: dataInicio, valorAplicado' 
+          error: 'Campos obrigatórios para poupança: dataInicio, valorAplicado, contaCorrenteDestino (onde exibir)' 
+        }, { status: 400 });
+      }
+      if (!['reserva-emergencia', 'reserva-oportunidade'].includes(contaCorrenteDestino)) {
+        return NextResponse.json({ 
+          error: 'contaCorrenteDestino deve ser reserva-emergencia ou reserva-oportunidade' 
         }, { status: 400 });
       }
     } else if (tipoAtivo === "criptoativo") {
@@ -186,7 +205,44 @@ export async function POST(request: NextRequest) {
           error: 'A data de início deve ser anterior à data de vencimento'
         }, { status: 400 });
       }
-    } else if (tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
+    } else if (tipoAtivo === "tesouro-direto") {
+      const dest = tesouroDestino;
+      if (!dest || !['reserva-emergencia', 'reserva-oportunidade', 'renda-fixa-prefixada', 'renda-fixa-posfixada', 'renda-fixa-hibrida'].includes(dest)) {
+        return NextResponse.json({
+          error: 'tesouroDestino é obrigatório. Selecione onde o título deve aparecer: Reserva de Emergência, Reserva de Oportunidade ou Renda Fixa (Pré/Pós/Híbrida).'
+        }, { status: 400 });
+      }
+      const tesouroEmReserva = dest === 'reserva-emergencia' || dest === 'reserva-oportunidade';
+      const tesouroEmRendaFixa = dest === 'renda-fixa-prefixada' || dest === 'renda-fixa-posfixada' || dest === 'renda-fixa-hibrida';
+      if (tesouroEmReserva) {
+        if (!dataCompra || !valorInvestido || !cotizacaoResgate || !liquidacaoResgate || !vencimento || !benchmark) {
+          return NextResponse.json({
+            error: 'Campos obrigatórios para tesouro em reserva: dataCompra, valorInvestido, cotizacaoResgate, liquidacaoResgate, vencimento, benchmark'
+          }, { status: 400 });
+        }
+      }
+      if (tesouroEmRendaFixa) {
+        const metodoCotasTesouro = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';
+        if (metodoCotasTesouro) {
+          if (!quantidade || !cotacaoUnitaria || quantidade <= 0 || cotacaoUnitaria <= 0) {
+            return NextResponse.json({ error: 'Para adição por cotas: quantidade e preço da cota são obrigatórios' }, { status: 400 });
+          }
+        } else {
+          if (!valorInvestido || valorInvestido <= 0) {
+            return NextResponse.json({ error: 'Valor investido é obrigatório e deve ser maior que zero' }, { status: 400 });
+          }
+        }
+        if (!dataVencimento || !requestBody.descricao) {
+          return NextResponse.json({ error: 'Data de vencimento e descrição são obrigatórios' }, { status: 400 });
+        }
+        if (dest === 'renda-fixa-prefixada' && (!taxaJurosAnual || taxaJurosAnual <= 0)) {
+          return NextResponse.json({ error: 'Taxa de juros anual é obrigatória para tesouro pré-fixado' }, { status: 400 });
+        }
+        if ((dest === 'renda-fixa-posfixada' || dest === 'renda-fixa-hibrida') && (!rendaFixaIndexer || !['CDI', 'IPCA'].includes(rendaFixaIndexer))) {
+          return NextResponse.json({ error: 'Indexador (CDI ou IPCA) é obrigatório para tesouro pós-fixado/híbrido' }, { status: 400 });
+        }
+      }
+    } else if (tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
       const metodoCotas = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';
       if (!dataCompra) {
         return NextResponse.json({ error: 'Data de compra é obrigatória' }, { status: 400 });
@@ -383,6 +439,7 @@ export async function POST(request: NextRequest) {
     
     if (tipoAtivo === "conta-corrente") {
       const contaCorrenteDestino = requestBody.contaCorrenteDestino as string;
+      const instituicaoNome = (requestBody.instituicao as string) || '';
       const assetType = contaCorrenteDestino === "reserva-emergencia" ? "emergency" : "opportunity";
       const baseName = contaCorrenteDestino === "reserva-emergencia" ? "Conta Corrente (Reserva Emergência)" : "Conta Corrente (Reserva Oportunidade)";
       const baseSymbol = contaCorrenteDestino === "reserva-emergencia" ? "CONTA-CORRENTE-EMERG" : "CONTA-CORRENTE-OPORT";
@@ -391,7 +448,31 @@ export async function POST(request: NextRequest) {
       const assetSymbol = `${baseSymbol}-${timestamp}-${uniqueId}`;
       const dataFormatada = new Date(dataInicio || new Date()).toLocaleDateString('pt-BR');
       const valorFormatado = valorAplicado ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(valorAplicado) : '';
-      const assetName = `${baseName}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+      const nomeComBanco = instituicaoNome ? `${baseName} - ${instituicaoNome}` : baseName;
+      const assetName = `${nomeComBanco}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+
+      asset = await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: assetType,
+          currency: 'BRL',
+          source: 'manual',
+        },
+      });
+    } else if (tipoAtivo === "poupanca") {
+      const contaCorrenteDestino = requestBody.contaCorrenteDestino as string;
+      const instituicaoNome = (requestBody.instituicao as string) || '';
+      const assetType = contaCorrenteDestino === "reserva-emergencia" ? "emergency" : "opportunity";
+      const baseName = contaCorrenteDestino === "reserva-emergencia" ? "Poupança (Reserva Emergência)" : "Poupança (Reserva Oportunidade)";
+      const baseSymbol = contaCorrenteDestino === "reserva-emergencia" ? "POUPANCA-EMERG" : "POUPANCA-OPORT";
+      const timestamp = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 9);
+      const assetSymbol = `${baseSymbol}-${timestamp}-${uniqueId}`;
+      const dataFormatada = new Date(dataInicio || new Date()).toLocaleDateString('pt-BR');
+      const valorFormatado = valorAplicado ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(valorAplicado) : '';
+      const nomeComBanco = instituicaoNome ? `${baseName} - ${instituicaoNome}` : baseName;
+      const assetName = `${nomeComBanco}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
 
       asset = await prisma.asset.create({
         data: {
@@ -539,6 +620,86 @@ export async function POST(request: NextRequest) {
           source: 'manual',
         },
       });
+    } else if (tipoAtivo === "stock" && assetId === "STOCK-MANUAL") {
+      const tickerStock = (requestBody.ativo || '').trim().toUpperCase();
+      if (!tickerStock) {
+        return NextResponse.json({ error: 'Ticker do stock é obrigatório' }, { status: 400 });
+      }
+      const valorTotalStock = quantidade > 0 && cotacaoUnitaria > 0 && cotacaoMoeda > 0
+        ? quantidade * cotacaoUnitaria * cotacaoMoeda
+        : valorInvestido;
+      const timestamp = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 9);
+      const safeSymbol = tickerStock.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10).toUpperCase() || 'STOCK';
+      const assetSymbol = `${safeSymbol}-${timestamp}-${uniqueId}`;
+      const dataFormatada = new Date(dataCompra || new Date()).toLocaleDateString('pt-BR');
+      const valorFormatado = valorTotalStock ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(valorTotalStock) : '';
+      const assetName = `${tickerStock}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+
+      asset = await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: 'stock',
+          currency: 'USD',
+          source: 'manual',
+        },
+      });
+    } else if (tipoAtivo === "previdencia" && assetId === "PREVIDENCIA-MANUAL") {
+      const nomePrevidencia = (requestBody.ativo || '').trim();
+      if (!nomePrevidencia) {
+        return NextResponse.json({ error: 'Nome do plano de previdência é obrigatório' }, { status: 400 });
+      }
+      const metodoCotasPrev = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';
+      const valorParaNome = metodoCotasPrev && quantidade > 0 && cotacaoUnitaria > 0 ? quantidade * cotacaoUnitaria : valorInvestido;
+      const timestamp = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 9);
+      const safeSymbol = nomePrevidencia.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 20).toUpperCase() || 'PREV';
+      const assetSymbol = `PREVIDENCIA-${safeSymbol}-${timestamp}-${uniqueId}`;
+      const dataFormatada = new Date(dataCompra || new Date()).toLocaleDateString('pt-BR');
+      const valorFormatado = valorParaNome ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(valorParaNome) : '';
+      const assetName = `${nomePrevidencia}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+
+      asset = await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: 'insurance',
+          currency: 'BRL',
+          source: 'manual',
+        },
+      });
+    } else if (tipoAtivo === "tesouro-direto" && assetId === "TESOURO-MANUAL") {
+      const nomeTesouro = (requestBody.ativo || '').trim();
+      if (!nomeTesouro) {
+        return NextResponse.json({ error: 'Nome do título do Tesouro Direto é obrigatório' }, { status: 400 });
+      }
+      const dest = tesouroDestino;
+      const tesouroEmReserva = dest === 'reserva-emergencia' || dest === 'reserva-oportunidade';
+      const tesouroEmRendaFixa = dest === 'renda-fixa-prefixada' || dest === 'renda-fixa-posfixada' || dest === 'renda-fixa-hibrida';
+
+      const valorParaNome = tesouroEmReserva ? valorInvestido : (requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual') && quantidade > 0 && cotacaoUnitaria > 0 ? quantidade * cotacaoUnitaria : valorInvestido;
+      const timestamp = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 9);
+      const safeSymbol = nomeTesouro.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 25).toUpperCase() || 'TESOURO';
+      const assetSymbol = `TESOURO-${safeSymbol}-${timestamp}-${uniqueId}`;
+      const dataFormatada = new Date(dataCompra || new Date()).toLocaleDateString('pt-BR');
+      const valorFormatado = valorParaNome ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(valorParaNome) : '';
+      const assetName = `${nomeTesouro}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+
+      const assetType = tesouroEmReserva
+        ? (dest === 'reserva-emergencia' ? 'emergency' : 'opportunity')
+        : 'bond';
+
+      asset = await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: assetType,
+          currency: 'BRL',
+          source: 'manual',
+        },
+      });
     } else if (tipoAtivo === "acao" || tipoAtivo === "fii") {
       if (!assetId) {
         return NextResponse.json({ error: 'assetId é obrigatório para ações e FIIs' }, { status: 400 });
@@ -593,7 +754,19 @@ export async function POST(request: NextRequest) {
       valorCalculado = quantidade * cotacaoCompra;
       quantidadeFinal = quantidade;
       precoFinal = cotacaoCompra;
-    } else if (tipoAtivo === "tesouro-direto" || tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
+    } else if (tipoAtivo === "tesouro-direto") {
+      const metodoCotasTesouro = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';
+      const tesouroEmRendaFixa = tesouroDestino === 'renda-fixa-prefixada' || tesouroDestino === 'renda-fixa-posfixada' || tesouroDestino === 'renda-fixa-hibrida';
+      if (tesouroEmRendaFixa && metodoCotasTesouro && quantidade > 0 && cotacaoUnitaria > 0) {
+        valorCalculado = quantidade * cotacaoUnitaria;
+        quantidadeFinal = quantidade;
+        precoFinal = cotacaoUnitaria;
+      } else {
+        valorCalculado = valorInvestido;
+        quantidadeFinal = 1;
+        precoFinal = valorInvestido;
+      }
+    } else if (tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
       const metodoCotas = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';
       if (metodoCotas && quantidade > 0 && cotacaoUnitaria > 0) {
         valorCalculado = quantidade * cotacaoUnitaria;
@@ -624,9 +797,11 @@ export async function POST(request: NextRequest) {
         metadata.vencimento = vencimento;
       }
     }
-    if (tipoAtivo === "conta-corrente") {
+    if (tipoAtivo === "conta-corrente" || tipoAtivo === "poupanca") {
       metadata.contaCorrenteDestino = requestBody.contaCorrenteDestino;
-      metadata.percentualCDI = requestBody.percentualCDI ?? null;
+      if (tipoAtivo === "conta-corrente") {
+        metadata.percentualCDI = requestBody.percentualCDI ?? null;
+      }
     }
     if (tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada" || tipoAtivo === "renda-fixa-hibrida") {
       metadata.rendaFixaTipo = rendaFixaTipo || null;
@@ -654,6 +829,25 @@ export async function POST(request: NextRequest) {
     }
     if (tipoAtivo === "stock") {
       metadata.cotacaoMoeda = cotacaoMoeda || null;
+    }
+    if (tipoAtivo === "tesouro-direto" && tesouroDestino) {
+      metadata.tesouroDestino = tesouroDestino;
+      const tesouroEmReserva = tesouroDestino === 'reserva-emergencia' || tesouroDestino === 'reserva-oportunidade';
+      if (tesouroEmReserva) {
+        metadata.cotizacaoResgate = cotizacaoResgate || null;
+        metadata.liquidacaoResgate = liquidacaoResgate || null;
+        metadata.benchmark = benchmark || null;
+        if (vencimento) metadata.vencimento = vencimento;
+      }
+      const tesouroEmRendaFixa = tesouroDestino === 'renda-fixa-prefixada' || tesouroDestino === 'renda-fixa-posfixada' || tesouroDestino === 'renda-fixa-hibrida';
+      if (tesouroEmRendaFixa) {
+        const debentureTipoMap: Record<string, string> = {
+          'renda-fixa-prefixada': 'prefixada',
+          'renda-fixa-posfixada': 'pos-fixada',
+          'renda-fixa-hibrida': 'hibrida',
+        };
+        metadata.debentureTipo = debentureTipoMap[tesouroDestino];
+      }
     }
     if (observacoes) {
       metadata.observacoes = observacoes;
@@ -694,8 +888,8 @@ export async function POST(request: NextRequest) {
     if (!isReserva && !isPersonalizado && !isRendaFixa && tipoAtivo !== "acao" && tipoAtivo !== "fii" && !asset) {
       return NextResponse.json({ error: 'Asset não encontrado' }, { status: 404 });
     }
-    if ((isReserva || isPersonalizado || isRendaFixa || isContaCorrente) && !asset) {
-      const tipoErro = isPersonalizado ? 'personalizado' : (isRendaFixa ? 'renda fixa' : (isContaCorrente ? 'conta corrente' : 'reserva'));
+    if ((isReserva || isPersonalizado || isRendaFixa || isContaCorrente || isPoupanca || isTesouroReserva || isTesouroRendaFixa) && !asset) {
+      const tipoErro = isPersonalizado ? 'personalizado' : (isRendaFixa || isTesouroRendaFixa ? 'renda fixa' : (isContaCorrente ? 'conta corrente' : (isPoupanca ? 'poupança' : 'reserva')));
       return NextResponse.json({ error: `Erro ao criar asset para ${tipoErro}` }, { status: 500 });
     }
 
@@ -717,8 +911,8 @@ export async function POST(request: NextRequest) {
     // Atualizar ou criar portfolio
     // Para reservas (emergency e opportunity) e personalizado, sempre criar um novo portfolio
     // Para outros tipos, atualizar se existir ou criar novo
-    if (isReserva || isPersonalizado || isRendaFixa) {
-      // Para reservas, sempre criar um novo portfolio (não somar com existente)
+    if (isReserva || isPersonalizado || isRendaFixa || isTesouroReserva || isTesouroRendaFixa) {
+      // Para reservas e tesouro, sempre criar um novo portfolio (não somar com existente)
       await prisma.portfolio.create({
         data: {
           userId: targetUserId,
@@ -774,25 +968,42 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (isRendaFixa && asset?.id) {
+    if ((isRendaFixa || isTesouroRendaFixa) && asset?.id) {
       try {
-        const annualRateForAsset = tipoAtivo === "renda-fixa-hibrida" ? (taxaFixaAnual ?? taxaJurosAnual) : taxaJurosAnual;
-        const indexerPercentForAsset = tipoAtivo === "renda-fixa-hibrida" ? taxaJurosAnual : rendaFixaIndexerPercent;
+        const descricaoTesouro = requestBody.descricao || requestBody.ativo;
+        const dataInicioTesouro = dataCompra || dataInicio;
+        const valorAplicadoTesouro = (requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual') && quantidade > 0 && cotacaoUnitaria > 0 ? quantidade * cotacaoUnitaria : valorInvestido;
+
+        let rendaFixaTipoForAsset = rendaFixaTipo;
+        let annualRateForAsset: number;
+        let indexerPercentForAsset: number | null;
+        let indexerForAsset: string | null;
+
+        if (isTesouroRendaFixa) {
+          rendaFixaTipoForAsset = tesouroDestino === 'renda-fixa-hibrida' ? 'CDB_HIB' : 'CDB_PRE';
+          annualRateForAsset = tesouroDestino === 'renda-fixa-prefixada' ? taxaJurosAnual : (tesouroDestino === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? 0) : (taxaJurosAnual || 0));
+          indexerPercentForAsset = tesouroDestino === 'renda-fixa-prefixada' ? null : (rendaFixaIndexerPercent ?? taxaJurosAnual ?? null);
+          indexerForAsset = tesouroDestino === 'renda-fixa-prefixada' ? 'PRE' : (rendaFixaIndexer || null);
+        } else {
+          annualRateForAsset = tipoAtivo === "renda-fixa-hibrida" ? (taxaFixaAnual ?? taxaJurosAnual) : taxaJurosAnual;
+          indexerPercentForAsset = tipoAtivo === "renda-fixa-hibrida" ? taxaJurosAnual : rendaFixaIndexerPercent;
+          indexerForAsset = rendaFixaIndexer || null;
+        }
 
         await prisma.fixedIncomeAsset.create({
           data: {
             userId: targetUserId,
             assetId: asset.id,
-            type: rendaFixaTipo,
-            description: descricao,
-            startDate: new Date(dataInicio),
+            type: rendaFixaTipoForAsset,
+            description: isTesouroRendaFixa ? descricaoTesouro : descricao,
+            startDate: new Date(isTesouroRendaFixa ? dataInicioTesouro : dataInicio),
             maturityDate: new Date(dataVencimento),
-            investedAmount: valorAplicado,
+            investedAmount: isTesouroRendaFixa ? valorAplicadoTesouro : valorAplicado,
             annualRate: annualRateForAsset,
-            indexer: rendaFixaIndexer || null,
+            indexer: indexerForAsset as 'PRE' | 'CDI' | 'IPCA' | null,
             indexerPercent: indexerPercentForAsset ?? null,
-            liquidityType: rendaFixaLiquidity || null,
-            taxExempt: Boolean(rendaFixaTaxExempt),
+            liquidityType: isTesouroRendaFixa ? null : (rendaFixaLiquidity || null),
+            taxExempt: isTesouroRendaFixa ? true : Boolean(rendaFixaTaxExempt),
           },
         });
       } catch (error) {
