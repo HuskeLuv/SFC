@@ -58,6 +58,10 @@ export async function POST(request: NextRequest) {
       tipoFundo,
       estrategiaReit,
       tesouroDestino,
+      fundoDestino,
+      fundoRendaFixaTipo,
+      opcaoTipo,
+      opcaoCompraVenda,
       // percentualCDI,
       // indexador
     } = requestBody;
@@ -85,9 +89,11 @@ export async function POST(request: NextRequest) {
     const isStockManual = tipoAtivo === "stock" && assetId === "STOCK-MANUAL";
     const isPrevidenciaManual = tipoAtivo === "previdencia" && assetId === "PREVIDENCIA-MANUAL";
     const isTesouroManual = tipoAtivo === "tesouro-direto" && assetId === "TESOURO-MANUAL";
+    const isOpcaoManual = tipoAtivo === "opcoes" && assetId === "OPCAO-MANUAL";
     const isTesouroReserva = tipoAtivo === "tesouro-direto" && (tesouroDestino === 'reserva-emergencia' || tesouroDestino === 'reserva-oportunidade');
     const isTesouroRendaFixa = tipoAtivo === "tesouro-direto" && (tesouroDestino === 'renda-fixa-prefixada' || tesouroDestino === 'renda-fixa-posfixada' || tesouroDestino === 'renda-fixa-hibrida');
-    if (!isReserva && !isPersonalizado && !isRendaFixa && !isContaCorrente && !isPoupanca && !isDebentureManual && !isFundoManual && !isReitManual && !isStockManual && !isPrevidenciaManual && !isTesouroManual && !assetId) {
+    const isFundoReserva = tipoAtivo === "fundo" && (fundoDestino === 'reserva-emergencia' || fundoDestino === 'reserva-oportunidade');
+    if (!isReserva && !isPersonalizado && !isRendaFixa && !isContaCorrente && !isPoupanca && !isDebentureManual && !isFundoManual && !isReitManual && !isStockManual && !isPrevidenciaManual && !isTesouroManual && !isOpcaoManual && !assetId) {
       return NextResponse.json({ 
         error: 'Campo obrigatório: assetId' 
       }, { status: 400 });
@@ -252,9 +258,14 @@ export async function POST(request: NextRequest) {
           error: 'Tipo de debênture é obrigatório. Selecione Pré-fixada, Pós-fixada ou Híbrida.'
         }, { status: 400 });
       }
-      if (tipoAtivo === "fundo" && (!tipoFundo || !['fim', 'fia'].includes(tipoFundo))) {
+      if (tipoAtivo === "fundo" && (!fundoDestino || !['reserva-emergencia', 'reserva-oportunidade', 'renda-fixa', 'fim', 'fia'].includes(fundoDestino))) {
         return NextResponse.json({
-          error: 'Tipo de fundo é obrigatório. Selecione FIM ou FIA.'
+          error: 'Onde o fundo deve aparecer é obrigatório. Selecione Renda Fixa, Reserva de Emergência, Reserva de Oportunidade ou FIM/FIA.'
+        }, { status: 400 });
+      }
+      if (tipoAtivo === "fundo" && fundoDestino === "renda-fixa" && (!fundoRendaFixaTipo || !['prefixada', 'pos-fixada', 'hibrida'].includes(fundoRendaFixaTipo))) {
+        return NextResponse.json({
+          error: 'Tipo de renda fixa é obrigatório para fundo em Renda Fixa. Selecione Pré-fixada, Pós-fixada ou Híbrida.'
         }, { status: 400 });
       }
       if (metodoCotas) {
@@ -322,6 +333,26 @@ export async function POST(request: NextRequest) {
           error: 'Tipo de investimento REIT deve ser: value, growth ou risk' 
         }, { status: 400 });
       }
+    } else if (tipoAtivo === "opcoes") {
+      if (!dataCompra || !quantidade || !cotacaoUnitaria || !opcaoTipo || !opcaoCompraVenda || !dataVencimento) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para opções: dataCompra, quantidade, cotacaoUnitaria, opcaoTipo (put/call), opcaoCompraVenda (compra/venda), dataVencimento' 
+        }, { status: 400 });
+      }
+      if (!['put', 'call'].includes(opcaoTipo)) {
+        return NextResponse.json({ 
+          error: 'opcaoTipo deve ser: put ou call' 
+        }, { status: 400 });
+      }
+      if (!['compra', 'venda'].includes(opcaoCompraVenda)) {
+        return NextResponse.json({ 
+          error: 'opcaoCompraVenda deve ser: compra ou venda' 
+        }, { status: 400 });
+      }
+      const tickerAtivo = (requestBody.ativo || '').trim();
+      if (!tickerAtivo) {
+        return NextResponse.json({ error: 'Ticker do ativo base é obrigatório para opções' }, { status: 400 });
+      }
     } else {
       // Para BDRs, ETFs, REITs, etc.
       if (!dataCompra || !quantidade || !cotacaoUnitaria) {
@@ -347,6 +378,12 @@ export async function POST(request: NextRequest) {
     if (tipoAtivo === "reit" && (quantidade <= 0 || cotacaoUnitaria <= 0)) {
       return NextResponse.json({ 
         error: 'Quantidade e preço da cota (USD) devem ser maiores que zero' 
+      }, { status: 400 });
+    }
+
+    if (tipoAtivo === "opcoes" && (quantidade <= 0 || cotacaoUnitaria <= 0)) {
+      return NextResponse.json({ 
+        error: 'Quantidade e preço pago devem ser maiores que zero' 
       }, { status: 400 });
     }
     
@@ -554,25 +591,71 @@ export async function POST(request: NextRequest) {
       if (!nomeFundo) {
         return NextResponse.json({ error: 'Nome do fundo é obrigatório' }, { status: 400 });
       }
+      const dest = fundoDestino;
       const metodoCotasFundo = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';
       const valorParaNome = metodoCotasFundo && quantidade > 0 && cotacaoUnitaria > 0 ? quantidade * cotacaoUnitaria : valorInvestido;
       const timestamp = Date.now();
       const uniqueId = Math.random().toString(36).substring(2, 9);
       const safeSymbol = nomeFundo.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 20).toUpperCase() || 'FUNDO';
-      const assetSymbol = `FUNDO-${safeSymbol}-${timestamp}-${uniqueId}`;
       const dataFormatada = new Date(dataCompra || new Date()).toLocaleDateString('pt-BR');
       const valorFormatado = valorParaNome ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(valorParaNome) : '';
       const assetName = `${nomeFundo}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+
+      let assetType: string;
+      let assetSymbol: string;
+
+      if (dest === 'reserva-emergencia') {
+        assetType = 'emergency';
+        assetSymbol = `FUNDO-${safeSymbol}-RESERVA-EMERG-${timestamp}-${uniqueId}`;
+      } else if (dest === 'reserva-oportunidade') {
+        assetType = 'opportunity';
+        assetSymbol = `FUNDO-${safeSymbol}-RESERVA-OPORT-${timestamp}-${uniqueId}`;
+      } else if (dest === 'renda-fixa') {
+        assetType = 'bond';
+        assetSymbol = `FUNDO-${safeSymbol}-${timestamp}-${uniqueId}`;
+      } else {
+        assetType = 'fund';
+        assetSymbol = `FUNDO-${safeSymbol}-${timestamp}-${uniqueId}`;
+      }
 
       asset = await prisma.asset.create({
         data: {
           symbol: assetSymbol,
           name: assetName,
-          type: 'fund',
+          type: assetType,
           currency: 'BRL',
           source: 'manual',
         },
       });
+
+      if (dest === 'renda-fixa' && asset) {
+        const tipoRendaFixa = fundoRendaFixaTipo || 'prefixada';
+        const valorAplicadoFundo = metodoCotasFundo && quantidade > 0 && cotacaoUnitaria > 0 ? quantidade * cotacaoUnitaria : valorInvestido;
+        const dataInicioFundo = new Date(dataCompra || new Date());
+        const dataVencimentoFundo = new Date(dataInicioFundo);
+        dataVencimentoFundo.setFullYear(dataVencimentoFundo.getFullYear() + 10);
+
+        const fixedIncomeType = tipoRendaFixa === 'hibrida' ? 'CDB_HIB' : 'CDB_PRE';
+        const indexer = tipoRendaFixa === 'prefixada' ? 'PRE' : 'CDI';
+        const indexerPercent = tipoRendaFixa === 'prefixada' ? null : 100;
+
+        await prisma.fixedIncomeAsset.create({
+          data: {
+            userId: targetUserId,
+            assetId: asset.id,
+            type: fixedIncomeType,
+            description: nomeFundo,
+            startDate: dataInicioFundo,
+            maturityDate: dataVencimentoFundo,
+            investedAmount: valorAplicadoFundo,
+            annualRate: 0,
+            indexer,
+            indexerPercent,
+            liquidityType: null,
+            taxExempt: false,
+          },
+        });
+      }
     } else if (tipoAtivo === "debenture" && assetId === "DEBENTURE-MANUAL") {
       const nomeDebenture = (requestBody.ativo || '').trim();
       if (!nomeDebenture) {
@@ -665,6 +748,28 @@ export async function POST(request: NextRequest) {
           symbol: assetSymbol,
           name: assetName,
           type: 'insurance',
+          currency: 'BRL',
+          source: 'manual',
+        },
+      });
+    } else if (tipoAtivo === "opcoes" && assetId === "OPCAO-MANUAL") {
+      const tickerOpcao = (requestBody.ativo || '').trim().toUpperCase();
+      if (!tickerOpcao) {
+        return NextResponse.json({ error: 'Ticker do ativo base é obrigatório para opções' }, { status: 400 });
+      }
+      const valorTotalOpcao = quantidade * cotacaoUnitaria + (taxaCorretagem || 0);
+      const timestamp = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 9);
+      const safeSymbol = tickerOpcao.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10) || 'OPCAO';
+      const assetSymbol = `OPCAO-${safeSymbol}-${opcaoTipo}-${timestamp}-${uniqueId}`;
+      const dataFormatada = new Date(dataCompra || new Date()).toLocaleDateString('pt-BR');
+      const assetName = `${tickerOpcao} - ${dataFormatada}`;
+
+      asset = await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: 'opcao',
           currency: 'BRL',
           source: 'manual',
         },
@@ -782,6 +887,10 @@ export async function POST(request: NextRequest) {
       valorCalculado = valorInvestido;
       quantidadeFinal = 1; // Consideramos como 1 unidade
       precoFinal = valorInvestido;
+    } else if (tipoAtivo === "opcoes") {
+      valorCalculado = quantidade * cotacaoUnitaria + (taxaCorretagem || 0);
+      quantidadeFinal = quantidade;
+      precoFinal = cotacaoUnitaria;
     }
 
     const valorFinal = valorTotal || valorCalculado;
@@ -821,14 +930,26 @@ export async function POST(request: NextRequest) {
     if (tipoAtivo === "debenture" && tipoDebenture) {
       metadata.debentureTipo = tipoDebenture;
     }
-    if (tipoAtivo === "fundo" && tipoFundo) {
-      metadata.tipoFundo = tipoFundo;
+    if (tipoAtivo === "fundo" && fundoDestino) {
+      metadata.fundoDestino = fundoDestino;
+      if (fundoDestino === 'fim' || fundoDestino === 'fia') {
+        metadata.tipoFundo = fundoDestino;
+      }
+      if (fundoDestino === 'renda-fixa' && fundoRendaFixaTipo) {
+        metadata.fundoRendaFixaTipo = fundoRendaFixaTipo;
+      }
     }
     if (tipoAtivo === "reit" && estrategiaReit) {
       metadata.estrategiaReit = estrategiaReit;
     }
     if (tipoAtivo === "stock") {
       metadata.cotacaoMoeda = cotacaoMoeda || null;
+    }
+    if (tipoAtivo === "opcoes") {
+      metadata.opcaoTipo = opcaoTipo || null;
+      metadata.opcaoCompraVenda = opcaoCompraVenda || null;
+      metadata.tickerAtivo = (requestBody.ativo || '').trim() || null;
+      metadata.dataVencimento = dataVencimento || null;
     }
     if (tipoAtivo === "tesouro-direto" && tesouroDestino) {
       metadata.tesouroDestino = tesouroDestino;
@@ -878,6 +999,8 @@ export async function POST(request: NextRequest) {
         tipoFii: tipoFii || null,
         moeda: moeda || null,
         cotacaoMoeda: cotacaoMoeda || null,
+        opcaoTipo: opcaoTipo || null,
+        opcaoCompraVenda: opcaoCompraVenda || null,
       },
     });
 
@@ -888,7 +1011,7 @@ export async function POST(request: NextRequest) {
     if (!isReserva && !isPersonalizado && !isRendaFixa && tipoAtivo !== "acao" && tipoAtivo !== "fii" && !asset) {
       return NextResponse.json({ error: 'Asset não encontrado' }, { status: 404 });
     }
-    if ((isReserva || isPersonalizado || isRendaFixa || isContaCorrente || isPoupanca || isTesouroReserva || isTesouroRendaFixa) && !asset) {
+    if ((isReserva || isPersonalizado || isRendaFixa || isContaCorrente || isPoupanca || isTesouroReserva || isTesouroRendaFixa || isFundoReserva) && !asset) {
       const tipoErro = isPersonalizado ? 'personalizado' : (isRendaFixa || isTesouroRendaFixa ? 'renda fixa' : (isContaCorrente ? 'conta corrente' : (isPoupanca ? 'poupança' : 'reserva')));
       return NextResponse.json({ error: `Erro ao criar asset para ${tipoErro}` }, { status: 500 });
     }
@@ -911,8 +1034,8 @@ export async function POST(request: NextRequest) {
     // Atualizar ou criar portfolio
     // Para reservas (emergency e opportunity) e personalizado, sempre criar um novo portfolio
     // Para outros tipos, atualizar se existir ou criar novo
-    if (isReserva || isPersonalizado || isRendaFixa || isTesouroReserva || isTesouroRendaFixa) {
-      // Para reservas e tesouro, sempre criar um novo portfolio (não somar com existente)
+    if (isReserva || isPersonalizado || isRendaFixa || isTesouroReserva || isTesouroRendaFixa || isFundoReserva) {
+      // Para reservas, tesouro em reserva e fundo em reserva, sempre criar um novo portfolio (não somar com existente)
       await prisma.portfolio.create({
         data: {
           userId: targetUserId,
