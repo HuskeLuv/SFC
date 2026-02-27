@@ -99,6 +99,15 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Para stocks e previdência: adicionados manualmente
+    if (tipo === 'stock' || tipo === 'previdencia') {
+      return NextResponse.json({
+        success: true,
+        assets: [],
+        count: 0,
+      });
+    }
+
     // Para outros tipos, buscar na tabela Asset
     const baseFilters: Record<string, unknown> = {};
 
@@ -107,7 +116,6 @@ export async function GET(request: NextRequest) {
         'bdr': ['brd', 'bdr'],
         'etf': ['etf'],
         'reit': ['reit'],
-        'stock': ['stock'],
         'debenture': ['bond'],
         'fundo': ['fund', 'funds'],
         'tesouro-direto': ['bond'],
