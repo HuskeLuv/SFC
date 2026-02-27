@@ -271,7 +271,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               isValid = !!formData.portfolioId;
             } else {
               if (formData.tipoAtivo === "renda-fixa" || formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida") {
-                isValid = !!(formData.rendaFixaVariante && formData.rendaFixaVariante !== "" && formData.rendaFixaTipo);
+                isValid = !!(formData.rendaFixaVariante && formData.rendaFixaTipo);
               } else if (formData.tipoAtivo === "conta-corrente" || formData.tipoAtivo === "poupanca") {
                 isValid = true;
               } else if (formData.tipoAtivo === "debenture") {

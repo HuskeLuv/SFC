@@ -251,7 +251,7 @@ export default function Step3Asset({
   }
 
   if (formData.tipoAtivo === "renda-fixa" || formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida") {
-    const varianteVazia = !formData.rendaFixaVariante || formData.rendaFixaVariante === '';
+    const varianteVazia = !formData.rendaFixaVariante;
     const RENDA_FIXA_VARIANTES = [
       { value: 'pre' as const, label: 'Pré-fixada', desc: 'Taxa definida no momento da aplicação' },
       { value: 'pos' as const, label: 'Pós-fixada', desc: 'Rentabilidade atrelada a CDI ou IPCA' },
