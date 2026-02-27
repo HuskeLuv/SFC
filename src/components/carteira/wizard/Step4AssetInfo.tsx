@@ -1103,23 +1103,60 @@ export default function Step4AssetInfo({
 
             {formData.tipoAtivo === "fundo" && (
               <div>
-                <Label htmlFor="tipoFundo">Tipo de Fundo *</Label>
+                <Label htmlFor="fundoDestino">Onde este fundo deve aparecer *</Label>
                 <Select
-                  id="tipoFundo"
+                  id="fundoDestino"
                   options={[
+                    { value: "reserva-emergencia", label: "Reserva de Emergência" },
+                    { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
+                    { value: "renda-fixa", label: "Renda Fixa" },
                     { value: "fim", label: "FIM (Fundos de Investimento Multimercado)" },
                     { value: "fia", label: "FIA (Fundo de Investimento em Ações)" },
                   ]}
-                  placeholder="Selecione o tipo (define em qual seção da aba FIM/FIA será exibido)"
-                  value={formData.tipoFundo ?? ""}
-                  onChange={(value) => handleInputChange('tipoFundo', value)}
-                  className={errors.tipoFundo ? 'border-red-500' : ''}
+                  placeholder="Selecione onde exibir"
+                  value={formData.fundoDestino ?? ""}
+                  onChange={(value) => {
+                    handleInputChange('fundoDestino', value);
+                    if (value === 'fim' || value === 'fia') {
+                      handleInputChange('tipoFundo', value);
+                    } else {
+                      handleInputChange('tipoFundo', undefined);
+                    }
+                    if (value !== 'renda-fixa') {
+                      handleInputChange('fundoRendaFixaTipo', undefined);
+                    }
+                  }}
+                  className={errors.fundoDestino ? 'border-red-500' : ''}
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  O fundo será exibido na seção correspondente: FIM ou FIA.
+                  O fundo será exibido na aba correspondente: Renda Fixa, Reserva de Emergência, Reserva de Oportunidade ou FIM/FIA.
                 </p>
-                {errors.tipoFundo && (
-                  <p className="mt-1 text-sm text-red-500">{errors.tipoFundo}</p>
+                {errors.fundoDestino && (
+                  <p className="mt-1 text-sm text-red-500">{errors.fundoDestino}</p>
+                )}
+              </div>
+            )}
+
+            {formData.tipoAtivo === "fundo" && formData.fundoDestino === "renda-fixa" && (
+              <div>
+                <Label htmlFor="fundoRendaFixaTipo">Tipo de Renda Fixa *</Label>
+                <Select
+                  id="fundoRendaFixaTipo"
+                  options={[
+                    { value: "prefixada", label: "Pré-fixada" },
+                    { value: "pos-fixada", label: "Pós-fixada" },
+                    { value: "hibrida", label: "Híbrida" },
+                  ]}
+                  placeholder="Selecione o tipo"
+                  value={formData.fundoRendaFixaTipo ?? ""}
+                  onChange={(value) => handleInputChange('fundoRendaFixaTipo', value)}
+                  className={errors.fundoRendaFixaTipo ? 'border-red-500' : ''}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  O fundo será exibido na seção correspondente da aba Renda Fixa.
+                </p>
+                {errors.fundoRendaFixaTipo && (
+                  <p className="mt-1 text-sm text-red-500">{errors.fundoRendaFixaTipo}</p>
                 )}
               </div>
             )}
@@ -1491,6 +1528,145 @@ export default function Step4AssetInfo({
               />
               <p className="mt-1 text-xs text-gray-500">
                 Calculado automaticamente: Quantidade × Preço por Cota (USD)
+              </p>
+            </div>
+          </>
+        );
+
+      case "opcoes":
+        return (
+          <>
+            <div>
+              <Label htmlFor="opcao-ticker">Ticker do ativo base *</Label>
+              <Input
+                id="opcao-ticker"
+                type="text"
+                placeholder="Selecionado no passo anterior"
+                value={formData.ativo}
+                disabled
+                className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
+              />
+            </div>
+            <div>
+              <Label htmlFor="opcaoTipo">Put ou Call *</Label>
+              <Select
+                id="opcaoTipo"
+                options={[
+                  { value: "put", label: "Put" },
+                  { value: "call", label: "Call" },
+                ]}
+                placeholder="Selecione"
+                value={formData.opcaoTipo ?? ""}
+                onChange={(value) => handleInputChange('opcaoTipo', value)}
+                className={errors.opcaoTipo ? 'border-red-500' : ''}
+              />
+              {errors.opcaoTipo && (
+                <p className="mt-1 text-sm text-red-500">{errors.opcaoTipo}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="opcaoCompraVenda">Compra / Venda *</Label>
+              <Select
+                id="opcaoCompraVenda"
+                options={[
+                  { value: "compra", label: "Compra" },
+                  { value: "venda", label: "Venda" },
+                ]}
+                placeholder="Selecione"
+                value={formData.opcaoCompraVenda ?? ""}
+                onChange={(value) => handleInputChange('opcaoCompraVenda', value)}
+                className={errors.opcaoCompraVenda ? 'border-red-500' : ''}
+              />
+              {errors.opcaoCompraVenda && (
+                <p className="mt-1 text-sm text-red-500">{errors.opcaoCompraVenda}</p>
+              )}
+            </div>
+            <div>
+              <DatePicker
+                id="dataCompra"
+                label="Data da Compra *"
+                placeholder="Selecione a data"
+                defaultDate={formData.dataCompra}
+                onChange={(selectedDates) => {
+                  if (selectedDates && selectedDates.length > 0) {
+                    handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
+                  }
+                }}
+              />
+              {errors.dataCompra && (
+                <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>
+              )}
+            </div>
+            <div>
+              <DatePicker
+                id="dataVencimento"
+                label="Vencimento *"
+                placeholder="Selecione a data"
+                defaultDate={formData.dataVencimento}
+                onChange={(selectedDates) => {
+                  if (selectedDates && selectedDates.length > 0) {
+                    handleInputChange('dataVencimento', selectedDates[0].toISOString().split('T')[0]);
+                  }
+                }}
+              />
+              {errors.dataVencimento && (
+                <p className="mt-1 text-sm text-red-500">{errors.dataVencimento}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="quantidade">Quantidade *</Label>
+              <Input
+                id="quantidade"
+                {...integerInputProps}
+                placeholder="Ex: 10"
+                value={getDecimalInputValue("quantidade")}
+                onChange={handleDecimalInputChange("quantidade")}
+                error={!!errors.quantidade}
+                hint={errors.quantidade}
+                min="0"
+                step="1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cotacaoUnitaria">Preço pago (R$) *</Label>
+              <Input
+                id="cotacaoUnitaria"
+                {...decimalInputProps}
+                placeholder="Ex: 2.50"
+                value={getDecimalInputValue("cotacaoUnitaria")}
+                onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                error={!!errors.cotacaoUnitaria}
+                hint={errors.cotacaoUnitaria}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <Label htmlFor="taxaCorretagem">Corretagem + emolumentos (R$)</Label>
+              <Input
+                id="taxaCorretagem"
+                {...decimalInputProps}
+                placeholder="Ex: 5.00"
+                value={getDecimalInputValue("taxaCorretagem")}
+                onChange={handleDecimalInputChange("taxaCorretagem")}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <Label htmlFor="valorInvestido">Total (R$)</Label>
+              <Input
+                id="valorInvestido"
+                type="text"
+                placeholder="Calculado automaticamente"
+                value={(formData.quantidade * formData.cotacaoUnitaria + (formData.taxaCorretagem || 0)) > 0
+                  ? (formData.quantidade * formData.cotacaoUnitaria + (formData.taxaCorretagem || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                  : ''}
+                disabled
+                className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Quantidade × Preço pago + Corretagem
               </p>
             </div>
           </>

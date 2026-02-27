@@ -66,6 +66,10 @@ const INITIAL_FORM_DATA: WizardFormData = {
   estrategiaReit: undefined,
   contaCorrenteDestino: undefined,
   tesouroDestino: undefined,
+  fundoDestino: undefined,
+  fundoRendaFixaTipo: undefined,
+  opcaoTipo: undefined,
+  opcaoCompraVenda: undefined,
   portfolioId: "",
   dataAporte: "",
   valorAporte: 0,
@@ -196,11 +200,12 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         const metodoValor = formData.metodo === 'valor' || !formData.metodo;
         const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
         const debentureTipoRequired = tipoAtivo === "debenture" && !!formData.tipoDebenture;
-        const fundoTipoRequired = tipoAtivo === "fundo" && !!formData.tipoFundo;
+        const fundoDestinoRequired = tipoAtivo === "fundo" && !!formData.fundoDestino;
+        const fundoRendaFixaTipoRequired = tipoAtivo === "fundo" && formData.fundoDestino === "renda-fixa" && !!formData.fundoRendaFixaTipo;
         if (metodoCotas) {
-          return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && (tipoAtivo !== "debenture" || debentureTipoRequired) && (tipoAtivo !== "fundo" || fundoTipoRequired));
+          return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && (tipoAtivo !== "debenture" || debentureTipoRequired) && (tipoAtivo !== "fundo" || fundoDestinoRequired) && (tipoAtivo !== "fundo" || formData.fundoDestino !== "renda-fixa" || fundoRendaFixaTipoRequired));
         }
-        return !!(dataCompra && formData.valorInvestido > 0 && (tipoAtivo !== "debenture" || debentureTipoRequired) && (tipoAtivo !== "fundo" || fundoTipoRequired));
+        return !!(dataCompra && formData.valorInvestido > 0 && (tipoAtivo !== "debenture" || debentureTipoRequired) && (tipoAtivo !== "fundo" || fundoDestinoRequired) && (tipoAtivo !== "fundo" || formData.fundoDestino !== "renda-fixa" || fundoRendaFixaTipoRequired));
       }
       
       if (tipoAtivo === "fii") {
@@ -225,6 +230,17 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       if (tipoAtivo === "reit") {
         return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.estrategiaReit);
       }
+
+      if (tipoAtivo === "opcoes") {
+        return !!(
+          dataCompra &&
+          formData.opcaoTipo &&
+          formData.opcaoCompraVenda &&
+          formData.dataVencimento &&
+          formData.quantidade > 0 &&
+          formData.cotacaoUnitaria > 0
+        );
+      }
       
       // Para BDRs, ETFs, etc.
       return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0);
@@ -239,7 +255,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     if (formData.tipoAtivo === "fundo") {
       setErrors(prev => ({
         ...prev,
-        tipoFundo: !formData.tipoFundo ? "Selecione o tipo de fundo (FIM ou FIA)" : undefined,
+        fundoDestino: !formData.fundoDestino ? "Selecione onde o fundo deve aparecer (Renda Fixa, Reserva ou FIM/FIA)" : undefined,
+        fundoRendaFixaTipo: formData.fundoDestino === "renda-fixa" && !formData.fundoRendaFixaTipo ? "Selecione o tipo de renda fixa (Pré, Pós ou Híbrida)" : undefined,
       }));
     }
     if (formData.tipoAtivo === "reit") {
@@ -252,6 +269,13 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       setErrors(prev => ({
         ...prev,
         estrategia: !formData.estrategia ? "Selecione a estratégia (Value, Growth ou Risk)" : undefined,
+      }));
+    }
+    if (formData.tipoAtivo === "opcoes") {
+      setErrors(prev => ({
+        ...prev,
+        opcaoTipo: !formData.opcaoTipo ? "Selecione Put ou Call" : undefined,
+        opcaoCompraVenda: !formData.opcaoCompraVenda ? "Selecione Compra ou Venda" : undefined,
       }));
     }
 
@@ -286,6 +310,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "PREVIDENCIA-MANUAL");
               } else if (formData.tipoAtivo === "tesouro-direto") {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "TESOURO-MANUAL");
+              } else if (formData.tipoAtivo === "opcoes") {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === "OPCAO-MANUAL");
               } else {
                 isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado";
               }
@@ -397,6 +423,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
       } else if (apiFormData.tipoAtivo === "moeda") {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoCompra;
+      } else if (apiFormData.tipoAtivo === "opcoes") {
+        apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria + (apiFormData.taxaCorretagem || 0);
       }
       
       const response = await fetch('/api/carteira/operacao', {

@@ -34,8 +34,8 @@ export default function Step3Asset({
       return;
     }
 
-    // Stocks, previdência e tesouro direto são adicionados manualmente - não buscar na Brapi
-    if (formData.tipoAtivo === "stock" || formData.tipoAtivo === "previdencia" || formData.tipoAtivo === "tesouro-direto") {
+    // Stocks, previdência, tesouro direto e opções são adicionados manualmente - não buscar na Brapi
+    if (formData.tipoAtivo === "stock" || formData.tipoAtivo === "previdencia" || formData.tipoAtivo === "tesouro-direto" || formData.tipoAtivo === "opcoes") {
       setAssetOptions([]);
       return;
     }
@@ -109,8 +109,8 @@ export default function Step3Asset({
       return;
     }
 
-    // Stocks e previdência são adicionados manualmente - não buscar na API
-    if (formData.tipoAtivo === "stock" || formData.tipoAtivo === "previdencia") {
+    // Stocks, previdência e opções são adicionados manualmente - não buscar na API
+    if (formData.tipoAtivo === "stock" || formData.tipoAtivo === "previdencia" || formData.tipoAtivo === "opcoes") {
       setAssetOptions([]);
       return;
     }
@@ -200,6 +200,7 @@ export default function Step3Asset({
       "renda-fixa": "Selecione o tipo de renda fixa abaixo",
       "renda-fixa-hibrida": "Selecione o tipo de renda fixa híbrida abaixo",
       "previdencia": "Digite pelo menos 2 caracteres (nome do plano)",
+      "opcoes": "Digite o ticker do ativo base (ex: PETR4, VALE3)",
       "criptoativo": "Digite pelo menos 2 caracteres (ex: Bitcoin, Ethereum)",
       "moeda": "Digite pelo menos 2 caracteres (ex: Dólar, Euro)",
       "personalizado": "Digite pelo menos 2 caracteres (nome do ativo)",
@@ -619,6 +620,49 @@ export default function Step3Asset({
         {formData.ativo && (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
             <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">Stock informado</h4>
+            <p className="text-sm text-green-700 dark:text-green-300">{formData.ativo}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (formData.tipoAtivo === "opcoes") {
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            💡 Como adicionar opções manualmente
+          </h4>
+          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-2 list-disc list-inside">
+            <li>Informe o ticker do ativo base (ex: PETR4, VALE3, ITUB4)</li>
+            <li>No próximo passo você informará Put ou Call, Compra/Venda, datas, quantidade, preço e corretagem</li>
+            <li>As opções aparecerão na aba Opções, na seção Put ou Call correspondente ao ativo</li>
+          </ul>
+        </div>
+        <div>
+          <Label htmlFor="opcao-ticker">Ticker do ativo base *</Label>
+          <Input
+            id="opcao-ticker"
+            type="text"
+            placeholder="Ex: PETR4, VALE3, ITUB4"
+            value={formData.ativo}
+            onChange={(e) => {
+              const value = e.target.value;
+              const trimmed = value.trim().toUpperCase();
+              onFormDataChange({
+                ativo: value,
+                assetId: trimmed ? "OPCAO-MANUAL" : "",
+              });
+              if (errors.ativo) onErrorsChange({ ativo: undefined });
+            }}
+            error={!!errors.ativo}
+          />
+          {errors.ativo && <p className="mt-1 text-sm text-red-500">{errors.ativo}</p>}
+        </div>
+        {formData.ativo && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">Ativo base informado</h4>
             <p className="text-sm text-green-700 dark:text-green-300">{formData.ativo}</p>
           </div>
         )}

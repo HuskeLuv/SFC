@@ -225,10 +225,24 @@ export default function Step5Confirmation({
               formData.tipoDebenture,
               (val) => val === "prefixada" ? "Pré-fixada" : val === "pos-fixada" ? "Pós-fixada" : "Híbrida"
             )}
-            {formData.tipoAtivo === "fundo" && formData.tipoFundo && renderFieldValue(
-              "Tipo de Fundo",
-              formData.tipoFundo,
-              (val) => val === "fim" ? "FIM (Fundos de Investimento Multimercado)" : "FIA (Fundo de Investimento em Ações)"
+            {formData.tipoAtivo === "fundo" && formData.fundoDestino && renderFieldValue(
+              "Onde exibir",
+              formData.fundoDestino,
+              (val) => {
+                const labels: Record<string, string> = {
+                  'reserva-emergencia': 'Reserva de Emergência',
+                  'reserva-oportunidade': 'Reserva de Oportunidade',
+                  'renda-fixa': 'Renda Fixa',
+                  'fim': 'FIM (Fundos de Investimento Multimercado)',
+                  'fia': 'FIA (Fundo de Investimento em Ações)',
+                };
+                return labels[val as string] ?? val;
+              }
+            )}
+            {formData.tipoAtivo === "fundo" && formData.fundoDestino === "renda-fixa" && formData.fundoRendaFixaTipo && renderFieldValue(
+              "Tipo de Renda Fixa",
+              formData.fundoRendaFixaTipo,
+              (val) => val === "prefixada" ? "Pré-fixada" : val === "pos-fixada" ? "Pós-fixada" : "Híbrida"
             )}
             {renderFieldValue("Tipo de Adição", formData.metodo === 'valor' ? 'Por valor investido' : 'Por preço de cota e quantidade')}
             {formData.metodo === 'valor' ? (
@@ -284,6 +298,25 @@ export default function Step5Confirmation({
             {renderFieldValue("Quantidade de Cotas", formData.quantidade)}
             {renderFieldValue("Preço da Cota (USD)", formData.cotacaoUnitaria, formatCurrencyUSD)}
             {renderFieldValue("Total Investido (USD)", (formData.quantidade || 0) * (formData.cotacaoUnitaria || 0), formatCurrencyUSD)}
+          </>
+        );
+
+      case "opcoes":
+        return (
+          <>
+            {renderFieldValue("Ticker do ativo base", formData.ativo)}
+            {renderFieldValue("Put ou Call", formData.opcaoTipo, (val) => val === 'put' ? 'Put' : val === 'call' ? 'Call' : String(val))}
+            {renderFieldValue("Compra / Venda", formData.opcaoCompraVenda, (val) => val === 'compra' ? 'Compra' : val === 'venda' ? 'Venda' : String(val))}
+            {renderFieldValue("Data da Compra", formData.dataCompra, formatDate)}
+            {renderFieldValue("Vencimento", formData.dataVencimento, formatDate)}
+            {renderFieldValue("Quantidade", formData.quantidade)}
+            {renderFieldValue("Preço pago (R$)", formData.cotacaoUnitaria, formatCurrency)}
+            {renderFieldValue("Corretagem + emolumentos (R$)", formData.taxaCorretagem, formatCurrency)}
+            {renderFieldValue(
+              "Total (R$)",
+              (formData.quantidade || 0) * (formData.cotacaoUnitaria || 0) + (formData.taxaCorretagem || 0),
+              formatCurrency
+            )}
           </>
         );
 
