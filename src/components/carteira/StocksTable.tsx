@@ -85,11 +85,10 @@ const StocksTableRow: React.FC<StocksTableRowProps> = ({
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs text-black">
         <div>
-          <div>{ativo.ticker}</div>
-          <div className="text-xs text-black">{ativo.nome}</div>
-          {ativo.observacoes && (
-            <div className="text-xs text-black mt-1">
-              {ativo.observacoes}
+          <div>{ativo.nome}</div>
+          {ativo.dataCompra && (
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {new Date(ativo.dataCompra).toLocaleDateString('pt-BR')}
             </div>
           )}
         </div>
@@ -293,7 +292,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
           
           return {
             ...ativo,
-            riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+            riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
             percentualCarteira,
             quantoFalta,
             necessidadeAporte,
@@ -301,7 +300,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
         }),
         totalPercentualCarteira,
         totalRisco: secao.ativos.reduce(
-          (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
+          (sum, ativo) => sum + (shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0),
           0
         ),
         totalQuantoFalta: secao.ativos.reduce((sum, ativo) => {
@@ -558,10 +557,10 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700">
                     <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Ticker
+                      Nome
                     </th>
                     <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Nome
+                      Data da Compra
                     </th>
                     <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Cotação Atual
@@ -578,10 +577,10 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                   {(data?.tabelaAuxiliar || []).map((item, index) => (
                     <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
                       <td className="px-2 py-2 text-xs text-black">
-                        {item.ticker}
+                        {item.nome}
                       </td>
                       <td className="px-2 py-2 text-xs text-black">
-                        {item.nome}
+                        {item.dataCompra ? new Date(item.dataCompra).toLocaleDateString('pt-BR') : '-'}
                       </td>
                       <td className="px-2 py-2 text-xs text-right text-black">
                         {formatCurrency(item.cotacaoAtual)}

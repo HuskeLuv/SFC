@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
     const ativosComPercentuais = allAtivos.map(ativo => ({
       ...ativo,
       percentualCarteira: totalCarteira > 0 ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
-      riscoPorAtivo: totalCarteira > 0 ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+      riscoPorAtivo: totalCarteira > 0 ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
       rentabilidade: ativo.valorInicialAplicado > 0
         ? ((ativo.valorAtualizado - ativo.valorInicialAplicado) / ativo.valorInicialAplicado) * 100
         : 0,

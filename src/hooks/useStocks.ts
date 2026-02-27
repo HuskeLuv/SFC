@@ -161,7 +161,7 @@ export const useCarteiraStocks = () => {
     
     const valorTotal = quantidade * precoAquisicao;
     const valorAtualizado = quantidade * cotacaoAtual;
-    const riscoPorAtivo = totalCarteiraStocks > 0 ? (valorAtualizado / totalCarteiraStocks) * 100 : 0;
+    const riscoPorAtivo = totalCarteiraStocks > 0 ? Math.min(100, (valorAtualizado / totalCarteiraStocks) * 100) : 0;
     // Percentual daquele tipo de ativo (não da carteira total)
     const percentualCarteira = totalCarteiraStocks > 0 ? (valorAtualizado / totalCarteiraStocks) * 100 : 0;
     const objetivo = ativo.objetivo || 0;

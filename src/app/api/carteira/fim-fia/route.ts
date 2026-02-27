@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
     const ativosComPercentuais = ativos.map(ativo => ({
       ...ativo,
       percentualCarteira: totalCarteira > 0 ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
-      riscoPorAtivo: totalCarteira > 0 ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+      riscoPorAtivo: totalCarteira > 0 ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
     }));
 
     const FIM_FIA_SECTION_ORDER = ['fim', 'fia'] as const;

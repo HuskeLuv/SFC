@@ -73,7 +73,7 @@ export const useEtf = () => {
     
     const valorTotal = quantidade * precoAquisicao;
     const valorAtualizado = quantidade * cotacaoAtual;
-    const riscoPorAtivo = totalCarteiraEtf > 0 ? (valorAtualizado / totalCarteiraEtf) * 100 : 0;
+    const riscoPorAtivo = totalCarteiraEtf > 0 ? Math.min(100, (valorAtualizado / totalCarteiraEtf) * 100) : 0;
     // Percentual daquele tipo de ativo (não da carteira total)
     const percentualCarteira = totalCarteiraEtf > 0 ? (valorAtualizado / totalCarteiraEtf) * 100 : 0;
     const objetivo = ativo.objetivo || 0;

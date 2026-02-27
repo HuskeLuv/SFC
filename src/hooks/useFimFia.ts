@@ -72,7 +72,7 @@ export const useFimFia = () => {
     const valorAtualizado = valorInicial + aporte - resgate;
     // Percentual daquele tipo de ativo (não da carteira total)
     const percentualCarteira = totalCarteira > 0 ? (valorAtualizado / totalCarteira) * 100 : 0;
-    const riscoPorAtivo = totalCarteira > 0 ? (valorAtualizado / totalCarteira) * 100 : 0;
+    const riscoPorAtivo = totalCarteira > 0 ? Math.min(100, (valorAtualizado / totalCarteira) * 100) : 0;
     const objetivo = ativo.objetivo || 0;
     // Quanto falta = diferença entre % atual e objetivo (em %)
     const quantoFalta = objetivo - percentualCarteira;

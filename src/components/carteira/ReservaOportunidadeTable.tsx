@@ -168,7 +168,7 @@ export default function ReservaOportunidadeTable({ totalCarteira = 0, onUpdateSu
 
     return ativos.map(ativo => ({
       ...ativo,
-      riscoAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+      riscoAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
       percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
     }));
   }, [data?.ativos, totalCarteira]);

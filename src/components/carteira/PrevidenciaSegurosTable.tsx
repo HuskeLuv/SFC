@@ -192,7 +192,7 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
       
       return {
         ...ativo,
-        riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+        riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
         percentualCarteira,
         quantoFalta,
         necessidadeAporte,

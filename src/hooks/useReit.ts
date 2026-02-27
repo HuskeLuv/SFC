@@ -73,7 +73,7 @@ export const useReit = () => {
     
     const valorTotal = quantidade * precoAquisicao;
     const valorAtualizado = quantidade * cotacaoAtual;
-    const riscoPorAtivo = totalCarteiraReit > 0 ? (valorAtualizado / totalCarteiraReit) * 100 : 0;
+    const riscoPorAtivo = totalCarteiraReit > 0 ? Math.min(100, (valorAtualizado / totalCarteiraReit) * 100) : 0;
     // Percentual daquele tipo de ativo (não da carteira total)
     const percentualCarteira = totalCarteiraReit > 0 ? (valorAtualizado / totalCarteiraReit) * 100 : 0;
     const objetivo = ativo.objetivo || 0;

@@ -79,7 +79,7 @@ export const useFii = () => {
     
     const valorTotal = quantidade * precoAquisicao;
     const valorAtualizado = quantidade * cotacaoAtual;
-    const riscoPorAtivo = totalCarteiraFii > 0 ? (valorAtualizado / totalCarteiraFii) * 100 : 0;
+    const riscoPorAtivo = totalCarteiraFii > 0 ? Math.min(100, (valorAtualizado / totalCarteiraFii) * 100) : 0;
     // Percentual daquele tipo de ativo (não da carteira total)
     const percentualCarteira = totalCarteiraFii > 0 ? (valorAtualizado / totalCarteiraFii) * 100 : 0;
     const objetivo = ativo.objetivo || 0;

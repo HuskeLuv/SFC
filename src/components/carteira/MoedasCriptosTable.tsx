@@ -291,7 +291,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       
       return {
         ...ativo,
-        riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+        riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
         percentualCarteira,
         quantoFalta,
         necessidadeAporte,

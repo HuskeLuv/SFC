@@ -170,7 +170,7 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
 
     const ativosComRisco = data.ativos.map(ativo => ({
       ...ativo,
-      riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+      riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
       percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
     }));
 

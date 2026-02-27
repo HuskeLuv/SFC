@@ -290,7 +290,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
           
           return {
             ...ativo,
-            riscoPorAtivo: shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
+            riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
             percentualCarteira,
             quantoFalta,
             necessidadeAporte,
@@ -298,7 +298,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
         }),
         totalPercentualCarteira,
         totalRisco: secao.ativos.reduce(
-          (sum, ativo) => sum + (shouldCalculateRisco ? (ativo.valorAtualizado / totalCarteira) * 100 : 0),
+          (sum, ativo) => sum + (shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0),
           0
         ),
         totalQuantoFalta: secao.ativos.reduce((sum, ativo) => {
