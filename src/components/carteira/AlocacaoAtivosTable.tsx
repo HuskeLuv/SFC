@@ -452,7 +452,7 @@ export default function AlocacaoAtivosTable({ distribuicao, alocacaoConfig, caix
                   )}
                 </TableCell>
                 <TableCell className={`px-2 text-xs text-center font-medium h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 ${
-                  ativo.quantoFalta > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                  ativo.quantoFalta !== 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
                 }`}>
                   {isImoveisBens ? "" : (
                     ativo.quantoFalta > 0
