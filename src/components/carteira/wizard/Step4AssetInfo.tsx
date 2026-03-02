@@ -1120,10 +1120,10 @@ export default function Step4AssetInfo({
                     if (value === 'fim' || value === 'fia') {
                       handleInputChange('tipoFundo', value);
                     } else {
-                      handleInputChange('tipoFundo', undefined);
-                    }
-                    if (value !== 'renda-fixa') {
-                      handleInputChange('fundoRendaFixaTipo', undefined);
+                      onFormDataChange({
+                        tipoFundo: undefined,
+                        ...(value !== 'renda-fixa' && { fundoRendaFixaTipo: undefined }),
+                      });
                     }
                   }}
                   className={errors.fundoDestino ? 'border-red-500' : ''}
