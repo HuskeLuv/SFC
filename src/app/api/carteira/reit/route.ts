@@ -72,7 +72,8 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Converter portfolio para formato esperado
+    // REITs: valores atualizados apenas manualmente (não buscar na Brapi)
+    // valorAtualizado = avgPrice * quantity (avgPrice é atualizado quando o usuário edita manualmente)
     const reitAtivos = portfolio
       .filter(item => item.asset)
       .map(item => {
