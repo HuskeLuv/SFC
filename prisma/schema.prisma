@@ -299,7 +299,7 @@ model Portfolio {
   stock         Stock?   @relation(fields: [stockId], references: [id])
   assetId       String? // Nova referência para Asset
   asset         Asset?   @relation(fields: [assetId], references: [id])
-  quantity      Int // Quantidade de ações
+  quantity      Float // Quantidade (Float para suportar criptomoedas com frações, ex: 0.000001 BTC)
   avgPrice      Float // Preço médio de compra
   totalInvested Float // Total investido
   objetivo      Float    @default(0) // Objetivo percentual do ativo
@@ -322,7 +322,7 @@ model StockTransaction {
   assetId   String? // Nova referência para Asset
   asset     Asset?   @relation(fields: [assetId], references: [id])
   type      String // "compra" ou "venda"
-  quantity  Int // Quantidade de ações
+  quantity  Float // Quantidade (Float para suportar criptomoedas com frações)
   price     Float // Preço por ação
   total     Float // Valor total da transação
   date      DateTime // Data da transação
