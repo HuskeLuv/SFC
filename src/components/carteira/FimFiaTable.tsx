@@ -4,8 +4,7 @@ import { useFimFia } from "@/hooks/useFimFia";
 import { FimFiaAtivo, FimFiaSecao, TipoFimFia } from "@/types/fimFia";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
-import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableBodyCell, StandardTableRow } from "@/components/ui/table/StandardTable";
-import { TableBody } from "@/components/ui/table";
+import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableBodyCell, StandardTableRow, TableBody } from "@/components/ui/table/StandardTable";
 import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
@@ -117,42 +116,42 @@ const FimFiaTableRow: React.FC<FimFiaTableRowProps> = ({
   };
 
   return (
-    <tr className="border-b border-gray-200">
-      <td className="px-2 py-2 text-xs font-medium text-black">
+    <StandardTableRow>
+      <StandardTableBodyCell align="left" className="min-w-[220px] w-3/12">
         <div>
           <div>{ativo.nome}</div>
-          <div className="text-xs text-black mt-1">
+          <div className="text-xs mt-1">
             {ativo.categoriaNivel1} • {ativo.subcategoriaNivel2}
           </div>
           {ativo.observacoes && (
-            <div className="text-xs text-black mt-1">
+            <div className="text-xs mt-1">
               {ativo.observacoes}
             </div>
           )}
         </div>
-      </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="center">
         {ativo.cotizacaoResgate}
-      </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="center">
         {ativo.liquidacaoResgate}
-      </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="center">
         {ativo.categoriaNivel1}
-      </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="center">
         {ativo.subcategoriaNivel2}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatCurrency(ativo.valorInicialAplicado)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatCurrency(ativo.aporte)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatCurrency(ativo.resgate)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {isEditingValor ? (
           <input
             type="text"
@@ -177,14 +176,14 @@ const FimFiaTableRow: React.FC<FimFiaTableRowProps> = ({
             {formatCurrency(ativo.valorAtualizado)}
           </div>
         )}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatPercentage(ativo.percentualCarteira)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatPercentage(ativo.riscoPorAtivo)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right border border-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right" className="border border-black">
         {isEditingObjetivo ? (
           <div className="flex items-center space-x-1">
             <input
@@ -196,7 +195,7 @@ const FimFiaTableRow: React.FC<FimFiaTableRowProps> = ({
               className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               autoFocus
             />
-            <span className="text-xs text-black">%</span>
+            <span className="text-xs">%</span>
           </div>
         ) : (
           <div 
@@ -206,17 +205,17 @@ const FimFiaTableRow: React.FC<FimFiaTableRowProps> = ({
             {formatPercentage(ativo.objetivo)}
           </div>
         )}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatPercentage(ativo.quantoFalta)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatCurrency(ativo.necessidadeAporte)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      </StandardTableBodyCell>
+      <StandardTableBodyCell align="right">
         {formatPercentage(ativo.rentabilidade)}
-      </td>
-    </tr>
+      </StandardTableBodyCell>
+    </StandardTableRow>
   );
 };
 
@@ -244,11 +243,11 @@ const FimFiaSection: React.FC<FimFiaSectionProps> = ({
   return (
     <>
       {/* Cabeçalho da seção */}
-      <tr 
+      <StandardTableRow
         className="bg-[#808080] cursor-pointer"
         onClick={onToggle}
       >
-        <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="left" className="min-w-[220px] w-3/12 bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -257,42 +256,42 @@ const FimFiaSection: React.FC<FimFiaSectionProps> = ({
             )}
             <span>{secao.nome}</span>
           </div>
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAplicado)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalAporte)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalResgate)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAtualizado)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalPercentualCarteira)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalRisco)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalObjetivo)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.totalQuantoFalta)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalNecessidadeAporte)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="right" className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.rentabilidadeMedia)}
-        </td>
-      </tr>
+        </StandardTableBodyCell>
+      </StandardTableRow>
 
       {/* Ativos da seção */}
       {isExpanded && secao.ativos.map((ativo) => (
@@ -505,113 +504,111 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
 
       {/* Tabela principal */}
       <ComponentCard title="FIM/FIA - Detalhamento">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
-                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Nome dos Ativos
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Cot. Resgate
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Liq. Resgate
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Cat. Nível 1
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Subcat. Nível 2
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Valor Inicial
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Aporte
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Resgate
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Valor Atualizado
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  % da Carteira
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  <span className="block">Risco Por Ativo</span>
-                  <span className="block">(Carteira Total)</span>
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Objetivo
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Quanto Falta
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Nec. Aporte R$
-                </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
-                  Rentabilidade
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Linha de totalização */}
-              <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">
-                  TOTAL GERAL
-                </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
-                </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
-        {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
-        {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
-        {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
-        {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
-        {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
-        {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
-        {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
-        {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
-      </td>
-              </tr>
+        <StandardTable>
+          <StandardTableHeader sticky headerBgColor="#9E8A58">
+            <StandardTableHeaderRow headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="left" className="min-w-[220px] w-3/12" headerBgColor="#9E8A58">
+                Nome dos Ativos
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Cot. Resgate
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Liq. Resgate
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Cat. Nível 1
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Subcat. Nível 2
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Valor Inicial
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Aporte
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Resgate
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Valor Atualizado
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                % da Carteira
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                <span className="block">Risco Por Ativo</span>
+                <span className="block">(Carteira Total)</span>
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Objetivo
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Quanto Falta
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Nec. Aporte R$
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Rentabilidade
+              </StandardTableHeaderCell>
+            </StandardTableHeaderRow>
+          </StandardTableHeader>
+          <TableBody>
+            {/* Linha de totalização */}
+            <StandardTableRow isTotal className="bg-[#404040]">
+              <StandardTableBodyCell align="left" isTotal className="min-w-[220px] w-3/12 bg-[#404040] text-white font-bold">
+                TOTAL GERAL
+              </StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">100.00%</StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
+                {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
+              </StandardTableBodyCell>
+            </StandardTableRow>
 
-              {normalizedSections.map((secao) => (
-                <FimFiaSection
-                  key={secao.tipo}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  isExpanded={expandedSections.has(secao.tipo)}
-                  onToggle={() => toggleSection(secao.tipo)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateValorAtualizado={handleUpdateValorAtualizado}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+            {normalizedSections.map((secao) => (
+              <FimFiaSection
+                key={secao.tipo}
+                secao={secao}
+                formatCurrency={formatCurrency}
+                formatPercentage={formatPercentage}
+                isExpanded={expandedSections.has(secao.tipo)}
+                onToggle={() => toggleSection(secao.tipo)}
+                onUpdateObjetivo={handleUpdateObjetivo}
+                onUpdateValorAtualizado={handleUpdateValorAtualizado}
+              />
+            ))}
+          </TableBody>
+        </StandardTable>
       </ComponentCard>
     </div>
   );
