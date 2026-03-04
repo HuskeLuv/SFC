@@ -239,8 +239,12 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           formData.cotacaoUnitaria > 0
         );
       }
+
+      if (tipoAtivo === "etf") {
+        return !!(dataCompra && formData.regiaoEtf && formData.quantidade > 0 && formData.cotacaoUnitaria > 0);
+      }
       
-      // Para BDRs, ETFs, etc.
+      // Para BDRs, REITs, etc.
       return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0);
     };
 
@@ -261,6 +265,12 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       setErrors(prev => ({
         ...prev,
         estrategiaReit: !formData.estrategiaReit ? "Selecione o tipo de investimento (Value, Growth ou Risk)" : undefined,
+      }));
+    }
+    if (formData.tipoAtivo === "etf") {
+      setErrors(prev => ({
+        ...prev,
+        regiaoEtf: !formData.regiaoEtf ? "Selecione a região do ETF (Brasil ou EUA)" : undefined,
       }));
     }
     if (formData.tipoAtivo === "stock") {

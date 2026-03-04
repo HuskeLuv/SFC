@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       tipoDebenture,
       tipoFundo,
       estrategiaReit,
+      regiaoEtf,
       tesouroDestino,
       fundoDestino,
       fundoRendaFixaTipo,
@@ -345,6 +346,17 @@ export async function POST(request: NextRequest) {
           error: 'Tipo de investimento REIT deve ser: value, growth ou risk' 
         }, { status: 400 });
       }
+    } else if (tipoAtivo === "etf") {
+      if (!dataCompra || !quantidade || !cotacaoUnitaria || !regiaoEtf) {
+        return NextResponse.json({ 
+          error: 'Campos obrigatórios para ETF: dataCompra, quantidade, cotacaoUnitaria, regiaoEtf (região: brasil ou estados_unidos)' 
+        }, { status: 400 });
+      }
+      if (!['brasil', 'estados_unidos'].includes(regiaoEtf)) {
+        return NextResponse.json({ 
+          error: 'Região do ETF deve ser: brasil ou estados_unidos' 
+        }, { status: 400 });
+      }
     } else if (tipoAtivo === "opcoes") {
       if (!dataCompra || !quantidade || !cotacaoUnitaria || !opcaoTipo || !opcaoCompraVenda || !dataVencimento) {
         return NextResponse.json({ 
@@ -390,6 +402,12 @@ export async function POST(request: NextRequest) {
     if (tipoAtivo === "reit" && (quantidade <= 0 || cotacaoUnitaria <= 0 || cotacaoMoeda <= 0)) {
       return NextResponse.json({ 
         error: 'Quantidade, preço da cota (USD) e cotação do dólar devem ser maiores que zero' 
+      }, { status: 400 });
+    }
+
+    if (tipoAtivo === "etf" && (quantidade <= 0 || cotacaoUnitaria <= 0)) {
+      return NextResponse.json({ 
+        error: 'Quantidade e cotação unitária devem ser maiores que zero' 
       }, { status: 400 });
     }
 
@@ -903,6 +921,10 @@ export async function POST(request: NextRequest) {
       valorCalculado = quantidade * cotacaoUnitaria + (taxaCorretagem || 0);
       quantidadeFinal = quantidade;
       precoFinal = cotacaoUnitaria;
+    } else if (tipoAtivo === "etf") {
+      valorCalculado = (quantidade * cotacaoUnitaria) + (taxaCorretagem || 0);
+      quantidadeFinal = quantidade;
+      precoFinal = cotacaoUnitaria;
     }
 
     const valorFinal = valorTotal || valorCalculado;
@@ -1072,7 +1094,7 @@ export async function POST(request: NextRequest) {
         // Atualizar portfolio existente
         const novaQuantidade = portfolioExistente.quantity + quantidadeFinal;
         const novoTotalInvestido = portfolioExistente.totalInvested + valorFinal;
-        const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
+        const novoPrecoMedio = novaQuantidade > 0 ? novoTotalInvestido / novaQuantidade : precoFinal;
 
         await prisma.portfolio.update({
           where: { id: portfolioExistente.id },
@@ -1083,6 +1105,7 @@ export async function POST(request: NextRequest) {
             ...(tipoAtivo === "acao" && estrategia ? { estrategia } : {}),
             ...(tipoAtivo === "stock" && estrategia ? { estrategia } : {}),
             ...(tipoAtivo === "fii" && tipoFii ? { tipoFii } : {}),
+            ...(tipoAtivo === "etf" && regiaoEtf ? { regiaoEtf } : {}),
             lastUpdate: new Date(),
           },
         });
@@ -1098,6 +1121,7 @@ export async function POST(request: NextRequest) {
             ...(tipoAtivo === "acao" && estrategia ? { estrategia } : {}),
             ...(tipoAtivo === "stock" && estrategia ? { estrategia } : {}),
             ...(tipoAtivo === "fii" && tipoFii ? { tipoFii } : {}),
+            ...(tipoAtivo === "etf" && regiaoEtf ? { regiaoEtf } : {}),
             lastUpdate: new Date(),
           },
         });

@@ -46,12 +46,15 @@ export async function GET(request: NextRequest) {
     // Converter portfolio para formato esperado
     const etfAtivos = portfolio
       .filter(item => item.asset) // Filtrar apenas itens com asset
-      .map(item => ({
+      .map(item => {
+        const regiao = (item.regiaoEtf ?? (item.asset!.currency === 'USD' ? 'estados_unidos' : 'brasil')) as 'brasil' | 'estados_unidos';
+        return {
         id: item.id,
         ticker: item.asset!.symbol,
         nome: item.asset!.name,
-      regiao: 'outros', // Asset não tem região
-      categoria: '',
+        regiao,
+        indiceRastreado: 'outros' as const,
+        categoria: '',
       quantidade: item.quantity,
       precoAquisicao: item.avgPrice,
       valorTotal: item.totalInvested,
@@ -65,7 +68,8 @@ export async function GET(request: NextRequest) {
       rentabilidade: 0, // Sem variação por enquanto
       observacoes: undefined,
       dataUltimaAtualizacao: item.lastUpdate
-    }));
+    };
+      });
 
     // Calcular totais gerais
     const totalQuantidade = etfAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
@@ -79,23 +83,26 @@ export async function GET(request: NextRequest) {
       ? etfAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / etfAtivos.length 
       : 0;
 
-    // Agrupar por região (todos como 'outros' por enquanto)
-    const secoes = [
-      {
-        regiao: 'outros',
-        nome: 'ETFs',
-        ativos: etfAtivos,
-        totalQuantidade: 0,
-        totalValorAplicado: 0,
-        totalValorAtualizado: 0,
-        totalPercentualCarteira: 0,
-        totalRisco: 0,
-        totalObjetivo: 0,
-        totalQuantoFalta: 0,
-        totalNecessidadeAporte: 0,
-        rentabilidadeMedia: 0
-      }
-    ];
+    // Agrupar por região (Brasil e EUA)
+    const ETF_SECTION_ORDER = ['brasil', 'estados_unidos'] as const;
+    const ETF_SECTION_NAMES: Record<(typeof ETF_SECTION_ORDER)[number], string> = {
+      brasil: 'Brasil',
+      estados_unidos: 'EUA',
+    };
+    const secoes = ETF_SECTION_ORDER.map(regiao => ({
+      regiao,
+      nome: ETF_SECTION_NAMES[regiao],
+      ativos: etfAtivos.filter(a => a.regiao === regiao),
+      totalQuantidade: 0,
+      totalValorAplicado: 0,
+      totalValorAtualizado: 0,
+      totalPercentualCarteira: 0,
+      totalRisco: 0,
+      totalObjetivo: 0,
+      totalQuantoFalta: 0,
+      totalNecessidadeAporte: 0,
+      rentabilidadeMedia: 0
+    }));
 
     // Calcular valores das seções
     secoes.forEach(secao => {
@@ -137,7 +144,10 @@ export async function GET(request: NextRequest) {
       quantidade: ativo.quantidade,
       valorAplicado: ativo.valorTotal,
       valorAtualizado: ativo.valorAtualizado,
-      rentabilidade: ativo.rentabilidade
+      rentabilidade: ativo.rentabilidade,
+      cotacaoAtual: ativo.cotacaoAtual ?? 0,
+      necessidadeAporte: ativo.necessidadeAporte ?? 0,
+      loteAproximado: 0,
     }));
 
     const data = {

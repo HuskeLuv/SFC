@@ -112,6 +112,9 @@ export interface WizardFormData {
   /** Para Ações Brasil: tipo real do ativo selecionado (acao ou bdr) - usado ao enviar para API */
   acoesBrasilTipo?: 'acao' | 'bdr';
 
+  /** Para ETF: região (Brasil ou EUA) - define em qual seção da aba ETF será exibido */
+  regiaoEtf?: 'brasil' | 'estados_unidos';
+
   // Aporte
   portfolioId: string;
   dataAporte: string;
@@ -161,6 +164,7 @@ export interface WizardErrors {
   fundoDestino?: string;
   fundoRendaFixaTipo?: string;
   estrategiaReit?: string;
+  regiaoEtf?: string;
   contaCorrenteDestino?: string;
   tesouroDestino?: string;
   opcaoTipo?: string;

@@ -338,6 +338,18 @@ export default function Step5Confirmation({
           </>
         );
 
+      case "etf":
+        return (
+          <>
+            {renderFieldValue("Região", formData.regiaoEtf, (val) => (val === 'brasil' ? 'Brasil' : val === 'estados_unidos' ? 'EUA' : String(val ?? '')))}
+            {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}
+            {renderFieldValue("Quantidade", formData.quantidade)}
+            {renderFieldValue("Cotação Unitária", formData.cotacaoUnitaria, formatCurrency)}
+            {renderFieldValue("Taxa de Corretagem", formData.taxaCorretagem, formatCurrency)}
+            {renderFieldValue("Total", (formData.quantidade || 0) * (formData.cotacaoUnitaria || 0) + (formData.taxaCorretagem || 0), formatCurrency)}
+          </>
+        );
+
       case "acao":
       case "acoes-brasil":
         return (

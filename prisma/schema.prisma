@@ -305,6 +305,7 @@ model Portfolio {
   objetivo      Float    @default(0) // Objetivo percentual do ativo
   estrategia    String? // Estratégia da ação: 'value', 'growth' ou 'risk'
   tipoFii       String? // Tipo do FII: 'fofi', 'tvm' ou 'tijolo'
+  regiaoEtf     String? // Região do ETF: 'brasil' ou 'estados_unidos'
   lastUpdate    DateTime @default(now())
 
   @@unique([userId, stockId])
