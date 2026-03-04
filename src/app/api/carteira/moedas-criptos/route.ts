@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/assetPriceService';
+import { getIndicator } from '@/services/marketIndicatorService';
 import type { MoedaCriptoAtivo, MoedaCriptoSecao } from '@/types/moedas-criptos';
 
 const mapAssetTypeToTipo = (assetType: string): 'moeda' | 'criptomoeda' | 'metal' | 'outro' => {
@@ -50,15 +51,32 @@ export async function GET(request: NextRequest) {
 
     const itemsWithAsset = portfolio.filter((p) => p.asset != null);
     const symbols = itemsWithAsset.map((p) => p.asset!.symbol);
-    const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
+    const [quotes, dolarIndicator] = await Promise.all([
+      getAssetPrices(symbols, { useBrapiFallback: true }),
+      getIndicator('USD-BRL', { useBrapiFallback: true }),
+    ]);
+    const cotacaoDolar = dolarIndicator?.price ?? null;
+
+    // Converter USD para BRL apenas em moedas (não criptos). Criptos: preço de aquisição sempre em reais.
+    const toBRL = (valor: number, currency: string | null | undefined, assetType: string): number => {
+      if (assetType === 'crypto') return valor;
+      if (currency === 'USD' && cotacaoDolar != null && cotacaoDolar > 0) {
+        return valor * cotacaoDolar;
+      }
+      return valor;
+    };
 
     const ativos: MoedaCriptoAtivo[] = itemsWithAsset.map((item) => {
-      const valorTotal = item.totalInvested;
+      const currency = item.asset!.currency ?? 'BRL';
+      const assetType = item.asset!.type ?? '';
       const ticker = item.asset!.symbol;
-      const cotacaoAtual = quotes.get(ticker) ?? item.avgPrice;
+      const cotacaoAtualRaw = quotes.get(ticker) ?? item.avgPrice;
+      const cotacaoAtual = toBRL(cotacaoAtualRaw, currency, assetType);
+      const valorTotal = toBRL(item.totalInvested, currency, assetType);
+      const precoAquisicaoBRL = toBRL(item.avgPrice, currency, assetType);
       const valorAtualizado = item.quantity * cotacaoAtual;
-      const rentabilidade = item.avgPrice > 0
-        ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100
+      const rentabilidade = precoAquisicaoBRL > 0
+        ? ((cotacaoAtual - precoAquisicaoBRL) / precoAquisicaoBRL) * 100
         : 0;
 
       return {
@@ -66,10 +84,10 @@ export async function GET(request: NextRequest) {
         ticker,
         nome: item.asset!.name,
         tipo: mapAssetTypeToTipo(item.asset!.type),
-        regiao: mapCurrencyToRegiao(item.asset!.currency ?? 'BRL'),
+        regiao: mapCurrencyToRegiao(currency),
         indiceRastreado: '-',
         quantidade: item.quantity,
-        precoAquisicao: item.avgPrice,
+        precoAquisicao: precoAquisicaoBRL,
         valorTotal,
         cotacaoAtual,
         valorAtualizado,
