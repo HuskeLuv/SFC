@@ -48,19 +48,22 @@ export const useEtf = () => {
     }
   }, []);
 
-  const formatCurrency = (value: number, currency: 'BRL' | 'USD' = 'BRL'): string => {
-    return value.toLocaleString(currency === 'BRL' ? 'pt-BR' : 'en-US', {
+  const formatCurrency = (value: number | undefined | null, currency: 'BRL' | 'USD' = 'BRL'): string => {
+    const num = value ?? 0;
+    return num.toLocaleString(currency === 'BRL' ? 'pt-BR' : 'en-US', {
       style: 'currency',
       currency: currency,
     });
   };
 
-  const formatPercentage = (value: number): string => {
-    return `${value.toFixed(2)}%`;
+  const formatPercentage = (value: number | undefined | null): string => {
+    const num = value ?? 0;
+    return `${num.toFixed(2)}%`;
   };
 
-  const formatNumber = (value: number): string => {
-    return value.toLocaleString('pt-BR', {
+  const formatNumber = (value: number | undefined | null): string => {
+    const num = value ?? 0;
+    return num.toLocaleString('pt-BR', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     });
