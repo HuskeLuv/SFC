@@ -1000,52 +1000,20 @@ export default function Step4AssetInfo({
                   </div>
                 )}
                 {(tesouroDestino === "renda-fixa-posfixada" || tesouroDestino === "renda-fixa-hibrida") && (
-                  <>
-                    <div>
-                      <Label htmlFor="rendaFixaIndexer">Indexador *</Label>
-                      <Select
-                        id="rendaFixaIndexer"
-                        options={RENDA_FIXA_INDEXADORES_POS}
-                        placeholder="Selecione (CDI ou IPCA)"
-                        value={formData.rendaFixaIndexer ?? ""}
-                        onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
-                        className={errors.rendaFixaIndexer ? 'border-red-500' : ''}
-                      />
-                      {errors.rendaFixaIndexer && (
-                        <p className="mt-1 text-sm text-red-500">{errors.rendaFixaIndexer}</p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor="rendaFixaIndexerPercent">% do Indexador *</Label>
-                      <Input
-                        id="rendaFixaIndexerPercent"
-                        {...decimalInputProps}
-                        placeholder="Ex: 100 (100% CDI)"
-                        value={getDecimalInputValue("rendaFixaIndexerPercent")}
-                        onChange={handleDecimalInputChange("rendaFixaIndexerPercent")}
-                        error={!!errors.rendaFixaIndexerPercent}
-                        hint={errors.rendaFixaIndexerPercent}
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-                    {tesouroDestino === "renda-fixa-hibrida" && (
-                      <div>
-                        <Label htmlFor="taxaFixaAnual">Taxa fixa anual (%) *</Label>
-                        <Input
-                          id="taxaFixaAnual"
-                          {...decimalInputProps}
-                          placeholder="Ex: 5"
-                          value={getDecimalInputValue("taxaFixaAnual")}
-                          onChange={handleDecimalInputChange("taxaFixaAnual")}
-                          error={!!errors.taxaFixaAnual}
-                          hint={errors.taxaFixaAnual}
-                          min="0"
-                          step="0.01"
-                        />
-                      </div>
+                  <div>
+                    <Label htmlFor="rendaFixaIndexer">Indexador *</Label>
+                    <Select
+                      id="rendaFixaIndexer"
+                      options={RENDA_FIXA_INDEXADORES_POS}
+                      placeholder="Selecione (CDI ou IPCA)"
+                      value={formData.rendaFixaIndexer ?? ""}
+                      onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
+                      className={errors.rendaFixaIndexer ? 'border-red-500' : ''}
+                    />
+                    {errors.rendaFixaIndexer && (
+                      <p className="mt-1 text-sm text-red-500">{errors.rendaFixaIndexer}</p>
                     )}
-                  </>
+                  </div>
                 )}
               </>
             )}
@@ -1286,7 +1254,7 @@ export default function Step4AssetInfo({
               <Label htmlFor="tipoFii">Tipo de FII *</Label>
               <Select
                 options={[
-                  { value: "fofi", label: "FOFI (Fundos de Fundos)" },
+                  { value: "fofi", label: "FOF (Fundos de Fundos)" },
                   { value: "tvm", label: "TVM (Títulos e Valores Mobiliários)" },
                   { value: "tijolo", label: "Tijolo" }
                 ]}
@@ -1357,7 +1325,8 @@ export default function Step4AssetInfo({
         );
 
       case "acao":
-        // Para ações, adicionar campo de estratégia
+      case "acoes-brasil":
+        // Para ações e Ações Brasil, adicionar campo de estratégia
         return (
           <>
             <div>
@@ -1513,6 +1482,23 @@ export default function Step4AssetInfo({
                 min="0"
                 step="0.01"
               />
+            </div>
+            <div>
+              <Label htmlFor="cotacaoMoeda">Cotação do dólar pago no câmbio (R$) *</Label>
+              <Input
+                id="cotacaoMoeda"
+                {...decimalInputProps}
+                placeholder="Ex: 5.20"
+                value={getDecimalInputValue("cotacaoMoeda")}
+                onChange={handleDecimalInputChange("cotacaoMoeda")}
+                error={!!errors.cotacaoMoeda}
+                hint={errors.cotacaoMoeda}
+                min="0"
+                step="0.01"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Informe a cotação do dólar que você pagou no câmbio no dia da compra.
+              </p>
             </div>
             <div>
               <Label htmlFor="valorInvestido">Total Investido (USD)</Label>

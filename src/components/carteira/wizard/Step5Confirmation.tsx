@@ -201,13 +201,7 @@ export default function Step5Confirmation({
                 {renderFieldValue("Data de Vencimento", formData.dataVencimento, formatDate)}
                 {renderFieldValue("Descrição", formData.descricao)}
                 {formData.tesouroDestino === "renda-fixa-prefixada" && renderFieldValue("Taxa de Juros Anual", formData.taxaJurosAnual, (v) => `${v}%`)}
-                {(formData.tesouroDestino === "renda-fixa-posfixada" || formData.tesouroDestino === "renda-fixa-hibrida") && (
-                  <>
-                    {renderFieldValue("Indexador", formData.rendaFixaIndexer)}
-                    {renderFieldValue("% do Indexador", formData.rendaFixaIndexerPercent ?? 0, (v) => `${v}%`)}
-                    {formData.tesouroDestino === "renda-fixa-hibrida" && renderFieldValue("Taxa Fixa Anual", formData.taxaFixaAnual ?? 0, (v) => `${v}%`)}
-                  </>
-                )}
+                {(formData.tesouroDestino === "renda-fixa-posfixada" || formData.tesouroDestino === "renda-fixa-hibrida") && renderFieldValue("Indexador", formData.rendaFixaIndexer)}
               </>
             )}
           </>
@@ -261,6 +255,7 @@ export default function Step5Confirmation({
       case "reserva-oportunidade":
         return (
           <>
+            {(formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "reserva-emergencia") && renderFieldValue("Nome do ativo", formData.ativo)}
             {renderFieldValue("Data", formData.dataCompra, formatDate)}
             {renderFieldValue("Valor", formData.valorInvestido, formatCurrency)}
             {renderFieldValue("Cot. Resgate", formData.cotizacaoResgate)}
@@ -297,6 +292,7 @@ export default function Step5Confirmation({
             )}
             {renderFieldValue("Quantidade de Cotas", formData.quantidade)}
             {renderFieldValue("Preço da Cota (USD)", formData.cotacaoUnitaria, formatCurrencyUSD)}
+            {renderFieldValue("Cotação do dólar no câmbio (R$)", formData.cotacaoMoeda, formatCurrency)}
             {renderFieldValue("Total Investido (USD)", (formData.quantidade || 0) * (formData.cotacaoUnitaria || 0), formatCurrencyUSD)}
           </>
         );
@@ -342,8 +338,20 @@ export default function Step5Confirmation({
           </>
         );
 
+      case "acao":
+      case "acoes-brasil":
+        return (
+          <>
+            {renderFieldValue("Estratégia", formData.estrategia, (val) => (val === 'value' ? 'Value' : val === 'growth' ? 'Growth' : val === 'risk' ? 'Risk' : String(val)))}
+            {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}
+            {renderFieldValue("Quantidade", formData.quantidade)}
+            {renderFieldValue("Cotação Unitária", formData.cotacaoUnitaria, formatCurrency)}
+            {renderFieldValue("Taxa de Corretagem", formData.taxaCorretagem, formatCurrency)}
+          </>
+        );
+
       default:
-        // Para ações, BDRs, ETFs, REITs, etc.
+        // Para BDRs, ETFs, REITs, etc.
         return (
           <>
             {renderFieldValue("Data de Compra", formData.dataCompra, formatDate)}

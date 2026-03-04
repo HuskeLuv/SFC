@@ -8,6 +8,62 @@ export async function GET(request: NextRequest) {
     const tipo = searchParams.get('tipo') || '';
     const limit = parseInt(searchParams.get('limit') || '20');
 
+    // Para Ações Brasil: combina ações (Stock) e BDRs (Asset) em uma única busca
+    if (tipo === 'acoes-brasil') {
+      const halfLimit = Math.ceil(limit / 2);
+      const stockWhere: Record<string, unknown> = {
+        isActive: true,
+        NOT: { ticker: { endsWith: '11' } }, // Excluir FIIs
+      };
+      if (search) {
+        stockWhere.OR = [
+          { ticker: { contains: search, mode: 'insensitive' } },
+          { companyName: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+      const [stocks, bdrAssets] = await Promise.all([
+        prisma.stock.findMany({
+          where: stockWhere,
+          take: halfLimit,
+          orderBy: [{ ticker: 'asc' }],
+        }),
+        prisma.asset.findMany({
+          where: {
+            type: { in: ['brd', 'bdr'] },
+            ...(search && {
+              OR: [
+                { symbol: { contains: search, mode: 'insensitive' } },
+                { name: { contains: search, mode: 'insensitive' } },
+              ],
+            }),
+          },
+          take: halfLimit,
+          orderBy: [{ symbol: 'asc' }],
+        }),
+      ]);
+      const acaoItems = stocks.map(stock => ({
+        id: `acao:${stock.id}`,
+        symbol: stock.ticker,
+        name: stock.companyName,
+        type: 'acao',
+        currency: 'BRL',
+        source: 'brapi',
+      }));
+      const bdrItems = bdrAssets.map(asset => ({
+        id: `bdr:${asset.id}`,
+        symbol: asset.symbol,
+        name: asset.name,
+        type: 'bdr',
+        currency: asset.currency || 'BRL',
+        source: asset.source || 'manual',
+      }));
+      return NextResponse.json({
+        success: true,
+        assets: [...acaoItems, ...bdrItems],
+        count: acaoItems.length + bdrItems.length,
+      });
+    }
+
     // Para ações, buscar na tabela Stock
     if (tipo === 'acao') {
       const whereClause: Record<string, unknown> = {

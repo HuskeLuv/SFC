@@ -189,9 +189,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           const descOk = !!formData.descricao;
           const taxaPreOk = dest !== "renda-fixa-prefixada" || (formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000);
           const indexadorOk = dest === "renda-fixa-prefixada" || (!!formData.rendaFixaIndexer && ['CDI', 'IPCA'].includes(formData.rendaFixaIndexer));
-          const percentOk = dest === "renda-fixa-prefixada" || (formData.rendaFixaIndexerPercent ?? 0) >= 0;
-          const taxaHibOk = dest !== "renda-fixa-hibrida" || ((formData.taxaFixaAnual ?? 0) > 0 && (formData.taxaFixaAnual ?? 0) <= 1000);
-          return !!(dataCompra && valorOk && dataVencOk && descOk && taxaPreOk && indexadorOk && percentOk && taxaHibOk);
+          return !!(dataCompra && valorOk && dataVencOk && descOk && taxaPreOk && indexadorOk);
         }
         return false;
       }
@@ -212,7 +210,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.taxaCorretagem >= 0 && formData.tipoFii);
       }
       
-      if (tipoAtivo === "acao") {
+      if (tipoAtivo === "acao" || tipoAtivo === "acoes-brasil") {
         return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.estrategia);
       }
 
@@ -228,7 +226,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       }
 
       if (tipoAtivo === "reit") {
-        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.estrategiaReit);
+        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.cotacaoMoeda > 0 && formData.estrategiaReit);
       }
 
       if (tipoAtivo === "opcoes") {
@@ -306,14 +304,20 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "REIT-MANUAL");
               } else if (formData.tipoAtivo === "stock") {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "STOCK-MANUAL");
+              } else if (formData.tipoAtivo === "acoes-brasil") {
+                isValid = !!(formData.assetId && formData.acoesBrasilTipo);
               } else if (formData.tipoAtivo === "previdencia") {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "PREVIDENCIA-MANUAL");
               } else if (formData.tipoAtivo === "tesouro-direto") {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "TESOURO-MANUAL");
               } else if (formData.tipoAtivo === "opcoes") {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === "OPCAO-MANUAL");
+              } else if (formData.tipoAtivo === "reserva-oportunidade") {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === "RESERVA-OPORT");
+              } else if (formData.tipoAtivo === "reserva-emergencia") {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === "RESERVA-EMERG");
               } else {
-                isValid = !!formData.assetId || formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado";
+                isValid = !!formData.assetId || formData.tipoAtivo === "personalizado";
               }
             }
             break;
@@ -413,6 +417,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         apiFormData.tipoAtivo = "opportunity" as any;
         apiFormData.quantidade = 1;
         apiFormData.cotacaoUnitaria = apiFormData.valorInvestido;
+      } else if (apiFormData.tipoAtivo === "acoes-brasil" && apiFormData.acoesBrasilTipo) {
+        apiFormData.tipoAtivo = apiFormData.acoesBrasilTipo;
       } else if ((apiFormData.tipoAtivo === "debenture" || apiFormData.tipoAtivo === "fundo") && (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')) {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
       } else if (apiFormData.tipoAtivo === "reit") {

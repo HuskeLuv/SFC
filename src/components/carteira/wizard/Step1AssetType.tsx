@@ -132,8 +132,7 @@ function getAssetTypeDescription(tipoAtivo: string): string {
   const descriptions: Record<string, string> = {
     "reserva-emergencia": "Reserva de emergência é um valor guardado para cobrir imprevistos e situações de necessidade. Idealmente deve corresponder a 6 meses das suas despesas mensais.",
     "reserva-oportunidade": "Reserva de oportunidade é um valor mantido disponível para aproveitar oportunidades de investimento que possam surgir no mercado, com boa liquidez para movimentação rápida.",
-    "acao": "Ações representam participação no capital social de uma empresa. Você se torna sócio da empresa e pode receber dividendos e participar dos lucros.",
-    "bdr": "BDRs (Brazilian Depositary Receipts) são certificados que representam ações de empresas estrangeiras negociadas no Brasil.",
+    "acoes-brasil": "Ações Brasil inclui ações brasileiras (PETR4, VALE3) e BDRs (AAPL34, MSFT34) negociados na B3. Ações representam participação no capital de empresas; BDRs são certificados de ações estrangeiras.",
     "conta-corrente": "Conta corrente é uma conta bancária tradicional para movimentação de dinheiro e pagamentos.",
     "criptoativo": "Criptoativos são moedas digitais como Bitcoin, Ethereum e outras criptomoedas.",
     "debenture": "Debêntures são títulos de dívida emitidos por empresas para captar recursos no mercado.",

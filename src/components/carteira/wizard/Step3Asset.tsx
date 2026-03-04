@@ -40,19 +40,10 @@ export default function Step3Asset({
       return;
     }
 
-    // Para reserva de emergência, oportunidade e personalizado, criar automaticamente sem busca
-    if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado") {
-      if (formData.tipoAtivo === "reserva-emergencia") {
-        onFormDataChange({
-          ativo: "Reserva de Emergência",
-          assetId: "RESERVA-EMERG",
-        });
-      } else if (formData.tipoAtivo === "reserva-oportunidade") {
-        onFormDataChange({
-          ativo: "Reserva de Oportunidade",
-          assetId: "RESERVA-OPORT",
-        });
-      } else if (formData.tipoAtivo === "personalizado") {
+    // Para personalizado, criar automaticamente sem busca
+    // Reserva de emergência e oportunidade: usuário digita o nome manualmente no passo 3
+    if (formData.tipoAtivo === "personalizado") {
+      if (formData.tipoAtivo === "personalizado") {
         onFormDataChange({
           ativo: "Personalizado",
           assetId: "PERSONALIZADO",
@@ -73,10 +64,10 @@ export default function Step3Asset({
       
       if (response.ok) {
         const data = await response.json();
-        const options: AutocompleteOption[] = (data.assets || []).map((asset: Asset) => ({
+        const options: AutocompleteOption[] = (data.assets || []).map((asset: Asset & { type?: string }) => ({
           value: asset.id,
           label: `${asset.symbol} - ${asset.name}`,
-          subtitle: asset.type,
+          subtitle: formData.tipoAtivo === "acoes-brasil" ? (asset.type === "bdr" ? "BDR" : "Ação") : asset.type,
         }));
         setAssetOptions(options);
         if (options.length === 0 && search.length >= 2) {
@@ -100,7 +91,8 @@ export default function Step3Asset({
   const handleAssetChange = (value: string) => {
     onFormDataChange({ 
       ativo: value,
-      assetId: "" // Limpar assetId quando usuário digita
+      assetId: "",
+      ...(formData.tipoAtivo === "acoes-brasil" && { acoesBrasilTipo: undefined }),
     });
     
     if (!formData.tipoAtivo) {
@@ -128,10 +120,19 @@ export default function Step3Asset({
   };
 
   const handleAssetSelect = (option: AutocompleteOption) => {
-    onFormDataChange({
-      ativo: option.label,
-      assetId: option.value,
-    });
+    if (formData.tipoAtivo === "acoes-brasil" && (option.value.startsWith("acao:") || option.value.startsWith("bdr:"))) {
+      const [tipo, id] = option.value.split(":");
+      onFormDataChange({
+        ativo: option.label,
+        assetId: id,
+        acoesBrasilTipo: tipo as "acao" | "bdr",
+      });
+    } else {
+      onFormDataChange({
+        ativo: option.label,
+        assetId: option.value,
+      });
+    }
     onErrorsChange({ ativo: undefined });
   };
 
@@ -140,19 +141,10 @@ export default function Step3Asset({
     if (formData.tipoAtivo) {
       onErrorsChange({ ativo: undefined });
       
-      // Para reserva de emergência, oportunidade e personalizado, definir automaticamente
-      if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado") {
-        if (formData.tipoAtivo === "reserva-emergencia") {
-          onFormDataChange({
-            ativo: "Reserva de Emergência",
-            assetId: "RESERVA-EMERG", // Será processado pela API
-          });
-        } else if (formData.tipoAtivo === "reserva-oportunidade") {
-          onFormDataChange({
-            ativo: "Reserva de Oportunidade",
-            assetId: "RESERVA-OPORT", // Será processado pela API
-          });
-        } else if (formData.tipoAtivo === "personalizado") {
+      // Para personalizado, definir automaticamente
+      // Reserva de emergência e oportunidade: usuário digita o nome manualmente
+      if (formData.tipoAtivo === "personalizado") {
+        if (formData.tipoAtivo === "personalizado") {
           onFormDataChange({
             ativo: "Personalizado",
             assetId: "PERSONALIZADO", // Será processado pela API
@@ -186,8 +178,7 @@ export default function Step3Asset({
     const placeholders: Record<string, string> = {
       "reserva-emergencia": "Reserva de Emergência (automático)",
       "reserva-oportunidade": "Reserva de Oportunidade (automático)",
-      "acao": "Digite pelo menos 2 caracteres (ex: PETR4, VALE3, ITUB4)",
-      "bdr": "Digite pelo menos 2 caracteres (ex: AAPL34, MSFT34)",
+      "acoes-brasil": "Digite pelo menos 2 caracteres (ex: PETR4, VALE3, AAPL34, MSFT34)",
       "fii": "Digite pelo menos 2 caracteres (ex: HGLG11, XPML11)",
       "etf": "Digite pelo menos 2 caracteres (ex: BOVA11, SMAL11)",
       "reit": "Digite pelo menos 2 caracteres (ex: VICI, AMT)",
@@ -211,21 +202,84 @@ export default function Step3Asset({
     return placeholders[formData.tipoAtivo] || "Digite pelo menos 2 caracteres para buscar";
   };
 
-  // Para reserva de emergência, oportunidade e personalizado, não mostrar campo de busca
-  if (formData.tipoAtivo === "reserva-emergencia" || formData.tipoAtivo === "reserva-oportunidade" || formData.tipoAtivo === "personalizado") {
-    let nome = "";
-    let descricao = "";
-    
-    if (formData.tipoAtivo === "reserva-emergencia") {
-      nome = "Reserva de Emergência";
-      descricao = `O ativo será criado automaticamente como "${nome}". Continue para o próximo passo para informar o valor e a data.`;
-    } else if (formData.tipoAtivo === "reserva-oportunidade") {
-      nome = "Reserva de Oportunidade";
-      descricao = `O ativo será criado automaticamente como "${nome}". Continue para o próximo passo para informar o valor e a data.`;
-    } else if (formData.tipoAtivo === "personalizado") {
-      nome = "Personalizado";
-      descricao = "O ativo personalizado será criado com o nome que você informar. Continue para o próximo passo para preencher os dados do investimento.";
-    }
+  // Reserva de emergência: usuário digita o nome do ativo manualmente (exibido na tabela)
+  if (formData.tipoAtivo === "reserva-emergencia") {
+    const handleNomeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const valor = e.target.value.trim();
+      onFormDataChange({
+        ativo: e.target.value,
+        assetId: valor ? "RESERVA-EMERG" : "",
+      });
+      if (errors.ativo) onErrorsChange({ ativo: undefined });
+    };
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            Reserva de Emergência
+          </h4>
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            Digite o nome do ativo que está sendo adicionado. Esse nome será exibido na tabela da aba Reserva de Emergência.
+          </p>
+        </div>
+        <div>
+          <Label htmlFor="ativo-reserva-emergencia">Nome do ativo *</Label>
+          <Input
+            id="ativo-reserva-emergencia"
+            type="text"
+            placeholder="Ex: CDB XP 105% CDI, Tesouro Selic 2029"
+            value={formData.ativo}
+            onChange={handleNomeChange}
+            error={!!errors.ativo}
+            hint={errors.ativo}
+            aria-label="Nome do ativo para reserva de emergência"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Reserva de oportunidade: usuário digita o nome do ativo manualmente (exibido na tabela)
+  if (formData.tipoAtivo === "reserva-oportunidade") {
+    const handleNomeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const valor = e.target.value.trim();
+      onFormDataChange({
+        ativo: e.target.value,
+        assetId: valor ? "RESERVA-OPORT" : "",
+      });
+      if (errors.ativo) onErrorsChange({ ativo: undefined });
+    };
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            Reserva de Oportunidade
+          </h4>
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            Digite o nome do ativo que está sendo adicionado. Esse nome será exibido na tabela da aba Reserva de Oportunidade.
+          </p>
+        </div>
+        <div>
+          <Label htmlFor="ativo-reserva-oportunidade">Nome do ativo *</Label>
+          <Input
+            id="ativo-reserva-oportunidade"
+            type="text"
+            placeholder="Ex: CDB XP 105% CDI, Tesouro Selic 2029"
+            value={formData.ativo}
+            onChange={handleNomeChange}
+            error={!!errors.ativo}
+            hint={errors.ativo}
+            aria-label="Nome do ativo para reserva de oportunidade"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Para personalizado, não mostrar campo de busca
+  if (formData.tipoAtivo === "personalizado") {
+    const nome = "Personalizado";
+    const descricao = "O ativo personalizado será criado com o nome que você informar. Continue para o próximo passo para preencher os dados do investimento.";
     
     return (
       <div className="space-y-6">
@@ -870,8 +924,7 @@ function getSearchInstructions(tipoAtivo: string): string {
   const instructions: Record<string, string> = {
     "reserva-emergencia": "O ativo será criado automaticamente como Reserva de Emergência.",
     "reserva-oportunidade": "O ativo será criado automaticamente como Reserva de Oportunidade.",
-    "acao": "Digite pelo menos 2 caracteres do código da ação (ex: PETR4, VALE3). O sistema buscará ações brasileiras listadas na B3.",
-    "bdr": "Digite pelo menos 2 caracteres do código do BDR (ex: AAPL34, MSFT34). BDRs são certificados de ações estrangeiras.",
+    "acoes-brasil": "Digite pelo menos 2 caracteres para buscar ações (ex: PETR4, VALE3) ou BDRs (ex: AAPL34, MSFT34) listados na B3.",
     "fii": "Digite pelo menos 2 caracteres do código do FII (ex: HGLG11, XPML11). Fundos Imobiliários investem em imóveis.",
     "etf": "Digite pelo menos 2 caracteres do código do ETF (ex: BOVA11, SMAL11). ETFs replicam índices de mercado.",
     "reit": "Digite pelo menos 2 caracteres do código do REIT (ex: VICI, AMT). REITs são fundos imobiliários estrangeiros.",

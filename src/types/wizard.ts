@@ -109,6 +109,9 @@ export interface WizardFormData {
   opcaoTipo?: 'put' | 'call';
   opcaoCompraVenda?: 'compra' | 'venda';
 
+  /** Para Ações Brasil: tipo real do ativo selecionado (acao ou bdr) - usado ao enviar para API */
+  acoesBrasilTipo?: 'acao' | 'bdr';
+
   // Aporte
   portfolioId: string;
   dataAporte: string;
@@ -186,6 +189,7 @@ export const TIPOS_ATIVO_PERMITIDOS = [
   'fii',
   'acao',
   'bdr',
+  'acoes-brasil',
   'etf',
   'reit',
   'stock',
@@ -204,8 +208,7 @@ export const TIPOS_ATIVO = [
   { value: "renda-fixa", label: "Renda Fixa" },
   { value: "fundo", label: "Fundos" },
   { value: "fii", label: "Fundos Imobiliários (FII's)" },
-  { value: "acao", label: "Ações" },
-  { value: "bdr", label: "BDRs" },
+  { value: "acoes-brasil", label: "Ações Brasil" },
   { value: "stock", label: "Stocks" },
   { value: "reit", label: "REIT's" },
   { value: "etf", label: "ETF's" },

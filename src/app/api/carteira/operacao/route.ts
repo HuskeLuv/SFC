@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       tipoAtivo,
       instituicaoId,
       assetId,
+      ativo: ativoNome,
       dataCompra,
       dataInicio,
       dataVencimento,
@@ -303,10 +304,21 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
     } else if (tipoAtivo === "emergency" || tipoAtivo === "opportunity") {
-      // Para reserva de emergência e oportunidade, apenas valor e data são necessários
+      // Para reserva de emergência e oportunidade, valor e data são necessários
+      // Para oportunidade, o nome do ativo (ativo) é obrigatório - exibido na tabela
       if (!dataCompra || !valorInvestido) {
         return NextResponse.json({ 
           error: 'Campos obrigatórios para este tipo: dataCompra, valorInvestido' 
+        }, { status: 400 });
+      }
+      if (tipoAtivo === "opportunity" && !(ativoNome || "").trim()) {
+        return NextResponse.json({ 
+          error: 'Nome do ativo é obrigatório para reserva de oportunidade. Informe o nome que será exibido na tabela.' 
+        }, { status: 400 });
+      }
+      if (tipoAtivo === "emergency" && !(ativoNome || "").trim()) {
+        return NextResponse.json({ 
+          error: 'Nome do ativo é obrigatório para reserva de emergência. Informe o nome que será exibido na tabela.' 
         }, { status: 400 });
       }
     } else if (tipoAtivo === "acao") {
@@ -323,9 +335,9 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
     } else if (tipoAtivo === "reit") {
-      if (!dataCompra || !quantidade || !cotacaoUnitaria || !estrategiaReit) {
+      if (!dataCompra || !quantidade || !cotacaoUnitaria || !cotacaoMoeda || !estrategiaReit) {
         return NextResponse.json({ 
-          error: 'Campos obrigatórios para REIT: dataCompra, quantidade, cotacaoUnitaria (USD), estrategiaReit' 
+          error: 'Campos obrigatórios para REIT: dataCompra, quantidade, cotacaoUnitaria (USD), cotacaoMoeda (cotação do dólar no câmbio), estrategiaReit' 
         }, { status: 400 });
       }
       if (!['value', 'growth', 'risk'].includes(estrategiaReit)) {
@@ -375,9 +387,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (tipoAtivo === "reit" && (quantidade <= 0 || cotacaoUnitaria <= 0)) {
+    if (tipoAtivo === "reit" && (quantidade <= 0 || cotacaoUnitaria <= 0 || cotacaoMoeda <= 0)) {
       return NextResponse.json({ 
-        error: 'Quantidade e preço da cota (USD) devem ser maiores que zero' 
+        error: 'Quantidade, preço da cota (USD) e cotação do dólar devem ser maiores que zero' 
       }, { status: 400 });
     }
 
@@ -525,10 +537,10 @@ export async function POST(request: NextRequest) {
       let baseSymbol = "";
       
       if (tipoAtivo === "emergency") {
-        baseName = "Reserva de Emergência";
+        baseName = (ativoNome || "").trim() || "Reserva de Emergência";
         baseSymbol = "RESERVA-EMERG";
       } else if (tipoAtivo === "opportunity") {
-        baseName = "Reserva de Oportunidade";
+        baseName = (ativoNome || "").trim() || "Reserva de Oportunidade";
         baseSymbol = "RESERVA-OPORT";
       } else if (tipoAtivo === "personalizado") {
         baseName = nomePersonalizado || "Personalizado";
@@ -939,8 +951,9 @@ export async function POST(request: NextRequest) {
         metadata.fundoRendaFixaTipo = fundoRendaFixaTipo;
       }
     }
-    if (tipoAtivo === "reit" && estrategiaReit) {
-      metadata.estrategiaReit = estrategiaReit;
+    if (tipoAtivo === "reit") {
+      if (estrategiaReit) metadata.estrategiaReit = estrategiaReit;
+      metadata.cotacaoMoeda = cotacaoMoeda || null;
     }
     if (tipoAtivo === "stock") {
       metadata.cotacaoMoeda = cotacaoMoeda || null;
@@ -1104,8 +1117,9 @@ export async function POST(request: NextRequest) {
 
         if (isTesouroRendaFixa) {
           rendaFixaTipoForAsset = tesouroDestino === 'renda-fixa-hibrida' ? 'CDB_HIB' : 'CDB_PRE';
-          annualRateForAsset = tesouroDestino === 'renda-fixa-prefixada' ? taxaJurosAnual : (tesouroDestino === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? 0) : (taxaJurosAnual || 0));
-          indexerPercentForAsset = tesouroDestino === 'renda-fixa-prefixada' ? null : (rendaFixaIndexerPercent ?? taxaJurosAnual ?? null);
+          // Tesouro: % do indexador e taxa fixa anual foram removidos do formulário - usar defaults
+          annualRateForAsset = tesouroDestino === 'renda-fixa-prefixada' ? taxaJurosAnual : (tesouroDestino === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? 0) : (taxaJurosAnual ?? 100));
+          indexerPercentForAsset = tesouroDestino === 'renda-fixa-prefixada' ? null : (rendaFixaIndexerPercent ?? taxaJurosAnual ?? 100);
           indexerForAsset = tesouroDestino === 'renda-fixa-prefixada' ? 'PRE' : (rendaFixaIndexer || null);
         } else {
           annualRateForAsset = tipoAtivo === "renda-fixa-hibrida" ? (taxaFixaAnual ?? taxaJurosAnual) : taxaJurosAnual;
