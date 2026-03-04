@@ -148,7 +148,7 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     const ativosDoTipo = fiiAtivos.filter(ativo => ativo.tipo === tipo);
     
     const nomesTipo = {
-      'fofi': 'FOFI (Fundos de Fundos)',
+      'fofi': 'FOF (Fundos de Fundos)',
       'tvm': 'TVM (Títulos e Valores Mobiliários)',
       'tijolo': 'Tijolo'
     };
