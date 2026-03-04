@@ -481,8 +481,11 @@ export async function GET(request: NextRequest) {
         let valorItem = currentPrice
           ? item.quantity * currentPrice
           : item.quantity * item.avgPrice;
-        // Stocks em USD: sem cotação Brapi, avgPrice já está em BRL (cotação do dia da compra)
-        const valorJaEmBRL = item.asset?.type === 'stock' && !currentPrice;
+        // Stocks em USD sem cotação: avgPrice já está em BRL
+        // Crypto/currency/metal/commodity: getAssetPrices retorna em BRL, não converter
+        const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
+        const valorJaEmBRL = (item.asset?.type === 'stock' && !currentPrice) ||
+          (currentPrice != null && tiposPrecoEmBRL.includes(item.asset?.type || ''));
         if (!valorJaEmBRL) {
           valorItem = toBRL(valorItem, currency);
         }
@@ -905,9 +908,12 @@ export async function GET(request: NextRequest) {
         ? item.quantity * currentPrice 
           : (isReserva && item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice)); // Reservas: totalInvested (editado) ou quantity*avgPrice
 
-      // Converter USD para BRL (tabela de alocação exibe tudo em R$). Stocks sem cotação Brapi: avgPrice já em BRL
+      // Converter USD para BRL (tabela de alocação exibe tudo em R$)
+      // Crypto/currency/metal/commodity: getAssetPrices retorna em BRL. Stocks sem cotação: avgPrice já em BRL
       const currency = asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
-      const valorJaEmBRL = asset?.type === 'stock' && !currentPrice && !isReserva;
+      const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
+      const valorJaEmBRL = (asset?.type === 'stock' && !currentPrice && !isReserva) ||
+        (currentPrice != null && !isReserva && tiposPrecoEmBRL.includes(asset?.type || ''));
       const valorAtualBRL = valorJaEmBRL ? valorAtual : toBRL(valorAtual, currency);
       
       if (asset) {
