@@ -18,6 +18,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const today = (): Date => normalizeDateToDayStart(new Date());
 
+/** Extrai o ticker base de símbolos manuais (REIT, stock): "O-1731234567890-abc" -> "O" */
+const extractBaseTickerFromManualSymbol = (symbol: string): string | null => {
+  const m = symbol.trim().toUpperCase().match(/^([A-Z0-9]+)-\d{13}-[a-zA-Z0-9]+$/);
+  return m ? m[1] : null;
+};
+
 /** Símbolos para tentar na Brapi: ações B3 podem precisar do sufixo .SA */
 const getBrapiSymbolsToTry = (symbol: string): string[] => {
   const s = symbol.trim().toUpperCase();
@@ -144,35 +150,59 @@ export const getAssetPrices = async (
   const result = new Map<string, number>();
   if (!symbols?.length) return result;
 
-  const uniqueSymbols = [...new Set(symbols.filter((s) => s?.trim()))]
-    .map((s) => s.trim().toUpperCase())
-    .filter(
-      (s) =>
-        !s.startsWith('RESERVA-EMERG') &&
-        !s.startsWith('RESERVA-OPORT') &&
-        !s.startsWith('RENDA-FIXA') &&
-        !s.startsWith('CONTA-CORRENTE') &&
-        !s.startsWith('PERSONALIZADO') &&
-        !s.startsWith('DEBENTURE-') &&
-        !s.startsWith('FUNDO-') &&
-        !/-\d{13}-/.test(s) &&
-        !s.startsWith('-') &&
-        /^[A-Za-z]/.test(s)
-    );
+  const rawSymbols = [...new Set(symbols.filter((s) => s?.trim()))].map((s) => s.trim().toUpperCase());
 
-  if (uniqueSymbols.length === 0) return result;
+  // Símbolos manuais (stock): "AAPL-1731234567890-abc" -> buscar cotação pelo ticker base "AAPL"
+  // REITs são excluídos: valores atualizados apenas manualmente, não via Brapi
+  const manualToBase = new Map<string, string>();
+  const baseTickersFromManual = new Set<string>();
+  const manualSymbols = rawSymbols.filter((s) => extractBaseTickerFromManualSymbol(s));
+  if (manualSymbols.length > 0) {
+    const assetsManual = await prisma.asset.findMany({
+      where: { symbol: { in: manualSymbols } },
+      select: { symbol: true, type: true },
+    });
+    const reitSymbols = new Set(assetsManual.filter((a) => a.type === 'reit').map((a) => a.symbol.toUpperCase()));
+    for (const s of manualSymbols) {
+      if (reitSymbols.has(s)) continue; // REIT: não buscar na Brapi
+      const base = extractBaseTickerFromManualSymbol(s);
+      if (base) {
+        manualToBase.set(s, base);
+        baseTickersFromManual.add(base);
+      }
+    }
+  }
+
+  const uniqueSymbols = rawSymbols.filter(
+    (s) =>
+      !s.startsWith('RESERVA-EMERG') &&
+      !s.startsWith('RESERVA-OPORT') &&
+      !s.startsWith('RENDA-FIXA') &&
+      !s.startsWith('CONTA-CORRENTE') &&
+      !s.startsWith('PERSONALIZADO') &&
+      !s.startsWith('DEBENTURE-') &&
+      !s.startsWith('FUNDO-') &&
+      !/-\d{13}-/.test(s) &&
+      !s.startsWith('-') &&
+      /^[A-Za-z]/.test(s)
+  );
+
+  // Incluir tickers base dos manuais para buscar cotação (ex: "O" para REIT)
+  const symbolsToProcess = [...new Set([...uniqueSymbols, ...baseTickersFromManual])];
+
+  if (symbolsToProcess.length === 0) return result;
 
   const useFallback = options?.useBrapiFallback !== false;
   const todayDate = today();
 
   // 1) Buscar do banco - usar apenas se tiver valor do dia (priceUpdatedAt ou history.date = hoje)
   const assetsWithPrice = await prisma.asset.findMany({
-    where: { symbol: { in: uniqueSymbols } },
+    where: { symbol: { in: symbolsToProcess } },
     select: { symbol: true, currentPrice: true, priceUpdatedAt: true },
   });
 
   const historyRows = await prisma.assetPriceHistory.findMany({
-    where: { symbol: { in: uniqueSymbols } },
+    where: { symbol: { in: symbolsToProcess } },
     orderBy: { date: 'desc' },
     select: { symbol: true, price: true, date: true },
   });
@@ -196,7 +226,7 @@ export const getAssetPrices = async (
     }
   }
 
-  for (const symbol of uniqueSymbols) {
+  for (const symbol of symbolsToProcess) {
     if (result.has(symbol)) continue;
     const latest = latestHistoryBySymbol.get(symbol);
     if (latest && latest.price > 0) {
@@ -207,7 +237,7 @@ export const getAssetPrices = async (
     }
   }
 
-  const stillMissing = uniqueSymbols.filter((s) => !result.has(s));
+  const stillMissing = symbolsToProcess.filter((s) => !result.has(s));
 
   if (stillMissing.length > 0 && useFallback) {
     const assetsForMissing = await prisma.asset.findMany({
@@ -260,6 +290,14 @@ export const getAssetPrices = async (
           await persistPriceFromBrapi(symbol, price);
         }
       }
+    }
+  }
+
+  // Mapear cotação do ticker base de volta para símbolos manuais (REIT, stock)
+  for (const [fullSymbol, baseTicker] of manualToBase) {
+    const price = result.get(baseTicker);
+    if (price != null && price > 0) {
+      result.set(fullSymbol, price);
     }
   }
 
