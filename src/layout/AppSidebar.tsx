@@ -15,6 +15,7 @@ import {
   UserCircleIcon,
   DocsIcon,
   PieChartIcon,
+  TimeIcon,
 } from "../icons/index";
 
 type NavItem = {
@@ -54,6 +55,11 @@ const MAIN_NAV_ITEMS: NavItem[] = [
     icon: <DocsIcon />,
     name: "Relatórios",
     path: "/relatorios",
+  },
+  {
+    icon: <TimeIcon />,
+    name: "Histórico",
+    path: "/historico",
   },
 ];
 
@@ -104,9 +110,9 @@ const AppSidebar: React.FC = () => {
       items = items.filter((item) => item.name !== "Dashboard");
     }
 
-    // Se estiver personificado, mostrar apenas: Dashboard, Fluxo de Caixa, Carteira e Relatórios
+    // Se estiver personificado, mostrar apenas: Dashboard, Fluxo de Caixa, Carteira, Histórico e Relatórios
     if (actingClient) {
-      const allowedItems = ["Dashboard", "Fluxo de Caixa", "Carteira", "Relatórios"];
+      const allowedItems = ["Dashboard", "Fluxo de Caixa", "Carteira", "Histórico", "Relatórios"];
       items = items.filter((item) => allowedItems.includes(item.name));
     }
 
