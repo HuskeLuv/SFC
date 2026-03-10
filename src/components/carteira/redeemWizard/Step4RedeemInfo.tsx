@@ -68,8 +68,14 @@ export default function Step4RedeemInfo({
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-        <p>Quantidade disponível: {formData.availableQuantity || 0}</p>
-        <p>Valor disponível: {formData.availableTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+        <p>Quantidade disponível: {formData.availableQuantity ?? 0}</p>
+        <p>
+          Valor disponível:{" "}
+          {(formData.availableTotal ?? 0).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: formData.moeda || "BRL",
+          })}
+        </p>
       </div>
 
       <div>
@@ -97,7 +103,7 @@ export default function Step4RedeemInfo({
               pattern="[0-9]*"
               placeholder="Ex: 10"
               value={formData.quantidade}
-              onChange={(e) => handleInputChange("quantidade", parseInt(e.target.value, 10) || 0)}
+              onChange={(e) => handleInputChange("quantidade", parseFloat(e.target.value) || 0)}
               error={!!errors.quantidade}
               hint={errors.quantidade}
               min="1"
@@ -105,7 +111,9 @@ export default function Step4RedeemInfo({
             />
           </div>
           <div>
-            <Label htmlFor="cotacaoUnitaria">Cotação unitária (R$) *</Label>
+            <Label htmlFor="cotacaoUnitaria">
+              Cotação unitária ({formData.moeda === "USD" ? "US$" : "R$"}) *
+            </Label>
             <Input
               id="cotacaoUnitaria"
               type="text"
@@ -123,12 +131,14 @@ export default function Step4RedeemInfo({
         </>
       ) : (
         <div>
-          <Label htmlFor="valorResgate">Valor do resgate (R$) *</Label>
+          <Label htmlFor="valorResgate">
+            Valor do resgate ({formData.moeda === "USD" ? "US$" : "R$"}) *
+          </Label>
           <Input
             id="valorResgate"
-          type="text"
-          inputMode="decimal"
-          pattern="[0-9]*[.,]?[0-9]*"
+            type="text"
+            inputMode="decimal"
+            pattern="[0-9]*[.,]?[0-9]*"
             placeholder="Ex: 1000.00"
             value={formData.valorResgate}
             onChange={(e) => handleInputChange("valorResgate", parseFloat(e.target.value) || 0)}

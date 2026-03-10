@@ -99,7 +99,7 @@ export default function Step3RedeemAsset({
       availableQuantity: selected.quantity,
       availableTotal: selected.totalInvested,
       moeda: selected.currency,
-      metodoResgate: selected.quantity > 1 ? "quantidade" : "valor",
+      metodoResgate: selected.quantity === 1 ? "valor" : "quantidade",
     });
     onErrorsChange({ ativo: undefined });
   };
@@ -123,7 +123,7 @@ export default function Step3RedeemAsset({
         onSelect={handleAssetSelect}
         options={assetOptions.map((asset) => ({
           value: asset.portfolioId,
-          label: `${asset.label} (${asset.quantity} und | ${asset.totalInvested.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+          label: `${asset.label} (${asset.quantity} und | ${(asset.totalInvested ?? 0).toLocaleString("pt-BR", { style: "currency", currency: asset.currency || "BRL" })})`,
           subtitle: asset.subtitle,
         }))}
         loading={loading}

@@ -74,17 +74,20 @@ export async function GET(request: NextRequest) {
     const stockIds = filtered.map((item) => item.stockId).filter(Boolean) as string[];
     const assetIds = filtered.map((item) => item.assetId).filter(Boolean) as string[];
 
-    const transactions = await prisma.stockTransaction.findMany({
-      where: {
-        userId: targetUserId,
-        type: "compra",
-        OR: [
-          { stockId: stockIds.length ? { in: stockIds } : undefined },
-          { assetId: assetIds.length ? { in: assetIds } : undefined },
-        ],
-      },
-      orderBy: { date: "desc" },
-    });
+    const orConditions: Array<{ stockId?: { in: string[] }; assetId?: { in: string[] } }> = [];
+    if (stockIds.length > 0) orConditions.push({ stockId: { in: stockIds } });
+    if (assetIds.length > 0) orConditions.push({ assetId: { in: assetIds } });
+
+    const transactions = orConditions.length > 0
+      ? await prisma.stockTransaction.findMany({
+          where: {
+            userId: targetUserId,
+            type: "compra",
+            OR: orConditions,
+          },
+          orderBy: { date: "desc" },
+        })
+      : [];
 
     const institutionByKey = new Map<string, string | null>();
     transactions.forEach((transaction) => {
