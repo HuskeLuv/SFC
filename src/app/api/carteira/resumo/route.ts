@@ -906,7 +906,9 @@ export async function GET(request: NextRequest) {
         ? getFixedIncomeCurrentValue(fixedIncome, item, new Date())
         : (currentPrice && !isReserva
         ? item.quantity * currentPrice 
-          : (isReserva && item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice)); // Reservas: totalInvested (editado) ou quantity*avgPrice
+          : (isReserva && item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+              ? item.quantity * item.avgPrice
+              : (item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice))); // Reservas: alinhado com reserva-oportunidade (avgPrice*quantity quando editado)
 
       // Converter USD para BRL (tabela de alocação exibe tudo em R$)
       // Crypto/currency/metal/commodity: getAssetPrices retorna em BRL. Stocks sem cotação: avgPrice já em BRL
