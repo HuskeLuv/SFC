@@ -882,9 +882,6 @@ export async function GET(request: NextRequest) {
       historicoTWR.push(...historicoPatrimonio.map((item, i) => ({ data: item.data, value: i === 0 ? 0 : 0 })));
     }
 
-    // Usar investimentos para categorização (excluindo reservas - já no portfolio)
-    const categorizedInvestments = investmentsExclReservas;
-
     // categorias já foi inicializado antes do loop do portfolio
 
     // Categorizar portfolio baseado no tipo do ativo
@@ -1034,46 +1031,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Categorizar investimentos baseado no nome
-    categorizedInvestments.forEach(investment => {
-      const totalValor = (investment.values || []).reduce((sum, value) => sum + value.value, 0);
-      const name = investment.name.toLowerCase();
-
-      // Lógica de categorização baseada em palavras-chave no nome
-      if (name.includes('reserva') && name.includes('emergencia')) {
-        categorias.reservaEmergencia += totalValor;
-      } else if (name.includes('reserva') && name.includes('oportunidade')) {
-        categorias.reservaOportunidade += totalValor;
-      } else if (name.includes('emergencia')) {
-        categorias.reservaEmergencia += totalValor;
-      } else if (name.includes('reserva')) {
-        // Se não especificar qual tipo de reserva, assumir oportunidade
-        categorias.reservaOportunidade += totalValor;
-      } else if (name.includes('cdb') || name.includes('lci') || name.includes('lca') || 
-                 name.includes('tesouro') || name.includes('renda fixa')) {
-        categorias.rendaFixaFundos += totalValor;
-      } else if ((name.includes('fim') || name.includes('fia')) && !name.includes('fii') && !name.includes('imobiliario')) {
-        // Apenas FIM/FIA específicos, excluindo FIIs e imobiliários
-        categorias.fimFia += totalValor;
-      } else if (name.includes('fii') || name.includes('imobiliario')) {
-        categorias.fiis += totalValor;
-      } else if (name.includes('stock') || name.includes('exterior')) {
-        categorias.stocks += totalValor;
-      } else if (name.includes('reit')) {
-        categorias.reits += totalValor;
-      } else if (name.includes('etf')) {
-        categorias.etfs += totalValor;
-      } else if (name.includes('crypto') || name.includes('bitcoin') || name.includes('moeda')) {
-        categorias.moedasCriptos += totalValor;
-      } else if (name.includes('previdencia') || name.includes('seguro')) {
-        categorias.previdenciaSeguros += totalValor;
-      } else if (name.includes('opcao') || name.includes('option')) {
-        categorias.opcoes += totalValor;
-      } else {
-        // Se não se encaixa em nenhuma categoria específica, vai para renda fixa
-        categorias.rendaFixaFundos += totalValor;
-      }
-    });
+    // Não incluir investimentos de cashflow na distribuição de alocação - evita valores fantasmas
+    // A tabela de alocação reflete apenas portfolio real + caixa para investir
+    // categorizedInvestments (cashflow) pode ter valores de planejamento que não correspondem ao patrimônio real
 
     // Buscar caixa para investir de cada tab e adicionar aos valores calculados
     // Isso garante que os valores incluam o caixa para investir de cada tab
