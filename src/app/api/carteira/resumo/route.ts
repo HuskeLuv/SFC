@@ -279,6 +279,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const twrStartDateParam = searchParams.get('twrStartDate');
     const twrStartDate = twrStartDateParam ? parseInt(twrStartDateParam, 10) : undefined;
+    const includeHistorico = searchParams.get('includeHistorico') !== 'false';
     
     // Registrar acesso se estiver personificado
     await logSensitiveEndpointAccess(
@@ -290,80 +291,79 @@ export async function GET(request: NextRequest) {
       'GET',
     );
 
-    const user = await prisma.user.findUnique({
-      where: { id: targetUserId },
-    });
+    // Paralelizar queries iniciais para reduzir tempo de carregamento
+    const [user, portfolio, fixedIncomeResult, investmentGroupsTemplate, investmentGroupsCustom, dashboardMetrics, stockTransactions] = await Promise.all([
+      prisma.user.findUnique({ where: { id: targetUserId } }),
+      prisma.portfolio.findMany({
+        where: { userId: targetUserId },
+        include: { stock: true, asset: true },
+      }),
+      (async (): Promise<FixedIncomeAssetWithAsset[]> => {
+        try {
+          return await prisma.fixedIncomeAsset.findMany({
+            where: { userId: targetUserId },
+            include: { asset: true },
+          }) as FixedIncomeAssetWithAsset[];
+        } catch (error) {
+          const prismaError = error as Prisma.PrismaClientKnownRequestError;
+          if (prismaError?.code !== 'P2021') throw error;
+          return [];
+        }
+      })(),
+      prisma.cashflowGroup.findMany({
+        where: { userId: null, type: 'investimento' },
+        include: {
+          items: {
+            include: {
+              values: {
+                where: { userId: targetUserId, year: new Date().getFullYear() },
+              },
+            },
+          },
+        },
+      }),
+      prisma.cashflowGroup.findMany({
+        where: { userId: targetUserId, type: 'investimento' },
+        include: {
+          items: {
+            include: {
+              values: {
+                where: { userId: targetUserId, year: new Date().getFullYear() },
+              },
+            },
+          },
+        },
+      }),
+      prisma.dashboardData.findMany({
+        where: {
+          userId: targetUserId,
+          metric: {
+            in: [
+              'meta_patrimonio', 'caixa_para_investir_consolidado',
+              'caixa_para_investir_acoes', 'caixa_para_investir_fii', 'caixa_para_investir_etf',
+              'caixa_para_investir_reit', 'caixa_para_investir_stocks', 'caixa_para_investir_moedas_criptos',
+              'caixa_para_investir_previdencia_seguros', 'caixa_para_investir_opcoes',
+              'caixa_para_investir_fim_fia', 'caixa_para_investir_renda_fixa',
+            ],
+          },
+        },
+      }),
+      prisma.stockTransaction.findMany({
+        where: { userId: targetUserId },
+        include: { stock: true, asset: true },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
+
+    const fixedIncomeAssets = fixedIncomeResult;
 
     if (!user) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
-    // Buscar portfolio de ações
-    const portfolio = await prisma.portfolio.findMany({
-      where: { userId: targetUserId },
-      include: {
-        stock: true,
-        asset: true,
-      },
-    });
-
-    let fixedIncomeAssets: FixedIncomeAssetWithAsset[] = [];
-    try {
-      fixedIncomeAssets = await prisma.fixedIncomeAsset.findMany({
-        where: { userId: targetUserId },
-        include: { asset: true },
-      }) as FixedIncomeAssetWithAsset[];
-    } catch (error) {
-      const prismaError = error as Prisma.PrismaClientKnownRequestError;
-      if (prismaError?.code !== 'P2021') {
-        throw error;
-      }
-      fixedIncomeAssets = [];
-    }
-
     const fixedIncomeByAssetId = new Map<string, FixedIncomeAssetWithAsset>();
     fixedIncomeAssets.forEach((fixedIncome) => {
       fixedIncomeByAssetId.set(fixedIncome.assetId, fixedIncome);
-    });
-
-    // Buscar investimentos em cashflow (grupos tipo 'investimento')
-    // Buscar templates e personalizações
-    const investmentGroupsTemplate = await prisma.cashflowGroup.findMany({
-      where: {
-        userId: null,
-        type: 'investimento',
-      },
-      include: {
-        items: {
-          include: {
-            values: {
-              where: {
-                userId: targetUserId,
-                year: new Date().getFullYear(),
-              },
-            },
-          },
-        },
-      },
-    });
-
-    const investmentGroupsCustom = await prisma.cashflowGroup.findMany({
-      where: {
-        userId: targetUserId,
-        type: 'investimento',
-      },
-      include: {
-        items: {
-          include: {
-            values: {
-              where: {
-                userId: targetUserId,
-                year: new Date().getFullYear(),
-              },
-            },
-          },
-        },
-      },
     });
 
     // Mesclar grupos (personalizações têm prioridade)
@@ -414,16 +414,13 @@ export async function GET(request: NextRequest) {
         /^[A-Za-z]/.test(symbol)
       );
 
-    const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
-
-    // Cotação do dólar para converter ativos em USD para BRL na tabela de alocação
-    let cotacaoDolar: number | null = null;
-    try {
-      const dolarIndicator = await getIndicator('USD-BRL', { useBrapiFallback: true });
-      cotacaoDolar = dolarIndicator?.price ?? null;
-    } catch {
-      // Ignorar erro - valores em USD permanecem sem conversão
-    }
+    // Buscar cotações e dólar em paralelo
+    const [quotesResult, dolarIndicator] = await Promise.all([
+      getAssetPrices(symbols, { useBrapiFallback: true }),
+      getIndicator('USD-BRL', { useBrapiFallback: true }).catch(() => null),
+    ]);
+    const quotes = quotesResult;
+    const cotacaoDolar = dolarIndicator?.price ?? null;
 
     const toBRL = (valor: number, currency: string | null | undefined): number => {
       if (currency === 'USD' && cotacaoDolar != null && cotacaoDolar > 0) {
@@ -510,28 +507,7 @@ export async function GET(request: NextRequest) {
     const saldoBruto = stocksCurrentValue + otherInvestmentsCurrentValue;
     const rentabilidade = valorAplicado > 0 ? ((saldoBruto - valorAplicado) / valorAplicado) * 100 : 0;
 
-    // Buscar métricas de patrimônio (se existir no DashboardData)
-    const dashboardMetrics = await prisma.dashboardData.findMany({
-      where: {
-        userId: targetUserId,
-        metric: { 
-          in: [
-            'meta_patrimonio', 
-            'caixa_para_investir_consolidado',
-            'caixa_para_investir_acoes',
-            'caixa_para_investir_fii',
-            'caixa_para_investir_etf',
-            'caixa_para_investir_reit',
-            'caixa_para_investir_stocks',
-            'caixa_para_investir_moedas_criptos',
-            'caixa_para_investir_previdencia_seguros',
-            'caixa_para_investir_opcoes',
-            'caixa_para_investir_fim_fia',
-            'caixa_para_investir_renda_fixa',
-          ] 
-        },
-      },
-    });
+    // dashboardMetrics já carregado em paralelo acima
     const metaPatrimonio = dashboardMetrics.find((item) => item.metric === 'meta_patrimonio');
     
     // Buscar caixa para investir consolidado (não é mais a soma dos outros)
@@ -540,15 +516,7 @@ export async function GET(request: NextRequest) {
     );
     const caixaParaInvestir = caixaParaInvestirConsolidado?.value || 0;
 
-    // Buscar transações de ações para gerar histórico real
-    const stockTransactions = await prisma.stockTransaction.findMany({
-      where: { userId: targetUserId },
-      include: {
-        stock: true,
-        asset: true,
-      },
-      orderBy: { date: 'asc' },
-    });
+    // stockTransactions já carregado em paralelo acima
 
     // Buscar investimentos em cashflow para gerar histórico real (excluindo reservas)
     const cashflowInvestments = investmentsExclReservas;
@@ -558,7 +526,9 @@ export async function GET(request: NextRequest) {
     const historicoTWR: Array<{ data: number; value: number }> = [];
     let historicoTWRPeriodo: Array<{ data: number; value: number }> = [];
 
-    if (stockTransactions.length > 0 || cashflowInvestments.length > 0 || portfolio.length > 0) {
+    const hasHistoricoData = stockTransactions.length > 0 || cashflowInvestments.length > 0 || portfolio.length > 0;
+
+    if (hasHistoricoData && includeHistorico) {
       const hoje = normalizeDateStart(new Date());
 
       const portfolioBySymbol = new Map<string, { quantity: number; avgPrice: number; isManual: boolean }>();
@@ -694,10 +664,13 @@ export async function GET(request: NextRequest) {
           timelineStartCandidates.push(earliestFixedIncomeDate);
         }
       }
-      const timelineStart = timelineStartCandidates.length > 0
+      const rawTimelineStart = timelineStartCandidates.length > 0
         ? new Date(Math.min(...timelineStartCandidates))
         : new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1);
-
+      // Limitar a 24 meses para usuários com muitos ativos (reduz fetch de histórico)
+      const MAX_HISTORICO_MESES = 24;
+      const minStart = new Date(hoje.getFullYear(), hoje.getMonth() - MAX_HISTORICO_MESES, 1);
+      const timelineStart = rawTimelineStart.getTime() < minStart.getTime() ? minStart : rawTimelineStart;
       const timeline = buildDailyTimeline(timelineStart, hoje);
 
       const fixedIncomePricePointsBySymbol = new Map<string, Array<{ date: number; value: number }>>();
@@ -868,7 +841,10 @@ export async function GET(request: NextRequest) {
           }
         }
       }
-    } else {
+    }
+
+    // Placeholder quando não há dados ou includeHistorico=false (carregamento rápido)
+    if (historicoPatrimonio.length === 0) {
       const hoje = new Date();
       const saldo = Math.round(saldoBruto * 100) / 100;
       for (let i = 11; i >= 0; i--) {
@@ -884,15 +860,28 @@ export async function GET(request: NextRequest) {
 
     // categorias já foi inicializado antes do loop do portfolio
 
+    // Batch lookup de assets para itens sem item.asset (evita N+1)
+    const symbolsNeedingAsset = [...new Set(
+      portfolio
+        .filter((item) => !item.asset && item.stock?.ticker)
+        .map((item) => (item.stock?.ticker ?? '').trim().toUpperCase())
+        .filter(Boolean)
+    )];
+    const assetsBySymbol = symbolsNeedingAsset.length > 0
+      ? new Map(
+          (await prisma.asset.findMany({
+            where: { symbol: { in: symbolsNeedingAsset } },
+            select: { symbol: true, type: true, currency: true, name: true },
+          })).map((a) => [a.symbol.toUpperCase(), a])
+        )
+      : new Map<string, { symbol: string; type: string | null; currency: string | null; name: string | null }>();
+
     // Categorizar portfolio baseado no tipo do ativo
     for (const item of portfolio) {
       const symbol = item.asset?.symbol || item.stock?.ticker;
       if (!symbol) continue;
       
-      // Buscar o Asset correspondente para obter o tipo
-      const asset = item.asset || await prisma.asset.findUnique({
-        where: { symbol }
-      });
+      const asset = item.asset ?? assetsBySymbol.get(symbol.trim().toUpperCase()) ?? null;
       const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
 
       // Calcular valor atual com cotação
@@ -926,12 +915,18 @@ export async function GET(request: NextRequest) {
             categorias.reservaEmergencia += valorAtualBRL;
           }
         } else {
+          // Só incluir em acoes itens que aparecem na aba Ações (stockId + ticker não 11)
+          const isAcaoTabItem = item.stockId && item.stock && !item.stock.ticker.toUpperCase().endsWith('11');
           switch (tipo) {
             case 'ação':
             case 'acao':
             case 'stock': {
               if (asset.currency === 'BRL') {
-                categorias.acoes += valorAtualBRL;
+                if (isAcaoTabItem) {
+                  categorias.acoes += valorAtualBRL;
+                } else {
+                  categorias.rendaFixaFundos += valorAtualBRL; // asset acao sem stockId: evita valor fantasma
+                }
               } else {
                 categorias.stocks += valorAtualBRL;
               }
@@ -939,8 +934,11 @@ export async function GET(request: NextRequest) {
             }
             case 'bdr':
             case 'brd':
-              // BDRs são ativos brasileiros, alinhado com a tab Ações (não Stocks que é US)
-              categorias.acoes += valorAtualBRL;
+              if (isAcaoTabItem) {
+                categorias.acoes += valorAtualBRL;
+              } else {
+                categorias.rendaFixaFundos += valorAtualBRL;
+              }
               break;
             case 'fii':
               categorias.fiis += valorAtualBRL;
