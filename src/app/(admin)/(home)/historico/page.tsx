@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import Link from "next/link";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -206,9 +207,13 @@ const AtivoCard: React.FC<AtivoCardProps> = ({ ativo, onRefreshAtivos }) => {
         aria-label={expanded ? "Recolher card" : "Expandir card"}
       >
         <div>
-          <h4 className="font-semibold text-gray-900 dark:text-white">
+          <Link
+            href={`/ativos/${ativo.portfolioId}`}
+            className="font-semibold text-gray-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
             {ativo.symbol || ativo.nome}
-          </h4>
+          </Link>
           <p className="text-sm font-medium text-gray-700 dark:text-gray-200 mt-1">
             {formatCurrency(ativo.valorAtual)}
           </p>
