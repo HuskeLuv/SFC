@@ -3,12 +3,12 @@ import { Table, TableHeader, TableBody, TableRow, TableCell } from "./index";
 
 /**
  * Componentes de tabela padronizados baseados no design do Fluxo de Caixa
- * 
+ *
  * PADRÃO VISUAL:
  * - Altura de linha: h-6 (24px)
  * - Padding horizontal: px-2
  * - Font size: text-xs (12px)
- * - Header: bg-white, font-bold, text-gray-700, border-t border-b border-gray-200
+ * - Header: bg-gray-50, font-bold, text-gray-700, border-t border-b border-gray-200
  * - Células: bg-white, text-gray-800, hover:bg-gray-50
  * - Bordas sutis entre linhas
  */
@@ -34,18 +34,20 @@ export const StandardTableHeaderCell: React.FC<StandardTableHeaderCellProps> = (
     right: "text-right",
   }[align];
 
-  const bgColor = headerBgColor || "white";
+  const useCustomBg = Boolean(headerBgColor);
 
   return (
     <TableCell
       isHeader
       colSpan={colSpan}
-      className={`px-2 py-2 border-t border-b border-gray-200 text-xs whitespace-nowrap cursor-pointer ${alignClass} ${className}`}
-      style={{ backgroundColor: bgColor }}
+      className={`px-2 py-2 border-t border-b border-gray-200 dark:border-gray-700 text-xs whitespace-nowrap ${alignClass} ${
+        !useCustomBg
+          ? "bg-gray-50 font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+          : ""
+      } ${className}`}
+      style={useCustomBg ? { backgroundColor: headerBgColor } : undefined}
     >
-      <p className="font-bold text-black text-xs whitespace-nowrap">
-        {children}
-      </p>
+      <p className="font-bold text-xs whitespace-nowrap">{children}</p>
     </TableCell>
   );
 };
@@ -71,7 +73,9 @@ export const StandardTableBodyCell: React.FC<StandardTableBodyCellProps> = ({
     right: "text-right",
   }[align];
 
-  const totalClass = isTotal ? "font-semibold text-black" : "font-normal text-black";
+  const totalClass = isTotal
+    ? "font-semibold text-gray-900 dark:text-white"
+    : "font-normal text-gray-800 dark:text-gray-200";
 
   return (
     <TableCell
@@ -94,19 +98,24 @@ export const StandardTableHeader: React.FC<StandardTableHeaderProps> = ({
   sticky = false,
   headerBgColor,
 }) => {
-  const bgColor = headerBgColor || "white";
+  const useCustomBg = Boolean(headerBgColor);
 
   return (
     <TableHeader
-      style={sticky ? {
-        position: "sticky",
-        top: 0,
-        zIndex: 400,
-        backgroundColor: bgColor,
-        isolation: "isolate",
-      } : headerBgColor ? {
-        backgroundColor: bgColor,
-      } : undefined}
+      className={!useCustomBg ? "bg-gray-50 dark:bg-gray-800" : ""}
+      style={
+        sticky
+          ? {
+              position: "sticky",
+              top: 0,
+              zIndex: 400,
+              ...(useCustomBg && { backgroundColor: headerBgColor }),
+              isolation: "isolate",
+            }
+          : useCustomBg
+            ? { backgroundColor: headerBgColor }
+            : undefined
+      }
     >
       {children}
     </TableHeader>
@@ -124,14 +133,12 @@ export const StandardTableHeaderRow: React.FC<StandardTableHeaderRowProps> = ({
   className = "",
   headerBgColor,
 }) => {
-  const bgColor = headerBgColor || "white";
+  const useCustomBg = Boolean(headerBgColor);
 
   return (
-    <TableRow 
-      className={`h-6 ${className}`}
-      style={{
-        backgroundColor: bgColor,
-      }}
+    <TableRow
+      className={`h-6 ${!useCustomBg ? "bg-gray-50 dark:bg-gray-800" : ""} ${className}`}
+      style={useCustomBg ? { backgroundColor: headerBgColor } : undefined}
     >
       {children}
     </TableRow>
@@ -151,13 +158,14 @@ export const StandardTableRow: React.FC<StandardTableRowProps> = ({
   isTotal = false,
   onClick,
 }) => {
-  const baseClass = "h-6 bg-white";
-  const hoverClass = "";
-  const totalClass = isTotal ? "border-t-2 border-gray-300" : "border-b border-gray-200";
+  const baseClass = "h-6 bg-white dark:bg-white/[0.03]";
+  const totalClass = isTotal
+    ? "border-t-2 border-gray-300 dark:border-gray-600"
+    : "border-b border-gray-200 dark:border-gray-700";
 
   return (
-    <TableRow 
-      className={`${baseClass} ${hoverClass} ${totalClass} ${className}`}
+    <TableRow
+      className={`${baseClass} ${totalClass} ${className}`}
       onClick={onClick}
     >
       {children}
