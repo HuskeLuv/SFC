@@ -381,6 +381,34 @@ model AssetPriceHistory {
   @@map("asset_price_history")
 }
 
+// Histórico de proventos/dividendos (banco primeiro, fallback BRAPI com persistência)
+model AssetDividendHistory {
+  id            String   @id @default(uuid())
+  symbol        String
+  date          DateTime // Data do provento (pagamento/ex)
+  tipo          String   // "Dividendo", "JCP", etc.
+  valorUnitario Float    // Valor por cota/ação
+  source        String   @default("BRAPI")
+  createdAt     DateTime @default(now())
+
+  @@unique([symbol, date, tipo])
+  @@index([symbol])
+  @@index([symbol, date])
+  @@map("asset_dividend_history")
+}
+
+// Fundamentos do ativo (P/L, Beta, Dividend Yield) - banco primeiro, fallback BRAPI
+model AssetFundamentals {
+  id             String    @id @default(uuid())
+  symbol         String    @unique
+  priceEarnings  Float?    // P/L
+  beta           Float?
+  dividendYield  Float?    // Em %
+  updatedAt      DateTime  @updatedAt
+
+  @@map("asset_fundamentals")
+}
+
 // Log opcional de execução do sync de preços
 model SyncPriceLog {
   id            String   @id @default(uuid())
