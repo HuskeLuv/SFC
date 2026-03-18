@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/assetPriceService';
+import { getDividends } from '@/services/dividendService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
 interface ProventoData {
@@ -100,168 +101,6 @@ const mapAssetTypeToClasse = (entry: PortfolioAssetEntry) => {
   }
 
   return 'Outros';
-};
-
-const extractDividendDate = (dividend: Record<string, any>) => {
-  const rawDate =
-    dividend.paymentDate ||
-    dividend.payDate ||
-    dividend.date ||
-    dividend.exDate ||
-    dividend.exDividendDate ||
-    dividend.approvedOn ||
-    dividend.lastDatePrior ||
-    dividend.recordDate ||
-    dividend.createdAt;
-
-  if (!rawDate) {
-    return null;
-  }
-
-  const numericDate = typeof rawDate === 'number' ? rawDate : Number(rawDate);
-  if (Number.isFinite(numericDate)) {
-    const timestamp = numericDate < 1e12 ? numericDate * 1000 : numericDate;
-    const parsedNumericDate = new Date(timestamp);
-    if (!Number.isNaN(parsedNumericDate.getTime())) {
-      return parsedNumericDate;
-    }
-  }
-
-  const parsedDate = new Date(rawDate);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return null;
-  }
-
-  return parsedDate;
-};
-
-const parseNumericValue = (value: unknown) => {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  if (typeof value === 'string') {
-    const normalized = value.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const extractDividendAmount = (dividend: Record<string, any>) => {
-  const amount =
-    dividend.cashAmount ??
-    dividend.amount ??
-    dividend.value ??
-    dividend.dividend ??
-    dividend.cashDividend ??
-    dividend.rate ??
-    dividend.dividendValue ??
-    dividend.paidValue;
-
-  return parseNumericValue(amount);
-};
-
-const extractDividendType = (dividend: Record<string, any>) => {
-  return (
-    dividend.type ||
-    dividend.kind ||
-    dividend.label ||
-    dividend.dividendType ||
-    dividend.paymentType ||
-    'Dividendo'
-  );
-};
-
-const normalizeDividendContainer = (container: unknown): Array<Record<string, any>> => {
-  if (!container || typeof container !== 'object') {
-    return [];
-  }
-  if (Array.isArray(container)) {
-    return container as Array<Record<string, any>>;
-  }
-
-  const possibleArrays = [
-    (container as Record<string, any>).dividends,
-    (container as Record<string, any>).cashDividends,
-    (container as Record<string, any>).dividendsHistory,
-    (container as Record<string, any>).events,
-    (container as Record<string, any>).history,
-    (container as Record<string, any>).data,
-  ].filter(Array.isArray) as Array<Record<string, any>[]>;
-
-  return possibleArrays.flat();
-};
-
-const fetchDividends = async (symbol: string) => {
-  const apiKey = process.env.BRAPI_API_KEY;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-  if (apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`;
-  }
-
-  const tokenParam = apiKey ? `&token=${apiKey}` : '';
-  const normalizedSymbol = symbol.trim().toUpperCase();
-  const symbolsToTry = normalizedSymbol.endsWith('.SA') ? [normalizedSymbol] : [normalizedSymbol, `${normalizedSymbol}.SA`];
-
-  for (const currentSymbol of symbolsToTry) {
-    const url = `https://brapi.dev/api/quote/${encodeURIComponent(currentSymbol)}?dividends=true${tokenParam}`;
-
-    const response = await fetch(url, { headers, cache: 'no-store' });
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error(`Erro ao buscar dividendos de ${currentSymbol}: HTTP ${response.status} - ${errorText}`);
-      continue;
-    }
-
-    const data = await response.json();
-    const results = data?.results;
-    if (!Array.isArray(results) || results.length === 0) {
-      continue;
-    }
-
-    const result = results[0] || {};
-    const rawDividends =
-      result.dividends ||
-      result.dividendsData ||
-      result.dividendsHistory ||
-      result.cashDividends ||
-      result.events ||
-      [];
-
-    const normalized = normalizeDividendContainer(rawDividends);
-    if (normalized.length > 0) {
-      return normalized;
-    }
-
-    if (rawDividends && typeof rawDividends === 'object') {
-      const nested = [
-        (rawDividends as Record<string, any>).cashDividends,
-        (rawDividends as Record<string, any>).dividends,
-        (rawDividends as Record<string, any>).dividendsHistory,
-        (rawDividends as Record<string, any>).stockDividends,
-        (rawDividends as Record<string, any>).subscriptions,
-        (rawDividends as Record<string, any>).events,
-        (rawDividends as Record<string, any>).history,
-        (rawDividends as Record<string, any>).data,
-      ];
-
-      const flattened = nested.flatMap((item) => normalizeDividendContainer(item));
-      if (flattened.length > 0) {
-        return flattened;
-      }
-    }
-  }
-
-  return [];
 };
 
 const buildTimeline = (transactions: TransactionPoint[]) => {
@@ -421,63 +260,38 @@ export async function GET(request: NextRequest) {
     const endDateTime = endDate ? new Date(endDate).getTime() : undefined;
 
     const proventos: ProventoData[] = [];
+    const hojeMs = Date.now();
     for (const asset of portfolioAssets) {
-      const dividends = await fetchDividends(asset.symbol);
-      if (dividends.length === 0) {
-        continue;
-      }
+      const dividends = await getDividends(asset.symbol, { useBrapiFallback: true });
+      if (dividends.length === 0) continue;
 
       const timeline = timelinesBySymbol.get(asset.symbol) || [];
       const classe = mapAssetTypeToClasse(asset);
-
       const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
 
-      dividends.forEach((dividend, index) => {
-        const date = extractDividendDate(dividend);
-        if (!date) {
-          return;
-        }
-
-        const dateTime = date.getTime();
-        if (purchaseDateTime && dateTime < purchaseDateTime) {
-          return;
-        }
-        if (startDateTime && dateTime < startDateTime) {
-          return;
-        }
-        if (endDateTime && dateTime > endDateTime) {
-          return;
-        }
-        if (dateTime > Date.now()) {
-          return;
-        }
-
-        const valorUnitario = extractDividendAmount(dividend);
-        if (!valorUnitario || valorUnitario <= 0) {
-          return;
-        }
+      dividends.forEach((d, index) => {
+        const dateTime = d.date.getTime();
+        if (purchaseDateTime && dateTime < purchaseDateTime) return;
+        if (startDateTime && dateTime < startDateTime) return;
+        if (endDateTime && dateTime > endDateTime) return;
+        if (dateTime > hojeMs) return; // Apenas histórico (exclui a_receber)
 
         const quantidadeHistorica = getQuantityAtDate(timeline, dateTime);
         const quantidade = quantidadeHistorica > 0 ? quantidadeHistorica : asset.quantity;
-        if (quantidade <= 0) {
-          return;
-        }
+        if (quantidade <= 0) return;
 
-        const valor = quantidade * valorUnitario;
-        const tipo = extractDividendType(dividend);
-        const status: ProventoData['status'] = dateTime <= Date.now() ? 'realizado' : 'a_receber';
-
+        const valor = quantidade * d.valorUnitario;
         proventos.push({
           id: `${asset.symbol}-${dateTime}-${index}`,
-          data: date.toISOString(),
+          data: d.date.toISOString(),
           symbol: asset.symbol,
           ativo: asset.name || asset.symbol,
-          tipo,
+          tipo: d.tipo,
           classe,
           valor,
           quantidade,
-          valorUnitario,
-          status,
+          valorUnitario: d.valorUnitario,
+          status: 'realizado' as const,
         });
       });
     }

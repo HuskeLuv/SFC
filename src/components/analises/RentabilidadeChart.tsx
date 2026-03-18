@@ -127,6 +127,16 @@ interface RentabilidadeChartProps {
   /** Filtra a exibição ao período (ex: Relatórios) */
   startTimestamp?: number;
   endTimestamp?: number;
+  /** Força tipo de gráfico: 'line' para linhas, 'bar' para barras */
+  chartType?: 'line' | 'bar';
+  /** Cores customizadas para as séries (Ativo, CDI, IBOV, etc.) */
+  customColors?: string[];
+  /** Índices permitidos (ex: ['CDI', 'IBOV'] para mostrar só esses) */
+  allowedIndices?: string[];
+  /** Label para a série principal (ex: "Ativo" em vez de "Carteira") */
+  carteiraLabel?: string;
+  /** Posição da legenda */
+  legendPosition?: 'top' | 'bottom';
 }
 
 /** Normaliza timestamp para meia-noite local (alinhar datas de timezones diferentes) */
@@ -201,6 +211,11 @@ export default function RentabilidadeChart({
   period,
   startTimestamp,
   endTimestamp,
+  chartType: chartTypeProp,
+  customColors,
+  allowedIndices: allowedIndicesProp,
+  carteiraLabel = 'Carteira',
+  legendPosition = 'top',
 }: RentabilidadeChartProps) {
   const series = useMemo(() => {
     const seriesData: Array<{ name: string; data: number[][] }> = [];
@@ -237,14 +252,13 @@ export default function RentabilidadeChart({
         .filter((point): point is [number, number] => point !== null && Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1]));
       if (carteiraPoints.length > 0) {
         seriesData.push({
-          name: 'Carteira',
+          name: carteiraLabel,
           data: carteiraPoints,
         });
       }
     }
 
-    // Filtrar e adicionar apenas os índices desejados: CDI, IBOV, IPCA e Poupança
-    const allowedIndices = ['CDI', 'IBOV', 'IPCA', 'Poupança'];
+    const allowedIndices = allowedIndicesProp ?? ['CDI', 'IBOV', 'IPCA', 'Poupança'];
     indicesData.forEach((index) => {
       // Validações mais rigorosas
       if (!index || typeof index !== 'object') {
@@ -403,7 +417,7 @@ export default function RentabilidadeChart({
     return finalAlignedSeries;
   }, [carteiraData, indicesData, period, startTimestamp, endTimestamp]);
 
-  const chartType = period === '1mo' || period === '1y' ? 'bar' : 'line';
+  const chartType = chartTypeProp ?? (period === '1mo' || period === '1y' ? 'bar' : 'line');
 
   // Calcular número de anos únicos quando período for anual (após agrupamento)
   const uniqueYearsCount = useMemo(() => {
@@ -438,8 +452,8 @@ export default function RentabilidadeChart({
     const baseOptions: ApexOptions = {
       legend: {
         show: true,
-        position: "top",
-        horizontalAlign: "left",
+        position: legendPosition,
+        horizontalAlign: legendPosition === 'bottom' ? 'center' : 'left',
         fontFamily: "Outfit, sans-serif",
         fontSize: "14px",
         fontWeight: 400,
@@ -449,7 +463,7 @@ export default function RentabilidadeChart({
           strokeWidth: 0,
         },
       },
-      colors: COLORS,
+      colors: customColors ?? COLORS,
       chart: {
         fontFamily: "Outfit, sans-serif",
         height: 300,
@@ -609,7 +623,7 @@ export default function RentabilidadeChart({
     }
 
     return baseOptions;
-  }, [period, chartType, uniqueYearsCount]);
+  }, [period, chartType, uniqueYearsCount, customColors, legendPosition]);
 
   const hasSeriesData = Array.isArray(series) && series.length > 0;
 
