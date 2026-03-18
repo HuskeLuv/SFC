@@ -83,7 +83,7 @@ export const useCarteira = () => {
   const isFetchingRef = useRef(false);
   const hasFetchedRef = useRef(false);
 
-  const fetchResumo = useCallback(async (force = false) => {
+  const fetchResumo = useCallback(async (force = false, includeHistorico = true) => {
     // Prevenir múltiplas chamadas simultâneas
     if (isFetchingRef.current) {
       return;
@@ -98,8 +98,9 @@ export const useCarteira = () => {
       isFetchingRef.current = true;
       setLoading(true);
       setError(null);
-      
-      const response = await fetch('/api/carteira/resumo', {
+
+      const url = `/api/carteira/resumo${includeHistorico ? '' : '?includeHistorico=false'}`;
+      const response = await fetch(url, {
         method: 'GET',
         credentials: 'include',
       });
@@ -118,7 +119,46 @@ export const useCarteira = () => {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [resumo]);
+  }, []);
+
+  const fetchResumoProgressive = useCallback(async (force = false) => {
+    if (isFetchingRef.current) return;
+    if (!force && hasFetchedRef.current) return;
+
+    try {
+      isFetchingRef.current = true;
+      setLoading(true);
+      setError(null);
+
+      // 1ª requisição: resumo rápido sem histórico (carregamento inicial rápido)
+      const responseFast = await fetch('/api/carteira/resumo?includeHistorico=false', {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!responseFast.ok) throw new Error('Erro ao carregar dados da carteira');
+
+      const dataFast = await responseFast.json();
+      setResumo(dataFast);
+      hasFetchedRef.current = true;
+      setLoading(false);
+      isFetchingRef.current = false;
+
+      // 2ª requisição: histórico completo em background (atualiza gráfico quando pronto)
+      const responseFull = await fetch('/api/carteira/resumo', {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (responseFull.ok) {
+        const dataFull = await responseFull.json();
+        setResumo(dataFull);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar resumo da carteira:', err);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      setLoading(false);
+      isFetchingRef.current = false;
+    }
+  }, []);
 
   const updateMeta = useCallback(async (novaMetaPatrimonio: number) => {
     try {
@@ -201,21 +241,20 @@ export const useCarteira = () => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
 
-  // Só fazer fetch na montagem inicial
+  // Carregamento progressivo: resumo rápido primeiro, histórico completo em background
   useEffect(() => {
     if (!hasFetchedRef.current) {
-      fetchResumo(false);
+      fetchResumoProgressive(false);
     } else {
-      // Se já tem dados, apenas marcar como não loading
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Wrapper para refetch que força reload
+  // Refetch progressivo (após add/resgate): dados atualizados rápido, histórico em background
   const refetch = useCallback(() => {
-    return fetchResumo(true);
-  }, [fetchResumo]);
+    return fetchResumoProgressive(true);
+  }, [fetchResumoProgressive]);
 
   return {
     resumo,
