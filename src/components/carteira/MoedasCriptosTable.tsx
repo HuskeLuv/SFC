@@ -7,6 +7,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
+import AssetNameLink from "@/components/carteira/AssetNameLink";
 import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
 
 const MIN_PLACEHOLDER_ROWS = 4;
@@ -87,12 +88,9 @@ const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs text-black">
         <div>
-          <div>{ativo.ticker}</div>
-          <div className="text-xs text-black">{ativo.nome}</div>
+          <AssetNameLink portfolioId={ativo.id} ticker={ativo.ticker} nome={ativo.nome} />
           {ativo.observacoes && (
-            <div className="text-xs text-black mt-1">
-              {ativo.observacoes}
-            </div>
+            <div className="text-xs text-black mt-1">{ativo.observacoes}</div>
           )}
         </div>
       </td>

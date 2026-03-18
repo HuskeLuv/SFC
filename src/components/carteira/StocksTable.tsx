@@ -9,6 +9,7 @@ import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
 import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
+import AssetNameLink from "@/components/carteira/AssetNameLink";
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const STOCKS_COLUMN_COUNT = 14;
@@ -85,7 +86,11 @@ const StocksTableRow: React.FC<StocksTableRowProps> = ({
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs text-black">
         <div>
-          <div>{ativo.nome}</div>
+          <AssetNameLink
+            portfolioId={ativo.id}
+            ticker={ativo.ticker}
+            nome={ativo.nome}
+          />
           {ativo.dataCompra && (
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {new Date(ativo.dataCompra).toLocaleDateString('pt-BR')}

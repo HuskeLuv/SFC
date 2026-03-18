@@ -7,6 +7,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableRow, StandardTableBodyCell, TableBody } from "@/components/ui/table/StandardTable";
+import AssetNameLink from "@/components/carteira/AssetNameLink";
 import { StandardTablePlaceholderRows } from "@/components/carteira/shared";
 import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
 
@@ -99,8 +100,7 @@ const AcoesTableRow: React.FC<AcoesTableRowProps> = ({
     <StandardTableRow>
       <StandardTableBodyCell align="left">
         <div>
-          <div>{ativo.ticker}</div>
-          <div className="text-xs">{ativo.nome}</div>
+          <AssetNameLink portfolioId={ativo.id} ticker={ativo.ticker} nome={ativo.nome} />
           {ativo.observacoes && (
             <div className="text-xs mt-1">
               {ativo.observacoes}

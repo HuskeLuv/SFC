@@ -9,6 +9,7 @@ import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
 import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
 import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
 import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
+import AssetNameLink from "@/components/carteira/AssetNameLink";
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const FIM_FIA_COLUMN_COUNT = 15;
@@ -119,14 +120,14 @@ const FimFiaTableRow: React.FC<FimFiaTableRowProps> = ({
     <StandardTableRow>
       <StandardTableBodyCell align="left" className="min-w-[220px] w-3/12">
         <div>
-          <div>{ativo.nome}</div>
-          <div className="text-xs mt-1">
-            {ativo.categoriaNivel1} • {ativo.subcategoriaNivel2}
-          </div>
+          <AssetNameLink
+            portfolioId={ativo.id}
+            ticker={`${ativo.categoriaNivel1} • ${ativo.subcategoriaNivel2}`}
+            nome={ativo.nome}
+            nomeComoPrincipal
+          />
           {ativo.observacoes && (
-            <div className="text-xs mt-1">
-              {ativo.observacoes}
-            </div>
+            <div className="text-xs mt-1">{ativo.observacoes}</div>
           )}
         </div>
       </StandardTableBodyCell>
