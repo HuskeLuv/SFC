@@ -89,6 +89,7 @@ model User {
   watchlists                    Watchlist[]
   portfolios                    Portfolio[]
   stockTransactions             StockTransaction[]
+  portfolioProventos          PortfolioProvento[]
   fixedIncomeAssets             FixedIncomeAsset[]
   notifications                 Notification[]
   consultantInvites             ConsultantInvite[]           @relation("UserConsultantInvites")
@@ -307,10 +308,33 @@ model Portfolio {
   tipoFii       String? // Tipo do FII: 'fofi', 'tvm' ou 'tijolo'
   regiaoEtf     String? // Região do ETF: 'brasil' ou 'estados_unidos'
   lastUpdate    DateTime @default(now())
+  proventos     PortfolioProvento[]
 
   @@unique([userId, stockId])
   @@unique([userId, assetId])
   @@map("portfolios")
+}
+
+// Proventos registrados pelo usuário por posição na carteira (edição na tela de ativo)
+model PortfolioProvento {
+  id              String    @id @default(uuid())
+  portfolioId     String
+  portfolio       Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo            String
+  dataCom         DateTime
+  dataPagamento   DateTime
+  precificarPor   String    @default("valor")
+  valorTotal      Float
+  quantidadeBase  Float
+  impostoRenda    Float?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([portfolioId])
+  @@index([userId])
+  @@map("portfolio_proventos")
 }
 
 // Histórico de transações (compras e vendas)
