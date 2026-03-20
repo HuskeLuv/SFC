@@ -358,8 +358,8 @@ function AtivoDetalheContent() {
             {instituicaoLabel !== "—" && ` • ${instituicaoLabel}`}
           </p>
         </div>
-        <Link href={`/historico`}>
-          <Button variant="outline">Editar Produto</Button>
+        <Link href={`/ativos/${id}/editar`}>
+          <Button variant="outline">Editar produto</Button>
         </Link>
       </div>
 
