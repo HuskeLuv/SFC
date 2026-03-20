@@ -19,6 +19,11 @@ const getBrapiSymbolsToTry = (symbol: string): string[] => {
   return [s];
 };
 
+const getDbSymbolVariants = (symbol: string): string[] => {
+  const s = symbol.trim().toUpperCase();
+  return [...new Set([s, ...getBrapiSymbolsToTry(symbol).map((x) => x.toUpperCase())])];
+};
+
 const extractDividendDate = (dividend: Record<string, unknown>): Date | null => {
   const rawDate =
     (dividend.paymentDate as number | string) ??
@@ -85,6 +90,22 @@ const normalizeDividendContainer = (container: unknown): Array<Record<string, un
   return possibleArrays.flat();
 };
 
+/** BRAPI pode enviar `dividends: []` (truthy) e os dados reais em `dividendsData.cashDividends`. */
+const flattenBrapiResultDividends = (result: Record<string, unknown>): Array<Record<string, unknown>> => {
+  const chunks: unknown[] = [
+    result.dividends,
+    result.dividendsHistory,
+    result.cashDividends,
+    result.events,
+    result.dividendsData,
+  ];
+  const merged: Array<Record<string, unknown>> = [];
+  for (const chunk of chunks) {
+    merged.push(...normalizeDividendContainer(chunk));
+  }
+  return merged;
+};
+
 export interface DividendEntry {
   date: Date;
   tipo: string;
@@ -95,17 +116,20 @@ export interface DividendEntry {
  * Busca dividendos do banco para um símbolo.
  */
 const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
-  const normalized = symbol.trim().toUpperCase();
+  const variants = getDbSymbolVariants(symbol);
   const rows = await prisma.assetDividendHistory.findMany({
-    where: { symbol: normalized },
+    where: { symbol: { in: variants } },
     orderBy: { date: 'asc' },
     select: { date: true, tipo: true, valorUnitario: true },
   });
-  return rows.map((r) => ({
-    date: r.date,
-    tipo: r.tipo,
-    valorUnitario: r.valorUnitario,
-  }));
+  const byKey = new Map<string, DividendEntry>();
+  for (const r of rows) {
+    const key = `${r.date.getTime()}\0${r.tipo}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, { date: r.date, tipo: r.tipo, valorUnitario: r.valorUnitario });
+    }
+  }
+  return [...byKey.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
 };
 
 /**
@@ -128,15 +152,8 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
     const results = data?.results;
     if (!Array.isArray(results) || results.length === 0) continue;
 
-    const result = results[0] || {};
-    const rawDividends =
-      result.dividends ||
-      result.dividendsData ||
-      result.dividendsHistory ||
-      result.cashDividends ||
-      result.events ||
-      [];
-    const normalized = normalizeDividendContainer(rawDividends);
+    const result = (results[0] || {}) as Record<string, unknown>;
+    const normalized = flattenBrapiResultDividends(result);
 
     if (normalized.length === 0) continue;
 

@@ -188,9 +188,13 @@ export async function GET(
 
     const hoje = normalizeDateStart(new Date());
     const hojeMs = hoje.getTime();
-    const firstPurchaseDate = transactions.length > 0
-      ? Math.min(...transactions.filter((t) => t.type === 'compra').map((t) => t.date.getTime()))
-      : (portfolio.lastUpdate ? normalizeDateStart(portfolio.lastUpdate).getTime() : 0);
+    const compraTimes = transactions.filter((t) => t.type === 'compra').map((t) => t.date.getTime());
+    const firstPurchaseDate =
+      compraTimes.length > 0
+        ? Math.min(...compraTimes)
+        : portfolio.lastUpdate
+          ? normalizeDateStart(portfolio.lastUpdate).getTime()
+          : 0;
 
     // Proventos: apenas histórico - do dia atual para trás até o dia da compra (exclui a_receber)
     const proventos = dividends
