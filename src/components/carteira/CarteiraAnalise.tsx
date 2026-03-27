@@ -1,9 +1,7 @@
-"use client";
-import React, { useState } from "react";
-import ComponentCard from "@/components/common/ComponentCard";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import RentabilidadeGeral from "@/components/analises/RentabilidadeGeral";
-import ProventosTabs from "@/components/analises/ProventosTabs";
+'use client';
+import React, { useState } from 'react';
+import RentabilidadeGeral from '@/components/analises/RentabilidadeGeral';
+import ProventosTabs from '@/components/analises/ProventosTabs';
 
 interface TabButtonProps {
   id: string;
@@ -12,17 +10,13 @@ interface TabButtonProps {
   onClick: () => void;
 }
 
-const TabButton: React.FC<TabButtonProps> = ({
-  label,
-  isActive,
-  onClick,
-}) => {
+const TabButton: React.FC<TabButtonProps> = ({ label, isActive, onClick }) => {
   return (
     <button
       className={`inline-flex items-center border-b-2 px-3 py-3 text-sm font-medium transition-colors duration-200 ease-in-out whitespace-nowrap ${
         isActive
-          ? "text-brand-500 dark:text-brand-400 border-brand-500 dark:border-brand-400"
-          : "bg-transparent text-gray-500 border-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          ? 'text-brand-500 dark:text-brand-400 border-brand-500 dark:border-brand-400'
+          : 'bg-transparent text-gray-500 border-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
       }`}
       onClick={onClick}
     >
@@ -43,20 +37,18 @@ const TabContent: React.FC<TabContentProps> = ({ isActive, children }) => {
 };
 
 const tabs = [
-  { id: "rentabilidade-geral", label: "Rentabilidade Geral" },
-  { id: "proventos", label: "Proventos" },
+  { id: 'rentabilidade-geral', label: 'Rentabilidade Geral' },
+  { id: 'proventos', label: 'Proventos' },
 ];
 
 export default function CarteiraAnalise() {
-  const [activeTab, setActiveTab] = useState("rentabilidade-geral");
+  const [activeTab, setActiveTab] = useState('rentabilidade-geral');
 
   return (
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Análises
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Análises</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Análise de rentabilidade e proventos da sua carteira
         </p>
@@ -81,12 +73,12 @@ export default function CarteiraAnalise() {
         {/* Tab Content */}
         <div className="p-6">
           {/* Rentabilidade Geral */}
-          <TabContent id="rentabilidade-geral" isActive={activeTab === "rentabilidade-geral"}>
+          <TabContent id="rentabilidade-geral" isActive={activeTab === 'rentabilidade-geral'}>
             <RentabilidadeGeral />
           </TabContent>
 
           {/* Proventos */}
-          <TabContent id="proventos" isActive={activeTab === "proventos"}>
+          <TabContent id="proventos" isActive={activeTab === 'proventos'}>
             <ProventosTabs />
           </TabContent>
         </div>
@@ -94,4 +86,3 @@ export default function CarteiraAnalise() {
     </div>
   );
 }
-

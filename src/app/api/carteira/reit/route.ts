@@ -5,7 +5,16 @@ import { getAllIndicators } from '@/services/marketIndicatorService';
 
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
-  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16', '#F97316'];
+  const colors = [
+    '#3B82F6',
+    '#10B981',
+    '#F59E0B',
+    '#8B5CF6',
+    '#EF4444',
+    '#06B6D4',
+    '#84CC16',
+    '#F97316',
+  ];
   const index = ticker.charCodeAt(0) % colors.length;
   return colors[index];
 }
@@ -42,25 +51,28 @@ export async function GET(request: NextRequest) {
 
     // Buscar portfolio do usuário com ativos do tipo correspondente
     const portfolio = await prisma.portfolio.findMany({
-      where: { 
+      where: {
         userId: user.id,
         asset: {
-          type: 'reit'
-        }
+          type: 'reit',
+        },
       },
       include: {
-        asset: true
-      }
+        asset: true,
+      },
     });
 
-    const assetIds = portfolio.map(p => p.assetId).filter((id): id is string => id !== null);
-    const transactions = assetIds.length > 0 ? await prisma.stockTransaction.findMany({
-      where: { userId: targetUserId, assetId: { in: assetIds }, type: 'compra' },
-      orderBy: { date: 'desc' },
-    }) : [];
+    const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
+    const transactions =
+      assetIds.length > 0
+        ? await prisma.stockTransaction.findMany({
+            where: { userId: targetUserId, assetId: { in: assetIds }, type: 'compra' },
+            orderBy: { date: 'desc' },
+          })
+        : [];
 
     const latestNotesByAsset = new Map<string, { estrategia?: string }>();
-    transactions.forEach(t => {
+    transactions.forEach((t) => {
       if (!t.assetId || latestNotesByAsset.has(t.assetId)) return;
       try {
         const notes = t.notes ? JSON.parse(t.notes) : {};
@@ -75,17 +87,22 @@ export async function GET(request: NextRequest) {
     // REITs: valores atualizados apenas manualmente (não buscar na Brapi)
     // valorAtualizado = avgPrice * quantity (avgPrice é atualizado quando o usuário edita manualmente)
     const reitAtivos = portfolio
-      .filter(item => item.asset)
-      .map(item => {
+      .filter((item) => item.asset)
+      .map((item) => {
         const assetId = item.assetId || '';
         const notes = latestNotesByAsset.get(assetId);
-        const estrategia = (notes?.estrategia === 'growth' || notes?.estrategia === 'risk' || notes?.estrategia === 'value')
-          ? notes.estrategia
-          : 'value';
-        const valorAtualizado = (item.avgPrice && item.avgPrice > 0 && item.quantity > 0)
-          ? item.avgPrice * item.quantity
-          : item.totalInvested;
-        const cotacaoAtual = item.quantity > 0 ? valorAtualizado / item.quantity : item.avgPrice || 0;
+        const estrategia =
+          notes?.estrategia === 'growth' ||
+          notes?.estrategia === 'risk' ||
+          notes?.estrategia === 'value'
+            ? notes.estrategia
+            : 'value';
+        const valorAtualizado =
+          item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+            ? item.avgPrice * item.quantity
+            : item.totalInvested;
+        const cotacaoAtual =
+          item.quantity > 0 ? valorAtualizado / item.quantity : item.avgPrice || 0;
 
         return {
           id: item.id,
@@ -103,7 +120,10 @@ export async function GET(request: NextRequest) {
           objetivo: item.objetivo ?? 0,
           quantoFalta: 0,
           necessidadeAporte: 0,
-          rentabilidade: item.totalInvested > 0 ? ((valorAtualizado - item.totalInvested) / item.totalInvested) * 100 : 0,
+          rentabilidade:
+            item.totalInvested > 0
+              ? ((valorAtualizado - item.totalInvested) / item.totalInvested) * 100
+              : 0,
           estrategia,
           observacoes: undefined,
           dataUltimaAtualizacao: item.lastUpdate,
@@ -116,24 +136,32 @@ export async function GET(request: NextRequest) {
     const totalValorAtualizado = reitAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
     const totalObjetivo = reitAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
     const totalQuantoFalta = reitAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-    const totalNecessidadeAporte = reitAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+    const totalNecessidadeAporte = reitAtivos.reduce(
+      (sum, ativo) => sum + ativo.necessidadeAporte,
+      0,
+    );
     const totalRisco = reitAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-    const rentabilidadeMedia = reitAtivos.length > 0 
-      ? reitAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / reitAtivos.length 
-      : 0;
+    const rentabilidadeMedia =
+      reitAtivos.length > 0
+        ? reitAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / reitAtivos.length
+        : 0;
 
     // Agrupar por estratégia
     const REIT_SECTION_ORDER = ['value', 'growth', 'risk'] as const;
-    const REIT_SECTION_NAMES: Record<string, string> = { value: 'Value', growth: 'Growth', risk: 'Risk' };
+    const REIT_SECTION_NAMES: Record<string, string> = {
+      value: 'Value',
+      growth: 'Growth',
+      risk: 'Risk',
+    };
     const secoesMap = new Map<string, typeof reitAtivos>();
-    reitAtivos.forEach(ativo => {
+    reitAtivos.forEach((ativo) => {
       const e = ativo.estrategia;
       const list = secoesMap.get(e) || [];
       list.push(ativo);
       secoesMap.set(e, list);
     });
 
-    const secoes = REIT_SECTION_ORDER.map(estrategia => {
+    const secoes = REIT_SECTION_ORDER.map((estrategia) => {
       const ativos = secoesMap.get(estrategia) || [];
       return {
         estrategia,
@@ -152,18 +180,28 @@ export async function GET(request: NextRequest) {
     });
 
     // Calcular valores das seções
-    secoes.forEach(secao => {
+    secoes.forEach((secao) => {
       secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
       secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-      secao.totalValorAtualizado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-      secao.totalPercentualCarteira = secao.ativos.reduce((sum, ativo) => sum + ativo.percentualCarteira, 0);
+      secao.totalValorAtualizado = secao.ativos.reduce(
+        (sum, ativo) => sum + ativo.valorAtualizado,
+        0,
+      );
+      secao.totalPercentualCarteira = secao.ativos.reduce(
+        (sum, ativo) => sum + ativo.percentualCarteira,
+        0,
+      );
       secao.totalRisco = secao.ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
       secao.totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
       secao.totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-      secao.totalNecessidadeAporte = secao.ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
-      secao.rentabilidadeMedia = secao.ativos.length > 0 
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length 
-        : 0;
+      secao.totalNecessidadeAporte = secao.ativos.reduce(
+        (sum, ativo) => sum + ativo.necessidadeAporte,
+        0,
+      );
+      secao.rentabilidadeMedia =
+        secao.ativos.length > 0
+          ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
+          : 0;
     });
 
     // Calcular resumo
@@ -174,25 +212,31 @@ export async function GET(request: NextRequest) {
       saldoInicioMes: totalValorAplicado,
       valorAtualizado: valorAtualizadoComCaixa,
       rendimento: valorAtualizadoComCaixa - totalValorAplicado,
-      rentabilidade: totalValorAplicado > 0 ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100 : 0
+      rentabilidade:
+        totalValorAplicado > 0
+          ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+          : 0,
     };
 
     // Calcular alocação por ativo
     const totalValor = reitAtivos.reduce((sum, a) => sum + a.valorAtualizado, 0);
-    const alocacaoAtivo = reitAtivos.map(ativo => ({
+    const alocacaoAtivo = reitAtivos.map((ativo) => ({
       ticker: ativo.ticker,
       valor: ativo.valorAtualizado,
       percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
-      cor: getAtivoColor(ativo.ticker)
+      cor: getAtivoColor(ativo.ticker),
     }));
 
     // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado)
     const totalTabValue = valorAtualizadoComCaixa;
-    const tabelaAuxiliar = reitAtivos.map(ativo => {
-      const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+    const tabelaAuxiliar = reitAtivos.map((ativo) => {
+      const percentualCarteira =
+        totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
       const quantoFalta = (ativo.objetivo ?? 0) - percentualCarteira;
-      const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
-      const loteAproximado = ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
+      const necessidadeAporte =
+        totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+      const loteAproximado =
+        ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
       return {
         ticker: ativo.ticker,
         nome: ativo.nome,
@@ -215,19 +259,16 @@ export async function GET(request: NextRequest) {
         objetivo: totalObjetivo,
         quantoFalta: totalQuantoFalta,
         necessidadeAporte: totalNecessidadeAporte,
-        rentabilidade: rentabilidadeMedia
+        rentabilidade: rentabilidadeMedia,
       },
       alocacaoAtivo,
-      tabelaAuxiliar
+      tabelaAuxiliar,
     };
-    
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Erro ao buscar dados REIT:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -235,7 +276,14 @@ export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId, objetivo, cotacao, caixaParaInvestir, campo, valor } = body;
+    const {
+      ativoId,
+      objetivo: _objetivo,
+      cotacao: _cotacao,
+      caixaParaInvestir,
+      campo,
+      valor,
+    } = body;
 
     if (campo && valor !== undefined && ativoId) {
       const portfolio = await prisma.portfolio.findUnique({
@@ -253,7 +301,10 @@ export async function POST(request: NextRequest) {
       if (campo === 'valorAtualizado') {
         const numValor = typeof valor === 'number' ? valor : parseFloat(valor as string);
         if (!Number.isFinite(numValor) || numValor < 0) {
-          return NextResponse.json({ error: 'Valor atualizado deve ser um número maior ou igual a zero' }, { status: 400 });
+          return NextResponse.json(
+            { error: 'Valor atualizado deve ser um número maior ou igual a zero' },
+            { status: 400 },
+          );
         }
         const qty = portfolio.quantity || 1;
         const novoAvgPrice = qty > 0 ? numValor / qty : numValor;
@@ -269,9 +320,12 @@ export async function POST(request: NextRequest) {
 
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json({
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+          },
+          { status: 400 },
+        );
       }
 
       // Salvar ou atualizar caixa para investir de REIT
@@ -297,32 +351,26 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir
+        caixaParaInvestir,
       });
     }
 
     if (!ativoId) {
-      return NextResponse.json(
-        { error: 'Parâmetro obrigatório: ativoId' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
     }
 
     // Simular delay de rede
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Dados atualizados com sucesso' 
+    return NextResponse.json({
+      success: true,
+      message: 'Dados atualizados com sucesso',
     });
   } catch (error) {
     console.error('Erro ao atualizar dados REIT:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

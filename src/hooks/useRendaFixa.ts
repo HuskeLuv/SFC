@@ -1,6 +1,6 @@
-"use client";
-import { useState, useEffect } from "react";
-import { RendaFixaData } from "@/types/rendaFixa";
+'use client';
+import { useState, useEffect } from 'react';
+import { RendaFixaData, RendaFixaSecao, RendaFixaAtivo } from '@/types/rendaFixa';
 
 export const useRendaFixa = () => {
   const [data, setData] = useState<RendaFixaData | null>(null);
@@ -22,18 +22,18 @@ export const useRendaFixa = () => {
       }
 
       const responseData = await response.json();
-      
+
       // Converter strings de data para objetos Date
       if (responseData.secoes) {
-        responseData.secoes = responseData.secoes.map((secao: any) => ({
+        responseData.secoes = responseData.secoes.map((secao: RendaFixaSecao) => ({
           ...secao,
-          ativos: secao.ativos.map((ativo: any) => ({
+          ativos: secao.ativos.map((ativo: RendaFixaAtivo & { vencimento: Date | string }) => ({
             ...ativo,
             vencimento: ativo.vencimento ? new Date(ativo.vencimento) : new Date(),
           })),
         }));
       }
-      
+
       setData(responseData as RendaFixaData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
@@ -86,8 +86,13 @@ export const useRendaFixa = () => {
 
   const updateRendaFixaCampo = async (
     portfolioId: string,
-    campo: 'cotizacaoResgate' | 'liquidacaoResgate' | 'benchmark' | 'valorAtualizado' | 'observacoes',
-    valor: string | number
+    campo:
+      | 'cotizacaoResgate'
+      | 'liquidacaoResgate'
+      | 'benchmark'
+      | 'valorAtualizado'
+      | 'observacoes',
+    valor: string | number,
   ) => {
     try {
       const response = await fetch('/api/carteira/renda-fixa', {
@@ -96,7 +101,7 @@ export const useRendaFixa = () => {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           ativoId: portfolioId,
           campo,
           valor,

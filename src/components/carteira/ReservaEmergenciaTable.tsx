@@ -1,8 +1,8 @@
-"use client";
-import React, { useMemo, useState } from "react";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
-import ComponentCard from "../common/ComponentCard";
-import { UiTablePlaceholderRows } from "@/components/carteira/shared";
+'use client';
+import React, { useMemo, useState } from 'react';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table';
+import ComponentCard from '../common/ComponentCard';
+import { UiTablePlaceholderRows } from '@/components/carteira/shared';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_EMERGENCIA_COLUMN_COUNT = 12;
@@ -35,19 +35,19 @@ interface ReservaEmergenciaTableProps {
 interface ReservaEmergenciaMetricCardProps {
   title: string;
   value: string;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
 }
 
 const ReservaEmergenciaMetricCard: React.FC<ReservaEmergenciaMetricCardProps> = ({
   title,
   value,
-  color = "primary",
+  color = 'primary',
 }) => {
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -78,7 +78,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
 
   const handleValorSubmit = () => {
     if (!onUpdateValorAtualizado) return;
-    
+
     const novoValor = parseFloat(valorValue);
     if (!isNaN(novoValor) && novoValor > 0) {
       onUpdateValorAtualizado(ativo.id, novoValor);
@@ -99,12 +99,8 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
   };
 
   return (
-    <TableRow 
-      className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.02]"
-    >
-      <TableCell className="px-2 py-2 text-xs text-black">
-        {ativo.nome}
-      </TableCell>
+    <TableRow className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.02]">
+      <TableCell className="px-2 py-2 text-xs text-black">{ativo.nome}</TableCell>
       <TableCell className="px-2 py-2 text-xs text-black text-center">
         {ativo.cotizacaoResgate}
       </TableCell>
@@ -114,9 +110,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
       <TableCell className="px-2 py-2 text-xs text-black text-center">
         {formatDate(ativo.vencimento)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-center">
-        {ativo.benchmark}
-      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black text-center">{ativo.benchmark}</TableCell>
       <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
         {formatCurrency(ativo.valorInicial)}
       </TableCell>
@@ -141,7 +135,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
             />
           </div>
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded inline-block"
             onClick={() => onUpdateValorAtualizado && setIsEditingValor(true)}
             tabIndex={0}
@@ -150,7 +144,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                onUpdateValorAtualizado && setIsEditingValor(true);
+                if (onUpdateValorAtualizado) setIsEditingValor(true);
               }
             }}
           >
@@ -171,23 +165,24 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
   );
 };
 
-export default function ReservaEmergenciaTable({ 
-  ativos, 
-  saldoInicioMes, 
-  rendimento, 
+export default function ReservaEmergenciaTable({
+  ativos,
+  saldoInicioMes,
+  rendimento,
   rentabilidade,
   onUpdateValorAtualizado,
-  totalCarteira = 0
+  totalCarteira = 0,
 }: ReservaEmergenciaTableProps) {
-
   // Calcular risco (carteira total) e percentual da carteira da aba
   const ativosComRisco = useMemo(() => {
     const totalTabValue = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
     const shouldCalculateRisco = totalCarteira > 0;
 
-    return ativos.map(ativo => ({
+    return ativos.map((ativo) => ({
       ...ativo,
-      riscoAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+      riscoAtivo: shouldCalculateRisco
+        ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+        : 0,
       percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
     }));
   }, [ativos, totalCarteira]);
@@ -196,9 +191,12 @@ export default function ReservaEmergenciaTable({
     const totalValorInicial = ativosComRisco.reduce((sum, ativo) => sum + ativo.valorInicial, 0);
     const totalAporte = ativosComRisco.reduce((sum, ativo) => sum + ativo.aporte, 0);
     const totalResgate = ativosComRisco.reduce((sum, ativo) => sum + ativo.resgate, 0);
-    const totalValorAtualizado = ativosComRisco.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+    const totalValorAtualizado = ativosComRisco.reduce(
+      (sum, ativo) => sum + ativo.valorAtualizado,
+      0,
+    );
     const totalRisco = ativosComRisco.reduce((sum, ativo) => sum + ativo.riscoAtivo, 0);
-    
+
     return {
       valorInicial: totalValorInicial,
       aporte: totalAporte,
@@ -246,91 +244,91 @@ export default function ReservaEmergenciaTable({
       <ComponentCard title="Reserva de Emergência - Detalhamento">
         <div className="max-w-full overflow-x-auto">
           <Table className="text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
-            <TableHeader 
+            <TableHeader
               style={{ backgroundColor: '#9E8A58' }}
               className="border-t border-gray-100 border-y"
             >
               <TableRow style={{ backgroundColor: '#9E8A58' }}>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Nome dos Ativos
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Cot. Resgate
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Liq. Resgate
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Vencimento
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Benchmark
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Valor Inicial
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Aporte
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Resgate
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Valor Atual
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   % Carteira
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </TableCell>
-                <TableCell 
-                  isHeader 
+                <TableCell
+                  isHeader
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
                   style={{ backgroundColor: '#9E8A58' }}
                 >

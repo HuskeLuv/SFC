@@ -39,15 +39,24 @@ export async function GET(request: NextRequest) {
 
     // Buscar transações para obter metadata (opcaoTipo, opcaoCompraVenda, dataVencimento)
     const assetIds = portfolios.map((p) => p.assetId).filter(Boolean) as string[];
-    const transacoes = assetIds.length > 0
-      ? await prisma.stockTransaction.findMany({
-          where: { assetId: { in: assetIds }, userId: targetUserId },
-          orderBy: { date: 'asc' },
-        })
-      : [];
+    const transacoes =
+      assetIds.length > 0
+        ? await prisma.stockTransaction.findMany({
+            where: { assetId: { in: assetIds }, userId: targetUserId },
+            orderBy: { date: 'asc' },
+          })
+        : [];
 
     // Mapa assetId -> metadata da primeira transação
-    const metadataPorAsset: Record<string, { opcaoTipo?: string; opcaoCompraVenda?: string; tickerAtivo?: string; dataVencimento?: string }> = {};
+    const metadataPorAsset: Record<
+      string,
+      {
+        opcaoTipo?: string;
+        opcaoCompraVenda?: string;
+        tickerAtivo?: string;
+        dataVencimento?: string;
+      }
+    > = {};
     for (const tx of transacoes) {
       if (tx.assetId && !metadataPorAsset[tx.assetId] && tx.notes) {
         try {
@@ -70,7 +79,11 @@ export async function GET(request: NextRequest) {
           const asset = portfolios.find((p) => p.assetId === tx.assetId)?.asset;
           if (asset?.name) {
             const ticker = asset.name.split(/\s*-\s*/)[0]?.trim() ?? '';
-            metadataPorAsset[tx.assetId] = { tickerAtivo: ticker, opcaoTipo: 'put', opcaoCompraVenda: 'compra' };
+            metadataPorAsset[tx.assetId] = {
+              tickerAtivo: ticker,
+              opcaoTipo: 'put',
+              opcaoCompraVenda: 'compra',
+            };
           }
         }
       }
@@ -80,12 +93,26 @@ export async function GET(request: NextRequest) {
     for (const p of portfolios) {
       if (p.assetId && !metadataPorAsset[p.assetId] && p.asset?.name) {
         const ticker = p.asset.name.split(/\s*-\s*/)[0]?.trim() ?? '';
-        metadataPorAsset[p.assetId] = { tickerAtivo: ticker, opcaoTipo: 'put', opcaoCompraVenda: 'compra' };
+        metadataPorAsset[p.assetId] = {
+          tickerAtivo: ticker,
+          opcaoTipo: 'put',
+          opcaoCompraVenda: 'compra',
+        };
       }
     }
 
     // Agrupar por (tickerAtivo, opcaoTipo) para formar seções
-    const secaoMap = new Map<string, { ticker: string; tipo: 'put' | 'call'; ativos: Array<{ portfolio: typeof portfolios[0]; metadata: typeof metadataPorAsset[string] }> }>();
+    const secaoMap = new Map<
+      string,
+      {
+        ticker: string;
+        tipo: 'put' | 'call';
+        ativos: Array<{
+          portfolio: (typeof portfolios)[0];
+          metadata: (typeof metadataPorAsset)[string];
+        }>;
+      }
+    >();
     for (const p of portfolios) {
       if (!p.assetId || !p.asset) continue;
       const meta = metadataPorAsset[p.assetId];
@@ -131,11 +158,14 @@ export async function GET(request: NextRequest) {
 
     for (const [, sec] of secaoMap) {
       const ativos = sec.ativos.map(({ portfolio: p, metadata: m }) => {
-        const compraVenda = (m?.opcaoCompraVenda === 'venda' ? 'venda' : 'compra') as 'compra' | 'venda';
+        const compraVenda = (m?.opcaoCompraVenda === 'venda' ? 'venda' : 'compra') as
+          | 'compra'
+          | 'venda';
         const vencimento = m?.dataVencimento ?? '';
         const valorTotal = p.totalInvested;
         const valorAtualizado = valorTotal; // Sem cotação em tempo real por enquanto
-        const rentabilidade = valorTotal > 0 ? ((valorAtualizado - valorTotal) / valorTotal) * 100 : 0;
+        const rentabilidade =
+          valorTotal > 0 ? ((valorAtualizado - valorTotal) / valorTotal) * 100 : 0;
         return {
           id: p.id,
           nome: p.asset!.name,
@@ -159,10 +189,15 @@ export async function GET(request: NextRequest) {
       const totalValorAtualizado = ativos.reduce((s, a) => s + a.valorAtualizado, 0);
       const totalRisco = 0;
       const totalPercentualCarteira = 0;
-      const totalObjetivo = ativos.length ? ativos.reduce((s, a) => s + a.objetivo, 0) / ativos.length : 0;
+      const totalObjetivo = ativos.length
+        ? ativos.reduce((s, a) => s + a.objetivo, 0) / ativos.length
+        : 0;
       const totalQuantoFalta = 0;
       const totalNecessidadeAporte = 0;
-      const rentabilidadeMedia = totalValorAplicado > 0 ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100 : 0;
+      const rentabilidadeMedia =
+        totalValorAplicado > 0
+          ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100
+          : 0;
       secoes.push({
         nome: sec.ticker,
         tipo: sec.tipo,
@@ -196,7 +231,11 @@ export async function GET(request: NextRequest) {
         saldoInicioMes: 0,
         valorAtualizado: totalGeralValorAtualizado + caixaParaInvestir,
         rendimento: 0,
-        rentabilidade: totalGeralValorAplicado > 0 ? ((totalGeralValorAtualizado - totalGeralValorAplicado) / totalGeralValorAplicado) * 100 : 0,
+        rentabilidade:
+          totalGeralValorAplicado > 0
+            ? ((totalGeralValorAtualizado - totalGeralValorAplicado) / totalGeralValorAplicado) *
+              100
+            : 0,
       },
       secoes,
       totalGeral: {
@@ -208,17 +247,18 @@ export async function GET(request: NextRequest) {
         objetivo: 0,
         quantoFalta: 0,
         necessidadeAporte: 0,
-        rentabilidade: totalGeralValorAplicado > 0 ? ((totalGeralValorAtualizado - totalGeralValorAplicado) / totalGeralValorAplicado) * 100 : 0,
+        rentabilidade:
+          totalGeralValorAplicado > 0
+            ? ((totalGeralValorAtualizado - totalGeralValorAplicado) / totalGeralValorAplicado) *
+              100
+            : 0,
       },
     };
-    
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Erro ao buscar dados Opções:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -226,13 +266,16 @@ export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+    const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
 
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json({
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+          },
+          { status: 400 },
+        );
       }
 
       // Salvar ou atualizar caixa para investir de Opções
@@ -258,32 +301,26 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir
+        caixaParaInvestir,
       });
     }
 
     if (!ativoId) {
-      return NextResponse.json(
-        { error: 'Parâmetro obrigatório: ativoId' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
     }
 
     // Simular delay de rede
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Dados atualizados com sucesso' 
+    return NextResponse.json({
+      success: true,
+      message: 'Dados atualizados com sucesso',
     });
   } catch (error) {
     console.error('Erro ao atualizar dados Opções:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

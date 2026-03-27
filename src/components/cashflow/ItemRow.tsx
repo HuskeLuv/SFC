@@ -1,9 +1,9 @@
-import React from "react";
-import { TableCell, TableRow } from "@/components/ui/table";
-import { CashflowItem, CashflowGroup } from "@/types/cashflow";
-import { formatCurrency, formatPercent, isReceitaGroupByType } from "@/utils/formatters";
-import { FIXED_COLUMN_BODY_STYLES } from "./fixedColumns";
-import { CommentIndicator } from "./CommentIndicator";
+import React from 'react';
+import { TableCell, TableRow } from '@/components/ui/table';
+import { CashflowItem, CashflowGroup } from '@/types/cashflow';
+import { formatCurrency, formatPercent } from '@/utils/formatters';
+import { FIXED_COLUMN_BODY_STYLES } from './fixedColumns';
+import { CommentIndicator } from './CommentIndicator';
 
 interface ItemRowProps {
   item: CashflowItem;
@@ -19,29 +19,26 @@ interface ItemRowProps {
   isLastItem?: boolean;
 }
 
-export const ItemRow: React.FC<ItemRowProps> = ({ 
-  item, 
-  itemTotals, 
+export const ItemRow: React.FC<ItemRowProps> = ({
+  item,
+  itemTotals,
   itemAnnualTotal,
   itemPercentage,
   group,
   currentYear = new Date().getFullYear(),
-  isLastItem = false,
 }) => {
-  const isReceita = isReceitaGroupByType(group.type);
-  
-  // Não permitir edição de itens de investimento (calculados automaticamente)
-  const isInvestmentItem = group.type === 'investimento' || item.id.startsWith('investimento-');
-
   const getPercentageColorClass = () => {
-    return "text-black dark:text-black";
+    return 'text-black dark:text-black';
   };
 
   return (
-    <TableRow className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-white dark:bg-gray-900" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}>
-      <TableCell 
+    <TableRow
+      className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-white dark:bg-gray-900"
+      style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
+    >
+      <TableCell
         className="px-2 font-medium text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap"
-        style={{ 
+        style={{
           position: 'sticky',
           backgroundColor: 'white',
           ...FIXED_COLUMN_BODY_STYLES[0],
@@ -49,16 +46,14 @@ export const ItemRow: React.FC<ItemRowProps> = ({
           flexShrink: 0,
           border: 'none',
           borderLeft: 'none',
-          borderRight: 'none'
+          borderRight: 'none',
         }}
       >
-        <span className="cursor-default truncate block">
-          {item.name || ''}
-        </span>
+        <span className="cursor-default truncate block">{item.name || ''}</span>
       </TableCell>
-      <TableCell 
+      <TableCell
         className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 h-6 leading-6 whitespace-nowrap"
-        style={{ 
+        style={{
           position: 'sticky',
           backgroundColor: 'white',
           ...FIXED_COLUMN_BODY_STYLES[1],
@@ -66,16 +61,14 @@ export const ItemRow: React.FC<ItemRowProps> = ({
           flexShrink: 0,
           border: 'none',
           borderLeft: 'none',
-          borderRight: 'none'
+          borderRight: 'none',
         }}
       >
-        <span className="cursor-default truncate block">
-          {item.significado || '-'}
-        </span>
+        <span className="cursor-default truncate block">{item.significado || '-'}</span>
       </TableCell>
-      <TableCell 
+      <TableCell
         className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 text-center h-6 leading-6 whitespace-nowrap"
-        style={{ 
+        style={{
           position: 'sticky',
           backgroundColor: 'white',
           ...FIXED_COLUMN_BODY_STYLES[2],
@@ -83,16 +76,14 @@ export const ItemRow: React.FC<ItemRowProps> = ({
           flexShrink: 0,
           border: 'none',
           borderLeft: 'none',
-          borderRight: 'none'
+          borderRight: 'none',
         }}
       >
-        <span className="cursor-default">
-          {item.rank || '-'}
-        </span>
+        <span className="cursor-default">{item.rank || '-'}</span>
       </TableCell>
-      <TableCell 
+      <TableCell
         className={`px-2 font-normal text-xs text-right h-6 leading-6 whitespace-nowrap ${getPercentageColorClass()}`}
-        style={{ 
+        style={{
           position: 'sticky',
           backgroundColor: 'white',
           ...FIXED_COLUMN_BODY_STYLES[3],
@@ -100,10 +91,14 @@ export const ItemRow: React.FC<ItemRowProps> = ({
           flexShrink: 0,
           border: 'none',
           borderLeft: 'none',
-          borderRight: 'none'
+          borderRight: 'none',
         }}
       >
-        {group.name === 'Investimentos' ? '-' : (itemPercentage > 0 ? formatPercent(itemPercentage) : '-')}
+        {group.name === 'Investimentos'
+          ? '-'
+          : itemPercentage > 0
+            ? formatPercent(itemPercentage)
+            : '-'}
       </TableCell>
       {itemTotals.map((value, index) => {
         // Obter cor do valor mensal se existir
@@ -112,14 +107,17 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         const monthlyValue = item.values?.find((v) => v.month === index && v.year === currentYear);
         const cellColor = monthlyValue?.color || null;
         const cellComment = monthlyValue?.comment || null;
-        
+
         return (
           <TableCell
             key={index}
             className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right cursor-default h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
             style={{ overflow: 'visible' }}
           >
-            <div className="flex items-center justify-end gap-1" style={{ position: 'relative', overflow: 'visible' }}>
+            <div
+              className="flex items-center justify-end gap-1"
+              style={{ position: 'relative', overflow: 'visible' }}
+            >
               {cellComment && (
                 <CommentIndicator
                   comment={cellComment}
@@ -136,11 +134,13 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         );
       })}
       {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white">
-      </TableCell>
-      <TableCell className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white" style={{ minWidth: '4rem' }}>
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
+      <TableCell
+        className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+        style={{ minWidth: '4rem' }}
+      >
         {formatCurrency(itemAnnualTotal)}
       </TableCell>
     </TableRow>
-  ); 
-}; 
+  );
+};

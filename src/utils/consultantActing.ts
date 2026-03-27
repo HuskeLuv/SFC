@@ -7,10 +7,6 @@ export const CONSULTANT_ACTING_COOKIE = 'consultant-acting';
 
 type RequestWithCookies = NextRequest | NextApiRequest;
 
-type CookieGetter =
-  | ((name: string) => string | undefined)
-  | ((name: string) => { value: string } | undefined);
-
 const readFromNextRequest = (cookies: NextRequest['cookies'], name: string): string | null => {
   const value = cookies.get(name);
   if (!value) {
@@ -30,7 +26,7 @@ const readFromApiRequest = (cookies: NextApiRequest['cookies'], name: string): s
   if (!raw) {
     return null;
   }
-  return Array.isArray(raw) ? raw[0] ?? null : raw;
+  return Array.isArray(raw) ? (raw[0] ?? null) : raw;
 };
 
 export const readConsultantActingCookie = (req: RequestWithCookies): string | null => {
@@ -108,4 +104,3 @@ export const resolveActingContext = async (
     },
   };
 };
-

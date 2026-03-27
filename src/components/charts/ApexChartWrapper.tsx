@@ -1,6 +1,6 @@
-"use client";
-import React, { useEffect, useState, useMemo } from "react";
-import { ApexOptions } from "apexcharts";
+'use client';
+import React, { useEffect, useState, useMemo } from 'react';
+import { ApexOptions } from 'apexcharts';
 
 interface ApexChartWrapperProps {
   options: ApexOptions;
@@ -14,8 +14,8 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
   options,
   series,
   type,
-  width = "100%",
-  height = "350",
+  width = '100%',
+  height = '350',
 }) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
@@ -27,40 +27,41 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
   const sanitizedOptions = useMemo(() => {
     try {
       // Função auxiliar para fazer deep clone preservando funções
-      const deepClonePreservingFunctions = (obj: any, visited = new WeakMap()): any => {
+      const deepClonePreservingFunctions = (obj: unknown, visited = new WeakMap()): unknown => {
         if (obj === null || typeof obj !== 'object') {
           return obj;
         }
-        
+
         // Se já visitamos este objeto, retornar a referência
         if (visited.has(obj)) {
           return visited.get(obj);
         }
-        
+
         // Se for uma função, retornar como está
         if (typeof obj === 'function') {
           return obj;
         }
-        
+
         // Se for uma data, retornar como está
         if (obj instanceof Date) {
           return obj;
         }
-        
+
         // Se for array, clonar recursivamente
         if (Array.isArray(obj)) {
-          const cloned = obj.map(item => deepClonePreservingFunctions(item, visited));
+          const cloned = obj.map((item) => deepClonePreservingFunctions(item, visited));
           visited.set(obj, cloned);
           return cloned;
         }
-        
+
         // Se for objeto, clonar recursivamente
-        const cloned: any = {};
+        const cloned: Record<string, unknown> = {};
+        const source = obj as Record<string, unknown>;
         visited.set(obj, cloned);
-        
-        for (const key in obj) {
-          if (Object.prototype.hasOwnProperty.call(obj, key)) {
-            const value = obj[key];
+
+        for (const key in source) {
+          if (Object.prototype.hasOwnProperty.call(source, key)) {
+            const value = source[key];
             // Preservar funções e fazer deep clone de objetos
             if (typeof value === 'function') {
               cloned[key] = value;
@@ -69,10 +70,10 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
             }
           }
         }
-        
+
         return cloned;
       };
-      
+
       return deepClonePreservingFunctions(options) as ApexOptions;
     } catch (error) {
       console.warn('Erro ao sanitizar opções do gráfico:', error);
@@ -84,10 +85,10 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
     // Importação dinâmica do ReactApexChart apenas no client-side
     const loadChart = async () => {
       try {
-        const ReactApexChart = (await import("react-apexcharts")).default;
+        const ReactApexChart = (await import('react-apexcharts')).default;
         setChart(() => ReactApexChart);
       } catch (error) {
-        console.error("Erro ao carregar ApexCharts:", error);
+        console.error('Erro ao carregar ApexCharts:', error);
       }
     };
 
@@ -114,4 +115,3 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
 };
 
 export default ApexChartWrapper;
-

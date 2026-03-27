@@ -1,44 +1,48 @@
-"use client";
-import React, { useState, useMemo } from "react";
-import { useFii } from "@/hooks/useFii";
-import { FiiAtivo, FiiSecao, TipoFii } from "@/types/fii";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import ComponentCard from "@/components/common/ComponentCard";
-import PieChartFiiSegmento from "@/components/charts/pie/PieChartFiiSegmento";
-import PieChartFiiAtivo from "@/components/charts/pie/PieChartFiiAtivo";
-import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
-import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableRow, StandardTableBodyCell, TableBody } from "@/components/ui/table/StandardTable";
-import AssetNameLink from "@/components/carteira/AssetNameLink";
-import { StandardTablePlaceholderRows } from "@/components/carteira/shared";
-import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
+'use client';
+import React, { useState, useMemo } from 'react';
+import { useFii } from '@/hooks/useFii';
+import { FiiAtivo, FiiSecao, TipoFii } from '@/types/fii';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ComponentCard from '@/components/common/ComponentCard';
+import PieChartFiiSegmento from '@/components/charts/pie/PieChartFiiSegmento';
+import PieChartFiiAtivo from '@/components/charts/pie/PieChartFiiAtivo';
+import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import {
+  StandardTable,
+  StandardTableHeader,
+  StandardTableHeaderRow,
+  StandardTableHeaderCell,
+  StandardTableRow,
+  StandardTableBodyCell,
+  TableBody,
+} from '@/components/ui/table/StandardTable';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { StandardTablePlaceholderRows } from '@/components/carteira/shared';
+import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const FII_COLUMN_COUNT = 14;
 const FII_AUX_COLUMN_COUNT = 5;
-const FII_SECTION_ORDER = ["fof", "tvm", "tijolo"] as const;
+const FII_SECTION_ORDER = ['fof', 'tvm', 'tijolo'] as const;
 const FII_SECTION_NAMES: Record<(typeof FII_SECTION_ORDER)[number], string> = {
-  fof: "FOF",
-  tvm: "TVM",
-  tijolo: "Tijolo",
+  fof: 'FOF',
+  tvm: 'TVM',
+  tijolo: 'Tijolo',
 };
 
 interface FiiMetricCardProps {
   title: string;
   value: string;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
 }
 
-const FiiMetricCard: React.FC<FiiMetricCardProps> = ({
-  title,
-  value,
-  color = "primary",
-}) => {
+const FiiMetricCard: React.FC<FiiMetricCardProps> = ({ title, value, color = 'primary' }) => {
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -84,22 +88,15 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
     }
   };
 
-
   return (
     <StandardTableRow>
       <StandardTableBodyCell align="left" className="min-w-[220px] w-3/12">
         <div>
           <AssetNameLink portfolioId={ativo.id} ticker={ativo.ticker} nome={ativo.nome} />
-          {ativo.observacoes && (
-            <div className="text-xs mt-1">
-              {ativo.observacoes}
-            </div>
-          )}
+          {ativo.observacoes && <div className="text-xs mt-1">{ativo.observacoes}</div>}
         </div>
       </StandardTableBodyCell>
-      <StandardTableBodyCell align="center">
-        {ativo.mandato}
-      </StandardTableBodyCell>
+      <StandardTableBodyCell align="center">{ativo.mandato}</StandardTableBodyCell>
       <StandardTableBodyCell align="center">
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
           {ativo.segmento.charAt(0).toUpperCase() + ativo.segmento.slice(1)}
@@ -126,10 +123,7 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
       <StandardTableBodyCell align="right">
         {formatPercentage(ativo.percentualCarteira)}
       </StandardTableBodyCell>
-      <StandardTableBodyCell
-        align="right"
-        className="border border-black"
-      >
+      <StandardTableBodyCell align="right" className="border border-black">
         {isEditingObjetivo ? (
           <div className="flex items-center space-x-1">
             <input
@@ -145,7 +139,7 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
             <span className="text-xs">%</span>
           </div>
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObjetivo(true)}
           >
@@ -157,9 +151,7 @@ const FiiTableRow: React.FC<FiiTableRowProps> = ({
         {formatPercentage(ativo.quantoFalta)}
       </StandardTableBodyCell>
       <StandardTableBodyCell align="right">
-        <span>
-          {formatCurrency(ativo.necessidadeAporte)}
-        </span>
+        <span>{formatCurrency(ativo.necessidadeAporte)}</span>
       </StandardTableBodyCell>
       <StandardTableBodyCell align="right">
         {formatPercentage(ativo.rentabilidade)}
@@ -192,11 +184,12 @@ const FiiSection: React.FC<FiiSectionProps> = ({
   return (
     <>
       {/* Cabeçalho da seção */}
-      <StandardTableRow 
-        className="bg-[#808080] cursor-pointer"
-        onClick={onToggle}
-      >
-        <StandardTableBodyCell align="left" isTotal className="min-w-[220px] w-3/12 bg-[#808080] text-white font-bold">
+      <StandardTableRow className="bg-[#808080] cursor-pointer" onClick={onToggle}>
+        <StandardTableBodyCell
+          align="left"
+          isTotal
+          className="min-w-[220px] w-3/12 bg-[#808080] text-white font-bold"
+        >
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -206,16 +199,28 @@ const FiiSection: React.FC<FiiSectionProps> = ({
             <span className="font-bold">{secao.nome}</span>
           </div>
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="right" isTotal className="w-[80px] bg-[#808080] text-white font-bold">
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">
+          -
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">
+          -
+        </StandardTableBodyCell>
+        <StandardTableBodyCell
+          align="right"
+          isTotal
+          className="w-[80px] bg-[#808080] text-white font-bold"
+        >
           {formatNumber(secao.totalQuantidade)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">
+          -
+        </StandardTableBodyCell>
         <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAplicado)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">
+          -
+        </StandardTableBodyCell>
         <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAtualizado)}
         </StandardTableBodyCell>
@@ -232,9 +237,7 @@ const FiiSection: React.FC<FiiSectionProps> = ({
           {formatPercentage(secao.totalQuantoFalta)}
         </StandardTableBodyCell>
         <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-          <span>
-            {formatCurrency(secao.totalNecessidadeAporte)}
-          </span>
+          <span>{formatCurrency(secao.totalNecessidadeAporte)}</span>
         </StandardTableBodyCell>
         <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.rentabilidadeMedia)}
@@ -242,21 +245,19 @@ const FiiSection: React.FC<FiiSectionProps> = ({
       </StandardTableRow>
 
       {/* Ativos da seção */}
-      {isExpanded && secao.ativos.map((ativo) => (
-        <FiiTableRow
-          key={ativo.id}
-          ativo={ativo}
-          formatCurrency={formatCurrency}
-          formatPercentage={formatPercentage}
-          formatNumber={formatNumber}
-          onUpdateObjetivo={onUpdateObjetivo}
-        />
-      ))}
+      {isExpanded &&
+        secao.ativos.map((ativo) => (
+          <FiiTableRow
+            key={ativo.id}
+            ativo={ativo}
+            formatCurrency={formatCurrency}
+            formatPercentage={formatPercentage}
+            formatNumber={formatNumber}
+            onUpdateObjetivo={onUpdateObjetivo}
+          />
+        ))}
       {isExpanded && (
-        <StandardTablePlaceholderRows
-          count={placeholderCount}
-          colSpan={FII_COLUMN_COUNT}
-        />
+        <StandardTablePlaceholderRows count={placeholderCount} colSpan={FII_COLUMN_COUNT} />
       )}
     </>
   );
@@ -267,12 +268,20 @@ interface FiiTableProps {
 }
 
 export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir } = useFii();
-  const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
-  const necessidadeAporteTotalCalculada = necessidadeAporteMap.fiis ?? data?.resumo?.necessidadeAporteTotal ?? 0;
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(FII_SECTION_ORDER)
-  );
+  const {
+    data,
+    loading,
+    error,
+    formatCurrency,
+    formatPercentage,
+    formatNumber,
+    updateObjetivo,
+    updateCaixaParaInvestir,
+  } = useFii();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada =
+    necessidadeAporteMap.fiis ?? data?.resumo?.necessidadeAporteTotal ?? 0;
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(FII_SECTION_ORDER));
 
   // Calcular risco (carteira total) e percentual da carteira da aba
   const dataComRisco = useMemo(() => {
@@ -281,27 +290,28 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     const totalTabValue = data.totalGeral?.valorAtualizado || 0;
     const shouldCalculateRisco = totalCarteira > 0;
 
-    const secoesComRisco = data.secoes.map(secao => {
-      const totalPercentualCarteira = totalTabValue > 0
-        ? (secao.totalValorAtualizado / totalTabValue) * 100
-        : 0;
+    const secoesComRisco = data.secoes.map((secao) => {
+      const totalPercentualCarteira =
+        totalTabValue > 0 ? (secao.totalValorAtualizado / totalTabValue) * 100 : 0;
 
       return {
         ...secao,
-        ativos: secao.ativos.map(ativo => {
+        ativos: secao.ativos.map((ativo) => {
           // Percentual daquele tipo de ativo (não da carteira total)
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           // Quanto falta = diferença entre % atual e objetivo (em %)
           const quantoFalta = objetivo - percentualCarteira;
           // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
-          const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 
-            ? (quantoFalta / 100) * totalTabValue 
-            : 0;
-          
+          const necessidadeAporte =
+            totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+
           return {
             ...ativo,
-            riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+            riscoPorAtivo: shouldCalculateRisco
+              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+              : 0,
             percentualCarteira,
             quantoFalta,
             necessidadeAporte,
@@ -309,31 +319,42 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
         }),
         totalPercentualCarteira,
         totalRisco: secao.ativos.reduce(
-          (sum, ativo) => sum + (shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0),
-          0
+          (sum, ativo) =>
+            sum +
+            (shouldCalculateRisco
+              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+              : 0),
+          0,
         ),
         totalQuantoFalta: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           return sum + (objetivo - percentualCarteira);
         }, 0),
         totalNecessidadeAporte: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           const quantoFalta = objetivo - percentualCarteira;
-          return sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0);
+          return (
+            sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0)
+          );
         }, 0),
       };
     });
 
     const totalGeralRisco = secoesComRisco.reduce(
       (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
-      0
+      0,
     );
 
     // Recalcular totais gerais
     const totalQuantoFalta = secoesComRisco.reduce((sum, secao) => sum + secao.totalQuantoFalta, 0);
-    const totalNecessidadeAporte = secoesComRisco.reduce((sum, secao) => sum + secao.totalNecessidadeAporte, 0);
+    const totalNecessidadeAporte = secoesComRisco.reduce(
+      (sum, secao) => sum + secao.totalNecessidadeAporte,
+      0,
+    );
 
     return {
       ...data,
@@ -362,16 +383,18 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
-
   const normalizedSections = useMemo(() => {
     const normalizeTipo = (tipo: TipoFii) => {
-      if (tipo === "fofi" || tipo === "fof") return "fof";
-      if (tipo === "ijol" || tipo === "tijolo") return "tijolo";
-      if (tipo === "tvm") return "tvm";
+      if (tipo === 'fofi' || tipo === 'fof') return 'fof';
+      if (tipo === 'ijol' || tipo === 'tijolo') return 'tijolo';
+      if (tipo === 'tvm') return 'tvm';
       return null;
     };
 
-    const createEmptySection = (tipo: (typeof FII_SECTION_ORDER)[number], nome: string): FiiSecao => ({
+    const createEmptySection = (
+      tipo: (typeof FII_SECTION_ORDER)[number],
+      nome: string,
+    ): FiiSecao => ({
       tipo: tipo as TipoFii,
       nome,
       ativos: [],
@@ -459,7 +482,11 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
         <StandardTable>
           <StandardTableHeader sticky headerBgColor="#9E8A58">
             <StandardTableHeaderRow headerBgColor="#9E8A58">
-              <StandardTableHeaderCell align="center" className="min-w-[220px] w-3/12" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell
+                align="center"
+                className="min-w-[220px] w-3/12"
+                headerBgColor="#9E8A58"
+              >
                 Nome do Ativo
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
@@ -505,59 +532,121 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
-              {/* Linha de totalização */}
-              <StandardTableRow isTotal className="bg-[#404040]">
-              <StandardTableBodyCell align="left" isTotal className="min-w-[220px] w-3/12 bg-[#404040] text-white font-bold">
-                  TOTAL GERAL
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="w-[80px] bg-[#404040] text-white font-bold">
-                  {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  100.00%
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  <span>
-                    {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
-                  </span>
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
-                </StandardTableBodyCell>
-              </StandardTableRow>
+            {/* Linha de totalização */}
+            <StandardTableRow isTotal className="bg-[#404040]">
+              <StandardTableBodyCell
+                align="left"
+                isTotal
+                className="min-w-[220px] w-3/12 bg-[#404040] text-white font-bold"
+              >
+                TOTAL GERAL
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="center"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                -
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="center"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                -
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="w-[80px] bg-[#404040] text-white font-bold"
+              >
+                {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="center"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                -
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="center"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                -
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                100.00%
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                <span>{formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}</span>
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
+              </StandardTableBodyCell>
+            </StandardTableRow>
 
-              {normalizedSections.map((secao) => (
-                <FiiSection
-                  key={secao.tipo}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  isExpanded={expandedSections.has(secao.tipo)}
-                  onToggle={() => toggleSection(secao.tipo)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                />
-              ))}
-            </TableBody>
+            {normalizedSections.map((secao) => (
+              <FiiSection
+                key={secao.tipo}
+                secao={secao}
+                formatCurrency={formatCurrency}
+                formatPercentage={formatPercentage}
+                formatNumber={formatNumber}
+                isExpanded={expandedSections.has(secao.tipo)}
+                onToggle={() => toggleSection(secao.tipo)}
+                onUpdateObjetivo={handleUpdateObjetivo}
+              />
+            ))}
+          </TableBody>
         </StandardTable>
       </ComponentCard>
 
@@ -580,11 +669,21 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
         <StandardTable>
           <StandardTableHeader headerBgColor="#9E8A58">
             <StandardTableHeaderRow headerBgColor="#9E8A58">
-              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">Ticker</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">Nome</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Cotação Atual</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Necessidade Aporte</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Lote Aproximado</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">
+                Ticker
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">
+                Nome
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Cotação Atual
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Necessidade Aporte
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Lote Aproximado
+              </StandardTableHeaderCell>
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
@@ -596,9 +695,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
                   {formatCurrency(item.cotacaoAtual)}
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right">
-                  <span>
-                    {formatCurrency(item.necessidadeAporte)}
-                  </span>
+                  <span>{formatCurrency(item.necessidadeAporte)}</span>
                 </StandardTableBodyCell>
                 <StandardTableBodyCell align="right">
                   {formatNumber(item.loteAproximado)}

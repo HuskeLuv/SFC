@@ -58,7 +58,11 @@ export async function GET(request: NextRequest) {
     const cotacaoDolar = dolarIndicator?.price ?? null;
 
     // Converter USD para BRL apenas em moedas (não criptos). Criptos: preço de aquisição sempre em reais.
-    const toBRL = (valor: number, currency: string | null | undefined, assetType: string): number => {
+    const toBRL = (
+      valor: number,
+      currency: string | null | undefined,
+      assetType: string,
+    ): number => {
       if (assetType === 'crypto') return valor;
       if (currency === 'USD' && cotacaoDolar != null && cotacaoDolar > 0) {
         return valor * cotacaoDolar;
@@ -75,9 +79,8 @@ export async function GET(request: NextRequest) {
       const valorTotal = toBRL(item.totalInvested, currency, assetType);
       const precoAquisicaoBRL = toBRL(item.avgPrice, currency, assetType);
       const valorAtualizado = item.quantity * cotacaoAtual;
-      const rentabilidade = precoAquisicaoBRL > 0
-        ? ((cotacaoAtual - precoAquisicaoBRL) / precoAquisicaoBRL) * 100
-        : 0;
+      const rentabilidade =
+        precoAquisicaoBRL > 0 ? ((cotacaoAtual - precoAquisicaoBRL) / precoAquisicaoBRL) * 100 : 0;
 
       return {
         id: item.id,
@@ -108,13 +111,15 @@ export async function GET(request: NextRequest) {
     const buildSection = (
       tipo: 'moedas' | 'criptomoedas' | 'metais_joias',
       nome: string,
-      filtrados: MoedaCriptoAtivo[]
+      filtrados: MoedaCriptoAtivo[],
     ): MoedaCriptoSecao => {
-      const regiao = filtrados.some((a) => a.regiao === 'estados_unidos') && filtrados.some((a) => a.regiao === 'brasil')
-        ? 'internacional'
-        : filtrados.some((a) => a.regiao === 'estados_unidos')
-          ? 'estados_unidos'
-          : 'brasil';
+      const regiao =
+        filtrados.some((a) => a.regiao === 'estados_unidos') &&
+        filtrados.some((a) => a.regiao === 'brasil')
+          ? 'internacional'
+          : filtrados.some((a) => a.regiao === 'estados_unidos')
+            ? 'estados_unidos'
+            : 'brasil';
       return {
         tipo,
         nome,
@@ -151,9 +156,10 @@ export async function GET(request: NextRequest) {
         saldoInicioMes: totalValorAplicado,
         valorAtualizado: valorAtualizadoComCaixa,
         rendimento: valorAtualizadoComCaixa - totalValorAplicado,
-        rentabilidade: totalValorAplicado > 0
-          ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
-          : 0,
+        rentabilidade:
+          totalValorAplicado > 0
+            ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+            : 0,
       },
       secoes,
       totalGeral: {
@@ -169,7 +175,11 @@ export async function GET(request: NextRequest) {
           ? ativos.reduce((s, a) => s + a.rentabilidade, 0) / ativos.length
           : 0,
       },
-      alocacaoAtivo: ativos.map((a) => ({ ticker: a.ticker, percentual: 0, valor: a.valorAtualizado })),
+      alocacaoAtivo: ativos.map((a) => ({
+        ticker: a.ticker,
+        percentual: 0,
+        valor: a.valorAtualizado,
+      })),
       tabelaAuxiliar: ativos.map((a) => ({
         ticker: a.ticker,
         cotacaoAtual: a.cotacaoAtual,
@@ -181,10 +191,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Erro ao buscar dados Moedas/Criptos:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -192,13 +199,16 @@ export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+    const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
 
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json({
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+          },
+          { status: 400 },
+        );
       }
 
       // Salvar ou atualizar caixa para investir de Moedas/Criptos
@@ -224,32 +234,26 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir
+        caixaParaInvestir,
       });
     }
 
     if (!ativoId) {
-      return NextResponse.json(
-        { error: 'Parâmetro obrigatório: ativoId' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
     }
 
     // Simular delay de rede
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Dados atualizados com sucesso' 
+    return NextResponse.json({
+      success: true,
+      message: 'Dados atualizados com sucesso',
     });
   } catch (error) {
     console.error('Erro ao atualizar dados Moedas/Criptos:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

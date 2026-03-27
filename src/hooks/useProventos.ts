@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface ProventoData {
   id: string;
@@ -43,7 +43,7 @@ interface UseProventosResult {
 export const useProventos = (
   startDate?: string,
   endDate?: string,
-  groupBy: 'ativo' | 'classe' | 'tipo' = 'ativo'
+  groupBy: 'ativo' | 'classe' | 'tipo' = 'ativo',
 ): UseProventosResult => {
   const [proventos, setProventos] = useState<ProventoData[]>([]);
   const [grouped, setGrouped] = useState<Record<string, GroupedProventoData>>({});
@@ -54,22 +54,22 @@ export const useProventos = (
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchProventos = async () => {
+  const fetchProventos = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       params.append('groupBy', groupBy);
-      
+
       const response = await fetch(`/api/analises/proventos?${params.toString()}`);
-      
+
       if (!response.ok) {
         throw new Error('Erro ao buscar dados de proventos');
       }
-      
+
       const data = await response.json();
       setProventos(data.proventos || []);
       setGrouped(data.grouped || {});
@@ -88,11 +88,11 @@ export const useProventos = (
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate, groupBy]);
 
   useEffect(() => {
     void fetchProventos();
-  }, [startDate, endDate, groupBy]);
+  }, [fetchProventos]);
 
   return {
     proventos,
@@ -106,5 +106,3 @@ export const useProventos = (
     refetch: fetchProventos,
   };
 };
-
-

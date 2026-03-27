@@ -1,25 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { FiiData, FiiAtivo, FiiSecao } from '@/types/fii';
+import { FiiData, FiiAtivo, FiiSecao, TipoFii } from '@/types/fii';
 import { getAssetPrices } from '@/services/assetPriceService';
 
 // Funções auxiliares para cores
 function getSegmentColor(tipo: string): string {
   const colors: { [key: string]: string } = {
-    'fofi': '#3B82F6',
-    'fof': '#3B82F6', // Compatibilidade
-    'tvm': '#10B981',
-    'tijolo': '#F59E0B',
-    'ijol': '#F59E0B', // Compatibilidade
-    'hibrido': '#8B5CF6',
-    'renda': '#EF4444'
+    fofi: '#3B82F6',
+    fof: '#3B82F6', // Compatibilidade
+    tvm: '#10B981',
+    tijolo: '#F59E0B',
+    ijol: '#F59E0B', // Compatibilidade
+    hibrido: '#8B5CF6',
+    renda: '#EF4444',
   };
   return colors[tipo] || '#6B7280';
 }
 
 function getAtivoColor(ticker: string): string {
-  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16', '#F97316'];
+  const colors = [
+    '#3B82F6',
+    '#10B981',
+    '#F59E0B',
+    '#8B5CF6',
+    '#EF4444',
+    '#06B6D4',
+    '#84CC16',
+    '#F97316',
+  ];
   const index = ticker.charCodeAt(0) % colors.length;
   return colors[index];
 }
@@ -37,35 +46,35 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   // Buscar portfolio do usuário com FIIs
   // FIIs podem estar em stockId (tabela Stock) ou assetId (tabela Asset)
   const portfolio = await prisma.portfolio.findMany({
-    where: { 
+    where: {
       userId,
       OR: [
-        { 
-          stockId: { not: null }
+        {
+          stockId: { not: null },
         },
         {
           asset: {
-            type: 'fii'
-          }
-        }
-      ]
+            type: 'fii',
+          },
+        },
+      ],
     },
     include: {
       stock: true, // Incluir relação com Stock
-      asset: true  // Incluir relação com Asset
-    }
+      asset: true, // Incluir relação com Asset
+    },
   });
 
   // Filtrar apenas FIIs: stocks com ticker terminando em '11' OU assets do tipo 'fii'
-  const fiiPortfolio = portfolio.filter(item => {
+  const fiiPortfolio = portfolio.filter((item) => {
     // Se é stock com ticker terminando em '11', é FII
     if (item.stock && item.stock.ticker && item.stock.ticker.toUpperCase().endsWith('11')) {
       return true;
     }
-    
+
     // Se é asset do tipo 'fii', é FII
     if (item.asset && item.asset.type === 'fii') return true;
-    
+
     return false;
   });
 
@@ -76,59 +85,58 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
   // Converter para formato FiiAtivo
-  const fiiAtivos: FiiAtivo[] = fiiPortfolio
-    .map(item => {
-      const valorTotal = item.totalInvested;
-      
-      // Determinar ticker e nome baseado na origem (Stock ou Asset)
-      const ticker = item.stock?.ticker || item.asset?.symbol || '';
-      const nome = item.stock?.companyName || item.asset?.name || '';
-      
-      // Buscar cotação atual da brapi
-      let cotacaoAtual = quotes.get(ticker);
-      
-      // Se não encontrou cotação, usar preço médio como fallback
-      if (!cotacaoAtual) {
-        console.warn(`⚠️  Não foi possível obter cotação de ${ticker}, usando preço médio como fallback`);
-        cotacaoAtual = item.avgPrice;
-      }
-      
-      // Calcular valor atualizado com cotação atual
-      const valorAtualizado = item.quantity * cotacaoAtual;
-      
-      // Calcular rentabilidade real
-      const rentabilidade = item.avgPrice > 0 
-        ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 
-        : 0;
-      
-      // Usar tipo persistido no portfolio (tipoFii), fallback para 'fofi' quando não definido
-      const tipoFii: 'fofi' | 'tvm' | 'tijolo' =
-        (item.tipoFii && ['fofi', 'tvm', 'tijolo'].includes(item.tipoFii)
-          ? item.tipoFii
-          : 'fofi') as 'fofi' | 'tvm' | 'tijolo';
-      
-      return {
-        id: item.id,
-        ticker: ticker,
-        nome: nome,
-        mandato: 'Estratégico', // Padrão
-        segmento: 'outros', // Asset não tem segmento
-        quantidade: item.quantity,
-        precoAquisicao: item.avgPrice,
-        valorTotal,
-        cotacaoAtual: cotacaoAtual,
-        valorAtualizado,
-        riscoPorAtivo: 0, // Calcular depois
-        percentualCarteira: 0, // Calcular depois
-        objetivo: item.objetivo ?? 0,
-        quantoFalta: 0, // Calcular depois
-        necessidadeAporte: 0, // Calcular depois
-        rentabilidade,
-        tipo: tipoFii, // Usar tipo novo diretamente
-        observacoes: undefined,
-        dataUltimaAtualizacao: item.lastUpdate
-      };
-    });
+  const fiiAtivos: FiiAtivo[] = fiiPortfolio.map((item) => {
+    const valorTotal = item.totalInvested;
+
+    // Determinar ticker e nome baseado na origem (Stock ou Asset)
+    const ticker = item.stock?.ticker || item.asset?.symbol || '';
+    const nome = item.stock?.companyName || item.asset?.name || '';
+
+    // Buscar cotação atual da brapi
+    let cotacaoAtual = quotes.get(ticker);
+
+    // Se não encontrou cotação, usar preço médio como fallback
+    if (!cotacaoAtual) {
+      console.warn(
+        `⚠️  Não foi possível obter cotação de ${ticker}, usando preço médio como fallback`,
+      );
+      cotacaoAtual = item.avgPrice;
+    }
+
+    // Calcular valor atualizado com cotação atual
+    const valorAtualizado = item.quantity * cotacaoAtual;
+
+    // Calcular rentabilidade real
+    const rentabilidade =
+      item.avgPrice > 0 ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 : 0;
+
+    // Usar tipo persistido no portfolio (tipoFii), fallback para 'fofi' quando não definido
+    const tipoFii: 'fofi' | 'tvm' | 'tijolo' = (
+      item.tipoFii && ['fofi', 'tvm', 'tijolo'].includes(item.tipoFii) ? item.tipoFii : 'fofi'
+    ) as 'fofi' | 'tvm' | 'tijolo';
+
+    return {
+      id: item.id,
+      ticker: ticker,
+      nome: nome,
+      mandato: 'Estratégico', // Padrão
+      segmento: 'outros', // Asset não tem segmento
+      quantidade: item.quantity,
+      precoAquisicao: item.avgPrice,
+      valorTotal,
+      cotacaoAtual: cotacaoAtual,
+      valorAtualizado,
+      riscoPorAtivo: 0, // Calcular depois
+      percentualCarteira: 0, // Calcular depois
+      objetivo: item.objetivo ?? 0,
+      quantoFalta: 0, // Calcular depois
+      necessidadeAporte: 0, // Calcular depois
+      rentabilidade,
+      tipo: tipoFii, // Usar tipo novo diretamente
+      observacoes: undefined,
+      dataUltimaAtualizacao: item.lastUpdate,
+    };
+  });
 
   // Calcular totais gerais
   const totalQuantidade = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
@@ -138,50 +146,63 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   const totalQuantoFalta = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
   const totalNecessidadeAporte = fiiAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
   const totalRisco = fiiAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-  const rentabilidadeMedia = fiiAtivos.length > 0 
-    ? fiiAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / fiiAtivos.length 
-    : 0;
+  const rentabilidadeMedia =
+    fiiAtivos.length > 0
+      ? fiiAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / fiiAtivos.length
+      : 0;
 
   // Agrupar por tipo (fofi, tvm, tijolo)
   const tipos: ('fofi' | 'tvm' | 'tijolo')[] = ['fofi', 'tvm', 'tijolo'];
-  const secoes: FiiSecao[] = tipos.map(tipo => {
-    const ativosDoTipo = fiiAtivos.filter(ativo => ativo.tipo === tipo);
-    
-    const nomesTipo = {
-      'fofi': 'FOF (Fundos de Fundos)',
-      'tvm': 'TVM (Títulos e Valores Mobiliários)',
-      'tijolo': 'Tijolo'
-    };
-    
-    return {
-      tipo: tipo as any, // Tipo compatível com TipoFii
-      nome: nomesTipo[tipo],
-      ativos: ativosDoTipo,
-      totalQuantidade: 0,
-      totalValorAplicado: 0,
-      totalValorAtualizado: 0,
-      totalPercentualCarteira: 0,
-      totalRisco: 0,
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: 0
-    };
-  }).filter(secao => secao.ativos.length > 0); // Remover seções vazias
+  const secoes: FiiSecao[] = tipos
+    .map((tipo) => {
+      const ativosDoTipo = fiiAtivos.filter((ativo) => ativo.tipo === tipo);
+
+      const nomesTipo = {
+        fofi: 'FOF (Fundos de Fundos)',
+        tvm: 'TVM (Títulos e Valores Mobiliários)',
+        tijolo: 'Tijolo',
+      };
+
+      return {
+        tipo: tipo as TipoFii, // Tipo compatível com TipoFii
+        nome: nomesTipo[tipo],
+        ativos: ativosDoTipo,
+        totalQuantidade: 0,
+        totalValorAplicado: 0,
+        totalValorAtualizado: 0,
+        totalPercentualCarteira: 0,
+        totalRisco: 0,
+        totalObjetivo: 0,
+        totalQuantoFalta: 0,
+        totalNecessidadeAporte: 0,
+        rentabilidadeMedia: 0,
+      };
+    })
+    .filter((secao) => secao.ativos.length > 0); // Remover seções vazias
 
   // Calcular valores das seções
-  secoes.forEach(secao => {
+  secoes.forEach((secao) => {
     secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-    secao.totalValorAtualizado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-    secao.totalPercentualCarteira = secao.ativos.reduce((sum, ativo) => sum + ativo.percentualCarteira, 0);
+    secao.totalValorAtualizado = secao.ativos.reduce(
+      (sum, ativo) => sum + ativo.valorAtualizado,
+      0,
+    );
+    secao.totalPercentualCarteira = secao.ativos.reduce(
+      (sum, ativo) => sum + ativo.percentualCarteira,
+      0,
+    );
     secao.totalRisco = secao.ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
     secao.totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
     secao.totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-    secao.totalNecessidadeAporte = secao.ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
-    secao.rentabilidadeMedia = secao.ativos.length > 0 
-      ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length 
-      : 0;
+    secao.totalNecessidadeAporte = secao.ativos.reduce(
+      (sum, ativo) => sum + ativo.necessidadeAporte,
+      0,
+    );
+    secao.rentabilidadeMedia =
+      secao.ativos.length > 0
+        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
+        : 0;
   });
 
   // Calcular resumo
@@ -192,27 +213,30 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     saldoInicioMes: totalValorAplicado,
     valorAtualizado: valorAtualizadoComCaixa,
     rendimento: valorAtualizadoComCaixa - totalValorAplicado,
-    rentabilidade: totalValorAplicado > 0 ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100 : 0
+    rentabilidade:
+      totalValorAplicado > 0
+        ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+        : 0,
   };
 
   // Calcular alocação por segmento
-  const alocacaoSegmento = secoes.map(secao => ({
+  const alocacaoSegmento = secoes.map((secao) => ({
     segmento: secao.nome,
     valor: secao.totalValorAtualizado,
     percentual: (secao.totalValorAtualizado / totalValorAtualizado) * 100,
-    cor: getSegmentColor(secao.tipo)
+    cor: getSegmentColor(secao.tipo),
   }));
 
   // Calcular alocação por ativo
-  const alocacaoAtivo = fiiAtivos.map(ativo => ({
+  const alocacaoAtivo = fiiAtivos.map((ativo) => ({
     ticker: ativo.ticker,
     valor: ativo.valorAtualizado,
     percentual: (ativo.valorAtualizado / totalValorAtualizado) * 100,
-    cor: getAtivoColor(ativo.ticker)
+    cor: getAtivoColor(ativo.ticker),
   }));
 
   // Tabela auxiliar (dados adicionais)
-  const tabelaAuxiliar = fiiAtivos.map(ativo => ({
+  const tabelaAuxiliar = fiiAtivos.map((ativo) => ({
     ticker: ativo.ticker,
     nome: ativo.nome,
     quantidade: ativo.quantidade,
@@ -221,7 +245,7 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     rentabilidade: ativo.rentabilidade,
     cotacaoAtual: ativo.cotacaoAtual,
     necessidadeAporte: ativo.necessidadeAporte,
-    loteAproximado: Math.ceil(ativo.quantidade / 100) // Aproximação
+    loteAproximado: Math.ceil(ativo.quantidade / 100), // Aproximação
   }));
 
   return {
@@ -236,11 +260,11 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
       objetivo: totalObjetivo,
       quantoFalta: totalQuantoFalta,
       necessidadeAporte: totalNecessidadeAporte,
-      rentabilidade: rentabilidadeMedia
+      rentabilidade: rentabilidadeMedia,
     },
     alocacaoSegmento,
     alocacaoAtivo,
-    tabelaAuxiliar
+    tabelaAuxiliar,
   };
 }
 
@@ -257,14 +281,11 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await calculateFiiData(user.id);
-    
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Erro ao buscar dados FII:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -276,9 +297,12 @@ export async function POST(request: NextRequest) {
 
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json({
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+          },
+          { status: 400 },
+        );
       }
 
       // Salvar ou atualizar caixa para investir de FII
@@ -304,52 +328,40 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir
+        caixaParaInvestir,
       });
     }
 
     if (!ativoId) {
-      return NextResponse.json(
-        { error: 'Parâmetro obrigatório: ativoId' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
     }
 
     if (objetivo !== undefined) {
       if (objetivo < 0 || objetivo > 100) {
-        return NextResponse.json(
-          { error: 'Objetivo deve estar entre 0 e 100%' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: 'Objetivo deve estar entre 0 e 100%' }, { status: 400 });
       }
       console.log(`Atualizando objetivo do FII ${ativoId} para ${objetivo}%`);
     }
 
     if (cotacao !== undefined) {
       if (cotacao <= 0) {
-        return NextResponse.json(
-          { error: 'Cotação deve ser maior que zero' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: 'Cotação deve ser maior que zero' }, { status: 400 });
       }
       console.log(`Atualizando cotação do FII ${ativoId} para R$ ${cotacao}`);
     }
 
     // Simular delay de rede
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Dados atualizados com sucesso' 
+    return NextResponse.json({
+      success: true,
+      message: 'Dados atualizados com sucesso',
     });
   } catch (error) {
     console.error('Erro ao atualizar dados FII:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

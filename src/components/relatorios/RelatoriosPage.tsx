@@ -1,87 +1,25 @@
-"use client";
+'use client';
 
-import React, { useMemo } from "react";
-import ComponentCard from "@/components/common/ComponentCard";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import Button from "@/components/ui/button/Button";
-import DatePicker from "@/components/form/date-picker";
-import { useReportPeriod, REPORT_PERIOD_OPTIONS, ReportPeriodValue } from "@/hooks/useReportPeriod";
-import { useIndices } from "@/hooks/useIndices";
-import { useCarteiraHistorico } from "@/hooks/useCarteiraHistorico";
-import { useCarteira } from "@/hooks/useCarteira";
-import { useProventos } from "@/hooks/useProventos";
-import { useCashflowData, useProcessedData } from "@/hooks/useCashflow";
-import { useInstituicaoDistribuicao } from "@/hooks/useInstituicaoDistribuicao";
-import RentabilidadeChart from "@/components/analises/RentabilidadeChart";
-import ProventosHistoricoChart from "@/components/analises/ProventosHistoricoChart";
-import ProventosDistribuicaoChart from "@/components/analises/ProventosDistribuicaoChart";
-import PieChartCarteiraInvestimentos from "@/components/charts/pie/PieChartCarteiraInvestimentos";
-import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCarteiraHistorico";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  DollarLineIcon,
-  PieChartIcon,
-  GridIcon,
-  TableIcon,
-  DocsIcon,
-} from "@/icons";
+import { useCallback, useMemo } from 'react';
+import ComponentCard from '@/components/common/ComponentCard';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import Button from '@/components/ui/button/Button';
+import DatePicker from '@/components/form/date-picker';
+import { useReportPeriod, REPORT_PERIOD_OPTIONS, ReportPeriodValue } from '@/hooks/useReportPeriod';
+import { useIndices } from '@/hooks/useIndices';
+import { useCarteiraHistorico } from '@/hooks/useCarteiraHistorico';
+import { useCarteira } from '@/hooks/useCarteira';
+import { useProventos } from '@/hooks/useProventos';
+import { useCashflowData, useProcessedData } from '@/hooks/useCashflow';
+import { useInstituicaoDistribuicao } from '@/hooks/useInstituicaoDistribuicao';
+import RentabilidadeChart from '@/components/analises/RentabilidadeChart';
+import ProventosHistoricoChart from '@/components/analises/ProventosHistoricoChart';
+import ProventosDistribuicaoChart from '@/components/analises/ProventosDistribuicaoChart';
+import PieChartCarteiraInvestimentos from '@/components/charts/pie/PieChartCarteiraInvestimentos';
+import LineChartCarteiraHistorico from '@/components/charts/line/LineChartCarteiraHistorico';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 
-type ReportId =
-  | "rentabilidade"
-  | "proventos"
-  | "distribuicao"
-  | "evolucao"
-  | "fluxo"
-  | "comparativo";
-
-type ReportCard = {
-  id: ReportId;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-};
-
-const REPORT_CARDS: ReportCard[] = [
-  {
-    id: "rentabilidade",
-    title: "Rentabilidade da Carteira",
-    description: "Evolução do retorno acumulado da carteira no período.",
-    icon: <DollarLineIcon />,
-  },
-  {
-    id: "proventos",
-    title: "Proventos Recebidos",
-    description: "Histórico e distribuição de proventos recebidos.",
-    icon: <DocsIcon />,
-  },
-  {
-    id: "distribuicao",
-    title: "Distribuição de Ativos",
-    description: "Composição atual da carteira por classe de ativos.",
-    icon: <PieChartIcon />,
-  },
-  {
-    id: "evolucao",
-    title: "Evolução Patrimonial",
-    description: "Histórico de patrimônio consolidado no período.",
-    icon: <GridIcon />,
-  },
-  {
-    id: "fluxo",
-    title: "Fluxo de Caixa Consolidado",
-    description: "Totais consolidados de entradas e saídas no período.",
-    icon: <TableIcon />,
-  },
-  {
-    id: "comparativo",
-    title: "Comparativo com Índices",
-    description: "Comparação da carteira com CDI, IBOV e IPCA.",
-    icon: <DollarLineIcon />,
-  },
-];
-
-const formatDateLabel = (date: Date | null) =>
-  date ? date.toLocaleDateString("pt-BR") : "--";
+const formatDateLabel = (date: Date | null) => (date ? date.toLocaleDateString('pt-BR') : '--');
 
 export default function RelatoriosPage() {
   const {
@@ -103,41 +41,45 @@ export default function RelatoriosPage() {
   const { resumo, loading: carteiraLoading } = useCarteira();
   const { data: carteiraHistorico, loading: loadingCarteiraHistorico } =
     useCarteiraHistorico(startTimestamp);
-  const { indices: indices1d, loading: loadingIndices } = useIndices("1y", startTimestamp);
-  const { indices: indices1mo } = useIndices("1mo", startTimestamp);
-  const { indices: indices1y } = useIndices("1y", startTimestamp);
-  const { proventos, grouped, loading: loadingProventos } = useProventos(
-    startDateISO,
-    endDateISO,
-    "ativo"
-  );
+  const { indices: indices1d, loading: loadingIndices } = useIndices('1y', startTimestamp);
+  const { indices: indices1mo } = useIndices('1mo', startTimestamp);
+  const { indices: indices1y } = useIndices('1y', startTimestamp);
+  const {
+    proventos,
+    grouped,
+    loading: loadingProventos,
+  } = useProventos(startDateISO, endDateISO, 'ativo');
   const { data: cashflowData, loading: loadingCashflow } = useCashflowData();
   const cashflowProcessed = useProcessedData(cashflowData);
-  const {
-    grouped: instituicaoGrouped,
-    loading: loadingInstituicaoDistribuicao,
-  } = useInstituicaoDistribuicao();
+  const { grouped: instituicaoGrouped, loading: loadingInstituicaoDistribuicao } =
+    useInstituicaoDistribuicao();
 
-  const filterCarteiraByRange = <T extends { date: number }>(data: T[]) => {
-    let filtered = data;
-    if (startTimestamp) {
-      filtered = filtered.filter((item) => item.date >= startTimestamp);
-    }
-    if (endTimestamp) {
-      filtered = filtered.filter((item) => item.date <= endTimestamp);
-    }
-    return filtered;
-  };
+  const filterCarteiraByRange = useCallback(
+    <T extends { date: number }>(data: T[]) => {
+      let filtered = data;
+      if (startTimestamp) {
+        filtered = filtered.filter((item) => item.date >= startTimestamp);
+      }
+      if (endTimestamp) {
+        filtered = filtered.filter((item) => item.date <= endTimestamp);
+      }
+      return filtered;
+    },
+    [startTimestamp, endTimestamp],
+  );
 
   // Índices: filtrar apenas por end (manter dados anteriores para alinhamento no gráfico)
-  const filterIndicesByEnd = <T extends { date: number }>(data: T[]) => {
-    if (!endTimestamp) return data;
-    return data.filter((item) => item.date <= endTimestamp);
-  };
+  const filterIndicesByEnd = useCallback(
+    <T extends { date: number }>(data: T[]) => {
+      if (!endTimestamp) return data;
+      return data.filter((item) => item.date <= endTimestamp);
+    },
+    [endTimestamp],
+  );
 
   const filteredCarteiraHistorico = useMemo(
     () => filterCarteiraByRange(carteiraHistorico),
-    [carteiraHistorico, startTimestamp, endTimestamp]
+    [carteiraHistorico, filterCarteiraByRange],
   );
 
   const filteredIndices1d = useMemo(
@@ -149,7 +91,7 @@ export default function RelatoriosPage() {
           data: filterIndicesByEnd(index.data),
         }))
         .filter((index) => Array.isArray(index.data) && index.data.length > 0),
-    [indices1d, endTimestamp]
+    [indices1d, filterIndicesByEnd],
   );
 
   const filteredIndices1mo = useMemo(
@@ -158,7 +100,7 @@ export default function RelatoriosPage() {
         ...index,
         data: filterIndicesByEnd(index.data),
       })),
-    [indices1mo, endTimestamp]
+    [indices1mo, filterIndicesByEnd],
   );
 
   const filteredIndices1y = useMemo(
@@ -167,7 +109,7 @@ export default function RelatoriosPage() {
         ...index,
         data: filterIndicesByEnd(index.data),
       })),
-    [indices1y, endTimestamp]
+    [indices1y, filterIndicesByEnd],
   );
 
   const filteredPatrimonio = useMemo(() => {
@@ -245,19 +187,19 @@ export default function RelatoriosPage() {
     };
 
     const ignoredGroupNames = new Set([
-      "despesas",
-      "despesas fixas",
-      "despesas variaveis",
-      "despesas variáveis",
-      "entradas",
-      "entradas fixas",
-      "entradas variaveis",
-      "entradas variáveis",
+      'despesas',
+      'despesas fixas',
+      'despesas variaveis',
+      'despesas variáveis',
+      'entradas',
+      'entradas fixas',
+      'entradas variaveis',
+      'entradas variáveis',
     ]);
 
     const buildRows = (
       groupList: typeof groups,
-      depth = 0
+      depth = 0,
     ): Array<{ id: string; name: string; total: number; depth: number }> => {
       return groupList.flatMap((group) => {
         const normalizedName = group.name.toLowerCase();
@@ -292,7 +234,7 @@ export default function RelatoriosPage() {
   }, [cashflowProcessed, startDate, endDate]);
 
   const formatCurrencyValue = (value: number) =>
-    value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const isLoading =
     carteiraLoading ||
@@ -352,7 +294,7 @@ export default function RelatoriosPage() {
         </div>
       </div>
 
-      {selected === "custom" && (
+      {selected === 'custom' && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <DatePicker
             id="report-start-date"
@@ -393,7 +335,12 @@ export default function RelatoriosPage() {
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
-              <Button size="sm" variant="primary" onClick={handleExportPdf} className="print-hidden">
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={handleExportPdf}
+                className="print-hidden"
+              >
                 Exportar PDF
               </Button>
             </div>
@@ -549,13 +496,18 @@ export default function RelatoriosPage() {
                   <TableBody>
                     {cashflowCategoryRows.length > 0 ? (
                       cashflowCategoryRows.map((row) => (
-                        <TableRow key={row.id} className="border-t border-gray-200 dark:border-gray-800">
+                        <TableRow
+                          key={row.id}
+                          className="border-t border-gray-200 dark:border-gray-800"
+                        >
                           <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                             <span
                               className="inline-flex items-center"
                               style={{ paddingLeft: `${row.depth * 16}px` }}
                             >
-                              {row.depth > 0 && <span className="mr-2 h-2 w-2 rounded-full bg-gray-300" />}
+                              {row.depth > 0 && (
+                                <span className="mr-2 h-2 w-2 rounded-full bg-gray-300" />
+                              )}
                               {row.name}
                             </span>
                           </TableCell>

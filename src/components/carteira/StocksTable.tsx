@@ -1,42 +1,42 @@
-"use client";
-import React, { useState, useMemo } from "react";
-import { useCarteiraStocks } from "@/hooks/useStocks";
-import { CarteiraStockAtivo, CarteiraStockSecao, EstrategiaCarteiraStock } from "@/types/carteiraStocks";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import ComponentCard from "@/components/common/ComponentCard";
-import PieChartStocksAtivo from "@/components/charts/pie/PieChartStocksAtivo";
-import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
-import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
-import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
-import AssetNameLink from "@/components/carteira/AssetNameLink";
+'use client';
+import React, { useState, useMemo } from 'react';
+import { useCarteiraStocks } from '@/hooks/useStocks';
+import {
+  CarteiraStockAtivo,
+  CarteiraStockSecao,
+  EstrategiaCarteiraStock,
+} from '@/types/carteiraStocks';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ComponentCard from '@/components/common/ComponentCard';
+import PieChartStocksAtivo from '@/components/charts/pie/PieChartStocksAtivo';
+import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const STOCKS_COLUMN_COUNT = 14;
 const STOCKS_AUX_COLUMN_COUNT = 5;
-const STOCKS_SECTION_ORDER = ["value", "growth", "risk"] as const;
+const STOCKS_SECTION_ORDER = ['value', 'growth', 'risk'] as const;
 const STOCKS_SECTION_NAMES: Record<(typeof STOCKS_SECTION_ORDER)[number], string> = {
-  value: "Value",
-  growth: "Growth",
-  risk: "Risk",
+  value: 'Value',
+  growth: 'Growth',
+  risk: 'Risk',
 };
 
 interface StocksMetricCardProps {
   title: string;
   value: string;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
 }
 
-const StocksMetricCard: React.FC<StocksMetricCardProps> = ({
-  title,
-  value,
-  color = "primary",
-}) => {
+const StocksMetricCard: React.FC<StocksMetricCardProps> = ({ title, value, color = 'primary' }) => {
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -86,11 +86,7 @@ const StocksTableRow: React.FC<StocksTableRowProps> = ({
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs text-black">
         <div>
-          <AssetNameLink
-            portfolioId={ativo.id}
-            ticker={ativo.ticker}
-            nome={ativo.nome}
-          />
+          <AssetNameLink portfolioId={ativo.id} ticker={ativo.ticker} nome={ativo.nome} />
           {ativo.dataCompra && (
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {new Date(ativo.dataCompra).toLocaleDateString('pt-BR')}
@@ -100,15 +96,13 @@ const StocksTableRow: React.FC<StocksTableRowProps> = ({
       </td>
       <td className="px-2 py-2 text-xs text-center">
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {ativo.sector ? ativo.sector.charAt(0).toUpperCase() + ativo.sector.slice(1).replace('_', ' ') : 'Outros'}
+          {ativo.sector
+            ? ativo.sector.charAt(0).toUpperCase() + ativo.sector.slice(1).replace('_', ' ')
+            : 'Outros'}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
-        {ativo.industryCategory}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatNumber(ativo.quantidade)}
-      </td>
+      <td className="px-2 py-2 text-xs text-center text-black">{ativo.industryCategory}</td>
+      <td className="px-2 py-2 text-xs text-right text-black">{formatNumber(ativo.quantidade)}</td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.precoAquisicao)}
       </td>
@@ -143,13 +137,11 @@ const StocksTableRow: React.FC<StocksTableRowProps> = ({
             <span className="text-xs text-black">%</span>
           </div>
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObjetivo(true)}
           >
-            <span className="text-black">
-              {formatPercentage(ativo.objetivo)}
-            </span>
+            <span className="text-black">{formatPercentage(ativo.objetivo)}</span>
           </div>
         )}
       </td>
@@ -190,10 +182,7 @@ const StocksSection: React.FC<StocksSectionProps> = ({
   return (
     <>
       {/* Cabeçalho da seção */}
-      <tr 
-        className="bg-[#808080] cursor-pointer"
-        onClick={onToggle}
-      >
+      <tr className="bg-[#808080] cursor-pointer" onClick={onToggle}>
         <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
@@ -238,21 +227,19 @@ const StocksSection: React.FC<StocksSectionProps> = ({
       </tr>
 
       {/* Ativos da seção */}
-      {isExpanded && secao.ativos.map((ativo) => (
-        <StocksTableRow
-          key={ativo.id}
-          ativo={ativo}
-          formatCurrency={formatCurrency}
-          formatPercentage={formatPercentage}
-          formatNumber={formatNumber}
-          onUpdateObjetivo={onUpdateObjetivo}
-        />
-      ))}
+      {isExpanded &&
+        secao.ativos.map((ativo) => (
+          <StocksTableRow
+            key={ativo.id}
+            ativo={ativo}
+            formatCurrency={formatCurrency}
+            formatPercentage={formatPercentage}
+            formatNumber={formatNumber}
+            onUpdateObjetivo={onUpdateObjetivo}
+          />
+        ))}
       {isExpanded && (
-        <BasicTablePlaceholderRows
-          count={placeholderCount}
-          colSpan={STOCKS_COLUMN_COUNT}
-        />
+        <BasicTablePlaceholderRows count={placeholderCount} colSpan={STOCKS_COLUMN_COUNT} />
       )}
     </>
   );
@@ -263,11 +250,21 @@ interface StocksTableProps {
 }
 
 export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir } = useCarteiraStocks();
-  const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
-  const necessidadeAporteTotalCalculada = necessidadeAporteMap.stocks ?? data?.resumo?.necessidadeAporteTotal ?? 0;
+  const {
+    data,
+    loading,
+    error,
+    formatCurrency,
+    formatPercentage,
+    formatNumber,
+    updateObjetivo,
+    updateCaixaParaInvestir,
+  } = useCarteiraStocks();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada =
+    necessidadeAporteMap.stocks ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(STOCKS_SECTION_ORDER)
+    new Set(STOCKS_SECTION_ORDER),
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -277,27 +274,28 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     const totalTabValue = data.totalGeral?.valorAtualizado || 0;
     const shouldCalculateRisco = totalCarteira > 0;
 
-    const secoesComRisco = data.secoes.map(secao => {
-      const totalPercentualCarteira = totalTabValue > 0
-        ? (secao.totalValorAtualizado / totalTabValue) * 100
-        : 0;
+    const secoesComRisco = data.secoes.map((secao) => {
+      const totalPercentualCarteira =
+        totalTabValue > 0 ? (secao.totalValorAtualizado / totalTabValue) * 100 : 0;
 
       return {
         ...secao,
-        ativos: secao.ativos.map(ativo => {
+        ativos: secao.ativos.map((ativo) => {
           // Percentual daquele tipo de ativo (não da carteira total)
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           // Quanto falta = diferença entre % atual e objetivo (em %)
           const quantoFalta = objetivo - percentualCarteira;
           // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
-          const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 
-            ? (quantoFalta / 100) * totalTabValue 
-            : 0;
-          
+          const necessidadeAporte =
+            totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+
           return {
             ...ativo,
-            riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+            riscoPorAtivo: shouldCalculateRisco
+              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+              : 0,
             percentualCarteira,
             quantoFalta,
             necessidadeAporte,
@@ -305,31 +303,42 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
         }),
         totalPercentualCarteira,
         totalRisco: secao.ativos.reduce(
-          (sum, ativo) => sum + (shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0),
-          0
+          (sum, ativo) =>
+            sum +
+            (shouldCalculateRisco
+              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+              : 0),
+          0,
         ),
         totalQuantoFalta: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           return sum + (objetivo - percentualCarteira);
         }, 0),
         totalNecessidadeAporte: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           const quantoFalta = objetivo - percentualCarteira;
-          return sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0);
+          return (
+            sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0)
+          );
         }, 0),
       };
     });
 
     const totalGeralRisco = secoesComRisco.reduce(
       (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
-      0
+      0,
     );
 
     // Recalcular totais gerais
     const totalQuantoFalta = secoesComRisco.reduce((sum, secao) => sum + secao.totalQuantoFalta, 0);
-    const totalNecessidadeAporte = secoesComRisco.reduce((sum, secao) => sum + secao.totalNecessidadeAporte, 0);
+    const totalNecessidadeAporte = secoesComRisco.reduce(
+      (sum, secao) => sum + secao.totalNecessidadeAporte,
+      0,
+    );
 
     return {
       ...data,
@@ -361,7 +370,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
   const normalizedSections = useMemo(() => {
     const createEmptySection = (
       estrategia: (typeof STOCKS_SECTION_ORDER)[number],
-      nome: string
+      nome: string,
     ): CarteiraStockSecao => ({
       estrategia: estrategia as EstrategiaCarteiraStock,
       nome,
@@ -446,48 +455,93 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
-                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+              <tr
+                className="border-b border-gray-200 dark:border-gray-700"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Nome do Ativo
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Sector
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Industry Category
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Quantidade
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Preço Médio
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor Total
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Cotação Atual
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor Atualizado
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   % da Carteira
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Objetivo
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Quanto Falta
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Nec. Aporte $
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Rentabilidade
                 </th>
               </tr>
@@ -495,9 +549,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
             <tbody>
               {/* Linha de totalização */}
               <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">
-                  TOTAL GERAL
-                </td>
+                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
@@ -514,9 +566,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  100.00%
-                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(data?.totalGeral?.objetivo)}
                 </td>
@@ -580,12 +630,15 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                 </thead>
                 <tbody>
                   {(data?.tabelaAuxiliar || []).map((item, index) => (
-                    <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
+                    <tr
+                      key={index}
+                      className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+                    >
+                      <td className="px-2 py-2 text-xs text-black">{item.nome}</td>
                       <td className="px-2 py-2 text-xs text-black">
-                        {item.nome}
-                      </td>
-                      <td className="px-2 py-2 text-xs text-black">
-                        {item.dataCompra ? new Date(item.dataCompra).toLocaleDateString('pt-BR') : '-'}
+                        {item.dataCompra
+                          ? new Date(item.dataCompra).toLocaleDateString('pt-BR')
+                          : '-'}
                       </td>
                       <td className="px-2 py-2 text-xs text-right text-black">
                         {formatCurrency(item.cotacaoAtual)}

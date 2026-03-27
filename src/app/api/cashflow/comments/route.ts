@@ -22,7 +22,10 @@ export async function GET(request: NextRequest) {
     const year = searchParams.get('year');
 
     if (!itemId || month === null || year === null) {
-      return NextResponse.json({ error: 'Parâmetros obrigatórios: itemId, month, year' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Parâmetros obrigatórios: itemId, month, year' },
+        { status: 400 },
+      );
     }
 
     // Buscar item (pode ser template ou personalizado)
@@ -51,7 +54,10 @@ export async function GET(request: NextRequest) {
     const yearInt = parseInt(year, 10);
 
     if (isNaN(monthIndex) || isNaN(yearInt) || monthIndex < 0 || monthIndex > 11) {
-      return NextResponse.json({ error: 'Parâmetros inválidos: month deve ser 0-11, year deve ser um número' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Parâmetros inválidos: month deve ser 0-11, year deve ser um número' },
+        { status: 400 },
+      );
     }
 
     // Buscar valor mensal e seu comentário
@@ -93,17 +99,25 @@ export async function PATCH(request: NextRequest) {
 
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
     const { itemId, month, year, comment } = await request.json();
-    
+
     // Log para debug (remover em produção se necessário)
-    console.log(`[PATCH /api/cashflow/comments] Usuário ID do token: ${payload.id}, Email: ${payload.email}`);
+    console.log(
+      `[PATCH /api/cashflow/comments] Usuário ID do token: ${payload.id}, Email: ${payload.email}`,
+    );
 
     // Validate input
     if (!itemId || typeof month !== 'number' || typeof year !== 'number') {
-      return NextResponse.json({ error: 'Dados inválidos: itemId, month e year são obrigatórios' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Dados inválidos: itemId, month e year são obrigatórios' },
+        { status: 400 },
+      );
     }
 
     if (month < 0 || month > 11) {
-      return NextResponse.json({ error: 'month deve ser entre 0 (Janeiro) e 11 (Dezembro)' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'month deve ser entre 0 (Janeiro) e 11 (Dezembro)' },
+        { status: 400 },
+      );
     }
 
     // Buscar item (pode ser template ou personalizado)
@@ -117,24 +131,25 @@ export async function PATCH(request: NextRequest) {
     if (item.userId === null) {
       try {
         finalItemId = await personalizeItem(item.id, payload.id);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Erro ao personalizar item:', error);
         // Se o erro for sobre usuário não encontrado, pode ser que o token esteja usando ID antigo
-        if (error.message && error.message.includes('Usuário não encontrado')) {
+        if (error instanceof Error && error.message.includes('Usuário não encontrado')) {
           return NextResponse.json(
             { error: 'Sessão inválida. Por favor, faça login novamente.' },
-            { status: 401 }
+            { status: 401 },
           );
         }
         return NextResponse.json(
-          { error: error.message || 'Erro ao personalizar item.' },
-          { status: 500 }
+          { error: error instanceof Error ? error.message : 'Erro ao personalizar item.' },
+          { status: 500 },
         );
       }
     }
 
     // Normalizar comment (null se string vazia, trim se não vazio)
-    const normalizedComment = typeof comment === 'string' && comment.trim() === '' ? null : (comment || null);
+    const normalizedComment =
+      typeof comment === 'string' && comment.trim() === '' ? null : comment || null;
 
     // Buscar ou criar CashflowValue
     const existingValue = await prisma.cashflowValue.findFirst({
@@ -195,4 +210,3 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
-

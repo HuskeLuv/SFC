@@ -33,15 +33,15 @@ const normalizeToStartZero = (data: IndexData[], startDate?: Date): IndexData[] 
 
   const sorted = [...data].sort((a, b) => a.date - b.date);
   const filtered = startDate
-    ? sorted.filter(item => item.date >= normalizeDateStart(startDate).getTime())
+    ? sorted.filter((item) => item.date >= normalizeDateStart(startDate).getTime())
     : sorted;
 
   if (filtered.length === 0) return [];
 
-  const values = filtered.map(item => Number(item.value)).filter(val => Number.isFinite(val));
+  const values = filtered.map((item) => Number(item.value)).filter((val) => Number.isFinite(val));
   const baseValue = filtered[0].value;
   if (!Number.isFinite(baseValue) || baseValue === 0) {
-    return filtered.map(item => ({
+    return filtered.map((item) => ({
       date: item.date,
       value: 0,
     }));
@@ -49,13 +49,15 @@ const normalizeToStartZero = (data: IndexData[], startDate?: Date): IndexData[] 
 
   const maxValue = values.length > 0 ? Math.max(...values) : baseValue;
   if (Math.abs(baseValue) < 1 && maxValue <= 300) {
-    console.error('[normalizeToStartZero] Série já parece estar em % acumulado. Normalização abortada.');
+    console.error(
+      '[normalizeToStartZero] Série já parece estar em % acumulado. Normalização abortada.',
+    );
     return [];
   }
 
-  return filtered.map(item => ({
+  return filtered.map((item) => ({
     date: item.date,
-    value: ((item.value / baseValue) - 1) * 100,
+    value: (item.value / baseValue - 1) * 100,
   }));
 };
 
@@ -77,7 +79,7 @@ const countBusinessDaysBetween = (start: number, end: number) => {
 const validateIndexSeries = (data: IndexData[], name: string) => {
   if (data.length === 0) return false;
 
-  const values = data.map(item => Number(item.value)).filter(val => Number.isFinite(val));
+  const values = data.map((item) => Number(item.value)).filter((val) => Number.isFinite(val));
   if (values.length === 0) {
     console.error(`[${name}] Série inválida: valores não numéricos.`);
     return false;
@@ -112,7 +114,7 @@ const logSeriesStats = (data: IndexData[], name: string) => {
   const years = Math.max(1 / 365, (last.date - first.date) / (365 * DAY_MS));
   const cagr = Math.pow(last.value / first.value, 1 / years) - 1;
   console.log(
-    `[${name}] inicial=${first.value.toFixed(2)} final=${last.value.toFixed(2)} CAGR=${(cagr * 100).toFixed(2)}%`
+    `[${name}] inicial=${first.value.toFixed(2)} final=${last.value.toFixed(2)} CAGR=${(cagr * 100).toFixed(2)}%`,
   );
 };
 
@@ -135,7 +137,9 @@ const fillMissingDaily = (data: IndexData[], endDate?: Date): IndexData[] => {
   const start = normalizeDateStart(new Date(sorted[0].date)).getTime();
   const end = normalizeDateStart(endDate || new Date(sorted[sorted.length - 1].date)).getTime();
 
-  const byDate = new Map(sorted.map(item => [normalizeDateStart(new Date(item.date)).getTime(), item.value]));
+  const byDate = new Map(
+    sorted.map((item) => [normalizeDateStart(new Date(item.date)).getTime(), item.value]),
+  );
   const filled: IndexData[] = [];
 
   let lastValue = byDate.get(start) ?? sorted[0].value;
@@ -156,7 +160,7 @@ const fillMissingDaily = (data: IndexData[], endDate?: Date): IndexData[] => {
 
 const normalizeMonthlySeries = (data: IndexData[]) => {
   const monthlyMap = new Map<number, IndexData>();
-  data.forEach(item => {
+  data.forEach((item) => {
     const date = new Date(item.date);
     const monthKey = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
     monthlyMap.set(monthKey, { date: monthKey, value: item.value });
@@ -178,13 +182,13 @@ const buildMonthlyIndex = (monthlyRates: IndexData[]): IndexData[] => {
     value: indexValue,
   });
 
-  sorted.forEach(item => {
+  sorted.forEach((item) => {
     const rate = Number(item.value);
     if (!Number.isFinite(rate)) return;
 
     const monthStart = normalizeDateStart(new Date(item.date));
     const nextMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
-    indexValue *= 1 + (rate / 100);
+    indexValue *= 1 + rate / 100;
     indexSeries.push({
       date: nextMonthStart.getTime(),
       value: indexValue,
@@ -205,7 +209,9 @@ const interpolateDailyIndex = (monthlyIndex: IndexData[], endDate?: Date): Index
     const current = sorted[i];
     const next = sorted[i + 1];
     const startDate = normalizeDateStart(new Date(current.date)).getTime();
-    const endDateRange = next ? normalizeDateStart(new Date(next.date)).getTime() : lastDate + DAY_MS;
+    const endDateRange = next
+      ? normalizeDateStart(new Date(next.date)).getTime()
+      : lastDate + DAY_MS;
 
     const totalDays = Math.max(1, Math.round((endDateRange - startDate) / DAY_MS));
     let currentValue = current.value;
@@ -213,7 +219,7 @@ const interpolateDailyIndex = (monthlyIndex: IndexData[], endDate?: Date): Index
     const dailyFactor = next ? Math.pow(targetValue / current.value, 1 / totalDays) : 1;
 
     for (let step = 0; step < totalDays; step += 1) {
-      const day = startDate + (step * DAY_MS);
+      const day = startDate + step * DAY_MS;
       if (day > lastDate) break;
       daily.push({ date: day, value: currentValue });
       currentValue *= dailyFactor;
@@ -231,7 +237,9 @@ const buildDailyIndexFromAnnualRate = (rateSeries: IndexData[], endDate?: Date):
   const end = normalizeDateStart(endDate || new Date()).getTime();
   let indexValue = 100;
 
-  const byDate = new Map(sorted.map(item => [normalizeDateStart(new Date(item.date)).getTime(), item.value]));
+  const byDate = new Map(
+    sorted.map((item) => [normalizeDateStart(new Date(item.date)).getTime(), item.value]),
+  );
   let currentRate = byDate.get(start) ?? sorted[0].value;
   const daily: IndexData[] = [{ date: start, value: indexValue }];
 
@@ -242,7 +250,7 @@ const buildDailyIndexFromAnnualRate = (rateSeries: IndexData[], endDate?: Date):
     }
 
     if (isBusinessDay(new Date(day))) {
-      const dailyFactor = Math.pow(1 + (Number(currentRate) / 100), 1 / 252);
+      const dailyFactor = Math.pow(1 + Number(currentRate) / 100, 1 / 252);
       indexValue *= dailyFactor;
     }
 
@@ -255,8 +263,8 @@ const buildDailyIndexFromAnnualRate = (rateSeries: IndexData[], endDate?: Date):
 const isMonthlyRateSeries = (data: IndexData[]): boolean => {
   if (data.length === 0) return true;
   const values = data
-    .map(item => Math.abs(Number(item.value)))
-    .filter(val => Number.isFinite(val));
+    .map((item) => Math.abs(Number(item.value)))
+    .filter((val) => Number.isFinite(val));
   if (values.length === 0) return true;
 
   const maxValue = Math.max(...values);
@@ -268,7 +276,7 @@ const isMonthlyRateSeries = (data: IndexData[]): boolean => {
  */
 const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
   try {
-    const where: any = {
+    const where: { indexType: string; date?: { gte: Date } } = {
       indexType: 'CDI',
     };
 
@@ -300,18 +308,18 @@ const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
     const hojeTimestamp = hoje.getTime();
 
     const indexData: IndexData[] = cdiRecords
-      .filter(record => {
+      .filter((record) => {
         const recordDate = new Date(record.date).getTime();
         return recordDate <= hojeTimestamp;
       })
-      .map(record => {
+      .map((record) => {
         // Converter decimal para percentual anual
         // value está em decimal (0.00045 = taxa diária)
         // CDI diário: converter para taxa anual multiplicando por 252 dias úteis
         // Exemplo: 0.00045 * 252 * 100 = 11.34% ao ano
         const dailyRate = Number(record.value); // 0.00045 (taxa diária em decimal)
         const annualRate = dailyRate * 252 * 100; // Taxa anual em percentual (11.34%)
-        
+
         return {
           date: new Date(record.date).getTime(),
           value: annualRate, // Taxa anual em percentual (ex: 11.34 para 11.34%)
@@ -330,7 +338,7 @@ const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
  */
 const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
   try {
-    const where: any = {
+    const where: { indexType: string; date?: { gte: Date } } = {
       indexType: 'IPCA',
     };
 
@@ -362,16 +370,16 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
     const hojeTimestamp = hoje.getTime();
 
     const indexData: IndexData[] = ipcaRecords
-      .filter(record => {
+      .filter((record) => {
         const recordDate = new Date(record.date).getTime();
         return recordDate <= hojeTimestamp;
       })
-      .map(record => {
+      .map((record) => {
         // Converter decimal para percentual mensal
         // value está em decimal (0.0042 = taxa mensal)
         // Exemplo: 0.0042 * 100 = 0.42% ao mês
         const monthlyRate = Number(record.value) * 100; // Taxa mensal em percentual (0.42%)
-        
+
         return {
           date: new Date(record.date).getTime(),
           value: monthlyRate, // Taxa mensal em percentual (ex: 0.42 para 0.42%)
@@ -430,7 +438,7 @@ const toUtcEndOfDay = (d: Date): Date =>
 const fetchBenchmarkCumulativeReturns = async (
   benchmarkType: string,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
 ): Promise<IndexData[]> => {
   const where: { benchmarkType: string; date?: { gte?: Date; lte?: Date } } = {
     benchmarkType,
@@ -471,19 +479,19 @@ const validateIbovGaps = (data: IndexData[]) => {
 export async function GET(request: NextRequest) {
   try {
     await requireAuthWithActing(request);
-    
+
     const { searchParams } = new URL(request.url);
     const range = (searchParams.get('range') || '1y') as '1d' | '1mo' | '1y' | '2y';
     const startDateParam = searchParams.get('startDate');
-    
+
     let startDate: Date | undefined;
     if (startDateParam) {
       startDate = new Date(parseInt(startDateParam, 10));
     }
-    
+
     const { startDate: rangeStart, endDate: rangeEnd } = getRangeDates(range, startDate);
     const results: IndexResponse[] = [];
-    
+
     // Prioridade 1: Buscar em benchmark_cumulative_returns (dados ingeridos externamente)
     const benchmarkTypes = ['CDI', 'IBOV', 'IPCA', 'POUPANCA'] as const;
     for (const benchmarkType of benchmarkTypes) {
@@ -504,176 +512,182 @@ export async function GET(request: NextRequest) {
               name: benchmarkType === 'POUPANCA' ? 'Poupança' : benchmarkType,
               data: filtered,
             });
-            console.log(`✅ ${benchmarkType}: ${filtered.length} pontos (benchmark_cumulative_returns)`);
+            console.log(
+              `✅ ${benchmarkType}: ${filtered.length} pontos (benchmark_cumulative_returns)`,
+            );
           }
         }
       } catch (err) {
         console.warn(`⚠️ ${benchmarkType} em benchmark_cumulative_returns:`, err);
       }
     }
-    
+
     // Se já temos os 4 benchmarks, retornar
     if (results.length >= 4) {
-      const validResults = results.filter((r) =>
-        r.data.length > 0 &&
-        r.data.every((item) => Number.isFinite(item.date) && Number.isFinite(item.value))
+      const validResults = results.filter(
+        (r) =>
+          r.data.length > 0 &&
+          r.data.every((item) => Number.isFinite(item.date) && Number.isFinite(item.value)),
       );
       return NextResponse.json({ indices: validResults });
     }
-    
+
     // Prioridade 2: Fallback para fontes originais (apenas para os que faltam)
-    const hasBenchmark = (name: string) => results.some((r) => r.name === name || r.symbol === name);
-    
+    const hasBenchmark = (name: string) =>
+      results.some((r) => r.name === name || r.symbol === name);
+
     // Buscar IBOV: banco primeiro, fallback BRAPI (se não tiver em benchmark_cumulative_returns)
     if (!hasBenchmark('IBOV')) {
-    for (const [name, symbol] of Object.entries(INDICES)) {
-      try {
-        const rawData = await getAssetHistory(symbol, rangeStart, rangeEnd);
-        let data: IndexData[] = rawData.map(({ date, value }) => ({ date, value }));
+      for (const [name, symbol] of Object.entries(INDICES)) {
+        try {
+          const rawData = await getAssetHistory(symbol, rangeStart, rangeEnd);
+          let data: IndexData[] = rawData.map(({ date, value }) => ({ date, value }));
 
-        // Filtrar por startDate se fornecido
-        if (startDate) {
-          const startTimestamp = startDate.getTime();
-          data = data.filter((item) => item.date >= startTimestamp);
-        }
+          // Filtrar por startDate se fornecido
+          if (startDate) {
+            const startTimestamp = startDate.getTime();
+            data = data.filter((item) => item.date >= startTimestamp);
+          }
 
-        // Filtrar dados futuros
-        const hoje = new Date();
-        hoje.setHours(23, 59, 59, 999);
-        const hojeTimestamp = hoje.getTime();
-        data = data.filter((item) => item.date <= hojeTimestamp);
-        if (data.length > 0) {
-          if (!validateIbovGaps(data)) {
-            console.error(`[${name}] Série ignorada por buracos excessivos.`);
-          } else {
-            const filled = fillMissingDaily(data, new Date());
-            if (!validateIndexSeries(filled, name)) {
-              console.error(`[${name}] Série ignorada por validação.`);
+          // Filtrar dados futuros
+          const hoje = new Date();
+          hoje.setHours(23, 59, 59, 999);
+          const hojeTimestamp = hoje.getTime();
+          data = data.filter((item) => item.date <= hojeTimestamp);
+          if (data.length > 0) {
+            if (!validateIbovGaps(data)) {
+              console.error(`[${name}] Série ignorada por buracos excessivos.`);
             } else {
-              logSeriesStats(filled, name);
-              const returns = normalizeToStartZero(filled, startDate);
+              const filled = fillMissingDaily(data, new Date());
+              if (!validateIndexSeries(filled, name)) {
+                console.error(`[${name}] Série ignorada por validação.`);
+              } else {
+                logSeriesStats(filled, name);
+                const returns = normalizeToStartZero(filled, startDate);
+                results.push({
+                  symbol,
+                  name,
+                  data: returns,
+                });
+              }
+            }
+            console.log(`✅ ${name} (${symbol}): ${data.length} pontos de dados`);
+          } else {
+            console.warn(`⚠️ ${name} (${symbol}): Nenhum dado retornado`);
+          }
+        } catch (error) {
+          console.error(`❌ Erro ao buscar ${name} (${symbol}):`, error);
+        }
+      }
+    }
+
+    // Buscar CDI do banco de dados (se não tiver em benchmark_cumulative_returns)
+    if (!hasBenchmark('CDI')) {
+      try {
+        const cdiData = await fetchCDIHistory(startDate);
+        if (Array.isArray(cdiData) && cdiData.length > 0) {
+          const dailyIndex = buildDailyIndexFromAnnualRate(cdiData);
+          if (!validateIndexSeries(dailyIndex, 'CDI')) {
+            console.error('[CDI] Série ignorada por validação.');
+          } else {
+            logSeriesStats(dailyIndex, 'CDI');
+            const cdiReturns = normalizeToStartZero(dailyIndex, startDate);
+            if (Array.isArray(cdiReturns) && cdiReturns.length > 0) {
               results.push({
-                symbol,
-                name,
-                data: returns,
+                symbol: 'CDI',
+                name: 'CDI',
+                data: cdiReturns,
               });
             }
           }
-          console.log(`✅ ${name} (${symbol}): ${data.length} pontos de dados`);
+          console.log(`✅ CDI: ${cdiData.length} pontos de dados`);
         } else {
-          console.warn(`⚠️ ${name} (${symbol}): Nenhum dado retornado`);
+          console.warn(`⚠️ CDI: Nenhum dado retornado`);
         }
       } catch (error) {
-        console.error(`❌ Erro ao buscar ${name} (${symbol}):`, error);
+        console.error(`❌ Erro ao buscar CDI:`, error);
       }
     }
-    }
-    
-    // Buscar CDI do banco de dados (se não tiver em benchmark_cumulative_returns)
-    if (!hasBenchmark('CDI')) {
-    try {
-      const cdiData = await fetchCDIHistory(startDate);
-      if (Array.isArray(cdiData) && cdiData.length > 0) {
-        const dailyIndex = buildDailyIndexFromAnnualRate(cdiData);
-        if (!validateIndexSeries(dailyIndex, 'CDI')) {
-          console.error('[CDI] Série ignorada por validação.');
-        } else {
-          logSeriesStats(dailyIndex, 'CDI');
-          const cdiReturns = normalizeToStartZero(dailyIndex, startDate);
-          if (Array.isArray(cdiReturns) && cdiReturns.length > 0) {
-            results.push({
-              symbol: 'CDI',
-              name: 'CDI',
-              data: cdiReturns,
-            });
-          }
-        }
-        console.log(`✅ CDI: ${cdiData.length} pontos de dados`);
-      } else {
-        console.warn(`⚠️ CDI: Nenhum dado retornado`);
-      }
-    } catch (error) {
-      console.error(`❌ Erro ao buscar CDI:`, error);
-    }
-    }
-    
+
     // Buscar IPCA do banco de dados (se não tiver em benchmark_cumulative_returns)
     if (!hasBenchmark('IPCA')) {
-    try {
-      const ipcaData = await fetchIPCAHistory(startDate);
-      if (Array.isArray(ipcaData) && ipcaData.length > 0) {
-        const monthlyIndex = isMonthlyRateSeries(ipcaData)
-          ? buildMonthlyIndex(ipcaData)
-          : normalizeMonthlySeries(ipcaData);
-        const dailyIndex = interpolateDailyIndex(monthlyIndex);
-        if (!validateIndexSeries(dailyIndex, 'IPCA')) {
-          console.error('[IPCA] Série ignorada por validação.');
-        } else {
-          logSeriesStats(dailyIndex, 'IPCA');
-          const ipcaReturns = normalizeToStartZero(dailyIndex, startDate);
-          if (Array.isArray(ipcaReturns) && ipcaReturns.length > 0) {
-            results.push({
-              symbol: 'IPCA',
-              name: 'IPCA',
-              data: ipcaReturns,
-            });
+      try {
+        const ipcaData = await fetchIPCAHistory(startDate);
+        if (Array.isArray(ipcaData) && ipcaData.length > 0) {
+          const monthlyIndex = isMonthlyRateSeries(ipcaData)
+            ? buildMonthlyIndex(ipcaData)
+            : normalizeMonthlySeries(ipcaData);
+          const dailyIndex = interpolateDailyIndex(monthlyIndex);
+          if (!validateIndexSeries(dailyIndex, 'IPCA')) {
+            console.error('[IPCA] Série ignorada por validação.');
+          } else {
+            logSeriesStats(dailyIndex, 'IPCA');
+            const ipcaReturns = normalizeToStartZero(dailyIndex, startDate);
+            if (Array.isArray(ipcaReturns) && ipcaReturns.length > 0) {
+              results.push({
+                symbol: 'IPCA',
+                name: 'IPCA',
+                data: ipcaReturns,
+              });
+            }
           }
+          console.log(`✅ IPCA: ${ipcaData.length} pontos de dados`);
+        } else {
+          console.warn(`⚠️ IPCA: Nenhum dado retornado`);
         }
-        console.log(`✅ IPCA: ${ipcaData.length} pontos de dados`);
-      } else {
-        console.warn(`⚠️ IPCA: Nenhum dado retornado`);
+      } catch (error) {
+        console.error(`❌ Erro ao buscar IPCA:`, error);
       }
-    } catch (error) {
-      console.error(`❌ Erro ao buscar IPCA:`, error);
     }
-    }
-    
+
     // Garantir que todos os resultados têm a estrutura correta
-    const validResults = results.filter(result => 
-      result && 
-      typeof result.name === 'string' &&
-      typeof result.symbol === 'string' &&
-      Array.isArray(result.data) &&
-      result.data.length > 0 &&
-      result.data.every(item => 
-        item && 
-        typeof item.date === 'number' && 
-        typeof item.value === 'number' &&
-        Number.isFinite(item.date) &&
-        Number.isFinite(item.value)
-      )
+    const validResults = results.filter(
+      (result) =>
+        result &&
+        typeof result.name === 'string' &&
+        typeof result.symbol === 'string' &&
+        Array.isArray(result.data) &&
+        result.data.length > 0 &&
+        result.data.every(
+          (item) =>
+            item &&
+            typeof item.date === 'number' &&
+            typeof item.value === 'number' &&
+            Number.isFinite(item.date) &&
+            Number.isFinite(item.value),
+        ),
     );
 
-    console.log(`📊 Total de índices retornados: ${validResults.length} (${results.length} processados)`);
-    
-    const ipcaSeries = validResults.find(item => item.name === 'IPCA')?.data || [];
-    const cdiSeries = validResults.find(item => item.name === 'CDI')?.data || [];
-    const ibovSeries = validResults.find(item => item.name === 'IBOV')?.data || [];
+    console.log(
+      `📊 Total de índices retornados: ${validResults.length} (${results.length} processados)`,
+    );
+
+    const ipcaSeries = validResults.find((item) => item.name === 'IPCA')?.data || [];
+    const _cdiSeries = validResults.find((item) => item.name === 'CDI')?.data || [];
+    const _ibovSeries = validResults.find((item) => item.name === 'IBOV')?.data || [];
 
     const ipcaYears = getSeriesRangeYears(ipcaSeries);
     const ipcaLast = getLastValue(ipcaSeries);
     if (ipcaYears >= 8 && typeof ipcaLast === 'number' && ipcaLast > 200) {
-      console.error(`[IPCA] Acumulado em ${ipcaYears.toFixed(1)} anos > 200% (valor=${ipcaLast.toFixed(2)}%).`);
+      console.error(
+        `[IPCA] Acumulado em ${ipcaYears.toFixed(1)} anos > 200% (valor=${ipcaLast.toFixed(2)}%).`,
+      );
     }
 
     // Validação removida: CDI pode ser maior que IBOV em alguns períodos,
     // especialmente em períodos de alta taxa de juros ou baixa performance do mercado de ações.
     // Isso é normal e não deve ser tratado como erro.
 
-    validResults.forEach(series => {
+    validResults.forEach((series) => {
       const lastValue = getLastValue(series.data);
       if (typeof lastValue === 'number' && lastValue > 300) {
         console.error(`[${series.name}] Acumulado acima de 300% (valor=${lastValue.toFixed(2)}%).`);
       }
     });
-    
+
     return NextResponse.json({ indices: validResults });
   } catch (error) {
     console.error('Erro ao buscar índices:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar dados de índices' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro ao buscar dados de índices' }, { status: 500 });
   }
 }
-

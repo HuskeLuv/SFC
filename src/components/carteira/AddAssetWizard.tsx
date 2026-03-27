@@ -1,17 +1,17 @@
-"use client";
-import React, { useEffect, useRef, useState } from "react";
-import Sidebar from "@/components/ui/sidebar/Sidebar";
-import Button from "@/components/ui/button/Button";
-import { WizardFormData, WizardErrors, WizardStep } from "@/types/wizard";
-import Step1AssetType from "./wizard/Step1AssetType";
-import Step2Institution from "./wizard/Step2Institution";
-import Step3Asset from "./wizard/Step3Asset";
-import Step4AssetInfo from "./wizard/Step4AssetInfo";
-import Step5Confirmation from "./wizard/Step5Confirmation";
-import Step2AporteInstitution from "./wizard/Step2AporteInstitution";
-import Step3AporteAsset from "./wizard/Step3AporteAsset";
-import Step4AporteInfo from "./wizard/Step4AporteInfo";
-import Step5AporteConfirmation from "./wizard/Step5AporteConfirmation";
+'use client';
+import React, { useEffect, useRef, useState } from 'react';
+import Sidebar from '@/components/ui/sidebar/Sidebar';
+import Button from '@/components/ui/button/Button';
+import { WizardFormData, WizardErrors, WizardStep } from '@/types/wizard';
+import Step1AssetType from './wizard/Step1AssetType';
+import Step2Institution from './wizard/Step2Institution';
+import Step3Asset from './wizard/Step3Asset';
+import Step4AssetInfo from './wizard/Step4AssetInfo';
+import Step5Confirmation from './wizard/Step5Confirmation';
+import Step2AporteInstitution from './wizard/Step2AporteInstitution';
+import Step3AporteAsset from './wizard/Step3AporteAsset';
+import Step4AporteInfo from './wizard/Step4AporteInfo';
+import Step5AporteConfirmation from './wizard/Step5AporteConfirmation';
 
 interface AddAssetWizardProps {
   isOpen: boolean;
@@ -20,21 +20,21 @@ interface AddAssetWizardProps {
 }
 
 const INITIAL_FORM_DATA: WizardFormData = {
-  operacao: "compra",
-  tipoAtivo: "",
-  rendaFixaTipo: "",
-  rendaFixaVariante: "",
-  rendaFixaIndexer: "",
+  operacao: 'compra',
+  tipoAtivo: '',
+  rendaFixaTipo: '',
+  rendaFixaVariante: '',
+  rendaFixaIndexer: '',
   rendaFixaIndexerPercent: 0,
-  rendaFixaLiquidity: "",
+  rendaFixaLiquidity: '',
   rendaFixaTaxExempt: false,
-  instituicao: "",
-  instituicaoId: "",
-  ativo: "",
-  assetId: "",
-  dataCompra: "",
-  dataInicio: "",
-  dataVencimento: "",
+  instituicao: '',
+  instituicaoId: '',
+  ativo: '',
+  assetId: '',
+  dataCompra: '',
+  dataInicio: '',
+  dataVencimento: '',
   quantidade: 0,
   cotacaoUnitaria: 0,
   cotacaoCompra: 0,
@@ -45,22 +45,22 @@ const INITIAL_FORM_DATA: WizardFormData = {
   taxaJurosAnual: 0,
   taxaFixaAnual: 0,
   percentualCDI: 0,
-  indexador: "",
-  emissor: "",
-  emissorId: "",
-  periodo: "",
-  descricao: "",
-  observacoes: "",
+  indexador: '',
+  emissor: '',
+  emissorId: '',
+  periodo: '',
+  descricao: '',
+  observacoes: '',
   metodo: 'valor',
-  moeda: "",
-  nomePersonalizado: "",
+  moeda: '',
+  nomePersonalizado: '',
   precoUnitario: 0,
-  cotizacaoResgate: "",
-  liquidacaoResgate: "",
-  vencimento: "",
-  benchmark: "",
-  estrategia: "",
-  tipoFii: "",
+  cotizacaoResgate: '',
+  liquidacaoResgate: '',
+  vencimento: '',
+  benchmark: '',
+  estrategia: '',
+  tipoFii: '',
   tipoDebenture: undefined,
   tipoFundo: undefined,
   estrategiaReit: undefined,
@@ -70,19 +70,39 @@ const INITIAL_FORM_DATA: WizardFormData = {
   fundoRendaFixaTipo: undefined,
   opcaoTipo: undefined,
   opcaoCompraVenda: undefined,
-  portfolioId: "",
-  dataAporte: "",
+  portfolioId: '',
+  dataAporte: '',
   valorAporte: 0,
   availableQuantity: 0,
   availableTotal: 0,
 };
 
 const STEPS: WizardStep[] = [
-  { id: "asset-type", title: "Tipo de Ativo", description: "Escolha o tipo de ativo que deseja adicionar", isValid: false },
-  { id: "institution", title: "Instituição", description: "Selecione a instituição financeira", isValid: false },
-  { id: "asset", title: "Ativo", description: "Escolha o ativo específico", isValid: false },
-  { id: "info", title: "Informações", description: "Preencha os dados do investimento", isValid: false },
-  { id: "confirmation", title: "Confirmação", description: "Revise e confirme os dados", isValid: false },
+  {
+    id: 'asset-type',
+    title: 'Tipo de Ativo',
+    description: 'Escolha o tipo de ativo que deseja adicionar',
+    isValid: false,
+  },
+  {
+    id: 'institution',
+    title: 'Instituição',
+    description: 'Selecione a instituição financeira',
+    isValid: false,
+  },
+  { id: 'asset', title: 'Ativo', description: 'Escolha o ativo específico', isValid: false },
+  {
+    id: 'info',
+    title: 'Informações',
+    description: 'Preencha os dados do investimento',
+    isValid: false,
+  },
+  {
+    id: 'confirmation',
+    title: 'Confirmação',
+    description: 'Revise e confirme os dados',
+    isValid: false,
+  },
 ];
 
 export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetWizardProps) {
@@ -97,14 +117,14 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   useEffect(() => {
     const validateStep4 = (): boolean => {
       const { tipoAtivo, dataCompra, dataInicio } = formData;
-      if (formData.operacao === "aporte") {
+      if (formData.operacao === 'aporte') {
         return !!(formData.dataAporte && formData.valorAporte > 0);
       }
-      
+
       // Validação básica - cada tipo terá validações específicas
-      if (tipoAtivo === "reserva-emergencia" || tipoAtivo === "reserva-oportunidade") {
+      if (tipoAtivo === 'reserva-emergencia' || tipoAtivo === 'reserva-oportunidade') {
         return !!(
-          dataCompra && 
+          dataCompra &&
           formData.valorInvestido > 0 &&
           formData.cotizacaoResgate &&
           formData.liquidacaoResgate &&
@@ -112,19 +132,19 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           formData.benchmark
         );
       }
-      
-      if (tipoAtivo === "conta-corrente") {
+
+      if (tipoAtivo === 'conta-corrente') {
         return !!(dataInicio && formData.valorAplicado > 0 && formData.contaCorrenteDestino);
       }
-      if (tipoAtivo === "poupanca") {
+      if (tipoAtivo === 'poupanca') {
         return !!(dataInicio && formData.valorAplicado > 0 && formData.contaCorrenteDestino);
       }
-      
-      if (tipoAtivo === "criptoativo") {
+
+      if (tipoAtivo === 'criptoativo') {
         return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoCompra > 0);
       }
-      
-      if (tipoAtivo === "moeda") {
+
+      if (tipoAtivo === 'moeda') {
         return !!(
           dataCompra &&
           formData.assetId &&
@@ -132,14 +152,26 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           formData.cotacaoCompra > 0
         );
       }
-      
-      if (tipoAtivo === "personalizado") {
-        return !!(dataInicio && formData.nomePersonalizado && formData.quantidade > 0 && formData.precoUnitario > 0 && formData.metodo);
+
+      if (tipoAtivo === 'personalizado') {
+        return !!(
+          dataInicio &&
+          formData.nomePersonalizado &&
+          formData.quantidade > 0 &&
+          formData.precoUnitario > 0 &&
+          formData.metodo
+        );
       }
-      
-      if (tipoAtivo === "renda-fixa" || tipoAtivo === "renda-fixa-posfixada" || tipoAtivo === "renda-fixa-hibrida") {
+
+      if (
+        tipoAtivo === 'renda-fixa' ||
+        tipoAtivo === 'renda-fixa-posfixada' ||
+        tipoAtivo === 'renda-fixa-hibrida'
+      ) {
         const dataInicioParsed = dataInicio ? new Date(dataInicio) : null;
-        const dataVencimentoParsed = formData.dataVencimento ? new Date(formData.dataVencimento) : null;
+        const dataVencimentoParsed = formData.dataVencimento
+          ? new Date(formData.dataVencimento)
+          : null;
         const hasValidDates = !!(
           dataInicioParsed &&
           dataVencimentoParsed &&
@@ -148,11 +180,16 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           dataInicioParsed.getTime() < dataVencimentoParsed.getTime()
         );
         const isTaxaJurosValida = formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000;
-        const isTaxaFixaValida = tipoAtivo !== "renda-fixa-hibrida" || ((formData.taxaFixaAnual ?? 0) > 0 && (formData.taxaFixaAnual ?? 0) <= 1000);
-        const isIndexerPercentValid = !formData.rendaFixaIndexerPercent || (formData.rendaFixaIndexerPercent >= 0 && formData.rendaFixaIndexerPercent <= 1000);
-        const isIndexerValid = tipoAtivo === "renda-fixa"
-          ? true
-          : !!formData.rendaFixaIndexer && ["CDI", "IPCA"].includes(formData.rendaFixaIndexer);
+        const isTaxaFixaValida =
+          tipoAtivo !== 'renda-fixa-hibrida' ||
+          ((formData.taxaFixaAnual ?? 0) > 0 && (formData.taxaFixaAnual ?? 0) <= 1000);
+        const isIndexerPercentValid =
+          !formData.rendaFixaIndexerPercent ||
+          (formData.rendaFixaIndexerPercent >= 0 && formData.rendaFixaIndexerPercent <= 1000);
+        const isIndexerValid =
+          tipoAtivo === 'renda-fixa'
+            ? true
+            : !!formData.rendaFixaIndexer && ['CDI', 'IPCA'].includes(formData.rendaFixaIndexer);
 
         return !!(
           formData.rendaFixaTipo &&
@@ -166,11 +203,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           isIndexerValid
         );
       }
-      
-      if (tipoAtivo === "tesouro-direto") {
+
+      if (tipoAtivo === 'tesouro-direto') {
         const dest = formData.tesouroDestino;
         if (!dest) return false;
-        if (dest === "reserva-emergencia" || dest === "reserva-oportunidade") {
+        if (dest === 'reserva-emergencia' || dest === 'reserva-oportunidade') {
           return !!(
             dataCompra &&
             formData.valorInvestido > 0 &&
@@ -180,41 +217,80 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
             formData.benchmark
           );
         }
-        if (dest === "renda-fixa-prefixada" || dest === "renda-fixa-posfixada" || dest === "renda-fixa-hibrida") {
-          const metodoCotasTesouro = formData.metodo === 'cotas' || formData.metodo === 'percentual';
+        if (
+          dest === 'renda-fixa-prefixada' ||
+          dest === 'renda-fixa-posfixada' ||
+          dest === 'renda-fixa-hibrida'
+        ) {
+          const metodoCotasTesouro =
+            formData.metodo === 'cotas' || formData.metodo === 'percentual';
           const valorOk = metodoCotasTesouro
             ? formData.quantidade > 0 && formData.cotacaoUnitaria > 0
             : formData.valorInvestido > 0;
           const dataVencOk = formData.dataVencimento;
           const descOk = !!formData.descricao;
-          const taxaPreOk = dest !== "renda-fixa-prefixada" || (formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000);
-          const indexadorOk = dest === "renda-fixa-prefixada" || (!!formData.rendaFixaIndexer && ['CDI', 'IPCA'].includes(formData.rendaFixaIndexer));
+          const taxaPreOk =
+            dest !== 'renda-fixa-prefixada' ||
+            (formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000);
+          const indexadorOk =
+            dest === 'renda-fixa-prefixada' ||
+            (!!formData.rendaFixaIndexer && ['CDI', 'IPCA'].includes(formData.rendaFixaIndexer));
           return !!(dataCompra && valorOk && dataVencOk && descOk && taxaPreOk && indexadorOk);
         }
         return false;
       }
 
-      if (tipoAtivo === "debenture" || tipoAtivo === "fundo" || tipoAtivo === "previdencia") {
-        const metodoValor = formData.metodo === 'valor' || !formData.metodo;
+      if (tipoAtivo === 'debenture' || tipoAtivo === 'fundo' || tipoAtivo === 'previdencia') {
         const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
-        const debentureTipoRequired = tipoAtivo === "debenture" && !!formData.tipoDebenture;
-        const fundoDestinoRequired = tipoAtivo === "fundo" && !!formData.fundoDestino;
-        const fundoRendaFixaTipoRequired = tipoAtivo === "fundo" && formData.fundoDestino === "renda-fixa" && !!formData.fundoRendaFixaTipo;
+        const debentureTipoRequired = tipoAtivo === 'debenture' && !!formData.tipoDebenture;
+        const fundoDestinoRequired = tipoAtivo === 'fundo' && !!formData.fundoDestino;
+        const fundoRendaFixaTipoRequired =
+          tipoAtivo === 'fundo' &&
+          formData.fundoDestino === 'renda-fixa' &&
+          !!formData.fundoRendaFixaTipo;
         if (metodoCotas) {
-          return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && (tipoAtivo !== "debenture" || debentureTipoRequired) && (tipoAtivo !== "fundo" || fundoDestinoRequired) && (tipoAtivo !== "fundo" || formData.fundoDestino !== "renda-fixa" || fundoRendaFixaTipoRequired));
+          return !!(
+            dataCompra &&
+            formData.quantidade > 0 &&
+            formData.cotacaoUnitaria > 0 &&
+            (tipoAtivo !== 'debenture' || debentureTipoRequired) &&
+            (tipoAtivo !== 'fundo' || fundoDestinoRequired) &&
+            (tipoAtivo !== 'fundo' ||
+              formData.fundoDestino !== 'renda-fixa' ||
+              fundoRendaFixaTipoRequired)
+          );
         }
-        return !!(dataCompra && formData.valorInvestido > 0 && (tipoAtivo !== "debenture" || debentureTipoRequired) && (tipoAtivo !== "fundo" || fundoDestinoRequired) && (tipoAtivo !== "fundo" || formData.fundoDestino !== "renda-fixa" || fundoRendaFixaTipoRequired));
-      }
-      
-      if (tipoAtivo === "fii") {
-        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.taxaCorretagem >= 0 && formData.tipoFii);
-      }
-      
-      if (tipoAtivo === "acao" || tipoAtivo === "acoes-brasil") {
-        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.estrategia);
+        return !!(
+          dataCompra &&
+          formData.valorInvestido > 0 &&
+          (tipoAtivo !== 'debenture' || debentureTipoRequired) &&
+          (tipoAtivo !== 'fundo' || fundoDestinoRequired) &&
+          (tipoAtivo !== 'fundo' ||
+            formData.fundoDestino !== 'renda-fixa' ||
+            fundoRendaFixaTipoRequired)
+        );
       }
 
-      if (tipoAtivo === "stock") {
+      if (tipoAtivo === 'fii') {
+        return !!(
+          dataCompra &&
+          formData.quantidade > 0 &&
+          formData.cotacaoUnitaria > 0 &&
+          formData.taxaCorretagem >= 0 &&
+          formData.tipoFii
+        );
+      }
+
+      if (tipoAtivo === 'acao' || tipoAtivo === 'acoes-brasil') {
+        return !!(
+          dataCompra &&
+          formData.quantidade > 0 &&
+          formData.cotacaoUnitaria > 0 &&
+          formData.estrategia
+        );
+      }
+
+      if (tipoAtivo === 'stock') {
         return !!(
           dataCompra &&
           formData.quantidade > 0 &&
@@ -225,11 +301,17 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         );
       }
 
-      if (tipoAtivo === "reit") {
-        return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0 && formData.cotacaoMoeda > 0 && formData.estrategiaReit);
+      if (tipoAtivo === 'reit') {
+        return !!(
+          dataCompra &&
+          formData.quantidade > 0 &&
+          formData.cotacaoUnitaria > 0 &&
+          formData.cotacaoMoeda > 0 &&
+          formData.estrategiaReit
+        );
       }
 
-      if (tipoAtivo === "opcoes") {
+      if (tipoAtivo === 'opcoes') {
         return !!(
           dataCompra &&
           formData.opcaoTipo &&
@@ -240,113 +322,138 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         );
       }
 
-      if (tipoAtivo === "etf") {
-        return !!(dataCompra && formData.regiaoEtf && formData.quantidade > 0 && formData.cotacaoUnitaria > 0);
+      if (tipoAtivo === 'etf') {
+        return !!(
+          dataCompra &&
+          formData.regiaoEtf &&
+          formData.quantidade > 0 &&
+          formData.cotacaoUnitaria > 0
+        );
       }
-      
+
       // Para BDRs, REITs, etc.
       return !!(dataCompra && formData.quantidade > 0 && formData.cotacaoUnitaria > 0);
     };
 
-    if (formData.tipoAtivo === "debenture") {
-      setErrors(prev => ({
+    if (formData.tipoAtivo === 'debenture') {
+      setErrors((prev) => ({
         ...prev,
-        tipoDebenture: !formData.tipoDebenture ? "Selecione o tipo de debênture (Pré, Pós ou Híbrida)" : undefined,
+        tipoDebenture: !formData.tipoDebenture
+          ? 'Selecione o tipo de debênture (Pré, Pós ou Híbrida)'
+          : undefined,
       }));
     }
-    if (formData.tipoAtivo === "fundo") {
-      setErrors(prev => ({
+    if (formData.tipoAtivo === 'fundo') {
+      setErrors((prev) => ({
         ...prev,
-        fundoDestino: !formData.fundoDestino ? "Selecione onde o fundo deve aparecer (Renda Fixa, Reserva ou FIM/FIA)" : undefined,
-        fundoRendaFixaTipo: formData.fundoDestino === "renda-fixa" && !formData.fundoRendaFixaTipo ? "Selecione o tipo de renda fixa (Pré, Pós ou Híbrida)" : undefined,
+        fundoDestino: !formData.fundoDestino
+          ? 'Selecione onde o fundo deve aparecer (Renda Fixa, Reserva ou FIM/FIA)'
+          : undefined,
+        fundoRendaFixaTipo:
+          formData.fundoDestino === 'renda-fixa' && !formData.fundoRendaFixaTipo
+            ? 'Selecione o tipo de renda fixa (Pré, Pós ou Híbrida)'
+            : undefined,
       }));
     }
-    if (formData.tipoAtivo === "reit") {
-      setErrors(prev => ({
+    if (formData.tipoAtivo === 'reit') {
+      setErrors((prev) => ({
         ...prev,
-        estrategiaReit: !formData.estrategiaReit ? "Selecione o tipo de investimento (Value, Growth ou Risk)" : undefined,
+        estrategiaReit: !formData.estrategiaReit
+          ? 'Selecione o tipo de investimento (Value, Growth ou Risk)'
+          : undefined,
       }));
     }
-    if (formData.tipoAtivo === "etf") {
-      setErrors(prev => ({
+    if (formData.tipoAtivo === 'etf') {
+      setErrors((prev) => ({
         ...prev,
-        regiaoEtf: !formData.regiaoEtf ? "Selecione a região do ETF (Brasil ou EUA)" : undefined,
+        regiaoEtf: !formData.regiaoEtf ? 'Selecione a região do ETF (Brasil ou EUA)' : undefined,
       }));
     }
-    if (formData.tipoAtivo === "stock") {
-      setErrors(prev => ({
+    if (formData.tipoAtivo === 'stock') {
+      setErrors((prev) => ({
         ...prev,
-        estrategia: !formData.estrategia ? "Selecione a estratégia (Value, Growth ou Risk)" : undefined,
+        estrategia: !formData.estrategia
+          ? 'Selecione a estratégia (Value, Growth ou Risk)'
+          : undefined,
       }));
     }
-    if (formData.tipoAtivo === "opcoes") {
-      setErrors(prev => ({
+    if (formData.tipoAtivo === 'opcoes') {
+      setErrors((prev) => ({
         ...prev,
-        opcaoTipo: !formData.opcaoTipo ? "Selecione Put ou Call" : undefined,
-        opcaoCompraVenda: !formData.opcaoCompraVenda ? "Selecione Compra ou Venda" : undefined,
+        opcaoTipo: !formData.opcaoTipo ? 'Selecione Put ou Call' : undefined,
+        opcaoCompraVenda: !formData.opcaoCompraVenda ? 'Selecione Compra ou Venda' : undefined,
       }));
     }
 
-    setSteps(prevSteps => 
+    setSteps((prevSteps) =>
       prevSteps.map((step) => {
         let isValid = false;
-        
+
         switch (step.id) {
-          case "asset-type":
+          case 'asset-type':
             isValid = !!formData.operacao && !!formData.tipoAtivo;
             break;
-          case "institution":
+          case 'institution':
             isValid = !!formData.instituicaoId;
             break;
-          case "asset":
-            if (formData.operacao === "aporte") {
+          case 'asset':
+            if (formData.operacao === 'aporte') {
               isValid = !!formData.portfolioId;
             } else {
-              if (formData.tipoAtivo === "renda-fixa" || formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida") {
+              if (
+                formData.tipoAtivo === 'renda-fixa' ||
+                formData.tipoAtivo === 'renda-fixa-posfixada' ||
+                formData.tipoAtivo === 'renda-fixa-hibrida'
+              ) {
                 isValid = !!(formData.rendaFixaVariante && formData.rendaFixaTipo);
-              } else if (formData.tipoAtivo === "conta-corrente" || formData.tipoAtivo === "poupanca") {
+              } else if (
+                formData.tipoAtivo === 'conta-corrente' ||
+                formData.tipoAtivo === 'poupanca'
+              ) {
                 isValid = true;
-              } else if (formData.tipoAtivo === "debenture") {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === "DEBENTURE-MANUAL");
-              } else if (formData.tipoAtivo === "fundo") {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === "FUNDO-MANUAL");
-              } else if (formData.tipoAtivo === "reit") {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === "REIT-MANUAL");
-              } else if (formData.tipoAtivo === "stock") {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === "STOCK-MANUAL");
-              } else if (formData.tipoAtivo === "acoes-brasil") {
+              } else if (formData.tipoAtivo === 'debenture') {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === 'DEBENTURE-MANUAL');
+              } else if (formData.tipoAtivo === 'fundo') {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === 'FUNDO-MANUAL');
+              } else if (formData.tipoAtivo === 'reit') {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === 'REIT-MANUAL');
+              } else if (formData.tipoAtivo === 'stock') {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === 'STOCK-MANUAL');
+              } else if (formData.tipoAtivo === 'acoes-brasil') {
                 isValid = !!(formData.assetId && formData.acoesBrasilTipo);
-              } else if (formData.tipoAtivo === "previdencia") {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === "PREVIDENCIA-MANUAL");
-              } else if (formData.tipoAtivo === "tesouro-direto") {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === "TESOURO-MANUAL");
-              } else if (formData.tipoAtivo === "opcoes") {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === "OPCAO-MANUAL");
-              } else if (formData.tipoAtivo === "reserva-oportunidade") {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === "RESERVA-OPORT");
-              } else if (formData.tipoAtivo === "reserva-emergencia") {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === "RESERVA-EMERG");
+              } else if (formData.tipoAtivo === 'previdencia') {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === 'PREVIDENCIA-MANUAL');
+              } else if (formData.tipoAtivo === 'tesouro-direto') {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === 'TESOURO-MANUAL');
+              } else if (formData.tipoAtivo === 'opcoes') {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === 'OPCAO-MANUAL');
+              } else if (formData.tipoAtivo === 'reserva-oportunidade') {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === 'RESERVA-OPORT');
+              } else if (formData.tipoAtivo === 'reserva-emergencia') {
+                isValid = !!(formData.ativo?.trim() && formData.assetId === 'RESERVA-EMERG');
               } else {
-                isValid = !!formData.assetId || formData.tipoAtivo === "personalizado";
+                isValid = !!formData.assetId || formData.tipoAtivo === 'personalizado';
               }
             }
             break;
-          case "info":
+          case 'info':
             isValid = validateStep4();
             break;
-          case "confirmation":
+          case 'confirmation':
             isValid = true; // Sempre válido no último passo
             break;
         }
-        
+
         return { ...step, isValid };
-      })
+      }),
     );
   }, [formData]);
 
-
   const handleNext = () => {
-    const skipStep3 = formData.tipoAtivo === "personalizado" || formData.tipoAtivo === "conta-corrente" || formData.tipoAtivo === "poupanca";
+    const skipStep3 =
+      formData.tipoAtivo === 'personalizado' ||
+      formData.tipoAtivo === 'conta-corrente' ||
+      formData.tipoAtivo === 'poupanca';
 
     if (skipStep3 && currentStep === 2) {
       setCurrentStep(3);
@@ -356,7 +463,10 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   };
 
   const handlePrevious = () => {
-    const skipStep3 = formData.tipoAtivo === "personalizado" || formData.tipoAtivo === "conta-corrente" || formData.tipoAtivo === "poupanca";
+    const skipStep3 =
+      formData.tipoAtivo === 'personalizado' ||
+      formData.tipoAtivo === 'conta-corrente' ||
+      formData.tipoAtivo === 'poupanca';
 
     if (skipStep3 && currentStep === 3) {
       setCurrentStep(1);
@@ -373,11 +483,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   };
 
   const handleFormDataChange = (newData: Partial<WizardFormData>) => {
-    setFormData(prev => ({ ...prev, ...newData }));
+    setFormData((prev) => ({ ...prev, ...newData }));
   };
 
   const handleErrorsChange = (newErrors: Partial<WizardErrors>) => {
-    setErrors(prev => ({ ...prev, ...newErrors }));
+    setErrors((prev) => ({ ...prev, ...newErrors }));
   };
 
   const handleSubmit = async () => {
@@ -387,7 +497,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     isSubmittingRef.current = true;
     setLoading(true);
     try {
-      if (formData.operacao === "aporte") {
+      if (formData.operacao === 'aporte') {
         const response = await fetch('/api/carteira/aporte', {
           method: 'POST',
           headers: {
@@ -416,33 +526,43 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
 
       // Converter 'reserva-emergencia' e 'reserva-oportunidade' para o formato da API
       const apiFormData = { ...formData };
-      if (apiFormData.tipoAtivo === "renda-fixa") {
-        apiFormData.rendaFixaIndexer = apiFormData.rendaFixaIndexer || "PRE";
+      if (apiFormData.tipoAtivo === 'renda-fixa') {
+        apiFormData.rendaFixaIndexer = apiFormData.rendaFixaIndexer || 'PRE';
       }
-      if (apiFormData.tipoAtivo === "reserva-emergencia") {
-        apiFormData.tipoAtivo = "emergency" as any;
+      if (apiFormData.tipoAtivo === 'reserva-emergencia') {
+        apiFormData.tipoAtivo = 'emergency';
         apiFormData.quantidade = 1;
         apiFormData.cotacaoUnitaria = apiFormData.valorInvestido;
-      } else if (apiFormData.tipoAtivo === "reserva-oportunidade") {
-        apiFormData.tipoAtivo = "opportunity" as any;
+      } else if (apiFormData.tipoAtivo === 'reserva-oportunidade') {
+        apiFormData.tipoAtivo = 'opportunity';
         apiFormData.quantidade = 1;
         apiFormData.cotacaoUnitaria = apiFormData.valorInvestido;
-      } else if (apiFormData.tipoAtivo === "acoes-brasil" && apiFormData.acoesBrasilTipo) {
+      } else if (apiFormData.tipoAtivo === 'acoes-brasil' && apiFormData.acoesBrasilTipo) {
         apiFormData.tipoAtivo = apiFormData.acoesBrasilTipo;
-      } else if ((apiFormData.tipoAtivo === "debenture" || apiFormData.tipoAtivo === "fundo") && (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')) {
+      } else if (
+        (apiFormData.tipoAtivo === 'debenture' || apiFormData.tipoAtivo === 'fundo') &&
+        (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')
+      ) {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
-      } else if (apiFormData.tipoAtivo === "reit") {
+      } else if (apiFormData.tipoAtivo === 'reit') {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
-      } else if (apiFormData.tipoAtivo === "tesouro-direto" && (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')) {
+      } else if (
+        apiFormData.tipoAtivo === 'tesouro-direto' &&
+        (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')
+      ) {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
-      } else if (apiFormData.tipoAtivo === "previdencia" && (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')) {
+      } else if (
+        apiFormData.tipoAtivo === 'previdencia' &&
+        (apiFormData.metodo === 'cotas' || apiFormData.metodo === 'percentual')
+      ) {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria;
-      } else if (apiFormData.tipoAtivo === "moeda") {
+      } else if (apiFormData.tipoAtivo === 'moeda') {
         apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoCompra;
-      } else if (apiFormData.tipoAtivo === "opcoes") {
-        apiFormData.valorInvestido = apiFormData.quantidade * apiFormData.cotacaoUnitaria + (apiFormData.taxaCorretagem || 0);
+      } else if (apiFormData.tipoAtivo === 'opcoes') {
+        apiFormData.valorInvestido =
+          apiFormData.quantidade * apiFormData.cotacaoUnitaria + (apiFormData.taxaCorretagem || 0);
       }
-      
+
       const response = await fetch('/api/carteira/operacao', {
         method: 'POST',
         headers: {
@@ -480,17 +600,21 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       onErrorsChange: handleErrorsChange,
     };
 
-    const isPersonalizado = formData.tipoAtivo === "personalizado";
-    const isContaCorrente = formData.tipoAtivo === "conta-corrente";
-    const isPoupanca = formData.tipoAtivo === "poupanca";
+    const isPersonalizado = formData.tipoAtivo === 'personalizado';
+    const isContaCorrente = formData.tipoAtivo === 'conta-corrente';
+    const isPoupanca = formData.tipoAtivo === 'poupanca';
     const skipStep3 = isPersonalizado || isContaCorrente || isPoupanca;
-    const isAporte = formData.operacao === "aporte";
+    const isAporte = formData.operacao === 'aporte';
 
     switch (currentStep) {
       case 0:
         return <Step1AssetType {...stepProps} />;
       case 1:
-        return isAporte ? <Step2AporteInstitution {...stepProps} /> : <Step2Institution {...stepProps} />;
+        return isAporte ? (
+          <Step2AporteInstitution {...stepProps} />
+        ) : (
+          <Step2Institution {...stepProps} />
+        );
       case 2:
         if (skipStep3) {
           return <Step4AssetInfo {...stepProps} />;
@@ -498,7 +622,14 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         return isAporte ? <Step3AporteAsset {...stepProps} /> : <Step3Asset {...stepProps} />;
       case 3:
         if (skipStep3) {
-          return <Step5Confirmation {...stepProps} onSubmit={handleSubmit} loading={loading} autoSubmit={isPersonalizado} />;
+          return (
+            <Step5Confirmation
+              {...stepProps}
+              onSubmit={handleSubmit}
+              loading={loading}
+              autoSubmit={isPersonalizado}
+            />
+          );
         }
         return isAporte ? <Step4AporteInfo {...stepProps} /> : <Step4AssetInfo {...stepProps} />;
       case 4:
@@ -506,14 +637,24 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           return <Step5AporteConfirmation {...stepProps} />;
         }
         // Auto-submit apenas para personalizado
-        const shouldAutoSubmit = formData.tipoAtivo === "personalizado";
-        return <Step5Confirmation {...stepProps} onSubmit={handleSubmit} loading={loading} autoSubmit={shouldAutoSubmit} />;
+        const shouldAutoSubmit = formData.tipoAtivo === 'personalizado';
+        return (
+          <Step5Confirmation
+            {...stepProps}
+            onSubmit={handleSubmit}
+            loading={loading}
+            autoSubmit={shouldAutoSubmit}
+          />
+        );
       default:
         return null;
     }
   };
 
-  const skipStep3 = formData.tipoAtivo === "personalizado" || formData.tipoAtivo === "conta-corrente" || formData.tipoAtivo === "poupanca";
+  const skipStep3 =
+    formData.tipoAtivo === 'personalizado' ||
+    formData.tipoAtivo === 'conta-corrente' ||
+    formData.tipoAtivo === 'poupanca';
 
   const canProceed = (() => {
     if (skipStep3) {
@@ -528,23 +669,27 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const isLastStep = skipStep3 ? currentStep === 3 : currentStep === steps.length - 1;
 
   return (
-    <Sidebar
-      isOpen={isOpen}
-      onClose={handleCancel}
-      title="Adicionar Ativo à Carteira"
-    >
+    <Sidebar isOpen={isOpen} onClose={handleCancel} title="Adicionar Ativo à Carteira">
       <div className="space-y-6">
         {/* Progress Indicator */}
         {(() => {
           const totalSteps = skipStep3 ? 4 : 5;
           const currentStepNumber = skipStep3
-            ? (currentStep === 0 ? 1 : currentStep === 1 ? 2 : currentStep === 2 ? 3 : 4)
+            ? currentStep === 0
+              ? 1
+              : currentStep === 1
+                ? 2
+                : currentStep === 2
+                  ? 3
+                  : 4
             : currentStep + 1;
-          
+
           return (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                <span>Passo {currentStepNumber} de {totalSteps}</span>
+                <span>
+                  Passo {currentStepNumber} de {totalSteps}
+                </span>
                 <span>{Math.round((currentStepNumber / totalSteps) * 100)}%</span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -559,9 +704,9 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
 
         {/* Step Title */}
         {(() => {
-          let stepTitle = "";
-          let stepDescription = "";
-          
+          let stepTitle = '';
+          let stepDescription = '';
+
           if (skipStep3) {
             if (currentStep === 0) {
               stepTitle = steps[0].title;
@@ -577,26 +722,20 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               stepDescription = steps[4].description;
             }
           } else {
-            stepTitle = steps[currentStep]?.title || "";
-            stepDescription = steps[currentStep]?.description || "";
+            stepTitle = steps[currentStep]?.title || '';
+            stepDescription = steps[currentStep]?.description || '';
           }
-          
+
           return (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {stepTitle}
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {stepDescription}
-              </p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{stepTitle}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{stepDescription}</p>
             </div>
           );
         })()}
 
         {/* Step Content */}
-        <div className="min-h-[400px]">
-          {renderCurrentStep()}
-        </div>
+        <div className="min-h-[400px]">{renderCurrentStep()}</div>
 
         {/* Navigation Buttons */}
         <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -609,7 +748,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           >
             Cancelar
           </Button>
-          
+
           {currentStep > 0 && (
             <Button
               type="button"
@@ -621,7 +760,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               Voltar
             </Button>
           )}
-          
+
           {!isLastStep ? (
             <Button
               type="button"
@@ -632,13 +771,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               Avançar
             </Button>
           ) : (
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              className="flex-1"
-              disabled={loading}
-            >
-              {loading ? "Salvando..." : "Confirmar"}
+            <Button type="button" onClick={handleSubmit} className="flex-1" disabled={loading}>
+              {loading ? 'Salvando...' : 'Confirmar'}
             </Button>
           )}
         </div>

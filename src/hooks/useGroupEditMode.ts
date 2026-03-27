@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
-import { CashflowItem, CashflowValue } from "@/types/cashflow";
-import { ColorOption } from "@/components/cashflow/ColorPickerButton";
+import { useState, useCallback } from 'react';
+import { CashflowItem, CashflowValue } from '@/types/cashflow';
+import { ColorOption } from '@/components/cashflow/ColorPickerButton';
 
 export interface EditableItemData {
   id: string;
@@ -26,7 +26,7 @@ export const useGroupEditMode = () => {
 
   const startEditing = useCallback((groupId: string, items: CashflowItem[]) => {
     setEditingGroups((prev) => new Set(prev).add(groupId));
-    
+
     // Inicializar estado de edição com dados atuais
     const initialData = new Map<string, EditableItemData>();
     items.forEach((item) => {
@@ -49,7 +49,7 @@ export const useGroupEditMode = () => {
         monthlyColors,
       });
     });
-    
+
     setEditedItems((prev) => {
       const merged = new Map(prev);
       initialData.forEach((value, key) => {
@@ -75,7 +75,7 @@ export const useGroupEditMode = () => {
       newSet.delete(groupId);
       return newSet;
     });
-    
+
     // Limpar dados editados deste grupo
     setEditedItems((prev) => {
       const newMap = new Map(prev);
@@ -87,7 +87,7 @@ export const useGroupEditMode = () => {
       });
       return newMap;
     });
-    
+
     setDeletedItemIds((prev) => {
       const newSet = new Set(prev);
       items.forEach((item) => {
@@ -97,45 +97,51 @@ export const useGroupEditMode = () => {
       });
       return newSet;
     });
-    
+
     // Limpar cor selecionada quando sair do modo de edição
     setSelectedColor(null);
     setIsCommentModeActive(false);
   }, []);
 
-  const isEditing = useCallback((groupId: string) => {
-    return editingGroups.has(groupId);
-  }, [editingGroups]);
+  const isEditing = useCallback(
+    (groupId: string) => {
+      return editingGroups.has(groupId);
+    },
+    [editingGroups],
+  );
 
-  const updateItemField = useCallback((
-    itemId: string,
-    field: "name" | "significado" | "rank" | "monthlyValue",
-    value: string | number | null,
-    monthIndex?: number
-  ) => {
-    setEditedItems((prev) => {
-      const newMap = new Map(prev);
-      const current = newMap.get(itemId);
-      
-      if (!current) return prev;
+  const updateItemField = useCallback(
+    (
+      itemId: string,
+      field: 'name' | 'significado' | 'rank' | 'monthlyValue',
+      value: string | number | null,
+      monthIndex?: number,
+    ) => {
+      setEditedItems((prev) => {
+        const newMap = new Map(prev);
+        const current = newMap.get(itemId);
 
-      const updated: EditableItemData = { ...current };
-      
-      if (field === "name") {
-        updated.name = value as string;
-      } else if (field === "significado") {
-        updated.significado = value as string | null;
-      } else if (field === "rank") {
-        updated.rank = value === null || value === "" ? null : value.toString();
-      } else if (field === "monthlyValue" && typeof monthIndex === "number") {
-        updated.monthlyValues = [...updated.monthlyValues];
-        updated.monthlyValues[monthIndex] = typeof value === "number" ? value : 0;
-      }
+        if (!current) return prev;
 
-      newMap.set(itemId, updated);
-      return newMap;
-    });
-  }, []);
+        const updated: EditableItemData = { ...current };
+
+        if (field === 'name') {
+          updated.name = value as string;
+        } else if (field === 'significado') {
+          updated.significado = value as string | null;
+        } else if (field === 'rank') {
+          updated.rank = value === null || value === '' ? null : value.toString();
+        } else if (field === 'monthlyValue' && typeof monthIndex === 'number') {
+          updated.monthlyValues = [...updated.monthlyValues];
+          updated.monthlyValues[monthIndex] = typeof value === 'number' ? value : 0;
+        }
+
+        newMap.set(itemId, updated);
+        return newMap;
+      });
+    },
+    [],
+  );
 
   const deleteItem = useCallback((itemId: string) => {
     setDeletedItemIds((prev) => new Set(prev).add(itemId));
@@ -160,7 +166,7 @@ export const useGroupEditMode = () => {
       newSet.delete(groupId);
       return newSet;
     });
-    
+
     // Restaurar dados originais
     const initialData = new Map<string, EditableItemData>();
     originalItems.forEach((item) => {
@@ -182,7 +188,7 @@ export const useGroupEditMode = () => {
         monthlyColors,
       });
     });
-    
+
     setEditedItems((prev) => {
       const merged = new Map(prev);
       originalItems.forEach((item) => {
@@ -197,7 +203,7 @@ export const useGroupEditMode = () => {
       });
       return merged;
     });
-    
+
     setDeletedItemIds((prev) => {
       const newSet = new Set(prev);
       originalItems.forEach((item) => {
@@ -207,153 +213,175 @@ export const useGroupEditMode = () => {
       });
       return newSet;
     });
-    
+
     // Limpar cor selecionada ao cancelar
     setSelectedColor(null);
     setIsCommentModeActive(false);
   }, []);
 
-  const getEditedItem = useCallback((itemId: string): EditableItemData | null => {
-    return editedItems.get(itemId) || null;
-  }, [editedItems]);
+  const getEditedItem = useCallback(
+    (itemId: string): EditableItemData | null => {
+      return editedItems.get(itemId) || null;
+    },
+    [editedItems],
+  );
 
-  const isItemDeleted = useCallback((itemId: string) => {
-    return deletedItemIds.has(itemId);
-  }, [deletedItemIds]);
+  const isItemDeleted = useCallback(
+    (itemId: string) => {
+      return deletedItemIds.has(itemId);
+    },
+    [deletedItemIds],
+  );
 
-  const getChangesForGroup = useCallback((groupId: string, allItems: CashflowItem[]) => {
-    const groupItems = allItems.filter((item) => item.groupId === groupId);
-    const changes: {
-      updates: Array<{
-        itemId: string;
-        name?: string;
-        significado?: string | null;
-        rank?: string | null;
-        values?: Array<{ month: number; value: number }>;
-      }>;
-      deletes: string[];
-    } = {
-      updates: [],
-      deletes: [],
-    };
+  const getChangesForGroup = useCallback(
+    (groupId: string, allItems: CashflowItem[]) => {
+      const groupItems = allItems.filter((item) => item.groupId === groupId);
+      const changes: {
+        updates: Array<{
+          itemId: string;
+          name?: string;
+          significado?: string | null;
+          rank?: string | null;
+          values?: Array<{ month: number; value: number }>;
+        }>;
+        deletes: string[];
+      } = {
+        updates: [],
+        deletes: [],
+      };
 
-    // Adicionar itens deletados
-    groupItems.forEach((item) => {
-      if (deletedItemIds.has(item.id)) {
-        changes.deletes.push(item.id);
-      }
-    });
-
-    // Adicionar itens modificados
-    groupItems.forEach((item) => {
-      if (deletedItemIds.has(item.id)) return;
-
-      const edited = editedItems.get(item.id);
-      if (!edited) return;
-
-      const update: any = { itemId: item.id };
-      let hasChanges = false;
-
-      if (edited.name !== item.name) {
-        update.name = edited.name;
-        hasChanges = true;
-      }
-
-      if (edited.significado !== item.significado) {
-        update.significado = edited.significado;
-        hasChanges = true;
-      }
-
-      if (edited.rank !== item.rank) {
-        update.rank = edited.rank;
-        hasChanges = true;
-      }
-
-      // Verificar mudanças nos valores mensais e cores
-      const originalValues = new Map<number, number>();
-      const originalColors = new Map<number, string | null>();
-      item.values?.forEach((value: CashflowValue) => {
-        if (value.month >= 0 && value.month < 12) {
-          originalValues.set(value.month, value.value);
-          originalColors.set(value.month, value.color || null);
+      // Adicionar itens deletados
+      groupItems.forEach((item) => {
+        if (deletedItemIds.has(item.id)) {
+          changes.deletes.push(item.id);
         }
       });
 
-      const valueChanges: Array<{ month: number; value: number; color?: string | null }> = [];
-      edited.monthlyValues.forEach((newValue, monthIndex) => {
-        const originalValue = originalValues.get(monthIndex) || 0;
-        const originalColor = originalColors.get(monthIndex) || null;
-        const newColor = edited.monthlyColors[monthIndex] || null;
-        
-        const valueChanged = Math.abs(newValue - originalValue) > 0.01;
-        const colorChanged = newColor !== originalColor;
-        
-        // Incluir na lista de mudanças se:
-        // 1. O valor mudou, OU
-        // 2. A cor mudou, OU
-        // 3. Há uma cor definida e não havia registro antes (novo registro com cor)
-        const hasOriginalValue = originalValues.has(monthIndex);
-        const shouldInclude = valueChanged || colorChanged || (newColor !== null && !hasOriginalValue);
-        
-        if (shouldInclude) {
-          const change: { month: number; value: number; color?: string | null } = {
-            month: monthIndex,
-            value: newValue,
-          };
-          // Sempre incluir a cor se ela mudou ou se há uma cor definida
-          if (colorChanged || (newColor !== null && !hasOriginalValue)) {
-            change.color = newColor;
-          }
-          valueChanges.push(change);
+      // Adicionar itens modificados
+      groupItems.forEach((item) => {
+        if (deletedItemIds.has(item.id)) return;
+
+        const edited = editedItems.get(item.id);
+        if (!edited) return;
+
+        const update: {
+          itemId: string;
+          name?: string;
+          significado?: string | null;
+          rank?: string | null;
+          values?: Array<{ month: number; value: number }>;
+        } = { itemId: item.id };
+        let hasChanges = false;
+
+        if (edited.name !== item.name) {
+          update.name = edited.name;
           hasChanges = true;
         }
+
+        if (edited.significado !== item.significado) {
+          update.significado = edited.significado;
+          hasChanges = true;
+        }
+
+        if (edited.rank !== item.rank) {
+          update.rank = edited.rank;
+          hasChanges = true;
+        }
+
+        // Verificar mudanças nos valores mensais e cores
+        const originalValues = new Map<number, number>();
+        const originalColors = new Map<number, string | null>();
+        item.values?.forEach((value: CashflowValue) => {
+          if (value.month >= 0 && value.month < 12) {
+            originalValues.set(value.month, value.value);
+            originalColors.set(value.month, value.color || null);
+          }
+        });
+
+        const valueChanges: Array<{ month: number; value: number; color?: string | null }> = [];
+        edited.monthlyValues.forEach((newValue, monthIndex) => {
+          const originalValue = originalValues.get(monthIndex) || 0;
+          const originalColor = originalColors.get(monthIndex) || null;
+          const newColor = edited.monthlyColors[monthIndex] || null;
+
+          const valueChanged = Math.abs(newValue - originalValue) > 0.01;
+          const colorChanged = newColor !== originalColor;
+
+          // Incluir na lista de mudanças se:
+          // 1. O valor mudou, OU
+          // 2. A cor mudou, OU
+          // 3. Há uma cor definida e não havia registro antes (novo registro com cor)
+          const hasOriginalValue = originalValues.has(monthIndex);
+          const shouldInclude =
+            valueChanged || colorChanged || (newColor !== null && !hasOriginalValue);
+
+          if (shouldInclude) {
+            const change: { month: number; value: number; color?: string | null } = {
+              month: monthIndex,
+              value: newValue,
+            };
+            // Sempre incluir a cor se ela mudou ou se há uma cor definida
+            if (colorChanged || (newColor !== null && !hasOriginalValue)) {
+              change.color = newColor;
+            }
+            valueChanges.push(change);
+            hasChanges = true;
+          }
+        });
+
+        if (valueChanges.length > 0) {
+          update.values = valueChanges;
+        }
+
+        if (hasChanges) {
+          changes.updates.push(update);
+        }
       });
 
-      if (valueChanges.length > 0) {
-        update.values = valueChanges;
-      }
-
-      if (hasChanges) {
-        changes.updates.push(update);
-      }
-    });
-
-    return changes;
-  }, [editedItems, deletedItemIds]);
+      return changes;
+    },
+    [editedItems, deletedItemIds],
+  );
 
   // Função para atualizar a cor de uma célula específica
-  const updateCellColor = useCallback((itemId: string, monthIndex: number, color: string | null) => {
-    setEditedItems((prev) => {
-      const newMap = new Map(prev);
-      const current = newMap.get(itemId);
-      
-      if (!current) return prev;
+  const updateCellColor = useCallback(
+    (itemId: string, monthIndex: number, color: string | null) => {
+      setEditedItems((prev) => {
+        const newMap = new Map(prev);
+        const current = newMap.get(itemId);
 
-      const updated: EditableItemData = { ...current };
-      updated.monthlyColors = [...updated.monthlyColors];
-      updated.monthlyColors[monthIndex] = color;
+        if (!current) return prev;
 
-      newMap.set(itemId, updated);
-      return newMap;
-    });
-  }, []);
+        const updated: EditableItemData = { ...current };
+        updated.monthlyColors = [...updated.monthlyColors];
+        updated.monthlyColors[monthIndex] = color;
+
+        newMap.set(itemId, updated);
+        return newMap;
+      });
+    },
+    [],
+  );
 
   // Função para aplicar a cor selecionada a uma célula
-  const applyColorToCell = useCallback((itemId: string, monthIndex: number) => {
-    if (!selectedColor) return;
-    
-    // Converter ColorOption para formato CSS
-    const colorMap: Record<string, string> = {
-      black: "#000000",
-      green: "#76933C",
-      red: "#FF0000",
-      blue: "#0000FF",
-      yellow: "#9E8A58",
-    };
-    
-    const cssColor = colorMap[selectedColor] || "#000000";
-    updateCellColor(itemId, monthIndex, cssColor);
-  }, [selectedColor, updateCellColor]);
+  const applyColorToCell = useCallback(
+    (itemId: string, monthIndex: number) => {
+      if (!selectedColor) return;
+
+      // Converter ColorOption para formato CSS
+      const colorMap: Record<string, string> = {
+        black: '#000000',
+        green: '#76933C',
+        red: '#FF0000',
+        blue: '#0000FF',
+        yellow: '#9E8A58',
+      };
+
+      const cssColor = colorMap[selectedColor] || '#000000';
+      updateCellColor(itemId, monthIndex, cssColor);
+    },
+    [selectedColor, updateCellColor],
+  );
 
   return {
     startEditing,
@@ -374,4 +402,3 @@ export const useGroupEditMode = () => {
     setIsCommentModeActive,
   };
 };
-

@@ -1,8 +1,8 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import AutocompleteInput from "@/components/form/AutocompleteInput";
-import { AutocompleteOption } from "@/types/wizard";
-import { WizardErrors, WizardFormData } from "@/types/wizard";
+'use client';
+import React, { useCallback, useEffect, useState } from 'react';
+import AutocompleteInput from '@/components/form/AutocompleteInput';
+import { AutocompleteOption } from '@/types/wizard';
+import { WizardErrors, WizardFormData } from '@/types/wizard';
 
 interface Step2AporteInstitutionProps {
   formData: WizardFormData;
@@ -20,48 +20,53 @@ export default function Step2AporteInstitution({
   const [institutionOptions, setInstitutionOptions] = useState<AutocompleteOption[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const fetchInstitutions = useCallback(
+    async (search: string) => {
+      if (search.length > 0 && search.length < 2) return;
+
+      if (!formData.tipoAtivo) {
+        setInstitutionOptions([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await fetch(
+          `/api/carteira/resgate/instituicoes?tipo=${encodeURIComponent(formData.tipoAtivo)}&search=${encodeURIComponent(search)}&limit=20`,
+          { credentials: 'include' },
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const options: AutocompleteOption[] = (data.instituicoes || []).map(
+            (inst: { value: string; label: string }) => ({
+              value: inst.value,
+              label: inst.label,
+            }),
+          );
+          setInstitutionOptions(options);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar instituições:', error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [formData.tipoAtivo],
+  );
+
   useEffect(() => {
     if (formData.tipoAtivo) {
-      fetchInstitutions("");
+      fetchInstitutions('');
     } else {
       setInstitutionOptions([]);
     }
-  }, [formData.tipoAtivo]);
-
-  const fetchInstitutions = async (search: string) => {
-    if (search.length > 0 && search.length < 2) return;
-
-    if (!formData.tipoAtivo) {
-      setInstitutionOptions([]);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/carteira/resgate/instituicoes?tipo=${encodeURIComponent(formData.tipoAtivo)}&search=${encodeURIComponent(search)}&limit=20`,
-        { credentials: "include" }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        const options: AutocompleteOption[] = (data.instituicoes || []).map((inst: { value: string; label: string }) => ({
-          value: inst.value,
-          label: inst.label,
-        }));
-        setInstitutionOptions(options);
-      }
-    } catch (error) {
-      console.error("Erro ao buscar instituições:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [formData.tipoAtivo, fetchInstitutions]);
 
   const handleInstitutionChange = (value: string) => {
     onFormDataChange({
       instituicao: value,
-      instituicaoId: value ? formData.instituicaoId : "",
+      instituicaoId: value ? formData.instituicaoId : '',
     });
 
     if (errors.instituicao) {

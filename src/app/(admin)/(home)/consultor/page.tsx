@@ -1,26 +1,20 @@
-"use client";
+'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import Button from "@/components/ui/button/Button";
-import Badge from "@/components/ui/badge/Badge";
-import Input from "@/components/form/input/InputField";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCarteiraHistorico";
-import DashboardMetricCard from "@/components/consultor/DashboardMetricCard";
-import TopClientsCard from "@/components/consultor/TopClientsCard";
-import RiskAlertList from "@/components/consultor/RiskAlertList";
-import AportesResgatesTable from "@/components/consultor/AportesResgatesTable";
-import AssetDistributionChart from "@/components/consultor/AssetDistributionChart";
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import { useAuth } from '@/hooks/useAuth';
+import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import Button from '@/components/ui/button/Button';
+import Badge from '@/components/ui/badge/Badge';
+import Input from '@/components/form/input/InputField';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import LineChartCarteiraHistorico from '@/components/charts/line/LineChartCarteiraHistorico';
+import DashboardMetricCard from '@/components/consultor/DashboardMetricCard';
+import TopClientsCard from '@/components/consultor/TopClientsCard';
+import RiskAlertList from '@/components/consultor/RiskAlertList';
+import AportesResgatesTable from '@/components/consultor/AportesResgatesTable';
+import AssetDistributionChart from '@/components/consultor/AssetDistributionChart';
 
 type ConsultantOverview = {
   totalClients: number;
@@ -39,7 +33,7 @@ type ConsultantClient = {
   name: string;
   email: string;
   avatarUrl?: string | null;
-  status: "active" | "inactive";
+  status: 'active' | 'inactive';
   createdAt: string;
 };
 
@@ -99,18 +93,17 @@ type ClientWithDetail = ConsultantClient & {
   detail: ClientDetailResponse | null;
 };
 
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
 });
 
-const percentageFormatter = new Intl.NumberFormat("pt-BR", {
+const percentageFormatter = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
 
-const capitalizeFirst = (value: string) =>
-  value.charAt(0).toUpperCase() + value.slice(1);
+const capitalizeFirst = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
 type PerformancePoint = {
   label: string;
@@ -121,7 +114,7 @@ type PerformancePoint = {
 type ConsultantInvitationSummary = {
   id: string;
   email: string;
-  status: "pending" | "accepted" | "rejected";
+  status: 'pending' | 'accepted' | 'rejected';
   createdAt: string;
   respondedAt: string | null;
 };
@@ -167,7 +160,7 @@ type DashboardData = {
     clientId: string;
     name: string;
     email: string;
-    alertType: "negative_flow" | "high_concentration" | "no_aportes";
+    alertType: 'negative_flow' | 'high_concentration' | 'no_aportes';
     message: string;
   }>;
   aportesResgates: Array<{
@@ -176,7 +169,7 @@ type DashboardData = {
     email: string;
     totalAportes: number;
     totalResgates: number;
-    tendencia: "positive" | "negative";
+    tendencia: 'positive' | 'negative';
   }>;
   assetDistribution: Array<{
     class: string;
@@ -189,9 +182,7 @@ type DashboardData = {
   }>;
 };
 
-const buildPerformanceSeries = (
-  clients: ClientWithDetail[],
-): PerformancePoint[] => {
+const buildPerformanceSeries = (clients: ClientWithDetail[]): PerformancePoint[] => {
   const aggregates = new Map<
     number,
     {
@@ -235,12 +226,11 @@ const buildPerformanceSeries = (
   while (cursor.getTime() <= lastTimestamp) {
     const timestamp = cursor.getTime();
     const aggregate = aggregates.get(timestamp);
-    const average =
-      aggregate && aggregate.count > 0 ? aggregate.sum / aggregate.count : 0;
+    const average = aggregate && aggregate.count > 0 ? aggregate.sum / aggregate.count : 0;
     const label = capitalizeFirst(
-      cursor.toLocaleDateString("pt-BR", {
-        month: "short",
-        year: "numeric",
+      cursor.toLocaleDateString('pt-BR', {
+        month: 'short',
+        year: 'numeric',
       }),
     );
     points.push({
@@ -254,34 +244,32 @@ const buildPerformanceSeries = (
   return points;
 };
 
-const getStatusPresentation = (status: "active" | "inactive") => {
-  if (status === "active") {
+const getStatusPresentation = (status: 'active' | 'inactive') => {
+  if (status === 'active') {
     return {
-      label: "Ativo",
-      color: "success" as const,
+      label: 'Ativo',
+      color: 'success' as const,
     };
   }
   return {
-    label: "Inativo",
-    color: "warning" as const,
+    label: 'Inativo',
+    color: 'warning' as const,
   };
 };
 
 const ConsultantDashboardPage = () => {
   const { user, isLoading: authLoading, checkAuth, actingClient, updateActingClient } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
   const [overview, setOverview] = useState<ConsultantOverview | null>(null);
   const [clients, setClients] = useState<ClientWithDetail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingDetails, setIsLoadingDetails] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [invitationEmail, setInvitationEmail] = useState("");
+  const [invitationEmail, setInvitationEmail] = useState('');
   const [invitationSubmitting, setInvitationSubmitting] = useState(false);
   const [invitationError, setInvitationError] = useState<string | null>(null);
   const [invitationSuccess, setInvitationSuccess] = useState<string | null>(null);
-  const [invitationStatuses, setInvitationStatuses] =
-    useState<ConsultantInvitationSummary[]>([]);
+  const [invitationStatuses, setInvitationStatuses] = useState<ConsultantInvitationSummary[]>([]);
   const [personifyingClientId, setPersonifyingClientId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
@@ -289,19 +277,19 @@ const ConsultantDashboardPage = () => {
   const fetchDashboard = useCallback(async () => {
     try {
       setIsLoadingDashboard(true);
-      const response = await fetch("/api/consultant/dashboard", {
-        credentials: "include",
+      const response = await fetch('/api/consultant/dashboard', {
+        credentials: 'include',
       });
 
       if (!response.ok) {
-        throw new Error("Falha ao carregar dashboard");
+        throw new Error('Falha ao carregar dashboard');
       }
 
       const payload = (await response.json()) as DashboardData;
       setDashboardData(payload);
       setOverview(payload.overview);
     } catch (requestError) {
-      console.error("[ConsultantDashboard] dashboard load error", requestError);
+      console.error('[ConsultantDashboard] dashboard load error', requestError);
     } finally {
       setIsLoadingDashboard(false);
     }
@@ -314,40 +302,35 @@ const ConsultantDashboardPage = () => {
       setError(null);
 
       const [overviewResponse, clientsResponse] = await Promise.all([
-        fetch("/api/consultant/overview", {
-          credentials: "include",
+        fetch('/api/consultant/overview', {
+          credentials: 'include',
         }),
-        fetch("/api/consultant/clients", {
-          credentials: "include",
+        fetch('/api/consultant/clients', {
+          credentials: 'include',
         }),
       ]);
 
       if (!overviewResponse.ok) {
-        throw new Error("Falha ao carregar overview");
+        throw new Error('Falha ao carregar overview');
       }
       if (!clientsResponse.ok) {
-        throw new Error("Falha ao carregar clientes");
+        throw new Error('Falha ao carregar clientes');
       }
 
-      const overviewPayload =
-        (await overviewResponse.json()) as ConsultantOverviewResponse;
-      const clientsPayload =
-        (await clientsResponse.json()) as ConsultantClientsResponse;
+      const overviewPayload = (await overviewResponse.json()) as ConsultantOverviewResponse;
+      const clientsPayload = (await clientsResponse.json()) as ConsultantClientsResponse;
 
       setOverview(overviewPayload.overview);
 
-      const clientsWithDetail: ClientWithDetail[] =
-        clientsPayload.clients.map((client) => ({
-          ...client,
-          detail: null,
-        }));
+      const clientsWithDetail: ClientWithDetail[] = clientsPayload.clients.map((client) => ({
+        ...client,
+        detail: null,
+      }));
 
       setClients(clientsWithDetail);
     } catch (requestError) {
-      console.error("[ConsultantDashboard] load error", requestError);
-      setError(
-        "Não foi possível carregar os dados do consultor. Tente novamente em instantes.",
-      );
+      console.error('[ConsultantDashboard] load error', requestError);
+      setError('Não foi possível carregar os dados do consultor. Tente novamente em instantes.');
     } finally {
       setIsLoading(false);
     }
@@ -355,13 +338,13 @@ const ConsultantDashboardPage = () => {
 
   const fetchInvitations = useCallback(async () => {
     try {
-      const response = await fetch("/api/consultant/invitations", {
-        credentials: "include",
+      const response = await fetch('/api/consultant/invitations', {
+        credentials: 'include',
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        console.warn("[ConsultantDashboard] invitations request failed", {
+        console.warn('[ConsultantDashboard] invitations request failed', {
           status: response.status,
           body: payload,
         });
@@ -375,33 +358,27 @@ const ConsultantDashboardPage = () => {
 
       setInvitationStatuses(payload.invitations.slice(0, 5));
     } catch (inviteError) {
-      console.error("[ConsultantDashboard] invitations load error", inviteError);
+      console.error('[ConsultantDashboard] invitations load error', inviteError);
       setInvitationStatuses([]);
     }
   }, []);
 
-  const fetchClientDetails = async (
-    clientsToFetch: ClientWithDetail[],
-  ) => {
+  const fetchClientDetails = async (clientsToFetch: ClientWithDetail[]) => {
     try {
       setIsLoadingDetails(true);
       const detailedClients = await Promise.all(
         clientsToFetch.map(async (client) => {
           try {
-            const response = await fetch(
-              `/api/consultant/client/${client.clientId}`,
-              {
-                credentials: "include",
-              },
-            );
+            const response = await fetch(`/api/consultant/client/${client.clientId}`, {
+              credentials: 'include',
+            });
             if (!response.ok) {
               return {
                 ...client,
                 detail: null,
               };
             }
-            const detailPayload =
-              (await response.json()) as ClientDetailResponse;
+            const detailPayload = (await response.json()) as ClientDetailResponse;
             return {
               ...client,
               detail: detailPayload,
@@ -427,17 +404,17 @@ const ConsultantDashboardPage = () => {
   // Usar ref para evitar múltiplas chamadas e loop infinito
   const hasFetchedRef = React.useRef(false);
   const lastUserIdRef = React.useRef<string | null>(null);
-  
+
   useEffect(() => {
     if (authLoading) {
       return;
     }
-    if (!user || user.role !== "consultant") {
+    if (!user || user.role !== 'consultant') {
       hasFetchedRef.current = false;
       lastUserIdRef.current = null;
       return;
     }
-    
+
     // Só buscar dados se ainda não foi buscado ou se o usuário mudou
     const userIdChanged = lastUserIdRef.current !== user.id;
     if (!hasFetchedRef.current || userIdChanged) {
@@ -447,11 +424,11 @@ const ConsultantDashboardPage = () => {
       void fetchOverviewAndClients();
       void fetchInvitations();
     }
-  }, [authLoading, user?.id, user?.role, fetchDashboard, fetchOverviewAndClients, fetchInvitations]);
+  }, [authLoading, user, fetchDashboard, fetchOverviewAndClients, fetchInvitations]);
 
   useEffect(() => {
-    if (!authLoading && user && user.role !== "consultant") {
-      router.replace("/carteira");
+    if (!authLoading && user && user.role !== 'consultant') {
+      router.replace('/carteira');
     }
   }, [authLoading, user, router]);
 
@@ -497,23 +474,23 @@ const ConsultantDashboardPage = () => {
   const summaryCards = useMemo(() => {
     const baseCards = [
       {
-        title: "Total de clientes",
+        title: 'Total de clientes',
         value: overview?.totalClients ?? 0,
         formatter: (value: number) => String(value),
         subtitle: overview ? `${overview.totalActiveClients} clientes ativos` : undefined,
       },
       {
-        title: "Patrimônio total sob consultoria",
+        title: 'Patrimônio total sob consultoria',
         value: overview?.totalManagedAssets ?? 0,
         formatter: (value: number) => currencyFormatter.format(value),
       },
       {
-        title: "Rentabilidade média",
+        title: 'Rentabilidade média',
         value: overview?.averageClientReturn ?? 0,
         formatter: (value: number) => `${percentageFormatter.format(value)}%`,
       },
       {
-        title: "Total investido",
+        title: 'Total investido',
         value: totalInvested,
         formatter: (value: number) => currencyFormatter.format(value),
       },
@@ -523,12 +500,12 @@ const ConsultantDashboardPage = () => {
       return [
         ...baseCards,
         {
-          title: "% Média de Poupança dos Clientes",
+          title: '% Média de Poupança dos Clientes',
           value: dashboardData.metrics.averageSavingRate,
           formatter: (value: number) => `${percentageFormatter.format(value)}%`,
         },
         {
-          title: "Maior Rentabilidade Entre Clientes",
+          title: 'Maior Rentabilidade Entre Clientes',
           value: dashboardData.topClients.byReturn[0]?.totalReturn ?? 0,
           formatter: (value: number) => `${percentageFormatter.format(value)}%`,
           subtitle: dashboardData.topClients.byReturn[0]
@@ -536,7 +513,7 @@ const ConsultantDashboardPage = () => {
             : undefined,
         },
         {
-          title: "Cliente com Maior Patrimônio",
+          title: 'Cliente com Maior Patrimônio',
           value: dashboardData.metrics.clientWithHighestPatrimony?.patrimony ?? 0,
           formatter: (value: number) => currencyFormatter.format(value),
           subtitle: dashboardData.metrics.clientWithHighestPatrimony
@@ -544,7 +521,7 @@ const ConsultantDashboardPage = () => {
             : undefined,
         },
         {
-          title: "Total de Dividendos Recebidos",
+          title: 'Total de Dividendos Recebidos',
           value: dashboardData.metrics.totalDividends,
           formatter: (value: number) => currencyFormatter.format(value),
         },
@@ -565,20 +542,18 @@ const ConsultantDashboardPage = () => {
     }
     try {
       setPersonifyingClientId(clientId);
-      const response = await fetch("/api/consultant/acting", {
-        method: "POST",
+      const response = await fetch('/api/consultant/acting', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        credentials: "include",
+        credentials: 'include',
         body: JSON.stringify({ clientId }),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(
-          payload?.error ?? "Não foi possível personificar o cliente.",
-        );
+        throw new Error(payload?.error ?? 'Não foi possível personificar o cliente.');
       }
 
       // Obter o actingClient da resposta da API
@@ -596,44 +571,41 @@ const ConsultantDashboardPage = () => {
 
       // Aguardar um pouco para garantir que o cookie seja definido no navegador
       await new Promise((resolve) => setTimeout(resolve, 150));
-      
+
       // Atualizar o estado de autenticação para refletir a personificação
       // Isso garante que o actingClient seja atualizado imediatamente
       await checkAuth();
-      
+
       // Disparar evento novamente após checkAuth
       window.dispatchEvent(new CustomEvent('acting-client-changed'));
-      
+
       // Aguardar mais um pouco para garantir que o estado seja propagado
       await new Promise((resolve) => setTimeout(resolve, 50));
-      
+
       // Forçar refresh da página para garantir que todos os componentes sejam atualizados
       router.refresh();
-      
+
       // Redirecionar para a carteira
-      router.push("/carteira");
+      router.push('/carteira');
     } catch (actionError) {
-      console.error("[ConsultantDashboard] acting error", actionError);
+      console.error('[ConsultantDashboard] acting error', actionError);
       setPersonifyingClientId(null);
     }
   };
 
   const isEmptyState =
-    !isLoading &&
-    !isLoadingDetails &&
-    (overview?.totalClients ?? 0) === 0 &&
-    clients.length === 0;
+    !isLoading && !isLoadingDetails && (overview?.totalClients ?? 0) === 0 && clients.length === 0;
 
   const getInvitationBadge = (
-    status: "pending" | "accepted" | "rejected",
-  ): { label: string; color: "warning" | "success" | "error" } => {
-    if (status === "accepted") {
-      return { label: "Aceito", color: "success" };
+    status: 'pending' | 'accepted' | 'rejected',
+  ): { label: string; color: 'warning' | 'success' | 'error' } => {
+    if (status === 'accepted') {
+      return { label: 'Aceito', color: 'success' };
     }
-    if (status === "rejected") {
-      return { label: "Negado", color: "error" };
+    if (status === 'rejected') {
+      return { label: 'Negado', color: 'error' };
     }
-    return { label: "Em espera", color: "warning" };
+    return { label: 'Em espera', color: 'warning' };
   };
 
   const handleSendInvitation = async () => {
@@ -642,7 +614,7 @@ const ConsultantDashboardPage = () => {
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitationEmail.trim())) {
-      setInvitationError("Informe um e-mail válido.");
+      setInvitationError('Informe um e-mail válido.');
       return;
     }
 
@@ -651,31 +623,29 @@ const ConsultantDashboardPage = () => {
       setInvitationError(null);
       setInvitationSuccess(null);
 
-      const response = await fetch("/api/consultant/invitations", {
-        method: "POST",
+      const response = await fetch('/api/consultant/invitations', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        credentials: "include",
+        credentials: 'include',
         body: JSON.stringify({ email: invitationEmail.trim() }),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(
-          payload?.error ?? "Não foi possível enviar o convite, tente novamente.",
-        );
+        throw new Error(payload?.error ?? 'Não foi possível enviar o convite, tente novamente.');
       }
 
-      setInvitationSuccess("Convite enviado com sucesso.");
-      setInvitationEmail("");
+      setInvitationSuccess('Convite enviado com sucesso.');
+      setInvitationEmail('');
       await fetchInvitations();
     } catch (inviteError) {
-      console.error("[ConsultantDashboard] invite error", inviteError);
+      console.error('[ConsultantDashboard] invite error', inviteError);
       setInvitationError(
         inviteError instanceof Error
           ? inviteError.message
-          : "Não foi possível enviar o convite. Tente novamente.",
+          : 'Não foi possível enviar o convite. Tente novamente.',
       );
     } finally {
       setInvitationSubmitting(false);
@@ -688,21 +658,19 @@ const ConsultantDashboardPage = () => {
         <header className="flex flex-col gap-2">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {user?.name ? `Olá, ${user.name}` : "Visão geral"}
+              {user?.name ? `Olá, ${user.name}` : 'Visão geral'}
             </h1>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Monitore o desempenho agregado e acompanhe os clientes sob sua
-            consultoria em um único lugar.
+            Monitore o desempenho agregado e acompanhe os clientes sob sua consultoria em um único
+            lugar.
           </p>
         </header>
 
         {error && (
           <Card>
             <CardTitle>Não foi possível carregar os dados</CardTitle>
-            <CardDescription>
-              {error}
-            </CardDescription>
+            <CardDescription>{error}</CardDescription>
             <div className="mt-4">
               <Button onClick={handleRetry}>Tentar novamente</Button>
             </div>
@@ -753,7 +721,8 @@ const ConsultantDashboardPage = () => {
                         Sem dados no período
                       </p>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Os clientes ainda não possuem movimentações recentes para gerar o desempenho agregado.
+                        Os clientes ainda não possuem movimentações recentes para gerar o desempenho
+                        agregado.
                       </p>
                     </div>
                   </div>
@@ -796,12 +765,8 @@ const ConsultantDashboardPage = () => {
                     {invitationSuccess ? (
                       <p className="text-xs text-success-600">{invitationSuccess}</p>
                     ) : null}
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={invitationSubmitting}
-                    >
-                      {invitationSubmitting ? "Enviando convite..." : "Enviar convite"}
+                    <Button type="submit" className="w-full" disabled={invitationSubmitting}>
+                      {invitationSubmitting ? 'Enviando convite...' : 'Enviar convite'}
                     </Button>
                   </form>
                 </div>
@@ -838,17 +803,17 @@ const ConsultantDashboardPage = () => {
                       <TableBody>
                         {invitationStatuses.map((invite) => {
                           const badge = getInvitationBadge(invite.status);
-                          const referenceDate =
-                            invite.respondedAt ?? invite.createdAt;
-                          const formattedDate = new Date(
-                            referenceDate,
-                          ).toLocaleDateString("pt-BR", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          });
+                          const referenceDate = invite.respondedAt ?? invite.createdAt;
+                          const formattedDate = new Date(referenceDate).toLocaleDateString(
+                            'pt-BR',
+                            {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            },
+                          );
                           const secondaryLabel =
-                            invite.respondedAt !== null ? "Respondido" : "Enviado";
+                            invite.respondedAt !== null ? 'Respondido' : 'Enviado';
 
                           return (
                             <TableRow key={invite.id}>
@@ -886,9 +851,8 @@ const ConsultantDashboardPage = () => {
                   clients={dashboardData.topClients.byReturn.map((client) => ({
                     ...client,
                     metric: client.totalReturn,
-                    metricLabel: "Rentabilidade",
-                    metricFormatter: (val: number) =>
-                      `${percentageFormatter.format(val)}%`,
+                    metricLabel: 'Rentabilidade',
+                    metricFormatter: (val: number) => `${percentageFormatter.format(val)}%`,
                   }))}
                 />
                 <TopClientsCard
@@ -896,7 +860,7 @@ const ConsultantDashboardPage = () => {
                   clients={dashboardData.topClients.byPatrimony.map((client) => ({
                     ...client,
                     metric: client.patrimony,
-                    metricLabel: "Patrimônio",
+                    metricLabel: 'Patrimônio',
                     metricFormatter: (val: number) => currencyFormatter.format(val),
                   }))}
                 />
@@ -905,18 +869,15 @@ const ConsultantDashboardPage = () => {
                   clients={dashboardData.topClients.bySavingRate.map((client) => ({
                     ...client,
                     metric: client.averageSavingRate,
-                    metricLabel: "Poupança",
-                    metricFormatter: (val: number) =>
-                      `${percentageFormatter.format(val)}%`,
+                    metricLabel: 'Poupança',
+                    metricFormatter: (val: number) => `${percentageFormatter.format(val)}%`,
                   }))}
                 />
               </section>
             )}
 
             {/* Riscos & Alertas */}
-            {dashboardData && (
-              <RiskAlertList alerts={dashboardData.riskAlerts} />
-            )}
+            {dashboardData && <RiskAlertList alerts={dashboardData.riskAlerts} />}
 
             {/* Aportes & Resgates */}
             {dashboardData && (
@@ -939,168 +900,158 @@ const ConsultantDashboardPage = () => {
                   </div>
                 </Card>
                 <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                    Clientes sob consultoria
-                  </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Visualize rapidamente patrimônio, rentabilidade e status de
-                    cada cliente.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 overflow-x-auto">
-                {isLoading || isLoadingDetails ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 4 }).map((_, index) => (
-                      <div
-                        key={index}
-                        className="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-white/[0.05]"
-                      />
-                    ))}
-                  </div>
-                ) : isEmptyState ? (
-                  <div className="flex items-center justify-center rounded-lg border border-dashed border-gray-300 py-16 dark:border-gray-700">
-                    <div className="text-center">
-                      <p className="text-sm font-medium text-gray-700 dark:text-white/80">
-                        Sem dados no período
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Vincule clientes ao seu perfil de consultor para começar
-                        a visualizar informações aqui.
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+                        Clientes sob consultoria
+                      </h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Visualize rapidamente patrimônio, rentabilidade e status de cada cliente.
                       </p>
                     </div>
                   </div>
-                ) : (
-                  <Table className="bg-white dark:bg-transparent">
-                    <TableHeader className="border-b border-gray-200 dark:border-gray-700">
-                      <TableRow className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        <TableCell isHeader className="px-4 py-3">
-                          Cliente
-                        </TableCell>
-                        <TableCell isHeader className="px-4 py-3">
-                          Patrimônio
-                        </TableCell>
-                        <TableCell isHeader className="px-4 py-3">
-                          Rentabilidade
-                        </TableCell>
-                        <TableCell isHeader className="px-4 py-3">
-                          % Poupança Média
-                        </TableCell>
-                        <TableCell isHeader className="px-4 py-3">
-                          Nível de Risco
-                        </TableCell>
-                        <TableCell isHeader className="px-4 py-3">
-                          Status
-                        </TableCell>
-                        <TableCell isHeader className="px-4 py-3 text-right">
-                          Ações
-                        </TableCell>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {clients.map((client) => {
-                        const summary = client.detail?.summary;
-                        const statusPresentation = getStatusPresentation(
-                          client.status,
-                        );
-                        
-                        // Buscar dados do cliente no dashboardData
-                        const clientSavingRate = dashboardData?.topClients.bySavingRate.find(
-                          (c) => c.clientId === client.clientId
-                        );
-                        const clientRisk = dashboardData?.riskAlerts.find(
-                          (alert) => alert.clientId === client.clientId
-                        );
-                        
-                        const getRiskLevel = (): { label: string; color: "success" | "warning" | "error" } => {
-                          if (clientRisk) {
-                            if (clientRisk.alertType === "negative_flow") {
-                              return { label: "Alto", color: "error" };
-                            }
-                            if (clientRisk.alertType === "high_concentration") {
-                              return { label: "Médio", color: "warning" };
-                            }
-                            return { label: "Médio", color: "warning" };
-                          }
-                          return { label: "Baixo", color: "success" };
-                        };
-                        
-                        const riskLevel = getRiskLevel();
-                        
-                        return (
-                          <TableRow
-                            key={client.id}
-                            className="border-b border-gray-100 text-sm last:border-b-0 dark:border-gray-800"
-                          >
-                            <TableCell className="px-4 py-4">
-                              <div className="flex flex-col">
-                                <span className="font-medium text-gray-800 dark:text-white/90">
-                                  {client.name}
-                                </span>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {client.email}
-                                </span>
-                              </div>
+
+                  <div className="mt-6 overflow-x-auto">
+                    {isLoading || isLoadingDetails ? (
+                      <div className="space-y-3">
+                        {Array.from({ length: 4 }).map((_, index) => (
+                          <div
+                            key={index}
+                            className="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-white/[0.05]"
+                          />
+                        ))}
+                      </div>
+                    ) : isEmptyState ? (
+                      <div className="flex items-center justify-center rounded-lg border border-dashed border-gray-300 py-16 dark:border-gray-700">
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-gray-700 dark:text-white/80">
+                            Sem dados no período
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Vincule clientes ao seu perfil de consultor para começar a visualizar
+                            informações aqui.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <Table className="bg-white dark:bg-transparent">
+                        <TableHeader className="border-b border-gray-200 dark:border-gray-700">
+                          <TableRow className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            <TableCell isHeader className="px-4 py-3">
+                              Cliente
                             </TableCell>
-                            <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                              {summary
-                                ? currencyFormatter.format(
-                                    summary.currentBalance,
-                                  )
-                                : "—"}
+                            <TableCell isHeader className="px-4 py-3">
+                              Patrimônio
                             </TableCell>
-                            <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                              {summary
-                                ? `${percentageFormatter.format(
-                                    summary.monthlyReturnPercentage,
-                                  )}%`
-                                : "—"}
+                            <TableCell isHeader className="px-4 py-3">
+                              Rentabilidade
                             </TableCell>
-                            <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                              {"—"}
+                            <TableCell isHeader className="px-4 py-3">
+                              % Poupança Média
                             </TableCell>
-                            <TableCell className="px-4 py-4">
-                              <Badge
-                                variant="light"
-                                color={riskLevel.color}
-                                size="sm"
-                              >
-                                {riskLevel.label}
-                              </Badge>
+                            <TableCell isHeader className="px-4 py-3">
+                              Nível de Risco
                             </TableCell>
-                            <TableCell className="px-4 py-4">
-                              <Badge
-                                variant="light"
-                                color={statusPresentation.color}
-                                size="sm"
-                              >
-                                {statusPresentation.label}
-                              </Badge>
+                            <TableCell isHeader className="px-4 py-3">
+                              Status
                             </TableCell>
-                            <TableCell className="px-4 py-4 text-right">
-                              <Button
-                                size="sm"
-                                onClick={() => handlePersonifyClient(client.clientId)}
-                                disabled={personifyingClientId === client.clientId || !!actingClient}
-                                aria-label="Personificar cliente"
-                              >
-                                {personifyingClientId === client.clientId
-                                  ? "Personificando..."
-                                  : actingClient?.id === client.clientId
-                                  ? "Personificado"
-                                  : "Personificar cliente"}
-                              </Button>
+                            <TableCell isHeader className="px-4 py-3 text-right">
+                              Ações
                             </TableCell>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
+                        </TableHeader>
+                        <TableBody>
+                          {clients.map((client) => {
+                            const summary = client.detail?.summary;
+                            const statusPresentation = getStatusPresentation(client.status);
+
+                            // Buscar dados do cliente no dashboardData
+                            const _clientSavingRate = dashboardData?.topClients.bySavingRate.find(
+                              (c) => c.clientId === client.clientId,
+                            );
+                            const _clientRisk = dashboardData?.riskAlerts.find(
+                              (alert) => alert.clientId === client.clientId,
+                            );
+
+                            const getRiskLevel = (): {
+                              label: string;
+                              color: 'success' | 'warning' | 'error';
+                            } => {
+                              if (_clientRisk) {
+                                if (_clientRisk.alertType === 'negative_flow') {
+                                  return { label: 'Alto', color: 'error' };
+                                }
+                                if (_clientRisk.alertType === 'high_concentration') {
+                                  return { label: 'Médio', color: 'warning' };
+                                }
+                                return { label: 'Médio', color: 'warning' };
+                              }
+                              return { label: 'Baixo', color: 'success' };
+                            };
+
+                            const riskLevel = getRiskLevel();
+
+                            return (
+                              <TableRow
+                                key={client.id}
+                                className="border-b border-gray-100 text-sm last:border-b-0 dark:border-gray-800"
+                              >
+                                <TableCell className="px-4 py-4">
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-gray-800 dark:text-white/90">
+                                      {client.name}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {client.email}
+                                    </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
+                                  {summary ? currencyFormatter.format(summary.currentBalance) : '—'}
+                                </TableCell>
+                                <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
+                                  {summary
+                                    ? `${percentageFormatter.format(
+                                        summary.monthlyReturnPercentage,
+                                      )}%`
+                                    : '—'}
+                                </TableCell>
+                                <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
+                                  {'—'}
+                                </TableCell>
+                                <TableCell className="px-4 py-4">
+                                  <Badge variant="light" color={riskLevel.color} size="sm">
+                                    {riskLevel.label}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="px-4 py-4">
+                                  <Badge variant="light" color={statusPresentation.color} size="sm">
+                                    {statusPresentation.label}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="px-4 py-4 text-right">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handlePersonifyClient(client.clientId)}
+                                    disabled={
+                                      personifyingClientId === client.clientId || !!actingClient
+                                    }
+                                    aria-label="Personificar cliente"
+                                  >
+                                    {personifyingClientId === client.clientId
+                                      ? 'Personificando...'
+                                      : actingClient?.id === client.clientId
+                                        ? 'Personificado'
+                                        : 'Personificar cliente'}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
                 </section>
               </section>
             )}
@@ -1113,8 +1064,7 @@ const ConsultantDashboardPage = () => {
                       Clientes sob consultoria
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Visualize rapidamente patrimônio, rentabilidade e status de
-                      cada cliente.
+                      Visualize rapidamente patrimônio, rentabilidade e status de cada cliente.
                     </p>
                   </div>
                 </div>
@@ -1136,8 +1086,8 @@ const ConsultantDashboardPage = () => {
                           Sem dados no período
                         </p>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          Vincule clientes ao seu perfil de consultor para começar
-                          a visualizar informações aqui.
+                          Vincule clientes ao seu perfil de consultor para começar a visualizar
+                          informações aqui.
                         </p>
                       </div>
                     </div>
@@ -1171,22 +1121,23 @@ const ConsultantDashboardPage = () => {
                       <TableBody>
                         {clients.map((client) => {
                           const summary = client.detail?.summary;
-                          const statusPresentation = getStatusPresentation(
-                            client.status,
-                          );
-                          
+                          const statusPresentation = getStatusPresentation(client.status);
+
                           // Buscar dados do cliente no dashboardData
                           // Nota: dashboardData pode ser null neste bloco, então não usamos esses dados aqui
-                          const clientSavingRate = null;
-                          const clientRisk = null;
-                          
-                          const getRiskLevel = (): { label: string; color: "success" | "warning" | "error" } => {
+                          const _clientSavingRate = null;
+                          const _clientRisk = null;
+
+                          const getRiskLevel = (): {
+                            label: string;
+                            color: 'success' | 'warning' | 'error';
+                          } => {
                             // Como dashboardData é null neste bloco, sempre retornamos risco baixo
-                            return { label: "Baixo", color: "success" };
+                            return { label: 'Baixo', color: 'success' };
                           };
-                          
+
                           const riskLevel = getRiskLevel();
-                          
+
                           return (
                             <TableRow
                               key={client.id}
@@ -1203,37 +1154,25 @@ const ConsultantDashboardPage = () => {
                                 </div>
                               </TableCell>
                               <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                                {summary
-                                  ? currencyFormatter.format(
-                                      summary.currentBalance,
-                                    )
-                                  : "—"}
+                                {summary ? currencyFormatter.format(summary.currentBalance) : '—'}
                               </TableCell>
                               <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
                                 {summary
                                   ? `${percentageFormatter.format(
                                       summary.monthlyReturnPercentage,
                                     )}%`
-                                  : "—"}
+                                  : '—'}
                               </TableCell>
                               <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                                {"—"}
+                                {'—'}
                               </TableCell>
                               <TableCell className="px-4 py-4">
-                                <Badge
-                                  variant="light"
-                                  color={riskLevel.color}
-                                  size="sm"
-                                >
+                                <Badge variant="light" color={riskLevel.color} size="sm">
                                   {riskLevel.label}
                                 </Badge>
                               </TableCell>
                               <TableCell className="px-4 py-4">
-                                <Badge
-                                  variant="light"
-                                  color={statusPresentation.color}
-                                  size="sm"
-                                >
+                                <Badge variant="light" color={statusPresentation.color} size="sm">
                                   {statusPresentation.label}
                                 </Badge>
                               </TableCell>
@@ -1241,14 +1180,16 @@ const ConsultantDashboardPage = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handlePersonifyClient(client.clientId)}
-                                  disabled={personifyingClientId === client.clientId || !!actingClient}
+                                  disabled={
+                                    personifyingClientId === client.clientId || !!actingClient
+                                  }
                                   aria-label="Personificar cliente"
                                 >
                                   {personifyingClientId === client.clientId
-                                    ? "Personificando..."
+                                    ? 'Personificando...'
                                     : actingClient?.id === client.clientId
-                                    ? "Personificado"
-                                    : "Personificar cliente"}
+                                      ? 'Personificado'
+                                      : 'Personificar cliente'}
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -1268,4 +1209,3 @@ const ConsultantDashboardPage = () => {
 };
 
 export default ConsultantDashboardPage;
-

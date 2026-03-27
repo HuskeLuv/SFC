@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { getAssetPrices } from '@/services/assetPriceService';
 import { getDividends } from '@/services/dividendService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
@@ -141,7 +142,7 @@ const getQuantityAtDate = (timeline: TransactionPoint[], date: number) => {
 export async function GET(request: NextRequest) {
   try {
     const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
-    
+
     await logSensitiveEndpointAccess(
       request,
       payload,
@@ -195,7 +196,7 @@ export async function GET(request: NextRequest) {
         OR: [
           stockIds.length ? { stockId: { in: stockIds } } : undefined,
           assetIds.length ? { assetId: { in: assetIds } } : undefined,
-        ].filter(Boolean) as any[],
+        ].filter(Boolean) as Prisma.StockTransactionWhereInput[],
       },
       include: {
         stock: true,
@@ -212,7 +213,8 @@ export async function GET(request: NextRequest) {
         return;
       }
 
-      const quantityChange = transaction.type === 'venda' ? -transaction.quantity : transaction.quantity;
+      const quantityChange =
+        transaction.type === 'venda' ? -transaction.quantity : transaction.quantity;
       if (!transactionsBySymbol.has(symbol)) {
         transactionsBySymbol.set(symbol, []);
       }
@@ -241,7 +243,9 @@ export async function GET(request: NextRequest) {
         purchaseDateBySymbol.set(asset.symbol, asset.lastUpdate.getTime());
       }
       if (!timelinesBySymbol.has(asset.symbol) && asset.quantity > 0) {
-        timelinesBySymbol.set(asset.symbol, [{ date: asset.lastUpdate.getTime(), quantity: asset.quantity }]);
+        timelinesBySymbol.set(asset.symbol, [
+          { date: asset.lastUpdate.getTime(), quantity: asset.quantity },
+        ]);
       }
     });
 
@@ -252,7 +256,8 @@ export async function GET(request: NextRequest) {
       const quote = quotes.get(asset.symbol);
       const price = quote || asset.avgPrice;
       const current = price > 0 ? price * asset.quantity : 0;
-      const invested = asset.totalInvested > 0 ? asset.totalInvested : asset.avgPrice * asset.quantity;
+      const invested =
+        asset.totalInvested > 0 ? asset.totalInvested : asset.avgPrice * asset.quantity;
       assetValuesBySymbol.set(asset.symbol, { invested, current });
     });
 
@@ -299,12 +304,23 @@ export async function GET(request: NextRequest) {
     proventos.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
     // Agrupar dados conforme solicitado
-    const groupedData: Record<string, { total: number; count: number; items: ProventoData[]; invested: number; currentValue: number; dividendYield: number; yoc: number }> = {};
+    const groupedData: Record<
+      string,
+      {
+        total: number;
+        count: number;
+        items: ProventoData[];
+        invested: number;
+        currentValue: number;
+        dividendYield: number;
+        yoc: number;
+      }
+    > = {};
     const groupAssets = new Map<string, Set<string>>();
 
-    proventos.forEach(provento => {
+    proventos.forEach((provento) => {
       let key = '';
-      
+
       switch (groupBy) {
         case 'ativo':
           key = provento.ativo;
@@ -320,7 +336,15 @@ export async function GET(request: NextRequest) {
       }
 
       if (!groupedData[key]) {
-        groupedData[key] = { total: 0, count: 0, items: [], invested: 0, currentValue: 0, dividendYield: 0, yoc: 0 };
+        groupedData[key] = {
+          total: 0,
+          count: 0,
+          items: [],
+          invested: 0,
+          currentValue: 0,
+          dividendYield: 0,
+          yoc: 0,
+        };
       }
 
       groupedData[key].total += provento.valor;
@@ -374,17 +398,13 @@ export async function GET(request: NextRequest) {
       monthly: monthlySummary,
       yearly: yearlySummary,
       total: proventos.reduce((sum, p) => sum + p.valor, 0),
-      media: proventos.length > 0 
-        ? proventos.reduce((sum, p) => sum + p.valor, 0) / proventos.length 
-        : 0,
+      media:
+        proventos.length > 0
+          ? proventos.reduce((sum, p) => sum + p.valor, 0) / proventos.length
+          : 0,
     });
   } catch (error) {
     console.error('Erro ao buscar proventos:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar dados de proventos' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro ao buscar dados de proventos' }, { status: 500 });
   }
 }
-
-

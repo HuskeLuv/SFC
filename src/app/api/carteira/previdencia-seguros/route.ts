@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar portfolio do usuário com ativos do tipo correspondente
     // const portfolio = await prisma.portfolio.findMany({
-    //   where: { 
+    //   where: {
     //     userId: user.id,
     //     asset: {
     //       type: 'previdencia'
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         saldoInicioMes: 0,
         valorAtualizado: caixaParaInvestir,
         rendimento: 0,
-        rentabilidade: 0
+        rentabilidade: 0,
       },
       secoes: [],
       totalGeral: {
@@ -56,17 +56,14 @@ export async function GET(request: NextRequest) {
         objetivo: 0,
         quantoFalta: 0,
         necessidadeAporte: 0,
-        rentabilidade: 0
-      }
+        rentabilidade: 0,
+      },
     };
-    
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Erro ao buscar dados Previdência/Seguros:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -74,13 +71,16 @@ export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+    const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
 
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json({
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+          },
+          { status: 400 },
+        );
       }
 
       // Salvar ou atualizar caixa para investir de Previdência/Seguros
@@ -106,32 +106,26 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir
+        caixaParaInvestir,
       });
     }
 
     if (!ativoId) {
-      return NextResponse.json(
-        { error: 'Parâmetro obrigatório: ativoId' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
     }
 
     // Simular delay de rede
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Dados atualizados com sucesso' 
+    return NextResponse.json({
+      success: true,
+      message: 'Dados atualizados com sucesso',
     });
   } catch (error) {
     console.error('Erro ao atualizar dados Previdência/Seguros:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

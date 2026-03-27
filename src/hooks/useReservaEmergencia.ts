@@ -1,5 +1,5 @@
-"use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+'use client';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface ReservaEmergenciaAtivo {
   id: string;
@@ -51,7 +51,7 @@ export const useReservaEmergencia = () => {
       isFetchingRef.current = true;
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch('/api/carteira/reserva-emergencia', {
         credentials: 'include',
       });
@@ -61,18 +61,20 @@ export const useReservaEmergencia = () => {
       }
 
       const responseData = await response.json();
-      
+
       // Transformar dados recebidos para o formato esperado
       const transformedData: ReservaEmergenciaData = {
-        ativos: responseData.ativos.map((ativo: any) => ({
-          ...ativo,
-          vencimento: new Date(ativo.vencimento),
-        })),
+        ativos: responseData.ativos.map(
+          (ativo: ReservaEmergenciaAtivo & { vencimento: Date | string }) => ({
+            ...ativo,
+            vencimento: new Date(ativo.vencimento),
+          }),
+        ),
         saldoInicioMes: responseData.saldoInicioMes || 0,
         rendimento: responseData.rendimento || 0,
         rentabilidade: responseData.rentabilidade || 0,
       };
-      
+
       setData(transformedData);
       hasFetchedRef.current = true;
     } catch (err) {
@@ -99,31 +101,34 @@ export const useReservaEmergencia = () => {
     return fetchReservaEmergencia(true);
   }, [fetchReservaEmergencia]);
 
-  const updateValorAtualizado = useCallback(async (portfolioId: string, novoValor: number): Promise<void> => {
-    try {
-      const response = await fetch('/api/carteira/reserva/valor-atualizado', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          portfolioId,
-          valorAtualizado: novoValor,
-        }),
-      });
+  const updateValorAtualizado = useCallback(
+    async (portfolioId: string, novoValor: number): Promise<void> => {
+      try {
+        const response = await fetch('/api/carteira/reserva/valor-atualizado', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            portfolioId,
+            valorAtualizado: novoValor,
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar valor atualizado');
+        if (!response.ok) {
+          throw new Error('Erro ao atualizar valor atualizado');
+        }
+
+        // Recarrega os dados após a atualização
+        await fetchReservaEmergencia(true);
+      } catch (err) {
+        console.error('Erro ao atualizar valor atualizado:', err);
+        throw err;
       }
-
-      // Recarrega os dados após a atualização
-      await fetchReservaEmergencia(true);
-    } catch (err) {
-      console.error('Erro ao atualizar valor atualizado:', err);
-      throw err;
-    }
-  }, [fetchReservaEmergencia]);
+    },
+    [fetchReservaEmergencia],
+  );
 
   return {
     data,

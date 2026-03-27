@@ -1,81 +1,81 @@
-"use client";
-import React, { useMemo, useState } from "react";
-import ComponentCard from "@/components/common/ComponentCard";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import { useIndices, IndexData } from "@/hooks/useIndices";
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
-import { useCarteiraHistorico } from "@/hooks/useCarteiraHistorico";
-import { useRentabilidadePeriodo } from "@/hooks/useRentabilidadePeriodo";
-import RentabilidadeChart from "./RentabilidadeChart";
-import RentabilidadeResumo from "./RentabilidadeResumo";
+'use client';
+import React, { useMemo, useState } from 'react';
+import ComponentCard from '@/components/common/ComponentCard';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useIndices, IndexData } from '@/hooks/useIndices';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import { useCarteiraHistorico } from '@/hooks/useCarteiraHistorico';
+import { useRentabilidadePeriodo } from '@/hooks/useRentabilidadePeriodo';
+import RentabilidadeChart from './RentabilidadeChart';
+import RentabilidadeResumo from './RentabilidadeResumo';
 
-type RentabilidadeRangeValue = "inicio" | "ano" | "12m" | "2y" | "3y" | "5y" | "10y";
+type RentabilidadeRangeValue = 'inicio' | 'ano' | '12m' | '2y' | '3y' | '5y' | '10y';
 
 const RENTABILIDADE_RANGE_OPTIONS: Array<{ value: RentabilidadeRangeValue; label: string }> = [
-  { value: "inicio", label: "Do início" },
-  { value: "ano", label: "No ano" },
-  { value: "12m", label: "Últimos 12 meses" },
-  { value: "2y", label: "Últimos 2 anos" },
-  { value: "3y", label: "Últimos 3 anos" },
-  { value: "5y", label: "Últimos 5 anos" },
-  { value: "10y", label: "Últimos 10 anos" },
+  { value: 'inicio', label: 'Do início' },
+  { value: 'ano', label: 'No ano' },
+  { value: '12m', label: 'Últimos 12 meses' },
+  { value: '2y', label: 'Últimos 2 anos' },
+  { value: '3y', label: 'Últimos 3 anos' },
+  { value: '5y', label: 'Últimos 5 anos' },
+  { value: '10y', label: 'Últimos 10 anos' },
 ];
 
+const normalizeStartDate = (date: Date): number => {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized.getTime();
+};
+
+const getRangeStartDate = (range: RentabilidadeRangeValue, firstDate?: number) => {
+  const now = new Date();
+  const normalizedNow = normalizeStartDate(now);
+
+  if (range === 'inicio') {
+    return firstDate;
+  }
+
+  let calculatedStart: number | undefined;
+
+  if (range === 'ano') {
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    calculatedStart = normalizeStartDate(yearStart);
+  } else if (range === '12m') {
+    const start = new Date(now);
+    start.setMonth(start.getMonth() - 12);
+    calculatedStart = normalizeStartDate(start);
+  } else if (range === '2y') {
+    const start = new Date(now);
+    start.setFullYear(start.getFullYear() - 2);
+    calculatedStart = normalizeStartDate(start);
+  } else if (range === '3y') {
+    const start = new Date(now);
+    start.setFullYear(start.getFullYear() - 3);
+    calculatedStart = normalizeStartDate(start);
+  } else if (range === '5y') {
+    const start = new Date(now);
+    start.setFullYear(start.getFullYear() - 5);
+    calculatedStart = normalizeStartDate(start);
+  } else if (range === '10y') {
+    const start = new Date(now);
+    start.setFullYear(start.getFullYear() - 10);
+    calculatedStart = normalizeStartDate(start);
+  } else {
+    calculatedStart = normalizedNow;
+  }
+
+  // Se temos uma data de início da carteira e o range calculado é anterior a ela,
+  // usar a data de início da carteira como limite mínimo
+  if (firstDate && calculatedStart && calculatedStart < firstDate) {
+    return firstDate;
+  }
+
+  return calculatedStart;
+};
+
 export default function RentabilidadeGeral() {
-  const [selectedRange, setSelectedRange] = useState<RentabilidadeRangeValue>("inicio");
+  const [selectedRange, setSelectedRange] = useState<RentabilidadeRangeValue>('inicio');
   const { resumo, loading: carteiraLoading } = useCarteiraResumoContext();
-
-  const normalizeStartDate = (date: Date): number => {
-    const normalized = new Date(date);
-    normalized.setHours(0, 0, 0, 0);
-    return normalized.getTime();
-  };
-
-  const getRangeStartDate = (range: RentabilidadeRangeValue, firstDate?: number) => {
-    const now = new Date();
-    const normalizedNow = normalizeStartDate(now);
-
-    if (range === "inicio") {
-      return firstDate;
-    }
-
-    let calculatedStart: number | undefined;
-
-    if (range === "ano") {
-      const yearStart = new Date(now.getFullYear(), 0, 1);
-      calculatedStart = normalizeStartDate(yearStart);
-    } else if (range === "12m") {
-      const start = new Date(now);
-      start.setMonth(start.getMonth() - 12);
-      calculatedStart = normalizeStartDate(start);
-    } else if (range === "2y") {
-      const start = new Date(now);
-      start.setFullYear(start.getFullYear() - 2);
-      calculatedStart = normalizeStartDate(start);
-    } else if (range === "3y") {
-      const start = new Date(now);
-      start.setFullYear(start.getFullYear() - 3);
-      calculatedStart = normalizeStartDate(start);
-    } else if (range === "5y") {
-      const start = new Date(now);
-      start.setFullYear(start.getFullYear() - 5);
-      calculatedStart = normalizeStartDate(start);
-    } else if (range === "10y") {
-      const start = new Date(now);
-      start.setFullYear(start.getFullYear() - 10);
-      calculatedStart = normalizeStartDate(start);
-    } else {
-      calculatedStart = normalizedNow;
-    }
-
-    // Se temos uma data de início da carteira e o range calculado é anterior a ela,
-    // usar a data de início da carteira como limite mínimo
-    if (firstDate && calculatedStart && calculatedStart < firstDate) {
-      return firstDate;
-    }
-
-    return calculatedStart;
-  };
 
   // Calcular data do primeiro investimento (primeira data com valor não-zero do histórico)
   const firstInvestmentDate = useMemo(() => {
@@ -84,7 +84,7 @@ export default function RentabilidadeGeral() {
     }
     // Encontrar o primeiro valor não-zero (ignorar pontos iniciais com valor zero)
     const firstNonZeroItem = resumo.historicoPatrimonio.find(
-      item => item.saldoBruto > 0 || item.valorAplicado > 0
+      (item) => item.saldoBruto > 0 || item.valorAplicado > 0,
     );
     return firstNonZeroItem?.data;
   }, [resumo?.historicoPatrimonio]);
@@ -104,38 +104,59 @@ export default function RentabilidadeGeral() {
   }, [firstInvestmentDate, selectedRange]);
 
   const hasHistoricoTWR = Array.isArray(resumo?.historicoTWR) && resumo.historicoTWR.length > 0;
-  const isPeriodoInicio = selectedRange === "inicio";
-  const { data: carteiraHistoricoDiario, loading: loadingCarteiraHistorico, error: errorCarteiraHistorico } = useCarteiraHistorico(
-    selectedRangeStart,
-    { enabled: !hasHistoricoTWR }
-  );
-  const { data: rentabilidadePeriodo, loading: loadingRentabilidadePeriodo, error: errorRentabilidadePeriodo } = useRentabilidadePeriodo(
-    isPeriodoInicio ? undefined : selectedRangeStart,
-    { enabled: hasHistoricoTWR && !isPeriodoInicio }
-  );
+  const isPeriodoInicio = selectedRange === 'inicio';
+  const {
+    data: carteiraHistoricoDiario,
+    loading: loadingCarteiraHistorico,
+    error: errorCarteiraHistorico,
+  } = useCarteiraHistorico(selectedRangeStart, { enabled: !hasHistoricoTWR });
+  const {
+    data: rentabilidadePeriodo,
+    loading: loadingRentabilidadePeriodo,
+    error: errorRentabilidadePeriodo,
+  } = useRentabilidadePeriodo(isPeriodoInicio ? undefined : selectedRangeStart, {
+    enabled: hasHistoricoTWR && !isPeriodoInicio,
+  });
 
   // Range dos índices deve cobrir o período selecionado para evitar dados incompletos
   const indicesDailyRange = useMemo(() => {
-    if (selectedRange === "12m") return "1y";
-    if (selectedRange === "2y") return "2y";
-    if (selectedRange === "3y" || selectedRange === "5y" || selectedRange === "10y") return "2y";
-    if (selectedRange === "ano") return "1y";
-    return "1y"; // "inicio" e default: 1y (indices API expande conforme startDate)
+    if (selectedRange === '12m') return '1y';
+    if (selectedRange === '2y') return '2y';
+    if (selectedRange === '3y' || selectedRange === '5y' || selectedRange === '10y') return '2y';
+    if (selectedRange === 'ano') return '1y';
+    return '1y'; // "inicio" e default: 1y (indices API expande conforme startDate)
   }, [selectedRange]);
   // Para os períodos "1d" e "1mo", passar a data do primeiro investimento
-  const { indices: indices1d, loading: loading1d, error: error1d } = useIndices(indicesDailyRange, selectedRangeStart);
-  const { indices: indices1mo, loading: loading1mo, error: error1mo } = useIndices("1mo", selectedRangeStart);
-  const { indices: indices1y, loading: loading1y, error: error1y } = useIndices("1y", selectedRangeStart);
+  const {
+    indices: indices1d,
+    loading: loading1d,
+    error: error1d,
+  } = useIndices(indicesDailyRange, selectedRangeStart);
+  const {
+    indices: indices1mo,
+    loading: loading1mo,
+    error: error1mo,
+  } = useIndices('1mo', selectedRangeStart);
+  const {
+    indices: indices1y,
+    loading: loading1y,
+    error: error1y,
+  } = useIndices('1y', selectedRangeStart);
 
   const filterDataByStart = <T extends { date: number } | { data: number }>(
     data: T[],
     startDate?: number,
-    dateKey: 'date' | 'data' = 'date'
+    dateKey: 'date' | 'data' = 'date',
   ): T[] => {
     if (!Array.isArray(data) || data.length === 0) return [];
     if (!startDate) return data;
     const key = dateKey;
-    const filtered = data.filter((item) => item && typeof (item as Record<string, number>)[key] === 'number' && (item as Record<string, number>)[key] >= startDate);
+    const filtered = data.filter(
+      (item) =>
+        item &&
+        typeof (item as Record<string, number>)[key] === 'number' &&
+        (item as Record<string, number>)[key] >= startDate,
+    );
     return filtered.length === 0 ? data : filtered;
   };
 
@@ -168,50 +189,57 @@ export default function RentabilidadeGeral() {
     () =>
       Array.isArray(indices1d)
         ? indices1d
-            .filter(index => index && Array.isArray(index.data) && index.data.length > 0)
+            .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
             .map((index) => ({
               ...index,
               data: filterDataByStart(index.data, selectedRangeStart),
             }))
-            .filter(index => Array.isArray(index.data) && index.data.length > 0)
+            .filter((index) => Array.isArray(index.data) && index.data.length > 0)
         : [],
-    [indices1d, selectedRangeStart]
+    [indices1d, selectedRangeStart],
   );
 
   const filteredIndices1mo = useMemo(
     () =>
       Array.isArray(indices1mo)
         ? indices1mo
-            .filter(index => index && Array.isArray(index.data) && index.data.length > 0)
+            .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
             .map((index) => ({
               ...index,
               data: filterDataByStart(index.data, selectedRangeStart),
             }))
-            .filter(index => Array.isArray(index.data) && index.data.length > 0)
+            .filter((index) => Array.isArray(index.data) && index.data.length > 0)
         : [],
-    [indices1mo, selectedRangeStart]
+    [indices1mo, selectedRangeStart],
   );
 
   const filteredIndices1y = useMemo(
     () =>
       Array.isArray(indices1y)
         ? indices1y
-            .filter(index => index && Array.isArray(index.data) && index.data.length > 0)
+            .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
             .map((index) => ({
               ...index,
               data: filterDataByStart(index.data, selectedRangeStart),
             }))
-            .filter(index => Array.isArray(index.data) && index.data.length > 0)
+            .filter((index) => Array.isArray(index.data) && index.data.length > 0)
         : [],
-    [indices1y, selectedRangeStart]
+    [indices1y, selectedRangeStart],
   );
 
   const handleRangeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedRange(event.target.value as RentabilidadeRangeValue);
   };
 
-  const loading = loading1d || loading1mo || loading1y || carteiraLoading || loadingCarteiraHistorico || loadingRentabilidadePeriodo;
-  const error = error1d || error1mo || error1y || errorCarteiraHistorico || errorRentabilidadePeriodo;
+  const loading =
+    loading1d ||
+    loading1mo ||
+    loading1y ||
+    carteiraLoading ||
+    loadingCarteiraHistorico ||
+    loadingRentabilidadePeriodo;
+  const error =
+    error1d || error1mo || error1y || errorCarteiraHistorico || errorRentabilidadePeriodo;
 
   if (loading) {
     return <LoadingSpinner text="Carregando dados de rentabilidade..." />;
@@ -257,37 +285,37 @@ export default function RentabilidadeGeral() {
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Gráficos à esquerda */}
-      <div className="lg:col-span-2 space-y-6">
-        {/* Gráfico Por Dia - TWR acumulado (padrão mercado) */}
-        <ComponentCard title="Rentabilidade Por Dia">
-          <RentabilidadeChart
-            carteiraData={carteiraTWRParaChart}
-            indicesData={filteredIndices1d}
-            period="1d"
-          />
-        </ComponentCard>
+        {/* Gráficos à esquerda */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Gráfico Por Dia - TWR acumulado (padrão mercado) */}
+          <ComponentCard title="Rentabilidade Por Dia">
+            <RentabilidadeChart
+              carteiraData={carteiraTWRParaChart}
+              indicesData={filteredIndices1d}
+              period="1d"
+            />
+          </ComponentCard>
 
-        {/* Gráfico Por Mês - TWR acumulado agrupado por mês */}
-        <ComponentCard title="Rentabilidade Por Mês">
-          <RentabilidadeChart
-            carteiraData={carteiraTWRParaChart}
-            indicesData={filteredIndices1mo}
-            period="1mo"
-          />
-        </ComponentCard>
+          {/* Gráfico Por Mês - TWR acumulado agrupado por mês */}
+          <ComponentCard title="Rentabilidade Por Mês">
+            <RentabilidadeChart
+              carteiraData={carteiraTWRParaChart}
+              indicesData={filteredIndices1mo}
+              period="1mo"
+            />
+          </ComponentCard>
 
-        {/* Gráfico Por Ano - TWR acumulado agrupado por ano */}
-        <ComponentCard title="Rentabilidade Por Ano">
-          <RentabilidadeChart
-            carteiraData={carteiraTWRParaChart}
-            indicesData={filteredIndices1y}
-            period="1y"
-          />
-        </ComponentCard>
-      </div>
+          {/* Gráfico Por Ano - TWR acumulado agrupado por ano */}
+          <ComponentCard title="Rentabilidade Por Ano">
+            <RentabilidadeChart
+              carteiraData={carteiraTWRParaChart}
+              indicesData={filteredIndices1y}
+              period="1y"
+            />
+          </ComponentCard>
+        </div>
 
-      {/* Resumo de Rentabilidade à direita */}
+        {/* Resumo de Rentabilidade à direita */}
         <div className="lg:col-span-1">
           <RentabilidadeResumo />
         </div>
@@ -295,4 +323,3 @@ export default function RentabilidadeGeral() {
     </div>
   );
 }
-

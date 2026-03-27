@@ -1,8 +1,8 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import AutocompleteInput from "@/components/form/AutocompleteInput";
-import { AutocompleteOption } from "@/types/wizard";
-import { RedeemAssetOption, RedeemWizardErrors, RedeemWizardFormData } from "@/types/redeemWizard";
+'use client';
+import React, { useCallback, useEffect, useState } from 'react';
+import AutocompleteInput from '@/components/form/AutocompleteInput';
+import { AutocompleteOption } from '@/types/wizard';
+import { RedeemAssetOption, RedeemWizardErrors, RedeemWizardFormData } from '@/types/redeemWizard';
 
 interface Step3RedeemAssetProps {
   formData: RedeemWizardFormData;
@@ -20,56 +20,63 @@ export default function Step3RedeemAsset({
   const [assetOptions, setAssetOptions] = useState<RedeemAssetOption[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchAssets = async (search: string) => {
-    if (!formData.tipoAtivo || !formData.instituicaoId) {
-      setAssetOptions([]);
-      onErrorsChange({ ativo: "Selecione o tipo e a instituição antes de buscar." });
-      return;
-    }
-
-    if (search.length > 0 && search.length < 2) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const url = `/api/carteira/resgate/ativos?tipo=${encodeURIComponent(formData.tipoAtivo)}&instituicaoId=${encodeURIComponent(formData.instituicaoId)}&search=${encodeURIComponent(search)}&limit=20`;
-      const response = await fetch(url, { credentials: "include" });
-
-      if (response.ok) {
-        const data = await response.json();
-        const options: RedeemAssetOption[] = (data.assets || []).map((asset: RedeemAssetOption) => asset);
-        setAssetOptions(options);
-        if (options.length === 0 && search.length >= 2) {
-          onErrorsChange({ ativo: "Nenhum investimento encontrado para resgate." });
-        } else if (options.length === 0) {
-          onErrorsChange({ ativo: undefined });
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        onErrorsChange({ ativo: errorData.message || "Não foi possível carregar os investimentos." });
+  const fetchAssets = useCallback(
+    async (search: string) => {
+      if (!formData.tipoAtivo || !formData.instituicaoId) {
+        setAssetOptions([]);
+        onErrorsChange({ ativo: 'Selecione o tipo e a instituição antes de buscar.' });
+        return;
       }
-    } catch (error) {
-      console.error("Erro ao buscar investimentos:", error);
-      onErrorsChange({ ativo: "Não foi possível carregar os investimentos." });
-    } finally {
-      setLoading(false);
-    }
-  };
+
+      if (search.length > 0 && search.length < 2) {
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const url = `/api/carteira/resgate/ativos?tipo=${encodeURIComponent(formData.tipoAtivo)}&instituicaoId=${encodeURIComponent(formData.instituicaoId)}&search=${encodeURIComponent(search)}&limit=20`;
+        const response = await fetch(url, { credentials: 'include' });
+
+        if (response.ok) {
+          const data = await response.json();
+          const options: RedeemAssetOption[] = (data.assets || []).map(
+            (asset: RedeemAssetOption) => asset,
+          );
+          setAssetOptions(options);
+          if (options.length === 0 && search.length >= 2) {
+            onErrorsChange({ ativo: 'Nenhum investimento encontrado para resgate.' });
+          } else if (options.length === 0) {
+            onErrorsChange({ ativo: undefined });
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          onErrorsChange({
+            ativo: errorData.message || 'Não foi possível carregar os investimentos.',
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao buscar investimentos:', error);
+        onErrorsChange({ ativo: 'Não foi possível carregar os investimentos.' });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [formData.tipoAtivo, formData.instituicaoId, onErrorsChange],
+  );
 
   const handleAssetChange = (value: string) => {
     onFormDataChange({
       ativo: value,
-      portfolioId: "",
-      assetId: "",
-      stockId: "",
+      portfolioId: '',
+      assetId: '',
+      stockId: '',
       availableQuantity: 0,
       availableTotal: 0,
-      moeda: "",
+      moeda: '',
     });
 
     if (!formData.tipoAtivo || !formData.instituicaoId) {
-      onErrorsChange({ ativo: "Selecione o tipo e a instituição antes de buscar." });
+      onErrorsChange({ ativo: 'Selecione o tipo e a instituição antes de buscar.' });
       setAssetOptions([]);
       return;
     }
@@ -77,7 +84,7 @@ export default function Step3RedeemAsset({
     if (value.length >= 2) {
       fetchAssets(value);
     } else if (value.length === 0) {
-      fetchAssets("");
+      fetchAssets('');
     } else {
       setAssetOptions([]);
     }
@@ -88,18 +95,20 @@ export default function Step3RedeemAsset({
   };
 
   const handleAssetSelect = (option: AutocompleteOption) => {
-    const selected = assetOptions.find((asset) => asset.id === option.value || asset.portfolioId === option.value);
+    const selected = assetOptions.find(
+      (asset) => asset.id === option.value || asset.portfolioId === option.value,
+    );
     if (!selected) return;
 
     onFormDataChange({
       ativo: option.label,
       portfolioId: selected.portfolioId,
-      assetId: selected.assetId || "",
-      stockId: selected.stockId || "",
+      assetId: selected.assetId || '',
+      stockId: selected.stockId || '',
       availableQuantity: selected.quantity,
       availableTotal: selected.totalInvested,
       moeda: selected.currency,
-      metodoResgate: selected.quantity === 1 ? "valor" : "quantidade",
+      metodoResgate: selected.quantity === 1 ? 'valor' : 'quantidade',
     });
     onErrorsChange({ ativo: undefined });
   };
@@ -108,9 +117,9 @@ export default function Step3RedeemAsset({
     setAssetOptions([]);
     if (formData.tipoAtivo && formData.instituicaoId) {
       onErrorsChange({ ativo: undefined });
-      fetchAssets("");
+      fetchAssets('');
     }
-  }, [formData.tipoAtivo, formData.instituicaoId]);
+  }, [formData.tipoAtivo, formData.instituicaoId, fetchAssets, onErrorsChange]);
 
   return (
     <div className="space-y-6">
@@ -123,7 +132,7 @@ export default function Step3RedeemAsset({
         onSelect={handleAssetSelect}
         options={assetOptions.map((asset) => ({
           value: asset.portfolioId,
-          label: `${asset.label} (${asset.quantity} und | ${(asset.totalInvested ?? 0).toLocaleString("pt-BR", { style: "currency", currency: asset.currency || "BRL" })})`,
+          label: `${asset.label} (${asset.quantity} und | ${(asset.totalInvested ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: asset.currency || 'BRL' })})`,
           subtitle: asset.subtitle,
         }))}
         loading={loading}

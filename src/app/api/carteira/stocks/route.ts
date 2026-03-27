@@ -5,7 +5,16 @@ import { getAssetPrices } from '@/services/assetPriceService';
 
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
-  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16', '#F97316'];
+  const colors = [
+    '#3B82F6',
+    '#10B981',
+    '#F59E0B',
+    '#8B5CF6',
+    '#EF4444',
+    '#06B6D4',
+    '#84CC16',
+    '#F97316',
+  ];
   const index = ticker.charCodeAt(0) % colors.length;
   return colors[index];
 }
@@ -33,38 +42,37 @@ export async function GET(request: NextRequest) {
 
     // Buscar portfolio do usuário com ativos do tipo stock e moeda USD (mercado americano)
     const portfolio = await prisma.portfolio.findMany({
-      where: { 
+      where: {
         userId: user.id,
         asset: {
           type: 'stock',
-          currency: 'USD'
-        }
+          currency: 'USD',
+        },
       },
       include: {
-        asset: true
-      }
+        asset: true,
+      },
     });
 
     // Buscar cotações atuais dos ativos (banco primeiro, fallback BRAPI quando necessário)
-    const symbols = portfolio
-      .filter((item) => item.asset)
-      .map((item) => item.asset!.symbol);
+    const symbols = portfolio.filter((item) => item.asset).map((item) => item.asset!.symbol);
     const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
     // Buscar data da primeira compra para cada asset
     const assetIds = portfolio.filter((p) => p.assetId).map((p) => p.assetId!);
-    const primeirasCompras = assetIds.length > 0
-      ? await prisma.stockTransaction.findMany({
-          where: {
-            userId: targetUserId,
-            assetId: { in: assetIds },
-            type: 'compra',
-          },
-          orderBy: [{ assetId: 'asc' }, { date: 'asc' }],
-          distinct: ['assetId'],
-          select: { assetId: true, date: true },
-        })
-      : [];
+    const primeirasCompras =
+      assetIds.length > 0
+        ? await prisma.stockTransaction.findMany({
+            where: {
+              userId: targetUserId,
+              assetId: { in: assetIds },
+              type: 'compra',
+            },
+            orderBy: [{ assetId: 'asc' }, { date: 'asc' }],
+            distinct: ['assetId'],
+            select: { assetId: true, date: true },
+          })
+        : [];
     const dataCompraPorAsset = new Map(primeirasCompras.map((t) => [t.assetId!, t.date]));
 
     // Extrair ticker do symbol (ex: "AAPL-1234567-abc" -> "AAPL")
@@ -75,22 +83,22 @@ export async function GET(request: NextRequest) {
 
     // Converter portfolio para formato esperado
     const stocksAtivos = portfolio
-      .filter(item => item.asset) // Filtrar apenas itens com asset
-      .map(item => {
+      .filter((item) => item.asset) // Filtrar apenas itens com asset
+      .map((item) => {
         // Buscar cotação atual da brapi
         const cotacaoAtual = quotes.get(item.asset!.symbol) || item.avgPrice;
-        
+
         // Calcular valor atualizado com cotação atual
         const valorAtualizado = item.quantity * cotacaoAtual;
-        
-        // Calcular rentabilidade real
-        const rentabilidade = item.avgPrice > 0 
-          ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 
-          : 0;
 
-        const estrategia = (item.estrategia === 'growth' || item.estrategia === 'risk' || item.estrategia === 'value')
-          ? item.estrategia
-          : 'value';
+        // Calcular rentabilidade real
+        const rentabilidade =
+          item.avgPrice > 0 ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 : 0;
+
+        const estrategia =
+          item.estrategia === 'growth' || item.estrategia === 'risk' || item.estrategia === 'value'
+            ? item.estrategia
+            : 'value';
         const nomeExibicao = extrairTicker(item.asset!.symbol);
         const dataCompra = item.assetId ? dataCompraPorAsset.get(item.assetId) : null;
         return {
@@ -113,22 +121,26 @@ export async function GET(request: NextRequest) {
           rentabilidade,
           estrategia,
           observacoes: undefined,
-          dataUltimaAtualizacao: item.lastUpdate
+          dataUltimaAtualizacao: item.lastUpdate,
         };
       });
 
     // Agrupar por estratégia
     const STOCKS_SECTION_ORDER = ['value', 'growth', 'risk'] as const;
-    const STOCKS_SECTION_NAMES: Record<string, string> = { value: 'Value', growth: 'Growth', risk: 'Risk' };
+    const STOCKS_SECTION_NAMES: Record<string, string> = {
+      value: 'Value',
+      growth: 'Growth',
+      risk: 'Risk',
+    };
     const secoesMap = new Map<string, typeof stocksAtivos>();
-    stocksAtivos.forEach(ativo => {
+    stocksAtivos.forEach((ativo) => {
       const e = ativo.estrategia;
       const list = secoesMap.get(e) || [];
       list.push(ativo);
       secoesMap.set(e, list);
     });
 
-    const secoes = STOCKS_SECTION_ORDER.map(estrategia => {
+    const secoes = STOCKS_SECTION_ORDER.map((estrategia) => {
       const ativos = secoesMap.get(estrategia) || [];
       return {
         estrategia,
@@ -142,36 +154,53 @@ export async function GET(request: NextRequest) {
         totalObjetivo: 0,
         totalQuantoFalta: 0,
         totalNecessidadeAporte: 0,
-        rentabilidadeMedia: 0
+        rentabilidadeMedia: 0,
       };
     });
 
     // Calcular valores das seções
-    secoes.forEach(secao => {
+    secoes.forEach((secao) => {
       secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
       secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-      secao.totalValorAtualizado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-      secao.totalPercentualCarteira = secao.ativos.reduce((sum, ativo) => sum + ativo.percentualCarteira, 0);
+      secao.totalValorAtualizado = secao.ativos.reduce(
+        (sum, ativo) => sum + ativo.valorAtualizado,
+        0,
+      );
+      secao.totalPercentualCarteira = secao.ativos.reduce(
+        (sum, ativo) => sum + ativo.percentualCarteira,
+        0,
+      );
       secao.totalRisco = secao.ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
       secao.totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
       secao.totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-      secao.totalNecessidadeAporte = secao.ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
-      secao.rentabilidadeMedia = secao.ativos.length > 0
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-        : 0;
+      secao.totalNecessidadeAporte = secao.ativos.reduce(
+        (sum, ativo) => sum + ativo.necessidadeAporte,
+        0,
+      );
+      secao.rentabilidadeMedia =
+        secao.ativos.length > 0
+          ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
+          : 0;
     });
 
     // Calcular totais gerais
     const totalQuantidade = stocksAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     const totalValorAplicado = stocksAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-    const totalValorAtualizado = stocksAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+    const totalValorAtualizado = stocksAtivos.reduce(
+      (sum, ativo) => sum + ativo.valorAtualizado,
+      0,
+    );
     const totalObjetivo = stocksAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
     const totalQuantoFalta = stocksAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-    const totalNecessidadeAporte = stocksAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+    const totalNecessidadeAporte = stocksAtivos.reduce(
+      (sum, ativo) => sum + ativo.necessidadeAporte,
+      0,
+    );
     const totalRisco = stocksAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-    const rentabilidadeMedia = stocksAtivos.length > 0 
-      ? stocksAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / stocksAtivos.length 
-      : 0;
+    const rentabilidadeMedia =
+      stocksAtivos.length > 0
+        ? stocksAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / stocksAtivos.length
+        : 0;
 
     // Calcular resumo
     // Para simplificar, vamos considerar:
@@ -186,27 +215,31 @@ export async function GET(request: NextRequest) {
       saldoInicioMes: totalValorAplicado, // Valor investido (base de cálculo)
       valorAtualizado: valorAtualizadoComCaixa, // Valor com cotação atual + caixa
       rendimento: valorAtualizadoComCaixa - totalValorAplicado, // Ganho ou perda em R$
-      rentabilidade: totalValorAplicado > 0 
-        ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100 
-        : 0 // Percentual de ganho ou perda
+      rentabilidade:
+        totalValorAplicado > 0
+          ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+          : 0, // Percentual de ganho ou perda
     };
 
     // Calcular alocação por ativo
     const totalValor = stocksAtivos.reduce((sum, a) => sum + a.valorAtualizado, 0);
-    const alocacaoAtivo = stocksAtivos.map(ativo => ({
+    const alocacaoAtivo = stocksAtivos.map((ativo) => ({
       ticker: ativo.nome,
       valor: ativo.valorAtualizado,
       percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
-      cor: getAtivoColor(ativo.nome)
+      cor: getAtivoColor(ativo.nome),
     }));
 
     // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado)
     const totalTabValue = valorAtualizadoComCaixa;
-    const tabelaAuxiliar = stocksAtivos.map(ativo => {
-      const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+    const tabelaAuxiliar = stocksAtivos.map((ativo) => {
+      const percentualCarteira =
+        totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
       const quantoFalta = (ativo.objetivo ?? 0) - percentualCarteira;
-      const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
-      const loteAproximado = ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
+      const necessidadeAporte =
+        totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+      const loteAproximado =
+        ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
       return {
         ticker: ativo.ticker,
         nome: ativo.nome,
@@ -229,19 +262,16 @@ export async function GET(request: NextRequest) {
         objetivo: totalObjetivo,
         quantoFalta: totalQuantoFalta,
         necessidadeAporte: totalNecessidadeAporte,
-        rentabilidade: rentabilidadeMedia
+        rentabilidade: rentabilidadeMedia,
       },
       alocacaoAtivo,
-      tabelaAuxiliar
+      tabelaAuxiliar,
     };
-    
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Erro ao buscar dados Stocks:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -249,13 +279,16 @@ export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+    const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
 
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json({
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+          },
+          { status: 400 },
+        );
       }
 
       // Salvar ou atualizar caixa para investir de Stocks
@@ -281,32 +314,26 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir
+        caixaParaInvestir,
       });
     }
 
     if (!ativoId) {
-      return NextResponse.json(
-        { error: 'Parâmetro obrigatório: ativoId' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
     }
 
     // Simular delay de rede
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Dados atualizados com sucesso' 
+    return NextResponse.json({
+      success: true,
+      message: 'Dados atualizados com sucesso',
     });
   } catch (error) {
     console.error('Erro ao atualizar dados Stocks:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

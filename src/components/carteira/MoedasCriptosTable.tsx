@@ -1,40 +1,41 @@
-"use client";
-import React, { useState, useMemo, useEffect } from "react";
-import { useMoedasCriptos } from "@/hooks/useMoedasCriptos";
-import { MoedaCriptoAtivo, MoedaCriptoSecao } from "@/types/moedas-criptos";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import ComponentCard from "@/components/common/ComponentCard";
-import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
-import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
-import AssetNameLink from "@/components/carteira/AssetNameLink";
-import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
+'use client';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useMoedasCriptos } from '@/hooks/useMoedasCriptos';
+import { MoedaCriptoAtivo, MoedaCriptoSecao } from '@/types/moedas-criptos';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ComponentCard from '@/components/common/ComponentCard';
+import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
+import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const MOEDAS_CRIPTOS_COLUMN_COUNT = 13;
-const MOEDAS_CRIPTOS_SECTION_ORDER = ["moedas", "criptomoedas", "metais_joias"] as const;
-const MOEDAS_CRIPTOS_SECTION_NAMES: Record<(typeof MOEDAS_CRIPTOS_SECTION_ORDER)[number], string> = {
-  moedas: "Moedas",
-  criptomoedas: "Criptomoedas",
-  metais_joias: "Metais e Joias",
-};
+const MOEDAS_CRIPTOS_SECTION_ORDER = ['moedas', 'criptomoedas', 'metais_joias'] as const;
+const MOEDAS_CRIPTOS_SECTION_NAMES: Record<(typeof MOEDAS_CRIPTOS_SECTION_ORDER)[number], string> =
+  {
+    moedas: 'Moedas',
+    criptomoedas: 'Criptomoedas',
+    metais_joias: 'Metais e Joias',
+  };
 
 interface MoedasCriptosMetricCardProps {
   title: string;
   value: string;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
 }
 
 const MoedasCriptosMetricCard: React.FC<MoedasCriptosMetricCardProps> = ({
   title,
   value,
-  color = "primary",
+  color = 'primary',
 }) => {
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -80,8 +81,6 @@ const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
     }
   };
 
-
-
   const currency = ativo.regiao === 'estados_unidos' ? 'USD' : 'BRL';
 
   return (
@@ -89,19 +88,16 @@ const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
       <td className="px-2 py-2 text-xs text-black">
         <div>
           <AssetNameLink portfolioId={ativo.id} ticker={ativo.ticker} nome={ativo.nome} />
-          {ativo.observacoes && (
-            <div className="text-xs text-black mt-1">{ativo.observacoes}</div>
-          )}
+          {ativo.observacoes && <div className="text-xs text-black mt-1">{ativo.observacoes}</div>}
         </div>
       </td>
       <td className="px-2 py-2 text-center">
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {ativo.indiceRastreado.charAt(0).toUpperCase() + ativo.indiceRastreado.slice(1).replace('_', ' ')}
+          {ativo.indiceRastreado.charAt(0).toUpperCase() +
+            ativo.indiceRastreado.slice(1).replace('_', ' ')}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatNumber(ativo.quantidade)}
-      </td>
+      <td className="px-2 py-2 text-xs text-right text-black">{formatNumber(ativo.quantidade)}</td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.precoAquisicao, currency)}
       </td>
@@ -136,13 +132,11 @@ const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
             <span className="text-xs text-black">%</span>
           </div>
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObjetivo(true)}
           >
-            <span className="text-black">
-              {formatPercentage(ativo.objetivo)}
-            </span>
+            <span className="text-black">{formatPercentage(ativo.objetivo)}</span>
           </div>
         )}
       </td>
@@ -184,10 +178,7 @@ const MoedasCriptosSection: React.FC<MoedasCriptosSectionProps> = ({
   return (
     <>
       {/* Cabeçalho da seção */}
-      <tr 
-        className="bg-[#808080] cursor-pointer"
-        onClick={onToggle}
-      >
+      <tr className="bg-[#808080] cursor-pointer" onClick={onToggle}>
         <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
@@ -231,21 +222,19 @@ const MoedasCriptosSection: React.FC<MoedasCriptosSectionProps> = ({
       </tr>
 
       {/* Ativos da seção */}
-      {isExpanded && secao.ativos.map((ativo) => (
-        <MoedasCriptosTableRow
-          key={ativo.id}
-          ativo={ativo}
-          formatCurrency={formatCurrency}
-          formatPercentage={formatPercentage}
-          formatNumber={formatNumber}
-          onUpdateObjetivo={onUpdateObjetivo}
-        />
-      ))}
+      {isExpanded &&
+        secao.ativos.map((ativo) => (
+          <MoedasCriptosTableRow
+            key={ativo.id}
+            ativo={ativo}
+            formatCurrency={formatCurrency}
+            formatPercentage={formatPercentage}
+            formatNumber={formatNumber}
+            onUpdateObjetivo={onUpdateObjetivo}
+          />
+        ))}
       {isExpanded && (
-        <BasicTablePlaceholderRows
-          count={placeholderCount}
-          colSpan={MOEDAS_CRIPTOS_COLUMN_COUNT}
-        />
+        <BasicTablePlaceholderRows count={placeholderCount} colSpan={MOEDAS_CRIPTOS_COLUMN_COUNT} />
       )}
     </>
   );
@@ -256,17 +245,28 @@ interface MoedasCriptosTableProps {
 }
 
 export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir, refetch } = useMoedasCriptos();
-  const { necessidadeAporteMap, resumo, refreshTrigger } = useCarteiraResumoContext();
+  const {
+    data,
+    loading,
+    error,
+    formatCurrency,
+    formatPercentage,
+    formatNumber,
+    updateObjetivo,
+    updateCaixaParaInvestir,
+    refetch,
+  } = useMoedasCriptos();
+  const { necessidadeAporteMap, refreshTrigger } = useCarteiraResumoContext();
 
   useEffect(() => {
     if (refreshTrigger > 0) {
       refetch();
     }
   }, [refreshTrigger, refetch]);
-  const necessidadeAporteTotalCalculada = necessidadeAporteMap.moedasCriptos ?? data?.resumo?.necessidadeAporteTotal ?? 0;
+  const necessidadeAporteTotalCalculada =
+    necessidadeAporteMap.moedasCriptos ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(MOEDAS_CRIPTOS_SECTION_ORDER)
+    new Set(MOEDAS_CRIPTOS_SECTION_ORDER),
   );
 
   const ativosComRisco = useMemo(() => {
@@ -278,18 +278,20 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
 
     return ativos.map((ativo) => {
       // Percentual daquele tipo de ativo (não da carteira total)
-      const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+      const percentualCarteira =
+        totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
       const objetivo = ativo.objetivo || 0;
       // Quanto falta = diferença entre % atual e objetivo (em %)
       const quantoFalta = objetivo - percentualCarteira;
       // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
-      const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 
-        ? (quantoFalta / 100) * totalTabValue 
-        : 0;
-      
+      const necessidadeAporte =
+        totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+
       return {
         ...ativo,
-        riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+        riscoPorAtivo: shouldCalculateRisco
+          ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+          : 0,
         percentualCarteira,
         quantoFalta,
         necessidadeAporte,
@@ -311,29 +313,34 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
-
   const normalizedSections = useMemo(() => {
     const resolveSectionRegion = (ativos: MoedaCriptoAtivo[]) => {
-      const hasUs = ativos.some((ativo) => ativo.regiao === "estados_unidos");
-      const hasBr = ativos.some((ativo) => ativo.regiao === "brasil");
-      if (hasUs && hasBr) return "internacional";
-      if (hasUs) return "estados_unidos";
-      return "brasil";
+      const hasUs = ativos.some((ativo) => ativo.regiao === 'estados_unidos');
+      const hasBr = ativos.some((ativo) => ativo.regiao === 'brasil');
+      if (hasUs && hasBr) return 'internacional';
+      if (hasUs) return 'estados_unidos';
+      return 'brasil';
     };
 
     const buildSection = (
       tipo: (typeof MOEDAS_CRIPTOS_SECTION_ORDER)[number],
       nome: string,
-      ativos: MoedaCriptoAtivo[]
+      ativos: MoedaCriptoAtivo[],
     ): MoedaCriptoSecao => {
       const totalQuantidade = ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
       const totalValorAplicado = ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
       const totalValorAtualizado = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
       const totalRisco = ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-      const totalPercentualCarteira = ativos.reduce((sum, ativo) => sum + ativo.percentualCarteira, 0);
+      const totalPercentualCarteira = ativos.reduce(
+        (sum, ativo) => sum + ativo.percentualCarteira,
+        0,
+      );
       const totalObjetivo = ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
       const totalQuantoFalta = ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-      const totalNecessidadeAporte = ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+      const totalNecessidadeAporte = ativos.reduce(
+        (sum, ativo) => sum + ativo.necessidadeAporte,
+        0,
+      );
       const rentabilidadeMedia = ativos.length
         ? ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / ativos.length
         : 0;
@@ -362,15 +369,15 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     };
 
     ativosComRisco.forEach((ativo) => {
-      if (ativo.tipo === "moeda") {
+      if (ativo.tipo === 'moeda') {
         grouped.moedas.push(ativo);
         return;
       }
-      if (ativo.tipo === "criptomoeda") {
+      if (ativo.tipo === 'criptomoeda') {
         grouped.criptomoedas.push(ativo);
         return;
       }
-      if (ativo.tipo === "metal") {
+      if (ativo.tipo === 'metal') {
         grouped.metais_joias.push(ativo);
         return;
       }
@@ -440,45 +447,87 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
         <div className="overflow-x-auto">
           <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
-                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+              <tr
+                className="border-b border-gray-200 dark:border-gray-700"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Nome do Ativo
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Índice Rastreado
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Quantidade
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Preço Aquisição
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor Total
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Cotação em Tempo Real
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor Atualizado
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   % da Carteira
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Objetivo
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Quanto Falta
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Nec. Aporte $
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Rentabilidade
                 </th>
               </tr>
@@ -486,9 +535,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
             <tbody>
               {/* Linha de totalização */}
               <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">
-                  TOTAL GERAL
-                </td>
+                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatNumber(data?.totalGeral?.quantidade || 0)}
@@ -504,9 +551,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(data?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  100.00%
-                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(data?.totalGeral?.objetivo || 0)}
                 </td>
@@ -537,7 +582,6 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
           </table>
         </div>
       </ComponentCard>
-
     </div>
   );
 }

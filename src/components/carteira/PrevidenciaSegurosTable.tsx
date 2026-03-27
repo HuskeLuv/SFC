@@ -1,12 +1,12 @@
-"use client";
-import React, { useState, useMemo } from "react";
-import { usePrevidenciaSeguros } from "@/hooks/usePrevidenciaSeguros";
-import { PrevidenciaSegurosAtivo } from "@/types/previdencia-seguros";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import ComponentCard from "@/components/common/ComponentCard";
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
-import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
-import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
+'use client';
+import React, { useState, useMemo } from 'react';
+import { usePrevidenciaSeguros } from '@/hooks/usePrevidenciaSeguros';
+import { PrevidenciaSegurosAtivo } from '@/types/previdencia-seguros';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ComponentCard from '@/components/common/ComponentCard';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const PREVIDENCIA_SEGUROS_COLUMN_COUNT = 17;
@@ -14,19 +14,19 @@ const PREVIDENCIA_SEGUROS_COLUMN_COUNT = 17;
 interface PrevidenciaSegurosMetricCardProps {
   title: string;
   value: string;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
 }
 
 const PrevidenciaSegurosMetricCard: React.FC<PrevidenciaSegurosMetricCardProps> = ({
   title,
   value,
-  color = "primary",
+  color = 'primary',
 }) => {
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -72,28 +72,19 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
     }
   };
 
-
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs text-black">
         <div>
           <div>{ativo.nome}</div>
-          {ativo.observacoes && (
-            <div className="text-xs text-black mt-1">
-              {ativo.observacoes}
-            </div>
-          )}
+          {ativo.observacoes && <div className="text-xs text-black mt-1">{ativo.observacoes}</div>}
         </div>
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
-        {ativo.carencia} meses
-      </td>
+      <td className="px-2 py-2 text-xs text-center text-black">{ativo.carencia} meses</td>
       <td className="px-2 py-2 text-xs text-center text-black">
         {formatPercentage(ativo.cotacaoResgate * 100)}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
-        {ativo.liquidacaoResgate} dias
-      </td>
+      <td className="px-2 py-2 text-xs text-center text-black">{ativo.liquidacaoResgate} dias</td>
       <td className="px-2 py-2 text-xs text-center">
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
           {ativo.modalidade.charAt(0).toUpperCase() + ativo.modalidade.slice(1)}
@@ -104,9 +95,7 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
           {ativo.subclasse.charAt(0).toUpperCase() + ativo.subclasse.slice(1).replace('_', ' ')}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatNumber(ativo.quantidade)}
-      </td>
+      <td className="px-2 py-2 text-xs text-right text-black">{formatNumber(ativo.quantidade)}</td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.precoAquisicao)}
       </td>
@@ -141,13 +130,11 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
             <span className="text-xs text-black">%</span>
           </div>
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObjetivo(true)}
           >
-            <span className="text-black">
-              {formatPercentage(ativo.objetivo)}
-            </span>
+            <span className="text-black">{formatPercentage(ativo.objetivo)}</span>
           </div>
         )}
       </td>
@@ -168,10 +155,22 @@ interface PrevidenciaSegurosTableProps {
   totalCarteira?: number;
 }
 
-export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: PrevidenciaSegurosTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir } = usePrevidenciaSeguros();
-  const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
-  const necessidadeAporteTotalCalculada = necessidadeAporteMap.previdenciaSeguros ?? data?.resumo?.necessidadeAporteTotal ?? 0;
+export default function PrevidenciaSegurosTable({
+  totalCarteira = 0,
+}: PrevidenciaSegurosTableProps) {
+  const {
+    data,
+    loading,
+    error,
+    formatCurrency,
+    formatPercentage,
+    formatNumber,
+    updateObjetivo,
+    updateCaixaParaInvestir,
+  } = usePrevidenciaSeguros();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada =
+    necessidadeAporteMap.previdenciaSeguros ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const ativosComRisco = useMemo(() => {
     if (!data) return [];
 
@@ -181,18 +180,20 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
 
     return ativos.map((ativo) => {
       // Percentual daquele tipo de ativo (não da carteira total)
-      const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+      const percentualCarteira =
+        totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
       const objetivo = ativo.objetivo || 0;
       // Quanto falta = diferença entre % atual e objetivo (em %)
       const quantoFalta = objetivo - percentualCarteira;
       // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
-      const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 
-        ? (quantoFalta / 100) * totalTabValue 
-        : 0;
-      
+      const necessidadeAporte =
+        totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+
       return {
         ...ativo,
-        riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+        riscoPorAtivo: shouldCalculateRisco
+          ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+          : 0,
         percentualCarteira,
         quantoFalta,
         necessidadeAporte,
@@ -203,8 +204,6 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
   };
-
-
 
   if (loading) {
     return <LoadingSpinner text="Carregando dados de previdência e seguros..." />;
@@ -263,57 +262,111 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
         <div className="overflow-x-auto">
           <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
-                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+              <tr
+                className="border-b border-gray-200 dark:border-gray-700"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Nome do Ativo
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Carência
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Cotação de Resgate
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Liquidação de Resgate
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Modalidade
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Subclasse
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Quantidade
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Preço Aquisição
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor Total
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Cotação em Tempo Real
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor Atualizado
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   % da Carteira
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Objetivo
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Quanto Falta
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Nec. Aporte $
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Rentabilidade
                 </th>
               </tr>
@@ -321,9 +374,7 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
             <tbody>
               {/* Linha de totalização */}
               <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">
-                  TOTAL GERAL
-                </td>
+                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
@@ -343,9 +394,7 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(data?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  100.00%
-                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(data?.totalGeral?.objetivo || 0)}
                 </td>
@@ -378,7 +427,6 @@ export default function PrevidenciaSegurosTable({ totalCarteira = 0 }: Previdenc
           </table>
         </div>
       </ComponentCard>
-
     </div>
   );
 }

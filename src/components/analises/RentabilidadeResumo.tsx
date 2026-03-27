@@ -1,13 +1,13 @@
-"use client";
-import React, { useMemo } from "react";
-import ComponentCard from "@/components/common/ComponentCard";
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
-import { useIndices } from "@/hooks/useIndices";
-import { useCarteiraHistorico } from "@/hooks/useCarteiraHistorico";
-import dynamic from "next/dynamic";
-import { ApexOptions } from "apexcharts";
+'use client';
+import React, { useMemo } from 'react';
+import ComponentCard from '@/components/common/ComponentCard';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import { useIndices } from '@/hooks/useIndices';
+import { useCarteiraHistorico } from '@/hooks/useCarteiraHistorico';
+import dynamic from 'next/dynamic';
+import { ApexOptions } from 'apexcharts';
 
-const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
+const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 export default function RentabilidadeResumo() {
   const { resumo, formatPercentage } = useCarteiraResumoContext();
@@ -18,23 +18,25 @@ export default function RentabilidadeResumo() {
       return undefined;
     }
     const firstNonZeroItem = resumo.historicoPatrimonio.find(
-      item => item.saldoBruto > 0 || item.valorAplicado > 0
+      (item) => item.saldoBruto > 0 || item.valorAplicado > 0,
     );
     return firstNonZeroItem?.data;
   }, [resumo?.historicoPatrimonio]);
 
   const hasHistoricoTWR = Array.isArray(resumo?.historicoTWR) && resumo.historicoTWR.length > 0;
-  const { indices: indices1d } = useIndices("1y", firstInvestmentDate);
-  const { indices: indices1mo } = useIndices("1mo", firstInvestmentDate);
-  const { indices: indices1y } = useIndices("1y");
-  const { data: carteiraHistoricoDiario } = useCarteiraHistorico(firstInvestmentDate, { enabled: !hasHistoricoTWR });
+  const { indices: indices1d } = useIndices('1y', firstInvestmentDate);
+  const { indices: indices1mo } = useIndices('1mo', firstInvestmentDate);
+  const { indices: indices1y } = useIndices('1y');
+  const { data: carteiraHistoricoDiario } = useCarteiraHistorico(firstInvestmentDate, {
+    enabled: !hasHistoricoTWR,
+  });
 
   // Calcular rentabilidades por período
   const rentabilidades = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const hojeTimestamp = hoje.getTime();
-    
+
     // Último dia
     const ontem = new Date(hoje);
     ontem.setDate(ontem.getDate() - 1);
@@ -53,8 +55,12 @@ export default function RentabilidadeResumo() {
     dozeMesesAtras.setMonth(dozeMesesAtras.getMonth() - 12);
     const dozeMesesAtrasTimestamp = dozeMesesAtras.getTime();
 
-    const calcularRentabilidade = (data: Array<{ date: number; value: number }>, dataInicio: number, dataFim: number) => {
-      const dadosFiltrados = data.filter(item => item.date >= dataInicio && item.date <= dataFim);
+    const calcularRentabilidade = (
+      data: Array<{ date: number; value: number }>,
+      dataInicio: number,
+      dataFim: number,
+    ) => {
+      const dadosFiltrados = data.filter((item) => item.date >= dataInicio && item.date <= dataFim);
       if (dadosFiltrados.length === 0) return 0;
 
       const valorInicio = dadosFiltrados[0]?.value ?? 0;
@@ -63,7 +69,7 @@ export default function RentabilidadeResumo() {
       if (valorInicio === 0) return 0;
       const cumInicio = 1 + valorInicio / 100;
       const cumFim = 1 + valorFim / 100;
-      return ((cumFim / cumInicio) - 1) * 100;
+      return (cumFim / cumInicio - 1) * 100;
     };
 
     const carteiraData = hasHistoricoTWR
@@ -72,25 +78,53 @@ export default function RentabilidadeResumo() {
     const carteiraUltimoDia = calcularRentabilidade(carteiraData, ontemTimestamp, hojeTimestamp);
     const carteiraMes = calcularRentabilidade(carteiraData, primeiroDiaMesTimestamp, hojeTimestamp);
     const carteiraAno = calcularRentabilidade(carteiraData, primeiroDiaAnoTimestamp, hojeTimestamp);
-    const carteira12Meses = calcularRentabilidade(carteiraData, dozeMesesAtrasTimestamp, hojeTimestamp);
+    const carteira12Meses = calcularRentabilidade(
+      carteiraData,
+      dozeMesesAtrasTimestamp,
+      hojeTimestamp,
+    );
 
-    const cdi1d = indices1d.find(i => i.name === 'CDI');
-    const cdi1mo = indices1mo.find(i => i.name === 'CDI');
-    const cdi1y = indices1y.find(i => i.name === 'CDI');
-    
-    const ibov1d = indices1d.find(i => i.name === 'IBOV');
-    const ibov1mo = indices1mo.find(i => i.name === 'IBOV');
-    const ibov1y = indices1y.find(i => i.name === 'IBOV');
+    const cdi1d = indices1d.find((i) => i.name === 'CDI');
+    const cdi1mo = indices1mo.find((i) => i.name === 'CDI');
+    const cdi1y = indices1y.find((i) => i.name === 'CDI');
 
-    const cdiUltimoDia = (cdi1d?.data && cdi1d.data.length > 0) ? calcularRentabilidade(cdi1d.data, ontemTimestamp, hojeTimestamp) : 0;
-    const cdiMes = (cdi1mo?.data && cdi1mo.data.length > 0) ? calcularRentabilidade(cdi1mo.data, primeiroDiaMesTimestamp, hojeTimestamp) : 0;
-    const cdiAno = (cdi1y?.data && cdi1y.data.length > 0) ? calcularRentabilidade(cdi1y.data, primeiroDiaAnoTimestamp, hojeTimestamp) : 0;
-    const cdi12Meses = (cdi1y?.data && cdi1y.data.length > 0) ? calcularRentabilidade(cdi1y.data, dozeMesesAtrasTimestamp, hojeTimestamp) : 0;
+    const ibov1d = indices1d.find((i) => i.name === 'IBOV');
+    const ibov1mo = indices1mo.find((i) => i.name === 'IBOV');
+    const ibov1y = indices1y.find((i) => i.name === 'IBOV');
 
-    const ibovUltimoDia = (ibov1d?.data && ibov1d.data.length > 0) ? calcularRentabilidade(ibov1d.data, ontemTimestamp, hojeTimestamp) : 0;
-    const ibovMes = (ibov1mo?.data && ibov1mo.data.length > 0) ? calcularRentabilidade(ibov1mo.data, primeiroDiaMesTimestamp, hojeTimestamp) : 0;
-    const ibovAno = (ibov1y?.data && ibov1y.data.length > 0) ? calcularRentabilidade(ibov1y.data, primeiroDiaAnoTimestamp, hojeTimestamp) : 0;
-    const ibov12Meses = (ibov1y?.data && ibov1y.data.length > 0) ? calcularRentabilidade(ibov1y.data, dozeMesesAtrasTimestamp, hojeTimestamp) : 0;
+    const cdiUltimoDia =
+      cdi1d?.data && cdi1d.data.length > 0
+        ? calcularRentabilidade(cdi1d.data, ontemTimestamp, hojeTimestamp)
+        : 0;
+    const cdiMes =
+      cdi1mo?.data && cdi1mo.data.length > 0
+        ? calcularRentabilidade(cdi1mo.data, primeiroDiaMesTimestamp, hojeTimestamp)
+        : 0;
+    const cdiAno =
+      cdi1y?.data && cdi1y.data.length > 0
+        ? calcularRentabilidade(cdi1y.data, primeiroDiaAnoTimestamp, hojeTimestamp)
+        : 0;
+    const cdi12Meses =
+      cdi1y?.data && cdi1y.data.length > 0
+        ? calcularRentabilidade(cdi1y.data, dozeMesesAtrasTimestamp, hojeTimestamp)
+        : 0;
+
+    const ibovUltimoDia =
+      ibov1d?.data && ibov1d.data.length > 0
+        ? calcularRentabilidade(ibov1d.data, ontemTimestamp, hojeTimestamp)
+        : 0;
+    const ibovMes =
+      ibov1mo?.data && ibov1mo.data.length > 0
+        ? calcularRentabilidade(ibov1mo.data, primeiroDiaMesTimestamp, hojeTimestamp)
+        : 0;
+    const ibovAno =
+      ibov1y?.data && ibov1y.data.length > 0
+        ? calcularRentabilidade(ibov1y.data, primeiroDiaAnoTimestamp, hojeTimestamp)
+        : 0;
+    const ibov12Meses =
+      ibov1y?.data && ibov1y.data.length > 0
+        ? calcularRentabilidade(ibov1y.data, dozeMesesAtrasTimestamp, hojeTimestamp)
+        : 0;
 
     return {
       carteira: {
@@ -112,7 +146,14 @@ export default function RentabilidadeResumo() {
         dozeMeses: ibov12Meses,
       },
     };
-  }, [carteiraHistoricoDiario, indices1d, indices1mo, indices1y]);
+  }, [
+    carteiraHistoricoDiario,
+    indices1d,
+    indices1mo,
+    indices1y,
+    hasHistoricoTWR,
+    resumo?.historicoTWR,
+  ]);
 
   // Calcular valores de resumo (% REAL, % TOTAL, % SOBRE CDI)
   const valoresResumo = useMemo(() => {
@@ -122,7 +163,7 @@ export default function RentabilidadeResumo() {
 
     const rentabilidadeTotal = resumo.rentabilidade || 0;
     const cdi12Meses = rentabilidades.cdi.dozeMeses || 0;
-    const sobreCDI = cdi12Meses > 0 ? ((rentabilidadeTotal / cdi12Meses) - 1) * 100 : 0;
+    const sobreCDI = cdi12Meses > 0 ? (rentabilidadeTotal / cdi12Meses - 1) * 100 : 0;
 
     return {
       real: rentabilidadeTotal, // % REAL = rentabilidade total
@@ -145,7 +186,7 @@ export default function RentabilidadeResumo() {
     ];
 
     // Filtrar apenas valores maiores que zero
-    const valoresFiltrados = valores.filter(item => item.valor > 0);
+    const valoresFiltrados = valores.filter((item) => item.valor > 0);
 
     // Se não houver nenhum valor válido, retornar dados vazios
     if (valoresFiltrados.length === 0) {
@@ -166,15 +207,15 @@ export default function RentabilidadeResumo() {
       };
     }
 
-    const percentuais = valoresFiltrados.map(item => ({
+    const percentuais = valoresFiltrados.map((item) => ({
       ...item,
       percentual: (item.valor / total) * 100,
     }));
 
     return {
-      labels: percentuais.map(d => d.nome),
-      series: percentuais.map(d => d.percentual),
-      colors: percentuais.map(d => d.cor),
+      labels: percentuais.map((d) => d.nome),
+      series: percentuais.map((d) => d.percentual),
+      colors: percentuais.map((d) => d.cor),
     };
   }, [rentabilidades]);
 
@@ -275,35 +316,73 @@ export default function RentabilidadeResumo() {
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700">
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400"></th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">CARTEIRA</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">CDI</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">IBOV</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                  CARTEIRA
+                </th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                  CDI
+                </th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                  IBOV
+                </th>
               </tr>
             </thead>
             <tbody>
               <tr className="border-b border-gray-100 dark:border-gray-800">
-                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">Último dia</td>
-                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">{formatPercentage(rentabilidades.carteira.ultimoDia)}</td>
-                <td className="py-3 px-4 text-sm text-right text-[#10B981]">{formatPercentage(rentabilidades.cdi.ultimoDia)}</td>
-                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">{formatPercentage(rentabilidades.ibov.ultimoDia)}</td>
+                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
+                  Último dia
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">
+                  {formatPercentage(rentabilidades.carteira.ultimoDia)}
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#10B981]">
+                  {formatPercentage(rentabilidades.cdi.ultimoDia)}
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">
+                  {formatPercentage(rentabilidades.ibov.ultimoDia)}
+                </td>
               </tr>
               <tr className="border-b border-gray-100 dark:border-gray-800">
-                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">No mês</td>
-                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">{formatPercentage(rentabilidades.carteira.mes)}</td>
-                <td className="py-3 px-4 text-sm text-right text-[#10B981]">{formatPercentage(rentabilidades.cdi.mes)}</td>
-                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">{formatPercentage(rentabilidades.ibov.mes)}</td>
+                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
+                  No mês
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">
+                  {formatPercentage(rentabilidades.carteira.mes)}
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#10B981]">
+                  {formatPercentage(rentabilidades.cdi.mes)}
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">
+                  {formatPercentage(rentabilidades.ibov.mes)}
+                </td>
               </tr>
               <tr className="border-b border-gray-100 dark:border-gray-800">
-                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">No ano</td>
-                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">{formatPercentage(rentabilidades.carteira.ano)}</td>
-                <td className="py-3 px-4 text-sm text-right text-[#10B981]">{formatPercentage(rentabilidades.cdi.ano)}</td>
-                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">{formatPercentage(rentabilidades.ibov.ano)}</td>
+                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
+                  No ano
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">
+                  {formatPercentage(rentabilidades.carteira.ano)}
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#10B981]">
+                  {formatPercentage(rentabilidades.cdi.ano)}
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">
+                  {formatPercentage(rentabilidades.ibov.ano)}
+                </td>
               </tr>
               <tr>
-                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">12 meses</td>
-                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">{formatPercentage(rentabilidades.carteira.dozeMeses)}</td>
-                <td className="py-3 px-4 text-sm text-right text-[#10B981]">{formatPercentage(rentabilidades.cdi.dozeMeses)}</td>
-                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">{formatPercentage(rentabilidades.ibov.dozeMeses)}</td>
+                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
+                  12 meses
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">
+                  {formatPercentage(rentabilidades.carteira.dozeMeses)}
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#10B981]">
+                  {formatPercentage(rentabilidades.cdi.dozeMeses)}
+                </td>
+                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">
+                  {formatPercentage(rentabilidades.ibov.dozeMeses)}
+                </td>
               </tr>
             </tbody>
           </table>

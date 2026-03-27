@@ -1,10 +1,10 @@
-"use client";
-import Link from "next/link";
-import React, { useEffect, useState } from "react";
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import Avatar from "../ui/avatar/Avatar";
-import { useAuth } from "@/hooks/useAuth";
+'use client';
+import Link from 'next/link';
+import React, { useEffect, useState } from 'react';
+import { Dropdown } from '../ui/dropdown/Dropdown';
+import { DropdownItem } from '../ui/dropdown/DropdownItem';
+import Avatar from '../ui/avatar/Avatar';
+import { useAuth } from '@/hooks/useAuth';
 
 interface UserProfile {
   name?: string;
@@ -24,15 +24,15 @@ export default function UserDropdown() {
 
     const loadProfile = async () => {
       try {
-        const response = await fetch("/api/profile", { credentials: "include" });
+        const response = await fetch('/api/profile', { credentials: 'include' });
         if (!response.ok) {
-          throw new Error("Unable to load profile");
+          throw new Error('Unable to load profile');
         }
         const data = await response.json();
         if (isMounted) {
           setUser(data);
         }
-      } catch (error) {
+      } catch {
         if (isMounted) {
           setUser(null);
         }
@@ -58,8 +58,8 @@ export default function UserDropdown() {
     setIsOpen(false);
   }
 
-  const displayName = (user?.name && user.name.trim().length > 0) ? user.name.trim() : "Usuário";
-  const firstName = displayName.split(" ")[0] || displayName;
+  const displayName = user?.name && user.name.trim().length > 0 ? user.name.trim() : 'Usuário';
+  const firstName = displayName.split(' ')[0] || displayName;
   const displayEmail = user?.email;
   const avatarSrc = user?.avatarUrl ?? undefined;
 
@@ -79,12 +79,12 @@ export default function UserDropdown() {
         </span>
 
         <span className="block mr-1 font-medium text-theme-sm">
-          {isFetching ? "Carregando" : firstName}
+          {isFetching ? 'Carregando' : firstName}
         </span>
 
         <svg
           className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
+            isOpen ? 'rotate-180' : ''
           }`}
           width="18"
           height="20"
@@ -102,11 +102,7 @@ export default function UserDropdown() {
         </svg>
       </button>
 
-      <Dropdown
-        isOpen={isOpen}
-        onClose={closeDropdown}
-        className="right-0 mt-2 w-56"
-      >
+      <Dropdown isOpen={isOpen} onClose={closeDropdown} className="right-0 mt-2 w-56">
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
           <p className="text-sm text-gray-900 dark:text-white">{displayName}</p>
           {displayEmail && (

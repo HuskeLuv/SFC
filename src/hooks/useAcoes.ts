@@ -26,7 +26,7 @@ export const useAcoes = () => {
       isFetchingRef.current = true;
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch('/api/carteira/acoes', {
         method: 'GET',
         credentials: 'include',
@@ -72,24 +72,30 @@ export const useAcoes = () => {
     });
   };
 
-  const calculateAtivoValues = (ativo: Partial<AcaoAtivo>, totalCarteiraAcoes: number, totalCarteiraGeral: number): AcaoAtivo => {
+  const calculateAtivoValues = (
+    ativo: Partial<AcaoAtivo>,
+    totalCarteiraAcoes: number,
+    _totalCarteiraGeral: number,
+  ): AcaoAtivo => {
     const quantidade = ativo.quantidade || 0;
     const precoAquisicao = ativo.precoAquisicao || 0;
     const cotacaoAtual = ativo.cotacaoAtual || 0;
-    
+
     const valorTotal = quantidade * precoAquisicao;
     const valorAtualizado = quantidade * cotacaoAtual;
-    const riscoPorAtivo = totalCarteiraAcoes > 0 ? Math.min(100, (valorAtualizado / totalCarteiraAcoes) * 100) : 0;
+    const riscoPorAtivo =
+      totalCarteiraAcoes > 0 ? Math.min(100, (valorAtualizado / totalCarteiraAcoes) * 100) : 0;
     // Percentual daquele tipo de ativo (não da carteira total)
-    const percentualCarteira = totalCarteiraAcoes > 0 ? (valorAtualizado / totalCarteiraAcoes) * 100 : 0;
+    const percentualCarteira =
+      totalCarteiraAcoes > 0 ? (valorAtualizado / totalCarteiraAcoes) * 100 : 0;
     const objetivo = ativo.objetivo || 0;
     // Quanto falta = diferença entre % atual e objetivo (em %)
     const quantoFalta = objetivo - percentualCarteira;
     // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
-    const necessidadeAporte = totalCarteiraAcoes > 0 && quantoFalta > 0 
-      ? (quantoFalta / 100) * totalCarteiraAcoes 
-      : 0;
-    const rentabilidade = precoAquisicao > 0 ? ((cotacaoAtual - precoAquisicao) / precoAquisicao) * 100 : 0;
+    const necessidadeAporte =
+      totalCarteiraAcoes > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalCarteiraAcoes : 0;
+    const rentabilidade =
+      precoAquisicao > 0 ? ((cotacaoAtual - precoAquisicao) / precoAquisicao) * 100 : 0;
 
     return {
       id: ativo.id || '',
@@ -114,18 +120,30 @@ export const useAcoes = () => {
     };
   };
 
-  const calculateSecaoValues = (secao: AcaoSecao, totalCarteiraAcoes: number, totalCarteiraGeral: number): AcaoSecao => {
+  const calculateSecaoValues = (
+    secao: AcaoSecao,
+    totalCarteiraAcoes: number,
+    totalCarteiraGeral: number,
+  ): AcaoSecao => {
     const totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     const totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-    const totalValorAtualizado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-    const totalPercentualCarteira = totalCarteiraGeral > 0 ? (totalValorAtualizado / totalCarteiraGeral) * 100 : 0;
+    const totalValorAtualizado = secao.ativos.reduce(
+      (sum, ativo) => sum + ativo.valorAtualizado,
+      0,
+    );
+    const totalPercentualCarteira =
+      totalCarteiraGeral > 0 ? (totalValorAtualizado / totalCarteiraGeral) * 100 : 0;
     const totalRisco = secao.ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
     const totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
     const totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-    const totalNecessidadeAporte = secao.ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
-    const rentabilidadeMedia = secao.ativos.length > 0 
-      ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length 
-      : 0;
+    const totalNecessidadeAporte = secao.ativos.reduce(
+      (sum, ativo) => sum + ativo.necessidadeAporte,
+      0,
+    );
+    const rentabilidadeMedia =
+      secao.ativos.length > 0
+        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
+        : 0;
 
     return {
       ...secao,
@@ -141,30 +159,33 @@ export const useAcoes = () => {
     };
   };
 
-  const updateCaixaParaInvestir = useCallback(async (novoCaixa: number) => {
-    try {
-      const response = await fetch('/api/carteira/acoes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
-      });
+  const updateCaixaParaInvestir = useCallback(
+    async (novoCaixa: number) => {
+      try {
+        const response = await fetch('/api/carteira/acoes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar caixa para investir');
+        if (!response.ok) {
+          throw new Error('Erro ao atualizar caixa para investir');
+        }
+
+        // Recarregar dados após atualização
+        await fetchData(true);
+        return true;
+      } catch (err) {
+        console.error('Erro ao atualizar caixa para investir:', err);
+        setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
+        return false;
       }
-
-      // Recarregar dados após atualização
-      await fetchData(true);
-      return true;
-    } catch (err) {
-      console.error('Erro ao atualizar caixa para investir:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
-      return false;
-    }
-  }, [fetchData]);
+    },
+    [fetchData],
+  );
 
   const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     if (!data) return false;
@@ -176,7 +197,7 @@ export const useAcoes = () => {
       // Atualização otimista: atualizar estado local imediatamente
       setData((prevData) => {
         if (!prevData) return prevData;
-        
+
         const updatedSecoes = prevData.secoes.map((secao) => ({
           ...secao,
           ativos: secao.ativos.map((ativo) =>
@@ -185,27 +206,30 @@ export const useAcoes = () => {
                   ...ativo,
                   objetivo: novoObjetivo,
                   // Recalcular percentualCarteira baseado no total daquele tipo de ativo
-                  percentualCarteira: prevData.totalGeral.valorAtualizado > 0
-                    ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
-                    : ativo.percentualCarteira,
-                  quantoFalta: (() => {
-                    const novoPercentualCarteira = prevData.totalGeral.valorAtualizado > 0
+                  percentualCarteira:
+                    prevData.totalGeral.valorAtualizado > 0
                       ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
-                      : ativo.percentualCarteira;
+                      : ativo.percentualCarteira,
+                  quantoFalta: (() => {
+                    const novoPercentualCarteira =
+                      prevData.totalGeral.valorAtualizado > 0
+                        ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
+                        : ativo.percentualCarteira;
                     return novoObjetivo - novoPercentualCarteira;
                   })(),
                   necessidadeAporte: (() => {
                     // Recalcular percentualCarteira baseado no total daquele tipo de ativo
-                    const novoPercentualCarteira = prevData.totalGeral.valorAtualizado > 0
-                      ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
-                      : ativo.percentualCarteira;
+                    const novoPercentualCarteira =
+                      prevData.totalGeral.valorAtualizado > 0
+                        ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
+                        : ativo.percentualCarteira;
                     const novoQuantoFalta = novoObjetivo - novoPercentualCarteira;
                     return prevData.totalGeral.valorAtualizado > 0 && novoQuantoFalta > 0
                       ? (novoQuantoFalta / 100) * prevData.totalGeral.valorAtualizado
                       : 0;
                   })(),
                 }
-              : ativo
+              : ativo,
           ),
         }));
 
@@ -213,7 +237,10 @@ export const useAcoes = () => {
         const secoesComTotais = updatedSecoes.map((secao) => {
           const totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
           const totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-          const totalNecessidadeAporte = secao.ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+          const totalNecessidadeAporte = secao.ativos.reduce(
+            (sum, ativo) => sum + ativo.necessidadeAporte,
+            0,
+          );
           return {
             ...secao,
             totalObjetivo,
@@ -224,8 +251,14 @@ export const useAcoes = () => {
 
         // Recalcular totais gerais
         const totalObjetivo = secoesComTotais.reduce((sum, secao) => sum + secao.totalObjetivo, 0);
-        const totalQuantoFalta = secoesComTotais.reduce((sum, secao) => sum + secao.totalQuantoFalta, 0);
-        const totalNecessidadeAporte = secoesComTotais.reduce((sum, secao) => sum + secao.totalNecessidadeAporte, 0);
+        const totalQuantoFalta = secoesComTotais.reduce(
+          (sum, secao) => sum + secao.totalQuantoFalta,
+          0,
+        );
+        const totalNecessidadeAporte = secoesComTotais.reduce(
+          (sum, secao) => sum + secao.totalNecessidadeAporte,
+          0,
+        );
 
         return {
           ...prevData,

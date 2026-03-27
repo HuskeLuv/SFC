@@ -1,40 +1,40 @@
-"use client";
-import React, { useState, useMemo } from "react";
-import { useRendaFixa } from "@/hooks/useRendaFixa";
-import { RendaFixaSecao, RendaFixaAtivo, TipoRendaFixa } from "@/types/rendaFixa";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import ComponentCard from "@/components/common/ComponentCard";
-import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
-import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
-import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
+'use client';
+import React, { useState, useMemo } from 'react';
+import { useRendaFixa } from '@/hooks/useRendaFixa';
+import { RendaFixaSecao, RendaFixaAtivo, TipoRendaFixa } from '@/types/rendaFixa';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ComponentCard from '@/components/common/ComponentCard';
+import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
+import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RENDA_FIXA_COLUMN_COUNT = 13;
-const RENDA_FIXA_SECTION_ORDER = ["pos-fixada", "prefixada", "hibrida"] as const;
+const RENDA_FIXA_SECTION_ORDER = ['pos-fixada', 'prefixada', 'hibrida'] as const;
 const RENDA_FIXA_SECTION_NAMES: Record<(typeof RENDA_FIXA_SECTION_ORDER)[number], string> = {
-  "pos-fixada": "Pós-fixada",
-  prefixada: "Pré-fixada",
-  hibrida: "Híbrida",
+  'pos-fixada': 'Pós-fixada',
+  prefixada: 'Pré-fixada',
+  hibrida: 'Híbrida',
 };
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 
 interface RendaFixaMetricCardProps {
   title: string;
   value: string;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
 }
 
 const RendaFixaMetricCard: React.FC<RendaFixaMetricCardProps> = ({
   title,
   value,
-  color = "primary",
+  color = 'primary',
 }) => {
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    default: "bg-gray-50 text-gray-900 dark:bg-gray-800 dark:text-gray-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    default: 'bg-gray-50 text-gray-900 dark:bg-gray-800 dark:text-gray-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -49,7 +49,16 @@ interface RendaFixaTableRowProps {
   ativo: RendaFixaAtivo;
   formatCurrency: (value: number) => string;
   formatPercentage: (value: number) => string;
-  onUpdateCampo: (ativoId: string, campo: 'cotizacaoResgate' | 'liquidacaoResgate' | 'benchmark' | 'valorAtualizado' | 'observacoes', valor: string | number) => void;
+  onUpdateCampo: (
+    ativoId: string,
+    campo:
+      | 'cotizacaoResgate'
+      | 'liquidacaoResgate'
+      | 'benchmark'
+      | 'valorAtualizado'
+      | 'observacoes',
+    valor: string | number,
+  ) => void;
 }
 
 const formatPercentageSimple = (value: number | undefined | null): string => {
@@ -70,14 +79,22 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
   const [isEditingBenchmark, setIsEditingBenchmark] = useState(false);
   const [isEditingValor, setIsEditingValor] = useState(false);
   const [isEditingObservacoes, setIsEditingObservacoes] = useState(false);
-  
+
   const [cotizacaoValue, setCotizacaoValue] = useState(ativo.cotizacaoResgate);
   const [liquidacaoValue, setLiquidacaoValue] = useState(ativo.liquidacaoResgate);
   const [benchmarkValue, setBenchmarkValue] = useState(ativo.benchmark);
   const [valorValue, setValorValue] = useState(ativo.valorAtualizado.toString());
   const [observacoesValue, setObservacoesValue] = useState(ativo.observacoes || '');
 
-  const handleSubmit = (campo: 'cotizacaoResgate' | 'liquidacaoResgate' | 'benchmark' | 'valorAtualizado' | 'observacoes', valor: string | number) => {
+  const handleSubmit = (
+    campo:
+      | 'cotizacaoResgate'
+      | 'liquidacaoResgate'
+      | 'benchmark'
+      | 'valorAtualizado'
+      | 'observacoes',
+    valor: string | number,
+  ) => {
     onUpdateCampo(ativo.id, campo, valor);
     if (campo === 'cotizacaoResgate') setIsEditingCotizacao(false);
     if (campo === 'liquidacaoResgate') setIsEditingLiquidacao(false);
@@ -86,7 +103,16 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
     if (campo === 'observacoes') setIsEditingObservacoes(false);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent, campo: 'cotizacaoResgate' | 'liquidacaoResgate' | 'benchmark' | 'valorAtualizado' | 'observacoes', valor: string | number) => {
+  const handleKeyPress = (
+    e: React.KeyboardEvent,
+    campo:
+      | 'cotizacaoResgate'
+      | 'liquidacaoResgate'
+      | 'benchmark'
+      | 'valorAtualizado'
+      | 'observacoes',
+    valor: string | number,
+  ) => {
     if (e.key === 'Enter') {
       handleSubmit(campo, valor);
     } else if (e.key === 'Escape') {
@@ -126,7 +152,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
             autoFocus
           />
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingCotizacao(true)}
           >
@@ -146,7 +172,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
             autoFocus
           />
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingLiquidacao(true)}
           >
@@ -155,7 +181,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
         )}
       </td>
       <td className="px-2 py-2 text-xs text-center text-black">
-        {ativo.vencimento.toLocaleDateString("pt-BR")}
+        {ativo.vencimento.toLocaleDateString('pt-BR')}
       </td>
       <td className="px-2 py-2 text-xs text-center text-black">
         {isEditingBenchmark ? (
@@ -169,7 +195,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
             autoFocus
           />
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingBenchmark(true)}
           >
@@ -180,12 +206,8 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.valorInicialAplicado)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.aporte)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.resgate)}
-      </td>
+      <td className="px-2 py-2 text-xs text-right text-black">{formatCurrency(ativo.aporte)}</td>
+      <td className="px-2 py-2 text-xs text-right text-black">{formatCurrency(ativo.resgate)}</td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {isEditingValor ? (
           <input
@@ -212,7 +234,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
             autoFocus
           />
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingValor(true)}
           >
@@ -241,7 +263,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
             autoFocus
           />
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObservacoes(true)}
           >
@@ -259,7 +281,16 @@ interface RendaFixaSectionProps {
   formatPercentage: (value: number) => string;
   isExpanded: boolean;
   onToggle: () => void;
-  onUpdateCampo: (ativoId: string, campo: 'cotizacaoResgate' | 'liquidacaoResgate' | 'benchmark' | 'valorAtualizado' | 'observacoes', valor: string | number) => void;
+  onUpdateCampo: (
+    ativoId: string,
+    campo:
+      | 'cotizacaoResgate'
+      | 'liquidacaoResgate'
+      | 'benchmark'
+      | 'valorAtualizado'
+      | 'observacoes',
+    valor: string | number,
+  ) => void;
 }
 
 const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
@@ -275,10 +306,7 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
   return (
     <>
       {/* Cabeçalho da seção */}
-      <tr 
-        className="bg-[#808080] cursor-pointer"
-        onClick={onToggle}
-      >
+      <tr className="bg-[#808080] cursor-pointer" onClick={onToggle}>
         <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
@@ -316,20 +344,18 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
       </tr>
 
       {/* Ativos da seção */}
-      {isExpanded && secao.ativos.map((ativo) => (
-        <RendaFixaTableRow
-          key={ativo.id}
-          ativo={ativo}
-          formatCurrency={formatCurrency}
-          formatPercentage={formatPercentage}
-          onUpdateCampo={onUpdateCampo}
-        />
-      ))}
+      {isExpanded &&
+        secao.ativos.map((ativo) => (
+          <RendaFixaTableRow
+            key={ativo.id}
+            ativo={ativo}
+            formatCurrency={formatCurrency}
+            formatPercentage={formatPercentage}
+            onUpdateCampo={onUpdateCampo}
+          />
+        ))}
       {isExpanded && (
-        <BasicTablePlaceholderRows
-          count={placeholderCount}
-          colSpan={RENDA_FIXA_COLUMN_COUNT}
-        />
+        <BasicTablePlaceholderRows count={placeholderCount} colSpan={RENDA_FIXA_COLUMN_COUNT} />
       )}
     </>
   );
@@ -340,11 +366,20 @@ interface RendaFixaTableProps {
 }
 
 export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, updateCaixaParaInvestir, updateRendaFixaCampo } = useRendaFixa();
-  const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
-  const necessidadeAporteCalculada = necessidadeAporteMap.rendaFixaFundos ?? data?.resumo?.necessidadeAporte ?? 0;
+  const {
+    data,
+    loading,
+    error,
+    formatCurrency,
+    formatPercentage,
+    updateCaixaParaInvestir,
+    updateRendaFixaCampo,
+  } = useRendaFixa();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteCalculada =
+    necessidadeAporteMap.rendaFixaFundos ?? data?.resumo?.necessidadeAporte ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(RENDA_FIXA_SECTION_ORDER)
+    new Set(RENDA_FIXA_SECTION_ORDER),
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -354,17 +389,21 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
     const totalTabValue = data.totalGeral?.valorAtualizado || 0;
     const shouldCalculateRisco = totalCarteira > 0;
 
-    const secoesComRisco = data.secoes.map(secao => ({
+    const secoesComRisco = data.secoes.map((secao) => ({
       ...secao,
       percentualTotal: totalTabValue > 0 ? (secao.totalValorAtualizado / totalTabValue) * 100 : 0,
-      ativos: secao.ativos.map(ativo => ({
+      ativos: secao.ativos.map((ativo) => ({
         ...ativo,
-        riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+        riscoPorAtivo: shouldCalculateRisco
+          ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+          : 0,
         percentualCarteira: totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0,
       })),
       totalRisco: secao.ativos.reduce(
-        (sum, ativo) => sum + (shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0),
-        0
+        (sum, ativo) =>
+          sum +
+          (shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0),
+        0,
       ),
     }));
 
@@ -387,7 +426,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
   const normalizedSections = useMemo(() => {
     const createEmptySection = (
       tipo: (typeof RENDA_FIXA_SECTION_ORDER)[number],
-      nome: string
+      nome: string,
     ): RendaFixaSecao => ({
       tipo: tipo as TipoRendaFixa,
       nome,
@@ -469,45 +508,87 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
         <div className="overflow-x-auto">
           <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
-                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+              <tr
+                className="border-b border-gray-200 dark:border-gray-700"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Nome dos Ativos
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Cotização de resgate
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Liquidação de resgate
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Vencimento
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Benchmark
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor inicial aplicado
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Aporte
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Resgate
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor Atualizado
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   % Carteira
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   <span className="block">Risco por ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Rentabilidade
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer whitespace-nowrap" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer whitespace-nowrap"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Observações
                 </th>
               </tr>
@@ -515,9 +596,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
             <tbody>
               {/* Linha de totalização */}
               <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">
-                  TOTAL GERAL
-                </td>
+                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
@@ -534,9 +613,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  100.00%
-                </td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}

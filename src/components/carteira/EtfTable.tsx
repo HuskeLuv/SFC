@@ -1,41 +1,37 @@
-"use client";
-import React, { useState, useMemo } from "react";
-import { useEtf } from "@/hooks/useEtf";
-import { EtfAtivo, EtfSecao, RegiaoEtf } from "@/types/etf";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import ComponentCard from "@/components/common/ComponentCard";
-import PieChartEtfAtivo from "@/components/charts/pie/PieChartEtfAtivo";
-import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
-import { BasicTablePlaceholderRows } from "@/components/carteira/shared";
-import AssetNameLink from "@/components/carteira/AssetNameLink";
-import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
+'use client';
+import React, { useState, useMemo } from 'react';
+import { useEtf } from '@/hooks/useEtf';
+import { EtfAtivo, EtfSecao, RegiaoEtf } from '@/types/etf';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ComponentCard from '@/components/common/ComponentCard';
+import PieChartEtfAtivo from '@/components/charts/pie/PieChartEtfAtivo';
+import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
+import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const ETF_COLUMN_COUNT = 13;
 const ETF_AUX_COLUMN_COUNT = 4;
-const ETF_SECTION_ORDER = ["brasil", "estados_unidos"] as const;
+const ETF_SECTION_ORDER = ['brasil', 'estados_unidos'] as const;
 const ETF_SECTION_NAMES: Record<(typeof ETF_SECTION_ORDER)[number], string> = {
-  brasil: "Brasil",
-  estados_unidos: "EUA",
+  brasil: 'Brasil',
+  estados_unidos: 'EUA',
 };
 
 interface EtfMetricCardProps {
   title: string;
   value: string;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
 }
 
-const EtfMetricCard: React.FC<EtfMetricCardProps> = ({
-  title,
-  value,
-  color = "primary",
-}) => {
+const EtfMetricCard: React.FC<EtfMetricCardProps> = ({ title, value, color = 'primary' }) => {
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -81,8 +77,6 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
     }
   };
 
-
-
   const currency = ativo.regiao === 'estados_unidos' ? 'USD' : 'BRL';
 
   return (
@@ -90,17 +84,14 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
       <td className="px-2 py-2 text-xs font-medium text-black">
         <div>
           <AssetNameLink portfolioId={ativo.id} ticker={ativo.ticker} nome={ativo.nome} />
-          {ativo.observacoes && (
-            <div className="text-xs text-black mt-1">{ativo.observacoes}</div>
-          )}
+          {ativo.observacoes && <div className="text-xs text-black mt-1">{ativo.observacoes}</div>}
         </div>
       </td>
       <td className="px-2 py-2 text-xs text-center">
-        {ativo.indiceRastreado.charAt(0).toUpperCase() + ativo.indiceRastreado.slice(1).replace('_', ' ')}
+        {ativo.indiceRastreado.charAt(0).toUpperCase() +
+          ativo.indiceRastreado.slice(1).replace('_', ' ')}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatNumber(ativo.quantidade)}
-      </td>
+      <td className="px-2 py-2 text-xs text-right text-black">{formatNumber(ativo.quantidade)}</td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatCurrency(ativo.precoAquisicao, currency)}
       </td>
@@ -135,7 +126,7 @@ const EtfTableRow: React.FC<EtfTableRowProps> = ({
             <span className="text-xs text-black">%</span>
           </div>
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObjetivo(true)}
           >
@@ -182,10 +173,7 @@ const EtfSection: React.FC<EtfSectionProps> = ({
   return (
     <>
       {/* Cabeçalho da seção */}
-      <tr 
-        className="bg-[#808080] cursor-pointer"
-        onClick={onToggle}
-      >
+      <tr className="bg-[#808080] cursor-pointer" onClick={onToggle}>
         <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
@@ -229,21 +217,19 @@ const EtfSection: React.FC<EtfSectionProps> = ({
       </tr>
 
       {/* Ativos da seção */}
-      {isExpanded && secao.ativos.map((ativo) => (
-        <EtfTableRow
-          key={ativo.id}
-          ativo={ativo}
-          formatCurrency={formatCurrency}
-          formatPercentage={formatPercentage}
-          formatNumber={formatNumber}
-          onUpdateObjetivo={onUpdateObjetivo}
-        />
-      ))}
+      {isExpanded &&
+        secao.ativos.map((ativo) => (
+          <EtfTableRow
+            key={ativo.id}
+            ativo={ativo}
+            formatCurrency={formatCurrency}
+            formatPercentage={formatPercentage}
+            formatNumber={formatNumber}
+            onUpdateObjetivo={onUpdateObjetivo}
+          />
+        ))}
       {isExpanded && (
-        <BasicTablePlaceholderRows
-          count={placeholderCount}
-          colSpan={ETF_COLUMN_COUNT}
-        />
+        <BasicTablePlaceholderRows count={placeholderCount} colSpan={ETF_COLUMN_COUNT} />
       )}
     </>
   );
@@ -254,12 +240,20 @@ interface EtfTableProps {
 }
 
 export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir } = useEtf();
-  const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
-  const necessidadeAporteTotalCalculada = necessidadeAporteMap.etfs ?? data?.resumo?.necessidadeAporteTotal ?? 0;
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(ETF_SECTION_ORDER)
-  );
+  const {
+    data,
+    loading,
+    error,
+    formatCurrency,
+    formatPercentage,
+    formatNumber,
+    updateObjetivo,
+    updateCaixaParaInvestir,
+  } = useEtf();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada =
+    necessidadeAporteMap.etfs ?? data?.resumo?.necessidadeAporteTotal ?? 0;
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(ETF_SECTION_ORDER));
 
   // Calcular risco (carteira total) e percentual da carteira da aba
   const dataComRisco = useMemo(() => {
@@ -268,27 +262,28 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     const totalTabValue = data.totalGeral?.valorAtualizado || 0;
     const shouldCalculateRisco = totalCarteira > 0;
 
-    const secoesComRisco = data.secoes.map(secao => {
-      const totalPercentualCarteira = totalTabValue > 0
-        ? (secao.totalValorAtualizado / totalTabValue) * 100
-        : 0;
+    const secoesComRisco = data.secoes.map((secao) => {
+      const totalPercentualCarteira =
+        totalTabValue > 0 ? (secao.totalValorAtualizado / totalTabValue) * 100 : 0;
 
       return {
         ...secao,
-        ativos: secao.ativos.map(ativo => {
+        ativos: secao.ativos.map((ativo) => {
           // Percentual daquele tipo de ativo (não da carteira total)
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           // Quanto falta = diferença entre % atual e objetivo (em %)
           const quantoFalta = objetivo - percentualCarteira;
           // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
-          const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 
-            ? (quantoFalta / 100) * totalTabValue 
-            : 0;
-          
+          const necessidadeAporte =
+            totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+
           return {
             ...ativo,
-            riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+            riscoPorAtivo: shouldCalculateRisco
+              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+              : 0,
             percentualCarteira,
             quantoFalta,
             necessidadeAporte,
@@ -296,31 +291,42 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
         }),
         totalPercentualCarteira,
         totalRisco: secao.ativos.reduce(
-          (sum, ativo) => sum + (shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0),
-          0
+          (sum, ativo) =>
+            sum +
+            (shouldCalculateRisco
+              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+              : 0),
+          0,
         ),
         totalQuantoFalta: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           return sum + (objetivo - percentualCarteira);
         }, 0),
         totalNecessidadeAporte: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           const quantoFalta = objetivo - percentualCarteira;
-          return sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0);
+          return (
+            sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0)
+          );
         }, 0),
       };
     });
 
     const totalGeralRisco = secoesComRisco.reduce(
       (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
-      0
+      0,
     );
 
     // Recalcular totais gerais
     const totalQuantoFalta = secoesComRisco.reduce((sum, secao) => sum + secao.totalQuantoFalta, 0);
-    const totalNecessidadeAporte = secoesComRisco.reduce((sum, secao) => sum + secao.totalNecessidadeAporte, 0);
+    const totalNecessidadeAporte = secoesComRisco.reduce(
+      (sum, secao) => sum + secao.totalNecessidadeAporte,
+      0,
+    );
 
     return {
       ...data,
@@ -349,11 +355,10 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
-
   const normalizedSections = useMemo(() => {
     const createEmptySection = (
       regiao: (typeof ETF_SECTION_ORDER)[number],
-      nome: string
+      nome: string,
     ): EtfSecao => ({
       regiao: regiao as RegiaoEtf,
       nome,
@@ -438,45 +443,87 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700" style={{ backgroundColor: '#9E8A58' }}>
-                <th className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+              <tr
+                className="border-b border-gray-200 dark:border-gray-700"
+                style={{ backgroundColor: '#9E8A58' }}
+              >
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Nome do Ativo
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Índice Rastreado
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Quantidade
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Preço Médio
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor Total
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Cotação Atual
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Valor Atualizado
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   % da Carteira
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Objetivo
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Quanto Falta
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Nec. Aporte $
                 </th>
-                <th className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer" style={{ backgroundColor: '#9E8A58' }}>
+                <th
+                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  style={{ backgroundColor: '#9E8A58' }}
+                >
                   Rentabilidade
                 </th>
               </tr>
@@ -484,9 +531,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
             <tbody>
               {/* Linha de totalização */}
               <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">
-                  TOTAL GERAL
-                </td>
+                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
@@ -558,15 +603,22 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                 </thead>
                 <tbody>
                   {(data?.tabelaAuxiliar || []).map((item, index) => (
-                    <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                      <td className="px-2 py-2 text-xs font-medium text-black">
-                        {item.ticker}
-                      </td>
+                    <tr
+                      key={index}
+                      className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+                    >
+                      <td className="px-2 py-2 text-xs font-medium text-black">{item.ticker}</td>
                       <td className="px-2 py-2 text-xs text-right font-medium text-black">
                         {formatCurrency(item.cotacaoAtual)}
                       </td>
                       <td className="px-2 py-2 text-xs text-right font-medium">
-                        <span className={item.necessidadeAporte > 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"}>
+                        <span
+                          className={
+                            item.necessidadeAporte > 0
+                              ? 'text-orange-600 dark:text-orange-400'
+                              : 'text-gray-600 dark:text-gray-400'
+                          }
+                        >
                           {formatCurrency(item.necessidadeAporte)}
                         </span>
                       </td>

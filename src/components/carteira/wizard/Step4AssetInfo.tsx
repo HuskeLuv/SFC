@@ -1,11 +1,15 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { WizardFormData, WizardErrors, AutocompleteOption, PERIODOS, MOEDAS_FIXAS, RENDA_FIXA_INDEXADORES_POS } from "@/types/wizard";
-import Label from "@/components/form/Label";
-import Input from "@/components/form/input/InputField";
-import Select from "@/components/form/Select";
-import DatePicker from "@/components/form/date-picker";
-import AutocompleteInput from "@/components/form/AutocompleteInput";
+'use client';
+import React, { useEffect, useState } from 'react';
+import {
+  WizardFormData,
+  WizardErrors,
+  MOEDAS_FIXAS,
+  RENDA_FIXA_INDEXADORES_POS,
+} from '@/types/wizard';
+import Label from '@/components/form/Label';
+import Input from '@/components/form/input/InputField';
+import Select from '@/components/form/Select';
+import DatePicker from '@/components/form/date-picker';
 
 interface Step4AssetInfoProps {
   formData: WizardFormData;
@@ -26,7 +30,7 @@ export default function Step4AssetInfo({
   // Buscar emissores para renda fixa
   // const fetchEmissores = async (search: string) => {
   //   if (search.length < 2) return;
-  //   
+  //
   //   setLoading(true);
   //   try {
   //     const response = await fetch(
@@ -51,25 +55,11 @@ export default function Step4AssetInfo({
 
   const handleInputChange = (field: keyof WizardFormData, value: string | number | boolean) => {
     onFormDataChange({ [field]: value });
-    
+
     // Limpar erro quando usuário começar a digitar
     if (errors[field as keyof WizardErrors]) {
       onErrorsChange({ [field]: undefined });
     }
-  };
-
-  const handleEmissorChange = (value: string) => {
-    onFormDataChange({ 
-      emissor: value,
-      emissorId: value ? formData.emissorId : ""
-    });
-  };
-
-  const handleEmissorSelect = (option: AutocompleteOption) => {
-    onFormDataChange({
-      emissor: option.label,
-      emissorId: option.value,
-    });
   };
 
   const [decimalInputValues, setDecimalInputValues] = useState<Record<string, string>>({});
@@ -79,12 +69,12 @@ export default function Step4AssetInfo({
     if (!trimmedValue) {
       return null;
     }
-    const normalizedValue = trimmedValue.replace(/\s/g, "");
-    const hasComma = normalizedValue.includes(",");
+    const normalizedValue = trimmedValue.replace(/\s/g, '');
+    const hasComma = normalizedValue.includes(',');
     const cleanedValue = hasComma
-      ? normalizedValue.replace(/\./g, "").replace(",", ".")
+      ? normalizedValue.replace(/\./g, '').replace(',', '.')
       : normalizedValue;
-    const numericValue = Number.parseFloat(cleanedValue.replace(/[^0-9.-]/g, ""));
+    const numericValue = Number.parseFloat(cleanedValue.replace(/[^0-9.-]/g, ''));
     return Number.isFinite(numericValue) ? numericValue : null;
   };
 
@@ -94,67 +84,85 @@ export default function Step4AssetInfo({
       return localValue;
     }
     const numericValue = formData[field];
-    if (typeof numericValue !== "number" || Number.isNaN(numericValue)) {
-      return "";
+    if (typeof numericValue !== 'number' || Number.isNaN(numericValue)) {
+      return '';
     }
-    return String(numericValue).replace(".", ",");
+    return String(numericValue).replace('.', ',');
   };
 
-  const handleDecimalInputChange = (field: keyof WizardFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value;
-    setDecimalInputValues((prev) => ({ ...prev, [field]: rawValue }));
+  const handleDecimalInputChange =
+    (field: keyof WizardFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      const rawValue = e.target.value;
+      setDecimalInputValues((prev) => ({ ...prev, [field]: rawValue }));
 
-    if (!rawValue.trim()) {
-      handleInputChange(field, 0);
-      return;
-    }
+      if (!rawValue.trim()) {
+        handleInputChange(field, 0);
+        return;
+      }
 
-    const parsedValue = parseDecimalValue(rawValue);
-    if (parsedValue === null) {
-      return;
-    }
-    handleInputChange(field, parsedValue);
-  };
+      const parsedValue = parseDecimalValue(rawValue);
+      if (parsedValue === null) {
+        return;
+      }
+      handleInputChange(field, parsedValue);
+    };
 
   const decimalInputProps = {
-    type: "text" as const,
-    inputMode: "decimal" as const,
-    pattern: "[0-9]*[.,]?[0-9]*",
+    type: 'text' as const,
+    inputMode: 'decimal' as const,
+    pattern: '[0-9]*[.,]?[0-9]*',
   };
 
   const integerInputProps = {
-    type: "text" as const,
-    inputMode: "numeric" as const,
-    pattern: "[0-9]*",
+    type: 'text' as const,
+    inputMode: 'numeric' as const,
+    pattern: '[0-9]*',
   };
 
   // Calcular valor total automaticamente para alguns tipos
   useEffect(() => {
-    if (formData.tipoAtivo === "fii" && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
-      const valorCalculado = (formData.quantidade * formData.cotacaoUnitaria) + (formData.taxaCorretagem || 0);
+    if (formData.tipoAtivo === 'fii' && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
+      const valorCalculado =
+        formData.quantidade * formData.cotacaoUnitaria + (formData.taxaCorretagem || 0);
       if (Math.abs(formData.valorInvestido - valorCalculado) > 0.01) {
         onFormDataChange({ valorInvestido: valorCalculado });
       }
     }
     const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
-    if ((formData.tipoAtivo === "debenture" || formData.tipoAtivo === "fundo" || formData.tipoAtivo === "previdencia" || formData.tipoAtivo === "tesouro-direto") && metodoCotas && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
+    if (
+      (formData.tipoAtivo === 'debenture' ||
+        formData.tipoAtivo === 'fundo' ||
+        formData.tipoAtivo === 'previdencia' ||
+        formData.tipoAtivo === 'tesouro-direto') &&
+      metodoCotas &&
+      formData.quantidade > 0 &&
+      formData.cotacaoUnitaria > 0
+    ) {
       const valorCalculado = formData.quantidade * formData.cotacaoUnitaria;
       if (Math.abs(formData.valorInvestido - valorCalculado) > 0.01) {
         onFormDataChange({ valorInvestido: valorCalculado });
       }
     }
-    if (formData.tipoAtivo === "reit" && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
+    if (formData.tipoAtivo === 'reit' && formData.quantidade > 0 && formData.cotacaoUnitaria > 0) {
       const valorCalculado = formData.quantidade * formData.cotacaoUnitaria;
       if (Math.abs(formData.valorInvestido - valorCalculado) > 0.01) {
         onFormDataChange({ valorInvestido: valorCalculado });
       }
     }
-  }, [formData.quantidade, formData.cotacaoUnitaria, formData.taxaCorretagem, formData.tipoAtivo, formData.metodo, formData.valorInvestido, onFormDataChange]);
+  }, [
+    formData.quantidade,
+    formData.cotacaoUnitaria,
+    formData.taxaCorretagem,
+    formData.tipoAtivo,
+    formData.metodo,
+    formData.valorInvestido,
+    onFormDataChange,
+  ]);
 
   const renderFieldsByAssetType = () => {
     switch (formData.tipoAtivo) {
-      case "reserva-emergencia":
-      case "reserva-oportunidade":
+      case 'reserva-emergencia':
+      case 'reserva-oportunidade':
         return (
           <>
             <div>
@@ -179,8 +187,8 @@ export default function Step4AssetInfo({
                 id="valorInvestido"
                 {...decimalInputProps}
                 placeholder="Ex: 10000.00"
-                value={getDecimalInputValue("valorInvestido")}
-                onChange={handleDecimalInputChange("valorInvestido")}
+                value={getDecimalInputValue('valorInvestido')}
+                onChange={handleDecimalInputChange('valorInvestido')}
                 error={!!errors.valorInvestido}
                 hint={errors.valorInvestido}
                 min="0"
@@ -242,7 +250,7 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "conta-corrente":
+      case 'conta-corrente':
         return (
           <>
             <div>
@@ -278,8 +286,8 @@ export default function Step4AssetInfo({
                 id="valorAplicado"
                 {...decimalInputProps}
                 placeholder="Ex: 10000.00"
-                value={getDecimalInputValue("valorAplicado")}
-                onChange={handleDecimalInputChange("valorAplicado")}
+                value={getDecimalInputValue('valorAplicado')}
+                onChange={handleDecimalInputChange('valorAplicado')}
                 error={!!errors.valorAplicado}
                 hint={errors.valorAplicado}
                 min="0"
@@ -291,11 +299,11 @@ export default function Step4AssetInfo({
               <Select
                 id="contaCorrenteDestino"
                 options={[
-                  { value: "reserva-emergencia", label: "Reserva de Emergência" },
-                  { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
+                  { value: 'reserva-emergencia', label: 'Reserva de Emergência' },
+                  { value: 'reserva-oportunidade', label: 'Reserva de Oportunidade' },
                 ]}
                 placeholder="Selecione onde exibir"
-                value={formData.contaCorrenteDestino ?? ""}
+                value={formData.contaCorrenteDestino ?? ''}
                 onChange={(value) => handleInputChange('contaCorrenteDestino', value)}
                 className={errors.contaCorrenteDestino ? 'border-red-500' : ''}
               />
@@ -306,7 +314,7 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "criptoativo":
+      case 'criptoativo':
         return (
           <>
             <div>
@@ -331,8 +339,8 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...decimalInputProps}
                 placeholder="Ex: 0.5"
-                value={getDecimalInputValue("quantidade")}
-                onChange={handleDecimalInputChange("quantidade")}
+                value={getDecimalInputValue('quantidade')}
+                onChange={handleDecimalInputChange('quantidade')}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -345,8 +353,8 @@ export default function Step4AssetInfo({
                 id="cotacaoCompra"
                 {...decimalInputProps}
                 placeholder="Ex: 150000.00"
-                value={getDecimalInputValue("cotacaoCompra")}
-                onChange={handleDecimalInputChange("cotacaoCompra")}
+                value={getDecimalInputValue('cotacaoCompra')}
+                onChange={handleDecimalInputChange('cotacaoCompra')}
                 error={!!errors.cotacaoCompra}
                 hint={errors.cotacaoCompra}
                 min="0"
@@ -356,7 +364,7 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "moeda":
+      case 'moeda':
         return (
           <>
             <div>
@@ -392,14 +400,16 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...decimalInputProps}
                 placeholder="Ex: 100 ou 100.50"
-                value={getDecimalInputValue("quantidade")}
-                onChange={handleDecimalInputChange("quantidade")}
+                value={getDecimalInputValue('quantidade')}
+                onChange={handleDecimalInputChange('quantidade')}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
                 step="0.01"
               />
-              {errors.quantidade && <p className="mt-1 text-sm text-red-500">{errors.quantidade}</p>}
+              {errors.quantidade && (
+                <p className="mt-1 text-sm text-red-500">{errors.quantidade}</p>
+              )}
             </div>
             <div>
               <Label htmlFor="cotacaoCompra">Preço de aquisição por unidade (R$) *</Label>
@@ -407,8 +417,8 @@ export default function Step4AssetInfo({
                 id="cotacaoCompra"
                 {...decimalInputProps}
                 placeholder="Ex: 5.20"
-                value={getDecimalInputValue("cotacaoCompra")}
-                onChange={handleDecimalInputChange("cotacaoCompra")}
+                value={getDecimalInputValue('cotacaoCompra')}
+                onChange={handleDecimalInputChange('cotacaoCompra')}
                 error={!!errors.cotacaoCompra}
                 hint={errors.cotacaoCompra}
                 min="0"
@@ -421,9 +431,13 @@ export default function Step4AssetInfo({
                 id="valorInvestido"
                 type="text"
                 placeholder="Calculado automaticamente"
-                value={formData.quantidade > 0 && formData.cotacaoCompra > 0
-                  ? (formData.quantidade * formData.cotacaoCompra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-                  : ''}
+                value={
+                  formData.quantidade > 0 && formData.cotacaoCompra > 0
+                    ? (formData.quantidade * formData.cotacaoCompra).toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                      })
+                    : ''
+                }
                 disabled
                 className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
               />
@@ -431,7 +445,7 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "personalizado":
+      case 'personalizado':
         return (
           <>
             <div>
@@ -468,8 +482,8 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...integerInputProps}
                 placeholder="Ex: 1000"
-                value={getDecimalInputValue("quantidade")}
-                onChange={handleDecimalInputChange("quantidade")}
+                value={getDecimalInputValue('quantidade')}
+                onChange={handleDecimalInputChange('quantidade')}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -482,8 +496,8 @@ export default function Step4AssetInfo({
                 id="precoUnitario"
                 {...decimalInputProps}
                 placeholder="Ex: 10.50"
-                value={getDecimalInputValue("precoUnitario")}
-                onChange={handleDecimalInputChange("precoUnitario")}
+                value={getDecimalInputValue('precoUnitario')}
+                onChange={handleDecimalInputChange('precoUnitario')}
                 error={!!errors.precoUnitario}
                 hint={errors.precoUnitario}
                 min="0"
@@ -494,22 +508,28 @@ export default function Step4AssetInfo({
               <Label htmlFor="metodo">Método de Acompanhamento *</Label>
               <Select
                 options={[
-                  { value: "valor", label: "Por Valor Financeiro: A cada mês você informa o valor atualizado do seu investimento" },
-                  { value: "percentual", label: "Por Variação Percentual: A cada mês, você informa quantos % seu investimento rendeu" }
+                  {
+                    value: 'valor',
+                    label:
+                      'Por Valor Financeiro: A cada mês você informa o valor atualizado do seu investimento',
+                  },
+                  {
+                    value: 'percentual',
+                    label:
+                      'Por Variação Percentual: A cada mês, você informa quantos % seu investimento rendeu',
+                  },
                 ]}
                 placeholder="Selecione o método"
                 defaultValue={formData.metodo}
                 onChange={(value) => handleInputChange('metodo', value)}
                 className={errors.metodo ? 'border-red-500' : ''}
               />
-              {errors.metodo && (
-                <p className="mt-1 text-sm text-red-500">{errors.metodo}</p>
-              )}
+              {errors.metodo && <p className="mt-1 text-sm text-red-500">{errors.metodo}</p>}
             </div>
           </>
         );
 
-      case "poupanca":
+      case 'poupanca':
         return (
           <>
             <div>
@@ -545,8 +565,8 @@ export default function Step4AssetInfo({
                 id="valorAplicado"
                 {...decimalInputProps}
                 placeholder="Ex: 5000.00"
-                value={getDecimalInputValue("valorAplicado")}
-                onChange={handleDecimalInputChange("valorAplicado")}
+                value={getDecimalInputValue('valorAplicado')}
+                onChange={handleDecimalInputChange('valorAplicado')}
                 error={!!errors.valorAplicado}
                 hint={errors.valorAplicado}
                 min="0"
@@ -558,11 +578,11 @@ export default function Step4AssetInfo({
               <Select
                 id="contaCorrenteDestino"
                 options={[
-                  { value: "reserva-emergencia", label: "Reserva de Emergência" },
-                  { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
+                  { value: 'reserva-emergencia', label: 'Reserva de Emergência' },
+                  { value: 'reserva-oportunidade', label: 'Reserva de Oportunidade' },
                 ]}
                 placeholder="Selecione onde exibir"
-                value={formData.contaCorrenteDestino ?? ""}
+                value={formData.contaCorrenteDestino ?? ''}
                 onChange={(value) => handleInputChange('contaCorrenteDestino', value)}
                 className={errors.contaCorrenteDestino ? 'border-red-500' : ''}
               />
@@ -573,9 +593,9 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "renda-fixa":
-      case "renda-fixa-posfixada":
-      case "renda-fixa-hibrida":
+      case 'renda-fixa':
+      case 'renda-fixa-posfixada':
+      case 'renda-fixa-hibrida':
         return (
           <>
             <div>
@@ -600,8 +620,8 @@ export default function Step4AssetInfo({
                 id="valorAplicado"
                 {...decimalInputProps}
                 placeholder="Ex: 10000.00"
-                value={getDecimalInputValue("valorAplicado")}
-                onChange={handleDecimalInputChange("valorAplicado")}
+                value={getDecimalInputValue('valorAplicado')}
+                onChange={handleDecimalInputChange('valorAplicado')}
                 error={!!errors.valorAplicado}
                 hint={errors.valorAplicado}
                 min="0"
@@ -616,7 +636,10 @@ export default function Step4AssetInfo({
                 defaultDate={formData.dataVencimento}
                 onChange={(selectedDates) => {
                   if (selectedDates && selectedDates.length > 0) {
-                    handleInputChange('dataVencimento', selectedDates[0].toISOString().split('T')[0]);
+                    handleInputChange(
+                      'dataVencimento',
+                      selectedDates[0].toISOString().split('T')[0],
+                    );
                   }
                 }}
               />
@@ -624,15 +647,15 @@ export default function Step4AssetInfo({
                 <p className="mt-1 text-sm text-red-500">{errors.dataVencimento}</p>
               )}
             </div>
-            {formData.tipoAtivo === "renda-fixa-hibrida" && (
+            {formData.tipoAtivo === 'renda-fixa-hibrida' && (
               <div>
                 <Label htmlFor="taxaFixaAnual">Taxa Fixa Anual (%) *</Label>
                 <Input
                   id="taxaFixaAnual"
                   {...decimalInputProps}
                   placeholder="Ex: 6 (parte prefixada)"
-                  value={getDecimalInputValue("taxaFixaAnual")}
-                  onChange={handleDecimalInputChange("taxaFixaAnual")}
+                  value={getDecimalInputValue('taxaFixaAnual')}
+                  onChange={handleDecimalInputChange('taxaFixaAnual')}
                   error={!!errors.taxaFixaAnual}
                   hint={errors.taxaFixaAnual}
                   min="0"
@@ -642,31 +665,32 @@ export default function Step4AssetInfo({
             )}
             <div>
               <Label htmlFor="taxaJurosAnual">
-                {formData.tipoAtivo === "renda-fixa-posfixada"
-                  ? "Taxa sobre o Indexador (%) *"
-                  : formData.tipoAtivo === "renda-fixa-hibrida"
-                    ? "Taxa sobre o Indexador (%) *"
-                    : "Taxa de Juros Anual (%) *"}
+                {formData.tipoAtivo === 'renda-fixa-posfixada'
+                  ? 'Taxa sobre o Indexador (%) *'
+                  : formData.tipoAtivo === 'renda-fixa-hibrida'
+                    ? 'Taxa sobre o Indexador (%) *'
+                    : 'Taxa de Juros Anual (%) *'}
               </Label>
               <Input
                 id="taxaJurosAnual"
                 {...decimalInputProps}
                 placeholder={
-                  formData.tipoAtivo === "renda-fixa-posfixada"
-                    ? "Ex: 100 (100% CDI) ou 1.5 (CDI + 1.5%)"
-                    : formData.tipoAtivo === "renda-fixa-hibrida"
-                      ? "Ex: 100 (100% CDI) ou 5 (IPCA + 5%)"
-                      : "Ex: 12.5"
+                  formData.tipoAtivo === 'renda-fixa-posfixada'
+                    ? 'Ex: 100 (100% CDI) ou 1.5 (CDI + 1.5%)'
+                    : formData.tipoAtivo === 'renda-fixa-hibrida'
+                      ? 'Ex: 100 (100% CDI) ou 5 (IPCA + 5%)'
+                      : 'Ex: 12.5'
                 }
-                value={getDecimalInputValue("taxaJurosAnual")}
-                onChange={handleDecimalInputChange("taxaJurosAnual")}
+                value={getDecimalInputValue('taxaJurosAnual')}
+                onChange={handleDecimalInputChange('taxaJurosAnual')}
                 error={!!errors.taxaJurosAnual}
                 hint={errors.taxaJurosAnual}
                 min="0"
                 step="0.01"
               />
             </div>
-            {(formData.tipoAtivo === "renda-fixa-posfixada" || formData.tipoAtivo === "renda-fixa-hibrida") && (
+            {(formData.tipoAtivo === 'renda-fixa-posfixada' ||
+              formData.tipoAtivo === 'renda-fixa-hibrida') && (
               <>
                 <div>
                   <Label htmlFor="rendaFixaIndexer">Indexador *</Label>
@@ -687,8 +711,8 @@ export default function Step4AssetInfo({
                     id="rendaFixaIndexerPercent"
                     {...decimalInputProps}
                     placeholder="Ex: 100 (100% do CDI)"
-                    value={getDecimalInputValue("rendaFixaIndexerPercent")}
-                    onChange={handleDecimalInputChange("rendaFixaIndexerPercent")}
+                    value={getDecimalInputValue('rendaFixaIndexerPercent')}
+                    onChange={handleDecimalInputChange('rendaFixaIndexerPercent')}
                     min="0"
                     step="0.01"
                   />
@@ -712,19 +736,21 @@ export default function Step4AssetInfo({
               <Label htmlFor="rendaFixaIndexer">Indexador</Label>
               <Select
                 options={[
-                  { value: "PRE", label: "Pré" },
-                  { value: "CDI", label: "CDI" },
-                  { value: "IPCA", label: "IPCA" },
+                  { value: 'PRE', label: 'Pré' },
+                  { value: 'CDI', label: 'CDI' },
+                  { value: 'IPCA', label: 'IPCA' },
                 ]}
                 placeholder="Selecione o indexador"
-                defaultValue={formData.tipoAtivo === "renda-fixa" ? "PRE" : formData.rendaFixaIndexer}
+                defaultValue={
+                  formData.tipoAtivo === 'renda-fixa' ? 'PRE' : formData.rendaFixaIndexer
+                }
                 onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
               />
               <Label htmlFor="rendaFixaLiquidity">Liquidez</Label>
               <Select
                 options={[
-                  { value: "DAILY", label: "Diária" },
-                  { value: "MATURITY", label: "No vencimento" },
+                  { value: 'DAILY', label: 'Diária' },
+                  { value: 'MATURITY', label: 'No vencimento' },
                 ]}
                 placeholder="Selecione a liquidez"
                 defaultValue={formData.rendaFixaLiquidity}
@@ -743,17 +769,21 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "tesouro-direto":
+      case 'tesouro-direto':
         const TESOURO_DESTINO_OPTIONS = [
-          { value: "reserva-emergencia", label: "Reserva de Emergência" },
-          { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
-          { value: "renda-fixa-prefixada", label: "Renda Fixa (Pré-fixada)" },
-          { value: "renda-fixa-posfixada", label: "Renda Fixa (Pós-fixada)" },
-          { value: "renda-fixa-hibrida", label: "Renda Fixa (Híbrida)" },
+          { value: 'reserva-emergencia', label: 'Reserva de Emergência' },
+          { value: 'reserva-oportunidade', label: 'Reserva de Oportunidade' },
+          { value: 'renda-fixa-prefixada', label: 'Renda Fixa (Pré-fixada)' },
+          { value: 'renda-fixa-posfixada', label: 'Renda Fixa (Pós-fixada)' },
+          { value: 'renda-fixa-hibrida', label: 'Renda Fixa (Híbrida)' },
         ];
         const tesouroDestino = formData.tesouroDestino;
-        const tesouroEmReserva = tesouroDestino === "reserva-emergencia" || tesouroDestino === "reserva-oportunidade";
-        const tesouroEmRendaFixa = tesouroDestino === "renda-fixa-prefixada" || tesouroDestino === "renda-fixa-posfixada" || tesouroDestino === "renda-fixa-hibrida";
+        const tesouroEmReserva =
+          tesouroDestino === 'reserva-emergencia' || tesouroDestino === 'reserva-oportunidade';
+        const tesouroEmRendaFixa =
+          tesouroDestino === 'renda-fixa-prefixada' ||
+          tesouroDestino === 'renda-fixa-posfixada' ||
+          tesouroDestino === 'renda-fixa-hibrida';
         const metodoCotasTesouro = formData.metodo === 'cotas' || formData.metodo === 'percentual';
 
         return (
@@ -764,12 +794,13 @@ export default function Step4AssetInfo({
                 id="tesouroDestino"
                 options={TESOURO_DESTINO_OPTIONS}
                 placeholder="Selecione onde exibir"
-                value={formData.tesouroDestino ?? ""}
+                value={formData.tesouroDestino ?? ''}
                 onChange={(value) => handleInputChange('tesouroDestino', value)}
                 className={errors.tesouroDestino ? 'border-red-500' : ''}
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                O título será exibido na aba correspondente: Reserva de Emergência, Reserva de Oportunidade ou Renda Fixa.
+                O título será exibido na aba correspondente: Reserva de Emergência, Reserva de
+                Oportunidade ou Renda Fixa.
               </p>
               {errors.tesouroDestino && (
                 <p className="mt-1 text-sm text-red-500">{errors.tesouroDestino}</p>
@@ -786,7 +817,10 @@ export default function Step4AssetInfo({
                     defaultDate={formData.dataCompra}
                     onChange={(selectedDates) => {
                       if (selectedDates && selectedDates.length > 0) {
-                        handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
+                        handleInputChange(
+                          'dataCompra',
+                          selectedDates[0].toISOString().split('T')[0],
+                        );
                       }
                     }}
                   />
@@ -800,8 +834,8 @@ export default function Step4AssetInfo({
                     id="valorInvestido"
                     {...decimalInputProps}
                     placeholder="Ex: 10000.00"
-                    value={getDecimalInputValue("valorInvestido")}
-                    onChange={handleDecimalInputChange("valorInvestido")}
+                    value={getDecimalInputValue('valorInvestido')}
+                    onChange={handleDecimalInputChange('valorInvestido')}
                     error={!!errors.valorInvestido}
                     hint={errors.valorInvestido}
                     min="0"
@@ -840,7 +874,10 @@ export default function Step4AssetInfo({
                     defaultDate={formData.vencimento}
                     onChange={(selectedDates) => {
                       if (selectedDates && selectedDates.length > 0) {
-                        handleInputChange('vencimento', selectedDates[0].toISOString().split('T')[0]);
+                        handleInputChange(
+                          'vencimento',
+                          selectedDates[0].toISOString().split('T')[0],
+                        );
                       }
                     }}
                   />
@@ -873,7 +910,10 @@ export default function Step4AssetInfo({
                     defaultDate={formData.dataCompra}
                     onChange={(selectedDates) => {
                       if (selectedDates && selectedDates.length > 0) {
-                        handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
+                        handleInputChange(
+                          'dataCompra',
+                          selectedDates[0].toISOString().split('T')[0],
+                        );
                       }
                     }}
                   />
@@ -915,8 +955,8 @@ export default function Step4AssetInfo({
                       id="valorInvestido"
                       {...decimalInputProps}
                       placeholder="Ex: 10000.00"
-                      value={getDecimalInputValue("valorInvestido")}
-                      onChange={handleDecimalInputChange("valorInvestido")}
+                      value={getDecimalInputValue('valorInvestido')}
+                      onChange={handleDecimalInputChange('valorInvestido')}
                       error={!!errors.valorInvestido}
                       hint={errors.valorInvestido}
                       min="0"
@@ -931,8 +971,8 @@ export default function Step4AssetInfo({
                         id="quantidade"
                         {...decimalInputProps}
                         placeholder="Ex: 100"
-                        value={getDecimalInputValue("quantidade")}
-                        onChange={handleDecimalInputChange("quantidade")}
+                        value={getDecimalInputValue('quantidade')}
+                        onChange={handleDecimalInputChange('quantidade')}
                         error={!!errors.quantidade}
                         hint={errors.quantidade}
                         min="0"
@@ -945,8 +985,8 @@ export default function Step4AssetInfo({
                         id="cotacaoUnitaria"
                         {...decimalInputProps}
                         placeholder="Ex: 100.00"
-                        value={getDecimalInputValue("cotacaoUnitaria")}
-                        onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                        value={getDecimalInputValue('cotacaoUnitaria')}
+                        onChange={handleDecimalInputChange('cotacaoUnitaria')}
                         error={!!errors.cotacaoUnitaria}
                         hint={errors.cotacaoUnitaria}
                         min="0"
@@ -963,7 +1003,10 @@ export default function Step4AssetInfo({
                     defaultDate={formData.dataVencimento}
                     onChange={(selectedDates) => {
                       if (selectedDates && selectedDates.length > 0) {
-                        handleInputChange('dataVencimento', selectedDates[0].toISOString().split('T')[0]);
+                        handleInputChange(
+                          'dataVencimento',
+                          selectedDates[0].toISOString().split('T')[0],
+                        );
                       }
                     }}
                   />
@@ -983,15 +1026,15 @@ export default function Step4AssetInfo({
                     hint={errors.descricao}
                   />
                 </div>
-                {tesouroDestino === "renda-fixa-prefixada" && (
+                {tesouroDestino === 'renda-fixa-prefixada' && (
                   <div>
                     <Label htmlFor="taxaJurosAnual">Taxa de juros anual (%) *</Label>
                     <Input
                       id="taxaJurosAnual"
                       {...decimalInputProps}
                       placeholder="Ex: 12.5"
-                      value={getDecimalInputValue("taxaJurosAnual")}
-                      onChange={handleDecimalInputChange("taxaJurosAnual")}
+                      value={getDecimalInputValue('taxaJurosAnual')}
+                      onChange={handleDecimalInputChange('taxaJurosAnual')}
                       error={!!errors.taxaJurosAnual}
                       hint={errors.taxaJurosAnual}
                       min="0"
@@ -999,14 +1042,15 @@ export default function Step4AssetInfo({
                     />
                   </div>
                 )}
-                {(tesouroDestino === "renda-fixa-posfixada" || tesouroDestino === "renda-fixa-hibrida") && (
+                {(tesouroDestino === 'renda-fixa-posfixada' ||
+                  tesouroDestino === 'renda-fixa-hibrida') && (
                   <div>
                     <Label htmlFor="rendaFixaIndexer">Indexador *</Label>
                     <Select
                       id="rendaFixaIndexer"
                       options={RENDA_FIXA_INDEXADORES_POS}
                       placeholder="Selecione (CDI ou IPCA)"
-                      value={formData.rendaFixaIndexer ?? ""}
+                      value={formData.rendaFixaIndexer ?? ''}
                       onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
                       className={errors.rendaFixaIndexer ? 'border-red-500' : ''}
                     />
@@ -1020,15 +1064,15 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "debenture":
-      case "fundo":
-      case "previdencia":
+      case 'debenture':
+      case 'fundo':
+      case 'previdencia':
         const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
         const totalCalculado = formData.quantidade * formData.cotacaoUnitaria;
         const TIPO_DEBENTURE_OPTIONS = [
-          { value: "prefixada", label: "Pré-fixada" },
-          { value: "pos-fixada", label: "Pós-fixada" },
-          { value: "hibrida", label: "Híbrida" },
+          { value: 'prefixada', label: 'Pré-fixada' },
+          { value: 'pos-fixada', label: 'Pós-fixada' },
+          { value: 'hibrida', label: 'Híbrida' },
         ];
         return (
           <>
@@ -1049,19 +1093,20 @@ export default function Step4AssetInfo({
               )}
             </div>
 
-            {formData.tipoAtivo === "debenture" && (
+            {formData.tipoAtivo === 'debenture' && (
               <div>
                 <Label htmlFor="tipoDebenture">Tipo de Debênture *</Label>
                 <Select
                   id="tipoDebenture"
                   options={TIPO_DEBENTURE_OPTIONS}
                   placeholder="Selecione o tipo (define em qual seção da aba Renda Fixa será exibida)"
-                  value={formData.tipoDebenture ?? ""}
+                  value={formData.tipoDebenture ?? ''}
                   onChange={(value) => handleInputChange('tipoDebenture', value)}
                   className={errors.tipoDebenture ? 'border-red-500' : ''}
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  A debênture será exibida na seção correspondente: Pré-fixada, Pós-fixada ou Híbrida.
+                  A debênture será exibida na seção correspondente: Pré-fixada, Pós-fixada ou
+                  Híbrida.
                 </p>
                 {errors.tipoDebenture && (
                   <p className="mt-1 text-sm text-red-500">{errors.tipoDebenture}</p>
@@ -1069,20 +1114,20 @@ export default function Step4AssetInfo({
               </div>
             )}
 
-            {formData.tipoAtivo === "fundo" && (
+            {formData.tipoAtivo === 'fundo' && (
               <div>
                 <Label htmlFor="fundoDestino">Onde este fundo deve aparecer *</Label>
                 <Select
                   id="fundoDestino"
                   options={[
-                    { value: "reserva-emergencia", label: "Reserva de Emergência" },
-                    { value: "reserva-oportunidade", label: "Reserva de Oportunidade" },
-                    { value: "renda-fixa", label: "Renda Fixa" },
-                    { value: "fim", label: "FIM (Fundos de Investimento Multimercado)" },
-                    { value: "fia", label: "FIA (Fundo de Investimento em Ações)" },
+                    { value: 'reserva-emergencia', label: 'Reserva de Emergência' },
+                    { value: 'reserva-oportunidade', label: 'Reserva de Oportunidade' },
+                    { value: 'renda-fixa', label: 'Renda Fixa' },
+                    { value: 'fim', label: 'FIM (Fundos de Investimento Multimercado)' },
+                    { value: 'fia', label: 'FIA (Fundo de Investimento em Ações)' },
                   ]}
                   placeholder="Selecione onde exibir"
-                  value={formData.fundoDestino ?? ""}
+                  value={formData.fundoDestino ?? ''}
                   onChange={(value) => {
                     handleInputChange('fundoDestino', value);
                     if (value === 'fim' || value === 'fia') {
@@ -1097,7 +1142,8 @@ export default function Step4AssetInfo({
                   className={errors.fundoDestino ? 'border-red-500' : ''}
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  O fundo será exibido na aba correspondente: Renda Fixa, Reserva de Emergência, Reserva de Oportunidade ou FIM/FIA.
+                  O fundo será exibido na aba correspondente: Renda Fixa, Reserva de Emergência,
+                  Reserva de Oportunidade ou FIM/FIA.
                 </p>
                 {errors.fundoDestino && (
                   <p className="mt-1 text-sm text-red-500">{errors.fundoDestino}</p>
@@ -1105,18 +1151,18 @@ export default function Step4AssetInfo({
               </div>
             )}
 
-            {formData.tipoAtivo === "fundo" && formData.fundoDestino === "renda-fixa" && (
+            {formData.tipoAtivo === 'fundo' && formData.fundoDestino === 'renda-fixa' && (
               <div>
                 <Label htmlFor="fundoRendaFixaTipo">Tipo de Renda Fixa *</Label>
                 <Select
                   id="fundoRendaFixaTipo"
                   options={[
-                    { value: "prefixada", label: "Pré-fixada" },
-                    { value: "pos-fixada", label: "Pós-fixada" },
-                    { value: "hibrida", label: "Híbrida" },
+                    { value: 'prefixada', label: 'Pré-fixada' },
+                    { value: 'pos-fixada', label: 'Pós-fixada' },
+                    { value: 'hibrida', label: 'Híbrida' },
                   ]}
                   placeholder="Selecione o tipo"
-                  value={formData.fundoRendaFixaTipo ?? ""}
+                  value={formData.fundoRendaFixaTipo ?? ''}
                   onChange={(value) => handleInputChange('fundoRendaFixaTipo', value)}
                   className={errors.fundoRendaFixaTipo ? 'border-red-500' : ''}
                 />
@@ -1164,8 +1210,8 @@ export default function Step4AssetInfo({
                   id="valorInvestido"
                   {...decimalInputProps}
                   placeholder="Ex: 10000.00"
-                  value={getDecimalInputValue("valorInvestido")}
-                  onChange={handleDecimalInputChange("valorInvestido")}
+                  value={getDecimalInputValue('valorInvestido')}
+                  onChange={handleDecimalInputChange('valorInvestido')}
                   error={!!errors.valorInvestido}
                   hint={errors.valorInvestido}
                   min="0"
@@ -1180,9 +1226,9 @@ export default function Step4AssetInfo({
                     id="cotacaoUnitaria"
                     {...decimalInputProps}
                     placeholder="Ex: 150.00"
-                    value={getDecimalInputValue("cotacaoUnitaria")}
+                    value={getDecimalInputValue('cotacaoUnitaria')}
                     onChange={(e) => {
-                      handleDecimalInputChange("cotacaoUnitaria")(e);
+                      handleDecimalInputChange('cotacaoUnitaria')(e);
                       const qty = formData.quantidade || 0;
                       const price = parseDecimalValue(e.target.value) ?? 0;
                       if (qty > 0 && price > 0) handleInputChange('valorInvestido', qty * price);
@@ -1199,9 +1245,9 @@ export default function Step4AssetInfo({
                     id="quantidade"
                     {...decimalInputProps}
                     placeholder="Ex: 100"
-                    value={getDecimalInputValue("quantidade")}
+                    value={getDecimalInputValue('quantidade')}
                     onChange={(e) => {
-                      handleDecimalInputChange("quantidade")(e);
+                      handleDecimalInputChange('quantidade')(e);
                       const qty = parseDecimalValue(e.target.value) ?? 0;
                       const price = formData.cotacaoUnitaria || 0;
                       if (qty > 0 && price > 0) handleInputChange('valorInvestido', qty * price);
@@ -1218,7 +1264,14 @@ export default function Step4AssetInfo({
                     id="totalInvestido"
                     type="text"
                     placeholder="Calculado automaticamente"
-                    value={totalCalculado > 0 ? totalCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
+                    value={
+                      totalCalculado > 0
+                        ? totalCalculado.toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : ''
+                    }
                     disabled
                     className="bg-gray-50 dark:bg-gray-800"
                   />
@@ -1231,7 +1284,7 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "fii":
+      case 'fii':
         return (
           <>
             <div>
@@ -1254,18 +1307,16 @@ export default function Step4AssetInfo({
               <Label htmlFor="tipoFii">Tipo de FII *</Label>
               <Select
                 options={[
-                  { value: "fofi", label: "FOF (Fundos de Fundos)" },
-                  { value: "tvm", label: "TVM (Títulos e Valores Mobiliários)" },
-                  { value: "tijolo", label: "Tijolo" }
+                  { value: 'fofi', label: 'FOF (Fundos de Fundos)' },
+                  { value: 'tvm', label: 'TVM (Títulos e Valores Mobiliários)' },
+                  { value: 'tijolo', label: 'Tijolo' },
                 ]}
                 placeholder="Selecione o tipo"
                 value={formData.tipoFii}
                 onChange={(value) => handleInputChange('tipoFii', value)}
                 className={errors.tipoFii ? 'border-red-500' : ''}
               />
-              {errors.tipoFii && (
-                <p className="mt-1 text-sm text-red-500">{errors.tipoFii}</p>
-              )}
+              {errors.tipoFii && <p className="mt-1 text-sm text-red-500">{errors.tipoFii}</p>}
             </div>
             <div>
               <Label htmlFor="quantidade">Quantidade de Cotas *</Label>
@@ -1273,8 +1324,8 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...decimalInputProps}
                 placeholder="Ex: 100"
-                value={getDecimalInputValue("quantidade")}
-                onChange={handleDecimalInputChange("quantidade")}
+                value={getDecimalInputValue('quantidade')}
+                onChange={handleDecimalInputChange('quantidade')}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -1287,8 +1338,8 @@ export default function Step4AssetInfo({
                 id="cotacaoUnitaria"
                 {...decimalInputProps}
                 placeholder="Ex: 95.50"
-                value={getDecimalInputValue("cotacaoUnitaria")}
-                onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                value={getDecimalInputValue('cotacaoUnitaria')}
+                onChange={handleDecimalInputChange('cotacaoUnitaria')}
                 error={!!errors.cotacaoUnitaria}
                 hint={errors.cotacaoUnitaria}
                 min="0"
@@ -1301,8 +1352,8 @@ export default function Step4AssetInfo({
                 id="taxaCorretagem"
                 {...decimalInputProps}
                 placeholder="Ex: 2.50"
-                value={getDecimalInputValue("taxaCorretagem")}
-                onChange={handleDecimalInputChange("taxaCorretagem")}
+                value={getDecimalInputValue('taxaCorretagem')}
+                onChange={handleDecimalInputChange('taxaCorretagem')}
                 min="0"
                 step="0.01"
               />
@@ -1324,8 +1375,8 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "acao":
-      case "acoes-brasil":
+      case 'acao':
+      case 'acoes-brasil':
         // Para ações e Ações Brasil, adicionar campo de estratégia
         return (
           <>
@@ -1349,9 +1400,9 @@ export default function Step4AssetInfo({
               <Label htmlFor="estrategia">Estratégia *</Label>
               <Select
                 options={[
-                  { value: "value", label: "Value" },
-                  { value: "growth", label: "Growth" },
-                  { value: "risk", label: "Risk" }
+                  { value: 'value', label: 'Value' },
+                  { value: 'growth', label: 'Growth' },
+                  { value: 'risk', label: 'Risk' },
                 ]}
                 placeholder="Selecione a estratégia"
                 defaultValue={formData.estrategia}
@@ -1368,8 +1419,8 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...integerInputProps}
                 placeholder="Ex: 100"
-                value={getDecimalInputValue("quantidade")}
-                onChange={handleDecimalInputChange("quantidade")}
+                value={getDecimalInputValue('quantidade')}
+                onChange={handleDecimalInputChange('quantidade')}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -1382,8 +1433,8 @@ export default function Step4AssetInfo({
                 id="cotacaoUnitaria"
                 {...decimalInputProps}
                 placeholder="Ex: 25.50"
-                value={getDecimalInputValue("cotacaoUnitaria")}
-                onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                value={getDecimalInputValue('cotacaoUnitaria')}
+                onChange={handleDecimalInputChange('cotacaoUnitaria')}
                 error={!!errors.cotacaoUnitaria}
                 hint={errors.cotacaoUnitaria}
                 min="0"
@@ -1396,8 +1447,8 @@ export default function Step4AssetInfo({
                 id="taxaCorretagem"
                 {...decimalInputProps}
                 placeholder="Ex: 2.50"
-                value={getDecimalInputValue("taxaCorretagem")}
-                onChange={handleDecimalInputChange("taxaCorretagem")}
+                value={getDecimalInputValue('taxaCorretagem')}
+                onChange={handleDecimalInputChange('taxaCorretagem')}
                 min="0"
                 step="0.01"
               />
@@ -1405,7 +1456,7 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "reit":
+      case 'reit':
         return (
           <>
             <div>
@@ -1429,13 +1480,15 @@ export default function Step4AssetInfo({
               <Select
                 id="estrategiaReit"
                 options={[
-                  { value: "value", label: "Value" },
-                  { value: "growth", label: "Growth" },
-                  { value: "risk", label: "Risk" },
+                  { value: 'value', label: 'Value' },
+                  { value: 'growth', label: 'Growth' },
+                  { value: 'risk', label: 'Risk' },
                 ]}
                 placeholder="Selecione (define em qual seção da aba REIT será exibido)"
-                value={formData.estrategiaReit ?? ""}
-                onChange={(value) => handleInputChange('estrategiaReit', value as 'value' | 'growth' | 'risk')}
+                value={formData.estrategiaReit ?? ''}
+                onChange={(value) =>
+                  handleInputChange('estrategiaReit', value as 'value' | 'growth' | 'risk')
+                }
                 className={errors.estrategiaReit ? 'border-red-500' : ''}
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1451,9 +1504,9 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...integerInputProps}
                 placeholder="Ex: 100"
-                value={getDecimalInputValue("quantidade")}
+                value={getDecimalInputValue('quantidade')}
                 onChange={(e) => {
-                  handleDecimalInputChange("quantidade")(e);
+                  handleDecimalInputChange('quantidade')(e);
                   const qty = parseDecimalValue(e.target.value) ?? 0;
                   const price = formData.cotacaoUnitaria || 0;
                   if (qty > 0 && price > 0) handleInputChange('valorInvestido', qty * price);
@@ -1470,9 +1523,9 @@ export default function Step4AssetInfo({
                 id="cotacaoUnitaria"
                 {...decimalInputProps}
                 placeholder="Ex: 45.50"
-                value={getDecimalInputValue("cotacaoUnitaria")}
+                value={getDecimalInputValue('cotacaoUnitaria')}
                 onChange={(e) => {
-                  handleDecimalInputChange("cotacaoUnitaria")(e);
+                  handleDecimalInputChange('cotacaoUnitaria')(e);
                   const qty = formData.quantidade || 0;
                   const price = parseDecimalValue(e.target.value) ?? 0;
                   if (qty > 0 && price > 0) handleInputChange('valorInvestido', qty * price);
@@ -1489,8 +1542,8 @@ export default function Step4AssetInfo({
                 id="cotacaoMoeda"
                 {...decimalInputProps}
                 placeholder="Ex: 5.20"
-                value={getDecimalInputValue("cotacaoMoeda")}
-                onChange={handleDecimalInputChange("cotacaoMoeda")}
+                value={getDecimalInputValue('cotacaoMoeda')}
+                onChange={handleDecimalInputChange('cotacaoMoeda')}
                 error={!!errors.cotacaoMoeda}
                 hint={errors.cotacaoMoeda}
                 min="0"
@@ -1506,9 +1559,14 @@ export default function Step4AssetInfo({
                 id="valorInvestido"
                 type="text"
                 placeholder="Calculado automaticamente"
-                value={(formData.quantidade * formData.cotacaoUnitaria) > 0 
-                  ? (formData.quantidade * formData.cotacaoUnitaria).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD' 
-                  : ''}
+                value={
+                  formData.quantidade * formData.cotacaoUnitaria > 0
+                    ? (formData.quantidade * formData.cotacaoUnitaria).toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }) + ' USD'
+                    : ''
+                }
                 disabled
                 className="bg-gray-50 dark:bg-gray-800"
               />
@@ -1519,7 +1577,7 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "opcoes":
+      case 'opcoes':
         return (
           <>
             <div>
@@ -1538,28 +1596,26 @@ export default function Step4AssetInfo({
               <Select
                 id="opcaoTipo"
                 options={[
-                  { value: "put", label: "Put" },
-                  { value: "call", label: "Call" },
+                  { value: 'put', label: 'Put' },
+                  { value: 'call', label: 'Call' },
                 ]}
                 placeholder="Selecione"
-                value={formData.opcaoTipo ?? ""}
+                value={formData.opcaoTipo ?? ''}
                 onChange={(value) => handleInputChange('opcaoTipo', value)}
                 className={errors.opcaoTipo ? 'border-red-500' : ''}
               />
-              {errors.opcaoTipo && (
-                <p className="mt-1 text-sm text-red-500">{errors.opcaoTipo}</p>
-              )}
+              {errors.opcaoTipo && <p className="mt-1 text-sm text-red-500">{errors.opcaoTipo}</p>}
             </div>
             <div>
               <Label htmlFor="opcaoCompraVenda">Compra / Venda *</Label>
               <Select
                 id="opcaoCompraVenda"
                 options={[
-                  { value: "compra", label: "Compra" },
-                  { value: "venda", label: "Venda" },
+                  { value: 'compra', label: 'Compra' },
+                  { value: 'venda', label: 'Venda' },
                 ]}
                 placeholder="Selecione"
-                value={formData.opcaoCompraVenda ?? ""}
+                value={formData.opcaoCompraVenda ?? ''}
                 onChange={(value) => handleInputChange('opcaoCompraVenda', value)}
                 className={errors.opcaoCompraVenda ? 'border-red-500' : ''}
               />
@@ -1591,7 +1647,10 @@ export default function Step4AssetInfo({
                 defaultDate={formData.dataVencimento}
                 onChange={(selectedDates) => {
                   if (selectedDates && selectedDates.length > 0) {
-                    handleInputChange('dataVencimento', selectedDates[0].toISOString().split('T')[0]);
+                    handleInputChange(
+                      'dataVencimento',
+                      selectedDates[0].toISOString().split('T')[0],
+                    );
                   }
                 }}
               />
@@ -1605,8 +1664,8 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...integerInputProps}
                 placeholder="Ex: 10"
-                value={getDecimalInputValue("quantidade")}
-                onChange={handleDecimalInputChange("quantidade")}
+                value={getDecimalInputValue('quantidade')}
+                onChange={handleDecimalInputChange('quantidade')}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -1619,8 +1678,8 @@ export default function Step4AssetInfo({
                 id="cotacaoUnitaria"
                 {...decimalInputProps}
                 placeholder="Ex: 2.50"
-                value={getDecimalInputValue("cotacaoUnitaria")}
-                onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                value={getDecimalInputValue('cotacaoUnitaria')}
+                onChange={handleDecimalInputChange('cotacaoUnitaria')}
                 error={!!errors.cotacaoUnitaria}
                 hint={errors.cotacaoUnitaria}
                 min="0"
@@ -1633,8 +1692,8 @@ export default function Step4AssetInfo({
                 id="taxaCorretagem"
                 {...decimalInputProps}
                 placeholder="Ex: 5.00"
-                value={getDecimalInputValue("taxaCorretagem")}
-                onChange={handleDecimalInputChange("taxaCorretagem")}
+                value={getDecimalInputValue('taxaCorretagem')}
+                onChange={handleDecimalInputChange('taxaCorretagem')}
                 min="0"
                 step="0.01"
               />
@@ -1645,20 +1704,24 @@ export default function Step4AssetInfo({
                 id="valorInvestido"
                 type="text"
                 placeholder="Calculado automaticamente"
-                value={(formData.quantidade * formData.cotacaoUnitaria + (formData.taxaCorretagem || 0)) > 0
-                  ? (formData.quantidade * formData.cotacaoUnitaria + (formData.taxaCorretagem || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-                  : ''}
+                value={
+                  formData.quantidade * formData.cotacaoUnitaria + (formData.taxaCorretagem || 0) >
+                  0
+                    ? (
+                        formData.quantidade * formData.cotacaoUnitaria +
+                        (formData.taxaCorretagem || 0)
+                      ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                    : ''
+                }
                 disabled
                 className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Quantidade × Preço pago + Corretagem
-              </p>
+              <p className="mt-1 text-xs text-gray-500">Quantidade × Preço pago + Corretagem</p>
             </div>
           </>
         );
 
-      case "stock":
+      case 'stock':
         return (
           <>
             <div>
@@ -1682,12 +1745,12 @@ export default function Step4AssetInfo({
               <Select
                 id="estrategia"
                 options={[
-                  { value: "value", label: "Value" },
-                  { value: "growth", label: "Growth" },
-                  { value: "risk", label: "Risk" },
+                  { value: 'value', label: 'Value' },
+                  { value: 'growth', label: 'Growth' },
+                  { value: 'risk', label: 'Risk' },
                 ]}
                 placeholder="Selecione (define em qual seção da aba Stocks será exibido)"
-                value={formData.estrategia ?? ""}
+                value={formData.estrategia ?? ''}
                 onChange={(value) => handleInputChange('estrategia', value)}
                 className={errors.estrategia ? 'border-red-500' : ''}
               />
@@ -1707,9 +1770,7 @@ export default function Step4AssetInfo({
                 onChange={(value) => handleInputChange('moeda', value)}
                 className={errors.moeda ? 'border-red-500' : ''}
               />
-              {errors.moeda && (
-                <p className="mt-1 text-sm text-red-500">{errors.moeda}</p>
-              )}
+              {errors.moeda && <p className="mt-1 text-sm text-red-500">{errors.moeda}</p>}
             </div>
             <div>
               <Label htmlFor="cotacaoMoeda">Cotação do dólar no dia da compra (R$) *</Label>
@@ -1717,8 +1778,8 @@ export default function Step4AssetInfo({
                 id="cotacaoMoeda"
                 {...decimalInputProps}
                 placeholder="Ex: 5.20"
-                value={getDecimalInputValue("cotacaoMoeda")}
-                onChange={handleDecimalInputChange("cotacaoMoeda")}
+                value={getDecimalInputValue('cotacaoMoeda')}
+                onChange={handleDecimalInputChange('cotacaoMoeda')}
                 error={!!errors.cotacaoMoeda}
                 hint={errors.cotacaoMoeda}
                 min="0"
@@ -1731,8 +1792,8 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...integerInputProps}
                 placeholder="Ex: 10"
-                value={getDecimalInputValue("quantidade")}
-                onChange={handleDecimalInputChange("quantidade")}
+                value={getDecimalInputValue('quantidade')}
+                onChange={handleDecimalInputChange('quantidade')}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -1745,8 +1806,8 @@ export default function Step4AssetInfo({
                 id="cotacaoUnitaria"
                 {...decimalInputProps}
                 placeholder="Ex: 120.50"
-                value={getDecimalInputValue("cotacaoUnitaria")}
-                onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                value={getDecimalInputValue('cotacaoUnitaria')}
+                onChange={handleDecimalInputChange('cotacaoUnitaria')}
                 error={!!errors.cotacaoUnitaria}
                 hint={errors.cotacaoUnitaria}
                 min="0"
@@ -1759,8 +1820,8 @@ export default function Step4AssetInfo({
                 id="taxaCorretagem"
                 {...decimalInputProps}
                 placeholder="Ex: 2.50"
-                value={getDecimalInputValue("taxaCorretagem")}
-                onChange={handleDecimalInputChange("taxaCorretagem")}
+                value={getDecimalInputValue('taxaCorretagem')}
+                onChange={handleDecimalInputChange('taxaCorretagem')}
                 min="0"
                 step="0.01"
               />
@@ -1768,7 +1829,7 @@ export default function Step4AssetInfo({
           </>
         );
 
-      case "etf":
+      case 'etf':
         return (
           <>
             <div>
@@ -1776,20 +1837,18 @@ export default function Step4AssetInfo({
               <Select
                 id="regiaoEtf"
                 options={[
-                  { value: "brasil", label: "Brasil" },
-                  { value: "estados_unidos", label: "EUA" },
+                  { value: 'brasil', label: 'Brasil' },
+                  { value: 'estados_unidos', label: 'EUA' },
                 ]}
                 placeholder="Selecione a região do ETF"
-                value={formData.regiaoEtf ?? ""}
+                value={formData.regiaoEtf ?? ''}
                 onChange={(value) => handleInputChange('regiaoEtf', value)}
                 className={errors.regiaoEtf ? 'border-red-500' : ''}
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Define em qual seção da aba ETF o ativo será exibido.
               </p>
-              {errors.regiaoEtf && (
-                <p className="mt-1 text-sm text-red-500">{errors.regiaoEtf}</p>
-              )}
+              {errors.regiaoEtf && <p className="mt-1 text-sm text-red-500">{errors.regiaoEtf}</p>}
             </div>
             <div>
               <DatePicker
@@ -1813,8 +1872,8 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...integerInputProps}
                 placeholder="Ex: 100"
-                value={getDecimalInputValue("quantidade")}
-                onChange={handleDecimalInputChange("quantidade")}
+                value={getDecimalInputValue('quantidade')}
+                onChange={handleDecimalInputChange('quantidade')}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -1827,8 +1886,8 @@ export default function Step4AssetInfo({
                 id="cotacaoUnitaria"
                 {...decimalInputProps}
                 placeholder="Ex: 25.50"
-                value={getDecimalInputValue("cotacaoUnitaria")}
-                onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                value={getDecimalInputValue('cotacaoUnitaria')}
+                onChange={handleDecimalInputChange('cotacaoUnitaria')}
                 error={!!errors.cotacaoUnitaria}
                 hint={errors.cotacaoUnitaria}
                 min="0"
@@ -1841,8 +1900,8 @@ export default function Step4AssetInfo({
                 id="taxaCorretagem"
                 {...decimalInputProps}
                 placeholder="Ex: 2.50"
-                value={getDecimalInputValue("taxaCorretagem")}
-                onChange={handleDecimalInputChange("taxaCorretagem")}
+                value={getDecimalInputValue('taxaCorretagem')}
+                onChange={handleDecimalInputChange('taxaCorretagem')}
                 min="0"
                 step="0.01"
               />
@@ -1876,8 +1935,8 @@ export default function Step4AssetInfo({
                 id="quantidade"
                 {...integerInputProps}
                 placeholder="Ex: 100"
-                value={getDecimalInputValue("quantidade")}
-                onChange={handleDecimalInputChange("quantidade")}
+                value={getDecimalInputValue('quantidade')}
+                onChange={handleDecimalInputChange('quantidade')}
                 error={!!errors.quantidade}
                 hint={errors.quantidade}
                 min="0"
@@ -1890,8 +1949,8 @@ export default function Step4AssetInfo({
                 id="cotacaoUnitaria"
                 {...decimalInputProps}
                 placeholder="Ex: 25.50"
-                value={getDecimalInputValue("cotacaoUnitaria")}
-                onChange={handleDecimalInputChange("cotacaoUnitaria")}
+                value={getDecimalInputValue('cotacaoUnitaria')}
+                onChange={handleDecimalInputChange('cotacaoUnitaria')}
                 error={!!errors.cotacaoUnitaria}
                 hint={errors.cotacaoUnitaria}
                 min="0"
@@ -1904,8 +1963,8 @@ export default function Step4AssetInfo({
                 id="taxaCorretagem"
                 {...decimalInputProps}
                 placeholder="Ex: 2.50"
-                value={getDecimalInputValue("taxaCorretagem")}
-                onChange={handleDecimalInputChange("taxaCorretagem")}
+                value={getDecimalInputValue('taxaCorretagem')}
+                onChange={handleDecimalInputChange('taxaCorretagem')}
                 min="0"
                 step="0.01"
               />
@@ -1922,7 +1981,8 @@ export default function Step4AssetInfo({
           📝 Informações do Investimento
         </h4>
         <p className="text-sm text-blue-700 dark:text-blue-300">
-          Preencha os dados específicos para o tipo de ativo selecionado. Os campos marcados com * são obrigatórios.
+          Preencha os dados específicos para o tipo de ativo selecionado. Os campos marcados com *
+          são obrigatórios.
         </p>
       </div>
 

@@ -1,41 +1,45 @@
-"use client";
-import React, { useState, useMemo } from "react";
-import { useAcoes } from "@/hooks/useAcoes";
-import { AcaoAtivo, AcaoSecao, EstrategiaAcao } from "@/types/acoes";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import ComponentCard from "@/components/common/ComponentCard";
-import { ChevronDownIcon, ChevronUpIcon } from "@/icons";
-import { useCarteiraResumoContext } from "@/context/CarteiraResumoContext";
-import { StandardTable, StandardTableHeader, StandardTableHeaderRow, StandardTableHeaderCell, StandardTableRow, StandardTableBodyCell, TableBody } from "@/components/ui/table/StandardTable";
-import AssetNameLink from "@/components/carteira/AssetNameLink";
-import { StandardTablePlaceholderRows } from "@/components/carteira/shared";
-import CaixaParaInvestirCard from "@/components/carteira/shared/CaixaParaInvestirCard";
+'use client';
+import React, { useState, useMemo } from 'react';
+import { useAcoes } from '@/hooks/useAcoes';
+import { AcaoAtivo, AcaoSecao, EstrategiaAcao } from '@/types/acoes';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ComponentCard from '@/components/common/ComponentCard';
+import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import {
+  StandardTable,
+  StandardTableHeader,
+  StandardTableHeaderRow,
+  StandardTableHeaderCell,
+  StandardTableRow,
+  StandardTableBodyCell,
+  TableBody,
+} from '@/components/ui/table/StandardTable';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { StandardTablePlaceholderRows } from '@/components/carteira/shared';
+import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const ACOES_COLUMN_COUNT = 14;
-const ACOES_SECTION_ORDER = ["value", "growth", "risk"] as const;
+const ACOES_SECTION_ORDER = ['value', 'growth', 'risk'] as const;
 const ACOES_SECTION_NAMES: Record<(typeof ACOES_SECTION_ORDER)[number], string> = {
-  value: "Value",
-  growth: "Growth",
-  risk: "Risk",
+  value: 'Value',
+  growth: 'Growth',
+  risk: 'Risk',
 };
 
 interface AcoesMetricCardProps {
   title: string;
   value: string;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
 }
 
-const AcoesMetricCard: React.FC<AcoesMetricCardProps> = ({
-  title,
-  value,
-  color = "primary",
-}) => {
+const AcoesMetricCard: React.FC<AcoesMetricCardProps> = ({ title, value, color = 'primary' }) => {
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -81,31 +85,12 @@ const AcoesTableRow: React.FC<AcoesTableRowProps> = ({
     }
   };
 
-  const getSetorColor = (setor: string) => {
-    const colors = {
-      'financeiro': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
-      'energia': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300',
-      'consumo': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      'saude': 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
-      'tecnologia': 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300',
-      'industria': 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300',
-      'materiais': 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300',
-      'utilidades': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300',
-      'outros': 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300',
-    };
-    return colors[setor as keyof typeof colors] || colors.outros;
-  };
-
   return (
     <StandardTableRow>
       <StandardTableBodyCell align="left">
         <div>
           <AssetNameLink portfolioId={ativo.id} ticker={ativo.ticker} nome={ativo.nome} />
-          {ativo.observacoes && (
-            <div className="text-xs mt-1">
-              {ativo.observacoes}
-            </div>
-          )}
+          {ativo.observacoes && <div className="text-xs mt-1">{ativo.observacoes}</div>}
         </div>
       </StandardTableBodyCell>
       <StandardTableBodyCell align="center">
@@ -113,12 +98,8 @@ const AcoesTableRow: React.FC<AcoesTableRowProps> = ({
           {ativo.setor.charAt(0).toUpperCase() + ativo.setor.slice(1)}
         </span>
       </StandardTableBodyCell>
-      <StandardTableBodyCell align="center">
-        {ativo.subsetor}
-      </StandardTableBodyCell>
-      <StandardTableBodyCell align="right">
-        {formatNumber(ativo.quantidade)}
-      </StandardTableBodyCell>
+      <StandardTableBodyCell align="center">{ativo.subsetor}</StandardTableBodyCell>
+      <StandardTableBodyCell align="right">{formatNumber(ativo.quantidade)}</StandardTableBodyCell>
       <StandardTableBodyCell align="right">
         {formatCurrency(ativo.precoAquisicao)}
       </StandardTableBodyCell>
@@ -137,10 +118,7 @@ const AcoesTableRow: React.FC<AcoesTableRowProps> = ({
       <StandardTableBodyCell align="right">
         {formatPercentage(ativo.percentualCarteira)}
       </StandardTableBodyCell>
-      <StandardTableBodyCell
-        align="right"
-        className="border border-black"
-      >
+      <StandardTableBodyCell align="right" className="border border-black">
         {isEditingObjetivo ? (
           <div className="flex items-center space-x-1">
             <input
@@ -156,7 +134,7 @@ const AcoesTableRow: React.FC<AcoesTableRowProps> = ({
             <span className="text-xs">%</span>
           </div>
         ) : (
-          <div 
+          <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObjetivo(true)}
           >
@@ -168,9 +146,7 @@ const AcoesTableRow: React.FC<AcoesTableRowProps> = ({
         {formatPercentage(ativo.quantoFalta)}
       </StandardTableBodyCell>
       <StandardTableBodyCell align="right">
-        <span>
-          {formatCurrency(ativo.necessidadeAporte)}
-        </span>
+        <span>{formatCurrency(ativo.necessidadeAporte)}</span>
       </StandardTableBodyCell>
       <StandardTableBodyCell align="right">
         {formatPercentage(ativo.rentabilidade)}
@@ -203,10 +179,7 @@ const AcoesSection: React.FC<AcoesSectionProps> = ({
   return (
     <>
       {/* Cabeçalho da seção */}
-      <StandardTableRow 
-        className="bg-[#808080] cursor-pointer"
-        onClick={onToggle}
-      >
+      <StandardTableRow className="bg-[#808080] cursor-pointer" onClick={onToggle}>
         <StandardTableBodyCell align="left" isTotal className="bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
@@ -217,16 +190,24 @@ const AcoesSection: React.FC<AcoesSectionProps> = ({
             <span>{secao.nome || secao.estrategia}</span>
           </div>
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
-        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">
+          -
+        </StandardTableBodyCell>
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">
+          -
+        </StandardTableBodyCell>
         <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatNumber(secao.totalQuantidade)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">
+          -
+        </StandardTableBodyCell>
         <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAplicado)}
         </StandardTableBodyCell>
-        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">-</StandardTableBodyCell>
+        <StandardTableBodyCell align="center" isTotal className="bg-[#808080] text-white font-bold">
+          -
+        </StandardTableBodyCell>
         <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatCurrency(secao.totalValorAtualizado)}
         </StandardTableBodyCell>
@@ -243,9 +224,7 @@ const AcoesSection: React.FC<AcoesSectionProps> = ({
           {formatPercentage(secao.totalQuantoFalta)}
         </StandardTableBodyCell>
         <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
-          <span>
-            {formatCurrency(secao.totalNecessidadeAporte)}
-          </span>
+          <span>{formatCurrency(secao.totalNecessidadeAporte)}</span>
         </StandardTableBodyCell>
         <StandardTableBodyCell align="right" isTotal className="bg-[#808080] text-white font-bold">
           {formatPercentage(secao.rentabilidadeMedia)}
@@ -253,21 +232,19 @@ const AcoesSection: React.FC<AcoesSectionProps> = ({
       </StandardTableRow>
 
       {/* Ativos da seção */}
-      {isExpanded && secao.ativos.map((ativo) => (
-        <AcoesTableRow
-          key={ativo.id}
-          ativo={ativo}
-          formatCurrency={formatCurrency}
-          formatPercentage={formatPercentage}
-          formatNumber={formatNumber}
-          onUpdateObjetivo={onUpdateObjetivo}
-        />
-      ))}
+      {isExpanded &&
+        secao.ativos.map((ativo) => (
+          <AcoesTableRow
+            key={ativo.id}
+            ativo={ativo}
+            formatCurrency={formatCurrency}
+            formatPercentage={formatPercentage}
+            formatNumber={formatNumber}
+            onUpdateObjetivo={onUpdateObjetivo}
+          />
+        ))}
       {isExpanded && (
-        <StandardTablePlaceholderRows
-          count={placeholderCount}
-          colSpan={ACOES_COLUMN_COUNT}
-        />
+        <StandardTablePlaceholderRows count={placeholderCount} colSpan={ACOES_COLUMN_COUNT} />
       )}
     </>
   );
@@ -278,11 +255,21 @@ interface AcoesTableProps {
 }
 
 export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
-  const { data, loading, error, formatCurrency, formatPercentage, formatNumber, updateObjetivo, updateCaixaParaInvestir } = useAcoes();
-  const { necessidadeAporteMap, resumo } = useCarteiraResumoContext();
-  const necessidadeAporteTotalCalculada = necessidadeAporteMap.acoes ?? data?.resumo?.necessidadeAporteTotal ?? 0;
+  const {
+    data,
+    loading,
+    error,
+    formatCurrency,
+    formatPercentage,
+    formatNumber,
+    updateObjetivo,
+    updateCaixaParaInvestir,
+  } = useAcoes();
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const necessidadeAporteTotalCalculada =
+    necessidadeAporteMap.acoes ?? data?.resumo?.necessidadeAporteTotal ?? 0;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(ACOES_SECTION_ORDER)
+    new Set(ACOES_SECTION_ORDER),
   );
 
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -292,27 +279,28 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     const totalTabValue = data.totalGeral?.valorAtualizado || 0;
     const shouldCalculateRisco = totalCarteira > 0;
 
-    const secoesComRisco = data.secoes.map(secao => {
-      const totalPercentualCarteira = totalTabValue > 0
-        ? (secao.totalValorAtualizado / totalTabValue) * 100
-        : 0;
+    const secoesComRisco = data.secoes.map((secao) => {
+      const totalPercentualCarteira =
+        totalTabValue > 0 ? (secao.totalValorAtualizado / totalTabValue) * 100 : 0;
 
       return {
         ...secao,
-        ativos: secao.ativos.map(ativo => {
+        ativos: secao.ativos.map((ativo) => {
           // Percentual daquele tipo de ativo (não da carteira total)
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           // Quanto falta = diferença entre % atual e objetivo (em %)
           const quantoFalta = objetivo - percentualCarteira;
           // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
-          const necessidadeAporte = totalTabValue > 0 && quantoFalta > 0 
-            ? (quantoFalta / 100) * totalTabValue 
-            : 0;
-          
+          const necessidadeAporte =
+            totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+
           return {
             ...ativo,
-            riscoPorAtivo: shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+            riscoPorAtivo: shouldCalculateRisco
+              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+              : 0,
             percentualCarteira,
             quantoFalta,
             necessidadeAporte,
@@ -320,31 +308,42 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
         }),
         totalPercentualCarteira,
         totalRisco: secao.ativos.reduce(
-          (sum, ativo) => sum + (shouldCalculateRisco ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0),
-          0
+          (sum, ativo) =>
+            sum +
+            (shouldCalculateRisco
+              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
+              : 0),
+          0,
         ),
         totalQuantoFalta: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           return sum + (objetivo - percentualCarteira);
         }, 0),
         totalNecessidadeAporte: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira = totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+          const percentualCarteira =
+            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
           const objetivo = ativo.objetivo || 0;
           const quantoFalta = objetivo - percentualCarteira;
-          return sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0);
+          return (
+            sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0)
+          );
         }, 0),
       };
     });
 
     const totalGeralRisco = secoesComRisco.reduce(
       (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
-      0
+      0,
     );
 
     // Recalcular totais gerais
     const totalQuantoFalta = secoesComRisco.reduce((sum, secao) => sum + secao.totalQuantoFalta, 0);
-    const totalNecessidadeAporte = secoesComRisco.reduce((sum, secao) => sum + secao.totalNecessidadeAporte, 0);
+    const totalNecessidadeAporte = secoesComRisco.reduce(
+      (sum, secao) => sum + secao.totalNecessidadeAporte,
+      0,
+    );
 
     return {
       ...data,
@@ -374,7 +373,10 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
   };
 
   const normalizedSections = useMemo(() => {
-    const createEmptySection = (estrategia: (typeof ACOES_SECTION_ORDER)[number], nome: string): AcaoSecao => ({
+    const createEmptySection = (
+      estrategia: (typeof ACOES_SECTION_ORDER)[number],
+      nome: string,
+    ): AcaoSecao => ({
       estrategia: estrategia as EstrategiaAcao,
       nome,
       ativos: [],
@@ -458,79 +460,167 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
         <StandardTable>
           <StandardTableHeader sticky headerBgColor="#9E8A58">
             <StandardTableHeaderRow headerBgColor="#9E8A58">
-              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">Nome do Ativo</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">Setor</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">Subsetor</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Quantidade</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Preço Médio</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Valor Total</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Cotação Atual</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Valor Atualizado</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">
+                Nome do Ativo
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Setor
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+                Subsetor
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Quantidade
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Preço Médio
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Valor Total
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Cotação Atual
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Valor Atualizado
+              </StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
                 <span className="block">Risco Por Ativo</span>
                 <span className="block">(Carteira Total)</span>
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">% da Carteira</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Objetivo</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Quanto Falta</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Nec. Aporte R$</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">Rentabilidade</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                % da Carteira
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Objetivo
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Quanto Falta
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Nec. Aporte R$
+              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+                Rentabilidade
+              </StandardTableHeaderCell>
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
-              {/* Linha de totalização */}
-              <StandardTableRow isTotal className="bg-[#404040]">
-              <StandardTableBodyCell align="left" isTotal className="bg-[#404040] text-white font-bold">
-                  TOTAL GERAL
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatNumber(dataComRisco?.totalGeral.quantidade || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral.valorAplicado || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal className="bg-[#404040] text-white font-bold">-</StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral.valorAtualizado || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral.risco || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  100.00%
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  <span>
-                    {formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
-                  </span>
-                </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal className="bg-[#404040] text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
-                </StandardTableBodyCell>
-              </StandardTableRow>
+            {/* Linha de totalização */}
+            <StandardTableRow isTotal className="bg-[#404040]">
+              <StandardTableBodyCell
+                align="left"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                TOTAL GERAL
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="center"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                -
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="center"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                -
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatNumber(dataComRisco?.totalGeral.quantidade || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="center"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                -
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatCurrency(dataComRisco?.totalGeral.valorAplicado || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="center"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                -
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatCurrency(dataComRisco?.totalGeral.valorAtualizado || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatPercentage(dataComRisco?.totalGeral.risco || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                100.00%
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                <span>{formatCurrency(dataComRisco?.totalGeral?.necessidadeAporte || 0)}</span>
+              </StandardTableBodyCell>
+              <StandardTableBodyCell
+                align="right"
+                isTotal
+                className="bg-[#404040] text-white font-bold"
+              >
+                {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
+              </StandardTableBodyCell>
+            </StandardTableRow>
 
-              {normalizedSections.map((secao) => (
-                <AcoesSection
-                  key={secao.estrategia}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  isExpanded={expandedSections.has(secao.estrategia)}
-                  onToggle={() => toggleSection(secao.estrategia)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                />
-              ))}
-            </TableBody>
+            {normalizedSections.map((secao) => (
+              <AcoesSection
+                key={secao.estrategia}
+                secao={secao}
+                formatCurrency={formatCurrency}
+                formatPercentage={formatPercentage}
+                formatNumber={formatNumber}
+                isExpanded={expandedSections.has(secao.estrategia)}
+                onToggle={() => toggleSection(secao.estrategia)}
+                onUpdateObjetivo={handleUpdateObjetivo}
+              />
+            ))}
+          </TableBody>
         </StandardTable>
       </ComponentCard>
     </div>

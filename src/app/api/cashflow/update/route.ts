@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
-import { personalizeGroup, personalizeItem, getItemForUser, getGroupForUser } from '@/utils/cashflowPersonalization';
+import { Prisma } from '@prisma/client';
+import {
+  personalizeGroup,
+  personalizeItem,
+  getItemForUser,
+  getGroupForUser,
+} from '@/utils/cashflowPersonalization';
 
 /**
  * PATCH /api/cashflow/update
- * 
+ *
  * Recebe alterações de grupos, subgrupos ou itens.
- * 
+ *
  * Se o item/grupo for padrão (template), cria uma cópia personalizada.
  * Atualiza ou remove apenas itens/grupos pertencentes ao usuário.
- * 
+ *
  * Body:
  * {
  *   operation: 'create' | 'update' | 'delete',
@@ -22,7 +28,7 @@ import { personalizeGroup, personalizeItem, getItemForUser, getGroupForUser } fr
  *     type?: 'entrada' | 'despesa' | 'investimento',
  *     orderIndex?: number,
  *     parentId?: string | null,
- *     
+ *
  *     // Para itens
  *     groupId?: string,
  *     name?: string,
@@ -39,10 +45,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
     }
 
-    const jwtPayload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string; role: string };
+    const jwtPayload = jwt.verify(token, process.env.JWT_SECRET!) as {
+      id: string;
+      email: string;
+      role: string;
+    };
     const requestBody = await request.json();
     const { operation, type, id, data } = requestBody;
-    
+
     // Verificar personificação e registrar log se necessário
     const { requireAuthWithActing } = await import('@/utils/auth');
     const { logDataUpdate } = await import('@/services/impersonationLogger');
@@ -52,7 +62,7 @@ export async function PATCH(request: NextRequest) {
     } catch {
       // Se falhar, usar payload do JWT diretamente
     }
-    
+
     const payload = jwtPayload;
 
     // Validações básicas
@@ -61,7 +71,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (!['create', 'update', 'delete'].includes(operation)) {
-      return NextResponse.json({ error: 'operation deve ser create, update ou delete' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'operation deve ser create, update ou delete' },
+        { status: 400 },
+      );
     }
 
     if (!['group', 'item'].includes(type)) {
@@ -95,7 +108,7 @@ export async function PATCH(request: NextRequest) {
     return result;
   } catch (error) {
     console.error('Erro na API cashflow/update:', error);
-    
+
     // Registrar log de erro se estiver personificado
     const { requireAuthWithActing } = await import('@/utils/auth');
     const { logDataUpdate } = await import('@/services/impersonationLogger');
@@ -116,7 +129,7 @@ export async function PATCH(request: NextRequest) {
     } catch {
       // Ignorar erros de log
     }
-    
+
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
@@ -124,16 +137,33 @@ export async function PATCH(request: NextRequest) {
 /**
  * Processa operações com grupos
  */
+interface GroupData {
+  name?: string;
+  type?: string;
+  parentId?: string | null;
+  orderIndex?: number | null;
+}
+
+interface ItemData {
+  name?: string;
+  groupId?: string;
+  rank?: string | null;
+  significado?: string | null;
+}
+
 async function handleGroupOperation(
   operation: string,
   id: string | undefined,
-  data: any,
-  userId: string
+  data: GroupData,
+  userId: string,
 ) {
   if (operation === 'create') {
     // Criar novo grupo personalizado
     if (!data.name || !data.type) {
-      return NextResponse.json({ error: 'name e type são obrigatórios para criar grupo' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'name e type são obrigatórios para criar grupo' },
+        { status: 400 },
+      );
     }
 
     const newGroup = await prisma.cashflowGroup.create({
@@ -171,17 +201,19 @@ async function handleGroupOperation(
     }
 
     // Atualizar apenas grupos personalizados do usuário
+    const updateData: Prisma.CashflowGroupUncheckedUpdateInput = {};
+    if (data.name) updateData.name = data.name;
+    if (data.type) updateData.type = data.type;
+    if (data.orderIndex !== undefined && data.orderIndex !== null)
+      updateData.orderIndex = data.orderIndex;
+    if (data.parentId !== undefined) updateData.parentId = data.parentId;
+
     const updatedGroup = await prisma.cashflowGroup.update({
       where: {
         id: finalGroupId,
         userId, // Garantir que só atualiza grupos do usuário
       },
-      data: {
-        ...(data.name && { name: data.name }),
-        ...(data.type && { type: data.type }),
-        ...(data.orderIndex !== undefined && { orderIndex: data.orderIndex }),
-        ...(data.parentId !== undefined && { parentId: data.parentId }),
-      },
+      data: updateData,
       include: {
         items: true,
         children: true,
@@ -209,7 +241,10 @@ async function handleGroupOperation(
     });
 
     if (!group) {
-      return NextResponse.json({ error: 'Grupo não encontrado ou não pertence ao usuário' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Grupo não encontrado ou não pertence ao usuário' },
+        { status: 404 },
+      );
     }
 
     // Verificar se tem filhos ou itens
@@ -219,7 +254,7 @@ async function handleGroupOperation(
         where: { parentId: groupId, userId },
         select: { id: true },
       });
-      let allChildren = [...children.map(c => c.id)];
+      let allChildren = [...children.map((c) => c.id)];
       for (const child of children) {
         const grandChildren = await getAllChildren(child.id);
         allChildren = [...allChildren, ...grandChildren];
@@ -229,7 +264,10 @@ async function handleGroupOperation(
 
     const childrenIds = await getAllChildren(id);
     if (childrenIds.length > 0) {
-      return NextResponse.json({ error: 'Não é possível deletar grupo com subgrupos. Delete os subgrupos primeiro.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Não é possível deletar grupo com subgrupos. Delete os subgrupos primeiro.' },
+        { status: 400 },
+      );
     }
 
     const itemsCount = await prisma.cashflowItem.count({
@@ -237,7 +275,10 @@ async function handleGroupOperation(
     });
 
     if (itemsCount > 0) {
-      return NextResponse.json({ error: 'Não é possível deletar grupo com itens. Delete os itens primeiro.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Não é possível deletar grupo com itens. Delete os itens primeiro.' },
+        { status: 400 },
+      );
     }
 
     // Deletar grupo
@@ -257,13 +298,16 @@ async function handleGroupOperation(
 async function handleItemOperation(
   operation: string,
   id: string | undefined,
-  data: any,
-  userId: string
+  data: ItemData,
+  userId: string,
 ) {
   if (operation === 'create') {
     // Criar novo item personalizado
     if (!data.groupId || !data.name) {
-      return NextResponse.json({ error: 'groupId e name são obrigatórios para criar item' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'groupId e name são obrigatórios para criar item' },
+        { status: 400 },
+      );
     }
 
     // Verificar se grupo existe (pode ser template ou personalizado)
@@ -356,7 +400,10 @@ async function handleItemOperation(
     });
 
     if (!item) {
-      return NextResponse.json({ error: 'Item não encontrado ou não pertence ao usuário' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Item não encontrado ou não pertence ao usuário' },
+        { status: 404 },
+      );
     }
 
     // Deletar valores associados primeiro
@@ -376,4 +423,3 @@ async function handleItemOperation(
 
   return NextResponse.json({ error: 'Operação não suportada' }, { status: 400 });
 }
-

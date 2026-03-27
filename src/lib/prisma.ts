@@ -18,17 +18,21 @@ const createPrismaClient = () =>
 
 const hasPortfolioObjetivoField = (client?: PrismaClient) => {
   if (!client) return false;
-  const dmmf = (client as any)._dmmf;
+  const dmmf = (client as unknown as Record<string, unknown>)._dmmf as
+    | { modelMap?: { Portfolio?: { fields?: Array<{ name?: string }> } } }
+    | undefined;
   const fields = dmmf?.modelMap?.Portfolio?.fields;
   if (!Array.isArray(fields)) return false;
-  return fields.some((field: { name?: string }) => field?.name === "objetivo");
+  return fields.some((field: { name?: string }) => field?.name === 'objetivo');
 };
 
 if (
   process.env.NODE_ENV !== 'production' &&
   (!globalForPrisma.prisma ||
-    typeof (globalForPrisma.prisma as any).consultantInvite === 'undefined' ||
-    typeof (globalForPrisma.prisma as any).fixedIncomeAsset === 'undefined' ||
+    typeof (globalForPrisma.prisma as unknown as Record<string, unknown>).consultantInvite ===
+      'undefined' ||
+    typeof (globalForPrisma.prisma as unknown as Record<string, unknown>).fixedIncomeAsset ===
+      'undefined' ||
     !hasPortfolioObjetivoField(globalForPrisma.prisma))
 ) {
   globalForPrisma.prisma = createPrismaClient();
@@ -36,4 +40,4 @@ if (
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
-export default prisma; 
+export default prisma;

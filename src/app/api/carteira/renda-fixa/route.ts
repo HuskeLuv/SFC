@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       'GET',
     );
 
-    let fixedIncomeAssets: any[] = [];
+    let fixedIncomeAssets: Awaited<ReturnType<typeof prisma.fixedIncomeAsset.findMany>> = [];
     try {
       fixedIncomeAssets = await prisma.fixedIncomeAsset.findMany({
         where: { userId: targetUserId },
@@ -43,48 +43,62 @@ export async function GET(request: NextRequest) {
       include: { asset: true },
     });
 
-    const fixedIncomeByAssetId = new Map<string, typeof fixedIncomeAssets[number]>();
+    const fixedIncomeByAssetId = new Map<string, (typeof fixedIncomeAssets)[number]>();
     fixedIncomeAssets.forEach((fixedIncome) => {
       fixedIncomeByAssetId.set(fixedIncome.assetId, fixedIncome);
     });
 
     // Buscar transações para obter metadados editados
-    const assetIds = portfolio.map(p => p.assetId).filter((id): id is string => id !== null);
-    const transactions = assetIds.length > 0 ? await prisma.stockTransaction.findMany({
-      where: {
-        userId: targetUserId,
-        assetId: { in: assetIds },
-        type: { in: ['compra', 'venda'] },
-      },
-      orderBy: {
-        date: 'desc',
-      },
-    }) : [];
+    const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
+    const transactions =
+      assetIds.length > 0
+        ? await prisma.stockTransaction.findMany({
+            where: {
+              userId: targetUserId,
+              assetId: { in: assetIds },
+              type: { in: ['compra', 'venda'] },
+            },
+            orderBy: {
+              date: 'desc',
+            },
+          })
+        : [];
 
     // Criar mapa de metadados por assetId (usar a transação mais recente)
-    const metadataMap = new Map<string, {
-      cotizacaoResgate?: string;
-      liquidacaoResgate?: string;
-      benchmark?: string;
-      observacoes?: string;
-      debentureTipo?: 'prefixada' | 'pos-fixada' | 'hibrida';
-    }>();
+    const metadataMap = new Map<
+      string,
+      {
+        cotizacaoResgate?: string;
+        liquidacaoResgate?: string;
+        benchmark?: string;
+        observacoes?: string;
+        debentureTipo?: 'prefixada' | 'pos-fixada' | 'hibrida';
+      }
+    >();
 
-    transactions.forEach(transaction => {
+    transactions.forEach((transaction) => {
       if (!transaction.assetId) return;
       if (transaction.notes && !metadataMap.has(transaction.assetId)) {
         try {
           const parsed = JSON.parse(transaction.notes);
-          if (parsed.cotizacaoResgate || parsed.liquidacaoResgate || parsed.benchmark || parsed.observacoes || parsed.debentureTipo) {
+          if (
+            parsed.cotizacaoResgate ||
+            parsed.liquidacaoResgate ||
+            parsed.benchmark ||
+            parsed.observacoes ||
+            parsed.debentureTipo
+          ) {
             metadataMap.set(transaction.assetId, {
               cotizacaoResgate: parsed.cotizacaoResgate,
               liquidacaoResgate: parsed.liquidacaoResgate,
               benchmark: parsed.benchmark,
               observacoes: parsed.observacoes,
-              debentureTipo: ['prefixada', 'pos-fixada', 'hibrida'].includes(parsed.debentureTipo) ? parsed.debentureTipo : undefined,
+              debentureTipo: ['prefixada', 'pos-fixada', 'hibrida'].includes(parsed.debentureTipo)
+                ? parsed.debentureTipo
+                : undefined,
             });
           }
-        } catch (e) {
+        } catch {
           // Se não for JSON válido, ignorar
         }
       }
@@ -100,8 +114,9 @@ export async function GET(request: NextRequest) {
     const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
     const today = new Date();
-    const normalizeDate = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const calculateFixedIncomeValue = (fixedIncome: typeof fixedIncomeAssets[number]) => {
+    const normalizeDate = (date: Date) =>
+      new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const calculateFixedIncomeValue = (fixedIncome: (typeof fixedIncomeAssets)[number]) => {
       const start = normalizeDate(new Date(fixedIncome.startDate));
       const maturity = normalizeDate(new Date(fixedIncome.maturityDate));
       const current = normalizeDate(today);
@@ -115,13 +130,13 @@ export async function GET(request: NextRequest) {
       return Math.round(valorAtual * 100) / 100;
     };
 
-    const getBenchmarkLabel = (fixedIncome: typeof fixedIncomeAssets[number]) => {
+    const getBenchmarkLabel = (fixedIncome: (typeof fixedIncomeAssets)[number]) => {
       if (fixedIncome.indexer === 'CDI') return 'CDI';
       if (fixedIncome.indexer === 'IPCA') return 'IPCA';
       return 'Pré';
     };
 
-    const getLiquidityLabel = (fixedIncome: typeof fixedIncomeAssets[number]) => {
+    const getLiquidityLabel = (fixedIncome: (typeof fixedIncomeAssets)[number]) => {
       if (fixedIncome.liquidityType === 'DAILY') return 'Diária';
       if (fixedIncome.liquidityType === 'MATURITY') return 'No vencimento';
       return 'No vencimento';
@@ -137,11 +152,13 @@ export async function GET(request: NextRequest) {
         }
         // Usar valor atualizado do portfolio (avgPrice) se foi editado manualmente
         const valorAtualizadoCalculado = calculateFixedIncomeValue(fixedIncome);
-        const valorAtualizado = (item.avgPrice && item.avgPrice > 0 && item.quantity > 0)
-          ? item.avgPrice * item.quantity
-          : valorAtualizadoCalculado;
+        const valorAtualizado =
+          item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+            ? item.avgPrice * item.quantity
+            : valorAtualizadoCalculado;
         const valorInicial = fixedIncome.investedAmount;
-        const rentabilidade = valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0;
+        const rentabilidade =
+          valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0;
 
         // Buscar metadados editados das transações
         const metadata = metadataMap.get(assetId) || {};
@@ -149,9 +166,9 @@ export async function GET(request: NextRequest) {
         // Classificar seção: híbrido (tipo *_HIB), pós-fixada (indexador CDI/IPCA) ou pré-fixada
         const isHibrido = String(fixedIncome.type).endsWith('_HIB');
         const isPosFixada = fixedIncome.indexer === 'CDI' || fixedIncome.indexer === 'IPCA';
-        const tipo = isHibrido ? 'hibrida' : (isPosFixada ? 'pos-fixada' : 'prefixada');
+        const tipo = isHibrido ? 'hibrida' : isPosFixada ? 'pos-fixada' : 'prefixada';
 
-      return {
+        return {
           id: item.id,
           nome: fixedIncome.description || item.asset?.name || 'Renda Fixa',
           percentualRentabilidade: Math.round(rentabilidade * 100) / 100,
@@ -177,13 +194,16 @@ export async function GET(request: NextRequest) {
       .map((item) => {
         const assetId = item.assetId as string;
         const metadata = metadataMap.get(assetId) || {};
-        const valorAtualizado = (item.avgPrice && item.avgPrice > 0 && item.quantity > 0)
-          ? item.avgPrice * item.quantity
-          : item.totalInvested;
-        const tipoLegacy = metadata.debentureTipo && ['prefixada', 'pos-fixada', 'hibrida'].includes(metadata.debentureTipo)
-          ? metadata.debentureTipo
-          : 'prefixada';
-        
+        const valorAtualizado =
+          item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+            ? item.avgPrice * item.quantity
+            : item.totalInvested;
+        const tipoLegacy =
+          metadata.debentureTipo &&
+          ['prefixada', 'pos-fixada', 'hibrida'].includes(metadata.debentureTipo)
+            ? metadata.debentureTipo
+            : 'prefixada';
+
         return {
           id: item.id,
           nome: item.asset?.name || 'Renda Fixa',
@@ -208,31 +228,55 @@ export async function GET(request: NextRequest) {
 
     const totalCarteira = allAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
 
-    const ativosComPercentuais = allAtivos.map(ativo => ({
+    const ativosComPercentuais = allAtivos.map((ativo) => ({
       ...ativo,
       percentualCarteira: totalCarteira > 0 ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
-      riscoPorAtivo: totalCarteira > 0 ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
-      rentabilidade: ativo.valorInicialAplicado > 0
-        ? ((ativo.valorAtualizado - ativo.valorInicialAplicado) / ativo.valorInicialAplicado) * 100
-        : 0,
+      riscoPorAtivo:
+        totalCarteira > 0 ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+      rentabilidade:
+        ativo.valorInicialAplicado > 0
+          ? ((ativo.valorAtualizado - ativo.valorInicialAplicado) / ativo.valorInicialAplicado) *
+            100
+          : 0,
     }));
 
-    const secoesMap = new Map<string, any>();
-    ativosComPercentuais.forEach(ativo => {
-      const current = secoesMap.get(ativo.tipo) || { tipo: ativo.tipo, nome: ativo.tipo, ativos: [] };
+    type AtivoRendaFixa = (typeof ativosComPercentuais)[number];
+    const secoesMap = new Map<string, { tipo: string; nome: string; ativos: AtivoRendaFixa[] }>();
+    ativosComPercentuais.forEach((ativo) => {
+      const current = secoesMap.get(ativo.tipo) || {
+        tipo: ativo.tipo,
+        nome: ativo.tipo,
+        ativos: [] as AtivoRendaFixa[],
+      };
       current.ativos.push(ativo);
       secoesMap.set(ativo.tipo, current);
     });
 
-    const secoes = Array.from(secoesMap.values()).map(secao => {
-      const totalValorAplicado = secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.valorInicialAplicado, 0);
-      const totalAporte = secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.aporte, 0);
-      const totalResgate = secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.resgate, 0);
-      const totalValorAtualizado = secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.valorAtualizado, 0);
+    const secoes = Array.from(secoesMap.values()).map((secao) => {
+      const totalValorAplicado = secao.ativos.reduce(
+        (sum: number, ativo: AtivoRendaFixa) => sum + ativo.valorInicialAplicado,
+        0,
+      );
+      const totalAporte = secao.ativos.reduce(
+        (sum: number, ativo: AtivoRendaFixa) => sum + ativo.aporte,
+        0,
+      );
+      const totalResgate = secao.ativos.reduce(
+        (sum: number, ativo: AtivoRendaFixa) => sum + ativo.resgate,
+        0,
+      );
+      const totalValorAtualizado = secao.ativos.reduce(
+        (sum: number, ativo: AtivoRendaFixa) => sum + ativo.valorAtualizado,
+        0,
+      );
       const percentualTotal = totalCarteira > 0 ? (totalValorAtualizado / totalCarteira) * 100 : 0;
-      const rentabilidadeMedia = secao.ativos.length > 0
-        ? secao.ativos.reduce((sum: number, ativo: any) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-        : 0;
+      const rentabilidadeMedia =
+        secao.ativos.length > 0
+          ? secao.ativos.reduce(
+              (sum: number, ativo: AtivoRendaFixa) => sum + ativo.rentabilidade,
+              0,
+            ) / secao.ativos.length
+          : 0;
 
       return {
         ...secao,
@@ -245,14 +289,21 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const totalValorAplicado = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorInicialAplicado, 0);
+    const totalValorAplicado = ativosComPercentuais.reduce(
+      (sum, ativo) => sum + ativo.valorInicialAplicado,
+      0,
+    );
     const totalAporte = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.aporte, 0);
     const totalResgate = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.resgate, 0);
-    const totalValorAtualizado = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+    const totalValorAtualizado = ativosComPercentuais.reduce(
+      (sum, ativo) => sum + ativo.valorAtualizado,
+      0,
+    );
     const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
-    const rentabilidade = totalValorAplicado > 0
-      ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
-      : 0;
+    const rentabilidade =
+      totalValorAplicado > 0
+        ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+        : 0;
 
     return NextResponse.json({
       resumo: {
@@ -274,10 +325,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Erro ao buscar dados renda fixa:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -285,13 +333,23 @@ export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId, objetivo, cotacao, caixaParaInvestir, campo, valor } = body;
+    const {
+      ativoId,
+      objetivo: _objetivo,
+      cotacao: _cotacao,
+      caixaParaInvestir,
+      campo,
+      valor,
+    } = body;
 
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json({
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+          },
+          { status: 400 },
+        );
       }
 
       // Salvar ou atualizar caixa para investir de Renda Fixa
@@ -317,10 +375,10 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir
+        caixaParaInvestir,
       });
     }
 
@@ -332,17 +390,11 @@ export async function POST(request: NextRequest) {
       });
 
       if (!portfolio) {
-        return NextResponse.json(
-          { error: 'Portfolio não encontrado' },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: 'Portfolio não encontrado' }, { status: 404 });
       }
 
       if (portfolio.userId !== targetUserId) {
-        return NextResponse.json(
-          { error: 'Não autorizado' },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
       }
 
       // Buscar a transação mais recente para atualizar os metadados
@@ -372,7 +424,7 @@ export async function POST(request: NextRequest) {
           const operation = notes.operation || {};
           notes[campo] = valor;
           notes.operation = operation;
-          
+
           await prisma.stockTransaction.update({
             where: { id: transaction.id },
             data: {
@@ -396,7 +448,7 @@ export async function POST(request: NextRequest) {
             const operation = notes.operation || {};
             notes[campo] = valor;
             notes.operation = operation;
-            
+
             await prisma.stockTransaction.update({
               where: { id: firstTransaction.id },
               data: {
@@ -408,7 +460,7 @@ export async function POST(request: NextRequest) {
             const notes = {
               [campo]: valor,
             };
-            
+
             await prisma.stockTransaction.create({
               data: {
                 userId: targetUserId,
@@ -417,7 +469,7 @@ export async function POST(request: NextRequest) {
                 quantity: portfolio.quantity,
                 price: portfolio.avgPrice,
                 date: portfolio.lastUpdate || new Date(),
-                total: portfolio.totalInvested || (portfolio.avgPrice * portfolio.quantity),
+                total: portfolio.totalInvested || portfolio.avgPrice * portfolio.quantity,
                 notes: JSON.stringify(notes),
               },
             });
@@ -425,31 +477,25 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Campo atualizado com sucesso' 
+      return NextResponse.json({
+        success: true,
+        message: 'Campo atualizado com sucesso',
       });
     }
 
     if (!ativoId) {
-      return NextResponse.json(
-        { error: 'Parâmetro obrigatório: ativoId' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
     }
 
     // Simular delay de rede
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Dados atualizados com sucesso' 
+    return NextResponse.json({
+      success: true,
+      message: 'Dados atualizados com sucesso',
     });
   } catch (error) {
     console.error('Erro ao atualizar dados Renda Fixa:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

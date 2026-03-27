@@ -1,12 +1,12 @@
-import React from "react";
-import { TableCell, TableRow } from "@/components/ui/table";
-import { CashflowItem, CashflowGroup } from "@/types/cashflow";
-import { formatCurrency, formatPercent, isReceitaGroupByType } from "@/utils/formatters";
-import { CurrencyInput } from "./CurrencyInput";
-import { DeleteItemButton } from "./DeleteItemButton";
-import { EditableItemData } from "@/hooks/useGroupEditMode";
-import { FIXED_COLUMN_BODY_STYLES } from "./fixedColumns";
-import { CommentIndicator } from "./CommentIndicator";
+import React from 'react';
+import { TableCell, TableRow } from '@/components/ui/table';
+import { CashflowItem, CashflowGroup } from '@/types/cashflow';
+import { formatCurrency, formatPercent } from '@/utils/formatters';
+import { CurrencyInput } from './CurrencyInput';
+import { DeleteItemButton } from './DeleteItemButton';
+import { EditableItemData } from '@/hooks/useGroupEditMode';
+import { FIXED_COLUMN_BODY_STYLES } from './fixedColumns';
+import { CommentIndicator } from './CommentIndicator';
 
 interface EditableItemRowProps {
   item: CashflowItem;
@@ -16,7 +16,12 @@ interface EditableItemRowProps {
   itemAnnualTotal: number;
   itemPercentage: number;
   isEditing: boolean;
-  onUpdateField: (itemId: string, field: "name" | "significado" | "rank" | "monthlyValue", value: string | number | null, monthIndex?: number) => void;
+  onUpdateField: (
+    itemId: string,
+    field: 'name' | 'significado' | 'rank' | 'monthlyValue',
+    value: string | number | null,
+    monthIndex?: number,
+  ) => void;
   onDeleteItem: (itemId: string) => void;
   onApplyColor?: (itemId: string, monthIndex: number) => void;
   isColorModeActive?: boolean;
@@ -41,13 +46,11 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   isCommentModeActive = false,
   onCommentCellClick,
   currentYear = new Date().getFullYear(),
-  isLastItem = false,
 }) => {
-  const isReceita = isReceitaGroupByType(group.type);
   const isInvestmentItem = group.type === 'investimento' || item.id.startsWith('investimento-');
 
   const getPercentageColorClass = () => {
-    return "text-black dark:text-black";
+    return 'text-black dark:text-black';
   };
 
   // Obter cores originais do item
@@ -59,7 +62,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
       }
     });
   }
-  
+
   // Usar dados editados se disponíveis, senão usar dados originais
   const displayData = editedData || {
     id: item.id,
@@ -69,25 +72,25 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
     monthlyValues: itemTotals,
     monthlyColors: originalColors,
   };
-  
+
   // Usar cores dos dados editados se disponíveis, senão usar cores originais
   const monthlyColors = editedData?.monthlyColors || originalColors;
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onUpdateField(item.id, "name", e.target.value);
+    onUpdateField(item.id, 'name', e.target.value);
   };
 
   const handleSignificadoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onUpdateField(item.id, "significado", e.target.value || null);
+    onUpdateField(item.id, 'significado', e.target.value || null);
   };
 
   const handleRankChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value === '' ? null : e.target.value;
-    onUpdateField(item.id, "rank", value);
+    onUpdateField(item.id, 'rank', value);
   };
 
   const handleMonthlyValueChange = (monthIndex: number, value: number) => {
-    onUpdateField(item.id, "monthlyValue", value, monthIndex);
+    onUpdateField(item.id, 'monthlyValue', value, monthIndex);
   };
 
   // Calcular total anual a partir dos valores mensais editados
@@ -101,10 +104,13 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   };
 
   return (
-    <TableRow className={`h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${isEditing ? 'bg-blue-50/30 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-900'}`} style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}>
-      <TableCell 
-          className="px-2 font-medium text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap"
-        style={{ 
+    <TableRow
+      className={`h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${isEditing ? 'bg-blue-50/30 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-900'}`}
+      style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
+    >
+      <TableCell
+        className="px-2 font-medium text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap"
+        style={{
           position: 'sticky',
           backgroundColor: getRowBackgroundColor(),
           ...FIXED_COLUMN_BODY_STYLES[0],
@@ -112,7 +118,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           flexShrink: 0,
           border: 'none',
           borderLeft: 'none',
-          borderRight: 'none'
+          borderRight: 'none',
         }}
       >
         {isEditing && !isInvestmentItem ? (
@@ -126,10 +132,10 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           <span className="truncate block">{displayData.name || ''}</span>
         )}
       </TableCell>
-      
-      <TableCell 
-          className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 h-6 leading-6 whitespace-nowrap"
-        style={{ 
+
+      <TableCell
+        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 h-6 leading-6 whitespace-nowrap"
+        style={{
           position: 'sticky',
           backgroundColor: getRowBackgroundColor(),
           ...FIXED_COLUMN_BODY_STYLES[1],
@@ -137,7 +143,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           flexShrink: 0,
           border: 'none',
           borderLeft: 'none',
-          borderRight: 'none'
+          borderRight: 'none',
         }}
       >
         {isEditing && !isInvestmentItem ? (
@@ -152,10 +158,10 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           <span className="truncate block">{displayData.significado || '-'}</span>
         )}
       </TableCell>
-      
-      <TableCell 
-          className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 text-center h-6 leading-6 whitespace-nowrap"
-        style={{ 
+
+      <TableCell
+        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 text-center h-6 leading-6 whitespace-nowrap"
+        style={{
           position: 'sticky',
           backgroundColor: getRowBackgroundColor(),
           ...FIXED_COLUMN_BODY_STYLES[2],
@@ -163,7 +169,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           flexShrink: 0,
           border: 'none',
           borderLeft: 'none',
-          borderRight: 'none'
+          borderRight: 'none',
         }}
       >
         {isEditing && !isInvestmentItem ? (
@@ -178,10 +184,10 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           <span>{displayData.rank || '-'}</span>
         )}
       </TableCell>
-      
-      <TableCell 
-          className={`px-2 font-normal text-xs text-right h-6 leading-6 whitespace-nowrap ${getPercentageColorClass()}`}
-        style={{ 
+
+      <TableCell
+        className={`px-2 font-normal text-xs text-right h-6 leading-6 whitespace-nowrap ${getPercentageColorClass()}`}
+        style={{
           position: 'sticky',
           backgroundColor: getRowBackgroundColor(),
           ...FIXED_COLUMN_BODY_STYLES[3],
@@ -189,110 +195,121 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           flexShrink: 0,
           border: 'none',
           borderLeft: 'none',
-          borderRight: 'none'
+          borderRight: 'none',
         }}
       >
-        {group.name === 'Investimentos' ? '-' : (itemPercentage > 0 ? formatPercent(itemPercentage) : '-')}
+        {group.name === 'Investimentos'
+          ? '-'
+          : itemPercentage > 0
+            ? formatPercent(itemPercentage)
+            : '-'}
       </TableCell>
-      
-      {isEditing && !isInvestmentItem ? (
-        displayData.monthlyValues.map((value, index) => {
-          const cellColor = monthlyColors[index] || null;
-          // Buscar comentário do valor mensal
-          const monthlyValue = item.values?.find((v) => v.month === index && v.year === currentYear);
-          const cellComment = monthlyValue?.comment || null;
-          
-          const handleCellClick = () => {
-            if (isCommentModeActive && onCommentCellClick) {
-              onCommentCellClick(item.id, index);
-            } else if (isColorModeActive && onApplyColor) {
-              onApplyColor(item.id, index);
-            }
-          };
-          
-          return (
-            <TableCell
-              key={index}
-              className={`px-1 font-normal text-xs h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white ${
-                isCommentModeActive
-                  ? "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
-                  : isColorModeActive
-                  ? "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
-                  : ""
-              }`}
-              style={{ overflow: 'visible' }}
-            >
-              <div
-                onClick={handleCellClick}
-                className={`flex items-center justify-end gap-1 ${isCommentModeActive || isColorModeActive ? "cursor-pointer" : ""}`}
-                style={{ position: 'relative', overflow: 'visible' }}
+
+      {isEditing && !isInvestmentItem
+        ? displayData.monthlyValues.map((value, index) => {
+            const cellColor = monthlyColors[index] || null;
+            // Buscar comentário do valor mensal
+            const monthlyValue = item.values?.find(
+              (v) => v.month === index && v.year === currentYear,
+            );
+            const cellComment = monthlyValue?.comment || null;
+
+            const handleCellClick = () => {
+              if (isCommentModeActive && onCommentCellClick) {
+                onCommentCellClick(item.id, index);
+              } else if (isColorModeActive && onApplyColor) {
+                onApplyColor(item.id, index);
+              }
+            };
+
+            return (
+              <TableCell
+                key={index}
+                className={`px-1 font-normal text-xs h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white ${
+                  isCommentModeActive
+                    ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors'
+                    : isColorModeActive
+                      ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors'
+                      : ''
+                }`}
+                style={{ overflow: 'visible' }}
               >
-                {cellComment && (
-                  <CommentIndicator
-                    comment={cellComment}
-                    itemName={item.name}
-                    month={index}
-                    year={currentYear}
+                <div
+                  onClick={handleCellClick}
+                  className={`flex items-center justify-end gap-1 ${isCommentModeActive || isColorModeActive ? 'cursor-pointer' : ''}`}
+                  style={{ position: 'relative', overflow: 'visible' }}
+                >
+                  {cellComment && (
+                    <CommentIndicator
+                      comment={cellComment}
+                      itemName={item.name}
+                      month={index}
+                      year={currentYear}
+                    />
+                  )}
+                  <CurrencyInput
+                    value={value}
+                    onChange={(newValue) => handleMonthlyValueChange(index, newValue)}
+                    className="text-right"
+                    style={cellColor ? { color: cellColor } : undefined}
+                    onClick={(e) => {
+                      if (isCommentModeActive && onCommentCellClick) {
+                        e.stopPropagation();
+                        onCommentCellClick(item.id, index);
+                      } else if (isColorModeActive && onApplyColor) {
+                        e.stopPropagation();
+                        onApplyColor(item.id, index);
+                      }
+                    }}
                   />
-                )}
-                <CurrencyInput
-                  value={value}
-                  onChange={(newValue) => handleMonthlyValueChange(index, newValue)}
-                  className="text-right"
-                  style={cellColor ? { color: cellColor } : undefined}
-                  onClick={(e) => {
-                    if (isCommentModeActive && onCommentCellClick) {
-                      e.stopPropagation();
-                      onCommentCellClick(item.id, index);
-                    } else if (isColorModeActive && onApplyColor) {
-                      e.stopPropagation();
-                      onApplyColor(item.id, index);
-                    }
-                  }}
-                />
-              </div>
-            </TableCell>
-          );
-        })
-      ) : (
-        itemTotals.map((value, index) => {
-          const cellColor = monthlyColors[index] || null;
-          // Buscar comentário do valor mensal
-          const monthlyValue = item.values?.find((v) => v.month === index && v.year === currentYear);
-          const cellComment = monthlyValue?.comment || null;
-          
-          return (
-            <TableCell
-              key={index}
-              className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
-              style={{ overflow: 'visible' }}
-            >
-              <div className="flex items-center justify-end gap-1" style={{ position: 'relative', overflow: 'visible' }}>
-                {cellComment && (
-                  <CommentIndicator
-                    comment={cellComment}
-                    itemName={item.name}
-                    month={index}
-                    year={currentYear}
-                  />
-                )}
-                <span style={cellColor ? { color: cellColor } : undefined}>
-                  {formatCurrency(value || 0)}
-                </span>
-              </div>
-            </TableCell>
-          );
-        })
-      )}
-      
+                </div>
+              </TableCell>
+            );
+          })
+        : itemTotals.map((value, index) => {
+            const cellColor = monthlyColors[index] || null;
+            // Buscar comentário do valor mensal
+            const monthlyValue = item.values?.find(
+              (v) => v.month === index && v.year === currentYear,
+            );
+            const cellComment = monthlyValue?.comment || null;
+
+            return (
+              <TableCell
+                key={index}
+                className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+                style={{ overflow: 'visible' }}
+              >
+                <div
+                  className="flex items-center justify-end gap-1"
+                  style={{ position: 'relative', overflow: 'visible' }}
+                >
+                  {cellComment && (
+                    <CommentIndicator
+                      comment={cellComment}
+                      itemName={item.name}
+                      month={index}
+                      year={currentYear}
+                    />
+                  )}
+                  <span style={cellColor ? { color: cellColor } : undefined}>
+                    {formatCurrency(value || 0)}
+                  </span>
+                </div>
+              </TableCell>
+            );
+          })}
+
       {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white">
-      </TableCell>
-      
-      <TableCell className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white" style={{ minWidth: '4rem' }}>
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
+
+      <TableCell
+        className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+        style={{ minWidth: '4rem' }}
+      >
         {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
       </TableCell>
-      
+
       {isEditing && !isInvestmentItem && (
         <TableCell className="px-2 border border-gray-200 w-8 text-center h-6 leading-6">
           <DeleteItemButton onClick={() => onDeleteItem(item.id)} />
@@ -301,4 +318,3 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
     </TableRow>
   );
 };
-
