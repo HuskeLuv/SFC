@@ -19,10 +19,15 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
+*.swp
+*.tmp
+*.temp
 
 # debug
 npm-debug.log*
@@ -30,8 +35,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env
+.env.*
+!.env.example
 
 # vercel
 .vercel
@@ -43,5 +50,13 @@ backups/
 *.tsbuildinfo
 next-env.d.ts
 
+# prisma
 /src/generated/prisma
+
+# IDE
 .cursor/
+.vscode/
+.idea/
+
+# claude worktrees
+.claude/worktrees/
