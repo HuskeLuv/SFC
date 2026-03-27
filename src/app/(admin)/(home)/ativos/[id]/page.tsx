@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState, useMemo, lazy, Suspense } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import ComponentCard from "@/components/common/ComponentCard";
-import MetricCard from "@/components/carteira/shared/MetricCard";
+import React, { useEffect, useState, useMemo, Suspense } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ComponentCard from '@/components/common/ComponentCard';
+import MetricCard from '@/components/carteira/shared/MetricCard';
 import {
   StandardTable,
   StandardTableHeader,
@@ -15,56 +15,56 @@ import {
   StandardTableBodyCell,
   StandardTableRow,
   TableBody,
-} from "@/components/ui/table/StandardTable";
-import Button from "@/components/ui/button/Button";
-import LineChartCarteiraHistorico from "@/components/charts/line/LineChartCarteiraHistorico";
-import RentabilidadeChart from "@/components/analises/RentabilidadeChart";
-import { useIndices } from "@/hooks/useIndices";
-import { ChevronDownIcon } from "@/icons";
+} from '@/components/ui/table/StandardTable';
+import Button from '@/components/ui/button/Button';
+import LineChartCarteiraHistorico from '@/components/charts/line/LineChartCarteiraHistorico';
+import RentabilidadeChart from '@/components/analises/RentabilidadeChart';
+import { useIndices } from '@/hooks/useIndices';
+import { ChevronDownIcon } from '@/icons';
 
 const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
 
 const formatPercentage = (value: number) =>
-  `${value >= 0 ? "" : "-"}${Math.abs(value).toFixed(2)}%`;
+  `${value >= 0 ? '' : '-'}${Math.abs(value).toFixed(2)}%`;
 
 const formatNumber = (value: number) =>
-  value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
 const formatDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+  new Date(dateStr).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   });
 
 const formatMonthYear = (timestamp: number) =>
-  new Date(timestamp).toLocaleDateString("pt-BR", {
-    month: "short",
-    year: "2-digit",
+  new Date(timestamp).toLocaleDateString('pt-BR', {
+    month: 'short',
+    year: '2-digit',
   });
 
 const formatDateProventos = (dateStr: string) => {
   const d = new Date(dateStr);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = d.toLocaleDateString("pt-BR", { month: "short" }).toUpperCase().replace(".", "");
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase().replace('.', '');
   const year = d.getFullYear();
   return `${day} ${month} ${year}`;
 };
 
-type RentabilidadeRange = "12M" | "2A" | "5A" | "10A" | "MAX";
+type RentabilidadeRange = '12M' | '2A' | '5A' | '10A' | 'MAX';
 
 const RENTABILIDADE_OPTIONS: { value: RentabilidadeRange; label: string }[] = [
-  { value: "12M", label: "Últimos 12 meses" },
-  { value: "2A", label: "Últimos 2 anos" },
-  { value: "5A", label: "Últimos 5 anos" },
-  { value: "10A", label: "Últimos 10 anos" },
-  { value: "MAX", label: "Máx." },
+  { value: '12M', label: 'Últimos 12 meses' },
+  { value: '2A', label: 'Últimos 2 anos' },
+  { value: '5A', label: 'Últimos 5 anos' },
+  { value: '10A', label: 'Últimos 10 anos' },
+  { value: 'MAX', label: 'Máx.' },
 ];
 
 interface AtivoData {
@@ -114,7 +114,7 @@ function AtivoDetalheContent() {
   const [data, setData] = useState<AtivoData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rentabilidadeRange, setRentabilidadeRange] = useState<RentabilidadeRange>("12M");
+  const [rentabilidadeRange, setRentabilidadeRange] = useState<RentabilidadeRange>('12M');
 
   useEffect(() => {
     if (!id) return;
@@ -122,15 +122,15 @@ function AtivoDetalheContent() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/ativos/${id}`, { credentials: "include" });
+        const res = await fetch(`/api/ativos/${id}`, { credentials: 'include' });
         if (!res.ok) {
-          if (res.status === 404) throw new Error("Ativo não encontrado");
-          throw new Error("Erro ao carregar dados");
+          if (res.status === 404) throw new Error('Ativo não encontrado');
+          throw new Error('Erro ao carregar dados');
         }
         const json = await res.json();
         setData(json);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro desconhecido");
+        setError(err instanceof Error ? err.message : 'Erro desconhecido');
       } finally {
         setLoading(false);
       }
@@ -143,12 +143,12 @@ function AtivoDetalheContent() {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const firstDate = Math.min(...data.historicoTWR.map((h) => h.date));
-    if (rentabilidadeRange === "MAX") return firstDate;
+    if (rentabilidadeRange === 'MAX') return firstDate;
     const start = new Date(now);
-    if (rentabilidadeRange === "12M") start.setMonth(start.getMonth() - 12);
-    else if (rentabilidadeRange === "2A") start.setFullYear(start.getFullYear() - 2);
-    else if (rentabilidadeRange === "5A") start.setFullYear(start.getFullYear() - 5);
-    else if (rentabilidadeRange === "10A") start.setFullYear(start.getFullYear() - 10);
+    if (rentabilidadeRange === '12M') start.setMonth(start.getMonth() - 12);
+    else if (rentabilidadeRange === '2A') start.setFullYear(start.getFullYear() - 2);
+    else if (rentabilidadeRange === '5A') start.setFullYear(start.getFullYear() - 5);
+    else if (rentabilidadeRange === '10A') start.setFullYear(start.getFullYear() - 10);
     start.setHours(0, 0, 0, 0);
     return Math.max(firstDate, start.getTime());
   }, [data?.historicoTWR, rentabilidadeRange]);
@@ -158,10 +158,10 @@ function AtivoDetalheContent() {
     return data.historicoTWR.filter((h) => h.date >= rentabilidadeStartDate);
   }, [data?.historicoTWR, rentabilidadeStartDate]);
 
-  const indicesRange = rentabilidadeRange === "12M" ? "1y" : "2y";
+  const indicesRange = rentabilidadeRange === '12M' ? '1y' : '2y';
   const { indices, loading: indicesLoading } = useIndices(
-    indicesRange as "1y" | "2y",
-    rentabilidadeStartDate
+    indicesRange as '1y' | '2y',
+    rentabilidadeStartDate,
   );
 
   const monthlyIndicesStartDate = useMemo(() => {
@@ -169,10 +169,7 @@ function AtivoDetalheContent() {
     return Math.min(...data.historicoPatrimonio.map((h) => h.data));
   }, [data?.historicoPatrimonio]);
 
-  const { indices: indicesForMonthly } = useIndices(
-    "2y",
-    monthlyIndicesStartDate
-  );
+  const { indices: indicesForMonthly } = useIndices('2y', monthlyIndicesStartDate);
 
   const historicoMensal = useMemo(() => {
     if (!data?.historicoPatrimonio?.length) return [];
@@ -186,8 +183,8 @@ function AtivoDetalheContent() {
       trans.forEach((tx) => {
         const txTs = new Date(tx.date).getTime();
         if (txTs <= ts) {
-          const tipo = (tx.tipoOperacao || "").toLowerCase();
-          qty += tipo.includes("aporte") || tipo.includes("compra") ? tx.quantity : -tx.quantity;
+          const tipo = (tx.tipoOperacao || '').toLowerCase();
+          qty += tipo.includes('aporte') || tipo.includes('compra') ? tx.quantity : -tx.quantity;
         }
       });
       return Math.max(0, qty);
@@ -208,7 +205,7 @@ function AtivoDetalheContent() {
 
     hp.forEach((h) => {
       const d = new Date(h.data);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const existing = monthMap.get(monthKey);
       if (!existing || h.data >= existing.date) {
         monthMap.set(monthKey, {
@@ -225,7 +222,7 @@ function AtivoDetalheContent() {
 
     twr.forEach((h) => {
       const d = new Date(h.date);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).getTime();
       const entry = monthMap.get(monthKey);
       if (entry && h.date <= lastDay + 86400000) {
@@ -243,18 +240,19 @@ function AtivoDetalheContent() {
 
     prov.forEach((p) => {
       const d = new Date(p.data);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const entry = monthMap.get(monthKey);
       if (entry) entry.proventos += p.valorTotal;
     });
 
     const ibovData =
-      indicesForMonthly.find((i) => i.symbol === "IBOV" || i.name?.toUpperCase().includes("IBOV"))?.data ?? [];
+      indicesForMonthly.find((i) => i.symbol === 'IBOV' || i.name?.toUpperCase().includes('IBOV'))
+        ?.data ?? [];
     const ibovSorted = [...ibovData].sort((a, b) => a.date - b.date);
     const ibovByMonth = new Map<string, { start: number; end: number }>();
     ibovSorted.forEach((point) => {
       const d = new Date(point.date);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).getTime();
       if (point.date <= lastDay + 86400000) {
         const existing = ibovByMonth.get(monthKey);
@@ -291,9 +289,15 @@ function AtivoDetalheContent() {
         };
       })
       .sort((a, b) => b.date - a.date);
-  }, [data?.historicoPatrimonio, data?.historicoTWR, data?.proventos, data?.transacoes, indicesForMonthly]);
+  }, [
+    data?.historicoPatrimonio,
+    data?.historicoTWR,
+    data?.proventos,
+    data?.transacoes,
+    indicesForMonthly,
+  ]);
 
-  const rentabilidadePeriod = rentabilidadeRange === "12M" ? "1mo" : "1y";
+  const rentabilidadePeriod = rentabilidadeRange === '12M' ? '1mo' : '1y';
 
   const extratoUnificado = useMemo(() => {
     const items: Array<{
@@ -323,7 +327,10 @@ function AtivoDetalheContent() {
         data: p.data,
         quantity: p.quantidade,
         total: p.valorTotal,
-        detail: p.quantidade > 0 ? `${formatCurrency(valorUnitario)} x ${formatNumber(p.quantidade)}` : undefined,
+        detail:
+          p.quantidade > 0
+            ? `${formatCurrency(valorUnitario)} x ${formatNumber(p.quantidade)}`
+            : undefined,
       });
     });
 
@@ -337,25 +344,23 @@ function AtivoDetalheContent() {
   if (error || !data) {
     return (
       <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <p className="text-red-600 dark:text-red-400">{error || "Ativo não encontrado"}</p>
+        <p className="text-red-600 dark:text-red-400">{error || 'Ativo não encontrado'}</p>
         <Button onClick={() => router.back()}>Voltar</Button>
       </div>
     );
   }
 
-  const instituicaoLabel = data.ativo.instituicao ?? "—";
+  const instituicaoLabel = data.ativo.instituicao ?? '—';
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {data.ativo.nome}
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{data.ativo.nome}</h1>
           <p className="text-gray-600 dark:text-gray-400">
             {data.ativo.ticker}
-            {instituicaoLabel !== "—" && ` • ${instituicaoLabel}`}
+            {instituicaoLabel !== '—' && ` • ${instituicaoLabel}`}
           </p>
         </div>
         <Link href={`/ativos/${id}/editar`}>
@@ -370,7 +375,7 @@ function AtivoDetalheContent() {
         <MetricCard
           title="Rentabilidade"
           value={formatPercentage(data.posicao.rentabilidade)}
-          color={data.posicao.rentabilidade >= 0 ? "success" : "error"}
+          color={data.posicao.rentabilidade >= 0 ? 'success' : 'error'}
         />
         <MetricCard title="Última cotação" value={formatCurrency(data.posicao.cotacaoAtual)} />
         <MetricCard title="Valor aplicado" value={formatCurrency(data.posicao.valorAplicado)} />
@@ -378,7 +383,7 @@ function AtivoDetalheContent() {
         <MetricCard
           title="Resultado"
           value={formatCurrency(data.posicao.resultado)}
-          color={data.posicao.resultado >= 0 ? "success" : "error"}
+          color={data.posicao.resultado >= 0 ? 'success' : 'error'}
         />
       </div>
 
@@ -439,7 +444,7 @@ function AtivoDetalheContent() {
                           {formatPercentage(row.carteira)}
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
-                          {row.ibov !== null ? formatPercentage(row.ibov) : "—"}
+                          {row.ibov !== null ? formatPercentage(row.ibov) : '—'}
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
                           {formatCurrency(row.proventos)}
@@ -516,21 +521,25 @@ function AtivoDetalheContent() {
                   <div>
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400">P/L</p>
                     <p className="mt-1 text-sm font-normal text-gray-800 dark:text-gray-200">
-                      {typeof data.fundamentos.pl === "number"
+                      {typeof data.fundamentos.pl === 'number'
                         ? data.fundamentos.pl.toFixed(2)
                         : data.fundamentos.pl}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Beta Ibov</p>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                      Beta Ibov
+                    </p>
                     <p className="mt-1 text-sm font-normal text-gray-800 dark:text-gray-200">
-                      {typeof data.fundamentos.beta === "number"
+                      {typeof data.fundamentos.beta === 'number'
                         ? data.fundamentos.beta.toFixed(2)
                         : data.fundamentos.beta}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Div Yield</p>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                      Div Yield
+                    </p>
                     <p className="mt-1 text-sm font-normal text-gray-800 dark:text-gray-200">
                       {data.fundamentos.dividendYield}
                     </p>
@@ -564,7 +573,7 @@ function AtivoDetalheContent() {
               <RentabilidadeChart
                 carteiraData={filteredHistoricoTWR.map((h) => ({ date: h.date, value: h.value }))}
                 indicesData={indices}
-                period={rentabilidadePeriod as "1mo" | "1y"}
+                period={rentabilidadePeriod as '1mo' | '1y'}
                 chartType="line"
                 customColors={['#06B6D4', '#8B5CF6', '#F59E0B']}
                 allowedIndices={['CDI', 'IBOV']}

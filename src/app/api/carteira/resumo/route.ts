@@ -1,12 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { getAssetPrices, getAssetHistory } from '@/services/assetPriceService';
+import { getAssetPrices } from '@/services/assetPriceService';
 import { getIndicator } from '@/services/marketIndicatorService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { Prisma } from '@prisma/client';
+import { deleteTtlCacheKeyPrefix, getTtlCache } from '@/lib/simpleTtlCache';
+import { applyChartAggregation } from '@/services/portfolioSeriesAggregation';
+import { loadHistoricoFromSnapshots } from '@/services/portfolioSnapshotReader';
+import {
+  buildDailyTimeline,
+  buildDailyPriceMap,
+  buildPatrimonioHistorico,
+  calculateFixedIncomeValue,
+  filterInvestmentsExclReservas,
+  getRawPatrimonioTimelineStart,
+  normalizeDateStart,
+} from '@/services/patrimonioHistoricoBuilder';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const resumoCache = getTtlCache<Record<string, unknown>>('carteiraResumo');
 
 type FixedIncomeAssetWithAsset = {
   id: string;
@@ -25,152 +38,18 @@ type FixedIncomeAssetWithAsset = {
   asset: { symbol: string; name: string; type?: string | null } | null;
 };
 
-const normalizeDateStart = (date: Date) => {
-  const normalized = new Date(date);
-  normalized.setHours(0, 0, 0, 0);
-  return normalized;
-};
-
-const buildDailyTimeline = (startDate: Date, endDate: Date) => {
-  const start = normalizeDateStart(startDate).getTime();
-  const end = normalizeDateStart(endDate).getTime();
-  const timeline: number[] = [];
-
-  for (let day = start; day <= end; day += DAY_MS) {
-    timeline.push(day);
-  }
-
-  return timeline;
-};
-
-const getTransactionValue = (transaction: { total: number; quantity: number; price: number }) => {
-  const total = Number(transaction.total);
-  if (Number.isFinite(total) && total > 0) {
-    return total;
-  }
-
-  const fallback = Number(transaction.quantity) * Number(transaction.price);
-  return Number.isFinite(fallback) ? fallback : 0;
-};
-
-const buildDailyPriceMap = (
-  history: Array<{ date: number; value: number }>,
-  timeline: number[],
-  initialPrice?: number,
-) => {
-  const sorted = [...history]
-    .filter((item) => Number.isFinite(item.value) && item.value > 0)
-    .sort((a, b) => a.date - b.date);
-  const map = new Map<number, number>();
-
-  let lastPrice = Number.isFinite(initialPrice) && initialPrice && initialPrice > 0 ? initialPrice : undefined;
-  let historyIndex = 0;
-
-  for (const day of timeline) {
-    while (historyIndex < sorted.length) {
-      const historyDate = normalizeDateStart(new Date(sorted[historyIndex].date)).getTime();
-      if (historyDate > day) break;
-      lastPrice = sorted[historyIndex].value;
-      historyIndex += 1;
-    }
-
-    if (Number.isFinite(lastPrice) && lastPrice && lastPrice > 0) {
-      map.set(day, lastPrice);
-    }
-  }
-
-  return map;
-};
-
-const calculateFixedIncomeValue = (fixedIncome: FixedIncomeAssetWithAsset, referenceDate: Date) => {
-  const start = normalizeDateStart(new Date(fixedIncome.startDate));
-  const maturity = normalizeDateStart(new Date(fixedIncome.maturityDate));
-  const current = normalizeDateStart(referenceDate);
-  const endDate = current.getTime() > maturity.getTime() ? maturity : current;
-  if (endDate.getTime() <= start.getTime()) {
-    return fixedIncome.investedAmount;
-  }
-  const days = Math.floor((endDate.getTime() - start.getTime()) / DAY_MS);
-  const rate = fixedIncome.annualRate / 100;
-  const valorAtual = fixedIncome.investedAmount * Math.pow(1 + rate, days / 365);
-  return Math.round(valorAtual * 100) / 100;
-};
-
-/** Retorna chave do dia (meia-noite local) para lookup consistente */
-const getDayKey = (ts: number): number => {
-  const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
-
-/**
- * Calcula série TWR (Time Weighted Return) diária.
- * Fórmula: retorno_dia = (valorFinal - valorInicial - fluxoCaixa) / valorInicial
- * Dividendos não entram em fluxoCaixa (já estão no patrimônio).
- */
-const calculateHistoricoTWR = (
-  patrimonioSeries: Array<{ data: number; saldoBruto: number }>,
-  cashFlowsByDay: Map<number, number>
-): Array<{ data: number; value: number }> => {
-  if (patrimonioSeries.length === 0) return [];
-
-  const result: Array<{ data: number; value: number }> = [];
-  let cumulative = 1;
-
-  for (let i = 0; i < patrimonioSeries.length; i++) {
-    if (i === 0) {
-      result.push({ data: patrimonioSeries[i].data, value: 0 });
-      continue;
-    }
-
-    const valorInicial = patrimonioSeries[i - 1].saldoBruto;
-    const valorFinal = patrimonioSeries[i].saldoBruto;
-    const dayKey = getDayKey(patrimonioSeries[i].data);
-    const fluxo = cashFlowsByDay.get(dayKey) ?? cashFlowsByDay.get(patrimonioSeries[i].data) ?? 0;
-
-    let retornoDia = 0;
-    if (valorInicial > 0) {
-      retornoDia = (valorFinal - valorInicial - fluxo) / valorInicial;
-      if (!Number.isFinite(retornoDia) || retornoDia > 0.5 || retornoDia < -0.5) {
-        retornoDia = 0;
-      }
-    } else if (valorFinal > 0 && fluxo > 0) {
-      retornoDia = 0;
-    }
-
-    cumulative *= 1 + retornoDia;
-    result.push({
-      data: patrimonioSeries[i].data,
-      value: Math.round((cumulative - 1) * 10000) / 100,
-    });
-  }
-
-  return result;
-};
-
 /** Valor atual de renda fixa: usa valor editado manualmente (avgPrice*quantity) se existir, senão calculado */
 const getFixedIncomeCurrentValue = (
   fixedIncome: FixedIncomeAssetWithAsset | null,
   portfolioItem: { avgPrice: number; quantity: number },
-  referenceDate: Date
+  referenceDate: Date,
 ): number => {
   if (!fixedIncome) return 0;
-  const valorEditado = portfolioItem.avgPrice > 0 && portfolioItem.quantity > 0
-    ? portfolioItem.avgPrice * portfolioItem.quantity
-    : 0;
+  const valorEditado =
+    portfolioItem.avgPrice > 0 && portfolioItem.quantity > 0
+      ? portfolioItem.avgPrice * portfolioItem.quantity
+      : 0;
   return valorEditado > 0 ? valorEditado : calculateFixedIncomeValue(fixedIncome, referenceDate);
-};
-
-const fetchAssetHistoryFromDb = async (
-  symbol: string,
-  startDate?: Date
-): Promise<Array<{ date: number; value: number }>> => {
-  const start = startDate
-    ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
-    : new Date(Date.now() - 365 * DAY_MS);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  return getAssetHistory(symbol, start, end, { useBrapiFallback: true });
 };
 
 const runPatrimonioScenarioTest = () => {
@@ -211,10 +90,12 @@ const runPatrimonioScenarioTest = () => {
     if (!priceHistoryBySymbol.has(compra.symbol)) {
       priceHistoryBySymbol.set(compra.symbol, []);
     }
-    priceHistoryBySymbol.get(compra.symbol)!.push(
-      { date: compra.day, value: compra.price },
-      { date: compra.day + DAY_MS, value: compra.price + 1 },
-    );
+    priceHistoryBySymbol
+      .get(compra.symbol)!
+      .push(
+        { date: compra.day, value: compra.price },
+        { date: compra.day + DAY_MS, value: compra.price + 1 },
+      );
   });
 
   const priceMapBySymbol = new Map<string, Map<number, number>>();
@@ -263,9 +144,18 @@ const runPatrimonioScenarioTest = () => {
     if (index === 0) return true;
     return ponto.valorAplicado >= arr[index - 1].valorAplicado;
   });
-  const valid = Number.isFinite(minPatrimonio) && minPatrimonio >= 0 && aplicadoFinal === totalCompras && appliedNeverDecreases;
+  const valid =
+    Number.isFinite(minPatrimonio) &&
+    minPatrimonio >= 0 &&
+    aplicadoFinal === totalCompras &&
+    appliedNeverDecreases;
   if (!valid) {
-    console.warn('[Patrimonio] cenário de teste inválido', { minPatrimonio, aplicadoFinal, totalCompras, appliedNeverDecreases });
+    console.warn('[Patrimonio] cenário de teste inválido', {
+      minPatrimonio,
+      aplicadoFinal,
+      totalCompras,
+      appliedNeverDecreases,
+    });
   } else {
     console.info('[Patrimonio] cenário OK', { minPatrimonio, aplicadoFinal });
   }
@@ -280,7 +170,16 @@ export async function GET(request: NextRequest) {
     const twrStartDateParam = searchParams.get('twrStartDate');
     const twrStartDate = twrStartDateParam ? parseInt(twrStartDateParam, 10) : undefined;
     const includeHistorico = searchParams.get('includeHistorico') !== 'false';
-    
+    const usePortfolioSnapshots = process.env.USE_PORTFOLIO_SNAPSHOTS === 'true';
+    const resumoCacheKey = `${targetUserId}:ih=${includeHistorico}:twr=${twrStartDate ?? ''}`;
+
+    if (usePortfolioSnapshots) {
+      const cached = resumoCache.get(resumoCacheKey);
+      if (cached) {
+        return NextResponse.json(cached);
+      }
+    }
+
     // Registrar acesso se estiver personificado
     await logSensitiveEndpointAccess(
       request,
@@ -292,7 +191,15 @@ export async function GET(request: NextRequest) {
     );
 
     // Paralelizar queries iniciais para reduzir tempo de carregamento
-    const [user, portfolio, fixedIncomeResult, investmentGroupsTemplate, investmentGroupsCustom, dashboardMetrics, stockTransactions] = await Promise.all([
+    const [
+      user,
+      portfolio,
+      fixedIncomeResult,
+      investmentGroupsTemplate,
+      investmentGroupsCustom,
+      dashboardMetrics,
+      stockTransactions,
+    ] = await Promise.all([
       prisma.user.findUnique({ where: { id: targetUserId } }),
       prisma.portfolio.findMany({
         where: { userId: targetUserId },
@@ -300,10 +207,10 @@ export async function GET(request: NextRequest) {
       }),
       (async (): Promise<FixedIncomeAssetWithAsset[]> => {
         try {
-          return await prisma.fixedIncomeAsset.findMany({
+          return (await prisma.fixedIncomeAsset.findMany({
             where: { userId: targetUserId },
             include: { asset: true },
-          }) as FixedIncomeAssetWithAsset[];
+          })) as FixedIncomeAssetWithAsset[];
         } catch (error) {
           const prismaError = error as Prisma.PrismaClientKnownRequestError;
           if (prismaError?.code !== 'P2021') throw error;
@@ -339,11 +246,18 @@ export async function GET(request: NextRequest) {
           userId: targetUserId,
           metric: {
             in: [
-              'meta_patrimonio', 'caixa_para_investir_consolidado',
-              'caixa_para_investir_acoes', 'caixa_para_investir_fii', 'caixa_para_investir_etf',
-              'caixa_para_investir_reit', 'caixa_para_investir_stocks', 'caixa_para_investir_moedas_criptos',
-              'caixa_para_investir_previdencia_seguros', 'caixa_para_investir_opcoes',
-              'caixa_para_investir_fim_fia', 'caixa_para_investir_renda_fixa',
+              'meta_patrimonio',
+              'caixa_para_investir_consolidado',
+              'caixa_para_investir_acoes',
+              'caixa_para_investir_fii',
+              'caixa_para_investir_etf',
+              'caixa_para_investir_reit',
+              'caixa_para_investir_stocks',
+              'caixa_para_investir_moedas_criptos',
+              'caixa_para_investir_previdencia_seguros',
+              'caixa_para_investir_opcoes',
+              'caixa_para_investir_fim_fia',
+              'caixa_para_investir_renda_fixa',
             ],
           },
         },
@@ -368,27 +282,20 @@ export async function GET(request: NextRequest) {
 
     // Mesclar grupos (personalizações têm prioridade)
     const allInvestmentGroups = [...investmentGroupsCustom];
-    const templateMap = new Map(investmentGroupsTemplate.map(g => [g.name, g]));
-    investmentGroupsCustom.forEach(custom => templateMap.delete(custom.name));
+    const templateMap = new Map(investmentGroupsTemplate.map((g) => [g.name, g]));
+    investmentGroupsCustom.forEach((custom) => templateMap.delete(custom.name));
     allInvestmentGroups.push(...Array.from(templateMap.values()));
 
     // Coletar todos os itens de investimento
-    const investments = allInvestmentGroups.flatMap(group => group.items || []);
+    const investments = allInvestmentGroups.flatMap((group) => group.items || []);
 
     // Itens de reserva no cashflow não devem ser somados - já estão no portfolio (evita duplicação)
-    const isReservaCashflowItem = (name: string | null) => {
-      if (!name) return false;
-      const n = name.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, ''); // remove acentos
-      return (n.includes('reserva') && n.includes('emergencia')) ||
-        (n.includes('reserva') && n.includes('oportunidade')) ||
-        n.includes('emergencia');
-    };
-    const investmentsExclReservas = investments.filter((item) => !isReservaCashflowItem(item.name));
+    const investmentsExclReservas = filterInvestmentsExclReservas(investments);
 
     // Buscar cotações atuais dos ativos no portfolio
     // Excluir símbolos de reserva, imóveis/bens e personalizados pois são assets manuais sem cotações externas
     const symbols = portfolio
-      .map(item => {
+      .map((item) => {
         // Não incluir imóveis/bens e personalizados na busca de cotações
         if (item.asset && (item.asset.type === 'imovel' || item.asset.type === 'personalizado')) {
           return null;
@@ -403,15 +310,16 @@ export async function GET(request: NextRequest) {
         }
         return null;
       })
-      .filter((symbol): symbol is string => 
-        symbol !== null && 
-        !symbol.startsWith('RESERVA-EMERG') && 
-        !symbol.startsWith('RESERVA-OPORT') &&
-        !symbol.startsWith('RENDA-FIXA') &&
-        !symbol.startsWith('CONTA-CORRENTE') &&
-        !symbol.startsWith('PERSONALIZADO') &&
-        !symbol.startsWith('-') &&
-        /^[A-Za-z]/.test(symbol)
+      .filter(
+        (symbol): symbol is string =>
+          symbol !== null &&
+          !symbol.startsWith('RESERVA-EMERG') &&
+          !symbol.startsWith('RESERVA-OPORT') &&
+          !symbol.startsWith('RENDA-FIXA') &&
+          !symbol.startsWith('CONTA-CORRENTE') &&
+          !symbol.startsWith('PERSONALIZADO') &&
+          !symbol.startsWith('-') &&
+          /^[A-Za-z]/.test(symbol),
       );
 
     // Buscar cotações e dólar em paralelo
@@ -448,40 +356,45 @@ export async function GET(request: NextRequest) {
 
     // Calcular totais do portfolio de ações
     const stocksTotalInvested = portfolio.reduce((sum, item) => sum + item.totalInvested, 0);
-    
+
     // Calcular valor atual usando cotações da brapi.dev
     let stocksCurrentValue = 0;
     for (const item of portfolio) {
       const symbol = item.asset?.symbol || item.stock?.ticker;
       const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
-      const isReserva = item.asset?.type === 'emergency' || item.asset?.type === 'opportunity' ||
-                        item.asset?.symbol?.startsWith('RESERVA-EMERG') || item.asset?.symbol?.startsWith('RESERVA-OPORT');
+      const isReserva =
+        item.asset?.type === 'emergency' ||
+        item.asset?.type === 'opportunity' ||
+        item.asset?.symbol?.startsWith('RESERVA-EMERG') ||
+        item.asset?.symbol?.startsWith('RESERVA-OPORT');
       const isImovelBem = item.asset?.type === 'imovel';
-      const isPersonalizado = item.asset?.type === 'personalizado' || item.asset?.symbol?.startsWith('PERSONALIZADO');
-      
+      const isPersonalizado =
+        item.asset?.type === 'personalizado' || item.asset?.symbol?.startsWith('PERSONALIZADO');
+
       // Para reservas, não buscar cotação na brapi
       // Usar totalInvested (atualizado quando usuário edita) ou quantity*avgPrice como fallback
       if (isReserva) {
-        const valorReserva = item.totalInvested > 0 ? item.totalInvested : (item.quantity * item.avgPrice);
+        const valorReserva =
+          item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
         stocksCurrentValue += valorReserva;
         // Categorias são preenchidas no loop "Categorizar portfolio" abaixo - não duplicar aqui
       } else if (fixedIncome) {
         stocksCurrentValue += getFixedIncomeCurrentValue(fixedIncome, item, new Date());
       } else if (isImovelBem || isPersonalizado) {
         // Imóveis e bens + Personalizados: usar totalInvested (valor atualizado manualmente) ou quantity * avgPrice
-        const valorImovel = item.totalInvested > 0 ? item.totalInvested : (item.quantity * item.avgPrice);
+        const valorImovel =
+          item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
         // Não adicionar ao stocksCurrentValue (será contabilizado separadamente)
         categorias.imoveisBens += valorImovel;
       } else if (symbol) {
         const currentPrice = quotes.get(symbol);
         const currency = item.asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
-        let valorItem = currentPrice
-          ? item.quantity * currentPrice
-          : item.quantity * item.avgPrice;
+        let valorItem = currentPrice ? item.quantity * currentPrice : item.quantity * item.avgPrice;
         // Stocks em USD sem cotação: avgPrice já está em BRL
         // Crypto/currency/metal/commodity: getAssetPrices retorna em BRL, não converter
         const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
-        const valorJaEmBRL = (item.asset?.type === 'stock' && !currentPrice) ||
+        const valorJaEmBRL =
+          (item.asset?.type === 'stock' && !currentPrice) ||
           (currentPrice != null && tiposPrecoEmBRL.includes(item.asset?.type || ''));
         if (!valorJaEmBRL) {
           valorItem = toBRL(valorItem, currency);
@@ -495,7 +408,10 @@ export async function GET(request: NextRequest) {
 
     // Calcular totais dos outros investimentos (excluindo reservas - já estão no portfolio)
     const otherInvestmentsTotalInvested = investmentsExclReservas.reduce((sum, item) => {
-      const totalValues = (item.values || []).reduce((sumValues, value) => sumValues + value.value, 0);
+      const totalValues = (item.values || []).reduce(
+        (sumValues, value) => sumValues + value.value,
+        0,
+      );
       return sum + totalValues;
     }, 0);
 
@@ -505,14 +421,15 @@ export async function GET(request: NextRequest) {
     // Totais consolidados
     const valorAplicado = stocksTotalInvested + otherInvestmentsTotalInvested;
     const saldoBruto = stocksCurrentValue + otherInvestmentsCurrentValue;
-    const rentabilidade = valorAplicado > 0 ? ((saldoBruto - valorAplicado) / valorAplicado) * 100 : 0;
+    const rentabilidade =
+      valorAplicado > 0 ? ((saldoBruto - valorAplicado) / valorAplicado) * 100 : 0;
 
     // dashboardMetrics já carregado em paralelo acima
     const metaPatrimonio = dashboardMetrics.find((item) => item.metric === 'meta_patrimonio');
-    
+
     // Buscar caixa para investir consolidado (não é mais a soma dos outros)
     const caixaParaInvestirConsolidado = dashboardMetrics.find(
-      (item) => item.metric === 'caixa_para_investir_consolidado'
+      (item) => item.metric === 'caixa_para_investir_consolidado',
     );
     const caixaParaInvestir = caixaParaInvestirConsolidado?.value || 0;
 
@@ -521,325 +438,80 @@ export async function GET(request: NextRequest) {
     // Buscar investimentos em cashflow para gerar histórico real (excluindo reservas)
     const cashflowInvestments = investmentsExclReservas;
 
-    // Gerar histórico baseado nas transações reais
-    const historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
+    const historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }> =
+      [];
     const historicoTWR: Array<{ data: number; value: number }> = [];
     let historicoTWRPeriodo: Array<{ data: number; value: number }> = [];
 
-    const hasHistoricoData = stockTransactions.length > 0 || cashflowInvestments.length > 0 || portfolio.length > 0;
+    const hasHistoricoData =
+      stockTransactions.length > 0 || cashflowInvestments.length > 0 || portfolio.length > 0;
 
     if (hasHistoricoData && includeHistorico) {
       const hoje = normalizeDateStart(new Date());
-
-      const portfolioBySymbol = new Map<string, { quantity: number; avgPrice: number; isManual: boolean }>();
-      portfolio.forEach((item) => {
-        const symbol = item.asset?.symbol || item.stock?.ticker;
-        if (!symbol) return;
-
-        const isFixedIncome = item.assetId ? fixedIncomeByAssetId.has(item.assetId) : false;
-        const isManual = item.asset?.type === 'emergency' || item.asset?.type === 'opportunity' ||
-          item.asset?.type === 'personalizado' || item.asset?.type === 'imovel' ||
-          symbol.startsWith('RESERVA-EMERG') || symbol.startsWith('RESERVA-OPORT') || symbol.startsWith('PERSONALIZADO') ||
-          isFixedIncome;
-
-        portfolioBySymbol.set(symbol, {
-          quantity: item.quantity,
-          avgPrice: item.avgPrice,
-          isManual,
-        });
-      });
-
-      const manualValuesByDay = new Map<number, number>();
-      cashflowInvestments.forEach((investment) => {
-        (investment.values || []).forEach((value) => {
-          const day = normalizeDateStart(new Date(value.year, value.month, 1)).getTime();
-          manualValuesByDay.set(day, (manualValuesByDay.get(day) || 0) + value.value);
-        });
-      });
-
-      const transactionsBySymbol = new Map<string, Map<number, number>>();
-      const cashDeltasByDay = new Map<number, number>();
-      const appliedDeltasByDay = new Map<number, number>();
-      const aportesByDay = new Map<number, number>();
-      const pricePointsBySymbol = new Map<string, Array<{ date: number; value: number }>>();
-      const firstTransactionBySymbol = new Map<string, number>();
-
-      stockTransactions.forEach((transaction) => {
-        const symbol = transaction.stock?.ticker || transaction.asset?.symbol;
-        if (!symbol) return;
-
-        const day = normalizeDateStart(transaction.date).getTime();
-        const qtyDelta = transaction.type === 'compra' ? transaction.quantity : -transaction.quantity;
-
-        if (!transactionsBySymbol.has(symbol)) {
-          transactionsBySymbol.set(symbol, new Map());
-        }
-        const symbolDeltas = transactionsBySymbol.get(symbol)!;
-        symbolDeltas.set(day, (symbolDeltas.get(day) || 0) + qtyDelta);
-
-        const totalValue = getTransactionValue(transaction);
-        const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
-        const appliedDelta = transaction.type === 'compra' ? totalValue : -totalValue;
-        if (transaction.type === 'compra') {
-          aportesByDay.set(day, (aportesByDay.get(day) || 0) + totalValue);
-        }
-        cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
-        appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
-
-        const priceValue = transaction.price > 0
-          ? transaction.price
-          : (transaction.quantity > 0 ? totalValue / transaction.quantity : 0);
-        if (priceValue > 0) {
-          if (!pricePointsBySymbol.has(symbol)) {
-            pricePointsBySymbol.set(symbol, []);
-          }
-          pricePointsBySymbol.get(symbol)!.push({ date: day, value: priceValue });
-        }
-
-        if (!firstTransactionBySymbol.has(symbol)) {
-          firstTransactionBySymbol.set(symbol, day);
-        }
-      });
-
-      portfolio.forEach((item) => {
-        const symbol = item.asset?.symbol || item.stock?.ticker;
-        if (!symbol) return;
-        if (transactionsBySymbol.has(symbol)) return;
-
-        const day = normalizeDateStart(item.lastUpdate || new Date()).getTime();
-        if (!transactionsBySymbol.has(symbol)) {
-          transactionsBySymbol.set(symbol, new Map());
-        }
-        const symbolDeltas = transactionsBySymbol.get(symbol)!;
-        symbolDeltas.set(day, (symbolDeltas.get(day) || 0) + item.quantity);
-
-        const investedValue = item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
-        const cashDelta = -investedValue;
-        const appliedDelta = investedValue;
-        cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
-        appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
-        aportesByDay.set(day, (aportesByDay.get(day) || 0) + investedValue);
-
-        if (item.avgPrice > 0) {
-          if (!pricePointsBySymbol.has(symbol)) {
-            pricePointsBySymbol.set(symbol, []);
-          }
-          pricePointsBySymbol.get(symbol)!.push({ date: day, value: item.avgPrice });
-        }
-
-        if (!firstTransactionBySymbol.has(symbol)) {
-          firstTransactionBySymbol.set(symbol, day);
-        }
-      });
-
-      const allSymbols = new Set<string>([
-        ...Array.from(transactionsBySymbol.keys()),
-        ...Array.from(portfolioBySymbol.keys()),
-      ]);
-
-      const timelineStartCandidates: number[] = [];
-      if (stockTransactions.length > 0) {
-        timelineStartCandidates.push(normalizeDateStart(stockTransactions[0].date).getTime());
-      }
-      if (manualValuesByDay.size > 0) {
-        timelineStartCandidates.push(Math.min(...Array.from(manualValuesByDay.keys())));
-      }
-      if (portfolio.length > 0) {
-        const earliestPortfolioDate = Math.min(
-          ...portfolio
-            .map((item) => normalizeDateStart(item.lastUpdate || new Date()).getTime())
-            .filter((value) => Number.isFinite(value))
-        );
-        if (Number.isFinite(earliestPortfolioDate)) {
-          timelineStartCandidates.push(earliestPortfolioDate);
-        }
-      }
-      if (fixedIncomeAssets.length > 0) {
-        const earliestFixedIncomeDate = Math.min(
-          ...fixedIncomeAssets
-            .map((item) => normalizeDateStart(new Date(item.startDate)).getTime())
-            .filter((value) => Number.isFinite(value))
-        );
-        if (Number.isFinite(earliestFixedIncomeDate)) {
-          timelineStartCandidates.push(earliestFixedIncomeDate);
-        }
-      }
-      const rawTimelineStart = timelineStartCandidates.length > 0
-        ? new Date(Math.min(...timelineStartCandidates))
-        : new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1);
-      // Limitar a 24 meses para usuários com muitos ativos (reduz fetch de histórico)
-      const MAX_HISTORICO_MESES = 24;
-      const minStart = new Date(hoje.getFullYear(), hoje.getMonth() - MAX_HISTORICO_MESES, 1);
-      const timelineStart = rawTimelineStart.getTime() < minStart.getTime() ? minStart : rawTimelineStart;
-      const timeline = buildDailyTimeline(timelineStart, hoje);
-
-      const fixedIncomePricePointsBySymbol = new Map<string, Array<{ date: number; value: number }>>();
-      fixedIncomeAssets.forEach((fixedIncome) => {
-        const symbol = fixedIncome.asset?.symbol;
-        if (!symbol) return;
-        const points = timeline.map((day) => ({
-          date: day,
-          value: calculateFixedIncomeValue(fixedIncome, new Date(day)),
-        }));
-        fixedIncomePricePointsBySymbol.set(symbol, points);
-      });
-
-      const pricesBySymbol = new Map<string, Map<number, number>>();
-      const fallbackPriceBySymbol = new Map<string, number>();
-
-      const symbolsToFetch = [...allSymbols].filter(
-        (s) => !(portfolioBySymbol.get(s)?.isManual ?? false)
-      );
-      const fetchedHistories = await Promise.all(
-        symbolsToFetch.map((symbol) => fetchAssetHistoryFromDb(symbol, timelineStart))
-      );
-      const historyBySymbol = new Map(symbolsToFetch.map((s, i) => [s, fetchedHistories[i] ?? []]));
-
-      for (const symbol of allSymbols) {
-        const portfolioInfo = portfolioBySymbol.get(symbol);
-        const isManual = portfolioInfo?.isManual ?? false;
-        const pricePoints = pricePointsBySymbol.get(symbol) || [];
-        const fixedIncomePoints = fixedIncomePricePointsBySymbol.get(symbol) || [];
-
-        let history: Array<{ date: number; value: number }> = [];
-        if (!isManual) {
-          history = [...(historyBySymbol.get(symbol) ?? []), ...pricePoints];
-        } else {
-          history = [...pricePoints, ...fixedIncomePoints];
-        }
-
-        const initialPrice = pricePoints.length > 0
-          ? pricePoints[0]?.value
-          : portfolioInfo?.avgPrice;
-
-        if (isManual && portfolioInfo?.avgPrice && portfolioInfo.avgPrice > 0) {
-          history = [
-            { date: timelineStart.getTime(), value: portfolioInfo.avgPrice },
-            { date: hoje.getTime(), value: portfolioInfo.avgPrice },
-          ];
-        } else if (history.length === 0 && initialPrice && initialPrice > 0) {
-          history.push({ date: timelineStart.getTime(), value: initialPrice });
-        }
-
-        if (initialPrice && initialPrice > 0) {
-          fallbackPriceBySymbol.set(symbol, initialPrice);
-        }
-
-        pricesBySymbol.set(symbol, buildDailyPriceMap(history, timeline, initialPrice));
-      }
-
-      const quantitiesBySymbol = new Map<string, number>();
-      allSymbols.forEach((symbol) => {
-        const portfolioInfo = portfolioBySymbol.get(symbol);
-        if (portfolioInfo && !firstTransactionBySymbol.has(symbol)) {
-          quantitiesBySymbol.set(symbol, portfolioInfo.quantity);
-        } else {
-          quantitiesBySymbol.set(symbol, 0);
-        }
-      });
-
-      const rendimentosByDay = new Map<number, number>();
-      let cashBalance = 0;
-      let rendimentosAcumulados = 0;
-      let manualInvestmentsValue = 0;
-      let valorAplicadoDia = 0;
-      const patrimonioSeries: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
-
-      for (const day of timeline) {
-        if (manualValuesByDay.has(day)) {
-          manualInvestmentsValue = manualValuesByDay.get(day) || 0;
-        }
-
-        if (aportesByDay.has(day)) {
-          cashBalance += aportesByDay.get(day) || 0;
-        }
-
-        if (cashDeltasByDay.has(day)) {
-          cashBalance += cashDeltasByDay.get(day) || 0;
-        }
-
-        if (rendimentosByDay.has(day)) {
-          const rendimento = rendimentosByDay.get(day) || 0;
-          cashBalance += rendimento;
-          rendimentosAcumulados += rendimento;
-        }
-
-        if (appliedDeltasByDay.has(day)) {
-          valorAplicadoDia += appliedDeltasByDay.get(day) || 0;
-        }
-
-        transactionsBySymbol.forEach((deltas, symbol) => {
-          const qtyDelta = deltas.get(day);
-          if (!qtyDelta) return;
-          quantitiesBySymbol.set(symbol, (quantitiesBySymbol.get(symbol) || 0) + qtyDelta);
-        });
-
-        let valorMercadoAtivos = 0;
-        allSymbols.forEach((symbol) => {
-          const quantity = quantitiesBySymbol.get(symbol) || 0;
-          if (!quantity) return;
-
-          const priceMap = pricesBySymbol.get(symbol);
-          const price = priceMap?.get(day) ?? fallbackPriceBySymbol.get(symbol);
-          if (!price || !Number.isFinite(price) || price <= 0) return;
-          valorMercadoAtivos += quantity * price;
-        });
-
-        const saldoBrutoDia = valorMercadoAtivos + manualInvestmentsValue + cashBalance + rendimentosAcumulados;
-
-        patrimonioSeries.push({
-          data: day,
-          valorAplicado: Math.round(valorAplicadoDia * 100) / 100,
-          saldoBruto: Math.round(saldoBrutoDia * 100) / 100,
-        });
-      }
-
       const saldoBrutoAtual = Math.round((saldoBruto > 0 ? saldoBruto : valorAplicado) * 100) / 100;
       const valorAplicadoAtual = Math.round(valorAplicado * 100) / 100;
-      if (patrimonioSeries.length > 0) {
-        patrimonioSeries[patrimonioSeries.length - 1].saldoBruto = saldoBrutoAtual;
-        patrimonioSeries[patrimonioSeries.length - 1].valorAplicado = valorAplicadoAtual;
-      } else {
-        patrimonioSeries.push({
-          data: hoje.getTime(),
-          valorAplicado: valorAplicadoAtual,
-          saldoBruto: saldoBrutoAtual,
+
+      const rawTimelineStart = getRawPatrimonioTimelineStart(
+        stockTransactions,
+        portfolio,
+        cashflowInvestments,
+        fixedIncomeAssets,
+        new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1),
+      );
+
+      let usedSnapshots = false;
+      if (usePortfolioSnapshots) {
+        const snap = await loadHistoricoFromSnapshots(targetUserId, rawTimelineStart, hoje, {
+          liveSaldoBruto: saldoBrutoAtual,
+          liveValorAplicado: valorAplicadoAtual,
+          twrStartDate,
         });
+        if (snap.coverageOk && snap.historicoPatrimonio.length > 0) {
+          const startMs = snap.historicoPatrimonio[0]?.data ?? rawTimelineStart.getTime();
+          const endMs =
+            snap.historicoPatrimonio[snap.historicoPatrimonio.length - 1]?.data ?? hoje.getTime();
+          const agg = applyChartAggregation(
+            snap.historicoPatrimonio,
+            snap.historicoTWR,
+            startMs,
+            endMs,
+          );
+          historicoPatrimonio.push(...agg.historicoPatrimonio);
+          historicoTWR.push(...agg.historicoTWR);
+          historicoTWRPeriodo = snap.historicoTWRPeriodo;
+          usedSnapshots = true;
+        }
       }
 
-      historicoPatrimonio.push(...patrimonioSeries);
-
-      const cashFlowsByDay = new Map<number, number>();
-      timeline.forEach((day) => {
-        const cashDelta = cashDeltasByDay.get(day) ?? 0;
-        const manualVal = manualValuesByDay.get(day) ?? 0;
-        cashFlowsByDay.set(day, -cashDelta + manualVal);
-      });
-
-      historicoTWR.push(...calculateHistoricoTWR(patrimonioSeries, cashFlowsByDay));
-
-      if (typeof twrStartDate === 'number' && Number.isFinite(twrStartDate) && twrStartDate > 0) {
-        const periodStart = normalizeDateStart(new Date(twrStartDate)).getTime();
-        const periodEnd = hoje.getTime();
-        if (periodStart <= periodEnd) {
-          const beforePeriod = patrimonioSeries.filter((p) => p.data < periodStart);
-          const patrimonyAtStart = beforePeriod.length > 0
-            ? beforePeriod[beforePeriod.length - 1].saldoBruto
-            : patrimonioSeries[0]?.saldoBruto ?? 0;
-          const periodPatrimonio = patrimonioSeries.filter((p) => p.data >= periodStart);
-          if (periodPatrimonio.length > 0) {
-            const periodPatrimonioSeries = [
-              { data: periodStart, valorAplicado: 0, saldoBruto: patrimonyAtStart },
-              ...periodPatrimonio,
-            ];
-            const periodCashFlows = new Map<number, number>();
-            periodPatrimonioSeries.forEach((p) => {
-              const cf = cashFlowsByDay.get(p.data);
-              if (cf !== undefined && cf !== 0) periodCashFlows.set(p.data, cf);
-            });
-            historicoTWRPeriodo = calculateHistoricoTWR(periodPatrimonioSeries, periodCashFlows);
-          }
+      if (!usedSnapshots) {
+        const built = await buildPatrimonioHistorico({
+          portfolio,
+          fixedIncomeAssets,
+          stockTransactions,
+          investmentsExclReservas: cashflowInvestments,
+          saldoBrutoAtual: saldoBruto,
+          valorAplicadoAtual: valorAplicado,
+          twrStartDate,
+          maxHistoricoMonths: 24,
+          patchLastDayWithLiveTotals: true,
+        });
+        if (usePortfolioSnapshots) {
+          const startMs = built.historicoPatrimonio[0]?.data ?? hoje.getTime();
+          const endMs =
+            built.historicoPatrimonio[built.historicoPatrimonio.length - 1]?.data ?? hoje.getTime();
+          const agg = applyChartAggregation(
+            built.historicoPatrimonio,
+            built.historicoTWR,
+            startMs,
+            endMs,
+          );
+          historicoPatrimonio.push(...agg.historicoPatrimonio);
+          historicoTWR.push(...agg.historicoTWR);
+        } else {
+          historicoPatrimonio.push(...built.historicoPatrimonio);
+          historicoTWR.push(...built.historicoTWR);
         }
+        historicoTWRPeriodo = built.historicoTWRPeriodo;
       }
     }
 
@@ -855,58 +527,74 @@ export async function GET(request: NextRequest) {
           saldoBruto: saldo,
         });
       }
-      historicoTWR.push(...historicoPatrimonio.map((item, i) => ({ data: item.data, value: i === 0 ? 0 : 0 })));
+      historicoTWR.push(
+        ...historicoPatrimonio.map((item, i) => ({ data: item.data, value: i === 0 ? 0 : 0 })),
+      );
     }
 
     // categorias já foi inicializado antes do loop do portfolio
 
     // Batch lookup de assets para itens sem item.asset (evita N+1)
-    const symbolsNeedingAsset = [...new Set(
-      portfolio
-        .filter((item) => !item.asset && item.stock?.ticker)
-        .map((item) => (item.stock?.ticker ?? '').trim().toUpperCase())
-        .filter(Boolean)
-    )];
-    const assetsBySymbol = symbolsNeedingAsset.length > 0
-      ? new Map(
-          (await prisma.asset.findMany({
-            where: { symbol: { in: symbolsNeedingAsset } },
-            select: { symbol: true, type: true, currency: true, name: true },
-          })).map((a) => [a.symbol.toUpperCase(), a])
-        )
-      : new Map<string, { symbol: string; type: string | null; currency: string | null; name: string | null }>();
+    const symbolsNeedingAsset = [
+      ...new Set(
+        portfolio
+          .filter((item) => !item.asset && item.stock?.ticker)
+          .map((item) => (item.stock?.ticker ?? '').trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    ];
+    const assetsBySymbol =
+      symbolsNeedingAsset.length > 0
+        ? new Map(
+            (
+              await prisma.asset.findMany({
+                where: { symbol: { in: symbolsNeedingAsset } },
+                select: { symbol: true, type: true, currency: true, name: true },
+              })
+            ).map((a) => [a.symbol.toUpperCase(), a]),
+          )
+        : new Map<
+            string,
+            { symbol: string; type: string | null; currency: string | null; name: string | null }
+          >();
 
     // Categorizar portfolio baseado no tipo do ativo
     for (const item of portfolio) {
       const symbol = item.asset?.symbol || item.stock?.ticker;
       if (!symbol) continue;
-      
+
       const asset = item.asset ?? assetsBySymbol.get(symbol.trim().toUpperCase()) ?? null;
       const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
 
       // Calcular valor atual com cotação
-      const isReserva = asset?.type === 'emergency' || asset?.type === 'opportunity' ||
-                        symbol?.startsWith('RESERVA-EMERG') || symbol?.startsWith('RESERVA-OPORT');
+      const isReserva =
+        asset?.type === 'emergency' ||
+        asset?.type === 'opportunity' ||
+        symbol?.startsWith('RESERVA-EMERG') ||
+        symbol?.startsWith('RESERVA-OPORT');
       const currentPrice = quotes.get(symbol);
       const valorAtual = fixedIncome
         ? getFixedIncomeCurrentValue(fixedIncome, item, new Date())
-        : (currentPrice && !isReserva
-        ? item.quantity * currentPrice 
-          : (isReserva && item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-              ? item.quantity * item.avgPrice
-              : (item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice))); // Reservas: alinhado com reserva-oportunidade (avgPrice*quantity quando editado)
+        : currentPrice && !isReserva
+          ? item.quantity * currentPrice
+          : isReserva && item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+            ? item.quantity * item.avgPrice
+            : item.totalInvested > 0
+              ? item.totalInvested
+              : item.quantity * item.avgPrice; // Reservas: alinhado com reserva-oportunidade (avgPrice*quantity quando editado)
 
       // Converter USD para BRL (tabela de alocação exibe tudo em R$)
       // Crypto/currency/metal/commodity: getAssetPrices retorna em BRL. Stocks sem cotação: avgPrice já em BRL
       const currency = asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
       const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
-      const valorJaEmBRL = (asset?.type === 'stock' && !currentPrice && !isReserva) ||
+      const valorJaEmBRL =
+        (asset?.type === 'stock' && !currentPrice && !isReserva) ||
         (currentPrice != null && !isReserva && tiposPrecoEmBRL.includes(asset?.type || ''));
       const valorAtualBRL = valorJaEmBRL ? valorAtual : toBRL(valorAtual, currency);
-      
+
       if (asset) {
         const tipo = asset.type?.toLowerCase() || '';
-        
+
         // Verificar se é reserva antes de categorizar
         if (isReserva) {
           if (tipo === 'opportunity' || symbol?.startsWith('RESERVA-OPORT')) {
@@ -916,7 +604,8 @@ export async function GET(request: NextRequest) {
           }
         } else {
           // Só incluir em acoes itens que aparecem na aba Ações (stockId + ticker não 11)
-          const isAcaoTabItem = item.stockId && item.stock && !item.stock.ticker.toUpperCase().endsWith('11');
+          const isAcaoTabItem =
+            item.stockId && item.stock && !item.stock.ticker.toUpperCase().endsWith('11');
           switch (tipo) {
             case 'ação':
             case 'acao':
@@ -947,7 +636,11 @@ export async function GET(request: NextRequest) {
             case 'funds': {
               const symbolUpper = symbol.toUpperCase();
               const nameLower = (asset.name || '').toLowerCase();
-              if (symbolUpper.endsWith('11') || nameLower.includes('fii') || nameLower.includes('imobili')) {
+              if (
+                symbolUpper.endsWith('11') ||
+                nameLower.includes('fii') ||
+                nameLower.includes('imobili')
+              ) {
                 categorias.fiis += valorAtualBRL;
               } else {
                 categorias.fimFia += valorAtualBRL;
@@ -1035,16 +728,28 @@ export async function GET(request: NextRequest) {
 
     // Buscar caixa para investir de cada tab e adicionar aos valores calculados
     // Isso garante que os valores incluam o caixa para investir de cada tab
-    const caixaAcoes = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_acoes')?.value || 0;
-    const caixaFii = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_fii')?.value || 0;
-    const caixaEtf = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_etf')?.value || 0;
-    const caixaReit = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_reit')?.value || 0;
-    const caixaStocks = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_stocks')?.value || 0;
-    const caixaMoedasCriptos = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_moedas_criptos')?.value || 0;
-    const caixaPrevidenciaSeguros = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_previdencia_seguros')?.value || 0;
-    const caixaOpcoes = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_opcoes')?.value || 0;
-    const caixaFimFia = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_fim_fia')?.value || 0;
-    const caixaRendaFixa = dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_renda_fixa')?.value || 0;
+    const caixaAcoes =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_acoes')?.value || 0;
+    const caixaFii =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_fii')?.value || 0;
+    const caixaEtf =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_etf')?.value || 0;
+    const caixaReit =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_reit')?.value || 0;
+    const caixaStocks =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_stocks')?.value || 0;
+    const caixaMoedasCriptos =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_moedas_criptos')
+        ?.value || 0;
+    const caixaPrevidenciaSeguros =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_previdencia_seguros')
+        ?.value || 0;
+    const caixaOpcoes =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_opcoes')?.value || 0;
+    const caixaFimFia =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_fim_fia')?.value || 0;
+    const caixaRendaFixa =
+      dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_renda_fixa')?.value || 0;
 
     // Adicionar caixas aos valores das categorias (que já foram calculados acima)
     categorias.acoes += caixaAcoes;
@@ -1068,15 +773,20 @@ export async function GET(request: NextRequest) {
     const distribuicao = {
       reservaEmergencia: {
         valor: Math.round(categorias.reservaEmergencia * 100) / 100,
-        percentual: baseValue > 0 ? Math.round((categorias.reservaEmergencia / baseValue) * 10000) / 100 : 0,
+        percentual:
+          baseValue > 0 ? Math.round((categorias.reservaEmergencia / baseValue) * 10000) / 100 : 0,
       },
       reservaOportunidade: {
         valor: Math.round(categorias.reservaOportunidade * 100) / 100,
-        percentual: baseValue > 0 ? Math.round((categorias.reservaOportunidade / baseValue) * 10000) / 100 : 0,
+        percentual:
+          baseValue > 0
+            ? Math.round((categorias.reservaOportunidade / baseValue) * 10000) / 100
+            : 0,
       },
       rendaFixaFundos: {
         valor: Math.round(categorias.rendaFixaFundos * 100) / 100,
-        percentual: baseValue > 0 ? Math.round((categorias.rendaFixaFundos / baseValue) * 10000) / 100 : 0,
+        percentual:
+          baseValue > 0 ? Math.round((categorias.rendaFixaFundos / baseValue) * 10000) / 100 : 0,
       },
       fimFia: {
         valor: Math.round(categorias.fimFia * 100) / 100,
@@ -1104,11 +814,13 @@ export async function GET(request: NextRequest) {
       },
       moedasCriptos: {
         valor: Math.round(categorias.moedasCriptos * 100) / 100,
-        percentual: baseValue > 0 ? Math.round((categorias.moedasCriptos / baseValue) * 10000) / 100 : 0,
+        percentual:
+          baseValue > 0 ? Math.round((categorias.moedasCriptos / baseValue) * 10000) / 100 : 0,
       },
       previdenciaSeguros: {
         valor: Math.round(categorias.previdenciaSeguros * 100) / 100,
-        percentual: baseValue > 0 ? Math.round((categorias.previdenciaSeguros / baseValue) * 10000) / 100 : 0,
+        percentual:
+          baseValue > 0 ? Math.round((categorias.previdenciaSeguros / baseValue) * 10000) / 100 : 0,
       },
       opcoes: {
         valor: Math.round(categorias.opcoes * 100) / 100,
@@ -1116,7 +828,8 @@ export async function GET(request: NextRequest) {
       },
       imoveisBens: {
         valor: Math.round(categorias.imoveisBens * 100) / 100,
-        percentual: baseValue > 0 ? Math.round((categorias.imoveisBens / baseValue) * 10000) / 100 : 0,
+        percentual:
+          baseValue > 0 ? Math.round((categorias.imoveisBens / baseValue) * 10000) / 100 : 0,
       },
     };
 
@@ -1143,18 +856,19 @@ export async function GET(request: NextRequest) {
       resumo.historicoTWRPeriodo = historicoTWRPeriodo;
     }
 
+    if (usePortfolioSnapshots) {
+      const ttlMs = Number.parseInt(process.env.CARTEIRA_RESUMO_CACHE_MS ?? '60000', 10);
+      resumoCache.set(resumoCacheKey, resumo, Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : 60_000);
+    }
+
     return NextResponse.json(resumo);
-    
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
+
     console.error('Erro ao buscar resumo da carteira:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -1168,9 +882,12 @@ export async function POST(request: NextRequest) {
     // Atualizar caixa para investir consolidado
     if (caixaParaInvestir !== undefined) {
       if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json({
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero'
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+          },
+          { status: 400 },
+        );
       }
 
       const existingCaixa = await prisma.dashboardData.findFirst({
@@ -1195,19 +912,24 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ 
-        success: true, 
+      deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
+
+      return NextResponse.json({
+        success: true,
         message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir
+        caixaParaInvestir,
       });
     }
 
     // Atualizar meta de patrimônio (código existente)
     if (metaPatrimonio !== undefined) {
       if (typeof metaPatrimonio !== 'number' || metaPatrimonio <= 0) {
-        return NextResponse.json({ 
-          error: 'Meta de patrimônio deve ser um valor positivo' 
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Meta de patrimônio deve ser um valor positivo',
+          },
+          { status: 400 },
+        );
       }
 
       const existingMeta = await prisma.dashboardData.findFirst({
@@ -1232,22 +954,23 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
+
       return NextResponse.json({ success: true, metaPatrimonio });
     }
 
-    return NextResponse.json({ 
-      error: 'Informe metaPatrimonio ou caixaParaInvestir' 
-    }, { status: 400 });
-    
+    return NextResponse.json(
+      {
+        error: 'Informe metaPatrimonio ou caixaParaInvestir',
+      },
+      { status: 400 },
+    );
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
+
     console.error('Erro ao atualizar dados:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

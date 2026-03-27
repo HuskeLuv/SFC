@@ -33,7 +33,8 @@ const buildDailyPriceMap = (history: IndexData[], timeline: number[], initialPri
     .sort((a, b) => a.date - b.date);
   const map = new Map<number, number>();
 
-  let lastPrice = Number.isFinite(initialPrice) && initialPrice && initialPrice > 0 ? initialPrice : undefined;
+  let lastPrice =
+    Number.isFinite(initialPrice) && initialPrice && initialPrice > 0 ? initialPrice : undefined;
   let historyIndex = 0;
 
   for (const day of timeline) {
@@ -60,7 +61,7 @@ const logSeriesStats = (data: IndexData[], name: string) => {
   const years = Math.max(1 / 365, (last.date - first.date) / (365 * DAY_MS));
   const cagr = Math.pow(last.value / first.value, 1 / years) - 1;
   console.log(
-    `[${name}] inicial=${first.value.toFixed(2)} final=${last.value.toFixed(2)} CAGR=${(cagr * 100).toFixed(2)}%`
+    `[${name}] inicial=${first.value.toFixed(2)} final=${last.value.toFixed(2)} CAGR=${(cagr * 100).toFixed(2)}%`,
   );
 };
 
@@ -81,10 +82,7 @@ const getDayKey = (ts: number): number => {
   return d.getTime();
 };
 
-const calculateTwrSeries = (
-  portfolioValues: IndexData[],
-  cashFlowsByDay: Map<number, number>
-) => {
+const calculateTwrSeries = (portfolioValues: IndexData[], cashFlowsByDay: Map<number, number>) => {
   if (portfolioValues.length === 0) return [];
 
   const returns: IndexData[] = [];
@@ -122,10 +120,7 @@ const calculateTwrSeries = (
   return returns;
 };
 
-const fetchAssetHistoryFromDb = async (
-  symbol: string,
-  startDate?: Date
-): Promise<IndexData[]> => {
+const fetchAssetHistoryFromDb = async (symbol: string, startDate?: Date): Promise<IndexData[]> => {
   const { getAssetHistory } = await import('@/services/assetPriceService');
   const start = startDate
     ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
@@ -138,10 +133,10 @@ const fetchAssetHistoryFromDb = async (
 export async function GET(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
-    
+
     const { searchParams } = new URL(request.url);
     const startDateParam = searchParams.get('startDate');
-    
+
     let startDate: Date | undefined;
     if (startDateParam) {
       startDate = new Date(parseInt(startDateParam, 10));
@@ -152,9 +147,14 @@ export async function GET(request: NextRequest) {
       where: {
         userId: targetUserId,
       },
-      include: {
-        stock: true,
-        asset: true,
+      select: {
+        type: true,
+        quantity: true,
+        price: true,
+        total: true,
+        date: true,
+        stock: { select: { ticker: true } },
+        asset: { select: { symbol: true, type: true } },
       },
       orderBy: {
         date: 'asc',
@@ -162,22 +162,30 @@ export async function GET(request: NextRequest) {
     });
 
     // Filtrar transações que têm símbolo/ticker e podem ter histórico na brapi
-    const transactionsFiltradas = transactions.filter(trans => {
+    const transactionsFiltradas = transactions.filter((trans) => {
       const symbol = trans.stock?.ticker || trans.asset?.symbol;
       if (!symbol) return false;
-      
+
       // Excluir reservas, renda fixa, personalizados, imóveis (sem histórico na brapi)
       if (trans.asset) {
-        if (trans.asset.type === 'emergency' || trans.asset.type === 'opportunity' || 
-            trans.asset.type === 'personalizado' || trans.asset.type === 'imovel') {
+        if (
+          trans.asset.type === 'emergency' ||
+          trans.asset.type === 'opportunity' ||
+          trans.asset.type === 'personalizado' ||
+          trans.asset.type === 'imovel'
+        ) {
           return false;
         }
-        if (symbol.startsWith('RESERVA-EMERG') || symbol.startsWith('RESERVA-OPORT') || 
-            symbol.startsWith('RENDA-FIXA') || symbol.startsWith('PERSONALIZADO')) {
+        if (
+          symbol.startsWith('RESERVA-EMERG') ||
+          symbol.startsWith('RESERVA-OPORT') ||
+          symbol.startsWith('RENDA-FIXA') ||
+          symbol.startsWith('PERSONALIZADO')
+        ) {
           return false;
         }
       }
-      
+
       return true;
     });
 
@@ -192,7 +200,7 @@ export async function GET(request: NextRequest) {
     for (const trans of transactionsFiltradas) {
       const symbol = trans.stock?.ticker || trans.asset?.symbol;
       if (!symbol) continue;
-      
+
       if (!transactionsPorSimbolo.has(symbol)) {
         transactionsPorSimbolo.set(symbol, []);
       }
@@ -201,8 +209,8 @@ export async function GET(request: NextRequest) {
 
     // Buscar histórico de preços para cada ativo
     const historicosPorAtivo = new Map<string, IndexData[]>();
-    
-    const positiveTransactions = transactionsFiltradas.filter(trans => {
+
+    const positiveTransactions = transactionsFiltradas.filter((trans) => {
       if (trans.type !== 'compra') return false;
       return getTransactionValue(trans) > 0;
     });
@@ -212,14 +220,19 @@ export async function GET(request: NextRequest) {
     }
 
     let firstAporteDate = positiveTransactions[0].date;
-    positiveTransactions.forEach(trans => {
+    positiveTransactions.forEach((trans) => {
       if (trans.date < firstAporteDate) {
         firstAporteDate = trans.date;
       }
     });
 
     const effectiveStartDate = startDate
-      ? new Date(Math.max(normalizeDateStart(startDate).getTime(), normalizeDateStart(firstAporteDate).getTime()))
+      ? new Date(
+          Math.max(
+            normalizeDateStart(startDate).getTime(),
+            normalizeDateStart(firstAporteDate).getTime(),
+          ),
+        )
       : normalizeDateStart(firstAporteDate);
 
     const timelineStart = normalizeDateStart(effectiveStartDate);
@@ -230,7 +243,7 @@ export async function GET(request: NextRequest) {
     const preStartQuantities = new Map<string, number>();
     const pricePointsBySymbol = new Map<string, IndexData[]>();
 
-    transactionsFiltradas.forEach(trans => {
+    transactionsFiltradas.forEach((trans) => {
       const symbol = trans.stock?.ticker || trans.asset?.symbol;
       if (!symbol) return;
 
@@ -253,9 +266,8 @@ export async function GET(request: NextRequest) {
       const cashFlowDelta = trans.type === 'compra' ? value : -value;
       cashFlowsByDay.set(dayKey, (cashFlowsByDay.get(dayKey) || 0) + cashFlowDelta);
 
-      const priceValue = trans.price > 0
-        ? trans.price
-        : (trans.quantity > 0 ? value / trans.quantity : 0);
+      const priceValue =
+        trans.price > 0 ? trans.price : trans.quantity > 0 ? value / trans.quantity : 0;
       if (priceValue > 0) {
         if (!pricePointsBySymbol.has(symbol)) {
           pricePointsBySymbol.set(symbol, []);
@@ -316,9 +328,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: twrSeries });
   } catch (error) {
     console.error('Erro ao buscar histórico da carteira:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar dados da carteira' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro ao buscar dados da carteira' }, { status: 500 });
   }
 }

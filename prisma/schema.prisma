@@ -96,6 +96,8 @@ model User {
   impersonationLogsAsConsultant ConsultantImpersonationLog[] @relation("ImpersonationLogConsultant")
   impersonationLogsAsClient     ConsultantImpersonationLog[] @relation("ImpersonationLogClient")
   alocacaoConfigs               AlocacaoConfig[]
+  portfolioDailySnapshots       PortfolioDailySnapshot[]
+  portfolioPerformances         PortfolioPerformance[]
 }
 
 model Consultant {
@@ -312,6 +314,8 @@ model Portfolio {
 
   @@unique([userId, stockId])
   @@unique([userId, assetId])
+  @@index([userId, assetId])
+  @@index([userId, stockId])
   @@map("portfolios")
 }
 
@@ -355,6 +359,7 @@ model StockTransaction {
   notes     String? // Observações
   createdAt DateTime @default(now())
 
+  @@index([userId, date])
   @@map("stock_transactions")
 }
 
@@ -554,4 +559,35 @@ model MarketIndicatorCache {
   updatedAt     DateTime @updatedAt
 
   @@map("market_indicator_cache")
+}
+
+// Snapshot diário de patrimônio (pré-calculado pelo job; leitura rápida no resumo)
+model PortfolioDailySnapshot {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime // início do dia (UTC/local consistente com o restante do app)
+  totalValue     Decimal  @db.Decimal(18, 4) // saldo bruto
+  totalInvested  Decimal  @db.Decimal(18, 4) // valor aplicado
+  totalEarnings  Decimal  @db.Decimal(18, 4) // rendimentos acumulados (proventos no caixa do modelo)
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("portfolio_daily_snapshots")
+}
+
+// TWR pré-calculado por dia (alinha ao historicoTWR do resumo)
+model PortfolioPerformance {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date              DateTime
+  dailyReturn       Decimal? @db.Decimal(14, 8) // fração diária (ex.: 0.0012)
+  cumulativeReturn  Decimal  @db.Decimal(14, 6) // % acumulada TWR
+  createdAt         DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("portfolio_performance")
 }
