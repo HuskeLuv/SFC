@@ -17,7 +17,7 @@
     "vercel-build": "prisma generate && next build",
     "clean": "rm -rf .next out dist",
     "type-check": "tsc --noEmit",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
