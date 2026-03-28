@@ -1,0 +1,1 @@
+- [SFC Work Plan](project_workplan.md) — 23-task improvement plan across 5 phases, tracked in CLAUDE.md
