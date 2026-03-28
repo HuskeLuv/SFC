@@ -1,6 +1,7 @@
 ## Dashboard de Consultores
 
 ### Estrutura de Tabelas
+
 - `users`
   - Campo `role` (`user`, `consultant`, `admin`) define permissões gerais.
 - `consultants`
@@ -16,6 +17,7 @@
   - `portfolios`, `stock_transactions`, `assets` representam os ativos do cliente consultado.
 
 ### Endpoints Disponíveis
+
 - `GET /api/consultant/clients`
   - Lista clientes vinculados ao consultor autenticado.
 - `GET /api/consultant/overview`
@@ -29,12 +31,19 @@
   - Envia um novo convite para o e-mail informado; apenas usuários do tipo `user` podem receber convites.
 - `POST /api/consultant/invitations/[inviteId]/respond`
   - Permite ao cliente aceitar ou recusar um convite recebido (ações: `accept`, `reject`). Ao aceitar, o vínculo em `client_consultants` é criado/reativado.
+- `POST /api/consultant/acting`
+  - Inicia sessão de personificação para um cliente. Gera um token opaco armazenado server-side na tabela `impersonation_sessions` e retorna cookie `consultant-acting` com TTL de 30 minutos.
+- `DELETE /api/consultant/acting`
+  - Encerra a sessão de personificação ativa. Marca a sessão como encerrada (`endedAt`) e limpa o cookie.
+- `GET /api/consultant/active-sessions`
+  - Lista sessões de personificação ativas (não expiradas e não encerradas) do consultor autenticado. Retorna informações do cliente e timestamps.
 - `GET /api/notifications`
   - Recupera as notificações do usuário autenticado (cliente ou consultor), retornando metadados e estado de leitura.
 - `PATCH /api/notifications`
   - Marca um conjunto de notificações (`ids`) como lidas.
 
 ### Fluxo de Autenticação e Permissões
+
 - Durante o login, o backend inclui `role` no JWT e na resposta da API; o formulário redireciona:
   - `consultant` → `/dashboard/consultor`
   - Demais perfis → `/carteira`
@@ -46,7 +55,16 @@
 - Ao reenviar convites:
   - A API bloqueia duplicatas pendentes para o mesmo endereço de e-mail.
   - Ao aceitar convites, o cookie de personificação pode ser ativado via `/api/consultant/acting` para permitir visão do cliente.
+
+### Fluxo de Personificação (Impersonation Session)
+
+1. O consultor chama `POST /api/consultant/acting` com `{ clientId }`.
+2. O servidor gera um token opaco (`crypto.randomUUID()`), cria um registro na tabela `impersonation_sessions` com `sessionToken`, `consultantId`, `clientId`, `expiresAt` (30 min), e registra `START_IMPERSONATION` nos logs.
+3. O cookie `consultant-acting` recebe apenas o token opaco (não o `clientId`), com `httpOnly`, `sameSite: lax`, `secure` em produção, e `maxAge: 1800`.
+4. Em cada requisição, `resolveActingContext()` lê o token do cookie, consulta `impersonation_sessions` para obter o `clientId`, verifica expiração/encerramento, e valida o vínculo consultor-cliente.
+5. Para encerrar, `DELETE /api/consultant/acting` marca a sessão como encerrada (`endedAt`), limpa o cookie, e registra `END_IMPERSONATION`.
+6. `GET /api/consultant/active-sessions` lista sessões ativas para auditoria.
+
 - Notificações:
   - São criadas automaticamente quando o consultor envia um convite ou recebe a resposta do cliente.
   - A interface de notificações marca itens como lidos ao abrir o painel e oferece ações rápidas de `Aceitar` e `Recusar` para convites pendentes.
-

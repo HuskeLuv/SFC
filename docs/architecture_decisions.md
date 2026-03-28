@@ -40,6 +40,14 @@
 - **Required secrets:** `DATABASE_URL`, `JWT_SECRET`, `BRAPI_API_KEY` in GitHub repo settings
 - **Status:** Active — implemented in Phase 1
 
+## ADR-007: In-Memory Rate Limiting in Edge Middleware
+
+- **Decision:** Sliding-window rate limiter using an in-memory `Map`, applied in Edge middleware before authentication. Tiered limits per route pattern (auth: 5/min, consultant acting: 10/min, general API: 60/min, public: 120/min). IP-based identification via `x-forwarded-for`.
+- **Why:** No external dependency needed (no Upstash, no Redis). Runs entirely on Web APIs so it is Edge Runtime compatible. Acceptable trade-off: state resets on cold starts and is per-isolate, not globally coordinated. This is sufficient for brute-force deterrence on a single-region Vercel deployment.
+- **Upgrade path:** When the project migrates to AWS (Phase 5), replace the in-memory store with Redis (ElastiCache or Upstash) for globally consistent limits. The `checkRateLimit` interface is designed to make swapping the store straightforward.
+- **Alternatives rejected:** Upstash (adds external dependency and cost for a project that will move to AWS), `next-rate-limit` (unnecessary abstraction over a simple Map).
+- **Status:** Active — implemented in Phase 2
+
 ---
 
-_Last updated: 2026-03-27_
+_Last updated: 2026-03-28_

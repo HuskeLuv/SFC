@@ -36,10 +36,31 @@
 - **TypeScript:** strict mode, `ignoreBuildErrors: false`
 - **Tests:** Vitest with v8 coverage, 65% statement coverage on tested routes
 
+## Input Validation
+
+- **Library:** [zod](https://zod.dev/) v4 for runtime schema validation on all POST/PUT/PATCH/DELETE API endpoints
+- **Schemas location:** `src/utils/validation-schemas.ts` — reusable schemas and primitive builders (`zString`, `zPositiveNumber`, `zEmail`, `zDateString`, etc.)
+- **Pattern:** Use `safeParse` at the entry point of every mutation handler, before any business logic:
+
+  ```typescript
+  import { someSchema, validationError } from '@/utils/validation-schemas';
+
+  const body = await request.json();
+  const parsed = someSchema.safeParse(body);
+  if (!parsed.success) {
+    return validationError(parsed);
+  }
+  const { field1, field2 } = parsed.data;
+  ```
+
+- **Error format:** `{ error: "Dados inválidos: field1, field2", details: { field1: [...], field2: [...] } }` with status 400
+- **Constraints applied:** `.finite()` and `.positive()` on monetary values; `.max(255)` on names; `.max(1000)` on descriptions/notes; `.email()` on emails; date strings validated via `new Date()` parsing
+- **Existing business logic untouched:** Zod validates structure and types at the entry point; domain-specific rules (e.g. quantity > available, date ranges) remain as-is after the schema check
+
 ## Formatting
 
 - Prettier: semi, singleQuote, trailingComma all, printWidth 100, tabWidth 2
 
 ---
 
-_Last updated: 2026-03-27_
+_Last updated: 2026-03-28_

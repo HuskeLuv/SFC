@@ -13,11 +13,16 @@
 
 - [x] ~~7 failing tests in operacao/route.test.ts~~ — Fixed: mock bodies updated (ETF region, REIT currency, Fundo destination, Tesouro destination)
 - [x] ~~100+ ESLint errors shipping to production (ignoreDuringBuilds: true)~~ — Fixed: all errors resolved, `ignoreDuringBuilds: false`
-- [ ] No rate limiting on any endpoint
+- [x] ~~Unprotected JSON.parse calls on `notes` field crash on malformed data~~ — Fixed: all JSON.parse calls in API routes wrapped in try-catch
+- [x] ~~No rate limiting on any endpoint~~ — Fixed: in-memory sliding window rate limiter in Edge middleware (per-IP, tiered by route). Note: resets on cold starts; upgrade to Redis when migrating to AWS.
+- [x] ~~No input validation on API endpoints (raw JSON bodies accepted without schema checks)~~ — Fixed: zod v4 `safeParse` validation added to all POST/PUT/PATCH/DELETE routes via `src/utils/validation-schemas.ts`
 - [ ] Test coverage at 65% on tested routes, but only 6 of 81 API routes have tests
 
 ## Medium
 
+- [x] ~~Consultant impersonation cookie stores raw clientId~~ — Fixed: replaced with opaque session token stored server-side in `impersonation_sessions` table
+- [x] ~~Impersonation cookie 2h expiration too long~~ — Fixed: reduced to 30 minutes
+- [x] ~~No impersonation session tracking~~ — Fixed: `ImpersonationSession` model tracks active sessions with start/end/expiry; `GET /api/consultant/active-sessions` endpoint for auditing
 - [ ] Legacy Pages Router still in src/pages/ (64K) — migrate to App Router
 - [ ] Mixed Portuguese/English route naming
 - [ ] No React Error Boundaries
@@ -30,4 +35,4 @@
 
 ---
 
-_Last updated: 2026-03-27_
+_Last updated: 2026-03-28_
