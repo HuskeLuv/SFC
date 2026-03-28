@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { personalizeItem, getItemForUser } from '@/utils/cashflowPersonalization';
+import { cashflowBatchUpdateSchema, validationError } from '@/utils/validation-schemas';
 
 /**
  * PUT /api/cashflow/batch-update
- * 
+ *
  * Recebe múltiplas alterações de itens e valores em uma única requisição.
- * 
+ *
  * Body:
  * {
  *   groupId: string,
@@ -29,11 +30,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
-    const { groupId, updates, deletes } = await request.json();
-
-    if (!groupId) {
-      return NextResponse.json({ error: 'groupId é obrigatório' }, { status: 400 });
+    const body = await request.json();
+    const parsed = cashflowBatchUpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
+    const { groupId: _groupId, updates, deletes } = parsed.data;
 
     const currentYear = new Date().getFullYear();
     const results: Array<{ itemId: string; success: boolean; error?: string }> = [];
@@ -166,23 +168,22 @@ export async function PUT(request: NextRequest) {
           results.push({ itemId, success: true });
         } catch (error) {
           console.error(`Erro ao atualizar item ${update.itemId}:`, error);
-          results.push({ 
-            itemId: update.itemId || '', 
-            success: false, 
-            error: 'Erro ao atualizar' 
+          results.push({
+            itemId: update.itemId || '',
+            success: false,
+            error: 'Erro ao atualizar',
           });
         }
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       results,
-      message: 'Alterações salvas com sucesso'
+      message: 'Alterações salvas com sucesso',
     });
   } catch (error) {
     console.error('Erro na API batch-update:', error);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
-

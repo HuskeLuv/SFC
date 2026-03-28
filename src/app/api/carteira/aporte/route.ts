@@ -1,18 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAuthWithActing } from "@/utils/auth";
-import { prisma } from "@/lib/prisma";
-import { logDataUpdate } from "@/services/impersonationLogger";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuthWithActing } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
+import { logDataUpdate } from '@/services/impersonationLogger';
+import { aporteSchema, validationError } from '@/utils/validation-schemas';
 
 export async function POST(request: NextRequest) {
   try {
     const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
     const body = await request.json();
 
-    const { portfolioId, dataAporte, valorAporte, tipoAtivo, instituicaoId } = body;
-
-    if (!portfolioId || !dataAporte || !valorAporte) {
-      return NextResponse.json({ error: "Campos obrigatórios: portfolioId, dataAporte, valorAporte" }, { status: 400 });
+    const parsed = aporteSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
+    const { portfolioId, dataAporte, valorAporte, tipoAtivo, instituicaoId } = parsed.data;
 
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId: targetUserId },
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!portfolio) {
-      return NextResponse.json({ error: "Investimento não encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Investimento não encontrado' }, { status: 404 });
     }
 
     const dataTransacao = new Date(dataAporte);
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     const notesData = JSON.stringify({
       operation: {
-        action: "aporte",
+        action: 'aporte',
         performedBy: {
           userId: payload.id,
           role: payload.role,
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: targetUserId,
         ...(portfolio.stockId ? { stockId: portfolio.stockId } : { assetId: portfolio.assetId! }),
-        type: "compra",
+        type: 'compra',
         quantity,
         price,
         total,
@@ -86,8 +87,8 @@ export async function POST(request: NextRequest) {
         { id: payload.id, role: payload.role },
         targetUserId,
         actingClient,
-        "/api/carteira/aporte",
-        "POST",
+        '/api/carteira/aporte',
+        'POST',
         body,
         { success: true },
       );
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     return result;
   } catch (error) {
-    console.error("Erro ao realizar aporte:", error);
-    return NextResponse.json({ error: "Erro interno ao realizar aporte" }, { status: 500 });
+    console.error('Erro ao realizar aporte:', error);
+    return NextResponse.json({ error: 'Erro interno ao realizar aporte' }, { status: 500 });
   }
 }

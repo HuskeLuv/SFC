@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import type { JWTPayload } from '@/utils/auth';
+import { cashflowIdPatchSchema, validationError } from '@/utils/validation-schemas';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const token = req.cookies.get('token')?.value;
   if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -21,17 +19,19 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const token = req.cookies.get('token')?.value;
   if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
     const userId = payload.id;
-    const { data, tipo, categoria, descricao, valor, forma_pagamento, pago } = await req.json();
+    const body = await req.json();
+    const parsed = cashflowIdPatchSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
+    }
+    const { data, tipo, categoria, descricao, valor, forma_pagamento, pago } = parsed.data;
     const updated = await prisma.cashflow.updateMany({
       where: { id, userId },
       data: {
@@ -52,10 +52,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const token = req.cookies.get('token')?.value;
   if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -68,4 +65,4 @@ export async function DELETE(
   } catch {
     return NextResponse.json({ error: 'Invalid token or delete error' }, { status: 401 });
   }
-} 
+}

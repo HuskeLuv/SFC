@@ -1,18 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAuthWithActing } from "@/utils/auth";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuthWithActing } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
+import { transactionPatchSchema, validationError } from '@/utils/validation-schemas';
 
-const EDITABLE_FIELDS = ["quantity", "price", "total", "date", "fees", "notes"] as const;
+const EDITABLE_FIELDS = ['quantity', 'price', 'total', 'date', 'fees', 'notes'] as const;
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id } = await params;
 
     const body = await request.json();
+    const parsed = transactionPatchSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
+    }
+
     const updates: Partial<{
       quantity: number;
       price: number;
@@ -23,25 +26,27 @@ export async function PATCH(
     }> = {};
 
     for (const field of EDITABLE_FIELDS) {
-      if (body[field] !== undefined) {
-        if (field === "date") {
-          updates.date = new Date(body[field]);
-        } else if (field === "quantity" || field === "price" || field === "total" || field === "fees") {
-          const val = typeof body[field] === "number" ? body[field] : parseFloat(body[field]);
-          if (!Number.isNaN(val)) {
+      if (parsed.data[field] !== undefined) {
+        if (field === 'date') {
+          updates.date = new Date(parsed.data[field] as string);
+        } else if (
+          field === 'quantity' ||
+          field === 'price' ||
+          field === 'total' ||
+          field === 'fees'
+        ) {
+          const val = parsed.data[field] as number | null;
+          if (val !== null && val !== undefined && !Number.isNaN(val)) {
             (updates as Record<string, unknown>)[field] = val;
           }
-        } else if (field === "notes") {
-          updates.notes = body[field] == null ? null : String(body[field]);
+        } else if (field === 'notes') {
+          updates.notes = parsed.data[field] == null ? null : String(parsed.data[field]);
         }
       }
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { error: "Nenhum campo válido para atualização" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Nenhum campo válido para atualização' }, { status: 400 });
     }
 
     const transaction = await prisma.stockTransaction.findFirst({
@@ -50,7 +55,7 @@ export async function PATCH(
     });
 
     if (!transaction) {
-      return NextResponse.json({ error: "Transação não encontrada" }, { status: 404 });
+      return NextResponse.json({ error: 'Transação não encontrada' }, { status: 404 });
     }
 
     await prisma.stockTransaction.update({
@@ -81,7 +86,7 @@ export async function PATCH(
 
         const allTransactions = await prisma.stockTransaction.findMany({
           where: txWhere,
-          orderBy: { date: "asc" },
+          orderBy: { date: 'asc' },
         });
 
         let totalInvested = 0;
@@ -91,7 +96,7 @@ export async function PATCH(
           const qty = Number(tx.quantity);
           const price = Number(tx.price);
           const total = Number(tx.total);
-          if (tx.type === "compra") {
+          if (tx.type === 'compra') {
             totalQuantity += qty;
             totalInvested += total > 0 ? total : qty * price;
           } else {
@@ -116,11 +121,8 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Erro ao atualizar transação:", error);
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    );
+    console.error('Erro ao atualizar transação:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -128,7 +130,7 @@ async function recalculatePortfolioFromTransactions(
   targetUserId: string,
   assetId: string | null,
   stockId: string | null,
-  portfolioId: string
+  portfolioId: string,
 ) {
   const txWhere: { userId: string; assetId?: string; stockId?: string } = {
     userId: targetUserId,
@@ -138,7 +140,7 @@ async function recalculatePortfolioFromTransactions(
 
   const allTransactions = await prisma.stockTransaction.findMany({
     where: txWhere,
-    orderBy: { date: "asc" },
+    orderBy: { date: 'asc' },
   });
 
   if (allTransactions.length === 0) {
@@ -155,7 +157,7 @@ async function recalculatePortfolioFromTransactions(
     const qty = Number(tx.quantity);
     const price = Number(tx.price);
     const total = Number(tx.total);
-    if (tx.type === "compra") {
+    if (tx.type === 'compra') {
       totalQuantity += qty;
       totalInvested += total > 0 ? total : qty * price;
     } else {
@@ -179,7 +181,7 @@ async function recalculatePortfolioFromTransactions(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
@@ -190,7 +192,7 @@ export async function DELETE(
     });
 
     if (!transaction) {
-      return NextResponse.json({ error: "Transação não encontrada" }, { status: 404 });
+      return NextResponse.json({ error: 'Transação não encontrada' }, { status: 404 });
     }
 
     const portfolioWhere: { userId: string; assetId?: string; stockId?: string } = {
@@ -202,9 +204,10 @@ export async function DELETE(
       portfolioWhere.stockId = transaction.stockId;
     }
 
-    const portfolio = portfolioWhere.assetId || portfolioWhere.stockId
-      ? await prisma.portfolio.findFirst({ where: portfolioWhere })
-      : null;
+    const portfolio =
+      portfolioWhere.assetId || portfolioWhere.stockId
+        ? await prisma.portfolio.findFirst({ where: portfolioWhere })
+        : null;
 
     await prisma.stockTransaction.delete({
       where: { id },
@@ -215,16 +218,13 @@ export async function DELETE(
         targetUserId,
         transaction.assetId,
         transaction.stockId,
-        portfolio.id
+        portfolio.id,
       );
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Erro ao excluir transação:", error);
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    );
+    console.error('Erro ao excluir transação:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

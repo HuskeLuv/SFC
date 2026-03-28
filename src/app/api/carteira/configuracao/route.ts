@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { alocacaoConfigSchema, validationError } from '@/utils/validation-schemas';
 
 interface AlocacaoConfig {
   categoria: string;
@@ -13,26 +14,26 @@ interface AlocacaoConfig {
 // Configurações padrão zeradas - todas as categorias começam com valores zerados
 // A tabela deve vir zerada e ser preenchida apenas com dados que o usuário registrou
 const defaultConfig: AlocacaoConfig[] = [
-  { categoria: "reservaEmergencia", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "reservaOportunidade", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "rendaFixaFundos", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "fimFia", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "fiis", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "acoes", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "stocks", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "reits", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "etfs", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "moedasCriptos", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "previdenciaSeguros", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "opcoes", minimo: 0, maximo: 0, target: 0, descricao: "" },
-  { categoria: "imoveisBens", minimo: 0, maximo: 0, target: 0, descricao: "" },
+  { categoria: 'reservaEmergencia', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'reservaOportunidade', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'rendaFixaFundos', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'fimFia', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'fiis', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'acoes', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'stocks', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'reits', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'etfs', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'moedasCriptos', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'previdenciaSeguros', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'opcoes', minimo: 0, maximo: 0, target: 0, descricao: '' },
+  { categoria: 'imoveisBens', minimo: 0, maximo: 0, target: 0, descricao: '' },
 ];
 
 // GET - Buscar configurações de alocação do usuário
 export async function GET(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
-    
+
     // Buscar configurações do banco de dados
     const savedConfigs = await prisma.alocacaoConfig.findMany({
       where: { userId: targetUserId },
@@ -44,18 +45,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Converter para o formato esperado
-    const alocacaoConfig = savedConfigs.map(config => ({
+    const alocacaoConfig = savedConfigs.map((config) => ({
       categoria: config.categoria,
       minimo: config.minimo,
       maximo: config.maximo,
       target: config.target,
-      descricao: config.descricao || "",
+      descricao: config.descricao || '',
     }));
 
     // Garantir que todas as categorias padrão estejam presentes
     // Se uma categoria não foi salva pelo usuário, usar valores zerados
-    const configMap = new Map(alocacaoConfig.map(c => [c.categoria, c]));
-    const completeConfig = defaultConfig.map(defaultItem => {
+    const configMap = new Map(alocacaoConfig.map((c) => [c.categoria, c]));
+    const completeConfig = defaultConfig.map((defaultItem) => {
       const saved = configMap.get(defaultItem.categoria);
       // Retornar apenas configurações que foram salvas pelo usuário
       // Se não foi salva, usar valores zerados
@@ -63,13 +64,9 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ configuracoes: completeConfig });
-
   } catch (error) {
     console.error('Erro ao buscar configurações de alocação:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -77,45 +74,19 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
-    const { configuracoes } = await request.json();
-
-    if (!configuracoes || !Array.isArray(configuracoes)) {
-      return NextResponse.json(
-        { error: 'Configurações inválidas' },
-        { status: 400 }
-      );
+    const body = await request.json();
+    const parsed = alocacaoConfigSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
+    const { configuracoes } = parsed.data;
 
-    // Validar configurações
+    // Validar regra de negócio: mínimo não pode ser maior que máximo
     for (const config of configuracoes) {
-      if (!config.categoria || 
-          typeof config.minimo !== 'number' || 
-          typeof config.maximo !== 'number' || 
-          typeof config.target !== 'number') {
-        return NextResponse.json(
-          { error: 'Formato de configuração inválido' },
-          { status: 400 }
-        );
-      }
-
-      if (config.descricao !== undefined && typeof config.descricao !== 'string') {
-        return NextResponse.json(
-          { error: 'Formato de descrição inválido' },
-          { status: 400 }
-        );
-      }
-
-      if (config.minimo < 0 || config.maximo < 0 || config.target < 0) {
-        return NextResponse.json(
-          { error: 'Valores não podem ser negativos' },
-          { status: 400 }
-        );
-      }
-
       if (config.minimo > config.maximo) {
         return NextResponse.json(
           { error: 'Valor mínimo não pode ser maior que o máximo' },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -127,7 +98,7 @@ export async function PUT(request: NextRequest) {
     if (totalTargets > 100) {
       return NextResponse.json(
         { error: 'A soma dos targets não pode exceder 100%' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -145,7 +116,7 @@ export async function PUT(request: NextRequest) {
             minimo: config.minimo,
             maximo: config.maximo,
             target: config.target,
-            descricao: config.descricao || "",
+            descricao: config.descricao || '',
           },
           create: {
             userId: targetUserId,
@@ -153,22 +124,18 @@ export async function PUT(request: NextRequest) {
             minimo: config.minimo,
             maximo: config.maximo,
             target: config.target,
-            descricao: config.descricao || "",
+            descricao: config.descricao || '',
           },
         });
-      })
+      }),
     );
 
-    return NextResponse.json({ 
-      success: true, 
-      configuracoes 
+    return NextResponse.json({
+      success: true,
+      configuracoes,
     });
-
   } catch (error) {
     console.error('Erro ao salvar configurações de alocação:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
-} 
+}

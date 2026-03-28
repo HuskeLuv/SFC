@@ -1,26 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { objetivoSchema, validationError } from '@/utils/validation-schemas';
 
 export async function POST(request: NextRequest) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const body = await request.json();
-    const { ativoId, objetivo } = body;
-
-    if (!ativoId || objetivo === undefined) {
-      return NextResponse.json(
-        { error: 'Parâmetros obrigatórios: ativoId e objetivo' },
-        { status: 400 }
-      );
+    const parsed = objetivoSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
-
-    if (objetivo < 0 || objetivo > 100) {
-      return NextResponse.json(
-        { error: 'Objetivo deve estar entre 0 e 100%' },
-        { status: 400 }
-      );
-    }
+    const { ativoId, objetivo } = parsed.data;
 
     const updateResult = await prisma.portfolio.updateMany({
       where: { id: ativoId, userId: targetUserId },
@@ -28,21 +19,15 @@ export async function POST(request: NextRequest) {
     });
 
     if (updateResult.count === 0) {
-      return NextResponse.json(
-        { error: 'Ativo não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Objetivo atualizado com sucesso' 
+    return NextResponse.json({
+      success: true,
+      message: 'Objetivo atualizado com sucesso',
     });
   } catch (error) {
     console.error('Erro ao atualizar objetivo:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

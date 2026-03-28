@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { stockTransactionSchema, validationError } from '@/utils/validation-schemas';
 
 // GET - Buscar transações do usuário
 export async function GET(request: NextRequest) {
@@ -24,17 +25,13 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(transactions);
-    
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
+
     console.error('Erro ao buscar transações:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -51,22 +48,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
-    const { stockId, type, quantity, price, date, fees, notes } = await request.json();
-
-    // Validações
-    if (!stockId || !type || !quantity || !price || !date) {
-      return NextResponse.json({ 
-        error: 'Campos obrigatórios: stockId, type, quantity, price, date' 
-      }, { status: 400 });
+    const body = await request.json();
+    const parsed = stockTransactionSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
-
-    if (type !== 'compra' && type !== 'venda') {
-      return NextResponse.json({ error: 'Tipo deve ser "compra" ou "venda"' }, { status: 400 });
-    }
-
-    if (quantity <= 0 || price <= 0) {
-      return NextResponse.json({ error: 'Quantidade e preço devem ser maiores que zero' }, { status: 400 });
-    }
+    const { stockId, type, quantity, price, date, fees, notes } = parsed.data;
 
     // Verificar se o ativo existe
     const stock = await prisma.stock.findUnique({
@@ -102,28 +89,24 @@ export async function POST(request: NextRequest) {
     await updatePortfolio(user.id, stockId, type, quantity, price, total);
 
     return NextResponse.json(transaction, { status: 201 });
-    
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
+
     console.error('Erro ao registrar transação:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
 // Função para atualizar o portfolio
 async function updatePortfolio(
-  userId: string, 
-  stockId: string, 
-  type: string, 
-  quantity: number, 
-  price: number, 
-  total: number
+  userId: string,
+  stockId: string,
+  type: string,
+  quantity: number,
+  price: number,
+  total: number,
 ) {
   try {
     const existingPortfolio = await prisma.portfolio.findUnique({
@@ -213,4 +196,4 @@ async function updatePortfolio(
     console.error('Erro ao atualizar portfolio:', error);
     throw error;
   }
-} 
+}

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAuthWithActing } from "@/utils/auth";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuthWithActing } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
+import { proventoPatchSchema, validationError } from '@/utils/validation-schemas';
 
 const serialize = (p: {
   id: string;
@@ -22,11 +23,7 @@ const serialize = (p: {
   impostoRenda: p.impostoRenda,
 });
 
-async function findProventoOwned(
-  portfolioId: string,
-  proventoId: string,
-  userId: string
-) {
+async function findProventoOwned(portfolioId: string, proventoId: string, userId: string) {
   return prisma.portfolioProvento.findFirst({
     where: {
       id: proventoId,
@@ -38,7 +35,7 @@ async function findProventoOwned(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; proventoId: string }> }
+  { params }: { params: Promise<{ id: string; proventoId: string }> },
 ) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
@@ -46,10 +43,15 @@ export async function PATCH(
 
     const existing = await findProventoOwned(portfolioId, proventoId, targetUserId);
     if (!existing) {
-      return NextResponse.json({ error: "Provento não encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Provento não encontrado' }, { status: 404 });
     }
 
     const body = await request.json();
+    const parsed = proventoPatchSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
+    }
+
     const updates: {
       tipo?: string;
       dataCom?: Date;
@@ -60,55 +62,31 @@ export async function PATCH(
       impostoRenda?: number | null;
     } = {};
 
-    if (body.tipo !== undefined) {
-      const t = String(body.tipo).trim();
+    if (parsed.data.tipo !== undefined) {
+      const t = String(parsed.data.tipo).trim();
       if (t) updates.tipo = t;
     }
-    if (body.dataCom !== undefined) {
-      const d = new Date(body.dataCom);
-      if (Number.isNaN(d.getTime())) {
-        return NextResponse.json({ error: "Data com inválida" }, { status: 400 });
-      }
-      updates.dataCom = d;
+    if (parsed.data.dataCom !== undefined) {
+      updates.dataCom = new Date(parsed.data.dataCom);
     }
-    if (body.dataPagamento !== undefined) {
-      const d = new Date(body.dataPagamento);
-      if (Number.isNaN(d.getTime())) {
-        return NextResponse.json({ error: "Data de pagamento inválida" }, { status: 400 });
-      }
-      updates.dataPagamento = d;
+    if (parsed.data.dataPagamento !== undefined) {
+      updates.dataPagamento = new Date(parsed.data.dataPagamento);
     }
-    if (body.precificarPor !== undefined) {
-      updates.precificarPor = body.precificarPor === "quantidade" ? "quantidade" : "valor";
+    if (parsed.data.precificarPor !== undefined) {
+      updates.precificarPor = parsed.data.precificarPor;
     }
-    if (body.valorTotal !== undefined) {
-      const v = typeof body.valorTotal === "number" ? body.valorTotal : parseFloat(body.valorTotal);
-      if (!Number.isFinite(v) || v < 0) {
-        return NextResponse.json({ error: "Valor total inválido" }, { status: 400 });
-      }
-      updates.valorTotal = v;
+    if (parsed.data.valorTotal !== undefined) {
+      updates.valorTotal = parsed.data.valorTotal;
     }
-    if (body.quantidadeBase !== undefined) {
-      const q = typeof body.quantidadeBase === "number" ? body.quantidadeBase : parseFloat(body.quantidadeBase);
-      if (!Number.isFinite(q) || q < 0) {
-        return NextResponse.json({ error: "Quantidade base inválida" }, { status: 400 });
-      }
-      updates.quantidadeBase = q;
+    if (parsed.data.quantidadeBase !== undefined) {
+      updates.quantidadeBase = parsed.data.quantidadeBase;
     }
-    if (body.impostoRenda !== undefined) {
-      if (body.impostoRenda === null || body.impostoRenda === "") {
-        updates.impostoRenda = null;
-      } else {
-        const ir = typeof body.impostoRenda === "number" ? body.impostoRenda : parseFloat(body.impostoRenda);
-        if (!Number.isFinite(ir) || ir < 0) {
-          return NextResponse.json({ error: "Imposto de renda inválido" }, { status: 400 });
-        }
-        updates.impostoRenda = ir;
-      }
+    if (parsed.data.impostoRenda !== undefined) {
+      updates.impostoRenda = parsed.data.impostoRenda ?? null;
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 });
+      return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
     }
 
     const updated = await prisma.portfolioProvento.update({
@@ -118,14 +96,14 @@ export async function PATCH(
 
     return NextResponse.json({ provento: serialize(updated) });
   } catch (error) {
-    console.error("Erro ao atualizar provento:", error);
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+    console.error('Erro ao atualizar provento:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; proventoId: string }> }
+  { params }: { params: Promise<{ id: string; proventoId: string }> },
 ) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
@@ -133,14 +111,14 @@ export async function DELETE(
 
     const existing = await findProventoOwned(portfolioId, proventoId, targetUserId);
     if (!existing) {
-      return NextResponse.json({ error: "Provento não encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Provento não encontrado' }, { status: 404 });
     }
 
     await prisma.portfolioProvento.delete({ where: { id: proventoId } });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Erro ao excluir provento:", error);
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+    console.error('Erro ao excluir provento:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

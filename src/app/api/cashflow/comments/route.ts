@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { personalizeItem, getItemForUser } from '@/utils/cashflowPersonalization';
+import { cashflowCommentSchema, validationError } from '@/utils/validation-schemas';
 
 /**
  * GET /api/cashflow/comments
@@ -98,27 +99,17 @@ export async function PATCH(request: NextRequest) {
     }
 
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
-    const { itemId, month, year, comment } = await request.json();
+    const body = await request.json();
+    const parsed = cashflowCommentSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
+    }
+    const { itemId, month, year, comment } = parsed.data;
 
     // Log para debug (remover em produção se necessário)
     console.log(
       `[PATCH /api/cashflow/comments] Usuário ID do token: ${payload.id}, Email: ${payload.email}`,
     );
-
-    // Validate input
-    if (!itemId || typeof month !== 'number' || typeof year !== 'number') {
-      return NextResponse.json(
-        { error: 'Dados inválidos: itemId, month e year são obrigatórios' },
-        { status: 400 },
-      );
-    }
-
-    if (month < 0 || month > 11) {
-      return NextResponse.json(
-        { error: 'month deve ser entre 0 (Janeiro) e 11 (Dezembro)' },
-        { status: 400 },
-      );
-    }
 
     // Buscar item (pode ser template ou personalizado)
     const item = await getItemForUser(itemId, payload.id);

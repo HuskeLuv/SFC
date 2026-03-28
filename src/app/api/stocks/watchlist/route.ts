@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { watchlistAddSchema, validationError } from '@/utils/validation-schemas';
 
 // GET - Buscar watchlist do usuário
 export async function GET(request: NextRequest) {
@@ -24,17 +25,13 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(watchlist);
-    
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
+
     console.error('Erro ao buscar watchlist:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -51,11 +48,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
-    const { stockId, notes } = await request.json();
-
-    if (!stockId) {
-      return NextResponse.json({ error: 'ID do ativo é obrigatório' }, { status: 400 });
+    const body = await request.json();
+    const parsed = watchlistAddSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
+    const { stockId, notes } = parsed.data;
 
     // Verificar se o ativo existe
     const stock = await prisma.stock.findUnique({
@@ -93,16 +91,12 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(watchlistItem, { status: 201 });
-    
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
+
     console.error('Erro ao adicionar ao watchlist:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
-} 
+}

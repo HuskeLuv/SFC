@@ -419,7 +419,12 @@ export async function POST(request: NextRequest) {
       } else {
         // Para outros campos, atualizar metadados na transação
         if (transaction) {
-          const notes = transaction.notes ? JSON.parse(transaction.notes) : {};
+          let notes: Record<string, unknown> = {};
+          try {
+            notes = transaction.notes ? JSON.parse(transaction.notes) : {};
+          } catch {
+            notes = {};
+          }
           // Preservar a estrutura operation se existir
           const operation = notes.operation || {};
           notes[campo] = valor;
@@ -444,7 +449,12 @@ export async function POST(request: NextRequest) {
 
           if (firstTransaction) {
             // Atualizar a primeira transação existente
-            const notes = firstTransaction.notes ? JSON.parse(firstTransaction.notes) : {};
+            let notes: Record<string, unknown> = {};
+            try {
+              notes = firstTransaction.notes ? JSON.parse(firstTransaction.notes) : {};
+            } catch {
+              notes = {};
+            }
             const operation = notes.operation || {};
             notes[campo] = valor;
             notes.operation = operation;

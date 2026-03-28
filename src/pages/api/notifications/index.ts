@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { ApiAuthError, authenticateApiUser } from '@/utils/apiAuth';
+import { notificationsPatchSchema } from '@/utils/validation-schemas';
 
 const fetchNotifications = async (userId: string) => {
   return prisma.notification.findMany({
@@ -74,11 +75,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === 'PATCH') {
-    const { ids } = req.body as { ids?: string[] };
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    const parsed = notificationsPatchSchema.safeParse(req.body);
+    if (!parsed.success) {
       res.status(400).json({ error: 'Nenhum identificador informado.' });
       return;
     }
+    const { ids } = parsed.data;
 
     await prisma.notification.updateMany({
       where: {
@@ -100,4 +102,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.setHeader('Allow', 'GET, PATCH');
   res.status(405).json({ error: 'Método não permitido.' });
 }
-

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAuthWithActing } from "@/utils/auth";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuthWithActing } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
+import { proventoCreateSchema, validationError } from '@/utils/validation-schemas';
 
 const serialize = (p: {
   id: string;
@@ -22,10 +23,7 @@ const serialize = (p: {
   impostoRenda: p.impostoRenda,
 });
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id: portfolioId } = await params;
@@ -35,39 +33,22 @@ export async function POST(
     });
 
     if (!portfolio) {
-      return NextResponse.json({ error: "Portfólio não encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
     }
 
     const body = await request.json();
-    const tipo = String(body.tipo ?? "").trim() || "Provento";
-    const dataCom = body.dataCom ? new Date(body.dataCom) : null;
-    const dataPagamento = body.dataPagamento ? new Date(body.dataPagamento) : null;
-    const precificarPor = body.precificarPor === "quantidade" ? "quantidade" : "valor";
-    const valorTotal = typeof body.valorTotal === "number" ? body.valorTotal : parseFloat(body.valorTotal);
-    const quantidadeBase =
-      typeof body.quantidadeBase === "number" ? body.quantidadeBase : parseFloat(body.quantidadeBase);
-
-    if (!dataCom || Number.isNaN(dataCom.getTime())) {
-      return NextResponse.json({ error: "Data com inválida" }, { status: 400 });
-    }
-    if (!dataPagamento || Number.isNaN(dataPagamento.getTime())) {
-      return NextResponse.json({ error: "Data de pagamento inválida" }, { status: 400 });
-    }
-    if (!Number.isFinite(valorTotal) || valorTotal < 0) {
-      return NextResponse.json({ error: "Valor total inválido" }, { status: 400 });
-    }
-    if (!Number.isFinite(quantidadeBase) || quantidadeBase < 0) {
-      return NextResponse.json({ error: "Quantidade base inválida" }, { status: 400 });
+    const parsed = proventoCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
 
-    let impostoRenda: number | null = null;
-    if (body.impostoRenda !== undefined && body.impostoRenda !== null && body.impostoRenda !== "") {
-      const ir = typeof body.impostoRenda === "number" ? body.impostoRenda : parseFloat(body.impostoRenda);
-      if (!Number.isFinite(ir) || ir < 0) {
-        return NextResponse.json({ error: "Imposto de renda inválido" }, { status: 400 });
-      }
-      impostoRenda = ir;
-    }
+    const tipo = String(parsed.data.tipo ?? '').trim() || 'Provento';
+    const dataCom = new Date(parsed.data.dataCom);
+    const dataPagamento = new Date(parsed.data.dataPagamento);
+    const precificarPor = parsed.data.precificarPor === 'quantidade' ? 'quantidade' : 'valor';
+    const valorTotal = parsed.data.valorTotal;
+    const quantidadeBase = parsed.data.quantidadeBase;
+    const impostoRenda = parsed.data.impostoRenda ?? null;
 
     const created = await prisma.portfolioProvento.create({
       data: {
@@ -85,7 +66,7 @@ export async function POST(
 
     return NextResponse.json({ provento: serialize(created) }, { status: 201 });
   } catch (error) {
-    console.error("Erro ao criar provento:", error);
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+    console.error('Erro ao criar provento:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

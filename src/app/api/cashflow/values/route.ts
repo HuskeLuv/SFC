@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { personalizeItem, getItemForUser } from '@/utils/cashflowPersonalization';
+import { cashflowValuePatchSchema, validationError } from '@/utils/validation-schemas';
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -11,12 +12,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
-    const { itemId, field, value, monthIndex } = await request.json();
-
-    // Validate input
-    if (!itemId || !field || value === undefined) {
-      return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
+    const body = await request.json();
+    const parsed = cashflowValuePatchSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
+    const { itemId, field, value, monthIndex } = parsed.data;
 
     // Buscar item (pode ser template ou personalizado)
     const item = await getItemForUser(itemId, payload.id);
@@ -40,14 +41,14 @@ export async function PATCH(request: NextRequest) {
         significado?: string;
         rank?: string | null;
       } = {};
-      if (field === 'name' || field === 'descricao') updateData.name = value;
-      if (field === 'significado') updateData.significado = value;
+      if (field === 'name' || field === 'descricao') updateData.name = value as string;
+      if (field === 'significado') updateData.significado = value as string;
       if (field === 'rank') {
-        updateData.rank = value === '' || value === null ? null : value.toString();
+        updateData.rank = value === '' || value === null ? null : String(value);
       }
 
       updatedItem = await prisma.cashflowItem.update({
-        where: { 
+        where: {
           id: finalItemId,
         },
         data: updateData,
@@ -55,7 +56,7 @@ export async function PATCH(request: NextRequest) {
           values: {
             where: { userId: payload.id },
           },
-        }
+        },
       });
     } else if (field === 'monthlyValue' && typeof monthIndex === 'number') {
       // Se é template, garantir que item foi personalizado
@@ -64,22 +65,22 @@ export async function PATCH(request: NextRequest) {
       }
 
       const currentYear = new Date().getFullYear();
-      
+
       // Update monthly value
       const existingValue = await prisma.cashflowValue.findFirst({
         where: {
           itemId: finalItemId,
           userId: payload.id,
           year: currentYear,
-          month: monthIndex
-        }
+          month: monthIndex,
+        },
       });
 
       if (existingValue) {
         // Update existing value
         await prisma.cashflowValue.update({
           where: { id: existingValue.id },
-          data: { value: parseFloat(value.toString()) }
+          data: { value: parseFloat(String(value)) },
         });
       } else {
         // Create new value
@@ -89,18 +90,18 @@ export async function PATCH(request: NextRequest) {
             userId: payload.id,
             year: currentYear,
             month: monthIndex,
-            value: parseFloat(value.toString())
-          }
+            value: parseFloat(String(value)),
+          },
         });
       }
 
       updatedItem = await prisma.cashflowItem.findUnique({
         where: { id: finalItemId },
-        include: { 
+        include: {
           values: {
-            where: { userId: payload.id }
-          }
-        }
+            where: { userId: payload.id },
+          },
+        },
       });
     } else if (field === 'annualTotal') {
       // Se é template, garantir que item foi personalizado
@@ -109,16 +110,16 @@ export async function PATCH(request: NextRequest) {
       }
 
       const currentYear = new Date().getFullYear();
-      const annualTotal = parseFloat(value.toString());
+      const annualTotal = parseFloat(String(value));
       const monthlyValue = annualTotal / 12;
 
       // Delete all existing monthly values for this user and year
       await prisma.cashflowValue.deleteMany({
-        where: { 
+        where: {
           itemId: finalItemId,
           userId: payload.id,
-          year: currentYear
-        }
+          year: currentYear,
+        },
       });
 
       // Create new monthly values with equal distribution
@@ -129,18 +130,18 @@ export async function PATCH(request: NextRequest) {
             userId: payload.id,
             year: currentYear,
             month: month,
-            value: monthlyValue
-          }
+            value: monthlyValue,
+          },
         });
       }
 
       updatedItem = await prisma.cashflowItem.findUnique({
         where: { id: finalItemId },
-        include: { 
+        include: {
           values: {
-            where: { userId: payload.id }
-          }
-        }
+            where: { userId: payload.id },
+          },
+        },
       });
     } else {
       return NextResponse.json({ error: 'Campo inválido' }, { status: 400 });
@@ -155,4 +156,4 @@ export async function PATCH(request: NextRequest) {
     console.error('Erro ao atualizar valor:', error);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
-} 
+}

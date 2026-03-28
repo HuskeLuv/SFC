@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { ConsultantInviteStatus, UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { authenticateConsultant } from '@/pages/api/consultant/[...params]';
+import { consultantInvitationSchema } from '@/utils/validation-schemas';
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
@@ -44,13 +45,13 @@ const handleGet = async (req: NextApiRequest, res: NextApiResponse) => {
 const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
   const consultant = await authenticateConsultant(req);
 
-  const { email } = req.body as { email?: string };
-  if (!email) {
+  const parsed = consultantInvitationSchema.safeParse(req.body);
+  if (!parsed.success) {
     res.status(400).json({ error: 'E-mail do cliente é obrigatório.' });
     return;
   }
 
-  const normalizedEmail = normalizeEmail(email);
+  const normalizedEmail = normalizeEmail(parsed.data.email);
   const existingInvite = await prisma.consultantInvite.findFirst({
     where: {
       consultantId: consultant.consultantId,
@@ -80,7 +81,9 @@ const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   if (invitedUser.role !== UserRole.user) {
-    res.status(400).json({ error: 'Apenas usuários finais podem receber convites de consultoria.' });
+    res
+      .status(400)
+      .json({ error: 'Apenas usuários finais podem receber convites de consultoria.' });
     return;
   }
 
@@ -174,4 +177,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.setHeader('Allow', 'GET, POST');
   res.status(405).json({ error: 'Método não permitido.' });
 }
-

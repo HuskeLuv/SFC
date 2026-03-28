@@ -8,6 +8,7 @@ import {
   getItemForUser,
   getGroupForUser,
 } from '@/utils/cashflowPersonalization';
+import { cashflowUpdateSchema, validationError } from '@/utils/validation-schemas';
 
 /**
  * PATCH /api/cashflow/update
@@ -51,7 +52,11 @@ export async function PATCH(request: NextRequest) {
       role: string;
     };
     const requestBody = await request.json();
-    const { operation, type, id, data } = requestBody;
+    const parsed = cashflowUpdateSchema.safeParse(requestBody);
+    if (!parsed.success) {
+      return validationError(parsed);
+    }
+    const { operation, type, id, data } = parsed.data;
 
     // Verificar personificação e registrar log se necessário
     const { requireAuthWithActing } = await import('@/utils/auth');
@@ -65,28 +70,12 @@ export async function PATCH(request: NextRequest) {
 
     const payload = jwtPayload;
 
-    // Validações básicas
-    if (!operation || !type) {
-      return NextResponse.json({ error: 'operation e type são obrigatórios' }, { status: 400 });
-    }
-
-    if (!['create', 'update', 'delete'].includes(operation)) {
-      return NextResponse.json(
-        { error: 'operation deve ser create, update ou delete' },
-        { status: 400 },
-      );
-    }
-
-    if (!['group', 'item'].includes(type)) {
-      return NextResponse.json({ error: 'type deve ser group ou item' }, { status: 400 });
-    }
-
     // Operações com grupos
     let result;
     if (type === 'group') {
-      result = await handleGroupOperation(operation, id, data, payload.id);
+      result = await handleGroupOperation(operation, id, (data || {}) as GroupData, payload.id);
     } else if (type === 'item') {
-      result = await handleItemOperation(operation, id, data, payload.id);
+      result = await handleItemOperation(operation, id, (data || {}) as ItemData, payload.id);
     } else {
       return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
     }

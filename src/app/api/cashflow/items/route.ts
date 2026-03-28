@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { personalizeGroup, getGroupForUser } from '@/utils/cashflowPersonalization';
+import { cashflowItemCreateSchema, validationError } from '@/utils/validation-schemas';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,10 +12,15 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
-    const { groupId, descricao, name, significado } = await request.json();
+    const body = await request.json();
+    const parsed = cashflowItemCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
+    }
+    const { groupId, descricao, name, significado } = parsed.data;
 
     // Validate input
-    if (!groupId || (!descricao && !name)) {
+    if (!descricao && !name) {
       return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
     }
 
@@ -38,7 +44,7 @@ export async function POST(request: NextRequest) {
     const newItem = await prisma.cashflowItem.create({
       data: {
         userId: payload.id, // Sempre personalizado quando criado pelo usuário
-        name: name || descricao,
+        name: (name || descricao)!,
         significado: significado || null,
         groupId: finalGroupId,
         rank: newRank,
@@ -47,7 +53,7 @@ export async function POST(request: NextRequest) {
         values: {
           where: { userId: payload.id },
         },
-      }
+      },
     });
 
     return NextResponse.json(newItem);
@@ -55,4 +61,4 @@ export async function POST(request: NextRequest) {
     console.error('Erro ao criar item:', error);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
-} 
+}

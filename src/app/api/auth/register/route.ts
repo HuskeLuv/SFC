@@ -3,33 +3,36 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { setupUserCashflow } from '@/utils/cashflowSetup';
+import { registerSchema, validationError } from '@/utils/validation-schemas';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, name } = await req.json();
-    if (!email || !password || !name) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    const body = await req.json();
+    const parsed = registerSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
-    
+    const { email, password, name } = parsed.data;
+
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return NextResponse.json({ error: 'User already exists' }, { status: 409 });
     }
-    
+
     const hashed = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { 
-        email, 
-        password: hashed, 
+      data: {
+        email,
+        password: hashed,
         name,
         role: 'user',
         // Não definimos avatarUrl - o sistema usará iniciais automaticamente
       },
     });
-    
+
     // Novo usuário usa templates diretamente (userId = null)
     // Não cria cópias físicas - personalização acontece sob demanda
-    
+
     try {
       await setupUserCashflow({ userId: user.id });
     } catch (setupError) {
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest) {
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
+      { expiresIn: '7d' },
     );
     const response = NextResponse.json({
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
@@ -56,4 +59,4 @@ export async function POST(req: NextRequest) {
     console.error('Erro no registro:', error);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
-} 
+}

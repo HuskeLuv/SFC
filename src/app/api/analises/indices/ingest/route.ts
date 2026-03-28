@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { ingestBenchmarkProfitability } from '@/services/benchmarkProfitabilityIngestion';
+import { benchmarkIngestSchema, validationError } from '@/utils/validation-schemas';
 
 /**
  * POST /api/analises/indices/ingest
@@ -14,7 +15,11 @@ export async function POST(request: NextRequest) {
     await requireAuthWithActing(request);
 
     const body = await request.json();
-    const result = await ingestBenchmarkProfitability(body);
+    const parsed = benchmarkIngestSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
+    }
+    const result = await ingestBenchmarkProfitability(parsed.data);
 
     return NextResponse.json({
       success: true,
@@ -26,7 +31,7 @@ export async function POST(request: NextRequest) {
       {
         error: error instanceof Error ? error.message : 'Erro ao ingerir dados de benchmarks',
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

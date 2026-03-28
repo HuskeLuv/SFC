@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { investimentoCreateSchema, validationError } from '@/utils/validation-schemas';
 
 // GET - Buscar investimentos categorizados do usuário
 export async function GET(request: NextRequest) {
@@ -55,27 +56,23 @@ export async function GET(request: NextRequest) {
 
     // Mesclar grupos (personalizações têm prioridade)
     const allInvestmentGroups = [...investmentGroupsCustom];
-    const templateMap = new Map(investmentGroupsTemplate.map(g => [g.name, g]));
-    investmentGroupsCustom.forEach(custom => templateMap.delete(custom.name));
+    const templateMap = new Map(investmentGroupsTemplate.map((g) => [g.name, g]));
+    investmentGroupsCustom.forEach((custom) => templateMap.delete(custom.name));
     allInvestmentGroups.push(...Array.from(templateMap.values()));
 
     // Coletar todos os itens de investimento e ordenar por nome
     const investimentos = allInvestmentGroups
-      .flatMap(group => group.items || [])
+      .flatMap((group) => group.items || [])
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     return NextResponse.json(investimentos);
-    
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
+
     console.error('Erro ao buscar investimentos:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -92,24 +89,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
-    const { 
-      name,
-      descricao, // compatibilidade
-      significado,
-      valor, 
-    } = await request.json();
+    const body = await request.json();
+    const parsed = investimentoCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
+    }
+    const { name, descricao, significado, valor } = parsed.data;
 
     const itemName = name || descricao;
 
     // Validações
-    if (!itemName || !valor) {
-      return NextResponse.json({ 
-        error: 'Campos obrigatórios: name, valor' 
-      }, { status: 400 });
-    }
-
-    if (valor <= 0) {
-      return NextResponse.json({ error: 'Valor deve ser maior que zero' }, { status: 400 });
+    if (!itemName) {
+      return NextResponse.json(
+        {
+          error: 'Campos obrigatórios: name, valor',
+        },
+        { status: 400 },
+      );
     }
 
     // Buscar ou criar grupo de investimentos
@@ -166,7 +162,7 @@ export async function POST(request: NextRequest) {
     // Adicionar valor para o mês atual
     const currentYear = new Date().getFullYear();
     const monthAtual = new Date().getMonth(); // 0 = Janeiro, 11 = Dezembro
-    
+
     await prisma.cashflowValue.create({
       data: {
         itemId: investimento.id,
@@ -189,16 +185,12 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(investimentoCompleto, { status: 201 });
-    
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autorizado') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
+
     console.error('Erro ao adicionar investimento:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
-} 
+}

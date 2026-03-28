@@ -3,12 +3,70 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
 import { isTipoAtivoPermitido } from '@/types/wizard';
+import { z } from 'zod';
+import { validationError } from '@/utils/validation-schemas';
+
+/** Structural validation for the operacao request body (common fields). */
+const operacaoBaseSchema = z
+  .object({
+    tipoAtivo: z.string().min(1).max(100),
+    instituicaoId: z.string().min(1).max(255),
+    assetId: z.string().max(255).optional(),
+    ativo: z.string().max(255).optional(),
+    dataCompra: z.string().optional(),
+    dataInicio: z.string().optional(),
+    dataVencimento: z.string().optional(),
+    quantidade: z.number().finite().optional(),
+    cotacaoUnitaria: z.number().finite().optional(),
+    cotacaoCompra: z.number().finite().optional(),
+    cotacaoMoeda: z.number().finite().optional(),
+    valorAplicado: z.number().finite().optional(),
+    valorInvestido: z.number().finite().optional(),
+    taxaCorretagem: z.number().finite().optional().default(0),
+    valorTotal: z.number().finite().optional(),
+    observacoes: z.string().max(1000).optional(),
+    descricao: z.string().max(1000).optional(),
+    moeda: z.string().max(50).optional(),
+    nomePersonalizado: z.string().max(255).optional(),
+    precoUnitario: z.number().finite().optional(),
+    emissorId: z.string().max(255).optional(),
+    periodo: z.string().max(100).optional(),
+    taxaJurosAnual: z.number().finite().optional(),
+    taxaFixaAnual: z.number().finite().optional(),
+    rendaFixaTipo: z.string().max(100).optional(),
+    rendaFixaIndexer: z.string().max(50).optional(),
+    rendaFixaIndexerPercent: z.number().finite().optional(),
+    rendaFixaLiquidity: z.string().max(100).optional(),
+    rendaFixaTaxExempt: z.boolean().optional(),
+    cotizacaoResgate: z.string().max(100).optional(),
+    liquidacaoResgate: z.string().max(100).optional(),
+    vencimento: z.string().max(100).optional(),
+    benchmark: z.string().max(100).optional(),
+    estrategia: z.string().max(100).optional(),
+    tipoFii: z.string().max(100).optional(),
+    metodo: z.string().max(100).optional(),
+    tipoDebenture: z.string().max(100).optional(),
+    tipoFundo: z.string().max(100).optional(),
+    estrategiaReit: z.string().max(100).optional(),
+    regiaoEtf: z.string().max(100).optional(),
+    tesouroDestino: z.string().max(100).optional(),
+    fundoDestino: z.string().max(100).optional(),
+    fundoRendaFixaTipo: z.string().max(100).optional(),
+    opcaoTipo: z.string().max(100).optional(),
+    opcaoCompraVenda: z.string().max(100).optional(),
+    contaCorrenteDestino: z.string().max(100).optional(),
+  })
+  .passthrough();
 
 export async function POST(request: NextRequest) {
   try {
     const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
 
     const requestBody = await request.json();
+    const parsed = operacaoBaseSchema.safeParse(requestBody);
+    if (!parsed.success) {
+      return validationError(parsed);
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: targetUserId },

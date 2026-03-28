@@ -2,27 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
+import { valorAtualizadoReservaSchema, validationError } from '@/utils/validation-schemas';
 
 export async function PATCH(request: NextRequest) {
   try {
     const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
-    
+
     const body = await request.json();
-    const { portfolioId, valorAtualizado } = body;
-
-    if (!portfolioId || valorAtualizado === undefined) {
-      return NextResponse.json(
-        { error: 'portfolioId e valorAtualizado são obrigatórios' },
-        { status: 400 }
-      );
+    const parsed = valorAtualizadoReservaSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
-
-    if (valorAtualizado <= 0) {
-      return NextResponse.json(
-        { error: 'Valor atualizado deve ser maior que zero' },
-        { status: 400 }
-      );
-    }
+    const { portfolioId, valorAtualizado } = parsed.data;
 
     // Buscar o portfolio
     const portfolio = await prisma.portfolio.findUnique({
@@ -31,30 +22,25 @@ export async function PATCH(request: NextRequest) {
     });
 
     if (!portfolio) {
-      return NextResponse.json(
-        { error: 'Portfolio não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Portfolio não encontrado' }, { status: 404 });
     }
 
     // Verificar se é do usuário correto
     if (portfolio.userId !== targetUserId) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 
     // Verificar se é uma reserva (emergency ou opportunity)
-    const isReserva = portfolio.asset?.type === 'emergency' || 
-                      portfolio.asset?.type === 'opportunity' ||
-                      portfolio.asset?.symbol === 'RESERVA-EMERG' ||
-                      portfolio.asset?.symbol === 'RESERVA-OPORT';
+    const isReserva =
+      portfolio.asset?.type === 'emergency' ||
+      portfolio.asset?.type === 'opportunity' ||
+      portfolio.asset?.symbol === 'RESERVA-EMERG' ||
+      portfolio.asset?.symbol === 'RESERVA-OPORT';
 
     if (!isReserva) {
       return NextResponse.json(
         { error: 'Esta API é apenas para reservas de emergência e oportunidade' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -70,9 +56,9 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    const result = NextResponse.json({ 
-      success: true, 
-      message: 'Valor atualizado com sucesso' 
+    const result = NextResponse.json({
+      success: true,
+      message: 'Valor atualizado com sucesso',
     });
 
     // Registrar log se estiver personificado
@@ -92,7 +78,7 @@ export async function PATCH(request: NextRequest) {
     return result;
   } catch (error) {
     console.error('Erro ao atualizar valor atualizado:', error);
-    
+
     // Registrar log de erro se estiver personificado
     try {
       const { requireAuthWithActing } = await import('@/utils/auth');
@@ -118,10 +104,6 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
-

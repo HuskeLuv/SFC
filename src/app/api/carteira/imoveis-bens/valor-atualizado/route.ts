@@ -2,27 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
+import { valorAtualizadoImovelSchema, validationError } from '@/utils/validation-schemas';
 
 export async function POST(request: NextRequest) {
   try {
     const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
-    
+
     const body = await request.json();
-    const { portfolioId, novoValor } = body;
-
-    if (!portfolioId || novoValor === undefined || isNaN(novoValor)) {
-      return NextResponse.json(
-        { error: 'portfolioId e novoValor são obrigatórios e devem ser números válidos' },
-        { status: 400 }
-      );
+    const parsed = valorAtualizadoImovelSchema.safeParse(body);
+    if (!parsed.success) {
+      return validationError(parsed);
     }
-
-    if (novoValor <= 0) {
-      return NextResponse.json(
-        { error: 'Valor atualizado deve ser maior que zero' },
-        { status: 400 }
-      );
-    }
+    const { portfolioId, novoValor } = parsed.data;
 
     // Buscar o portfolio
     const portfolio = await prisma.portfolio.findUnique({
@@ -31,28 +22,19 @@ export async function POST(request: NextRequest) {
     });
 
     if (!portfolio) {
-      return NextResponse.json(
-        { error: 'Portfolio não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Portfolio não encontrado' }, { status: 404 });
     }
 
     // Verificar se é do usuário correto
     if (portfolio.userId !== targetUserId) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 
     // Verificar se é um imóvel/bem
     const isImovelBem = portfolio.asset?.type === 'imovel';
 
     if (!isImovelBem) {
-      return NextResponse.json(
-        { error: 'Esta API é apenas para imóveis e bens' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Esta API é apenas para imóveis e bens' }, { status: 400 });
     }
 
     // Atualizar o avgPrice do portfolio (que representa o valor atual por unidade)
@@ -89,7 +71,7 @@ export async function POST(request: NextRequest) {
     return result;
   } catch (error) {
     console.error('Erro ao atualizar valor atualizado de imóvel/bem:', error);
-    
+
     // Registrar log de erro se estiver personificado
     try {
       const authResult = await requireAuthWithActing(request);
@@ -115,8 +97,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { error: 'Erro interno do servidor ao atualizar valor atualizado de imóvel/bem' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

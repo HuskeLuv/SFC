@@ -1,18 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import {
-  ConsultantClientStatus,
-  ConsultantInviteStatus,
-  UserRole,
-} from '@prisma/client';
+import { ConsultantClientStatus, ConsultantInviteStatus, UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { ApiAuthError, authenticateApiUser } from '@/utils/apiAuth';
+import { invitationRespondSchema } from '@/utils/validation-schemas';
 
 const parseInviteId = (raw: string | string[] | undefined) => {
   if (!raw) {
     return null;
   }
 
-  return Array.isArray(raw) ? raw[0] ?? null : raw;
+  return Array.isArray(raw) ? (raw[0] ?? null) : raw;
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -46,15 +43,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  const { action, notificationId } = req.body as {
-    action?: 'accept' | 'reject';
-    notificationId?: string;
-  };
-
-  if (!action || !['accept', 'reject'].includes(action)) {
+  const parsed = invitationRespondSchema.safeParse(req.body);
+  if (!parsed.success) {
     res.status(400).json({ error: 'Ação inválida.' });
     return;
   }
+  const { action, notificationId } = parsed.data;
 
   const invite = await prisma.consultantInvite.findUnique({
     where: { id: inviteId },
@@ -109,8 +103,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const now = new Date();
 
   const updateData = {
-    status:
-      action === 'accept' ? ConsultantInviteStatus.accepted : ConsultantInviteStatus.rejected,
+    status: action === 'accept' ? ConsultantInviteStatus.accepted : ConsultantInviteStatus.rejected,
     respondedAt: now,
     invitedUserId: invite.invitedUserId ?? payload.id,
   };
@@ -187,4 +180,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   });
 }
-
