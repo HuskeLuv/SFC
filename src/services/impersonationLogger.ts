@@ -1,7 +1,7 @@
 import type { NextApiRequest } from 'next';
 import type { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { readConsultantActingCookie } from '@/utils/consultantActing';
+import { readConsultantActingCookie, resolveSessionToken } from '@/utils/consultantActing';
 
 type RequestWithHeaders = NextApiRequest | NextRequest;
 
@@ -11,6 +11,7 @@ interface LogConsultantActionParams {
   action: string;
   details: Record<string, unknown>;
   request: RequestWithHeaders;
+  sessionToken?: string;
 }
 
 /**
@@ -64,7 +65,7 @@ const getUserAgent = (request: RequestWithHeaders): string | null => {
 
 /**
  * Registra uma ação realizada por um consultor durante personificação
- * 
+ *
  * Esta função nunca deve lançar erros para não interromper operações do sistema.
  * Todos os erros são capturados e logados no console.
  */
@@ -74,6 +75,7 @@ export const logConsultantAction = async ({
   action,
   details,
   request,
+  sessionToken,
 }: LogConsultantActionParams): Promise<void> => {
   try {
     const ipAddress = getIpAddress(request);
@@ -87,6 +89,7 @@ export const logConsultantAction = async ({
         details: details as object,
         ipAddress,
         userAgent,
+        sessionToken: sessionToken ?? null,
         createdAt: new Date(),
       },
     });
@@ -98,7 +101,7 @@ export const logConsultantAction = async ({
 
 /**
  * Verifica se a requisição atual está dentro de uma sessão de personificação
- * 
+ *
  * @param request - Request (NextApiRequest ou NextRequest)
  * @param currentUserId - ID do usuário autenticado
  * @returns Objeto com informações sobre personificação ou null
@@ -108,11 +111,19 @@ export const isConsultantImpersonating = async (
   currentUserId: string,
 ): Promise<{ consultantId: string; clientId: string } | null> => {
   try {
-    const actingClientId = readConsultantActingCookie(request);
-    
-    if (!actingClientId) {
+    const sessionToken = readConsultantActingCookie(request);
+
+    if (!sessionToken) {
       return null;
     }
+
+    // Resolve opaque token to clientId via server-side session
+    const sessionData = await resolveSessionToken(sessionToken);
+    if (!sessionData) {
+      return null;
+    }
+
+    const actingClientId = sessionData.clientId;
 
     // Verificar se o usuário atual é um consultor e se tem permissão
     const user = await prisma.user.findUnique({
@@ -221,4 +232,3 @@ export const logDataUpdate = async (
     request,
   });
 };
-

@@ -507,13 +507,30 @@ model ConsultantImpersonationLog {
   details      Json
   ipAddress    String?
   userAgent    String?
+  sessionToken String?
   createdAt    DateTime @default(now())
 
   @@index([consultantId])
   @@index([clientId])
   @@index([createdAt])
   @@index([action])
+  @@index([sessionToken])
   @@map("consultant_impersonation_logs")
+}
+
+model ImpersonationSession {
+  id           String    @id @default(uuid())
+  sessionToken String    @unique
+  consultantId String
+  clientId     String
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  endedAt      DateTime?
+
+  @@index([consultantId])
+  @@index([sessionToken])
+  @@index([expiresAt])
+  @@map("impersonation_sessions")
 }
 
 // ===== ECONOMIC INDEXES MODULE =====

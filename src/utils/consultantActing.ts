@@ -39,6 +39,38 @@ export const readConsultantActingCookie = (req: RequestWithCookies): string | nu
   return readFromApiRequest(apiCookies, CONSULTANT_ACTING_COOKIE);
 };
 
+/**
+ * Resolves an opaque session token from the cookie to the actual clientId
+ * by looking up the ImpersonationSession table.
+ * Returns null if the token is invalid, expired, or the session has ended.
+ */
+export const resolveSessionToken = async (
+  sessionToken: string,
+): Promise<{ clientId: string; consultantId: string } | null> => {
+  const session = await prisma.impersonationSession.findUnique({
+    where: { sessionToken },
+  });
+
+  if (!session) {
+    return null;
+  }
+
+  // Check if session has been explicitly ended
+  if (session.endedAt) {
+    return null;
+  }
+
+  // Check if session has expired
+  if (session.expiresAt < new Date()) {
+    return null;
+  }
+
+  return {
+    clientId: session.clientId,
+    consultantId: session.consultantId,
+  };
+};
+
 export interface ActingClientInfo {
   id: string;
   name: string;
@@ -61,13 +93,24 @@ export const resolveActingContext = async (
     };
   }
 
-  const actingClientId = readConsultantActingCookie(req);
-  if (!actingClientId) {
+  const sessionToken = readConsultantActingCookie(req);
+  if (!sessionToken) {
     return {
       targetUserId: currentUser.id,
       actingClient: null,
     };
   }
+
+  // Resolve opaque token to clientId via server-side session lookup
+  const sessionData = await resolveSessionToken(sessionToken);
+  if (!sessionData) {
+    return {
+      targetUserId: currentUser.id,
+      actingClient: null,
+    };
+  }
+
+  const actingClientId = sessionData.clientId;
 
   const assignment = await prisma.clientConsultant.findFirst({
     where: {
