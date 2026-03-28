@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { generateCsrfToken, validateCsrfToken, CSRF_COOKIE_NAME } from '@/utils/csrf';
+import { checkRateLimit, getClientIp, getTierForPath } from '@/lib/rateLimit';
+
+// ---------------------------------------------------------------------------
+// Rate-limit store — lives in isolate memory, resets on cold start.
+// Each Edge isolate has its own store (acceptable for first iteration).
+// ---------------------------------------------------------------------------
+const rateLimitStore = new Map<string, { timestamps: number[] }>();
 
 const PUBLIC_FILE = /\.(.*)$/;
 
@@ -47,12 +54,61 @@ function isCsrfExempt(pathname: string): boolean {
 /** HTTP methods that change state and therefore require CSRF. */
 const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
 
+/** Apply rate-limit headers from a check result to a response. */
+function applyRateLimitHeaders(
+  response: NextResponse,
+  headers: Record<string, string> | null,
+): void {
+  if (headers) {
+    for (const [key, value] of Object.entries(headers)) {
+      response.headers.set(key, value);
+    }
+  }
+}
+
+/** Apply security headers to a response. */
+function setSecurityHeaders(response: NextResponse): void {
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // --- Rate limiting (runs before auth so brute-force is blocked early) ---
+  let rateLimitHeaders: Record<string, string> | null = null;
+
+  if (pathname.startsWith('/api/')) {
+    const clientIp = getClientIp(request);
+    const tierConfig = getTierForPath(pathname);
+    // Group by route prefix (up to 4 segments) so /api/auth/login and
+    // /api/auth/register each get their own bucket.
+    const key = `${clientIp}:${pathname.split('/').slice(0, 4).join('/')}`;
+    const result = checkRateLimit(rateLimitStore, key, tierConfig);
+
+    if (!result.allowed) {
+      const response = NextResponse.json(
+        {
+          error: `Muitas requisições. Tente novamente em ${result.retryAfterSeconds} segundos.`,
+        },
+        { status: 429 },
+      );
+      applyRateLimitHeaders(response, result.headers);
+      setSecurityHeaders(response);
+      return response;
+    }
+
+    rateLimitHeaders = result.headers;
+  }
+
   // --- Public routes: allow through without auth ---
   if (isPublicRoute(pathname)) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    setSecurityHeaders(response);
+    applyRateLimitHeaders(response, rateLimitHeaders);
+    return response;
   }
 
   // --- JWT verification ---
@@ -60,7 +116,9 @@ export async function middleware(request: NextRequest) {
   if (!tokenCookie?.value) {
     const url = request.nextUrl.clone();
     url.pathname = '/signin';
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    setSecurityHeaders(response);
+    return response;
   }
 
   try {
@@ -71,6 +129,7 @@ export async function middleware(request: NextRequest) {
     url.pathname = '/signin';
     const response = NextResponse.redirect(url);
     response.cookies.delete('token');
+    setSecurityHeaders(response);
     return response;
   }
 
@@ -81,12 +140,19 @@ export async function middleware(request: NextRequest) {
     !isCsrfExempt(pathname)
   ) {
     if (!validateCsrfToken(request)) {
-      return NextResponse.json({ error: 'CSRF token missing or invalid' }, { status: 403 });
+      const response = NextResponse.json(
+        { error: 'CSRF token missing or invalid' },
+        { status: 403 },
+      );
+      setSecurityHeaders(response);
+      return response;
     }
   }
 
   // --- Ensure CSRF cookie is set (for all authenticated responses) ---
   const response = NextResponse.next();
+  setSecurityHeaders(response);
+  applyRateLimitHeaders(response, rateLimitHeaders);
   if (!request.cookies.get(CSRF_COOKIE_NAME)) {
     response.cookies.set(CSRF_COOKIE_NAME, generateCsrfToken(), {
       httpOnly: false, // JS must be able to read it
@@ -100,5 +166,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api/auth|api/public|_next|public|favicon.ico|signin|signup|test).*)'],
+  matcher: ['/((?!_next|public|favicon.ico|signin|signup|test).*)'],
 };
