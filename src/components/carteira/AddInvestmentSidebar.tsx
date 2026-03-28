@@ -1,12 +1,13 @@
-"use client";
-import React, { useState, useEffect } from "react";
-import Sidebar from "@/components/ui/sidebar/Sidebar";
-import Label from "@/components/form/Label";
-import Input from "@/components/form/input/InputField";
-import Select from "@/components/form/Select";
-import DatePicker from "@/components/form/date-picker";
-import AutocompleteInput from "@/components/form/AutocompleteInput";
-import Button from "@/components/ui/button/Button";
+'use client';
+import React, { useState, useEffect } from 'react';
+import Sidebar from '@/components/ui/sidebar/Sidebar';
+import Label from '@/components/form/Label';
+import Input from '@/components/form/input/InputField';
+import Select from '@/components/form/Select';
+import DatePicker from '@/components/form/date-picker';
+import AutocompleteInput from '@/components/form/AutocompleteInput';
+import Button from '@/components/ui/button/Button';
+import { useCsrf } from '@/hooks/useCsrf';
 
 interface AutocompleteOption {
   value: string;
@@ -44,13 +45,13 @@ interface AddInvestmentSidebarProps {
 }
 
 const TIPOS_ATIVO = [
-  { value: "acao", label: "Ação" },
-  { value: "fii", label: "FII" },
-  { value: "etf", label: "ETF" },
-  { value: "bdr", label: "BDR" },
-  { value: "reit", label: "REIT" },
-  { value: "stock", label: "Stock" },
-  { value: "outro", label: "Outro" },
+  { value: 'acao', label: 'Ação' },
+  { value: 'fii', label: 'FII' },
+  { value: 'etf', label: 'ETF' },
+  { value: 'bdr', label: 'BDR' },
+  { value: 'reit', label: 'REIT' },
+  { value: 'stock', label: 'Stock' },
+  { value: 'outro', label: 'Outro' },
 ];
 
 export default function AddInvestmentSidebar({
@@ -58,18 +59,19 @@ export default function AddInvestmentSidebar({
   onClose,
   onSuccess,
 }: AddInvestmentSidebarProps) {
+  const { csrfFetch } = useCsrf();
   const [formData, setFormData] = useState<FormData>({
-    tipoAtivo: "",
-    instituicao: "",
-    instituicaoId: "",
-    ativo: "",
-    assetId: "",
-    dataCompra: "",
+    tipoAtivo: '',
+    instituicao: '',
+    instituicaoId: '',
+    ativo: '',
+    assetId: '',
+    dataCompra: '',
     quantidade: 0,
     cotacaoUnitaria: 0,
     taxaCorretagem: 0,
     valorTotal: 0,
-    observacoes: "",
+    observacoes: '',
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -85,7 +87,7 @@ export default function AddInvestmentSidebar({
     try {
       const response = await fetch(
         `/api/institutions?search=${encodeURIComponent(search)}&limit=20`,
-        { credentials: 'include' }
+        { credentials: 'include' },
       );
       if (response.ok) {
         const data = await response.json();
@@ -102,7 +104,7 @@ export default function AddInvestmentSidebar({
   const fetchAssets = async (search: string) => {
     if (!formData.tipoAtivo) {
       setAssetOptions([]);
-      setErrors(prev => ({ ...prev, ativo: "Selecione o tipo de ativo antes de buscar." }));
+      setErrors((prev) => ({ ...prev, ativo: 'Selecione o tipo de ativo antes de buscar.' }));
       return;
     }
 
@@ -110,18 +112,24 @@ export default function AddInvestmentSidebar({
     try {
       const response = await fetch(
         `/api/assets?search=${encodeURIComponent(search)}&limit=20&tipo=${formData.tipoAtivo}`,
-        { credentials: 'include' }
+        { credentials: 'include' },
       );
       if (response.ok) {
         const data = await response.json();
         setAssetOptions(data.assets);
         if (!data.assets?.length) {
-          setErrors(prev => ({ ...prev, ativo: "Nenhum ativo encontrado para o tipo selecionado." }));
+          setErrors((prev) => ({
+            ...prev,
+            ativo: 'Nenhum ativo encontrado para o tipo selecionado.',
+          }));
         }
       }
     } catch (error) {
       console.error('Erro ao buscar ativos:', error);
-      setErrors(prev => ({ ...prev, ativo: "Não foi possível carregar os ativos. Tente novamente." }));
+      setErrors((prev) => ({
+        ...prev,
+        ativo: 'Não foi possível carregar os ativos. Tente novamente.',
+      }));
     } finally {
       setAssetLoading(false);
     }
@@ -129,30 +137,30 @@ export default function AddInvestmentSidebar({
 
   // Calcular valor total automaticamente
   useEffect(() => {
-    const valorCalculado = (formData.quantidade * formData.cotacaoUnitaria) + formData.taxaCorretagem;
-    setFormData(prev => ({ ...prev, valorTotal: valorCalculado }));
+    const valorCalculado = formData.quantidade * formData.cotacaoUnitaria + formData.taxaCorretagem;
+    setFormData((prev) => ({ ...prev, valorTotal: valorCalculado }));
   }, [formData.quantidade, formData.cotacaoUnitaria, formData.taxaCorretagem]);
 
   const handleInputChange = (field: keyof FormData, value: string | number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [field]: value,
-      ...(field === 'tipoAtivo' ? { ativo: "", assetId: "" } : {}),
+      ...(field === 'tipoAtivo' ? { ativo: '', assetId: '' } : {}),
     }));
 
     if (field === 'tipoAtivo') {
       setAssetOptions([]);
-      setErrors(prev => ({ ...prev, ativo: undefined }));
+      setErrors((prev) => ({ ...prev, ativo: undefined }));
     }
 
     // Limpar erro do campo quando usuário começar a digitar
     if (errors[field as keyof FormErrors]) {
-      setErrors(prev => ({ ...prev, [field]: undefined }));
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
   const handleInstitutionSelect = (option: AutocompleteOption) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       instituicao: option.label,
       instituicaoId: option.value,
@@ -160,26 +168,26 @@ export default function AddInvestmentSidebar({
   };
 
   const handleAssetSelect = (option: AutocompleteOption) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       ativo: option.label,
       assetId: option.value,
     }));
-    setErrors(prev => ({ ...prev, ativo: undefined }));
+    setErrors((prev) => ({ ...prev, ativo: undefined }));
   };
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    if (!formData.tipoAtivo) newErrors.tipoAtivo = "Tipo de ativo é obrigatório";
-    if (!formData.instituicaoId) newErrors.instituicao = "Instituição é obrigatória";
-    if (!formData.assetId) newErrors.ativo = "Ativo é obrigatório";
-    if (!formData.dataCompra) newErrors.dataCompra = "Data da compra é obrigatória";
+    if (!formData.tipoAtivo) newErrors.tipoAtivo = 'Tipo de ativo é obrigatório';
+    if (!formData.instituicaoId) newErrors.instituicao = 'Instituição é obrigatória';
+    if (!formData.assetId) newErrors.ativo = 'Ativo é obrigatório';
+    if (!formData.dataCompra) newErrors.dataCompra = 'Data da compra é obrigatória';
     if (!formData.quantidade || formData.quantidade <= 0) {
-      newErrors.quantidade = "Quantidade deve ser maior que zero";
+      newErrors.quantidade = 'Quantidade deve ser maior que zero';
     }
     if (!formData.cotacaoUnitaria || formData.cotacaoUnitaria <= 0) {
-      newErrors.cotacaoUnitaria = "Cotação unitária deve ser maior que zero";
+      newErrors.cotacaoUnitaria = 'Cotação unitária deve ser maior que zero';
     }
 
     setErrors(newErrors);
@@ -188,19 +196,18 @@ export default function AddInvestmentSidebar({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch('/api/carteira/operacao', {
+      const response = await csrfFetch('/api/carteira/operacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -209,17 +216,17 @@ export default function AddInvestmentSidebar({
         onClose();
         // Reset form
         setFormData({
-          tipoAtivo: "",
-          instituicao: "",
-          instituicaoId: "",
-          ativo: "",
-          assetId: "",
-          dataCompra: "",
+          tipoAtivo: '',
+          instituicao: '',
+          instituicaoId: '',
+          ativo: '',
+          assetId: '',
+          dataCompra: '',
           quantidade: 0,
           cotacaoUnitaria: 0,
           taxaCorretagem: 0,
           valorTotal: 0,
-          observacoes: "",
+          observacoes: '',
         });
         setErrors({});
       } else {
@@ -236,28 +243,24 @@ export default function AddInvestmentSidebar({
 
   const handleClose = () => {
     setFormData({
-      tipoAtivo: "",
-      instituicao: "",
-      instituicaoId: "",
-      ativo: "",
-      assetId: "",
-      dataCompra: "",
+      tipoAtivo: '',
+      instituicao: '',
+      instituicaoId: '',
+      ativo: '',
+      assetId: '',
+      dataCompra: '',
       quantidade: 0,
       cotacaoUnitaria: 0,
       taxaCorretagem: 0,
       valorTotal: 0,
-      observacoes: "",
+      observacoes: '',
     });
     setErrors({});
     onClose();
   };
 
   return (
-    <Sidebar
-      isOpen={isOpen}
-      onClose={handleClose}
-      title="Adicionar Investimento"
-    >
+    <Sidebar isOpen={isOpen} onClose={handleClose} title="Adicionar Investimento">
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Tipo de Ativo */}
         <div>
@@ -268,9 +271,7 @@ export default function AddInvestmentSidebar({
             onChange={(value) => handleInputChange('tipoAtivo', value)}
             className={errors.tipoAtivo ? 'border-red-500' : ''}
           />
-          {errors.tipoAtivo && (
-            <p className="mt-1 text-sm text-red-500">{errors.tipoAtivo}</p>
-          )}
+          {errors.tipoAtivo && <p className="mt-1 text-sm text-red-500">{errors.tipoAtivo}</p>}
         </div>
 
         {/* Instituição */}
@@ -328,9 +329,7 @@ export default function AddInvestmentSidebar({
               }
             }}
           />
-          {errors.dataCompra && (
-            <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>
-          )}
+          {errors.dataCompra && <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>}
         </div>
 
         {/* Quantidade */}
@@ -419,12 +418,8 @@ export default function AddInvestmentSidebar({
           >
             Cancelar
           </Button>
-          <Button
-            type="submit"
-            className="flex-1"
-            disabled={loading}
-          >
-            {loading ? "Salvando..." : "Salvar"}
+          <Button type="submit" className="flex-1" disabled={loading}>
+            {loading ? 'Salvando...' : 'Salvar'}
           </Button>
         </div>
       </form>

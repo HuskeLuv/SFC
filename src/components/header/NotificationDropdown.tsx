@@ -1,16 +1,12 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { useAuth } from "@/hooks/useAuth";
+import Link from 'next/link';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Dropdown } from '../ui/dropdown/Dropdown';
+import { useAuth } from '@/hooks/useAuth';
+import { useCsrf } from '@/hooks/useCsrf';
 
-type InviteStatus = "pending" | "accepted" | "rejected";
+type InviteStatus = 'pending' | 'accepted' | 'rejected';
 
 type NotificationItem = {
   id: string;
@@ -34,22 +30,22 @@ type NotificationItem = {
 
 const formatDateTime = (isoDate: string) => {
   const date = new Date(isoDate);
-  return date.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 };
 
 const getInviteStatusLabel = (status: InviteStatus) => {
-  if (status === "accepted") {
-    return "Convite aceito";
+  if (status === 'accepted') {
+    return 'Convite aceito';
   }
-  if (status === "rejected") {
-    return "Convite recusado";
+  if (status === 'rejected') {
+    return 'Convite recusado';
   }
-  return "Convite pendente";
+  return 'Convite pendente';
 };
 
 const NotificationDropdown: React.FC = () => {
@@ -59,6 +55,7 @@ const NotificationDropdown: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const { user, isLoading: authLoading } = useAuth();
+  const { csrfFetch } = useCsrf();
 
   const hasUnread = useMemo(
     () => notifications.some((notification) => !notification.readAt),
@@ -84,15 +81,16 @@ const NotificationDropdown: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch("/api/notifications", {
-        credentials: "include",
+      const response = await fetch('/api/notifications', {
+        credentials: 'include',
       });
-      const body = (await response.json().catch(() => null)) as
-        | { notifications?: NotificationItem[]; error?: string }
-        | null;
+      const body = (await response.json().catch(() => null)) as {
+        notifications?: NotificationItem[];
+        error?: string;
+      } | null;
 
       if (!response.ok) {
-        console.warn("[NotificationDropdown] request failed", {
+        console.warn('[NotificationDropdown] request failed', {
           status: response.status,
           body,
         });
@@ -103,11 +101,11 @@ const NotificationDropdown: React.FC = () => {
 
       setNotifications(body?.notifications ?? []);
     } catch (fetchError) {
-      console.error("[NotificationDropdown] load error", fetchError);
+      console.error('[NotificationDropdown] load error', fetchError);
       setError(
         fetchError instanceof Error
           ? fetchError.message
-          : "Não foi possível carregar as notificações.",
+          : 'Não foi possível carregar as notificações.',
       );
     } finally {
       setIsLoading(false);
@@ -125,12 +123,11 @@ const NotificationDropdown: React.FC = () => {
       }
 
       try {
-        await fetch("/api/notifications", {
-          method: "PATCH",
+        await csrfFetch('/api/notifications', {
+          method: 'PATCH',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
-          credentials: "include",
           body: JSON.stringify({ ids }),
         });
 
@@ -146,10 +143,10 @@ const NotificationDropdown: React.FC = () => {
           ),
         );
       } catch (markError) {
-        console.error("[NotificationDropdown] mark read error", markError);
+        console.error('[NotificationDropdown] mark read error', markError);
       }
     },
-    [authLoading, user],
+    [authLoading, user, csrfFetch],
   );
 
   useEffect(() => {
@@ -183,7 +180,7 @@ const NotificationDropdown: React.FC = () => {
   };
 
   const handleInviteAction = useCallback(
-    async (notification: NotificationItem, action: "accept" | "reject") => {
+    async (notification: NotificationItem, action: 'accept' | 'reject') => {
       if (authLoading || !user) {
         return;
       }
@@ -196,14 +193,13 @@ const NotificationDropdown: React.FC = () => {
         setRespondingId(notification.id);
         setError(null);
 
-        const response = await fetch(
+        const response = await csrfFetch(
           `/api/consultant/invitations/${notification.invite.id}/respond`,
           {
-            method: "POST",
+            method: 'POST',
             headers: {
-              "Content-Type": "application/json",
+              'Content-Type': 'application/json',
             },
-            credentials: "include",
             body: JSON.stringify({
               action,
               notificationId: notification.id,
@@ -211,22 +207,17 @@ const NotificationDropdown: React.FC = () => {
           },
         );
 
-        const body = (await response.json().catch(() => null)) as
-          | {
-              invitation?: { status?: InviteStatus; respondedAt?: string | null };
-              error?: string;
-            }
-          | null;
+        const body = (await response.json().catch(() => null)) as {
+          invitation?: { status?: InviteStatus; respondedAt?: string | null };
+          error?: string;
+        } | null;
 
         if (!response.ok) {
-          throw new Error(
-            body?.error ?? "Não foi possível registrar a resposta.",
-          );
+          throw new Error(body?.error ?? 'Não foi possível registrar a resposta.');
         }
 
         const nextStatus =
-          body?.invitation?.status ??
-          (action === "accept" ? "accepted" : "rejected");
+          body?.invitation?.status ?? (action === 'accept' ? 'accepted' : 'rejected');
 
         const readTimestamp = new Date().toISOString();
 
@@ -236,29 +227,25 @@ const NotificationDropdown: React.FC = () => {
               ? {
                   ...item,
                   readAt: readTimestamp,
-                  invite: item.invite
-                    ? { ...item.invite, status: nextStatus }
-                    : item.invite,
+                  invite: item.invite ? { ...item.invite, status: nextStatus } : item.invite,
                 }
               : item,
           ),
         );
       } catch (inviteError) {
-        console.error("[NotificationDropdown] respond error", inviteError);
+        console.error('[NotificationDropdown] respond error', inviteError);
         setError(
-          inviteError instanceof Error
-            ? inviteError.message
-            : "Não foi possível concluir a ação.",
+          inviteError instanceof Error ? inviteError.message : 'Não foi possível concluir a ação.',
         );
       } finally {
         setRespondingId(null);
       }
     },
-    [authLoading, user],
+    [authLoading, user, csrfFetch],
   );
 
   const renderInviteActions = (notification: NotificationItem) => {
-    if (!notification.invite || notification.invite.status !== "pending") {
+    if (!notification.invite || notification.invite.status !== 'pending') {
       return null;
     }
 
@@ -268,21 +255,21 @@ const NotificationDropdown: React.FC = () => {
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          onClick={() => void handleInviteAction(notification, "accept")}
+          onClick={() => void handleInviteAction(notification, 'accept')}
           disabled={isProcessing}
           className="inline-flex flex-1 items-center justify-center rounded-lg border border-success-500 bg-success-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-success-600 disabled:cursor-not-allowed disabled:opacity-60"
           aria-label="Aceitar convite de consultoria"
         >
-          {isProcessing ? "Processando..." : "Aceitar"}
+          {isProcessing ? 'Processando...' : 'Aceitar'}
         </button>
         <button
           type="button"
-          onClick={() => void handleInviteAction(notification, "reject")}
+          onClick={() => void handleInviteAction(notification, 'reject')}
           disabled={isProcessing}
           className="inline-flex flex-1 items-center justify-center rounded-lg border border-error-500 bg-white px-3 py-1.5 text-xs font-semibold text-error-500 transition hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-error-400 dark:bg-transparent dark:text-error-300 dark:hover:bg-error-500/10"
           aria-label="Recusar convite de consultoria"
         >
-          {isProcessing ? "Processando..." : "Recusar"}
+          {isProcessing ? 'Processando...' : 'Recusar'}
         </button>
       </div>
     );
@@ -314,7 +301,7 @@ const NotificationDropdown: React.FC = () => {
         {hasUnread ? (
           <span className="sr-only">
             {unreadCount === 1
-              ? "Você tem uma notificação não lida"
+              ? 'Você tem uma notificação não lida'
               : `Você tem ${unreadCount} notificações não lidas`}
           </span>
         ) : null}
@@ -327,9 +314,7 @@ const NotificationDropdown: React.FC = () => {
       >
         <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-700">
           <div className="flex flex-col">
-            <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-              Notificações
-            </h5>
+            <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Notificações</h5>
             <span className="text-xs text-gray-500 dark:text-gray-400">
               Atualize suas pendências rapidamente
             </span>
@@ -421,4 +406,3 @@ const NotificationDropdown: React.FC = () => {
 };
 
 export default NotificationDropdown;
-

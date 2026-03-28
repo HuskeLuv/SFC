@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import Button from '@/components/ui/button/Button';
 import { Modal } from '@/components/ui/modal';
 import { Dropdown } from '@/components/ui/dropdown/Dropdown';
+import { useCsrf } from '@/hooks/useCsrf';
 import { DropdownItem } from '@/components/ui/dropdown/DropdownItem';
 import EditableField from '@/components/carteira/shared/EditableField';
 import { ArrowRightIcon, ChevronDownIcon, ChevronLeftIcon, PlusIcon, TrashBinIcon } from '@/icons';
@@ -163,6 +164,7 @@ const defaultProventoDraft = (): ProventoDraft => {
 const AtivoEditarContent = () => {
   const params = useParams();
   const router = useRouter();
+  const { csrfFetch } = useCsrf();
   const id = params?.id as string;
   const [data, setData] = useState<EditarPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -204,10 +206,9 @@ const AtivoEditarContent = () => {
     async (transacaoId: string, field: string, value: number | string) => {
       try {
         const body: Record<string, unknown> = { [field]: value };
-        const res = await fetch(`/api/historico/transacao/${transacaoId}`, {
+        const res = await csrfFetch(`/api/historico/transacao/${transacaoId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(body),
         });
         if (res.ok) {
@@ -217,15 +218,14 @@ const AtivoEditarContent = () => {
         console.error('Erro ao atualizar transação:', err);
       }
     },
-    [loadData],
+    [loadData, csrfFetch],
   );
 
   const handleConfirmDeleteTx = useCallback(async () => {
     if (!transacaoIdToDelete) return;
     try {
-      const res = await fetch(`/api/historico/transacao/${transacaoIdToDelete}`, {
+      const res = await csrfFetch(`/api/historico/transacao/${transacaoIdToDelete}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
       if (res.ok) {
         await loadData();
@@ -235,14 +235,13 @@ const AtivoEditarContent = () => {
     } finally {
       setTransacaoIdToDelete(null);
     }
-  }, [transacaoIdToDelete, loadData]);
+  }, [transacaoIdToDelete, loadData, csrfFetch]);
 
   const handleDeletePortfolio = useCallback(async () => {
     if (!id) return;
     try {
-      const res = await fetch(`/api/ativos/${id}/portfolio`, {
+      const res = await csrfFetch(`/api/ativos/${id}/portfolio`, {
         method: 'DELETE',
-        credentials: 'include',
       });
       if (res.ok) {
         router.push('/carteira');
@@ -253,7 +252,7 @@ const AtivoEditarContent = () => {
     } finally {
       setConfirmDeletePortfolio(false);
     }
-  }, [id, router]);
+  }, [id, router, csrfFetch]);
 
   const handleStartEditProvento = useCallback((p: ProventoRow) => {
     setProventoEditingId(p.id);
@@ -308,10 +307,9 @@ const AtivoEditarContent = () => {
     setProventoSaving(true);
     try {
       if (proventoEditingId === 'new') {
-        const res = await fetch(`/api/ativos/${id}/proventos`, {
+        const res = await csrfFetch(`/api/ativos/${id}/proventos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(body),
         });
         if (res.ok) {
@@ -319,10 +317,9 @@ const AtivoEditarContent = () => {
           await loadData();
         }
       } else {
-        const res = await fetch(`/api/ativos/${id}/proventos/${proventoEditingId}`, {
+        const res = await csrfFetch(`/api/ativos/${id}/proventos/${proventoEditingId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(body),
         });
         if (res.ok) {
@@ -335,14 +332,13 @@ const AtivoEditarContent = () => {
     } finally {
       setProventoSaving(false);
     }
-  }, [proventoDraft, proventoEditingId, id, loadData, handleCancelProvento]);
+  }, [proventoDraft, proventoEditingId, id, loadData, handleCancelProvento, csrfFetch]);
 
   const handleConfirmDeleteProvento = useCallback(async () => {
     if (!proventoDeleteId || !id) return;
     try {
-      const res = await fetch(`/api/ativos/${id}/proventos/${proventoDeleteId}`, {
+      const res = await csrfFetch(`/api/ativos/${id}/proventos/${proventoDeleteId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
       if (res.ok) {
         handleCancelProvento();
@@ -353,7 +349,7 @@ const AtivoEditarContent = () => {
     } finally {
       setProventoDeleteId(null);
     }
-  }, [proventoDeleteId, id, loadData, handleCancelProvento]);
+  }, [proventoDeleteId, id, loadData, handleCancelProvento, csrfFetch]);
 
   const operacoesPaginadas = useMemo(() => {
     if (!data?.operacoes) return [];

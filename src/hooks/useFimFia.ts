@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FimFiaData, FimFiaAtivo, FimFiaSecao } from '@/types/fimFia';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export const useFimFia = () => {
+  const { csrfFetch } = useCsrf();
   const [data, setData] = useState<FimFiaData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,12 +153,11 @@ export const useFimFia = () => {
   const updateCaixaParaInvestir = useCallback(
     async (novoCaixa: number) => {
       try {
-        const response = await fetch('/api/carteira/fim-fia', {
+        const response = await csrfFetch('/api/carteira/fim-fia', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
         });
 
@@ -173,16 +174,15 @@ export const useFimFia = () => {
         return false;
       }
     },
-    [fetchData],
+    [fetchData, csrfFetch],
   );
 
   const updateValorAtualizado = useCallback(
     async (ativoId: string, novoValor: number) => {
       try {
-        const response = await fetch('/api/carteira/fim-fia', {
+        const response = await csrfFetch('/api/carteira/fim-fia', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ ativoId, campo: 'valorAtualizado', valor: novoValor }),
         });
 
@@ -195,7 +195,7 @@ export const useFimFia = () => {
         return false;
       }
     },
-    [fetchData],
+    [fetchData, csrfFetch],
   );
 
   const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
@@ -284,12 +284,11 @@ export const useFimFia = () => {
       });
 
       // Fazer chamada à API
-      const response = await fetch('/api/carteira/fim-fia/objetivo', {
+      const response = await csrfFetch('/api/carteira/fim-fia/objetivo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ ativoId, objetivo: novoObjetivo }),
       });
 

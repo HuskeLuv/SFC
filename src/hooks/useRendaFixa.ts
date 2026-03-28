@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { RendaFixaData, RendaFixaSecao, RendaFixaAtivo } from '@/types/rendaFixa';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export const useRendaFixa = () => {
+  const { csrfFetch } = useCsrf();
   const [data, setData] = useState<RendaFixaData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,12 +63,11 @@ export const useRendaFixa = () => {
 
   const updateCaixaParaInvestir = async (novoCaixa: number) => {
     try {
-      const response = await fetch('/api/carteira/renda-fixa', {
+      const response = await csrfFetch('/api/carteira/renda-fixa', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
       });
 
@@ -95,12 +96,11 @@ export const useRendaFixa = () => {
     valor: string | number,
   ) => {
     try {
-      const response = await fetch('/api/carteira/renda-fixa', {
+      const response = await csrfFetch('/api/carteira/renda-fixa', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           ativoId: portfolioId,
           campo,

@@ -1,13 +1,14 @@
-"use client";
-import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
-import NotificationDropdown from "@/components/header/NotificationDropdown";
-import UserDropdown from "@/components/header/UserDropdown";
-import { useSidebar } from "@/context/SidebarContext";
-import { useAuth } from "@/hooks/useAuth";
-import Image from "next/image";
-import Link from "next/link";
-import React, { useEffect, useRef, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+'use client';
+import { ThemeToggleButton } from '@/components/common/ThemeToggleButton';
+import NotificationDropdown from '@/components/header/NotificationDropdown';
+import UserDropdown from '@/components/header/UserDropdown';
+import { useSidebar } from '@/context/SidebarContext';
+import { useAuth } from '@/hooks/useAuth';
+import Image from 'next/image';
+import Link from 'next/link';
+import React, { useEffect, useRef, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useCsrf } from '@/hooks/useCsrf';
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
@@ -15,6 +16,7 @@ const AppHeader: React.FC = () => {
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
   const { actingClient, checkAuth, user } = useAuth();
+  const { csrfFetch } = useCsrf();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -38,28 +40,27 @@ const AppHeader: React.FC = () => {
     }
     try {
       setLeavingActing(true);
-      const response = await fetch("/api/consultant/acting", {
-        method: "DELETE",
-        credentials: "include",
+      const response = await csrfFetch('/api/consultant/acting', {
+        method: 'DELETE',
       });
       if (!response.ok && response.status !== 204) {
-        throw new Error("Falha ao encerrar visão do cliente");
+        throw new Error('Falha ao encerrar visão do cliente');
       }
-      
+
       // Aguardar um pouco para garantir que o cookie seja removido
       await new Promise((resolve) => setTimeout(resolve, 100));
-      
+
       // Atualizar o estado de autenticação para refletir a saída da personificação
       await checkAuth();
-      
+
       // Forçar refresh da página para garantir que todos os componentes sejam atualizados
       router.refresh();
-      
-      if (user?.role === "consultant") {
-        router.push("/dashboard/consultor");
+
+      if (user?.role === 'consultant') {
+        router.push('/dashboard/consultor');
       }
     } catch (error) {
-      console.error("Erro ao sair da visão do cliente:", error);
+      console.error('Erro ao sair da visão do cliente:', error);
     } finally {
       setLeavingActing(false);
     }
@@ -67,16 +68,16 @@ const AppHeader: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
         event.preventDefault();
         inputRef.current?.focus();
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
@@ -148,12 +149,7 @@ const AppHeader: React.FC = () => {
           </button>
 
           <Link href="/" className="lg:hidden">
-            <Image
-              width={154}
-              height={32}
-              src="./images/logo/logo-icon.svg"
-              alt="Logo"
-            />
+            <Image width={154} height={32} src="./images/logo/logo-icon.svg" alt="Logo" />
           </Link>
 
           <button
@@ -212,7 +208,7 @@ const AppHeader: React.FC = () => {
         </div>
         <div
           className={`${
-            isApplicationMenuOpen ? "flex" : "hidden"
+            isApplicationMenuOpen ? 'flex' : 'hidden'
           } items-center justify-between w-full gap-4 px-5 py-4 lg:flex shadow-theme-md lg:justify-end lg:px-0 lg:shadow-none`}
         >
           <div className="flex items-center gap-2 2xsm:gap-3">
@@ -234,11 +230,11 @@ const AppHeader: React.FC = () => {
                   type="button"
                   onClick={handleExitActing}
                   className={`inline-flex items-center justify-center rounded-md border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-800/40 dark:text-blue-100 dark:hover:bg-blue-700/40 ${
-                    leavingActing ? "cursor-progress opacity-70" : ""
+                    leavingActing ? 'cursor-progress opacity-70' : ''
                   }`}
                   aria-label="Encerrar personificação"
                 >
-                  {leavingActing ? "Saindo..." : "Sair"}
+                  {leavingActing ? 'Saindo...' : 'Sair'}
                 </button>
               </div>
             ) : null}

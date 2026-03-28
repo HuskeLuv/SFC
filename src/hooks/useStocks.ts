@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CarteiraStockData, CarteiraStockAtivo, CarteiraStockSecao } from '@/types/carteiraStocks';
+import { useCsrf } from '@/hooks/useCsrf';
 
 // Hook original para compatibilidade com componentes existentes
 export const useStocks = () => {
@@ -81,6 +82,7 @@ export const useStocks = () => {
 };
 
 export const useCarteiraStocks = () => {
+  const { csrfFetch } = useCsrf();
   const [data, setData] = useState<CarteiraStockData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -244,12 +246,11 @@ export const useCarteiraStocks = () => {
   const updateCaixaParaInvestir = useCallback(
     async (novoCaixa: number) => {
       try {
-        const response = await fetch('/api/carteira/stocks', {
+        const response = await csrfFetch('/api/carteira/stocks', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
         });
 
@@ -266,7 +267,7 @@ export const useCarteiraStocks = () => {
         return false;
       }
     },
-    [fetchData],
+    [fetchData, csrfFetch],
   );
 
   const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
@@ -355,12 +356,11 @@ export const useCarteiraStocks = () => {
       });
 
       // Fazer chamada à API
-      const response = await fetch('/api/carteira/stocks/objetivo', {
+      const response = await csrfFetch('/api/carteira/stocks/objetivo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ ativoId, objetivo: novoObjetivo }),
       });
 
@@ -380,12 +380,11 @@ export const useCarteiraStocks = () => {
 
   const updateCotacao = async (ativoId: string, novaCotacao: number) => {
     try {
-      const response = await fetch('/api/carteira/stocks/cotacao', {
+      const response = await csrfFetch('/api/carteira/stocks/cotacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ ativoId, cotacao: novaCotacao }),
       });
 

@@ -1,5 +1,6 @@
-"use client";
-import { useEffect, useState } from "react";
+'use client';
+import { useEffect, useState } from 'react';
+import { useCsrf } from '@/hooks/useCsrf';
 
 interface CashflowItem {
   id: string;
@@ -13,6 +14,7 @@ interface CashflowItem {
 }
 
 export default function TablesPage() {
+  const { csrfFetch } = useCsrf();
   const [cashflow, setCashflow] = useState<CashflowItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export default function TablesPage() {
 
   function fetchCashflow() {
     setLoading(true);
-    fetch("/api/cashflow", { credentials: "include" })
+    fetch('/api/cashflow', { credentials: 'include' })
       .then(async (res) => {
         if (!res.ok) {
           const errorText = await res.text();
@@ -37,8 +39,8 @@ export default function TablesPage() {
         setCashflow(data);
       })
       .catch((error) => {
-        console.error("Fetch error:", error);
-        setError(error.message || "Not authenticated");
+        console.error('Fetch error:', error);
+        setError(error.message || 'Not authenticated');
       })
       .finally(() => setLoading(false));
   }
@@ -47,11 +49,11 @@ export default function TablesPage() {
   function handleAddRow() {
     setNewRow({
       data: new Date().toISOString().split('T')[0],
-      tipo: "Receita",
-      categoria: "",
-      descricao: "",
+      tipo: 'Receita',
+      categoria: '',
+      descricao: '',
       valor: 0,
-      forma_pagamento: "",
+      forma_pagamento: '',
       pago: false,
     });
   }
@@ -64,17 +66,16 @@ export default function TablesPage() {
     if (!newRow) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/cashflow", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+      const res = await csrfFetch('/api/cashflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRow),
       });
-      if (!res.ok) throw new Error("Erro ao salvar nova entrada");
+      if (!res.ok) throw new Error('Erro ao salvar nova entrada');
       setNewRow(null);
       fetchCashflow();
     } catch {
-      setError("Erro ao salvar nova entrada");
+      setError('Erro ao salvar nova entrada');
     } finally {
       setSaving(false);
     }
@@ -95,35 +96,33 @@ export default function TablesPage() {
     if (!editRow) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/cashflow/${editRow.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+      const res = await csrfFetch(`/api/cashflow/${editRow.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editRow),
       });
-      if (!res.ok) throw new Error("Erro ao salvar edição");
+      if (!res.ok) throw new Error('Erro ao salvar edição');
       setEditingId(null);
       setEditRow(null);
       fetchCashflow();
     } catch {
-      setError("Erro ao salvar edição");
+      setError('Erro ao salvar edição');
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDeleteRow(id: string) {
-    if (!confirm("Tem certeza que deseja excluir esta entrada?")) return;
+    if (!confirm('Tem certeza que deseja excluir esta entrada?')) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/cashflow/${id}`, {
-        method: "DELETE",
-        credentials: "include",
+      const res = await csrfFetch(`/api/cashflow/${id}`, {
+        method: 'DELETE',
       });
-      if (!res.ok) throw new Error("Erro ao excluir entrada");
+      if (!res.ok) throw new Error('Erro ao excluir entrada');
       fetchCashflow();
     } catch {
-      setError("Erro ao excluir entrada");
+      setError('Erro ao excluir entrada');
     } finally {
       setSaving(false);
     }
@@ -136,7 +135,7 @@ export default function TablesPage() {
   function formatCurrency(value: number) {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'BRL',
     }).format(value);
   }
 
@@ -160,14 +159,30 @@ export default function TablesPage() {
         <table className="w-full border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
           <thead className="bg-gray-50 dark:bg-gray-800">
             <tr>
-              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Data</th>
-              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Tipo</th>
-              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Categoria</th>
-              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Descrição</th>
-              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Valor</th>
-              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Forma Pagamento</th>
-              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Pago</th>
-              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Ações</th>
+              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                Data
+              </th>
+              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                Tipo
+              </th>
+              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                Categoria
+              </th>
+              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                Descrição
+              </th>
+              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                Valor
+              </th>
+              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                Forma Pagamento
+              </th>
+              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                Pago
+              </th>
+              <th className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                Ações
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-white/[0.03]">
@@ -177,16 +192,16 @@ export default function TablesPage() {
                   <input
                     className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     type="date"
-                    value={newRow.data || ""}
-                    onChange={e => setNewRow({ ...newRow, data: e.target.value })}
+                    value={newRow.data || ''}
+                    onChange={(e) => setNewRow({ ...newRow, data: e.target.value })}
                     disabled={saving}
                   />
                 </td>
                 <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
                   <select
                     className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    value={newRow.tipo || ""}
-                    onChange={e => setNewRow({ ...newRow, tipo: e.target.value })}
+                    value={newRow.tipo || ''}
+                    onChange={(e) => setNewRow({ ...newRow, tipo: e.target.value })}
                     disabled={saving}
                   >
                     <option value="Receita">Receita</option>
@@ -196,8 +211,8 @@ export default function TablesPage() {
                 <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
                   <input
                     className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    value={newRow.categoria || ""}
-                    onChange={e => setNewRow({ ...newRow, categoria: e.target.value })}
+                    value={newRow.categoria || ''}
+                    onChange={(e) => setNewRow({ ...newRow, categoria: e.target.value })}
                     disabled={saving}
                     placeholder="Categoria"
                   />
@@ -205,8 +220,8 @@ export default function TablesPage() {
                 <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
                   <input
                     className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    value={newRow.descricao || ""}
-                    onChange={e => setNewRow({ ...newRow, descricao: e.target.value })}
+                    value={newRow.descricao || ''}
+                    onChange={(e) => setNewRow({ ...newRow, descricao: e.target.value })}
                     disabled={saving}
                     placeholder="Descrição"
                   />
@@ -216,8 +231,10 @@ export default function TablesPage() {
                     className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     type="number"
                     step="0.01"
-                    value={newRow.valor || ""}
-                    onChange={e => setNewRow({ ...newRow, valor: parseFloat(e.target.value) || 0 })}
+                    value={newRow.valor || ''}
+                    onChange={(e) =>
+                      setNewRow({ ...newRow, valor: parseFloat(e.target.value) || 0 })
+                    }
                     disabled={saving}
                     placeholder="0.00"
                   />
@@ -225,8 +242,8 @@ export default function TablesPage() {
                 <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
                   <input
                     className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    value={newRow.forma_pagamento || ""}
-                    onChange={e => setNewRow({ ...newRow, forma_pagamento: e.target.value })}
+                    value={newRow.forma_pagamento || ''}
+                    onChange={(e) => setNewRow({ ...newRow, forma_pagamento: e.target.value })}
                     disabled={saving}
                     placeholder="Forma de pagamento"
                   />
@@ -236,7 +253,7 @@ export default function TablesPage() {
                     className="w-4 h-4"
                     type="checkbox"
                     checked={newRow.pago || false}
-                    onChange={e => setNewRow({ ...newRow, pago: e.target.checked })}
+                    onChange={(e) => setNewRow({ ...newRow, pago: e.target.checked })}
                     disabled={saving}
                   />
                 </td>
@@ -260,23 +277,25 @@ export default function TablesPage() {
                 </td>
               </tr>
             )}
-            {cashflow.map(row =>
+            {cashflow.map((row) =>
               editingId === row.id ? (
                 <tr key={row.id} className="border-b border-gray-200 dark:border-gray-700">
                   <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
                     <input
                       className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                       type="date"
-                      value={editRow?.data ? new Date(editRow.data).toISOString().split('T')[0] : ""}
-                      onChange={e => setEditRow({ ...editRow!, data: e.target.value })}
+                      value={
+                        editRow?.data ? new Date(editRow.data).toISOString().split('T')[0] : ''
+                      }
+                      onChange={(e) => setEditRow({ ...editRow!, data: e.target.value })}
                       disabled={saving}
                     />
                   </td>
                   <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
                     <select
                       className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                      value={editRow?.tipo || ""}
-                      onChange={e => setEditRow({ ...editRow!, tipo: e.target.value })}
+                      value={editRow?.tipo || ''}
+                      onChange={(e) => setEditRow({ ...editRow!, tipo: e.target.value })}
                       disabled={saving}
                     >
                       <option value="Receita">Receita</option>
@@ -286,16 +305,16 @@ export default function TablesPage() {
                   <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
                     <input
                       className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                      value={editRow?.categoria || ""}
-                      onChange={e => setEditRow({ ...editRow!, categoria: e.target.value })}
+                      value={editRow?.categoria || ''}
+                      onChange={(e) => setEditRow({ ...editRow!, categoria: e.target.value })}
                       disabled={saving}
                     />
                   </td>
                   <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
                     <input
                       className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                      value={editRow?.descricao || ""}
-                      onChange={e => setEditRow({ ...editRow!, descricao: e.target.value })}
+                      value={editRow?.descricao || ''}
+                      onChange={(e) => setEditRow({ ...editRow!, descricao: e.target.value })}
                       disabled={saving}
                     />
                   </td>
@@ -304,16 +323,18 @@ export default function TablesPage() {
                       className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                       type="number"
                       step="0.01"
-                      value={editRow?.valor || ""}
-                      onChange={e => setEditRow({ ...editRow!, valor: parseFloat(e.target.value) || 0 })}
+                      value={editRow?.valor || ''}
+                      onChange={(e) =>
+                        setEditRow({ ...editRow!, valor: parseFloat(e.target.value) || 0 })
+                      }
                       disabled={saving}
                     />
                   </td>
                   <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
                     <input
                       className="w-full border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                      value={editRow?.forma_pagamento || ""}
-                      onChange={e => setEditRow({ ...editRow!, forma_pagamento: e.target.value })}
+                      value={editRow?.forma_pagamento || ''}
+                      onChange={(e) => setEditRow({ ...editRow!, forma_pagamento: e.target.value })}
                       disabled={saving}
                     />
                   </td>
@@ -322,7 +343,7 @@ export default function TablesPage() {
                       className="w-4 h-4"
                       type="checkbox"
                       checked={editRow?.pago || false}
-                      onChange={e => setEditRow({ ...editRow!, pago: e.target.checked })}
+                      onChange={(e) => setEditRow({ ...editRow!, pago: e.target.checked })}
                       disabled={saving}
                     />
                   </td>
@@ -346,31 +367,52 @@ export default function TablesPage() {
                   </td>
                 </tr>
               ) : (
-                <tr key={row.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm">{formatDate(row.data)}</td>
+                <tr
+                  key={row.id}
+                  className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <td className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm">
+                    {formatDate(row.data)}
+                  </td>
                   <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      row.tipo === 'Receita' 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                    }`}>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        row.tipo === 'Receita'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                      }`}
+                    >
                       {row.tipo}
                     </span>
                   </td>
-                  <td className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm">{row.categoria}</td>
-                  <td className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm">{row.descricao}</td>
+                  <td className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm">
+                    {row.categoria}
+                  </td>
+                  <td className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm">
+                    {row.descricao}
+                  </td>
                   <td className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm font-medium">
-                    <span className={row.tipo === 'Receita' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                    <span
+                      className={
+                        row.tipo === 'Receita'
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+                      }
+                    >
                       {formatCurrency(row.valor)}
                     </span>
                   </td>
-                  <td className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm">{row.forma_pagamento}</td>
+                  <td className="border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm">
+                    {row.forma_pagamento}
+                  </td>
                   <td className="border border-gray-200 dark:border-gray-700 px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      row.pago 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                    }`}>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        row.pago
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                      }`}
+                    >
                       {row.pago ? 'Pago' : 'Pendente'}
                     </span>
                   </td>
@@ -393,7 +435,7 @@ export default function TablesPage() {
                     </div>
                   </td>
                 </tr>
-              )
+              ),
             )}
           </tbody>
         </table>
@@ -406,4 +448,4 @@ export default function TablesPage() {
       )}
     </div>
   );
-} 
+}

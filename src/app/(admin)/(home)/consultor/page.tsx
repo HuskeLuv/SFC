@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import { useCsrf } from '@/hooks/useCsrf';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import Button from '@/components/ui/button/Button';
@@ -259,6 +260,7 @@ const getStatusPresentation = (status: 'active' | 'inactive') => {
 
 const ConsultantDashboardPage = () => {
   const { user, isLoading: authLoading, checkAuth, actingClient, updateActingClient } = useAuth();
+  const { csrfFetch } = useCsrf();
   const router = useRouter();
   const [overview, setOverview] = useState<ConsultantOverview | null>(null);
   const [clients, setClients] = useState<ClientWithDetail[]>([]);
@@ -542,12 +544,11 @@ const ConsultantDashboardPage = () => {
     }
     try {
       setPersonifyingClientId(clientId);
-      const response = await fetch('/api/consultant/acting', {
+      const response = await csrfFetch('/api/consultant/acting', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ clientId }),
       });
 
@@ -623,12 +624,11 @@ const ConsultantDashboardPage = () => {
       setInvitationError(null);
       setInvitationSuccess(null);
 
-      const response = await fetch('/api/consultant/invitations', {
+      const response = await csrfFetch('/api/consultant/invitations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ email: invitationEmail.trim() }),
       });
 

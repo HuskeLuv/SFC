@@ -1,22 +1,29 @@
 import { CashflowItem } from '@/types/cashflow';
+import { getCsrfToken } from '@/hooks/useCsrf';
+
+function csrfHeaders(): Record<string, string> {
+  const token = getCsrfToken();
+  return token ? { 'X-CSRF-Token': token } : {};
+}
 
 export async function updateCashflowValue(
-  itemId: string, 
-  field: string, 
-  value: string | number, 
-  monthIndex?: number
+  itemId: string,
+  field: string,
+  value: string | number,
+  monthIndex?: number,
 ): Promise<CashflowItem> {
   const response = await fetch('/api/cashflow/values', {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
+      ...csrfHeaders(),
     },
     credentials: 'include',
     body: JSON.stringify({
       itemId,
       field,
       value,
-      monthIndex
+      monthIndex,
     }),
   });
 
@@ -31,19 +38,20 @@ export async function updateCashflowValue(
 export async function createCashflowItem(
   groupId: string,
   name: string,
-  significado?: string
+  significado?: string,
 ): Promise<{ id: string; [key: string]: unknown }> {
   const response = await fetch('/api/cashflow/items', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...csrfHeaders(),
     },
     credentials: 'include',
     body: JSON.stringify({
       groupId,
       name, // novo campo
       descricao: name, // compatibilidade com API antiga
-      significado
+      significado,
     }),
   });
 
@@ -53,4 +61,4 @@ export async function createCashflowItem(
   }
 
   return response.json();
-} 
+}

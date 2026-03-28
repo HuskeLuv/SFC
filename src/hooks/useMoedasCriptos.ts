@@ -1,6 +1,7 @@
-"use client";
+'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MoedaCriptoData } from '@/types/moedas-criptos';
+import { useCsrf } from '@/hooks/useCsrf';
 
 interface UseMoedasCriptosReturn {
   data: MoedaCriptoData | null;
@@ -16,6 +17,7 @@ interface UseMoedasCriptosReturn {
 }
 
 export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
+  const { csrfFetch } = useCsrf();
   const [data, setData] = useState<MoedaCriptoData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,13 +63,13 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
       isFetchingRef.current = true;
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch('/api/carteira/moedas-criptos');
-      
+
       if (!response.ok) {
         throw new Error('Erro ao carregar dados de moedas e criptomoedas');
       }
-      
+
       const result = await response.json();
       setData(result);
       hasFetchedRef.current = true;
@@ -90,7 +92,7 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
       // Atualização otimista: atualizar estado local imediatamente
       setData((prevData) => {
         if (!prevData) return prevData;
-        
+
         const updatedSecoes = prevData.secoes.map((secao) => ({
           ...secao,
           ativos: secao.ativos.map((ativo) =>
@@ -99,27 +101,30 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
                   ...ativo,
                   objetivo: novoObjetivo,
                   // Recalcular percentualCarteira baseado no total daquele tipo de ativo
-                  percentualCarteira: prevData.totalGeral.valorAtualizado > 0
-                    ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
-                    : ativo.percentualCarteira,
-                  quantoFalta: (() => {
-                    const novoPercentualCarteira = prevData.totalGeral.valorAtualizado > 0
+                  percentualCarteira:
+                    prevData.totalGeral.valorAtualizado > 0
                       ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
-                      : ativo.percentualCarteira;
+                      : ativo.percentualCarteira,
+                  quantoFalta: (() => {
+                    const novoPercentualCarteira =
+                      prevData.totalGeral.valorAtualizado > 0
+                        ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
+                        : ativo.percentualCarteira;
                     return novoObjetivo - novoPercentualCarteira;
                   })(),
                   necessidadeAporte: (() => {
                     // Recalcular percentualCarteira baseado no total daquele tipo de ativo
-                    const novoPercentualCarteira = prevData.totalGeral.valorAtualizado > 0
-                      ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
-                      : ativo.percentualCarteira;
+                    const novoPercentualCarteira =
+                      prevData.totalGeral.valorAtualizado > 0
+                        ? (ativo.valorAtualizado / prevData.totalGeral.valorAtualizado) * 100
+                        : ativo.percentualCarteira;
                     const novoQuantoFalta = novoObjetivo - novoPercentualCarteira;
                     return prevData.totalGeral.valorAtualizado > 0 && novoQuantoFalta > 0
                       ? (novoQuantoFalta / 100) * prevData.totalGeral.valorAtualizado
                       : 0;
                   })(),
                 }
-              : ativo
+              : ativo,
           ),
         }));
 
@@ -127,7 +132,10 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
         const secoesComTotais = updatedSecoes.map((secao) => {
           const totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
           const totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-          const totalNecessidadeAporte = secao.ativos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+          const totalNecessidadeAporte = secao.ativos.reduce(
+            (sum, ativo) => sum + ativo.necessidadeAporte,
+            0,
+          );
           return {
             ...secao,
             totalObjetivo,
@@ -138,8 +146,14 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
 
         // Recalcular totais gerais
         const totalObjetivo = secoesComTotais.reduce((sum, secao) => sum + secao.totalObjetivo, 0);
-        const totalQuantoFalta = secoesComTotais.reduce((sum, secao) => sum + secao.totalQuantoFalta, 0);
-        const totalNecessidadeAporte = secoesComTotais.reduce((sum, secao) => sum + secao.totalNecessidadeAporte, 0);
+        const totalQuantoFalta = secoesComTotais.reduce(
+          (sum, secao) => sum + secao.totalQuantoFalta,
+          0,
+        );
+        const totalNecessidadeAporte = secoesComTotais.reduce(
+          (sum, secao) => sum + secao.totalNecessidadeAporte,
+          0,
+        );
 
         return {
           ...prevData,
@@ -154,7 +168,7 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
       });
 
       // Fazer chamada à API
-      const response = await fetch('/api/carteira/moedas-criptos/objetivo', {
+      const response = await csrfFetch('/api/carteira/moedas-criptos/objetivo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,7 +192,7 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
 
   const updateCotacao = async (ativoId: string, novaCotacao: number): Promise<void> => {
     try {
-      const response = await fetch('/api/carteira/moedas-criptos/cotacao', {
+      const response = await csrfFetch('/api/carteira/moedas-criptos/cotacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -201,30 +215,32 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
     }
   };
 
-  const updateCaixaParaInvestir = useCallback(async (novoCaixa: number) => {
-    try {
-      const response = await fetch('/api/carteira/moedas-criptos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
-      });
+  const updateCaixaParaInvestir = useCallback(
+    async (novoCaixa: number) => {
+      try {
+        const response = await csrfFetch('/api/carteira/moedas-criptos', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar caixa para investir');
+        if (!response.ok) {
+          throw new Error('Erro ao atualizar caixa para investir');
+        }
+
+        // Recarregar dados após atualização
+        await fetchData(true);
+        return true;
+      } catch (err) {
+        console.error('Erro ao atualizar caixa para investir:', err);
+        setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
+        return false;
       }
-
-      // Recarregar dados após atualização
-      await fetchData(true);
-      return true;
-    } catch (err) {
-      console.error('Erro ao atualizar caixa para investir:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
-      return false;
-    }
-  }, [fetchData]);
+    },
+    [fetchData, csrfFetch],
+  );
 
   // Só fazer fetch na montagem inicial
   useEffect(() => {
@@ -255,4 +271,3 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
     refetch,
   };
 };
-

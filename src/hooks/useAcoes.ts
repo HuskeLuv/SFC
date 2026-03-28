@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AcaoData, AcaoAtivo, AcaoSecao } from '@/types/acoes';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export const useAcoes = () => {
+  const { csrfFetch } = useCsrf();
   const [data, setData] = useState<AcaoData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,12 +164,11 @@ export const useAcoes = () => {
   const updateCaixaParaInvestir = useCallback(
     async (novoCaixa: number) => {
       try {
-        const response = await fetch('/api/carteira/acoes', {
+        const response = await csrfFetch('/api/carteira/acoes', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
         });
 
@@ -184,7 +185,7 @@ export const useAcoes = () => {
         return false;
       }
     },
-    [fetchData],
+    [fetchData, csrfFetch],
   );
 
   const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
@@ -273,12 +274,11 @@ export const useAcoes = () => {
       });
 
       // Fazer chamada à API
-      const response = await fetch('/api/carteira/acoes/objetivo', {
+      const response = await csrfFetch('/api/carteira/acoes/objetivo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ ativoId, objetivo: novoObjetivo }),
       });
 
@@ -298,12 +298,11 @@ export const useAcoes = () => {
 
   const updateCotacao = async (ativoId: string, novaCotacao: number) => {
     try {
-      const response = await fetch('/api/carteira/acoes/cotacao', {
+      const response = await csrfFetch('/api/carteira/acoes/cotacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ ativoId, cotacao: novaCotacao }),
       });
 

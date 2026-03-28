@@ -9,7 +9,7 @@ const CSRF_HEADER_NAME = 'x-csrf-token';
  * Read the CSRF token from the csrf-token cookie.
  * The cookie is NOT httpOnly, so client JS can read it.
  */
-function getCsrfToken(): string | null {
+export function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.split('; ').find((row) => row.startsWith(`${CSRF_COOKIE_NAME}=`));
   return match ? match.split('=')[1] : null;

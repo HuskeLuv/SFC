@@ -1,6 +1,7 @@
-"use client";
+'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ImovelBemData } from '@/types/imoveis-bens';
+import { useCsrf } from '@/hooks/useCsrf';
 
 interface UseImoveisBensReturn {
   data: ImovelBemData | null;
@@ -14,6 +15,7 @@ interface UseImoveisBensReturn {
 }
 
 export const useImoveisBens = (): UseImoveisBensReturn => {
+  const { csrfFetch } = useCsrf();
   const [data, setData] = useState<ImovelBemData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,13 +61,13 @@ export const useImoveisBens = (): UseImoveisBensReturn => {
       isFetchingRef.current = true;
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch('/api/carteira/imoveis-bens');
-      
+
       if (!response.ok) {
         throw new Error('Erro ao carregar dados de imóveis e bens');
       }
-      
+
       const result = await response.json();
       setData(result);
       hasFetchedRef.current = true;
@@ -80,12 +82,11 @@ export const useImoveisBens = (): UseImoveisBensReturn => {
 
   const updateValorAtualizado = async (ativoId: string, novoValor: number): Promise<void> => {
     try {
-      const response = await fetch('/api/carteira/imoveis-bens/valor-atualizado', {
+      const response = await csrfFetch('/api/carteira/imoveis-bens/valor-atualizado', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           portfolioId: ativoId, // Mudança: usar portfolioId em vez de ativoId
           novoValor,
@@ -132,4 +133,3 @@ export const useImoveisBens = (): UseImoveisBensReturn => {
     refetch,
   };
 };
-

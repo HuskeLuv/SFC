@@ -1,6 +1,7 @@
-"use client";
-import React, { useState } from "react";
-import { PlusIcon, CloseIcon } from "@/icons";
+'use client';
+import React, { useState } from 'react';
+import { PlusIcon, CloseIcon } from '@/icons';
+import { useCsrf } from '@/hooks/useCsrf';
 
 interface AddInvestmentModalProps {
   isOpen: boolean;
@@ -9,25 +10,30 @@ interface AddInvestmentModalProps {
 }
 
 const categoriaOptions = [
-  { value: "reserva", label: "Reserva de Oportunidade" },
-  { value: "renda fixa", label: "Renda Fixa & Fundos de Renda Fixa" },
-  { value: "fundo", label: "FIM/FIA" },
-  { value: "fii", label: "FII's" },
-  { value: "acao", label: "Ações" },
-  { value: "exterior", label: "Stocks" },
-  { value: "reit", label: "REIT's" },
-  { value: "etf", label: "ETF's" },
-  { value: "crypto", label: "Moedas, Criptomoedas & outros" },
-  { value: "previdencia", label: "Previdência & Seguros" },
-  { value: "opcao", label: "Opções" },
+  { value: 'reserva', label: 'Reserva de Oportunidade' },
+  { value: 'renda fixa', label: 'Renda Fixa & Fundos de Renda Fixa' },
+  { value: 'fundo', label: 'FIM/FIA' },
+  { value: 'fii', label: "FII's" },
+  { value: 'acao', label: 'Ações' },
+  { value: 'exterior', label: 'Stocks' },
+  { value: 'reit', label: "REIT's" },
+  { value: 'etf', label: "ETF's" },
+  { value: 'crypto', label: 'Moedas, Criptomoedas & outros' },
+  { value: 'previdencia', label: 'Previdência & Seguros' },
+  { value: 'opcao', label: 'Opções' },
 ];
 
-export default function AddInvestmentModal({ isOpen, onClose, onSuccess }: AddInvestmentModalProps) {
+export default function AddInvestmentModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: AddInvestmentModalProps) {
+  const { csrfFetch } = useCsrf();
   const [formData, setFormData] = useState({
-    descricao: "",
-    categoria: "",
-    valor: "",
-    observacoes: "",
+    descricao: '',
+    categoria: '',
+    valor: '',
+    observacoes: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,12 +44,11 @@ export default function AddInvestmentModal({ isOpen, onClose, onSuccess }: AddIn
     setError(null);
 
     try {
-      const response = await fetch("/api/carteira/investimento", {
-        method: "POST",
+      const response = await csrfFetch('/api/carteira/investimento', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        credentials: "include",
         body: JSON.stringify({
           ...formData,
           valor: parseFloat(formData.valor),
@@ -52,29 +57,31 @@ export default function AddInvestmentModal({ isOpen, onClose, onSuccess }: AddIn
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Erro ao adicionar investimento");
+        throw new Error(errorData.error || 'Erro ao adicionar investimento');
       }
 
       // Reset form
       setFormData({
-        descricao: "",
-        categoria: "",
-        valor: "",
-        observacoes: "",
+        descricao: '',
+        categoria: '',
+        valor: '',
+        observacoes: '',
       });
 
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro desconhecido");
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -206,4 +213,4 @@ export default function AddInvestmentModal({ isOpen, onClose, onSuccess }: AddIn
       </div>
     </div>
   );
-} 
+}

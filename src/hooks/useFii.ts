@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FiiData, FiiAtivo, FiiSecao } from '@/types/fii';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export const useFii = () => {
+  const { csrfFetch } = useCsrf();
   const [data, setData] = useState<FiiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,12 +164,11 @@ export const useFii = () => {
   const updateCaixaParaInvestir = useCallback(
     async (novoCaixa: number) => {
       try {
-        const response = await fetch('/api/carteira/fii', {
+        const response = await csrfFetch('/api/carteira/fii', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
         });
 
@@ -184,7 +185,7 @@ export const useFii = () => {
         return false;
       }
     },
-    [fetchData],
+    [fetchData, csrfFetch],
   );
 
   const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
@@ -273,12 +274,11 @@ export const useFii = () => {
       });
 
       // Fazer chamada à API
-      const response = await fetch('/api/carteira/fii/objetivo', {
+      const response = await csrfFetch('/api/carteira/fii/objetivo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ ativoId, objetivo: novoObjetivo }),
       });
 
@@ -298,12 +298,11 @@ export const useFii = () => {
 
   const updateCotacao = async (ativoId: string, novaCotacao: number) => {
     try {
-      const response = await fetch('/api/carteira/fii/cotacao', {
+      const response = await csrfFetch('/api/carteira/fii/cotacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ ativoId, cotacao: novaCotacao }),
       });
 

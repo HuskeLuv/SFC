@@ -8,6 +8,7 @@ import Step2Institution from './wizard/Step2Institution';
 import Step3Asset from './wizard/Step3Asset';
 import Step4AssetInfo from './wizard/Step4AssetInfo';
 import Step5Confirmation from './wizard/Step5Confirmation';
+import { useCsrf } from '@/hooks/useCsrf';
 import Step2AporteInstitution from './wizard/Step2AporteInstitution';
 import Step3AporteAsset from './wizard/Step3AporteAsset';
 import Step4AporteInfo from './wizard/Step4AporteInfo';
@@ -106,6 +107,7 @@ const STEPS: WizardStep[] = [
 ];
 
 export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetWizardProps) {
+  const { csrfFetch } = useCsrf();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_FORM_DATA);
   const [errors, setErrors] = useState<WizardErrors>({});
@@ -498,12 +500,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     setLoading(true);
     try {
       if (formData.operacao === 'aporte') {
-        const response = await fetch('/api/carteira/aporte', {
+        const response = await csrfFetch('/api/carteira/aporte', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({
             portfolioId: formData.portfolioId,
             dataAporte: formData.dataAporte,
@@ -563,12 +564,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           apiFormData.quantidade * apiFormData.cotacaoUnitaria + (apiFormData.taxaCorretagem || 0);
       }
 
-      const response = await fetch('/api/carteira/operacao', {
+      const response = await csrfFetch('/api/carteira/operacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(apiFormData),
       });
 

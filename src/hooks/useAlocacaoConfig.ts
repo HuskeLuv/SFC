@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export interface AlocacaoConfig {
   categoria: string;
@@ -14,7 +15,11 @@ export interface UseAlocacaoConfigReturn {
   configuracoes: AlocacaoConfig[];
   loading: boolean;
   error: string | null;
-  updateConfiguracao: (categoria: string, field: AlocacaoConfigField, valor: number | string) => void;
+  updateConfiguracao: (
+    categoria: string,
+    field: AlocacaoConfigField,
+    valor: number | string,
+  ) => void;
   saveChanges: () => Promise<boolean>;
   startEditing: (categoria: string, field: AlocacaoConfigField) => void;
   stopEditing: () => void;
@@ -24,6 +29,7 @@ export interface UseAlocacaoConfigReturn {
 }
 
 export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
+  const { csrfFetch } = useCsrf();
   const [configuracoes, setConfiguracoes] = useState<AlocacaoConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,40 +62,43 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
   }, []);
 
   // Salvar configurações no servidor
-  const saveConfiguracoes = useCallback(async (novasConfiguracoes: AlocacaoConfig[]) => {
-    try {
-      const response = await fetch('/api/carteira/configuracao', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ configuracoes: novasConfiguracoes }),
-      });
+  const saveConfiguracoes = useCallback(
+    async (novasConfiguracoes: AlocacaoConfig[]) => {
+      try {
+        const response = await csrfFetch('/api/carteira/configuracao', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ configuracoes: novasConfiguracoes }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao salvar configurações');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Erro ao salvar configurações');
+        }
+
+        setConfiguracoes(novasConfiguracoes);
+        setError(null);
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro desconhecido');
+        return false;
       }
-
-      setConfiguracoes(novasConfiguracoes);
-      setError(null);
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-      return false;
-    }
-  }, []);
+    },
+    [csrfFetch],
+  );
 
   // Atualizar uma configuração específica
-  const updateConfiguracao = useCallback((categoria: string, field: AlocacaoConfigField, valor: number | string) => {
-    const novasConfiguracoes = configuracoes.map(config => 
-      config.categoria === categoria 
-        ? { ...config, [field]: valor }
-        : config
-    );
-    setConfiguracoes(novasConfiguracoes);
-  }, [configuracoes]);
+  const updateConfiguracao = useCallback(
+    (categoria: string, field: AlocacaoConfigField, valor: number | string) => {
+      const novasConfiguracoes = configuracoes.map((config) =>
+        config.categoria === categoria ? { ...config, [field]: valor } : config,
+      );
+      setConfiguracoes(novasConfiguracoes);
+    },
+    [configuracoes],
+  );
 
   // Salvar alterações
   const saveChanges = useCallback(async () => {
@@ -105,9 +114,12 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
     setEditingCell(null);
   }, []);
 
-  const isEditing = useCallback((categoria: string, field: AlocacaoConfigField) => {
-    return editingCell?.categoria === categoria && editingCell?.field === field;
-  }, [editingCell]);
+  const isEditing = useCallback(
+    (categoria: string, field: AlocacaoConfigField) => {
+      return editingCell?.categoria === categoria && editingCell?.field === field;
+    },
+    [editingCell],
+  );
 
   // Buscar configurações na inicialização
   useEffect(() => {
@@ -116,7 +128,9 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
 
   // Calcular total de targets (excluindo reservaEmergencia e imoveisBens)
   const totalTargets = configuracoes
-    .filter((config) => config.categoria !== 'reservaEmergencia' && config.categoria !== 'imoveisBens')
+    .filter(
+      (config) => config.categoria !== 'reservaEmergencia' && config.categoria !== 'imoveisBens',
+    )
     .reduce((sum, config) => sum + config.target, 0);
 
   return {
@@ -131,4 +145,4 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
     totalTargets,
     refetch: fetchConfiguracoes,
   } satisfies UseAlocacaoConfigReturn;
-}; 
+};

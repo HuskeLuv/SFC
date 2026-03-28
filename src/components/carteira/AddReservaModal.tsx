@@ -1,23 +1,25 @@
-"use client";
-import React, { useState, useEffect } from "react";
-import { PlusIcon, CloseIcon } from "@/icons";
+'use client';
+import React, { useState, useEffect } from 'react';
+import { PlusIcon, CloseIcon } from '@/icons';
+import { useCsrf } from '@/hooks/useCsrf';
 
 interface AddReservaModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  tipo: "emergency" | "opportunity";
+  tipo: 'emergency' | 'opportunity';
 }
 
-export default function AddReservaModal({ 
-  isOpen, 
-  onClose, 
+export default function AddReservaModal({
+  isOpen,
+  onClose,
   onSuccess,
-  tipo 
+  tipo,
 }: AddReservaModalProps) {
+  const { csrfFetch } = useCsrf();
   const [formData, setFormData] = useState({
-    valor: "",
-    data: "",
+    valor: '',
+    data: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,7 @@ export default function AddReservaModal({
   useEffect(() => {
     if (isOpen && !formData.data) {
       const today = new Date().toISOString().split('T')[0];
-      setFormData(prev => ({ ...prev, data: today }));
+      setFormData((prev) => ({ ...prev, data: today }));
     }
   }, [isOpen, formData.data]);
 
@@ -37,25 +39,25 @@ export default function AddReservaModal({
     try {
       const valor = parseFloat(formData.valor);
       if (isNaN(valor) || valor <= 0) {
-        setError("Valor deve ser maior que zero");
+        setError('Valor deve ser maior que zero');
         setLoading(false);
         return;
       }
 
       if (!formData.data) {
-        setError("Data é obrigatória");
+        setError('Data é obrigatória');
         setLoading(false);
         return;
       }
 
       // Buscar ou criar Asset para reserva
-      const assetSymbol = tipo === "emergency" ? "RESERVA-EMERG" : "RESERVA-OPORT";
-      
+      const assetSymbol = tipo === 'emergency' ? 'RESERVA-EMERG' : 'RESERVA-OPORT';
+
       // Buscar o asset existente
       const searchResponse = await fetch(`/api/assets?search=${assetSymbol}&limit=1`, {
-        credentials: "include",
+        credentials: 'include',
       });
-      
+
       let assetId;
       if (searchResponse.ok) {
         const data = await searchResponse.json();
@@ -63,16 +65,16 @@ export default function AddReservaModal({
           assetId = data.assets[0].id;
         } else {
           // Se não encontrou, usar um ID temporário - a API criará automaticamente
-          assetId = "temp-" + assetSymbol;
+          assetId = 'temp-' + assetSymbol;
         }
       } else {
         // Se não conseguiu buscar, usar ID temporário
-        assetId = "temp-" + assetSymbol;
+        assetId = 'temp-' + assetSymbol;
       }
 
       // Buscar uma instituição padrão
-      const institutionResponse = await fetch("/api/institutions?search=&limit=10", {
-        credentials: "include",
+      const institutionResponse = await fetch('/api/institutions?search=&limit=10', {
+        credentials: 'include',
       });
       let institutionId;
       if (institutionResponse.ok) {
@@ -86,8 +88,8 @@ export default function AddReservaModal({
       // Se não encontrou instituição, usar uma genérica (a API pode criar automaticamente)
       if (!institutionId) {
         // Tentar buscar qualquer instituição
-        const allInstResponse = await fetch("/api/institutions?limit=1", {
-          credentials: "include",
+        const allInstResponse = await fetch('/api/institutions?limit=1', {
+          credentials: 'include',
         });
         if (allInstResponse.ok) {
           const allInst = await allInstResponse.json();
@@ -99,20 +101,19 @@ export default function AddReservaModal({
 
       // Se ainda não encontrou, usar um ID temporário - a API pode lidar com isso
       if (!institutionId) {
-        institutionId = "temp-reserva";
+        institutionId = 'temp-reserva';
       }
 
       // Criar a operação
-      const response = await fetch("/api/carteira/operacao", {
-        method: "POST",
+      const response = await csrfFetch('/api/carteira/operacao', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        credentials: "include",
         body: JSON.stringify({
           tipoAtivo: tipo,
-          instituicaoId: institutionId || "temp-reserva",
-          assetId: assetId || "temp-" + (tipo === "emergency" ? "RESERVA-EMERG" : "RESERVA-OPORT"),
+          instituicaoId: institutionId || 'temp-reserva',
+          assetId: assetId || 'temp-' + (tipo === 'emergency' ? 'RESERVA-EMERG' : 'RESERVA-OPORT'),
           dataCompra: formData.data,
           valorInvestido: valor,
           quantidade: 1,
@@ -122,19 +123,19 @@ export default function AddReservaModal({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Erro ao adicionar reserva");
+        throw new Error(errorData.error || 'Erro ao adicionar reserva');
       }
 
       // Reset form
       setFormData({
-        valor: "",
+        valor: '',
         data: new Date().toISOString().split('T')[0],
       });
 
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro desconhecido");
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
@@ -142,7 +143,7 @@ export default function AddReservaModal({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -150,16 +151,15 @@ export default function AddReservaModal({
 
   if (!isOpen) return null;
 
-  const titulo = tipo === "emergency" ? "Adicionar Reserva de Emergência" : "Adicionar Reserva de Oportunidade";
+  const titulo =
+    tipo === 'emergency' ? 'Adicionar Reserva de Emergência' : 'Adicionar Reserva de Oportunidade';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl dark:bg-gray-800">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {titulo}
-          </h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{titulo}</h3>
           <button
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -244,4 +244,3 @@ export default function AddReservaModal({
     </div>
   );
 }
-

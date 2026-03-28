@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ReitData, ReitAtivo, ReitSecao } from '@/types/reit';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export const useReit = () => {
+  const { csrfFetch } = useCsrf();
   const [data, setData] = useState<ReitData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -155,12 +157,11 @@ export const useReit = () => {
   const updateCaixaParaInvestir = useCallback(
     async (novoCaixa: number) => {
       try {
-        const response = await fetch('/api/carteira/reit', {
+        const response = await csrfFetch('/api/carteira/reit', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
         });
 
@@ -177,7 +178,7 @@ export const useReit = () => {
         return false;
       }
     },
-    [fetchData],
+    [fetchData, csrfFetch],
   );
 
   const updateObjetivo = async (ativoId: string, novoObjetivo: number) => {
@@ -266,12 +267,11 @@ export const useReit = () => {
       });
 
       // Fazer chamada à API
-      const response = await fetch('/api/carteira/reit/objetivo', {
+      const response = await csrfFetch('/api/carteira/reit/objetivo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ ativoId, objetivo: novoObjetivo }),
       });
 
@@ -292,10 +292,9 @@ export const useReit = () => {
   const updateValorAtualizado = useCallback(
     async (ativoId: string, novoValor: number) => {
       try {
-        const response = await fetch('/api/carteira/reit', {
+        const response = await csrfFetch('/api/carteira/reit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ ativoId, campo: 'valorAtualizado', valor: novoValor }),
         });
         if (!response.ok) throw new Error('Erro ao atualizar valor');
@@ -307,17 +306,16 @@ export const useReit = () => {
         return false;
       }
     },
-    [fetchData],
+    [fetchData, csrfFetch],
   );
 
   const updateCotacao = async (ativoId: string, novaCotacao: number) => {
     try {
-      const response = await fetch('/api/carteira/reit/cotacao', {
+      const response = await csrfFetch('/api/carteira/reit/cotacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ ativoId, cotacao: novaCotacao }),
       });
 

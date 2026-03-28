@@ -10,6 +10,7 @@ import {
   useProcessedData,
 } from '@/hooks/useCashflow';
 import { useProventos } from '@/hooks/useProventos';
+import { useCsrf } from '@/hooks/useCsrf';
 import { validateNewRow } from '@/utils/validation';
 import {
   TableHeaderComponent,
@@ -36,6 +37,7 @@ import { FIXED_COLUMN_BODY_STYLES } from '@/components/cashflow/fixedColumns';
 import { CommentModal } from '@/components/cashflow/CommentModal';
 
 export default function DataTableTwo() {
+  const { csrfFetch } = useCsrf();
   const { data, loading, error, refetch } = useCashflowData();
   const currentYear = new Date().getFullYear();
   const startDateISO = useMemo(() => new Date(currentYear, 0, 1).toISOString(), [currentYear]);
@@ -381,12 +383,11 @@ export default function DataTableTwo() {
       if (!commentModal.itemId) return;
 
       try {
-        const response = await fetch('/api/cashflow/comments', {
+        const response = await csrfFetch('/api/cashflow/comments', {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({
             itemId: commentModal.itemId,
             month: commentModal.month,
@@ -434,7 +435,7 @@ export default function DataTableTwo() {
         throw error;
       }
     },
-    [commentModal, refetch, showAlert],
+    [commentModal, refetch, showAlert, csrfFetch],
   );
 
   const handleSaveRow = useCallback(
@@ -500,12 +501,11 @@ export default function DataTableTwo() {
         }
 
         // Enviar alterações para API
-        const response = await fetch('/api/cashflow/batch-update', {
+        const response = await csrfFetch('/api/cashflow/batch-update', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({
             groupId: group.id,
             updates: changes.updates,
@@ -535,7 +535,7 @@ export default function DataTableTwo() {
         });
       }
     },
-    [getChangesForGroup, stopGroupEditing, refetch, showAlert],
+    [getChangesForGroup, stopGroupEditing, refetch, showAlert, csrfFetch],
   );
 
   // Handler para cancelar edição do grupo

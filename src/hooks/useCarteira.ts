@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export interface CarteiraResumo {
   saldoBruto: number;
@@ -77,6 +78,7 @@ export interface CarteiraResumo {
 }
 
 export const useCarteira = () => {
+  const { csrfFetch } = useCsrf();
   const [resumo, setResumo] = useState<CarteiraResumo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -160,69 +162,72 @@ export const useCarteira = () => {
     }
   }, []);
 
-  const updateMeta = useCallback(async (novaMetaPatrimonio: number) => {
-    try {
-      const response = await fetch('/api/carteira/resumo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ metaPatrimonio: novaMetaPatrimonio }),
-      });
+  const updateMeta = useCallback(
+    async (novaMetaPatrimonio: number) => {
+      try {
+        const response = await csrfFetch('/api/carteira/resumo', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ metaPatrimonio: novaMetaPatrimonio }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar meta de patrimônio');
+        if (!response.ok) {
+          throw new Error('Erro ao atualizar meta de patrimônio');
+        }
+
+        // Recarregar dados após atualização (forçar reload)
+        await fetchResumo(true);
+        return true;
+      } catch (err) {
+        console.error('Erro ao atualizar meta:', err);
+        setError(err instanceof Error ? err.message : 'Erro ao atualizar meta');
+        return false;
+      }
+    },
+    [fetchResumo, csrfFetch],
+  );
+
+  const updateCaixaParaInvestir = useCallback(
+    async (novoCaixa: number) => {
+      if (!resumo) {
+        return false;
       }
 
-      // Recarregar dados após atualização (forçar reload)
-      await fetchResumo(true);
-      return true;
-    } catch (err) {
-      console.error('Erro ao atualizar meta:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar meta');
-      return false;
-    }
-  }, [fetchResumo]);
+      // Salvar estado anterior para rollback em caso de erro
+      const previousResumo = resumo;
 
-  const updateCaixaParaInvestir = useCallback(async (novoCaixa: number) => {
-    if (!resumo) {
-      return false;
-    }
-
-    // Salvar estado anterior para rollback em caso de erro
-    const previousResumo = resumo;
-
-    // Atualização otimista: atualizar o estado local imediatamente
-    setResumo({
-      ...resumo,
-      caixaParaInvestir: novoCaixa,
-    });
-
-    try {
-      const response = await fetch('/api/carteira/resumo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
+      // Atualização otimista: atualizar o estado local imediatamente
+      setResumo({
+        ...resumo,
+        caixaParaInvestir: novoCaixa,
       });
 
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar caixa para investir');
+      try {
+        const response = await csrfFetch('/api/carteira/resumo', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro ao atualizar caixa para investir');
+        }
+
+        return true;
+      } catch (err) {
+        // Rollback em caso de erro
+        setResumo(previousResumo);
+        console.error('Erro ao atualizar caixa para investir:', err);
+        setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
+        return false;
       }
-
-      return true;
-    } catch (err) {
-      // Rollback em caso de erro
-      setResumo(previousResumo);
-      console.error('Erro ao atualizar caixa para investir:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
-      return false;
-    }
-  }, [resumo]);
-
+    },
+    [resumo, csrfFetch],
+  );
 
   const formatCurrency = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) {
@@ -266,4 +271,4 @@ export const useCarteira = () => {
     formatCurrency,
     formatPercentage,
   };
-}; 
+};

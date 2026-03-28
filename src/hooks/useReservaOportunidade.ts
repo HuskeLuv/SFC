@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export interface ReservaOportunidadeAtivo {
   id: string;
@@ -26,6 +27,7 @@ export interface ReservaOportunidadeData {
 }
 
 export const useReservaOportunidade = () => {
+  const { csrfFetch } = useCsrf();
   const [data, setData] = useState<ReservaOportunidadeData>({
     ativos: [],
     saldoInicioMes: 0,
@@ -105,12 +107,11 @@ export const useReservaOportunidade = () => {
   const updateValorAtualizado = useCallback(
     async (portfolioId: string, novoValor: number): Promise<void> => {
       try {
-        const response = await fetch('/api/carteira/reserva/valor-atualizado', {
+        const response = await csrfFetch('/api/carteira/reserva/valor-atualizado', {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({
             portfolioId,
             valorAtualizado: novoValor,
@@ -128,7 +129,7 @@ export const useReservaOportunidade = () => {
         throw err;
       }
     },
-    [fetchReservaOportunidade],
+    [fetchReservaOportunidade, csrfFetch],
   );
 
   return {
