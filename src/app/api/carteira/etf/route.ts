@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
   const colors = [
@@ -18,251 +19,238 @@ function getAtivoColor(ticker: string): string {
   return colors[index];
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const { targetUserId } = await requireAuthWithActing(request);
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const { targetUserId } = await requireAuthWithActing(request);
 
-    const user = await prisma.user.findUnique({
-      where: { id: targetUserId },
+  const user = await prisma.user.findUnique({
+    where: { id: targetUserId },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+  }
+
+  // Buscar caixa para investir específico de ETF
+  const caixaParaInvestirData = await prisma.dashboardData.findFirst({
+    where: {
+      userId: targetUserId,
+      metric: 'caixa_para_investir_etf',
+    },
+  });
+  const caixaParaInvestir = caixaParaInvestirData?.value || 0;
+
+  // Buscar portfolio do usuário com ativos do tipo correspondente
+  const portfolio = await prisma.portfolio.findMany({
+    where: {
+      userId: user.id,
+      asset: {
+        type: 'etf',
+      },
+    },
+    include: {
+      asset: true,
+    },
+  });
+
+  // Converter portfolio para formato esperado
+  const etfAtivos = portfolio
+    .filter((item) => item.asset) // Filtrar apenas itens com asset
+    .map((item) => {
+      const regiao = (item.regiaoEtf ??
+        (item.asset!.currency === 'USD' ? 'estados_unidos' : 'brasil')) as
+        | 'brasil'
+        | 'estados_unidos';
+      return {
+        id: item.id,
+        ticker: item.asset!.symbol,
+        nome: item.asset!.name,
+        regiao,
+        indiceRastreado: 'outros' as const,
+        categoria: '',
+        quantidade: item.quantity,
+        precoAquisicao: item.avgPrice,
+        valorTotal: item.totalInvested,
+        cotacaoAtual: item.avgPrice, // Usar preço médio como cotação atual
+        valorAtualizado: item.totalInvested,
+        riscoPorAtivo: 0, // Calcular depois
+        percentualCarteira: 0, // Calcular depois
+        objetivo: item.objetivo ?? 0,
+        quantoFalta: 0, // Calcular depois
+        necessidadeAporte: 0, // Calcular depois
+        rentabilidade: 0, // Sem variação por enquanto
+        observacoes: undefined,
+        dataUltimaAtualizacao: item.lastUpdate,
+      };
     });
 
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+  // Calcular totais gerais
+  const totalQuantidade = etfAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+  const totalValorAplicado = etfAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+  const totalValorAtualizado = etfAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+  const totalObjetivo = etfAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+  const totalQuantoFalta = etfAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
+  const totalNecessidadeAporte = etfAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
+  const totalRisco = etfAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
+  const rentabilidadeMedia =
+    etfAtivos.length > 0
+      ? etfAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / etfAtivos.length
+      : 0;
+
+  // Agrupar por região (Brasil e EUA)
+  const ETF_SECTION_ORDER = ['brasil', 'estados_unidos'] as const;
+  const ETF_SECTION_NAMES: Record<(typeof ETF_SECTION_ORDER)[number], string> = {
+    brasil: 'Brasil',
+    estados_unidos: 'EUA',
+  };
+  const secoes = ETF_SECTION_ORDER.map((regiao) => ({
+    regiao,
+    nome: ETF_SECTION_NAMES[regiao],
+    ativos: etfAtivos.filter((a) => a.regiao === regiao),
+    totalQuantidade: 0,
+    totalValorAplicado: 0,
+    totalValorAtualizado: 0,
+    totalPercentualCarteira: 0,
+    totalRisco: 0,
+    totalObjetivo: 0,
+    totalQuantoFalta: 0,
+    totalNecessidadeAporte: 0,
+    rentabilidadeMedia: 0,
+  }));
+
+  // Calcular valores das seções
+  secoes.forEach((secao) => {
+    secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+    secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+    secao.totalValorAtualizado = secao.ativos.reduce(
+      (sum, ativo) => sum + ativo.valorAtualizado,
+      0,
+    );
+    secao.totalPercentualCarteira = secao.ativos.reduce(
+      (sum, ativo) => sum + ativo.percentualCarteira,
+      0,
+    );
+    secao.totalRisco = secao.ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
+    secao.totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+    secao.totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
+    secao.totalNecessidadeAporte = secao.ativos.reduce(
+      (sum, ativo) => sum + ativo.necessidadeAporte,
+      0,
+    );
+    secao.rentabilidadeMedia =
+      secao.ativos.length > 0
+        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
+        : 0;
+  });
+
+  // Calcular resumo
+  const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
+  const resumo = {
+    necessidadeAporteTotal: totalNecessidadeAporte,
+    caixaParaInvestir: caixaParaInvestir,
+    saldoInicioMes: totalValorAplicado,
+    valorAtualizado: valorAtualizadoComCaixa,
+    rendimento: valorAtualizadoComCaixa - totalValorAplicado,
+    rentabilidade:
+      totalValorAplicado > 0
+        ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+        : 0,
+  };
+
+  // Calcular alocação por ativo
+  const alocacaoAtivo = etfAtivos.map((ativo) => ({
+    name: ativo.ticker,
+    value: ativo.valorAtualizado,
+    color: getAtivoColor(ativo.ticker),
+  }));
+
+  // Tabela auxiliar (dados adicionais)
+  const tabelaAuxiliar = etfAtivos.map((ativo) => ({
+    ticker: ativo.ticker,
+    nome: ativo.nome,
+    quantidade: ativo.quantidade,
+    valorAplicado: ativo.valorTotal,
+    valorAtualizado: ativo.valorAtualizado,
+    rentabilidade: ativo.rentabilidade,
+    cotacaoAtual: ativo.cotacaoAtual ?? 0,
+    necessidadeAporte: ativo.necessidadeAporte ?? 0,
+    loteAproximado: 0,
+  }));
+
+  const data = {
+    resumo,
+    secoes,
+    totalGeral: {
+      quantidade: totalQuantidade,
+      valorAplicado: totalValorAplicado,
+      valorAtualizado: valorAtualizadoComCaixa, // Incluir caixa no total
+      percentualCarteira: 100.0,
+      risco: totalRisco,
+      objetivo: totalObjetivo,
+      quantoFalta: totalQuantoFalta,
+      necessidadeAporte: totalNecessidadeAporte,
+      rentabilidade: rentabilidadeMedia,
+    },
+    alocacaoAtivo,
+    tabelaAuxiliar,
+  };
+
+  return NextResponse.json(data);
+});
+
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  const { targetUserId } = await requireAuthWithActing(request);
+  const body = await request.json();
+  const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
+
+  if (caixaParaInvestir !== undefined) {
+    if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
+      return NextResponse.json(
+        {
+          error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+        },
+        { status: 400 },
+      );
     }
 
-    // Buscar caixa para investir específico de ETF
-    const caixaParaInvestirData = await prisma.dashboardData.findFirst({
+    // Salvar ou atualizar caixa para investir de ETF
+    const existingCaixa = await prisma.dashboardData.findFirst({
       where: {
         userId: targetUserId,
         metric: 'caixa_para_investir_etf',
       },
     });
-    const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
-    // Buscar portfolio do usuário com ativos do tipo correspondente
-    const portfolio = await prisma.portfolio.findMany({
-      where: {
-        userId: user.id,
-        asset: {
-          type: 'etf',
-        },
-      },
-      include: {
-        asset: true,
-      },
-    });
-
-    // Converter portfolio para formato esperado
-    const etfAtivos = portfolio
-      .filter((item) => item.asset) // Filtrar apenas itens com asset
-      .map((item) => {
-        const regiao = (item.regiaoEtf ??
-          (item.asset!.currency === 'USD' ? 'estados_unidos' : 'brasil')) as
-          | 'brasil'
-          | 'estados_unidos';
-        return {
-          id: item.id,
-          ticker: item.asset!.symbol,
-          nome: item.asset!.name,
-          regiao,
-          indiceRastreado: 'outros' as const,
-          categoria: '',
-          quantidade: item.quantity,
-          precoAquisicao: item.avgPrice,
-          valorTotal: item.totalInvested,
-          cotacaoAtual: item.avgPrice, // Usar preço médio como cotação atual
-          valorAtualizado: item.totalInvested,
-          riscoPorAtivo: 0, // Calcular depois
-          percentualCarteira: 0, // Calcular depois
-          objetivo: item.objetivo ?? 0,
-          quantoFalta: 0, // Calcular depois
-          necessidadeAporte: 0, // Calcular depois
-          rentabilidade: 0, // Sem variação por enquanto
-          observacoes: undefined,
-          dataUltimaAtualizacao: item.lastUpdate,
-        };
+    if (existingCaixa) {
+      await prisma.dashboardData.update({
+        where: { id: existingCaixa.id },
+        data: { value: caixaParaInvestir },
       });
-
-    // Calcular totais gerais
-    const totalQuantidade = etfAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
-    const totalValorAplicado = etfAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-    const totalValorAtualizado = etfAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-    const totalObjetivo = etfAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
-    const totalQuantoFalta = etfAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-    const totalNecessidadeAporte = etfAtivos.reduce(
-      (sum, ativo) => sum + ativo.necessidadeAporte,
-      0,
-    );
-    const totalRisco = etfAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-    const rentabilidadeMedia =
-      etfAtivos.length > 0
-        ? etfAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / etfAtivos.length
-        : 0;
-
-    // Agrupar por região (Brasil e EUA)
-    const ETF_SECTION_ORDER = ['brasil', 'estados_unidos'] as const;
-    const ETF_SECTION_NAMES: Record<(typeof ETF_SECTION_ORDER)[number], string> = {
-      brasil: 'Brasil',
-      estados_unidos: 'EUA',
-    };
-    const secoes = ETF_SECTION_ORDER.map((regiao) => ({
-      regiao,
-      nome: ETF_SECTION_NAMES[regiao],
-      ativos: etfAtivos.filter((a) => a.regiao === regiao),
-      totalQuantidade: 0,
-      totalValorAplicado: 0,
-      totalValorAtualizado: 0,
-      totalPercentualCarteira: 0,
-      totalRisco: 0,
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: 0,
-    }));
-
-    // Calcular valores das seções
-    secoes.forEach((secao) => {
-      secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
-      secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-      secao.totalValorAtualizado = secao.ativos.reduce(
-        (sum, ativo) => sum + ativo.valorAtualizado,
-        0,
-      );
-      secao.totalPercentualCarteira = secao.ativos.reduce(
-        (sum, ativo) => sum + ativo.percentualCarteira,
-        0,
-      );
-      secao.totalRisco = secao.ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-      secao.totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
-      secao.totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-      secao.totalNecessidadeAporte = secao.ativos.reduce(
-        (sum, ativo) => sum + ativo.necessidadeAporte,
-        0,
-      );
-      secao.rentabilidadeMedia =
-        secao.ativos.length > 0
-          ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-          : 0;
-    });
-
-    // Calcular resumo
-    const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
-    const resumo = {
-      necessidadeAporteTotal: totalNecessidadeAporte,
-      caixaParaInvestir: caixaParaInvestir,
-      saldoInicioMes: totalValorAplicado,
-      valorAtualizado: valorAtualizadoComCaixa,
-      rendimento: valorAtualizadoComCaixa - totalValorAplicado,
-      rentabilidade:
-        totalValorAplicado > 0
-          ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
-          : 0,
-    };
-
-    // Calcular alocação por ativo
-    const alocacaoAtivo = etfAtivos.map((ativo) => ({
-      name: ativo.ticker,
-      value: ativo.valorAtualizado,
-      color: getAtivoColor(ativo.ticker),
-    }));
-
-    // Tabela auxiliar (dados adicionais)
-    const tabelaAuxiliar = etfAtivos.map((ativo) => ({
-      ticker: ativo.ticker,
-      nome: ativo.nome,
-      quantidade: ativo.quantidade,
-      valorAplicado: ativo.valorTotal,
-      valorAtualizado: ativo.valorAtualizado,
-      rentabilidade: ativo.rentabilidade,
-      cotacaoAtual: ativo.cotacaoAtual ?? 0,
-      necessidadeAporte: ativo.necessidadeAporte ?? 0,
-      loteAproximado: 0,
-    }));
-
-    const data = {
-      resumo,
-      secoes,
-      totalGeral: {
-        quantidade: totalQuantidade,
-        valorAplicado: totalValorAplicado,
-        valorAtualizado: valorAtualizadoComCaixa, // Incluir caixa no total
-        percentualCarteira: 100.0,
-        risco: totalRisco,
-        objetivo: totalObjetivo,
-        quantoFalta: totalQuantoFalta,
-        necessidadeAporte: totalNecessidadeAporte,
-        rentabilidade: rentabilidadeMedia,
-      },
-      alocacaoAtivo,
-      tabelaAuxiliar,
-    };
-
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Erro ao buscar dados ETF:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const { targetUserId } = await requireAuthWithActing(request);
-    const body = await request.json();
-    const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
-
-    if (caixaParaInvestir !== undefined) {
-      if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json(
-          {
-            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
-          },
-          { status: 400 },
-        );
-      }
-
-      // Salvar ou atualizar caixa para investir de ETF
-      const existingCaixa = await prisma.dashboardData.findFirst({
-        where: {
+    } else {
+      await prisma.dashboardData.create({
+        data: {
           userId: targetUserId,
           metric: 'caixa_para_investir_etf',
+          value: caixaParaInvestir,
         },
       });
-
-      if (existingCaixa) {
-        await prisma.dashboardData.update({
-          where: { id: existingCaixa.id },
-          data: { value: caixaParaInvestir },
-        });
-      } else {
-        await prisma.dashboardData.create({
-          data: {
-            userId: targetUserId,
-            metric: 'caixa_para_investir_etf',
-            value: caixaParaInvestir,
-          },
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir,
-      });
     }
-
-    if (!ativoId) {
-      return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
-    }
-
-    // Simular delay de rede
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     return NextResponse.json({
       success: true,
-      message: 'Dados atualizados com sucesso',
+      message: 'Caixa para investir atualizado com sucesso',
+      caixaParaInvestir,
     });
-  } catch (error) {
-    console.error('Erro ao atualizar dados ETF:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
-}
+
+  if (!ativoId) {
+    return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
+  }
+
+  // Simular delay de rede
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  return NextResponse.json({
+    success: true,
+    message: 'Dados atualizados com sucesso',
+  });
+});

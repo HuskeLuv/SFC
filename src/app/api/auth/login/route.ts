@@ -3,8 +3,9 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { loginSchema, validationError } from '@/utils/validation-schemas';
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const body = await req.json();
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {
@@ -13,11 +14,11 @@ export async function POST(req: NextRequest) {
   const { email, password, rememberMe } = parsed.data;
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
   }
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
-    return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
   }
 
   // Se rememberMe for true, token expira em 7 dias (1 semana), senão em 1 dia
@@ -40,4 +41,4 @@ export async function POST(req: NextRequest) {
     path: '/',
   });
   return response;
-}
+});

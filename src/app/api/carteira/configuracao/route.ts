@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { alocacaoConfigSchema, validationError } from '@/utils/validation-schemas';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 interface AlocacaoConfig {
   categoria: string;
   minimo: number;
@@ -30,112 +31,102 @@ const defaultConfig: AlocacaoConfig[] = [
 ];
 
 // GET - Buscar configurações de alocação do usuário
-export async function GET(request: NextRequest) {
-  try {
-    const { targetUserId } = await requireAuthWithActing(request);
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const { targetUserId } = await requireAuthWithActing(request);
 
-    // Buscar configurações do banco de dados
-    const savedConfigs = await prisma.alocacaoConfig.findMany({
-      where: { userId: targetUserId },
-    });
+  // Buscar configurações do banco de dados
+  const savedConfigs = await prisma.alocacaoConfig.findMany({
+    where: { userId: targetUserId },
+  });
 
-    // Se não houver configurações salvas, retornar configurações zeradas
-    if (savedConfigs.length === 0) {
-      return NextResponse.json({ configuracoes: defaultConfig });
-    }
-
-    // Converter para o formato esperado
-    const alocacaoConfig = savedConfigs.map((config) => ({
-      categoria: config.categoria,
-      minimo: config.minimo,
-      maximo: config.maximo,
-      target: config.target,
-      descricao: config.descricao || '',
-    }));
-
-    // Garantir que todas as categorias padrão estejam presentes
-    // Se uma categoria não foi salva pelo usuário, usar valores zerados
-    const configMap = new Map(alocacaoConfig.map((c) => [c.categoria, c]));
-    const completeConfig = defaultConfig.map((defaultItem) => {
-      const saved = configMap.get(defaultItem.categoria);
-      // Retornar apenas configurações que foram salvas pelo usuário
-      // Se não foi salva, usar valores zerados
-      return saved || defaultItem;
-    });
-
-    return NextResponse.json({ configuracoes: completeConfig });
-  } catch (error) {
-    console.error('Erro ao buscar configurações de alocação:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+  // Se não houver configurações salvas, retornar configurações zeradas
+  if (savedConfigs.length === 0) {
+    return NextResponse.json({ configuracoes: defaultConfig });
   }
-}
+
+  // Converter para o formato esperado
+  const alocacaoConfig = savedConfigs.map((config) => ({
+    categoria: config.categoria,
+    minimo: config.minimo,
+    maximo: config.maximo,
+    target: config.target,
+    descricao: config.descricao || '',
+  }));
+
+  // Garantir que todas as categorias padrão estejam presentes
+  // Se uma categoria não foi salva pelo usuário, usar valores zerados
+  const configMap = new Map(alocacaoConfig.map((c) => [c.categoria, c]));
+  const completeConfig = defaultConfig.map((defaultItem) => {
+    const saved = configMap.get(defaultItem.categoria);
+    // Retornar apenas configurações que foram salvas pelo usuário
+    // Se não foi salva, usar valores zerados
+    return saved || defaultItem;
+  });
+
+  return NextResponse.json({ configuracoes: completeConfig });
+});
 
 // PUT - Atualizar configurações de alocação do usuário
-export async function PUT(request: NextRequest) {
-  try {
-    const { targetUserId } = await requireAuthWithActing(request);
-    const body = await request.json();
-    const parsed = alocacaoConfigSchema.safeParse(body);
-    if (!parsed.success) {
-      return validationError(parsed);
-    }
-    const { configuracoes } = parsed.data;
+export const PUT = withErrorHandler(async (request: NextRequest) => {
+  const { targetUserId } = await requireAuthWithActing(request);
+  const body = await request.json();
+  const parsed = alocacaoConfigSchema.safeParse(body);
+  if (!parsed.success) {
+    return validationError(parsed);
+  }
+  const { configuracoes } = parsed.data;
 
-    // Validar regra de negócio: mínimo não pode ser maior que máximo
-    for (const config of configuracoes) {
-      if (config.minimo > config.maximo) {
-        return NextResponse.json(
-          { error: 'Valor mínimo não pode ser maior que o máximo' },
-          { status: 400 },
-        );
-      }
-    }
-
-    // Verificar se soma dos targets não excede 100% (excluindo reserva de emergência)
-    const totalTargets = configuracoes
-      .filter((config: AlocacaoConfig) => config.categoria !== 'reservaEmergencia')
-      .reduce((sum: number, config: AlocacaoConfig) => sum + config.target, 0);
-    if (totalTargets > 100) {
+  // Validar regra de negócio: mínimo não pode ser maior que máximo
+  for (const config of configuracoes) {
+    if (config.minimo > config.maximo) {
       return NextResponse.json(
-        { error: 'A soma dos targets não pode exceder 100%' },
+        { error: 'Valor mínimo não pode ser maior que o máximo' },
         { status: 400 },
       );
     }
+  }
 
-    // Salvar configurações no banco de dados
-    await Promise.all(
-      configuracoes.map(async (config: AlocacaoConfig) => {
-        await prisma.alocacaoConfig.upsert({
-          where: {
-            userId_categoria: {
-              userId: targetUserId,
-              categoria: config.categoria,
-            },
-          },
-          update: {
-            minimo: config.minimo,
-            maximo: config.maximo,
-            target: config.target,
-            descricao: config.descricao || '',
-          },
-          create: {
+  // Verificar se soma dos targets não excede 100% (excluindo reserva de emergência)
+  const totalTargets = configuracoes
+    .filter((config: AlocacaoConfig) => config.categoria !== 'reservaEmergencia')
+    .reduce((sum: number, config: AlocacaoConfig) => sum + config.target, 0);
+  if (totalTargets > 100) {
+    return NextResponse.json(
+      { error: 'A soma dos targets não pode exceder 100%' },
+      { status: 400 },
+    );
+  }
+
+  // Salvar configurações no banco de dados
+  await Promise.all(
+    configuracoes.map(async (config: AlocacaoConfig) => {
+      await prisma.alocacaoConfig.upsert({
+        where: {
+          userId_categoria: {
             userId: targetUserId,
             categoria: config.categoria,
-            minimo: config.minimo,
-            maximo: config.maximo,
-            target: config.target,
-            descricao: config.descricao || '',
           },
-        });
-      }),
-    );
+        },
+        update: {
+          minimo: config.minimo,
+          maximo: config.maximo,
+          target: config.target,
+          descricao: config.descricao || '',
+        },
+        create: {
+          userId: targetUserId,
+          categoria: config.categoria,
+          minimo: config.minimo,
+          maximo: config.maximo,
+          target: config.target,
+          descricao: config.descricao || '',
+        },
+      });
+    }),
+  );
 
-    return NextResponse.json({
-      success: true,
-      configuracoes,
-    });
-  } catch (error) {
-    console.error('Erro ao salvar configurações de alocação:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
+  return NextResponse.json({
+    success: true,
+    configuracoes,
+  });
+});

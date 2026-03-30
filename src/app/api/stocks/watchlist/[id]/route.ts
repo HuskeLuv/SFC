@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 
 // DELETE - Remover ativo do watchlist
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
+export const DELETE = withErrorHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id: stockId } = await params;
     const { targetUserId } = await requireAuthWithActing(request);
 
@@ -44,16 +42,5 @@ export async function DELETE(
     });
 
     return NextResponse.json({ message: 'Item removido do watchlist com sucesso' });
-    
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Não autorizado') {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
-    
-    console.error('Erro ao remover do watchlist:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
-} 
+  },
+);

@@ -5,6 +5,7 @@ import { getAssetPrices, getAssetHistory } from '@/services/assetPriceService';
 import { getDividends } from '@/services/dividendService';
 import { getFundamentals } from '@/services/fundamentalsService';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const normalizeDateStart = (date: Date) => {
@@ -26,13 +27,14 @@ const buildDailyTimeline = (startDate: Date, endDate: Date) => {
 const buildDailyPriceMap = (
   history: Array<{ date: number; value: number }>,
   timeline: number[],
-  initialPrice?: number
+  initialPrice?: number,
 ) => {
   const sorted = [...history]
     .filter((item) => Number.isFinite(item.value) && item.value > 0)
     .sort((a, b) => a.date - b.date);
   const map = new Map<number, number>();
-  let lastPrice = Number.isFinite(initialPrice) && initialPrice && initialPrice > 0 ? initialPrice : undefined;
+  let lastPrice =
+    Number.isFinite(initialPrice) && initialPrice && initialPrice > 0 ? initialPrice : undefined;
   let historyIndex = 0;
   for (const day of timeline) {
     while (historyIndex < sorted.length) {
@@ -63,7 +65,7 @@ const getDayKey = (ts: number): number => {
 
 const calculateHistoricoTWR = (
   patrimonioSeries: Array<{ data: number; saldoBruto: number }>,
-  cashFlowsByDay: Map<number, number>
+  cashFlowsByDay: Map<number, number>,
 ): Array<{ data: number; value: number }> => {
   if (patrimonioSeries.length === 0) return [];
   const result: Array<{ data: number; value: number }> = [];
@@ -85,7 +87,10 @@ const calculateHistoricoTWR = (
       retornoDia = 0;
     }
     cumulative *= 1 + retornoDia;
-    result.push({ data: patrimonioSeries[i].data, value: Math.round((cumulative - 1) * 10000) / 100 });
+    result.push({
+      data: patrimonioSeries[i].data,
+      value: Math.round((cumulative - 1) * 10000) / 100,
+    });
   }
   return result;
 };
@@ -95,11 +100,8 @@ const tipoOperacaoMap: Record<string, string> = {
   venda: 'Resgate',
 };
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
+export const GET = withErrorHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id: portfolioId } = await params;
 
@@ -183,12 +185,14 @@ export async function GET(
     };
 
     const timeline = buildTimeline(
-      transactions.map((t) => ({ date: t.date, quantity: t.quantity, type: t.type }))
+      transactions.map((t) => ({ date: t.date, quantity: t.quantity, type: t.type })),
     );
 
     const hoje = normalizeDateStart(new Date());
     const hojeMs = hoje.getTime();
-    const compraTimes = transactions.filter((t) => t.type === 'compra').map((t) => t.date.getTime());
+    const compraTimes = transactions
+      .filter((t) => t.type === 'compra')
+      .map((t) => t.date.getTime());
     const firstPurchaseDate =
       compraTimes.length > 0
         ? Math.min(...compraTimes)
@@ -205,7 +209,8 @@ export async function GET(
         return true;
       })
       .map((d) => {
-        const quantidade = timeline.length > 0 ? getQuantityAtDate(timeline, d.date.getTime()) : portfolio.quantity;
+        const quantidade =
+          timeline.length > 0 ? getQuantityAtDate(timeline, d.date.getTime()) : portfolio.quantity;
         if (quantidade <= 0) return null;
         return {
           data: d.date.toISOString(),
@@ -217,9 +222,12 @@ export async function GET(
       .filter((x): x is NonNullable<typeof x> => x !== null)
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
-    const firstTxDate = transactions.length > 0
-      ? new Date(Math.min(...transactions.map((t) => t.date.getTime())))
-      : (portfolio.lastUpdate ? new Date(portfolio.lastUpdate) : hoje);
+    const firstTxDate =
+      transactions.length > 0
+        ? new Date(Math.min(...transactions.map((t) => t.date.getTime())))
+        : portfolio.lastUpdate
+          ? new Date(portfolio.lastUpdate)
+          : hoje;
     const timelineStart = normalizeDateStart(firstTxDate);
     const MAX_HISTORICO_MESES = 24;
     const minStart = new Date(hoje.getFullYear(), hoje.getMonth() - MAX_HISTORICO_MESES, 1);
@@ -234,17 +242,29 @@ export async function GET(
       return getAssetHistory(sym, start, end, { useBrapiFallback: true });
     };
 
-    const blockedSymbols = ['RESERVA-EMERG', 'RESERVA-OPORT', 'RENDA-FIXA', 'PERSONALIZADO', 'CONTA-CORRENTE'];
+    const blockedSymbols = [
+      'RESERVA-EMERG',
+      'RESERVA-OPORT',
+      'RENDA-FIXA',
+      'PERSONALIZADO',
+      'CONTA-CORRENTE',
+    ];
     const isBlocked = blockedSymbols.some((p) => ticker.toUpperCase().startsWith(p));
     const isManual = portfolio.asset?.source === 'manual';
 
-    let historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
+    let historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }> =
+      [];
     let historicoTWR: Array<{ date: number; value: number }> = [];
 
     if (isManual && portfolio.quantity > 0) {
       const dayTimeline = buildDailyTimeline(effectiveStart, hoje);
-      const valorAplicadoConst = portfolio.totalInvested > 0 ? portfolio.totalInvested : portfolio.quantity * portfolio.avgPrice;
-      const saldoBrutoConst = portfolio.quantity * (portfolio.avgPrice > 0 ? portfolio.avgPrice : valorAplicadoConst / portfolio.quantity);
+      const valorAplicadoConst =
+        portfolio.totalInvested > 0
+          ? portfolio.totalInvested
+          : portfolio.quantity * portfolio.avgPrice;
+      const saldoBrutoConst =
+        portfolio.quantity *
+        (portfolio.avgPrice > 0 ? portfolio.avgPrice : valorAplicadoConst / portfolio.quantity);
       historicoPatrimonio = dayTimeline.map((day) => ({
         data: day,
         valorAplicado: valorAplicadoConst,
@@ -265,17 +285,21 @@ export async function GET(
         const appliedDelta = tx.type === 'compra' ? totalValue : -totalValue;
         appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
         cashFlowsByDay.set(day, (cashFlowsByDay.get(day) || 0) + appliedDelta);
-        const priceValue = tx.price > 0 ? tx.price : (tx.quantity > 0 ? totalValue / tx.quantity : 0);
+        const priceValue = tx.price > 0 ? tx.price : tx.quantity > 0 ? totalValue / tx.quantity : 0;
         if (priceValue > 0) pricePointsBySymbol.push({ date: day, value: priceValue });
       });
 
       if (transactions.length === 0 && portfolio.quantity > 0) {
         const day = normalizeDateStart(portfolio.lastUpdate || new Date()).getTime();
-        const investedValue = portfolio.totalInvested > 0 ? portfolio.totalInvested : portfolio.quantity * portfolio.avgPrice;
+        const investedValue =
+          portfolio.totalInvested > 0
+            ? portfolio.totalInvested
+            : portfolio.quantity * portfolio.avgPrice;
         quantityDeltasByDay.set(day, portfolio.quantity);
         appliedDeltasByDay.set(day, investedValue);
         cashFlowsByDay.set(day, investedValue);
-        if (portfolio.avgPrice > 0) pricePointsBySymbol.push({ date: day, value: portfolio.avgPrice });
+        if (portfolio.avgPrice > 0)
+          pricePointsBySymbol.push({ date: day, value: portfolio.avgPrice });
       }
 
       const history = await fetchAssetHistoryFromDb(ticker, effectiveStart);
@@ -292,9 +316,10 @@ export async function GET(
         quantitiesBySymbol += qtyDelta;
         valorAplicadoDia += appliedDeltasByDay.get(day) || 0;
         const price = priceMap.get(day) ?? fallbackPrice;
-        const saldoBrutoDia = quantitiesBySymbol > 0 && price && price > 0
-          ? quantitiesBySymbol * price
-          : valorAplicadoDia;
+        const saldoBrutoDia =
+          quantitiesBySymbol > 0 && price && price > 0
+            ? quantitiesBySymbol * price
+            : valorAplicadoDia;
         historicoPatrimonio.push({
           data: day,
           valorAplicado: Math.round(valorAplicadoDia * 100) / 100,
@@ -330,14 +355,9 @@ export async function GET(
       fundamentos: {
         pl: fundamentals.pl !== null ? fundamentals.pl : '—',
         beta: fundamentals.beta !== null ? fundamentals.beta : '—',
-        dividendYield: fundamentals.dividendYield !== null ? `${fundamentals.dividendYield.toFixed(2)}%` : '—',
+        dividendYield:
+          fundamentals.dividendYield !== null ? `${fundamentals.dividendYield.toFixed(2)}%` : '—',
       },
     });
-  } catch (error) {
-    console.error('Erro ao buscar detalhes do ativo:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
-}
+  },
+);

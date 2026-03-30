@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 
-export async function POST(_req: NextRequest) {
-  const response = NextResponse.json({ message: 'Logged out successfully' });
+export const POST = withErrorHandler(async (_req: NextRequest) => {
+  const response = NextResponse.json({ message: 'Sessão encerrada com sucesso' });
 
   // Limpar o cookie do token
   response.cookies.set('token', '', {
@@ -13,4 +14,4 @@ export async function POST(_req: NextRequest) {
   });
 
   return response;
-}
+});

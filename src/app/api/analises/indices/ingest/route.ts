@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { ingestBenchmarkProfitability } from '@/services/benchmarkProfitabilityIngestion';
 import { benchmarkIngestSchema, validationError } from '@/utils/validation-schemas';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
  * POST /api/analises/indices/ingest
  * Ingere dados de rentabilidade de benchmarks (CDI, IBOV, IPCA, Poupança)
@@ -10,28 +11,18 @@ import { benchmarkIngestSchema, validationError } from '@/utils/validation-schem
  *
  * Body: { success, data: { dailyProfitabilityToChart: { categories, series } } }
  */
-export async function POST(request: NextRequest) {
-  try {
-    await requireAuthWithActing(request);
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  await requireAuthWithActing(request);
 
-    const body = await request.json();
-    const parsed = benchmarkIngestSchema.safeParse(body);
-    if (!parsed.success) {
-      return validationError(parsed);
-    }
-    const result = await ingestBenchmarkProfitability(parsed.data);
-
-    return NextResponse.json({
-      success: true,
-      ...result,
-    });
-  } catch (error) {
-    console.error('Erro ao ingerir benchmarks:', error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Erro ao ingerir dados de benchmarks',
-      },
-      { status: 500 },
-    );
+  const body = await request.json();
+  const parsed = benchmarkIngestSchema.safeParse(body);
+  if (!parsed.success) {
+    return validationError(parsed);
   }
-}
+  const result = await ingestBenchmarkProfitability(parsed.data);
+
+  return NextResponse.json({
+    success: true,
+    ...result,
+  });
+});

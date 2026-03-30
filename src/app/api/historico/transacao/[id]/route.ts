@@ -3,10 +3,11 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { transactionPatchSchema, validationError } from '@/utils/validation-schemas';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 const EDITABLE_FIELDS = ['quantity', 'price', 'total', 'date', 'fees', 'notes'] as const;
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
+export const PATCH = withErrorHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id } = await params;
 
@@ -120,11 +121,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Erro ao atualizar transação:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
+  },
+);
 
 async function recalculatePortfolioFromTransactions(
   targetUserId: string,
@@ -179,11 +177,8 @@ async function recalculatePortfolioFromTransactions(
   });
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const DELETE = withErrorHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id } = await params;
 
@@ -223,8 +218,5 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Erro ao excluir transação:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
+  },
+);

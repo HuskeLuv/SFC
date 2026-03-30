@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { proventoCreateSchema, validationError } from '@/utils/validation-schemas';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 const serialize = (p: {
   id: string;
   tipo: string;
@@ -23,8 +24,8 @@ const serialize = (p: {
   impostoRenda: p.impostoRenda,
 });
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
+export const POST = withErrorHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id: portfolioId } = await params;
 
@@ -65,8 +66,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     return NextResponse.json({ provento: serialize(created) }, { status: 201 });
-  } catch (error) {
-    console.error('Erro ao criar provento:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
+  },
+);

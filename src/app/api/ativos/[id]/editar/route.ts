@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAuthWithActing } from "@/utils/auth";
-import { prisma } from "@/lib/prisma";
-import { ensurePortfolioProventosFromMarket } from "@/lib/ensurePortfolioProventosFromMarket";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuthWithActing } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
+import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProventosFromMarket';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 const tipoOperacaoMap: Record<string, string> = {
-  compra: "Aporte",
-  venda: "Resgate",
+  compra: 'Aporte',
+  venda: 'Resgate',
 };
 
 const parseInstituicaoIdFromNotes = (notes: string | null): string | null => {
@@ -13,17 +14,14 @@ const parseInstituicaoIdFromNotes = (notes: string | null): string | null => {
   try {
     const parsed = JSON.parse(notes) as { operation?: { instituicaoId?: string } };
     const instId = parsed?.operation?.instituicaoId;
-    return typeof instId === "string" && instId.length > 0 ? instId : null;
+    return typeof instId === 'string' && instId.length > 0 ? instId : null;
   } catch {
     return null;
   }
 };
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
+export const GET = withErrorHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id: portfolioId } = await params;
 
@@ -33,10 +31,10 @@ export async function GET(
     });
 
     if (!portfolio) {
-      return NextResponse.json({ error: "Portfólio não encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
     }
 
-    const ticker = portfolio.asset?.symbol || portfolio.stock?.ticker || "";
+    const ticker = portfolio.asset?.symbol || portfolio.stock?.ticker || '';
     const nome = portfolio.asset?.name || portfolio.stock?.companyName || ticker;
 
     const txWhere: { userId: string; assetId?: string; stockId?: string } = {
@@ -50,7 +48,7 @@ export async function GET(
 
     const transactions = await prisma.stockTransaction.findMany({
       where: txWhere,
-      orderBy: { date: "desc" },
+      orderBy: { date: 'desc' },
     });
 
     let instituicaoNome: string | null = null;
@@ -66,7 +64,7 @@ export async function GET(
     }
 
     const comprasAsc = [...transactions]
-      .filter((t) => t.type === "compra")
+      .filter((t) => t.type === 'compra')
       .sort((a, b) => a.date.getTime() - b.date.getTime());
     const primeiraCompra = comprasAsc[0] ?? null;
 
@@ -108,7 +106,7 @@ export async function GET(
 
     const proventosRows = await prisma.portfolioProvento.findMany({
       where: { portfolioId: portfolio.id, userId: targetUserId },
-      orderBy: { dataPagamento: "desc" },
+      orderBy: { dataPagamento: 'desc' },
     });
 
     const proventos = proventosRows.map((p) => ({
@@ -131,11 +129,5 @@ export async function GET(
       operacoes,
       proventos,
     });
-  } catch (error) {
-    console.error("Erro ao buscar dados para edição do ativo:", error);
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    );
-  }
-}
+  },
+);

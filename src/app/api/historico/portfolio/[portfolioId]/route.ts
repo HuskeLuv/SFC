@@ -1,12 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAuthWithActing } from "@/utils/auth";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuthWithActing } from '@/utils/auth';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ portfolioId: string }> }
-) {
-  try {
+import { withErrorHandler } from '@/utils/apiErrorHandler';
+export const GET = withErrorHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ portfolioId: string }> }) => {
     const { targetUserId } = await requireAuthWithActing(request);
     const { portfolioId } = await params;
 
@@ -16,7 +14,7 @@ export async function GET(
     });
 
     if (!portfolio) {
-      return NextResponse.json({ error: "Portfólio não encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
     }
 
     const txWhere: { userId: string; assetId?: string; stockId?: string } = {
@@ -30,12 +28,12 @@ export async function GET(
 
     const transactions = await prisma.stockTransaction.findMany({
       where: txWhere,
-      orderBy: { date: "desc" },
+      orderBy: { date: 'desc' },
     });
 
     const tipoOperacaoMap: Record<string, string> = {
-      compra: "Aporte",
-      venda: "Resgate",
+      compra: 'Aporte',
+      venda: 'Resgate',
     };
 
     const historico = transactions.map((tx) => ({
@@ -60,11 +58,5 @@ export async function GET(
       },
       historico,
     });
-  } catch (error) {
-    console.error("Erro ao buscar histórico do ativo:", error);
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    );
-  }
-}
+  },
+);

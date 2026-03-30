@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { proventoPatchSchema, validationError } from '@/utils/validation-schemas';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 const serialize = (p: {
   id: string;
   tipo: string;
@@ -33,11 +34,11 @@ async function findProventoOwned(portfolioId: string, proventoId: string, userId
   });
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; proventoId: string }> },
-) {
-  try {
+export const PATCH = withErrorHandler(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string; proventoId: string }> },
+  ) => {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id: portfolioId, proventoId } = await params;
 
@@ -95,17 +96,14 @@ export async function PATCH(
     });
 
     return NextResponse.json({ provento: serialize(updated) });
-  } catch (error) {
-    console.error('Erro ao atualizar provento:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
+  },
+);
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; proventoId: string }> },
-) {
-  try {
+export const DELETE = withErrorHandler(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string; proventoId: string }> },
+  ) => {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id: portfolioId, proventoId } = await params;
 
@@ -117,8 +115,5 @@ export async function DELETE(
     await prisma.portfolioProvento.delete({ where: { id: proventoId } });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Erro ao excluir provento:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
+  },
+);

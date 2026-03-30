@@ -4,61 +4,57 @@ import prisma from '@/lib/prisma';
 import { personalizeGroup, getGroupForUser } from '@/utils/cashflowPersonalization';
 import { cashflowItemCreateSchema, validationError } from '@/utils/validation-schemas';
 
-export async function POST(request: NextRequest) {
-  try {
-    const token = request.cookies.get('token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
-    }
-
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
-    const body = await request.json();
-    const parsed = cashflowItemCreateSchema.safeParse(body);
-    if (!parsed.success) {
-      return validationError(parsed);
-    }
-    const { groupId, descricao, name, significado } = parsed.data;
-
-    // Validate input
-    if (!descricao && !name) {
-      return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
-    }
-
-    // Buscar grupo (pode ser template ou personalizado)
-    const group = await getGroupForUser(groupId, payload.id);
-    if (!group) {
-      return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
-    }
-
-    // Se grupo é template, personalizar antes de adicionar item
-    let finalGroupId = group.id;
-    if (group.userId === null) {
-      finalGroupId = await personalizeGroup(group.id, payload.id);
-    }
-
-    // Get the highest rank in the group to set the new item's rank
-    // Rank agora é texto, não precisa calcular
-    const newRank = null;
-
-    // Create the new item (sempre personalizado quando criado pelo usuário)
-    const newItem = await prisma.cashflowItem.create({
-      data: {
-        userId: payload.id, // Sempre personalizado quando criado pelo usuário
-        name: (name || descricao)!,
-        significado: significado || null,
-        groupId: finalGroupId,
-        rank: newRank,
-      },
-      include: {
-        values: {
-          where: { userId: payload.id },
-        },
-      },
-    });
-
-    return NextResponse.json(newItem);
-  } catch (error) {
-    console.error('Erro ao criar item:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+import { withErrorHandler } from '@/utils/apiErrorHandler';
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  const token = request.cookies.get('token')?.value;
+  if (!token) {
+    return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
   }
-}
+
+  const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
+  const body = await request.json();
+  const parsed = cashflowItemCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return validationError(parsed);
+  }
+  const { groupId, descricao, name, significado } = parsed.data;
+
+  // Validate input
+  if (!descricao && !name) {
+    return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
+  }
+
+  // Buscar grupo (pode ser template ou personalizado)
+  const group = await getGroupForUser(groupId, payload.id);
+  if (!group) {
+    return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
+  }
+
+  // Se grupo é template, personalizar antes de adicionar item
+  let finalGroupId = group.id;
+  if (group.userId === null) {
+    finalGroupId = await personalizeGroup(group.id, payload.id);
+  }
+
+  // Get the highest rank in the group to set the new item's rank
+  // Rank agora é texto, não precisa calcular
+  const newRank = null;
+
+  // Create the new item (sempre personalizado quando criado pelo usuário)
+  const newItem = await prisma.cashflowItem.create({
+    data: {
+      userId: payload.id, // Sempre personalizado quando criado pelo usuário
+      name: (name || descricao)!,
+      significado: significado || null,
+      groupId: finalGroupId,
+      rank: newRank,
+    },
+    include: {
+      values: {
+        where: { userId: payload.id },
+      },
+    },
+  });
+
+  return NextResponse.json(newItem);
+});

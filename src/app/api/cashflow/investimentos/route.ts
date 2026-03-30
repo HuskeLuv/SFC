@@ -3,42 +3,46 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
-const mapTransactionToTipo = (transaction: { stock?: { ticker: string } | null; asset?: { type?: string | null } | null }) => {
+import { withErrorHandler } from '@/utils/apiErrorHandler';
+const mapTransactionToTipo = (transaction: {
+  stock?: { ticker: string } | null;
+  asset?: { type?: string | null } | null;
+}) => {
   if (transaction.stock?.ticker) {
     const ticker = transaction.stock.ticker.toUpperCase();
-    return ticker.endsWith("11") ? "fii" : "stock";
+    return ticker.endsWith('11') ? 'fii' : 'stock';
   }
 
-  const assetType = transaction.asset?.type || "";
+  const assetType = transaction.asset?.type || '';
   switch (assetType) {
-    case "emergency":
-      return "emergency";
-    case "opportunity":
-      return "opportunity";
-    case "personalizado":
-      return "personalizado";
-    case "imovel":
-      return "real_estate";
-    case "crypto":
-      return "crypto";
-    case "currency":
-      return "currency";
-    case "etf":
-      return "etf";
-    case "reit":
-      return "reit";
-    case "bdr":
-      return "bdr";
-    case "fund":
-      return "fund";
-    case "bond":
-      return "bond";
-    case "insurance":
-      return "insurance";
-    case "cash":
-      return "cash";
+    case 'emergency':
+      return 'emergency';
+    case 'opportunity':
+      return 'opportunity';
+    case 'personalizado':
+      return 'personalizado';
+    case 'imovel':
+      return 'real_estate';
+    case 'crypto':
+      return 'crypto';
+    case 'currency':
+      return 'currency';
+    case 'etf':
+      return 'etf';
+    case 'reit':
+      return 'reit';
+    case 'bdr':
+      return 'bdr';
+    case 'fund':
+      return 'fund';
+    case 'bond':
+      return 'bond';
+    case 'insurance':
+      return 'insurance';
+    case 'cash':
+      return 'cash';
     default:
-      return assetType || "outros";
+      return assetType || 'outros';
   }
 };
 
@@ -46,216 +50,208 @@ const mapTransactionToTipo = (transaction: { stock?: { ticker: string } | null; 
  * API para calcular investimentos por mês a partir das transações reais
  * Usado pelo fluxo de caixa para exibir gastos com investimentos
  */
-export async function GET(request: NextRequest) {
-  try {
-    const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
-    
-    // Registrar acesso se estiver personificado
-    await logSensitiveEndpointAccess(
-      request,
-      payload,
-      targetUserId,
-      actingClient,
-      '/api/cashflow/investimentos',
-      'GET',
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+
+  // Registrar acesso se estiver personificado
+  await logSensitiveEndpointAccess(
+    request,
+    payload,
+    targetUserId,
+    actingClient,
+    '/api/cashflow/investimentos',
+    'GET',
+  );
+
+  const user = await prisma.user.findUnique({
+    where: { id: targetUserId },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+  }
+
+  // Buscar todas as transações de compra e venda do usuário
+  const transacoes = await prisma.stockTransaction.findMany({
+    where: {
+      userId: targetUserId,
+      type: { in: ['compra', 'venda'] },
+    },
+    include: {
+      asset: true,
+      stock: true,
+    },
+    orderBy: {
+      date: 'asc',
+    },
+  });
+
+  // Estrutura para armazenar investimentos por tipo de ativo e por mês
+  // { tipoAtivo: { mes: valor } }
+  const investimentosPorTipo: Record<string, Record<number, number>> = {};
+
+  // Mapa para rastrear tipos de ativos
+  const tiposAtivos = new Set<string>();
+
+  // Obter ano atual ou do query param
+  const { searchParams } = new URL(request.url);
+  const yearParam = searchParams.get('year');
+  const targetYear = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
+
+  // Log para debug
+  console.log(`[Cashflow Investimentos] Buscando investimentos para ano: ${targetYear}`);
+  console.log(`[Cashflow Investimentos] Total de transações encontradas: ${transacoes.length}`);
+
+  // Processar cada transação
+  for (const transacao of transacoes) {
+    if (!transacao.asset && !transacao.stock) continue;
+
+    const transactionYear = transacao.date.getFullYear();
+    const mes = transacao.date.getMonth(); // 0 = Janeiro, 11 = Dezembro
+    const valorBase = transacao.total + (transacao.fees || 0); // Total + taxas
+    const sinal = transacao.type === 'venda' ? -1 : 1;
+    const valor = valorBase * sinal;
+    const tipoAtivo = mapTransactionToTipo(transacao);
+
+    // Filtrar apenas transações do ano solicitado
+    if (transactionYear !== targetYear) {
+      console.log(
+        `[Cashflow Investimentos] Transação filtrada: ano ${transactionYear} !== ${targetYear}`,
+      );
+      continue;
+    }
+
+    console.log(
+      `[Cashflow Investimentos] Processando transação: ${tipoAtivo}, mês ${mes}, valor R$ ${valor}`,
     );
 
-    const user = await prisma.user.findUnique({
-      where: { id: targetUserId },
-    });
+    tiposAtivos.add(tipoAtivo);
 
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    // Inicializar estrutura se não existir
+    if (!investimentosPorTipo[tipoAtivo]) {
+      investimentosPorTipo[tipoAtivo] = {};
     }
 
-    // Buscar todas as transações de compra e venda do usuário
-    const transacoes = await prisma.stockTransaction.findMany({
-      where: {
-        userId: targetUserId,
-        type: { in: ['compra', 'venda'] },
-      },
-      include: {
-        asset: true,
-        stock: true,
-      },
-      orderBy: {
-        date: 'asc',
-      },
-    });
-
-    // Estrutura para armazenar investimentos por tipo de ativo e por mês
-    // { tipoAtivo: { mes: valor } }
-    const investimentosPorTipo: Record<string, Record<number, number>> = {};
-    
-    // Mapa para rastrear tipos de ativos
-    const tiposAtivos = new Set<string>();
-
-    // Obter ano atual ou do query param
-    const { searchParams } = new URL(request.url);
-    const yearParam = searchParams.get('year');
-    const targetYear = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
-    
-    // Log para debug
-    console.log(`[Cashflow Investimentos] Buscando investimentos para ano: ${targetYear}`);
-    console.log(`[Cashflow Investimentos] Total de transações encontradas: ${transacoes.length}`);
-
-    // Processar cada transação
-    for (const transacao of transacoes) {
-      if (!transacao.asset && !transacao.stock) continue;
-
-      const transactionYear = transacao.date.getFullYear();
-      const mes = transacao.date.getMonth(); // 0 = Janeiro, 11 = Dezembro
-      const valorBase = transacao.total + (transacao.fees || 0); // Total + taxas
-      const sinal = transacao.type === 'venda' ? -1 : 1;
-      const valor = valorBase * sinal;
-      const tipoAtivo = mapTransactionToTipo(transacao);
-
-      // Filtrar apenas transações do ano solicitado
-      if (transactionYear !== targetYear) {
-        console.log(`[Cashflow Investimentos] Transação filtrada: ano ${transactionYear} !== ${targetYear}`);
-        continue;
-      }
-      
-      console.log(`[Cashflow Investimentos] Processando transação: ${tipoAtivo}, mês ${mes}, valor R$ ${valor}`);
-
-      tiposAtivos.add(tipoAtivo);
-
-      // Inicializar estrutura se não existir
-      if (!investimentosPorTipo[tipoAtivo]) {
-        investimentosPorTipo[tipoAtivo] = {};
-      }
-
-      // Acumular valor no mês
-      if (!investimentosPorTipo[tipoAtivo][mes]) {
-        investimentosPorTipo[tipoAtivo][mes] = 0;
-      }
-      
-      investimentosPorTipo[tipoAtivo][mes] += valor;
+    // Acumular valor no mês
+    if (!investimentosPorTipo[tipoAtivo][mes]) {
+      investimentosPorTipo[tipoAtivo][mes] = 0;
     }
 
-    // Mapear tipos de ativos para nomes amigáveis
-    const tipoAtivoLabels: Record<string, string> = {
-      'stock': 'Ações',
-      'fii': 'FIIs',
-      'etf': 'ETFs',
-      'bdr': 'BDRs',
-      'reit': 'REITs',
-      'crypto': 'Criptomoedas',
-      'bond': 'Renda Fixa & Fundos Renda Fixa',
-      'fund': 'Fundos (FIM / FIA)',
-      'currency': 'Moedas, Criptomoedas & Outros',
-      'insurance': 'Previdência & Seguros',
-      'real_estate': 'Imóveis Físicos',
-      'emergency': 'Reserva Emergência',
-      'opportunity': 'Reserva Oportunidade',
-      'personalizado': 'Personalizado',
-      'cash': 'Conta Corrente',
-      'outros': 'Outros',
-    };
+    investimentosPorTipo[tipoAtivo][mes] += valor;
+  }
 
-    // Definir ordem de exibição das categorias (ordem menor = mais acima)
-    const ordemCategorias: Record<string, number> = {
-      'emergency': 1,
-      'opportunity': 2,
-      'bond': 3,
-      'fund': 4,
-      'fii': 5,
-      'stock': 6,
-      'reit': 7,
-      'etf': 8,
-      'crypto': 9,
-      'currency': 10,
-      'insurance': 11,
-      'real_estate': 12,
-      'personalizado': 13,
-      'cash': 14,
-      'outros': 15,
-    };
+  // Mapear tipos de ativos para nomes amigáveis
+  const tipoAtivoLabels: Record<string, string> = {
+    stock: 'Ações',
+    fii: 'FIIs',
+    etf: 'ETFs',
+    bdr: 'BDRs',
+    reit: 'REITs',
+    crypto: 'Criptomoedas',
+    bond: 'Renda Fixa & Fundos Renda Fixa',
+    fund: 'Fundos (FIM / FIA)',
+    currency: 'Moedas, Criptomoedas & Outros',
+    insurance: 'Previdência & Seguros',
+    real_estate: 'Imóveis Físicos',
+    emergency: 'Reserva Emergência',
+    opportunity: 'Reserva Oportunidade',
+    personalizado: 'Personalizado',
+    cash: 'Conta Corrente',
+    outros: 'Outros',
+  };
 
-    // Criar itens para TODAS as categorias (mesmo as sem transações)
-    const todasCategorias = Object.keys(tipoAtivoLabels);
-    
-    const investimentosCalculados = todasCategorias.map(tipoAtivo => {
-      const valoresPorMes = investimentosPorTipo[tipoAtivo] || {};
-      
-      // Criar array de valores no formato esperado pelo CashflowValue (novo modelo)
-      const values = Array.from({ length: 12 }, (_, month) => {
-        const valorMes = valoresPorMes[month] || 0;
-        
-        return {
-          id: `investimento-${tipoAtivo}-mes-${month}-${targetYear}`,
-          itemId: `investimento-${tipoAtivo}`,
-          userId: targetUserId,
-          year: targetYear,
-          month, // 0-11
-          value: Math.round(valorMes * 100) / 100,
-        };
-      });
+  // Definir ordem de exibição das categorias (ordem menor = mais acima)
+  const ordemCategorias: Record<string, number> = {
+    emergency: 1,
+    opportunity: 2,
+    bond: 3,
+    fund: 4,
+    fii: 5,
+    stock: 6,
+    reit: 7,
+    etf: 8,
+    crypto: 9,
+    currency: 10,
+    insurance: 11,
+    real_estate: 12,
+    personalizado: 13,
+    cash: 14,
+    outros: 15,
+  };
 
-      // Manter formato antigo para compatibilidade
-      const valores = values.map(v => ({
-        id: v.id,
-        mes: v.month,
-        valor: v.value,
-      }));
+  // Criar itens para TODAS as categorias (mesmo as sem transações)
+  const todasCategorias = Object.keys(tipoAtivoLabels);
 
-      // Calcular total anual
-      const totalAnual = values.reduce((sum, v) => sum + v.value, 0);
+  const investimentosCalculados = todasCategorias.map((tipoAtivo) => {
+    const valoresPorMes = investimentosPorTipo[tipoAtivo] || {};
+
+    // Criar array de valores no formato esperado pelo CashflowValue (novo modelo)
+    const values = Array.from({ length: 12 }, (_, month) => {
+      const valorMes = valoresPorMes[month] || 0;
 
       return {
-        id: `investimento-${tipoAtivo}`,
-        name: tipoAtivoLabels[tipoAtivo], // novo formato
-        descricao: tipoAtivoLabels[tipoAtivo], // compatibilidade
-        significado: null, // Investimentos não têm significado
-        rank: null, // Investimentos não têm rank
-        order: ordemCategorias[tipoAtivo] || 999, // compatibilidade (usado apenas para ordenação)
-        values, // novo formato
-        valores, // compatibilidade
-        totalAnual: Math.round(totalAnual * 100) / 100,
+        id: `investimento-${tipoAtivo}-mes-${month}-${targetYear}`,
+        itemId: `investimento-${tipoAtivo}`,
+        userId: targetUserId,
+        year: targetYear,
+        month, // 0-11
+        value: Math.round(valorMes * 100) / 100,
       };
     });
 
-    // Ordenar por ordem definida (usar order já que rank não é mais numérico)
-    investimentosCalculados.sort((a, b) => (a.order || 999) - (b.order || 999));
-    
-    // Log para debug
-    console.log(`[Cashflow Investimentos] Investimentos calculados: ${investimentosCalculados.length}`);
-    console.log(`[Cashflow Investimentos] Tipos de ativos com transações: ${tiposAtivos.size}`);
-    investimentosCalculados.forEach(inv => {
-      const totalAnual = inv.totalAnual || 0;
-      if (totalAnual > 0) {
-        console.log(`[Cashflow Investimentos] - ${inv.name}: R$ ${totalAnual.toFixed(2)}`);
-      }
-    });
+    // Manter formato antigo para compatibilidade
+    const valores = values.map((v) => ({
+      id: v.id,
+      mes: v.month,
+      valor: v.value,
+    }));
 
-    // Calcular totais por mês (todos os tipos somados)
-    const totaisPorMes = Array.from({ length: 12 }, (_, mes) => {
-      const total = Object.values(investimentosPorTipo).reduce((sum, valoresPorMes) => {
-        return sum + (valoresPorMes[mes] || 0);
-      }, 0);
-      return Math.round(total * 100) / 100;
-    });
+    // Calcular total anual
+    const totalAnual = values.reduce((sum, v) => sum + v.value, 0);
 
-    // Calcular total geral do ano
-    const totalGeral = totaisPorMes.reduce((sum, valor) => sum + valor, 0);
+    return {
+      id: `investimento-${tipoAtivo}`,
+      name: tipoAtivoLabels[tipoAtivo], // novo formato
+      descricao: tipoAtivoLabels[tipoAtivo], // compatibilidade
+      significado: null, // Investimentos não têm significado
+      rank: null, // Investimentos não têm rank
+      order: ordemCategorias[tipoAtivo] || 999, // compatibilidade (usado apenas para ordenação)
+      values, // novo formato
+      valores, // compatibilidade
+      totalAnual: Math.round(totalAnual * 100) / 100,
+    };
+  });
 
-    return NextResponse.json({
-      investimentos: investimentosCalculados,
-      totaisPorMes,
-      totalGeral: Math.round(totalGeral * 100) / 100,
-      quantidadeTipos: tiposAtivos.size,
-    });
+  // Ordenar por ordem definida (usar order já que rank não é mais numérico)
+  investimentosCalculados.sort((a, b) => (a.order || 999) - (b.order || 999));
 
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Não autorizado') {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  // Log para debug
+  console.log(
+    `[Cashflow Investimentos] Investimentos calculados: ${investimentosCalculados.length}`,
+  );
+  console.log(`[Cashflow Investimentos] Tipos de ativos com transações: ${tiposAtivos.size}`);
+  investimentosCalculados.forEach((inv) => {
+    const totalAnual = inv.totalAnual || 0;
+    if (totalAnual > 0) {
+      console.log(`[Cashflow Investimentos] - ${inv.name}: R$ ${totalAnual.toFixed(2)}`);
     }
-    
-    console.error('Erro ao calcular investimentos:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
-}
+  });
 
+  // Calcular totais por mês (todos os tipos somados)
+  const totaisPorMes = Array.from({ length: 12 }, (_, mes) => {
+    const total = Object.values(investimentosPorTipo).reduce((sum, valoresPorMes) => {
+      return sum + (valoresPorMes[mes] || 0);
+    }, 0);
+    return Math.round(total * 100) / 100;
+  });
+
+  // Calcular total geral do ano
+  const totalGeral = totaisPorMes.reduce((sum, valor) => sum + valor, 0);
+
+  return NextResponse.json({
+    investimentos: investimentosCalculados,
+    totaisPorMes,
+    totalGeral: Math.round(totalGeral * 100) / 100,
+    quantidadeTipos: tiposAtivos.size,
+  });
+});

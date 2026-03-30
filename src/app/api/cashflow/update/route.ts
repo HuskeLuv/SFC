@@ -10,6 +10,7 @@ import {
 } from '@/utils/cashflowPersonalization';
 import { cashflowUpdateSchema, validationError } from '@/utils/validation-schemas';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
  * PATCH /api/cashflow/update
  *
@@ -38,90 +39,63 @@ import { cashflowUpdateSchema, validationError } from '@/utils/validation-schema
  *   }
  * }
  */
-export async function PATCH(request: NextRequest) {
-  try {
-    // Verificar autenticação
-    const token = request.cookies.get('token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
-    }
-
-    const jwtPayload = jwt.verify(token, process.env.JWT_SECRET!) as {
-      id: string;
-      email: string;
-      role: string;
-    };
-    const requestBody = await request.json();
-    const parsed = cashflowUpdateSchema.safeParse(requestBody);
-    if (!parsed.success) {
-      return validationError(parsed);
-    }
-    const { operation, type, id, data } = parsed.data;
-
-    // Verificar personificação e registrar log se necessário
-    const { requireAuthWithActing } = await import('@/utils/auth');
-    const { logDataUpdate } = await import('@/services/impersonationLogger');
-    let authResult: Awaited<ReturnType<typeof requireAuthWithActing>> | null = null;
-    try {
-      authResult = await requireAuthWithActing(request);
-    } catch {
-      // Se falhar, usar payload do JWT diretamente
-    }
-
-    const payload = jwtPayload;
-
-    // Operações com grupos
-    let result;
-    if (type === 'group') {
-      result = await handleGroupOperation(operation, id, (data || {}) as GroupData, payload.id);
-    } else if (type === 'item') {
-      result = await handleItemOperation(operation, id, (data || {}) as ItemData, payload.id);
-    } else {
-      return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
-    }
-
-    // Registrar log se estiver personificado
-    if (authResult?.actingClient) {
-      await logDataUpdate(
-        request,
-        { id: authResult.payload.id, role: authResult.payload.role },
-        authResult.targetUserId,
-        authResult.actingClient,
-        '/api/cashflow/update',
-        'PATCH',
-        { operation, type, id, data },
-        { success: result.status === 200 || result.status === 201 },
-      );
-    }
-
-    return result;
-  } catch (error) {
-    console.error('Erro na API cashflow/update:', error);
-
-    // Registrar log de erro se estiver personificado
-    const { requireAuthWithActing } = await import('@/utils/auth');
-    const { logDataUpdate } = await import('@/services/impersonationLogger');
-    try {
-      const authResult = await requireAuthWithActing(request);
-      if (authResult.actingClient) {
-        await logDataUpdate(
-          request,
-          { id: authResult.payload.id, role: authResult.payload.role },
-          authResult.targetUserId,
-          authResult.actingClient,
-          '/api/cashflow/update',
-          'PATCH',
-          {},
-          { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' },
-        );
-      }
-    } catch {
-      // Ignorar erros de log
-    }
-
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+export const PATCH = withErrorHandler(async (request: NextRequest) => {
+  // Verificar autenticação
+  const token = request.cookies.get('token')?.value;
+  if (!token) {
+    return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
   }
-}
+
+  const jwtPayload = jwt.verify(token, process.env.JWT_SECRET!) as {
+    id: string;
+    email: string;
+    role: string;
+  };
+  const requestBody = await request.json();
+  const parsed = cashflowUpdateSchema.safeParse(requestBody);
+  if (!parsed.success) {
+    return validationError(parsed);
+  }
+  const { operation, type, id, data } = parsed.data;
+
+  // Verificar personificação e registrar log se necessário
+  const { requireAuthWithActing } = await import('@/utils/auth');
+  const { logDataUpdate } = await import('@/services/impersonationLogger');
+  let authResult: Awaited<ReturnType<typeof requireAuthWithActing>> | null = null;
+  try {
+    authResult = await requireAuthWithActing(request);
+  } catch {
+    // Se falhar, usar payload do JWT diretamente
+  }
+
+  const payload = jwtPayload;
+
+  // Operações com grupos
+  let result;
+  if (type === 'group') {
+    result = await handleGroupOperation(operation, id, (data || {}) as GroupData, payload.id);
+  } else if (type === 'item') {
+    result = await handleItemOperation(operation, id, (data || {}) as ItemData, payload.id);
+  } else {
+    return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
+  }
+
+  // Registrar log se estiver personificado
+  if (authResult?.actingClient) {
+    await logDataUpdate(
+      request,
+      { id: authResult.payload.id, role: authResult.payload.role },
+      authResult.targetUserId,
+      authResult.actingClient,
+      '/api/cashflow/update',
+      'PATCH',
+      { operation, type, id, data },
+      { success: result.status === 200 || result.status === 201 },
+    );
+  }
+
+  return result;
+});
 
 /**
  * Processa operações com grupos

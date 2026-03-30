@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runPortfolioSnapshotsJob } from '@/services/portfolioSnapshotPersistence';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
  * Cron HTTP (ex.: Vercel): GET com Authorization: Bearer CRON_SECRET
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler(async (request: NextRequest) => {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     return NextResponse.json({ error: 'CRON_SECRET não configurado' }, { status: 503 });
@@ -22,4 +23,4 @@ export async function GET(request: NextRequest) {
     console.error('[cron/portfolio-snapshots]', error);
     return NextResponse.json({ error: 'Falha ao executar job' }, { status: 500 });
   }
-}
+});

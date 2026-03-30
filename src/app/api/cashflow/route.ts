@@ -4,6 +4,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
  * Combina templates padrão com personalizações do usuário
  * Personalizações têm prioridade sobre templates
@@ -144,176 +145,137 @@ function mergeTemplatesWithCustomizations(
  * Query params:
  * - year (opcional): Filtrar valores por ano. Padrão: ano atual
  */
-export async function GET(request: NextRequest) {
-  try {
-    const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
 
-    // Registrar acesso se estiver personificado
-    const { searchParams } = new URL(request.url);
-    const yearParam = searchParams.get('year');
-    await logSensitiveEndpointAccess(
-      request,
-      payload,
-      targetUserId,
-      actingClient,
-      '/api/cashflow',
-      'GET',
-      yearParam ? { year: yearParam } : {},
-    );
+  // Registrar acesso se estiver personificado
+  const { searchParams } = new URL(request.url);
+  const yearParam = searchParams.get('year');
+  await logSensitiveEndpointAccess(
+    request,
+    payload,
+    targetUserId,
+    actingClient,
+    '/api/cashflow',
+    'GET',
+    yearParam ? { year: yearParam } : {},
+  );
 
-    const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
+  const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
 
-    if (isNaN(year)) {
-      return NextResponse.json({ error: 'Ano inválido' }, { status: 400 });
-    }
-
-    // Construir filtro de valores por ano
-    const valuesFilter = {
-      userId: targetUserId,
-      year: year,
-    };
-
-    // Buscar templates padrão (userId = null) com hierarquia completa
-    const templates = await prisma.cashflowGroup.findMany({
-      where: {
-        userId: null,
-        parentId: null,
-      },
-      orderBy: { orderIndex: 'asc' },
-      include: {
-        items: {
-          orderBy: { rank: 'asc' },
-          include: {
-            values: {
-              where: valuesFilter,
-              orderBy: { month: 'asc' },
-            },
-          },
-        },
-        children: {
-          orderBy: { orderIndex: 'asc' },
-          include: {
-            items: {
-              orderBy: { rank: 'asc' },
-              include: {
-                values: {
-                  where: valuesFilter,
-                  orderBy: { month: 'asc' },
-                },
-              },
-            },
-            children: {
-              orderBy: { orderIndex: 'asc' },
-              include: {
-                items: {
-                  orderBy: { rank: 'asc' },
-                  include: {
-                    values: {
-                      where: valuesFilter,
-                      orderBy: { month: 'asc' },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    // Buscar personalizações do usuário (userId = payload.id) com hierarquia completa
-    const customizations = await prisma.cashflowGroup.findMany({
-      where: {
-        userId: targetUserId,
-        parentId: null,
-      },
-      orderBy: { orderIndex: 'asc' },
-      include: {
-        items: {
-          orderBy: { rank: 'asc' },
-          include: {
-            values: {
-              where: valuesFilter,
-              orderBy: { month: 'asc' },
-            },
-          },
-        },
-        children: {
-          orderBy: { orderIndex: 'asc' },
-          include: {
-            items: {
-              orderBy: { rank: 'asc' },
-              include: {
-                values: {
-                  where: valuesFilter,
-                  orderBy: { month: 'asc' },
-                },
-              },
-            },
-            children: {
-              orderBy: { orderIndex: 'asc' },
-              include: {
-                items: {
-                  orderBy: { rank: 'asc' },
-                  include: {
-                    values: {
-                      where: valuesFilter,
-                      orderBy: { month: 'asc' },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    // Mesclar templates com personalizações (personalizações têm prioridade)
-    const mergedGroups = mergeTemplatesWithCustomizations(templates, customizations);
-
-    return NextResponse.json({
-      year,
-      groups: mergedGroups,
-    });
-  } catch (error: unknown) {
-    console.error('Erro na API cashflow:', error);
-
-    const errObj = error as { code?: string; message?: string };
-
-    // Tratamento específico para erros de conexão do Prisma
-    if (errObj.code === 'P1001' || errObj.code === 'P1000') {
-      return NextResponse.json(
-        {
-          error: 'Erro de conexão com o banco de dados',
-          message:
-            'Não foi possível conectar ao servidor de banco de dados. Verifique se o banco está ativo e tente novamente.',
-          code: errObj.code,
-        },
-        { status: 503 },
-      );
-    }
-
-    // Tratamento para outros erros do Prisma
-    if (errObj.code?.startsWith('P')) {
-      return NextResponse.json(
-        {
-          error: 'Erro no banco de dados',
-          message: errObj.message || 'Ocorreu um erro ao processar a requisição.',
-          code: errObj.code,
-        },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: 'Erro interno do servidor',
-        message: errObj.message || 'Ocorreu um erro inesperado.',
-      },
-      { status: 500 },
-    );
+  if (isNaN(year)) {
+    return NextResponse.json({ error: 'Ano inválido' }, { status: 400 });
   }
-}
+
+  // Construir filtro de valores por ano
+  const valuesFilter = {
+    userId: targetUserId,
+    year: year,
+  };
+
+  // Buscar templates padrão (userId = null) com hierarquia completa
+  const templates = await prisma.cashflowGroup.findMany({
+    where: {
+      userId: null,
+      parentId: null,
+    },
+    orderBy: { orderIndex: 'asc' },
+    include: {
+      items: {
+        orderBy: { rank: 'asc' },
+        include: {
+          values: {
+            where: valuesFilter,
+            orderBy: { month: 'asc' },
+          },
+        },
+      },
+      children: {
+        orderBy: { orderIndex: 'asc' },
+        include: {
+          items: {
+            orderBy: { rank: 'asc' },
+            include: {
+              values: {
+                where: valuesFilter,
+                orderBy: { month: 'asc' },
+              },
+            },
+          },
+          children: {
+            orderBy: { orderIndex: 'asc' },
+            include: {
+              items: {
+                orderBy: { rank: 'asc' },
+                include: {
+                  values: {
+                    where: valuesFilter,
+                    orderBy: { month: 'asc' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Buscar personalizações do usuário (userId = payload.id) com hierarquia completa
+  const customizations = await prisma.cashflowGroup.findMany({
+    where: {
+      userId: targetUserId,
+      parentId: null,
+    },
+    orderBy: { orderIndex: 'asc' },
+    include: {
+      items: {
+        orderBy: { rank: 'asc' },
+        include: {
+          values: {
+            where: valuesFilter,
+            orderBy: { month: 'asc' },
+          },
+        },
+      },
+      children: {
+        orderBy: { orderIndex: 'asc' },
+        include: {
+          items: {
+            orderBy: { rank: 'asc' },
+            include: {
+              values: {
+                where: valuesFilter,
+                orderBy: { month: 'asc' },
+              },
+            },
+          },
+          children: {
+            orderBy: { orderIndex: 'asc' },
+            include: {
+              items: {
+                orderBy: { rank: 'asc' },
+                include: {
+                  values: {
+                    where: valuesFilter,
+                    orderBy: { month: 'asc' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Mesclar templates com personalizações (personalizações têm prioridade)
+  const mergedGroups = mergeTemplatesWithCustomizations(templates, customizations);
+
+  return NextResponse.json({
+    year,
+    groups: mergedGroups,
+  });
+});
 
 // POST pode ser adaptado depois para criar itens/valores/grupos

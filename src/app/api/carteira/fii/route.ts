@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { FiiData, FiiAtivo, FiiSecao, TipoFii } from '@/types/fii';
 import { getAssetPrices } from '@/services/assetPriceService';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 // Funções auxiliares para cores
 function getSegmentColor(tipo: string): string {
   const colors: { [key: string]: string } = {
@@ -268,100 +269,90 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   };
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const { targetUserId } = await requireAuthWithActing(request);
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const { targetUserId } = await requireAuthWithActing(request);
 
-    const user = await prisma.user.findUnique({
-      where: { id: targetUserId },
+  const user = await prisma.user.findUnique({
+    where: { id: targetUserId },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+  }
+
+  const data = await calculateFiiData(user.id);
+
+  return NextResponse.json(data);
+});
+
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  const { targetUserId } = await requireAuthWithActing(request);
+  const body = await request.json();
+  const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
+
+  if (caixaParaInvestir !== undefined) {
+    if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
+      return NextResponse.json(
+        {
+          error: 'Caixa para investir deve ser um valor igual ou maior que zero',
+        },
+        { status: 400 },
+      );
+    }
+
+    // Salvar ou atualizar caixa para investir de FII
+    const existingCaixa = await prisma.dashboardData.findFirst({
+      where: {
+        userId: targetUserId,
+        metric: 'caixa_para_investir_fii',
+      },
     });
 
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
-    }
-
-    const data = await calculateFiiData(user.id);
-
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Erro ao buscar dados FII:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const { targetUserId } = await requireAuthWithActing(request);
-    const body = await request.json();
-    const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
-
-    if (caixaParaInvestir !== undefined) {
-      if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-        return NextResponse.json(
-          {
-            error: 'Caixa para investir deve ser um valor igual ou maior que zero',
-          },
-          { status: 400 },
-        );
-      }
-
-      // Salvar ou atualizar caixa para investir de FII
-      const existingCaixa = await prisma.dashboardData.findFirst({
-        where: {
+    if (existingCaixa) {
+      await prisma.dashboardData.update({
+        where: { id: existingCaixa.id },
+        data: { value: caixaParaInvestir },
+      });
+    } else {
+      await prisma.dashboardData.create({
+        data: {
           userId: targetUserId,
           metric: 'caixa_para_investir_fii',
+          value: caixaParaInvestir,
         },
       });
-
-      if (existingCaixa) {
-        await prisma.dashboardData.update({
-          where: { id: existingCaixa.id },
-          data: { value: caixaParaInvestir },
-        });
-      } else {
-        await prisma.dashboardData.create({
-          data: {
-            userId: targetUserId,
-            metric: 'caixa_para_investir_fii',
-            value: caixaParaInvestir,
-          },
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'Caixa para investir atualizado com sucesso',
-        caixaParaInvestir,
-      });
     }
-
-    if (!ativoId) {
-      return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
-    }
-
-    if (objetivo !== undefined) {
-      if (objetivo < 0 || objetivo > 100) {
-        return NextResponse.json({ error: 'Objetivo deve estar entre 0 e 100%' }, { status: 400 });
-      }
-      console.log(`Atualizando objetivo do FII ${ativoId} para ${objetivo}%`);
-    }
-
-    if (cotacao !== undefined) {
-      if (cotacao <= 0) {
-        return NextResponse.json({ error: 'Cotação deve ser maior que zero' }, { status: 400 });
-      }
-      console.log(`Atualizando cotação do FII ${ativoId} para R$ ${cotacao}`);
-    }
-
-    // Simular delay de rede
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     return NextResponse.json({
       success: true,
-      message: 'Dados atualizados com sucesso',
+      message: 'Caixa para investir atualizado com sucesso',
+      caixaParaInvestir,
     });
-  } catch (error) {
-    console.error('Erro ao atualizar dados FII:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
-}
+
+  if (!ativoId) {
+    return NextResponse.json({ error: 'Parâmetro obrigatório: ativoId' }, { status: 400 });
+  }
+
+  if (objetivo !== undefined) {
+    if (objetivo < 0 || objetivo > 100) {
+      return NextResponse.json({ error: 'Objetivo deve estar entre 0 e 100%' }, { status: 400 });
+    }
+    console.log(`Atualizando objetivo do FII ${ativoId} para ${objetivo}%`);
+  }
+
+  if (cotacao !== undefined) {
+    if (cotacao <= 0) {
+      return NextResponse.json({ error: 'Cotação deve ser maior que zero' }, { status: 400 });
+    }
+    console.log(`Atualizando cotação do FII ${ativoId} para R$ ${cotacao}`);
+  }
+
+  // Simular delay de rede
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  return NextResponse.json({
+    success: true,
+    message: 'Dados atualizados com sucesso',
+  });
+});

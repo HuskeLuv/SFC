@@ -2,102 +2,85 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { stockTransactionSchema, validationError } from '@/utils/validation-schemas';
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 
 // GET - Buscar transações do usuário
-export async function GET(request: NextRequest) {
-  try {
-    const { targetUserId } = await requireAuthWithActing(request);
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const { targetUserId } = await requireAuthWithActing(request);
 
-    const user = await prisma.user.findUnique({
-      where: { id: targetUserId },
-    });
+  const user = await prisma.user.findUnique({
+    where: { id: targetUserId },
+  });
 
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
-    }
-
-    const transactions = await prisma.stockTransaction.findMany({
-      where: { userId: user.id },
-      include: {
-        stock: true,
-      },
-      orderBy: { date: 'desc' },
-    });
-
-    return NextResponse.json(transactions);
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Não autorizado') {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
-
-    console.error('Erro ao buscar transações:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+  if (!user) {
+    return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
   }
-}
+
+  const transactions = await prisma.stockTransaction.findMany({
+    where: { userId: user.id },
+    include: {
+      stock: true,
+    },
+    orderBy: { date: 'desc' },
+  });
+
+  return NextResponse.json(transactions);
+});
 
 // POST - Registrar nova transação
-export async function POST(request: NextRequest) {
-  try {
-    const { targetUserId } = await requireAuthWithActing(request);
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  const { targetUserId } = await requireAuthWithActing(request);
 
-    const user = await prisma.user.findUnique({
-      where: { id: targetUserId },
-    });
+  const user = await prisma.user.findUnique({
+    where: { id: targetUserId },
+  });
 
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
-    }
-
-    const body = await request.json();
-    const parsed = stockTransactionSchema.safeParse(body);
-    if (!parsed.success) {
-      return validationError(parsed);
-    }
-    const { stockId, type, quantity, price, date, fees, notes } = parsed.data;
-
-    // Verificar se o ativo existe
-    const stock = await prisma.stock.findUnique({
-      where: { id: stockId },
-    });
-
-    if (!stock) {
-      return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
-    }
-
-    const total = quantity * price;
-    const transactionDate = new Date(date);
-
-    // Criar transação
-    const transaction = await prisma.stockTransaction.create({
-      data: {
-        userId: user.id,
-        stockId: stockId,
-        type,
-        quantity,
-        price,
-        total,
-        date: transactionDate,
-        fees: fees || 0,
-        notes: notes || null,
-      },
-      include: {
-        stock: true,
-      },
-    });
-
-    // Atualizar portfolio
-    await updatePortfolio(user.id, stockId, type, quantity, price, total);
-
-    return NextResponse.json(transaction, { status: 201 });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Não autorizado') {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
-
-    console.error('Erro ao registrar transação:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+  if (!user) {
+    return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
   }
-}
+
+  const body = await request.json();
+  const parsed = stockTransactionSchema.safeParse(body);
+  if (!parsed.success) {
+    return validationError(parsed);
+  }
+  const { stockId, type, quantity, price, date, fees, notes } = parsed.data;
+
+  // Verificar se o ativo existe
+  const stock = await prisma.stock.findUnique({
+    where: { id: stockId },
+  });
+
+  if (!stock) {
+    return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
+  }
+
+  const total = quantity * price;
+  const transactionDate = new Date(date);
+
+  // Criar transação
+  const transaction = await prisma.stockTransaction.create({
+    data: {
+      userId: user.id,
+      stockId: stockId,
+      type,
+      quantity,
+      price,
+      total,
+      date: transactionDate,
+      fees: fees || 0,
+      notes: notes || null,
+    },
+    include: {
+      stock: true,
+    },
+  });
+
+  // Atualizar portfolio
+  await updatePortfolio(user.id, stockId, type, quantity, price, total);
+
+  return NextResponse.json(transaction, { status: 201 });
+});
 
 // Função para atualizar o portfolio
 async function updatePortfolio(

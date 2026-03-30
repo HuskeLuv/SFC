@@ -1,29 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 
-export async function GET(request: NextRequest) {
-  try {
-    // Verificar autenticação
-    requireAuth(request);
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  // Verificar autenticação
+  requireAuth(request);
 
-    // Buscar todos os ativos ativos
-    const stocks = await prisma.stock.findMany({
-      where: { isActive: true },
-      orderBy: { ticker: 'asc' },
-    });
+  // Buscar todos os ativos ativos
+  const stocks = await prisma.stock.findMany({
+    where: { isActive: true },
+    orderBy: { ticker: 'asc' },
+  });
 
-    return NextResponse.json(stocks);
-    
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Não autorizado') {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
-    
-    console.error('Erro ao buscar ativos:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
-} 
+  return NextResponse.json(stocks);
+});
