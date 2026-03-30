@@ -1,12 +1,17 @@
-"use client";
+'use client';
 
-import DividendChart from "@/components/stocks/DividendChart";
-import LatestTransactions from "@/components/stocks/LatestTransactions";
-import PortfolioPerformance from "@/components/stocks/PortfolioPerformance";
-import TrendingStocks from "@/components/stocks/TrendingStocks";
-import WatchList from "@/components/stocks/WatchList";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import React from "react";
+import dynamic from 'next/dynamic';
+import DividendChart from '@/components/stocks/DividendChart';
+import LatestTransactions from '@/components/stocks/LatestTransactions';
+import PortfolioPerformance from '@/components/stocks/PortfolioPerformance';
+import WatchList from '@/components/stocks/WatchList';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import React from 'react';
+
+const TrendingStocks = dynamic(() => import('@/components/stocks/TrendingStocks'), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-lg h-64" />,
+});
 
 export default function Stocks() {
   return (

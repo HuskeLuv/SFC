@@ -1,16 +1,39 @@
-import ComponentCard from "@/components/common/ComponentCard";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import SlideOnly from "@/components/ui/carousel/SlideOnly";
-import WithControl from "@/components/ui/carousel/WithControl";
-import WithControlAndIndicators from "@/components/ui/carousel/WithControlAndIndicators";
-import WithIndicators from "@/components/ui/carousel/WithIndicators";
-import { Metadata } from "next";
-import React from "react";
+import dynamic from 'next/dynamic';
+import ComponentCard from '@/components/common/ComponentCard';
+import PageBreadcrumb from '@/components/common/PageBreadCrumb';
+import { Metadata } from 'next';
+import React from 'react';
+
+const carouselLoading = () => (
+  <div className="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-lg h-72" />
+);
+
+const SlideOnly = dynamic(() => import('@/components/ui/carousel/SlideOnly'), {
+  ssr: false,
+  loading: carouselLoading,
+});
+
+const WithControl = dynamic(() => import('@/components/ui/carousel/WithControl'), {
+  ssr: false,
+  loading: carouselLoading,
+});
+
+const WithIndicators = dynamic(() => import('@/components/ui/carousel/WithIndicators'), {
+  ssr: false,
+  loading: carouselLoading,
+});
+
+const WithControlAndIndicators = dynamic(
+  () => import('@/components/ui/carousel/WithControlAndIndicators'),
+  {
+    ssr: false,
+    loading: carouselLoading,
+  },
+);
 
 export const metadata: Metadata = {
-  title: "",
-  description:
-    "",
+  title: '',
+  description: '',
   // other metadata
 };
 
