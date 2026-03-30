@@ -1,13 +1,15 @@
-"use client";
-import React from "react";
-import { GroupedProventoData } from "@/hooks/useProventos";
+import React from 'react';
+import { GroupedProventoData } from '@/hooks/useProventos';
 
 interface ProventosDistribuicaoTableProps {
   grouped: Record<string, GroupedProventoData>;
-  viewMode: "total" | "yield";
+  viewMode: 'total' | 'yield';
 }
 
-export default function ProventosDistribuicaoTable({ grouped, viewMode }: ProventosDistribuicaoTableProps) {
+export default function ProventosDistribuicaoTable({
+  grouped,
+  viewMode,
+}: ProventosDistribuicaoTableProps) {
   const entries = Object.entries(grouped).sort((a, b) => b[1].total - a[1].total);
   const total = entries.reduce((sum, [, data]) => sum + data.total, 0);
 
@@ -17,13 +19,13 @@ export default function ProventosDistribuicaoTable({ grouped, viewMode }: Proven
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {viewMode === "yield" ? "Ativo" : "Categoria"}
+              {viewMode === 'yield' ? 'Ativo' : 'Categoria'}
             </th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {viewMode === "yield" ? "Dividend Yield" : "Total"}
+              {viewMode === 'yield' ? 'Dividend Yield' : 'Total'}
             </th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {viewMode === "yield" ? "YOC" : "Média"}
+              {viewMode === 'yield' ? 'YOC' : 'Média'}
             </th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
               %
@@ -34,23 +36,22 @@ export default function ProventosDistribuicaoTable({ grouped, viewMode }: Proven
           {entries.map(([name, data]) => {
             const percentage = total > 0 ? (data.total / total) * 100 : 0;
             const average = data.count > 0 ? data.total / data.count : 0;
-            
+
             return (
-              <tr key={name} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                  {name}
-                </td>
+              <tr
+                key={name}
+                className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+              >
+                <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{name}</td>
                 <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white font-medium">
-                  {viewMode === "yield"
+                  {viewMode === 'yield'
                     ? `${(data.dividendYield ?? 0).toFixed(2)}%`
-                    : `R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  }
+                    : `R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 </td>
                 <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
-                  {viewMode === "yield"
+                  {viewMode === 'yield'
                     ? `${(data.yoc ?? 0).toFixed(2)}%`
-                    : `R$ ${average.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  }
+                    : `R$ ${average.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 </td>
                 <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
                   {percentage.toFixed(2)}%
@@ -60,7 +61,10 @@ export default function ProventosDistribuicaoTable({ grouped, viewMode }: Proven
           })}
           {entries.length === 0 && (
             <tr>
-              <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+              <td
+                colSpan={4}
+                className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+              >
                 Nenhum provento encontrado no período selecionado
               </td>
             </tr>
@@ -73,13 +77,16 @@ export default function ProventosDistribuicaoTable({ grouped, viewMode }: Proven
                 Total
               </td>
               <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">
-                {viewMode === "yield" 
-                  ? "-"
-                  : `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                }
+                {viewMode === 'yield'
+                  ? '-'
+                  : `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </td>
               <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">
-                R$ {(total / entries.length).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                R${' '}
+                {(total / entries.length).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </td>
               <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">
                 100.00%
@@ -91,5 +98,3 @@ export default function ProventosDistribuicaoTable({ grouped, viewMode }: Proven
     </div>
   );
 }
-
-

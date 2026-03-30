@@ -1,13 +1,7 @@
-import dynamic from 'next/dynamic';
 import PageBreadcrumb from '@/components/common/PageBreadCrumb';
 import TaskHeader from '@/components/task/TaskHeader';
+import KanbanBoard from '@/components/task/kanban/KanbanBoard';
 import { Metadata } from 'next';
-import React from 'react';
-
-const KanbanBoard = dynamic(() => import('@/components/task/kanban/KanbanBoard'), {
-  ssr: false,
-  loading: () => <div className="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-lg h-96" />,
-});
 
 export const metadata: Metadata = {
   title: 'Tarefas',

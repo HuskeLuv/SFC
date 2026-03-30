@@ -1,15 +1,7 @@
-"use client";
-
-import React from "react";
-import { Card, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import Badge from "@/components/ui/badge/Badge";
+import React from 'react';
+import { Card, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import Badge from '@/components/ui/badge/Badge';
 
 interface AportesResgates {
   clientId: string;
@@ -17,7 +9,7 @@ interface AportesResgates {
   email: string;
   totalAportes: number;
   totalResgates: number;
-  tendencia: "positive" | "negative";
+  tendencia: 'positive' | 'negative';
 }
 
 interface AportesResgatesTableProps {
@@ -28,7 +20,7 @@ interface AportesResgatesTableProps {
 
 const AportesResgatesTable: React.FC<AportesResgatesTableProps> = ({
   data,
-  emptyMessage = "Nenhum dado disponível",
+  emptyMessage = 'Nenhum dado disponível',
   currencyFormatter,
 }) => {
   if (data.length === 0) {
@@ -36,9 +28,7 @@ const AportesResgatesTable: React.FC<AportesResgatesTableProps> = ({
       <Card>
         <CardTitle>Resumo de Aportes & Resgates dos Clientes</CardTitle>
         <div className="mt-4 flex items-center justify-center rounded-lg border border-dashed border-gray-200 py-8 dark:border-gray-700">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {emptyMessage}
-          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{emptyMessage}</p>
         </div>
       </Card>
     );
@@ -76,9 +66,7 @@ const AportesResgatesTable: React.FC<AportesResgatesTableProps> = ({
                     <span className="text-sm font-medium text-gray-900 dark:text-white/90">
                       {item.name}
                     </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {item.email}
-                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{item.email}</span>
                   </div>
                 </TableCell>
                 <TableCell className="px-4 py-4 text-right text-sm text-gray-700 dark:text-white/80">
@@ -89,11 +77,11 @@ const AportesResgatesTable: React.FC<AportesResgatesTableProps> = ({
                 </TableCell>
                 <TableCell className="px-4 py-4 text-center">
                   <Badge
-                    color={item.tendencia === "positive" ? "success" : "error"}
+                    color={item.tendencia === 'positive' ? 'success' : 'error'}
                     size="sm"
                     variant="light"
                   >
-                    {item.tendencia === "positive" ? "Positivo" : "Negativo"}
+                    {item.tendencia === 'positive' ? 'Positivo' : 'Negativo'}
                   </Badge>
                 </TableCell>
               </TableRow>
@@ -106,4 +94,3 @@ const AportesResgatesTable: React.FC<AportesResgatesTableProps> = ({
 };
 
 export default AportesResgatesTable;
-

@@ -1,7 +1,5 @@
-"use client";
-
-import React from "react";
-import Link from "next/link";
+import React from 'react';
+import Link from 'next/link';
 
 interface AssetNameLinkProps {
   portfolioId: string;
@@ -21,9 +19,9 @@ const AssetNameLink: React.FC<AssetNameLinkProps> = ({
   ticker,
   nome,
   nomeComoPrincipal = false,
-  className = "",
+  className = '',
 }) => {
-  const principal = nomeComoPrincipal ? (nome || ticker) : ticker;
+  const principal = nomeComoPrincipal ? nome || ticker : ticker;
   const secundario = nomeComoPrincipal ? ticker : nome;
   return (
     <Link
@@ -32,9 +30,7 @@ const AssetNameLink: React.FC<AssetNameLinkProps> = ({
     >
       <div>
         <div>{principal}</div>
-        {secundario && secundario !== principal && (
-          <div className="text-xs">{secundario}</div>
-        )}
+        {secundario && secundario !== principal && <div className="text-xs">{secundario}</div>}
       </div>
     </Link>
   );

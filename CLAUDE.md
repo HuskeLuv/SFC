@@ -57,9 +57,11 @@ Both `ignoreBuildErrors` and `ignoreDuringBuilds` are `false` — lint and type 
 
 ## Testing
 
-Vitest 1.6 with v8 coverage. Tests live in `__tests__/` directories next to the route they test. Coverage threshold: 50% statements on `src/app/api/carteira/{operacao,aporte,resgate}/**/*.ts`.
+Vitest 1.6 with v8 coverage (54 test files, 504 tests). Tests live in `__tests__/` directories next to the module they test. Coverage threshold: 50% statements on `src/app/api/carteira/{operacao,aporte,resgate}/**/*.ts` plus `src/services/**/*.ts` and `src/hooks/**/*.ts`.
 
 Test pattern: mock Prisma via `vi.hoisted()`, mock `requireAuthWithActing` from `@/utils/auth`, mock `@/lib/prisma`. Test the exported route handler (POST, GET, etc.) with `NextRequest`.
+
+Test infrastructure in `src/test/`: `setup.ts` (jest-dom matchers), `wrappers.tsx` (React Query test wrapper via `renderHookWithClient`), `mocks/prisma.ts` (reusable `createMockPrisma()` factory), `mocks/auth.ts` (`mockAuthAsUser`/`mockAuthAsConsultant`), `mocks/fetch.ts` (`mockFetchResponse`/`stubFetch`). Hook tests use `// @vitest-environment jsdom` directive.
 
 ## Environment Variables Required
 
@@ -72,7 +74,7 @@ Test pattern: mock Prisma via `vi.hoisted()`, mock `requireAuthWithActing` from 
 ## Work Plan — Issues, Improvements & Refactoring
 
 > Organized by phase. Each task has a status: `[ ]` pending, `[~]` in progress, `[x]` done.
-> Last updated: 2026-03-30
+> Last updated: 2026-03-30 (Phase 6 added)
 
 ### Phase 1 — Security & Critical Fixes
 
@@ -98,15 +100,15 @@ Test pattern: mock Prisma via `vi.hoisted()`, mock `requireAuthWithActing` from 
 
 ### Phase 3 — Performance & Optimization
 
-| #   | Task                                                                                                                                                                                                                          | Priority | Files/Scope                                                                                 |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| 3.1 | [x] **Fix N+1 queries — parallelize sequential DB fetches** — `carteira-historico` route fetches asset history in a sequential for-loop. `analises/indices` route fetches benchmark data sequentially. Convert to Promise.all | HIGH     | `src/app/api/analises/carteira-historico/route.ts`, `src/app/api/analises/indices/route.ts` |
-| 3.2 | [x] **Fix AuthContext cascading re-renders** — Provider value object recreated every render, unnecessary setState calls when value doesn't change. Wrap value in useMemo, fix redundant null assignments                      | HIGH     | `src/context/AuthContext.tsx`                                                               |
-| 3.3 | [x] **Add missing Prisma indexes** — Notification.userId, ConsultantInvite.invitedUserId, Portfolio.userId lack explicit indexes                                                                                              | MEDIUM   | `prisma/schema.prisma`                                                                      |
-| 3.4 | [x] **Lazy-load heavy libraries** — FullCalendar, Swiper, react-spreadsheet are statically imported. Wrap with `next/dynamic` and `ssr: false`                                                                                | MEDIUM   | Components importing these libraries                                                        |
-| 3.5 | [ ] **Audit client vs server components** — Many components use `"use client"` unnecessarily (pure rendering, no hooks/interactivity). Convert to server components where possible to reduce JS bundle                        | MEDIUM   | `src/components/` (95+ client components)                                                   |
-| 3.6 | [x] **Fix memory leaks in hooks** — Missing AbortController cleanup for in-flight fetches on unmount. useAcoes uses `JSON.parse(JSON.stringify())` for deep clone instead of `structuredClone()`                              | MEDIUM   | `src/hooks/useAcoes.ts` and similar hooks                                                   |
-| 3.7 | [x] **Optimize next.config.ts** — Add framer-motion to optimizePackageImports, configure image optimization (avif/webp), disable production source maps                                                                       | LOW      | `next.config.ts`                                                                            |
+| #   | Task                                                                                                                                                                                                                           | Priority | Files/Scope                                                                                 |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------- |
+| 3.1 | [x] **Fix N+1 queries — parallelize sequential DB fetches** — `carteira-historico` route fetches asset history in a sequential for-loop. `analises/indices` route fetches benchmark data sequentially. Convert to Promise.all  | HIGH     | `src/app/api/analises/carteira-historico/route.ts`, `src/app/api/analises/indices/route.ts` |
+| 3.2 | [x] **Fix AuthContext cascading re-renders** — Provider value object recreated every render, unnecessary setState calls when value doesn't change. Wrap value in useMemo, fix redundant null assignments                       | HIGH     | `src/context/AuthContext.tsx`                                                               |
+| 3.3 | [x] **Add missing Prisma indexes** — Notification.userId, ConsultantInvite.invitedUserId, Portfolio.userId lack explicit indexes                                                                                               | MEDIUM   | `prisma/schema.prisma`                                                                      |
+| 3.4 | [x] **Lazy-load heavy libraries** — FullCalendar, Swiper, react-spreadsheet are statically imported. Wrap with `next/dynamic` and `ssr: false`                                                                                 | MEDIUM   | Components importing these libraries                                                        |
+| 3.5 | [x] **Audit client vs server components** — Audited 168 client components. Converted 7 to server components, fixed 4 pages with broken `dynamic`+`ssr:false` in server context. 161 must remain client (hooks/handlers/charts) | MEDIUM   | `src/components/` (168 client components audited)                                           |
+| 3.6 | [x] **Fix memory leaks in hooks** — Missing AbortController cleanup for in-flight fetches on unmount. useAcoes uses `JSON.parse(JSON.stringify())` for deep clone instead of `structuredClone()`                               | MEDIUM   | `src/hooks/useAcoes.ts` and similar hooks                                                   |
+| 3.7 | [x] **Optimize next.config.ts** — Add framer-motion to optimizePackageImports, configure image optimization (avif/webp), disable production source maps                                                                        | LOW      | `next.config.ts`                                                                            |
 
 ### Phase 4 — Testing & Reliability
 
@@ -125,6 +127,18 @@ Test pattern: mock Prisma via `vi.hoisted()`, mock `requireAuthWithActing` from 
 | 5.2 | [x] **Consolidate services by domain** — 15 service files with overlapping concerns. Group into domains: `services/pricing/` (brapiQuote + brapiSync + assetPriceService), `services/portfolio/` (snapshots + series), `services/market/` (indicators + indexes) | MEDIUM   | `src/services/`                                       |
 | 5.3 | [ ] **Plan Neon → AWS RDS migration** — Database is on Neon, planned move to RDS sa-east-1 (see ADR-004). Define migration strategy, connection pooling, and failover                                                                                            | LOW      | Infrastructure, `prisma/schema.prisma`                |
 
+### Phase 6 — Test Coverage Expansion
+
+| #   | Task                                                                                                                                                                                                         | Priority | Files/Scope                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 6.1 | [x] **Test infrastructure** — Install RTL, jest-dom, jsdom. Create reusable mocks (`src/test/mocks/`), QueryClient wrapper (`src/test/wrappers.tsx`), setup file. Expand vitest coverage to services + hooks | HIGH     | `vitest.config.ts`, `src/test/`                                                                                              |
+| 6.2 | [x] **Service layer tests** — 102 tests covering patrimonioHistoricoBuilder (46), assetPriceService (23), dividendService (15), marketIndicatorService (10), impersonationLogger (8)                         | HIGH     | `src/services/{portfolio,pricing,market}/__tests__/`, `src/services/__tests__/`                                              |
+| 6.3 | [x] **Hook tests** — 40 tests covering useAssetData (18), useCarteira (12), useCashflow (10). Validates React Query migration with optimistic updates, progressive loading, multi-endpoint orchestration     | HIGH     | `src/hooks/__tests__/`                                                                                                       |
+| 6.4 | [x] **API route template tests** — 83 tests for identical cotacao (7 assets × 5 tests) and objetivo (8 assets × 6 tests) routes                                                                              | MEDIUM   | `src/app/api/carteira/{etf,fii,stocks,moedas-criptos,opcoes,previdencia-seguros,reit,fim-fia}/{cotacao,objetivo}/__tests__/` |
+| 6.5 | [ ] **Component tests** — CarteiraTabs, GenericAssetTable, wizard components. Requires RTL (already installed)                                                                                               | MEDIUM   | `src/components/carteira/__tests__/`                                                                                         |
+| 6.6 | [ ] **Remaining API route tests** — analises/_, ativos/[id]/_, cashflow sub-routes, consultant dashboard/overview, calendar, profile                                                                         | LOW      | `src/app/api/analises/**`, `src/app/api/ativos/**`, `src/app/api/cashflow/{items,structure,comments}/**`                     |
+| 6.7 | [ ] **E2E tests** — Login flow, add asset, consultant impersonation. Requires Playwright setup                                                                                                               | LOW      | New Playwright config + `e2e/` directory                                                                                     |
+
 ### Task Dependencies
 
 ```
@@ -134,4 +148,6 @@ Phase 2.4 (Pages Router migration) → independent, can parallel with 2.1-2.3
 Phase 3.2 (AuthContext) → independent, can start anytime
 Phase 4.1 (Tests) → should run after Phase 2 refactors to avoid throwaway tests
 Phase 5.1 (React Query) → depends on Phase 2.1 (generic hook) being done first
+Phase 6.5 (Component tests) → depends on 6.1 (infrastructure)
+Phase 6.7 (E2E) → independent, can start anytime
 ```
