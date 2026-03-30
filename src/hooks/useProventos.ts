@@ -98,9 +98,7 @@ export const useProventos = (
       setTotal(0);
       setMedia(0);
     } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [startDate, endDate, groupBy]);
 

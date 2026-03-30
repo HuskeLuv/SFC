@@ -129,9 +129,7 @@ export const useCarteira = () => {
       console.error('Erro ao buscar resumo da carteira:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
+      setLoading(false);
       isFetchingRef.current = false;
     }
   }, []);

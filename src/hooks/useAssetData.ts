@@ -118,9 +118,7 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
           setData(null);
         }
       } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        setLoading(false);
         isFetchingRef.current = false;
       }
     },

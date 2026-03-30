@@ -52,9 +52,7 @@ export const useCarteiraHistorico = (
         setError(err instanceof Error ? err.message : 'Erro desconhecido');
         setData([]);
       } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 

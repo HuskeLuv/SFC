@@ -111,9 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActingClient(null);
       setError('Erro ao verificar autenticação');
     } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, []);
 

@@ -57,9 +57,7 @@ export const useIndices = (
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
       setIndices([]);
     } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [range, startDate]);
 
