@@ -50,6 +50,7 @@ import {
 
 const TODAY = new Date('2026-03-30T00:00:00.000Z');
 const YESTERDAY = new Date('2026-03-29T00:00:00.000Z');
+const STALE_DATE = new Date('2026-03-20T00:00:00.000Z'); // > 7 days ago
 
 // ── Test suites ────────────────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ describe('assetPriceService', () => {
       expect(mockFetchQuotes).not.toHaveBeenCalled();
     });
 
-    it('falls back to history when currentPrice is stale', async () => {
+    it('returns currentPrice when updated yesterday (within 7-day window)', async () => {
       mockPrisma.asset.findUnique.mockResolvedValue({
         currentPrice: new Decimal(29.5),
         priceUpdatedAt: YESTERDAY,
@@ -149,9 +150,24 @@ describe('assetPriceService', () => {
         currency: 'BRL',
         source: 'brapi',
       });
+
+      const result = await getAssetPrice('PETR4');
+
+      expect(result).toBe(29.5);
+      expect(mockPrisma.assetPriceHistory.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('falls back to history when currentPrice is older than 7 days', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue({
+        currentPrice: new Decimal(29.5),
+        priceUpdatedAt: STALE_DATE,
+        type: 'stock',
+        currency: 'BRL',
+        source: 'brapi',
+      });
       mockPrisma.assetPriceHistory.findFirst.mockResolvedValue({
         price: new Decimal(30.0),
-        date: TODAY,
+        date: YESTERDAY,
       });
 
       const result = await getAssetPrice('PETR4');
@@ -159,24 +175,23 @@ describe('assetPriceService', () => {
       expect(result).toBe(30.0);
     });
 
-    it('falls back to BRAPI when no DB data is fresh', async () => {
+    it('falls back to BRAPI when all DB data is older than 7 days', async () => {
       mockPrisma.asset.findUnique.mockResolvedValue({
         currentPrice: new Decimal(29.5),
-        priceUpdatedAt: YESTERDAY,
+        priceUpdatedAt: STALE_DATE,
         type: 'stock',
         currency: 'BRL',
         source: 'brapi',
       });
       mockPrisma.assetPriceHistory.findFirst.mockResolvedValue({
         price: new Decimal(28.0),
-        date: YESTERDAY,
+        date: STALE_DATE,
       });
       mockFetchQuotes.mockResolvedValue(new Map([['PETR4', 31.0]]));
-      // persistPriceFromBrapi will look up asset
       mockPrisma.asset.findUnique
         .mockResolvedValueOnce({
           currentPrice: new Decimal(29.5),
-          priceUpdatedAt: YESTERDAY,
+          priceUpdatedAt: STALE_DATE,
           type: 'stock',
           currency: 'BRL',
           source: 'brapi',
@@ -266,12 +281,12 @@ describe('assetPriceService', () => {
   // ─── getAssetPrices ────────────────────────────────────────────────
 
   describe('getAssetPrices', () => {
-    it('batches DB lookup and only fetches missing from BRAPI', async () => {
-      // PETR4 has fresh price in DB, VALE3 does not
+    it('uses DB prices within 7-day window, fetches BRAPI only for stale ones', async () => {
+      // PETR4 has today's price, VALE3 has stale price (> 7 days)
       mockPrisma.asset.findMany
         .mockResolvedValueOnce([
           { symbol: 'PETR4', currentPrice: new Decimal(30), priceUpdatedAt: TODAY },
-          { symbol: 'VALE3', currentPrice: new Decimal(50), priceUpdatedAt: YESTERDAY },
+          { symbol: 'VALE3', currentPrice: new Decimal(50), priceUpdatedAt: STALE_DATE },
         ])
         .mockResolvedValueOnce([
           { symbol: 'VALE3', type: 'stock', currency: 'BRL', source: 'brapi' },
@@ -286,6 +301,18 @@ describe('assetPriceService', () => {
       expect(result.get('PETR4')).toBe(30);
       expect(result.get('VALE3')).toBe(52.0);
       expect(mockFetchQuotes).toHaveBeenCalled();
+    });
+
+    it('returns DB price from yesterday without calling BRAPI', async () => {
+      mockPrisma.asset.findMany.mockResolvedValueOnce([
+        { symbol: 'PETR4', currentPrice: new Decimal(29.5), priceUpdatedAt: YESTERDAY },
+      ]);
+      mockPrisma.assetPriceHistory.findMany.mockResolvedValue([]);
+
+      const result = await getAssetPrices(['PETR4']);
+
+      expect(result.get('PETR4')).toBe(29.5);
+      expect(mockFetchQuotes).not.toHaveBeenCalled();
     });
 
     it('handles mixed types (crypto, currency, stock)', async () => {

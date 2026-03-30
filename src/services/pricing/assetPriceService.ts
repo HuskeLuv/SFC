@@ -18,6 +18,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const today = (): Date => normalizeDateToDayStart(new Date());
 
+/** Max age for DB prices before requiring BRAPI refresh (7 days covers weekends + holidays) */
+const MAX_PRICE_AGE_MS = 7 * DAY_MS;
+
 /** Extrai o ticker base de símbolos manuais (REIT, stock): "O-1731234567890-abc" -> "O" */
 const extractBaseTickerFromManualSymbol = (symbol: string): string | null => {
   const m = symbol
@@ -107,12 +110,13 @@ export const getAssetPrice = async (
   const effectiveUseFallback = useFallback && !isManualAsset;
   if (asset?.currentPrice && Number(asset.currentPrice) > 0 && asset.priceUpdatedAt) {
     const updatedAt = normalizeDateToDayStart(asset.priceUpdatedAt);
-    if (updatedAt.getTime() === todayDate.getTime()) {
+    const age = todayDate.getTime() - updatedAt.getTime();
+    if (age <= MAX_PRICE_AGE_MS) {
       return Number(asset.currentPrice);
     }
   }
 
-  // 2) Tentar histórico - apenas se a data mais recente for de hoje
+  // 2) Tentar histórico - usar preço mais recente dentro da janela de 7 dias
   const latestHistory = await prisma.assetPriceHistory.findFirst({
     where: { symbol: normalized },
     orderBy: { date: 'desc' },
@@ -120,7 +124,8 @@ export const getAssetPrice = async (
   });
   if (latestHistory && Number(latestHistory.price) > 0) {
     const histDate = normalizeDateToDayStart(latestHistory.date);
-    if (histDate.getTime() === todayDate.getTime()) {
+    const age = todayDate.getTime() - histDate.getTime();
+    if (age <= MAX_PRICE_AGE_MS) {
       return Number(latestHistory.price);
     }
   }
@@ -232,11 +237,12 @@ export const getAssetPrices = async (
     const price = Number(a.currentPrice);
     const assetUpdatedAt = a.priceUpdatedAt ? normalizeDateToDayStart(a.priceUpdatedAt) : null;
     const historyLatest = latestHistoryBySymbol.get(a.symbol);
-    const hasTodayPrice =
-      (assetUpdatedAt && assetUpdatedAt.getTime() === todayDate.getTime()) ||
+    const hasRecentPrice =
+      (assetUpdatedAt && todayDate.getTime() - assetUpdatedAt.getTime() <= MAX_PRICE_AGE_MS) ||
       (historyLatest &&
-        normalizeDateToDayStart(historyLatest.date).getTime() === todayDate.getTime());
-    if (hasTodayPrice) {
+        todayDate.getTime() - normalizeDateToDayStart(historyLatest.date).getTime() <=
+          MAX_PRICE_AGE_MS);
+    if (hasRecentPrice) {
       result.set(a.symbol, price);
     }
   }
@@ -246,7 +252,7 @@ export const getAssetPrices = async (
     const latest = latestHistoryBySymbol.get(symbol);
     if (latest && latest.price > 0) {
       const latestDateNorm = normalizeDateToDayStart(latest.date);
-      if (latestDateNorm.getTime() === todayDate.getTime()) {
+      if (todayDate.getTime() - latestDateNorm.getTime() <= MAX_PRICE_AGE_MS) {
         result.set(symbol, latest.price);
       }
     }
