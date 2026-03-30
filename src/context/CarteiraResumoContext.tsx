@@ -1,5 +1,5 @@
-import { createContext, useContext } from "react";
-import type { CarteiraResumo } from "@/hooks/useCarteira";
+import { createContext, useContext } from 'react';
+import type { CarteiraResumo } from '@/hooks/useCarteira';
 
 export type NecessidadeAporteMap = Record<string, number>;
 
@@ -14,9 +14,8 @@ interface CarteiraResumoContextValue {
   refetch: () => Promise<void>;
   necessidadeAporteMap: NecessidadeAporteMap;
   isAlocacaoLoading: boolean;
-  /** Incrementa quando ativos são adicionados/resgatados - usado para forçar refetch nas tabs */
-  refreshTrigger: number;
-  incrementRefreshTrigger: () => void;
+  /** Invalida todas as queries de assets — usado após add/resgate para forçar refetch nas tabs */
+  invalidateAssets: () => void;
 }
 
 const CarteiraResumoContext = createContext<CarteiraResumoContextValue | null>(null);
@@ -27,20 +26,15 @@ interface CarteiraResumoProviderProps {
 }
 
 export const CarteiraResumoProvider = ({ value, children }: CarteiraResumoProviderProps) => {
-  return (
-    <CarteiraResumoContext.Provider value={value}>
-      {children}
-    </CarteiraResumoContext.Provider>
-  );
+  return <CarteiraResumoContext.Provider value={value}>{children}</CarteiraResumoContext.Provider>;
 };
 
 export const useCarteiraResumoContext = () => {
   const context = useContext(CarteiraResumoContext);
 
   if (!context) {
-    throw new Error("useCarteiraResumoContext deve ser usado dentro de CarteiraResumoProvider");
+    throw new Error('useCarteiraResumoContext deve ser usado dentro de CarteiraResumoProvider');
   }
 
   return context;
 };
-

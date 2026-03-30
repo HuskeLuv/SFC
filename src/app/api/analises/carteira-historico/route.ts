@@ -122,7 +122,7 @@ const calculateTwrSeries = (portfolioValues: IndexData[], cashFlowsByDay: Map<nu
 };
 
 const fetchAssetHistoryFromDb = async (symbol: string, startDate?: Date): Promise<IndexData[]> => {
-  const { getAssetHistory } = await import('@/services/assetPriceService');
+  const { getAssetHistory } = await import('@/services/pricing/assetPriceService');
   const start = startDate
     ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
     : new Date(Date.now() - 365 * DAY_MS);

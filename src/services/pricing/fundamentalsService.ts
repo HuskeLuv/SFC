@@ -5,7 +5,13 @@
 
 import { prisma } from '@/lib/prisma';
 
-const BLOCKED_SYMBOL_PREFIXES = ['RESERVA-EMERG', 'RESERVA-OPORT', 'PERSONALIZADO', 'RENDA-FIXA', 'CONTA-CORRENTE'];
+const BLOCKED_SYMBOL_PREFIXES = [
+  'RESERVA-EMERG',
+  'RESERVA-OPORT',
+  'PERSONALIZADO',
+  'RENDA-FIXA',
+  'CONTA-CORRENTE',
+];
 
 const isBlockedSymbol = (symbol: string) =>
   BLOCKED_SYMBOL_PREFIXES.some((p) => symbol.toUpperCase().startsWith(p));
@@ -23,7 +29,10 @@ const parseNumericValue = (value: unknown): number | null => {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value === 'string') {
-    const normalized = value.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+    const normalized = value
+      .replace(/[^\d,.-]/g, '')
+      .replace(/\./g, '')
+      .replace(',', '.');
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : null;
   }
@@ -56,9 +65,7 @@ const getFundamentalsFromDb = async (symbol: string): Promise<FundamentalsData |
 /**
  * Busca fundamentos na BRAPI e persiste no banco.
  */
-const fetchAndPersistFundamentalsFromBrapi = async (
-  symbol: string
-): Promise<FundamentalsData> => {
+const fetchAndPersistFundamentalsFromBrapi = async (symbol: string): Promise<FundamentalsData> => {
   const apiKey = process.env.BRAPI_API_KEY;
   const tokenParam = apiKey ? `&token=${apiKey}` : '';
   const symbolsToTry = getBrapiSymbolsToTry(symbol);
@@ -113,7 +120,7 @@ const fetchAndPersistFundamentalsFromBrapi = async (
  */
 export const getFundamentals = async (
   symbol: string,
-  options?: { useBrapiFallback?: boolean }
+  options?: { useBrapiFallback?: boolean },
 ): Promise<FundamentalsData> => {
   if (!symbol?.trim()) return { pl: null, beta: null, dividendYield: null };
   if (isBlockedSymbol(symbol)) return { pl: null, beta: null, dividendYield: null };

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { getAllIndicators } from '@/services/marketIndicatorService';
+import { getAllIndicators } from '@/services/market/marketIndicatorService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // Função auxiliar para cores

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { getAssetPrices, getAssetHistory } from '@/services/assetPriceService';
-import { getDividends } from '@/services/dividendService';
-import { getFundamentals } from '@/services/fundamentalsService';
+import { getAssetPrices, getAssetHistory } from '@/services/pricing/assetPriceService';
+import { getDividends } from '@/services/pricing/dividendService';
+import { getFundamentals } from '@/services/pricing/fundamentalsService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const DAY_MS = 24 * 60 * 60 * 1000;

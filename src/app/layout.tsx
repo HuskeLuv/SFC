@@ -5,10 +5,7 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import 'simplebar-react/dist/simplebar.min.css';
-import { SidebarProvider } from '@/context/SidebarContext';
-import { ThemeProvider } from '@/context/ThemeContext';
-import { AuthProvider } from '@/context/AuthContext';
-import ErrorBoundary from '@/components/common/ErrorBoundary';
+import Providers from './providers';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -28,13 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${outfit.className} dark:bg-gray-900`}>
-        <ThemeProvider>
-          <AuthProvider>
-            <SidebarProvider>
-              <ErrorBoundary>{children}</ErrorBoundary>
-            </SidebarProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

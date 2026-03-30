@@ -39,7 +39,7 @@ vi.mock('@/lib/prisma', () => ({
   default: mockPrisma,
 }));
 
-vi.mock('@/services/assetPriceService', () => ({
+vi.mock('@/services/pricing/assetPriceService', () => ({
   getAssetPrices: mockGetAssetPrices,
   getAssetHistory: mockGetAssetHistory,
 }));
@@ -48,7 +48,7 @@ vi.mock('@/services/impersonationLogger', () => ({
   logSensitiveEndpointAccess: mockLogSensitiveEndpointAccess,
 }));
 
-vi.mock('@/services/marketIndicatorService', () => ({
+vi.mock('@/services/market/marketIndicatorService', () => ({
   getIndicator: vi.fn().mockResolvedValue(null),
 }));
 

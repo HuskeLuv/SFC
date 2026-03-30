@@ -5,7 +5,7 @@
  */
 
 import prisma from '@/lib/prisma';
-import { fetchQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from '@/services/brapiQuote';
+import { fetchQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from './brapiQuote';
 import { Decimal } from '@prisma/client/runtime/library';
 
 const normalizeDateToDayStart = (date: Date): Date => {
@@ -20,7 +20,10 @@ const today = (): Date => normalizeDateToDayStart(new Date());
 
 /** Extrai o ticker base de símbolos manuais (REIT, stock): "O-1731234567890-abc" -> "O" */
 const extractBaseTickerFromManualSymbol = (symbol: string): string | null => {
-  const m = symbol.trim().toUpperCase().match(/^([A-Z0-9]+)-\d{13}-[a-zA-Z0-9]+$/);
+  const m = symbol
+    .trim()
+    .toUpperCase()
+    .match(/^([A-Z0-9]+)-\d{13}-[a-zA-Z0-9]+$/);
   return m ? m[1] : null;
 };
 
@@ -72,16 +75,23 @@ export const getAssetCurrentPriceFromDb = async (symbol: string): Promise<number
  */
 export const getAssetPrice = async (
   symbol: string,
-  options?: { useBrapiFallback?: boolean }
+  options?: { useBrapiFallback?: boolean },
 ): Promise<number | null> => {
   if (!symbol?.trim()) return null;
 
   const normalized = symbol.trim().toUpperCase();
-  if (normalized.startsWith('RESERVA-EMERG') || normalized.startsWith('RESERVA-OPORT') ||
-      normalized.startsWith('RENDA-FIXA') || normalized.startsWith('CONTA-CORRENTE') || normalized.startsWith('PERSONALIZADO') ||
-      normalized.startsWith('DEBENTURE-') || normalized.startsWith('FUNDO-') ||
-      /-\d{13}-/.test(normalized) ||
-      normalized.startsWith('-') || /^\d/.test(normalized)) {
+  if (
+    normalized.startsWith('RESERVA-EMERG') ||
+    normalized.startsWith('RESERVA-OPORT') ||
+    normalized.startsWith('RENDA-FIXA') ||
+    normalized.startsWith('CONTA-CORRENTE') ||
+    normalized.startsWith('PERSONALIZADO') ||
+    normalized.startsWith('DEBENTURE-') ||
+    normalized.startsWith('FUNDO-') ||
+    /-\d{13}-/.test(normalized) ||
+    normalized.startsWith('-') ||
+    /^\d/.test(normalized)
+  ) {
     return null;
   }
 
@@ -145,12 +155,14 @@ export const getAssetPrice = async (
  */
 export const getAssetPrices = async (
   symbols: string[],
-  options?: { useBrapiFallback?: boolean }
+  options?: { useBrapiFallback?: boolean },
 ): Promise<Map<string, number>> => {
   const result = new Map<string, number>();
   if (!symbols?.length) return result;
 
-  const rawSymbols = [...new Set(symbols.filter((s) => s?.trim()))].map((s) => s.trim().toUpperCase());
+  const rawSymbols = [...new Set(symbols.filter((s) => s?.trim()))].map((s) =>
+    s.trim().toUpperCase(),
+  );
 
   // Símbolos manuais (stock): "AAPL-1731234567890-abc" -> buscar cotação pelo ticker base "AAPL"
   // REITs são excluídos: valores atualizados apenas manualmente, não via Brapi
@@ -162,7 +174,9 @@ export const getAssetPrices = async (
       where: { symbol: { in: manualSymbols } },
       select: { symbol: true, type: true },
     });
-    const reitSymbols = new Set(assetsManual.filter((a) => a.type === 'reit').map((a) => a.symbol.toUpperCase()));
+    const reitSymbols = new Set(
+      assetsManual.filter((a) => a.type === 'reit').map((a) => a.symbol.toUpperCase()),
+    );
     for (const s of manualSymbols) {
       if (reitSymbols.has(s)) continue; // REIT: não buscar na Brapi
       const base = extractBaseTickerFromManualSymbol(s);
@@ -184,7 +198,7 @@ export const getAssetPrices = async (
       !s.startsWith('FUNDO-') &&
       !/-\d{13}-/.test(s) &&
       !s.startsWith('-') &&
-      /^[A-Za-z]/.test(s)
+      /^[A-Za-z]/.test(s),
   );
 
   // Incluir tickers base dos manuais para buscar cotação (ex: "O" para REIT)
@@ -220,7 +234,8 @@ export const getAssetPrices = async (
     const historyLatest = latestHistoryBySymbol.get(a.symbol);
     const hasTodayPrice =
       (assetUpdatedAt && assetUpdatedAt.getTime() === todayDate.getTime()) ||
-      (historyLatest && normalizeDateToDayStart(historyLatest.date).getTime() === todayDate.getTime());
+      (historyLatest &&
+        normalizeDateToDayStart(historyLatest.date).getTime() === todayDate.getTime());
     if (hasTodayPrice) {
       result.set(a.symbol, price);
     }
@@ -247,15 +262,16 @@ export const getAssetPrices = async (
     const assetBySymbol = new Map(assetsForMissing.map((a) => [a.symbol.toUpperCase(), a]));
 
     const cryptoSymbols = stillMissing.filter(
-      (s) => assetBySymbol.get(s)?.type === 'crypto' && assetBySymbol.get(s)?.source !== 'manual'
+      (s) => assetBySymbol.get(s)?.type === 'crypto' && assetBySymbol.get(s)?.source !== 'manual',
     );
     const currencySymbols = stillMissing.filter(
-      (s) => assetBySymbol.get(s)?.type === 'currency' && assetBySymbol.get(s)?.source !== 'manual'
+      (s) => assetBySymbol.get(s)?.type === 'currency' && assetBySymbol.get(s)?.source !== 'manual',
     );
     const nonCryptoCurrencySymbols = stillMissing.filter(
-      (s) => assetBySymbol.get(s)?.type !== 'crypto' &&
+      (s) =>
+        assetBySymbol.get(s)?.type !== 'crypto' &&
         assetBySymbol.get(s)?.type !== 'currency' &&
-        assetBySymbol.get(s)?.source !== 'manual'
+        assetBySymbol.get(s)?.source !== 'manual',
     );
 
     if (cryptoSymbols.length > 0) {
@@ -310,7 +326,7 @@ export const getAssetPrices = async (
 export const persistPriceFromBrapi = async (
   symbol: string,
   price: number,
-  options?: { currency?: string; marketDate?: Date }
+  options?: { currency?: string; marketDate?: Date },
 ): Promise<void> => {
   const marketDate = options?.marketDate ?? new Date();
   const dateNormalized = normalizeDateToDayStart(marketDate);
@@ -359,16 +375,23 @@ export const getAssetHistory = async (
   symbol: string,
   startDate: Date,
   endDate: Date,
-  options?: { useBrapiFallback?: boolean }
+  options?: { useBrapiFallback?: boolean },
 ): Promise<Array<{ date: number; value: number }>> => {
   if (!symbol?.trim()) return [];
 
   const normalized = symbol.trim().toUpperCase();
-  if (normalized.startsWith('RESERVA-EMERG') || normalized.startsWith('RESERVA-OPORT') ||
-      normalized.startsWith('RENDA-FIXA') || normalized.startsWith('CONTA-CORRENTE') || normalized.startsWith('PERSONALIZADO') ||
-      normalized.startsWith('DEBENTURE-') || normalized.startsWith('FUNDO-') ||
-      /-\d{13}-/.test(normalized) ||
-      normalized.startsWith('-') || /^\d/.test(normalized)) {
+  if (
+    normalized.startsWith('RESERVA-EMERG') ||
+    normalized.startsWith('RESERVA-OPORT') ||
+    normalized.startsWith('RENDA-FIXA') ||
+    normalized.startsWith('CONTA-CORRENTE') ||
+    normalized.startsWith('PERSONALIZADO') ||
+    normalized.startsWith('DEBENTURE-') ||
+    normalized.startsWith('FUNDO-') ||
+    /-\d{13}-/.test(normalized) ||
+    normalized.startsWith('-') ||
+    /^\d/.test(normalized)
+  ) {
     return [];
   }
   const start = normalizeDateToDayStart(startDate);
@@ -415,7 +438,7 @@ export const getAssetHistory = async (
 const fetchAndPersistHistoryFromBrapi = async (
   symbol: string,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
 ): Promise<Array<{ date: number; value: number }>> => {
   const symbolsToTry = getBrapiSymbolsToTry(symbol);
 
@@ -431,7 +454,7 @@ const tryFetchHistoryFromBrapi = async (
   brapiSymbol: string,
   dbSymbol: string,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
 ): Promise<Array<{ date: number; value: number }>> => {
   try {
     const apiKey = process.env.BRAPI_API_KEY;

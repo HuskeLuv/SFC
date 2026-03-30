@@ -1,19 +1,23 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RendaFixaData, RendaFixaSecao, RendaFixaAtivo } from '@/types/rendaFixa';
 import { useCsrf } from '@/hooks/useCsrf';
+import { queryKeys } from '@/lib/queryKeys';
 
 export const useRendaFixa = () => {
   const { csrfFetch } = useCsrf();
-  const [data, setData] = useState<RendaFixaData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.assets.type('renda-fixa');
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
+  const {
+    data = null,
+    isLoading: loading,
+    error: queryError,
+    refetch: queryRefetch,
+  } = useQuery<RendaFixaData>({
+    queryKey,
+    queryFn: async () => {
       const response = await fetch('/api/carteira/renda-fixa', {
         method: 'GET',
         credentials: 'include',
@@ -25,7 +29,6 @@ export const useRendaFixa = () => {
 
       const responseData = await response.json();
 
-      // Converter strings de data para objetos Date
       if (responseData.secoes) {
         responseData.secoes = responseData.secoes.map((secao: RendaFixaSecao) => ({
           ...secao,
@@ -36,13 +39,9 @@ export const useRendaFixa = () => {
         }));
       }
 
-      setData(responseData as RendaFixaData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return responseData as RendaFixaData;
+    },
+  });
 
   const formatCurrency = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) {
@@ -61,76 +60,66 @@ export const useRendaFixa = () => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
 
-  const updateCaixaParaInvestir = async (novoCaixa: number) => {
-    try {
-      const response = await csrfFetch('/api/carteira/renda-fixa', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
-      });
+  const updateCaixaParaInvestir = useCallback(
+    async (novoCaixa: number) => {
+      try {
+        const response = await csrfFetch('/api/carteira/renda-fixa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar caixa para investir');
+        if (!response.ok) {
+          throw new Error('Erro ao atualizar caixa para investir');
+        }
+
+        await queryClient.invalidateQueries({ queryKey });
+        return true;
+      } catch (err) {
+        console.error('Erro ao atualizar caixa para investir:', err);
+        return false;
       }
+    },
+    [csrfFetch, queryClient, queryKey],
+  );
 
-      // Recarregar dados após atualização
-      await fetchData();
-      return true;
-    } catch (err) {
-      console.error('Erro ao atualizar caixa para investir:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
-      return false;
-    }
-  };
+  const updateRendaFixaCampo = useCallback(
+    async (
+      portfolioId: string,
+      campo:
+        | 'cotizacaoResgate'
+        | 'liquidacaoResgate'
+        | 'benchmark'
+        | 'valorAtualizado'
+        | 'observacoes',
+      valor: string | number,
+    ) => {
+      try {
+        const response = await csrfFetch('/api/carteira/renda-fixa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ativoId: portfolioId, campo, valor }),
+        });
 
-  const updateRendaFixaCampo = async (
-    portfolioId: string,
-    campo:
-      | 'cotizacaoResgate'
-      | 'liquidacaoResgate'
-      | 'benchmark'
-      | 'valorAtualizado'
-      | 'observacoes',
-    valor: string | number,
-  ) => {
-    try {
-      const response = await csrfFetch('/api/carteira/renda-fixa', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ativoId: portfolioId,
-          campo,
-          valor,
-        }),
-      });
+        if (!response.ok) {
+          throw new Error('Erro ao atualizar campo');
+        }
 
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar campo');
+        await queryClient.invalidateQueries({ queryKey });
+        return true;
+      } catch (err) {
+        console.error('Erro ao atualizar campo:', err);
+        return false;
       }
-
-      // Recarregar dados após atualização
-      await fetchData();
-      return true;
-    } catch (err) {
-      console.error('Erro ao atualizar campo:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar campo');
-      return false;
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+    },
+    [csrfFetch, queryClient, queryKey],
+  );
 
   return {
     data,
     loading,
-    error,
-    refetch: fetchData,
+    error: queryError ? (queryError as Error).message : null,
+    refetch: () => void queryRefetch(),
     updateCaixaParaInvestir,
     updateRendaFixaCampo,
     formatCurrency,

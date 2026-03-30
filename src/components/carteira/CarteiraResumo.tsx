@@ -98,7 +98,7 @@ export default function CarteiraResumo() {
   const [activeTab, setActiveTab] = useState('consolidada');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRedeemSidebarOpen, setIsRedeemSidebarOpen] = useState(false);
-  const { resumo, formatCurrency, refetch, updateCaixaParaInvestir, incrementRefreshTrigger } =
+  const { resumo, formatCurrency, refetch, updateCaixaParaInvestir, invalidateAssets } =
     useCarteiraResumoContext();
   const alocacaoConfig = useAlocacaoConfig();
   const [_isEditingMeta, _setIsEditingMeta] = useState(false);
@@ -307,7 +307,7 @@ export default function CarteiraResumo() {
         onSuccess={() => {
           refetch();
           refetchReservaEmergencia();
-          incrementRefreshTrigger();
+          invalidateAssets();
         }}
       />
       <RedeemAssetWizard
@@ -316,7 +316,7 @@ export default function CarteiraResumo() {
         onSuccess={() => {
           refetch();
           refetchReservaEmergencia();
-          incrementRefreshTrigger();
+          invalidateAssets();
         }}
       />
     </div>

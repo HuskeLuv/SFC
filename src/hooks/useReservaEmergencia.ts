@@ -1,6 +1,8 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
+import { queryKeys } from '@/lib/queryKeys';
 
 export interface ReservaEmergenciaAtivo {
   id: string;
@@ -25,35 +27,26 @@ export interface ReservaEmergenciaData {
   rentabilidade: number;
 }
 
+const emptyData: ReservaEmergenciaData = {
+  ativos: [],
+  saldoInicioMes: 0,
+  rendimento: 0,
+  rentabilidade: 0,
+};
+
 export const useReservaEmergencia = () => {
   const { csrfFetch } = useCsrf();
-  const [data, setData] = useState<ReservaEmergenciaData>({
-    ativos: [],
-    saldoInicioMes: 0,
-    rendimento: 0,
-    rentabilidade: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isFetchingRef = useRef(false);
-  const hasFetchedRef = useRef(false);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.reserva.emergencia();
 
-  const fetchReservaEmergencia = useCallback(async (force = false) => {
-    // Prevenir múltiplas chamadas simultâneas
-    if (isFetchingRef.current) {
-      return;
-    }
-
-    // Se já foi feito fetch e não é forçado, não fazer nada
-    if (!force && hasFetchedRef.current) {
-      return;
-    }
-
-    try {
-      isFetchingRef.current = true;
-      setLoading(true);
-      setError(null);
-
+  const {
+    data = emptyData,
+    isLoading: loading,
+    error: queryError,
+    refetch: queryRefetch,
+  } = useQuery<ReservaEmergenciaData>({
+    queryKey,
+    queryFn: async () => {
       const response = await fetch('/api/carteira/reserva-emergencia', {
         credentials: 'include',
       });
@@ -64,8 +57,7 @@ export const useReservaEmergencia = () => {
 
       const responseData = await response.json();
 
-      // Transformar dados recebidos para o formato esperado
-      const transformedData: ReservaEmergenciaData = {
+      return {
         ativos: responseData.ativos.map(
           (ativo: ReservaEmergenciaAtivo & { vencimento: Date | string }) => ({
             ...ativo,
@@ -76,65 +68,39 @@ export const useReservaEmergencia = () => {
         rendimento: responseData.rendimento || 0,
         rentabilidade: responseData.rentabilidade || 0,
       };
+    },
+  });
 
-      setData(transformedData);
-      hasFetchedRef.current = true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
-    }
-  }, []);
-
-  // Só fazer fetch na montagem inicial
-  useEffect(() => {
-    if (!hasFetchedRef.current) {
-      fetchReservaEmergencia(false);
-    } else {
-      // Se já tem dados, apenas marcar como não loading
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Wrapper para refetch que força reload
   const refetch = useCallback(() => {
-    return fetchReservaEmergencia(true);
-  }, [fetchReservaEmergencia]);
+    return queryRefetch().then(() => undefined);
+  }, [queryRefetch]);
 
   const updateValorAtualizado = useCallback(
     async (portfolioId: string, novoValor: number): Promise<void> => {
       try {
         const response = await csrfFetch('/api/carteira/reserva/valor-atualizado', {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            portfolioId,
-            valorAtualizado: novoValor,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ portfolioId, valorAtualizado: novoValor }),
         });
 
         if (!response.ok) {
           throw new Error('Erro ao atualizar valor atualizado');
         }
 
-        // Recarrega os dados após a atualização
-        await fetchReservaEmergencia(true);
+        await queryClient.invalidateQueries({ queryKey });
       } catch (err) {
         console.error('Erro ao atualizar valor atualizado:', err);
         throw err;
       }
     },
-    [fetchReservaEmergencia, csrfFetch],
+    [csrfFetch, queryClient, queryKey],
   );
 
   return {
     data,
     loading,
-    error,
+    error: queryError ? (queryError as Error).message : null,
     refetch,
     updateValorAtualizado,
   };

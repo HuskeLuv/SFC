@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
-import { normalizeDateStart } from '@/services/patrimonioHistoricoBuilder';
-import { buildPatrimonioHistorico } from '@/services/patrimonioHistoricoBuilder';
-import { loadCarteiraHistoricoData } from '@/services/carteiraHistoricoDataLoader';
+import { normalizeDateStart } from './patrimonioHistoricoBuilder';
+import { buildPatrimonioHistorico } from './patrimonioHistoricoBuilder';
+import { loadCarteiraHistoricoData } from './carteiraHistoricoDataLoader';
 
 const batchSize = 50;
 

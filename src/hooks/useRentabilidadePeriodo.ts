@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { IndexData } from "./useIndices";
+import { useQuery } from '@tanstack/react-query';
+import { IndexData } from './useIndices';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface UseRentabilidadePeriodoResult {
   data: IndexData[];
@@ -13,50 +14,32 @@ interface UseRentabilidadePeriodoResult {
  */
 export const useRentabilidadePeriodo = (
   startDate: number | undefined,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean },
 ): UseRentabilidadePeriodoResult => {
   const enabled = options?.enabled !== false && Number.isFinite(startDate) && (startDate ?? 0) > 0;
-  const [data, setData] = useState<IndexData[]>([]);
-  const [loading, setLoading] = useState(enabled);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!enabled) {
-      setLoading(false);
-      setData([]);
-      setError(null);
-      return;
-    }
+  const {
+    data = [],
+    isLoading: loading,
+    error: queryError,
+  } = useQuery<IndexData[]>({
+    queryKey: queryKeys.carteira.rentabilidade(startDate?.toString()),
+    queryFn: async () => {
+      const url = `/api/carteira/resumo?twrStartDate=${startDate}`;
+      const response = await fetch(url, { credentials: 'include' });
 
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const url = `/api/carteira/resumo?twrStartDate=${startDate}`;
-        const response = await fetch(url, { credentials: "include" });
-
-        if (!response.ok) {
-          throw new Error("Erro ao buscar rentabilidade do período");
-        }
-
-        const result = await response.json();
-        const twr = result.historicoTWRPeriodo;
-        setData(
-          Array.isArray(twr)
-            ? twr.map((t: { data: number; value: number }) => ({ date: t.data, value: t.value }))
-            : []
-        );
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro desconhecido");
-        setData([]);
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error('Erro ao buscar rentabilidade do período');
       }
-    };
 
-    void fetchData();
-  }, [startDate, enabled]);
+      const result = await response.json();
+      const twr = result.historicoTWRPeriodo;
+      return Array.isArray(twr)
+        ? twr.map((t: { data: number; value: number }) => ({ date: t.data, value: t.value }))
+        : [];
+    },
+    enabled,
+  });
 
-  return { data, loading, error };
+  return { data, loading, error: queryError ? (queryError as Error).message : null };
 };

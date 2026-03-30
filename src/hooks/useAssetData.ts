@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
+import { queryKeys } from '@/lib/queryKeys';
 
 /**
  * Minimal shape that all asset data types share.
@@ -48,6 +50,12 @@ export interface UseAssetDataConfig {
   throwOnError?: boolean;
 }
 
+/** Derive a stable query key from the API path (e.g. "/api/carteira/acoes" → "acoes") */
+function assetTypeFromPath(apiPath: string): string {
+  const segments = apiPath.replace(/^\/api\/carteira\//, '').split('/');
+  return segments[0] || apiPath;
+}
+
 export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataConfig) {
   const {
     apiPath,
@@ -61,69 +69,32 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
   } = config;
 
   const { csrfFetch } = useCsrf();
-  const [data, setData] = useState<TData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isFetchingRef = useRef(false);
-  const hasFetchedRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const isMountedRef = useRef(true);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.assets.type(assetTypeFromPath(apiPath));
 
-  // Prevenir refetch desnecessario: so busca dados uma vez na montagem inicial
-  // ou quando explicitamente forcado (ex: apos atualizacao de dados)
-  const fetchData = useCallback(
-    async (force = false) => {
-      // Prevenir multiplas chamadas simultaneas
-      if (isFetchingRef.current) {
-        return;
+  const {
+    data: data = null,
+    isLoading: loading,
+    error: queryError,
+    refetch: queryRefetch,
+  } = useQuery<TData>({
+    queryKey,
+    queryFn: async ({ signal }) => {
+      const response = await fetch(apiPath, {
+        method: 'GET',
+        credentials: 'include',
+        signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao carregar dados ${label}`);
       }
 
-      // Se ja foi feito fetch e nao e forcado, nao fazer nada
-      // Isso evita refetch quando componente remonta ou usuario volta para aba
-      if (!force && hasFetchedRef.current) {
-        return;
-      }
-
-      // Cancel any in-flight request
-      abortControllerRef.current?.abort();
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
-      try {
-        isFetchingRef.current = true;
-        setLoading(true);
-        setError(null);
-
-        const response = await fetch(apiPath, {
-          method: 'GET',
-          credentials: 'include',
-          signal: controller.signal,
-        });
-
-        if (controller.signal.aborted) return;
-
-        if (!response.ok) {
-          throw new Error(`Erro ao carregar dados ${label}`);
-        }
-
-        const responseData = await response.json();
-        if (controller.signal.aborted) return;
-        setData(responseData);
-        hasFetchedRef.current = true;
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        console.error(`Erro ao buscar dados ${label}:`, err);
-        setError(err instanceof Error ? err.message : 'Erro desconhecido');
-        if (throwOnError) {
-          setData(null);
-        }
-      } finally {
-        setLoading(false);
-        isFetchingRef.current = false;
-      }
+      return response.json();
     },
-    [apiPath, label, throwOnError],
-  );
+  });
+
+  const error = queryError ? (queryError as Error).message : null;
 
   const formatCurrency = (
     value: number | undefined | null,
@@ -158,36 +129,6 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
       maximumFractionDigits: 0,
     });
   };
-
-  const updateCaixaParaInvestir = useCallback(
-    async (novoCaixa: number) => {
-      try {
-        const response = await csrfFetch(apiPath, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Erro ao atualizar caixa para investir');
-        }
-
-        if (!isMountedRef.current) return false;
-
-        // Recarregar dados apos atualizacao
-        await fetchData(true);
-        return true;
-      } catch (err) {
-        console.error('Erro ao atualizar caixa para investir:', err);
-        if (!isMountedRef.current) return false;
-        setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
-        return false;
-      }
-    },
-    [fetchData, csrfFetch, apiPath],
-  );
 
   const performOptimisticObjetivoUpdate = (
     prevData: TData,
@@ -227,7 +168,6 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
       ),
     }));
 
-    // Recalcular totais das secoes
     const secoesComTotais = updatedSecoes.map((secao) => {
       const totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
       const totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
@@ -243,7 +183,6 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
       };
     });
 
-    // Recalcular totais gerais
     const totalObjetivo = secoesComTotais.reduce((sum, secao) => sum + secao.totalObjetivo, 0);
     const totalQuantoFalta = secoesComTotais.reduce(
       (sum, secao) => sum + secao.totalQuantoFalta,
@@ -266,44 +205,42 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
     };
   };
 
+  const objetivoMutation = useMutation({
+    mutationFn: async ({ ativoId, novoObjetivo }: { ativoId: string; novoObjetivo: number }) => {
+      const response = await csrfFetch(objetivoPath, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativoId, objetivo: novoObjetivo }),
+      });
+      if (!response.ok) throw new Error('Erro ao atualizar objetivo');
+    },
+    onMutate: async ({ ativoId, novoObjetivo }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previousData = queryClient.getQueryData<TData>(queryKey);
+      if (previousData) {
+        queryClient.setQueryData<TData>(
+          queryKey,
+          performOptimisticObjetivoUpdate(previousData, ativoId, novoObjetivo),
+        );
+      }
+      return { previousData };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData<TData>(queryKey, context.previousData);
+      }
+    },
+  });
+
   const updateObjetivo = async (ativoId: string, novoObjetivo: number): Promise<boolean | void> => {
     if (!data) return throwOnError ? undefined : false;
 
-    // Backup do estado atual para rollback em caso de erro
-    const previousData = structuredClone(data);
-
     try {
-      // Atualizacao otimista: atualizar estado local imediatamente
-      setData((prevData) => {
-        if (!prevData) return prevData;
-        return performOptimisticObjetivoUpdate(prevData, ativoId, novoObjetivo);
-      });
-
-      // Fazer chamada a API
-      const response = await csrfFetch(objetivoPath, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ativoId, objetivo: novoObjetivo }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar objetivo');
-      }
-
+      await objetivoMutation.mutateAsync({ ativoId, novoObjetivo });
       if (!throwOnError) return true;
     } catch (err) {
-      // Rollback em caso de erro
-      if (isMountedRef.current) {
-        setData(previousData);
-      }
       console.error('Erro ao atualizar objetivo:', err);
-      if (throwOnError) {
-        throw err;
-      }
-      if (!isMountedRef.current) return false;
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar objetivo');
+      if (throwOnError) throw err;
       return false;
     }
   };
@@ -313,28 +250,17 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
         try {
           const response = await csrfFetch(cotacaoPath, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ativoId, cotacao: novaCotacao }),
           });
 
-          if (!response.ok) {
-            throw new Error('Erro ao atualizar cotacao');
-          }
+          if (!response.ok) throw new Error('Erro ao atualizar cotacao');
 
-          if (!isMountedRef.current) return throwOnError ? undefined : false;
-
-          // Recarregar dados apos atualizacao (forcar reload)
-          await fetchData(true);
+          await queryClient.invalidateQueries({ queryKey });
           if (!throwOnError) return true;
         } catch (err) {
           console.error('Erro ao atualizar cotacao:', err);
-          if (throwOnError) {
-            throw err;
-          }
-          if (!isMountedRef.current) return false;
-          setError(err instanceof Error ? err.message : 'Erro ao atualizar cotacao');
+          if (throwOnError) throw err;
           return false;
         }
       }
@@ -349,41 +275,55 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
             body: JSON.stringify({ ativoId, campo: 'valorAtualizado', valor: novoValor }),
           });
           if (!response.ok) throw new Error('Erro ao atualizar valor');
-          if (!isMountedRef.current) return false;
-          await fetchData(true);
+
+          await queryClient.invalidateQueries({ queryKey });
           return true;
         } catch (err) {
           console.error('Erro ao atualizar valor:', err);
-          if (!isMountedRef.current) return false;
-          setError(err instanceof Error ? err.message : 'Erro ao atualizar valor');
           return false;
         }
       }
     : undefined;
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      abortControllerRef.current?.abort();
-    };
-  }, []);
+  const updateCaixaParaInvestir = useCallback(
+    async (novoCaixa: number) => {
+      try {
+        const response = await csrfFetch(apiPath, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
+        });
 
-  // So fazer fetch na montagem inicial
-  useEffect(() => {
-    if (!hasFetchedRef.current) {
-      fetchData(false);
-    } else {
-      // Se ja tem dados, apenas marcar como nao loading
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+        if (!response.ok) throw new Error('Erro ao atualizar caixa para investir');
 
-  // Wrapper para refetch que forca reload
+        await queryClient.invalidateQueries({ queryKey });
+        return true;
+      } catch (err) {
+        console.error('Erro ao atualizar caixa para investir:', err);
+        return false;
+      }
+    },
+    [csrfFetch, apiPath, queryClient, queryKey],
+  );
+
   const refetch = useCallback(() => {
-    return fetchData(true);
-  }, [fetchData]);
+    return queryRefetch().then(() => undefined);
+  }, [queryRefetch]);
+
+  const fetchData = refetch;
+
+  const setData = useCallback(
+    (updater: TData | null | ((prev: TData | null) => TData | null)) => {
+      if (typeof updater === 'function') {
+        queryClient.setQueryData<TData | null>(queryKey, (old) =>
+          (updater as (prev: TData | null) => TData | null)(old ?? null),
+        );
+      } else {
+        queryClient.setQueryData<TData | null>(queryKey, updater);
+      }
+    },
+    [queryClient, queryKey],
+  );
 
   return {
     data,

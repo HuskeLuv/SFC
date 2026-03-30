@@ -3,8 +3,8 @@ import {
   buildPatrimonioCashFlowsByDayOnly,
   calculateHistoricoTWR,
   normalizeDateStart,
-} from '@/services/patrimonioHistoricoBuilder';
-import { loadCarteiraHistoricoData } from '@/services/carteiraHistoricoDataLoader';
+} from './patrimonioHistoricoBuilder';
+import { loadCarteiraHistoricoData } from './carteiraHistoricoDataLoader';
 
 export type SnapshotHistoricoBundle = {
   historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }>;

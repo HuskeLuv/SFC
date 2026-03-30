@@ -52,7 +52,7 @@ const parseDate = (dateStr: string): Date => {
  * Extrai e persiste os dados de CDI, IBOV, IPCA e Poupança no banco.
  */
 export const ingestBenchmarkProfitability = async (
-  input: DailyProfitabilityInput
+  input: DailyProfitabilityInput,
 ): Promise<IngestionResult> => {
   const result: IngestionResult = {
     inserted: 0,
@@ -63,7 +63,9 @@ export const ingestBenchmarkProfitability = async (
 
   const chart = input?.data?.dailyProfitabilityToChart;
   if (!chart?.categories?.length || !chart?.series?.length) {
-    throw new Error('Formato inválido: esperado data.dailyProfitabilityToChart com categories e series');
+    throw new Error(
+      'Formato inválido: esperado data.dailyProfitabilityToChart com categories e series',
+    );
   }
 
   const { categories, series } = chart;

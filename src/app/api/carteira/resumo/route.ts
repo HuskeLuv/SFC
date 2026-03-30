@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { getAssetPrices } from '@/services/assetPriceService';
-import { getIndicator } from '@/services/marketIndicatorService';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
+import { getIndicator } from '@/services/market/marketIndicatorService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { Prisma } from '@prisma/client';
 import { deleteTtlCacheKeyPrefix, getTtlCache } from '@/lib/simpleTtlCache';
-import { applyChartAggregation } from '@/services/portfolioSeriesAggregation';
-import { loadHistoricoFromSnapshots } from '@/services/portfolioSnapshotReader';
+import { applyChartAggregation } from '@/services/portfolio/portfolioSeriesAggregation';
+import { loadHistoricoFromSnapshots } from '@/services/portfolio/portfolioSnapshotReader';
 import {
   buildDailyTimeline,
   buildDailyPriceMap,
@@ -16,7 +16,7 @@ import {
   filterInvestmentsExclReservas,
   getRawPatrimonioTimelineStart,
   normalizeDateStart,
-} from '@/services/patrimonioHistoricoBuilder';
+} from '@/services/portfolio/patrimonioHistoricoBuilder';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const DAY_MS = 24 * 60 * 60 * 1000;

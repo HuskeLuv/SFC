@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
-import { ingestBenchmarkProfitability } from '@/services/benchmarkProfitabilityIngestion';
+import { ingestBenchmarkProfitability } from '@/services/market/benchmarkProfitabilityIngestion';
 import { benchmarkIngestSchema, validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';

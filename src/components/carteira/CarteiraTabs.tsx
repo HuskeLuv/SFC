@@ -1,14 +1,16 @@
-"use client";
-import React, { useState, lazy, Suspense, useMemo, useCallback } from "react";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import { useCarteira } from "@/hooks/useCarteira";
-import { useAlocacaoConfig } from "@/hooks/useAlocacaoConfig";
-import { CarteiraResumoProvider } from "@/context/CarteiraResumoContext";
-import type { NecessidadeAporteMap } from "@/context/CarteiraResumoContext";
+'use client';
+import React, { useState, lazy, Suspense, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useCarteira } from '@/hooks/useCarteira';
+import { useAlocacaoConfig } from '@/hooks/useAlocacaoConfig';
+import { CarteiraResumoProvider } from '@/context/CarteiraResumoContext';
+import type { NecessidadeAporteMap } from '@/context/CarteiraResumoContext';
+import { queryKeys } from '@/lib/queryKeys';
 
 // Lazy loading dos componentes de conteúdo
-const CarteiraResumo = lazy(() => import("./CarteiraResumo"));
-const CarteiraAnalise = lazy(() => import("./CarteiraAnalise"));
+const CarteiraResumo = lazy(() => import('./CarteiraResumo'));
+const CarteiraAnalise = lazy(() => import('./CarteiraAnalise'));
 
 interface MainTabButtonProps {
   id: string;
@@ -17,17 +19,13 @@ interface MainTabButtonProps {
   onClick: () => void;
 }
 
-const MainTabButton: React.FC<MainTabButtonProps> = ({
-  label,
-  isActive,
-  onClick,
-}) => {
+const MainTabButton: React.FC<MainTabButtonProps> = ({ label, isActive, onClick }) => {
   return (
     <button
       className={`inline-flex items-center rounded-t-xl px-6 py-3 text-sm font-semibold transition-all duration-200 ease-in-out whitespace-nowrap ${
         isActive
-          ? "bg-gray-900 text-white dark:bg-gray-800 dark:text-gray-100 shadow-md"
-          : "bg-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+          ? 'bg-gray-900 text-white dark:bg-gray-800 dark:text-gray-100 shadow-md'
+          : 'bg-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'
       }`}
       onClick={onClick}
     >
@@ -48,40 +46,57 @@ const MainTabContent: React.FC<MainTabContentProps> = ({ isActive, children }) =
 };
 
 const mainTabs = [
-  { id: "resumo", label: "Resumo" },
-  { id: "analise", label: "Análise" },
+  { id: 'resumo', label: 'Resumo' },
+  { id: 'analise', label: 'Análise' },
 ];
 
 export default function CarteiraTabs() {
-  const [activeMainTab, setActiveMainTab] = useState("resumo");
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const { resumo, loading, error, formatCurrency, formatPercentage, refetch, updateMeta, updateCaixaParaInvestir } = useCarteira();
+  const [activeMainTab, setActiveMainTab] = useState('resumo');
+  const queryClient = useQueryClient();
+  const {
+    resumo,
+    loading,
+    error,
+    formatCurrency,
+    formatPercentage,
+    refetch,
+    updateMeta,
+    updateCaixaParaInvestir,
+  } = useCarteira();
   const alocacaoConfig = useAlocacaoConfig();
 
-  const incrementRefreshTrigger = useCallback(() => {
-    setRefreshTrigger((t) => t + 1);
-  }, []);
+  const invalidateAssets = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.reserva.emergencia() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.reserva.oportunidade() });
+  }, [queryClient]);
 
   const necessidadeAporteMap = useMemo<NecessidadeAporteMap>(() => {
     if (!resumo) return {};
-    const totalCarteira = Object.values(resumo.distribuicao).reduce((sum, item) => sum + item.valor, 0);
+    const totalCarteira = Object.values(resumo.distribuicao).reduce(
+      (sum, item) => sum + item.valor,
+      0,
+    );
     if (totalCarteira <= 0) return {};
     const targetMap = alocacaoConfig.configuracoes.reduce<Record<string, number>>((acc, config) => {
       acc[config.categoria] = config.target;
       return acc;
     }, {});
-    return Object.entries(resumo.distribuicao).reduce<NecessidadeAporteMap>((acc, [categoria, info]) => {
-      const targetPercentual = targetMap[categoria];
-      if (targetPercentual === undefined) {
-        acc[categoria] = 0;
+    return Object.entries(resumo.distribuicao).reduce<NecessidadeAporteMap>(
+      (acc, [categoria, info]) => {
+        const targetPercentual = targetMap[categoria];
+        if (targetPercentual === undefined) {
+          acc[categoria] = 0;
+          return acc;
+        }
+        const percentualAtual = totalCarteira > 0 ? (info.valor / totalCarteira) * 100 : 0;
+        const diferenca = targetPercentual - percentualAtual;
+        const necessidade = diferenca > 0 ? (diferenca / 100) * totalCarteira : 0;
+        acc[categoria] = Number.isFinite(necessidade) ? necessidade : 0;
         return acc;
-      }
-      const percentualAtual = totalCarteira > 0 ? (info.valor / totalCarteira) * 100 : 0;
-      const diferenca = targetPercentual - percentualAtual;
-      const necessidade = diferenca > 0 ? (diferenca / 100) * totalCarteira : 0;
-      acc[categoria] = Number.isFinite(necessidade) ? necessidade : 0;
-      return acc;
-    }, {});
+      },
+      {},
+    );
   }, [resumo, alocacaoConfig.configuracoes]);
 
   const providerValue = useMemo(
@@ -98,8 +113,7 @@ export default function CarteiraTabs() {
             refetch,
             necessidadeAporteMap,
             isAlocacaoLoading: alocacaoConfig.loading,
-            refreshTrigger,
-            incrementRefreshTrigger,
+            invalidateAssets,
           }
         : null,
     [
@@ -113,9 +127,8 @@ export default function CarteiraTabs() {
       refetch,
       necessidadeAporteMap,
       alocacaoConfig.loading,
-      refreshTrigger,
-      incrementRefreshTrigger,
-    ]
+      invalidateAssets,
+    ],
   );
 
   if (loading) {
@@ -126,7 +139,9 @@ export default function CarteiraTabs() {
     return (
       <div className="flex flex-col items-center justify-center py-16 space-y-4">
         <div className="text-center">
-          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Erro ao carregar dados</h3>
+          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
+            Erro ao carregar dados
+          </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
         </div>
       </div>
@@ -137,7 +152,9 @@ export default function CarteiraTabs() {
     return (
       <div className="flex flex-col items-center justify-center py-16 space-y-4">
         <div className="text-center">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Nenhum dado encontrado</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            Nenhum dado encontrado
+          </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Adicione seus primeiros investimentos para começar a acompanhar sua carteira.
           </p>
@@ -168,13 +185,13 @@ export default function CarteiraTabs() {
 
         {/* Main Tab Content with Lazy Loading */}
         <div>
-          <MainTabContent id="resumo" isActive={activeMainTab === "resumo"}>
+          <MainTabContent id="resumo" isActive={activeMainTab === 'resumo'}>
             <Suspense fallback={<LoadingSpinner text="Carregando resumo da carteira..." />}>
               <CarteiraResumo />
             </Suspense>
           </MainTabContent>
 
-          <MainTabContent id="analise" isActive={activeMainTab === "analise"}>
+          <MainTabContent id="analise" isActive={activeMainTab === 'analise'}>
             <Suspense fallback={<LoadingSpinner text="Carregando análises..." />}>
               <CarteiraAnalise />
             </Suspense>

@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import {
   runEconomicIndexesIngestion,
   testBacenConnection,
-} from '@/services/economicIndexesIngestion';
+} from '@/services/market/economicIndexesIngestion';
 import prisma from '@/lib/prisma';
 
 // ================== CONFIGURATION ==================

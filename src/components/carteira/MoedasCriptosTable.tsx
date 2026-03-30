@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useMoedasCriptos } from '@/hooks/useMoedasCriptos';
 import { MoedaCriptoAtivo, MoedaCriptoSecao } from '@/types/moedas-criptos';
 import {
@@ -9,7 +9,6 @@ import {
   EditableObjetivoCell,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 
 const SECTION_ORDER = ['moedas', 'criptomoedas', 'metais_joias'] as const;
 const SECTION_NAMES: Record<string, string> = {
@@ -32,15 +31,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     formatNumber,
     updateObjetivo,
     updateCaixaParaInvestir,
-    refetch,
   } = useMoedasCriptos();
-  const { refreshTrigger } = useCarteiraResumoContext();
-
-  useEffect(() => {
-    if (refreshTrigger > 0) {
-      refetch();
-    }
-  }, [refreshTrigger, refetch]);
 
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);

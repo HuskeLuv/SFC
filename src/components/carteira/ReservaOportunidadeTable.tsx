@@ -1,7 +1,6 @@
 'use client';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useReservaOportunidade } from '@/hooks/useReservaOportunidade';
-import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import {
@@ -166,14 +165,7 @@ export default function ReservaOportunidadeTable({
   totalCarteira = 0,
   onUpdateSuccess,
 }: ReservaOportunidadeTableProps) {
-  const { data, loading, error, updateValorAtualizado, refetch } = useReservaOportunidade();
-  const { refreshTrigger } = useCarteiraResumoContext();
-
-  useEffect(() => {
-    if (refreshTrigger > 0) {
-      refetch();
-    }
-  }, [refreshTrigger, refetch]);
+  const { data, loading, error, updateValorAtualizado } = useReservaOportunidade();
 
   const handleUpdateValorAtualizado = async (portfolioId: string, novoValor: number) => {
     await updateValorAtualizado(portfolioId, novoValor);

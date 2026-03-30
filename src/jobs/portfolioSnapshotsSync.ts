@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { runPortfolioSnapshotsJob } from '@/services/portfolioSnapshotPersistence';
+import { runPortfolioSnapshotsJob } from '@/services/portfolio/portfolioSnapshotPersistence';
 
 /** Após sync de preços (02:00) — persiste patrimônio/TWR diários até ontem. */
 const CRON_SCHEDULE = '0 4 * * *';

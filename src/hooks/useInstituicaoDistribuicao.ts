@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 
 export interface InstituicaoDistribuicaoItem {
   total: number;
@@ -30,46 +31,30 @@ interface AtivosResponse {
 }
 
 export const useInstituicaoDistribuicao = (): UseInstituicaoDistribuicaoResult => {
-  const [grouped, setGrouped] = useState<InstituicaoDistribuicaoGrouped>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const hasFetchedRef = useRef(false);
-
-  const fetchDistribuicao = useCallback(async () => {
-    if (hasFetchedRef.current) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    hasFetchedRef.current = true;
-
-    try {
-      const tiposResponse = await fetch("/api/carteira/resgate/tipos");
-      if (!tiposResponse.ok) {
-        throw new Error("Erro ao buscar tipos de ativos");
-      }
+  const {
+    data: grouped = {},
+    isLoading: loading,
+    error: queryError,
+  } = useQuery<InstituicaoDistribuicaoGrouped>({
+    queryKey: queryKeys.instituicao.distribuicao(),
+    queryFn: async () => {
+      const tiposResponse = await fetch('/api/carteira/resgate/tipos');
+      if (!tiposResponse.ok) throw new Error('Erro ao buscar tipos de ativos');
 
       const tiposData = (await tiposResponse.json()) as TipoResponse;
       const tipos = tiposData?.tipos || [];
 
-      if (tipos.length === 0) {
-        setGrouped({});
-        setLoading(false);
-        return;
-      }
+      if (tipos.length === 0) return {};
 
       const totalsByInstitution = new Map<string, number>();
 
       await Promise.all(
         tipos.map(async (tipo) => {
           const instResponse = await fetch(
-            `/api/carteira/resgate/instituicoes?tipo=${encodeURIComponent(tipo.value)}&limit=200`
+            `/api/carteira/resgate/instituicoes?tipo=${encodeURIComponent(tipo.value)}&limit=200`,
           );
 
-          if (!instResponse.ok) {
-            return;
-          }
+          if (!instResponse.ok) return;
 
           const instData = (await instResponse.json()) as InstituicaoResponse;
           const instituicoes = instData?.instituicoes || [];
@@ -77,55 +62,35 @@ export const useInstituicaoDistribuicao = (): UseInstituicaoDistribuicaoResult =
           await Promise.all(
             instituicoes.map(async (instituicao) => {
               const ativosResponse = await fetch(
-                `/api/carteira/resgate/ativos?tipo=${encodeURIComponent(tipo.value)}&instituicaoId=${encodeURIComponent(
-                  instituicao.value
-                )}&limit=500`
+                `/api/carteira/resgate/ativos?tipo=${encodeURIComponent(tipo.value)}&instituicaoId=${encodeURIComponent(instituicao.value)}&limit=500`,
               );
 
-              if (!ativosResponse.ok) {
-                return;
-              }
+              if (!ativosResponse.ok) return;
 
               const ativosData = (await ativosResponse.json()) as AtivosResponse;
               const total = (ativosData.assets || []).reduce((sum, asset) => {
                 return sum + (asset.totalInvested || 0);
               }, 0);
 
-              if (total <= 0) {
-                return;
-              }
+              if (total <= 0) return;
 
               totalsByInstitution.set(
                 instituicao.label,
-                (totalsByInstitution.get(instituicao.label) || 0) + total
+                (totalsByInstitution.get(instituicao.label) || 0) + total,
               );
-            })
+            }),
           );
-        })
+        }),
       );
 
       const sortedEntries = Array.from(totalsByInstitution.entries()).sort((a, b) => b[1] - a[1]);
-      const groupedData = sortedEntries.reduce<InstituicaoDistribuicaoGrouped>((acc, [label, total]) => {
-        acc[label] = {
-          total,
-          count: 0,
-          items: [],
-        };
+      return sortedEntries.reduce<InstituicaoDistribuicaoGrouped>((acc, [label, total]) => {
+        acc[label] = { total, count: 0, items: [] };
         return acc;
       }, {});
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-      setGrouped(groupedData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar instituições");
-      setGrouped({});
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchDistribuicao();
-  }, [fetchDistribuicao]);
-
-  return { grouped, loading, error };
+  return { grouped, loading, error: queryError ? (queryError as Error).message : null };
 };

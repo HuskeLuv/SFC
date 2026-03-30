@@ -1,7 +1,9 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImovelBemData } from '@/types/imoveis-bens';
 import { useCsrf } from '@/hooks/useCsrf';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface UseImoveisBensReturn {
   data: ImovelBemData | null;
@@ -16,11 +18,25 @@ interface UseImoveisBensReturn {
 
 export const useImoveisBens = (): UseImoveisBensReturn => {
   const { csrfFetch } = useCsrf();
-  const [data, setData] = useState<ImovelBemData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isFetchingRef = useRef(false);
-  const hasFetchedRef = useRef(false);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.assets.type('imoveis-bens');
+
+  const {
+    data = null,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery<ImovelBemData>({
+    queryKey,
+    queryFn: async () => {
+      const response = await fetch('/api/carteira/imoveis-bens');
+
+      if (!response.ok) {
+        throw new Error('Erro ao carregar dados de imóveis e bens');
+      }
+
+      return response.json();
+    },
+  });
 
   const formatCurrency = (value: number, currency: 'BRL' | 'USD' = 'BRL'): string => {
     const formatter = new Intl.NumberFormat('pt-BR', {
@@ -43,54 +59,12 @@ export const useImoveisBens = (): UseImoveisBensReturn => {
     }).format(value);
   };
 
-  // Prevenir refetch desnecessário: só busca dados uma vez na montagem inicial
-  // ou quando explicitamente forçado (ex: após atualização de dados)
-  const fetchData = useCallback(async (force = false) => {
-    // Prevenir múltiplas chamadas simultâneas
-    if (isFetchingRef.current) {
-      return;
-    }
-
-    // Se já foi feito fetch e não é forçado, não fazer nada
-    // Isso evita refetch quando componente remonta ou usuário volta para aba
-    if (!force && hasFetchedRef.current) {
-      return;
-    }
-
-    try {
-      isFetchingRef.current = true;
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch('/api/carteira/imoveis-bens');
-
-      if (!response.ok) {
-        throw new Error('Erro ao carregar dados de imóveis e bens');
-      }
-
-      const result = await response.json();
-      setData(result);
-      hasFetchedRef.current = true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-      setData(null);
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
-    }
-  }, []);
-
   const updateValorAtualizado = async (ativoId: string, novoValor: number): Promise<void> => {
     try {
       const response = await csrfFetch('/api/carteira/imoveis-bens/valor-atualizado', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          portfolioId: ativoId, // Mudança: usar portfolioId em vez de ativoId
-          novoValor,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolioId: ativoId, novoValor }),
       });
 
       if (!response.ok) {
@@ -98,34 +72,21 @@ export const useImoveisBens = (): UseImoveisBensReturn => {
         throw new Error(errorData.error || 'Erro ao atualizar valor atualizado');
       }
 
-      // Recarrega os dados após a atualização (forçar reload)
-      await fetchData(true);
+      await queryClient.invalidateQueries({ queryKey });
     } catch (err) {
       console.error('Erro ao atualizar valor atualizado:', err);
       throw err;
     }
   };
 
-  // Só fazer fetch na montagem inicial
-  useEffect(() => {
-    if (!hasFetchedRef.current) {
-      fetchData(false);
-    } else {
-      // Se já tem dados, apenas marcar como não loading
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Wrapper para refetch que força reload
   const refetch = useCallback(() => {
-    fetchData(true);
-  }, [fetchData]);
+    void queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   return {
     data,
     loading,
-    error,
+    error: queryError ? (queryError as Error).message : null,
     formatCurrency,
     formatPercentage,
     formatNumber,

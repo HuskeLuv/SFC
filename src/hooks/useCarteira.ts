@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
+import { queryKeys } from '@/lib/queryKeys';
 
 export interface CarteiraResumo {
   saldoBruto: number;
@@ -14,58 +16,19 @@ export interface CarteiraResumo {
   }>;
   historicoTWR?: Array<{ data: number; value: number }>;
   distribuicao: {
-    reservaEmergencia: {
-      valor: number;
-      percentual: number;
-    };
-    reservaOportunidade: {
-      valor: number;
-      percentual: number;
-    };
-    rendaFixaFundos: {
-      valor: number;
-      percentual: number;
-    };
-    fimFia: {
-      valor: number;
-      percentual: number;
-    };
-    fiis: {
-      valor: number;
-      percentual: number;
-    };
-    acoes: {
-      valor: number;
-      percentual: number;
-    };
-    stocks: {
-      valor: number;
-      percentual: number;
-    };
-    reits: {
-      valor: number;
-      percentual: number;
-    };
-    etfs: {
-      valor: number;
-      percentual: number;
-    };
-    moedasCriptos: {
-      valor: number;
-      percentual: number;
-    };
-    previdenciaSeguros: {
-      valor: number;
-      percentual: number;
-    };
-    opcoes: {
-      valor: number;
-      percentual: number;
-    };
-    imoveisBens: {
-      valor: number;
-      percentual: number;
-    };
+    reservaEmergencia: { valor: number; percentual: number };
+    reservaOportunidade: { valor: number; percentual: number };
+    rendaFixaFundos: { valor: number; percentual: number };
+    fimFia: { valor: number; percentual: number };
+    fiis: { valor: number; percentual: number };
+    acoes: { valor: number; percentual: number };
+    stocks: { valor: number; percentual: number };
+    reits: { valor: number; percentual: number };
+    etfs: { valor: number; percentual: number };
+    moedasCriptos: { valor: number; percentual: number };
+    previdenciaSeguros: { valor: number; percentual: number };
+    opcoes: { valor: number; percentual: number };
+    imoveisBens: { valor: number; percentual: number };
   };
   portfolioDetalhes: {
     totalAcoes: number;
@@ -79,152 +42,77 @@ export interface CarteiraResumo {
 
 export const useCarteira = () => {
   const { csrfFetch } = useCsrf();
-  const [resumo, setResumo] = useState<CarteiraResumo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isFetchingRef = useRef(false);
-  const hasFetchedRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const isMountedRef = useRef(true);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.carteira.resumo();
 
-  const fetchResumo = useCallback(async (force = false, includeHistorico = true) => {
-    // Prevenir múltiplas chamadas simultâneas
-    if (isFetchingRef.current) {
-      return;
-    }
-
-    // Se já foi feito fetch e não é forçado, não fazer nada
-    if (!force && hasFetchedRef.current) {
-      return;
-    }
-
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    try {
-      isFetchingRef.current = true;
-      setLoading(true);
-      setError(null);
-
-      const url = `/api/carteira/resumo${includeHistorico ? '' : '?includeHistorico=false'}`;
-      const response = await fetch(url, {
-        method: 'GET',
-        credentials: 'include',
-        signal: controller.signal,
-      });
-
-      if (controller.signal.aborted) return;
-
-      if (!response.ok) {
-        throw new Error('Erro ao carregar dados da carteira');
-      }
-
-      const data = await response.json();
-      if (controller.signal.aborted) return;
-      setResumo(data);
-      hasFetchedRef.current = true;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      console.error('Erro ao buscar resumo da carteira:', err);
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
-    }
-  }, []);
-
-  const fetchResumoProgressive = useCallback(async (force = false) => {
-    if (isFetchingRef.current) return;
-    if (!force && hasFetchedRef.current) return;
-
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    try {
-      isFetchingRef.current = true;
-      setLoading(true);
-      setError(null);
-
-      // 1ª requisição: resumo rápido sem histórico (carregamento inicial rápido)
+  const {
+    data: resumo = null,
+    isLoading: loading,
+    error: queryError,
+    refetch: queryRefetch,
+  } = useQuery<CarteiraResumo>({
+    queryKey,
+    queryFn: async ({ signal }) => {
+      // Progressive loading: fast summary first, then full data with history
       const responseFast = await fetch('/api/carteira/resumo?includeHistorico=false', {
         method: 'GET',
         credentials: 'include',
-        signal: controller.signal,
+        signal,
       });
-      if (controller.signal.aborted) return;
+
       if (!responseFast.ok) throw new Error('Erro ao carregar dados da carteira');
 
       const dataFast = await responseFast.json();
-      if (controller.signal.aborted) return;
-      setResumo(dataFast);
-      hasFetchedRef.current = true;
-      setLoading(false);
-      isFetchingRef.current = false;
 
-      // 2ª requisição: histórico completo em background (atualiza gráfico quando pronto)
+      // Set fast data immediately via cache, then fetch full data
+      queryClient.setQueryData<CarteiraResumo>(queryKey, dataFast);
+
+      // Background: full data with history
       const responseFull = await fetch('/api/carteira/resumo', {
         method: 'GET',
         credentials: 'include',
-        signal: controller.signal,
+        signal,
       });
-      if (controller.signal.aborted) return;
+
       if (responseFull.ok) {
-        const dataFull = await responseFull.json();
-        if (controller.signal.aborted) return;
-        setResumo(dataFull);
+        return responseFull.json();
       }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      console.error('Erro ao buscar resumo da carteira:', err);
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-      setLoading(false);
-      isFetchingRef.current = false;
-    }
-  }, []);
+
+      return dataFast;
+    },
+  });
+
+  const error = queryError ? (queryError as Error).message : null;
 
   const updateMeta = useCallback(
     async (novaMetaPatrimonio: number) => {
       try {
         const response = await csrfFetch('/api/carteira/resumo', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ metaPatrimonio: novaMetaPatrimonio }),
         });
 
-        if (!response.ok) {
-          throw new Error('Erro ao atualizar meta de patrimônio');
-        }
+        if (!response.ok) throw new Error('Erro ao atualizar meta de patrimônio');
 
-        if (!isMountedRef.current) return false;
-
-        // Recarregar dados após atualização (forçar reload)
-        await fetchResumo(true);
+        await queryClient.invalidateQueries({ queryKey });
         return true;
       } catch (err) {
         console.error('Erro ao atualizar meta:', err);
-        if (!isMountedRef.current) return false;
-        setError(err instanceof Error ? err.message : 'Erro ao atualizar meta');
         return false;
       }
     },
-    [fetchResumo, csrfFetch],
+    [csrfFetch, queryClient, queryKey],
   );
 
   const updateCaixaParaInvestir = useCallback(
     async (novoCaixa: number) => {
-      if (!resumo) {
-        return false;
-      }
+      if (!resumo) return false;
 
-      // Salvar estado anterior para rollback em caso de erro
       const previousResumo = resumo;
 
-      // Atualização otimista: atualizar o estado local imediatamente
-      setResumo({
+      // Optimistic update
+      queryClient.setQueryData<CarteiraResumo>(queryKey, {
         ...resumo,
         caixaParaInvestir: novoCaixa,
       });
@@ -232,29 +120,21 @@ export const useCarteira = () => {
       try {
         const response = await csrfFetch('/api/carteira/resumo', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
         });
 
-        if (!response.ok) {
-          throw new Error('Erro ao atualizar caixa para investir');
-        }
+        if (!response.ok) throw new Error('Erro ao atualizar caixa para investir');
 
         return true;
       } catch (err) {
-        // Rollback em caso de erro
-        if (isMountedRef.current) {
-          setResumo(previousResumo);
-        }
+        // Rollback
+        queryClient.setQueryData<CarteiraResumo>(queryKey, previousResumo);
         console.error('Erro ao atualizar caixa para investir:', err);
-        if (!isMountedRef.current) return false;
-        setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
         return false;
       }
     },
-    [resumo, csrfFetch],
+    [resumo, csrfFetch, queryClient, queryKey],
   );
 
   const formatCurrency = (value: number | undefined | null): string => {
@@ -274,28 +154,9 @@ export const useCarteira = () => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      abortControllerRef.current?.abort();
-    };
-  }, []);
-
-  // Carregamento progressivo: resumo rápido primeiro, histórico completo em background
-  useEffect(() => {
-    if (!hasFetchedRef.current) {
-      fetchResumoProgressive(false);
-    } else {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Refetch progressivo (após add/resgate): dados atualizados rápido, histórico em background
   const refetch = useCallback(() => {
-    return fetchResumoProgressive(true);
-  }, [fetchResumoProgressive]);
+    return queryRefetch().then(() => undefined);
+  }, [queryRefetch]);
 
   return {
     resumo,

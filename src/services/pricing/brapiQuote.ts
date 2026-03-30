@@ -14,14 +14,14 @@ let brapiClient: Brapi | null = null;
 const getBrapiClient = (): Brapi => {
   if (!brapiClient) {
     const apiKey = process.env.BRAPI_API_KEY;
-    
+
     brapiClient = new Brapi({
       apiKey: apiKey || undefined,
       maxRetries: 2, // SDK já tem retry automático
       timeout: 60000, // 60 segundos
     });
   }
-  
+
   return brapiClient;
 };
 
@@ -70,7 +70,7 @@ const REQUEST_DELAY = 300; // 300ms entre cada requisição
  */
 export const fetchCryptoQuotes = async (
   symbols: string[],
-  currency: 'BRL' | 'USD' = 'BRL'
+  currency: 'BRL' | 'USD' = 'BRL',
 ): Promise<Map<string, number>> => {
   const result = new Map<string, number>();
   if (!symbols?.length) return result;
@@ -121,9 +121,7 @@ export const fetchCryptoQuotes = async (
  * @param symbols - Símbolos (ex: ['USD-BRL', 'EUR-BRL'])
  * @returns Mapa símbolo -> preço em BRL
  */
-export const fetchCurrencyQuotes = async (
-  symbols: string[]
-): Promise<Map<string, number>> => {
+export const fetchCurrencyQuotes = async (symbols: string[]): Promise<Map<string, number>> => {
   const result = new Map<string, number>();
   if (!symbols?.length) return result;
 
@@ -172,14 +170,17 @@ export const fetchCurrencyQuotes = async (
  * @param forceRefresh - Se true, ignora cache e busca dados frescos
  * @returns Preço do ativo ou null se não encontrado
  */
-const fetchSingleQuote = async (symbol: string, forceRefresh: boolean = false): Promise<number | null> => {
+const fetchSingleQuote = async (
+  symbol: string,
+  forceRefresh: boolean = false,
+): Promise<number | null> => {
   if (!symbol || !symbol.trim()) {
     return null;
   }
 
   try {
     const client = getBrapiClient();
-    
+
     // Buscar cotação usando o SDK
     // O SDK permite buscar múltiplas de uma vez, mas aqui buscamos uma por vez
     const response = await client.quote.retrieve(symbol);
@@ -190,13 +191,18 @@ const fetchSingleQuote = async (symbol: string, forceRefresh: boolean = false): 
     }
 
     const result = response.results[0];
-    if (result.symbol && result.regularMarketPrice !== undefined && result.regularMarketPrice !== null) {
-      console.log(`✅ ${symbol}: R$ ${result.regularMarketPrice.toFixed(2)} (${forceRefresh ? 'forçado' : 'SDK'})`);
+    if (
+      result.symbol &&
+      result.regularMarketPrice !== undefined &&
+      result.regularMarketPrice !== null
+    ) {
+      console.log(
+        `✅ ${symbol}: R$ ${result.regularMarketPrice.toFixed(2)} (${forceRefresh ? 'forçado' : 'SDK'})`,
+      );
       return result.regularMarketPrice;
     }
 
     return null;
-
   } catch (error) {
     // SDK já trata erros tipados (APIError, RateLimitError, etc.)
     if (error instanceof Brapi.APIError) {
@@ -221,7 +227,10 @@ const fetchSingleQuote = async (symbol: string, forceRefresh: boolean = false): 
  * @param forceRefresh - Se true, ignora cache e busca dados frescos da API
  * @returns Mapa de símbolo -> preço
  */
-export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = false): Promise<Map<string, number>> => {
+export const fetchQuotes = async (
+  symbols: string[],
+  forceRefresh: boolean = false,
+): Promise<Map<string, number>> => {
   try {
     if (!symbols || symbols.length === 0) {
       return new Map();
@@ -229,17 +238,27 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
 
     // Filtrar símbolos únicos, remover vazios e excluir símbolos inválidos para brapi
     // (reserva, renda fixa, personalizado, ativos manuais: debênture, fundo, REIT)
-    const uniqueSymbols = [...new Set(symbols.filter(s => {
-      if (!s?.trim()) return false;
-      const upper = s.trim().toUpperCase();
-      if (upper.startsWith('RESERVA-EMERG') || upper.startsWith('RESERVA-OPORT') ||
-          upper.startsWith('RENDA-FIXA') || upper.startsWith('CONTA-CORRENTE') || upper.startsWith('PERSONALIZADO')) return false;
-      if (upper.startsWith('DEBENTURE-') || upper.startsWith('FUNDO-')) return false;
-      if (/-\d{13}-/.test(upper)) return false; // ativos manuais com timestamp (ex: PLD-1771516010088-4gvgkb2)
-      if (upper.startsWith('-') || /^\d/.test(upper)) return false;
-      return /^[A-Za-z]/.test(upper);
-    }))];
-    
+    const uniqueSymbols = [
+      ...new Set(
+        symbols.filter((s) => {
+          if (!s?.trim()) return false;
+          const upper = s.trim().toUpperCase();
+          if (
+            upper.startsWith('RESERVA-EMERG') ||
+            upper.startsWith('RESERVA-OPORT') ||
+            upper.startsWith('RENDA-FIXA') ||
+            upper.startsWith('CONTA-CORRENTE') ||
+            upper.startsWith('PERSONALIZADO')
+          )
+            return false;
+          if (upper.startsWith('DEBENTURE-') || upper.startsWith('FUNDO-')) return false;
+          if (/-\d{13}-/.test(upper)) return false; // ativos manuais com timestamp (ex: PLD-1771516010088-4gvgkb2)
+          if (upper.startsWith('-') || /^\d/.test(upper)) return false;
+          return /^[A-Za-z]/.test(upper);
+        }),
+      ),
+    ];
+
     if (uniqueSymbols.length === 0) {
       return new Map();
     }
@@ -250,16 +269,18 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
     // Se forceRefresh é true, buscar todos os símbolos
     // Caso contrário, verificar cache primeiro
     const symbolsToFetch: string[] = [];
-    
+
     if (forceRefresh) {
       // Forçar busca de todos os símbolos
       symbolsToFetch.push(...uniqueSymbols);
-      console.log(`🔄 Buscando cotações frescas de ${uniqueSymbols.length} ativos usando SDK (forçado)`);
+      console.log(
+        `🔄 Buscando cotações frescas de ${uniqueSymbols.length} ativos usando SDK (forçado)`,
+      );
     } else {
       // Verificar cache primeiro
       for (const symbol of uniqueSymbols) {
         const cached = quoteCache[symbol];
-        if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+        if (cached && now - cached.timestamp < CACHE_DURATION) {
           quotes.set(symbol, cached.price);
         } else {
           symbolsToFetch.push(symbol);
@@ -272,23 +293,25 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
         return quotes;
       }
 
-      console.log(`🔍 Buscando cotações de ${symbolsToFetch.length} ativos usando SDK (${uniqueSymbols.length - symbolsToFetch.length} em cache)`);
+      console.log(
+        `🔍 Buscando cotações de ${symbolsToFetch.length} ativos usando SDK (${uniqueSymbols.length - symbolsToFetch.length} em cache)`,
+      );
     }
 
     // Usar SDK para buscar múltiplas cotações de uma vez (mais eficiente)
     // A API brapi permite buscar até 20 símbolos por requisição separados por vírgula
     const BATCH_SIZE = 20;
-    
+
     const invalidSymbols = new Set<string>();
 
     for (let i = 0; i < symbolsToFetch.length; i += BATCH_SIZE) {
       const batch = symbolsToFetch.slice(i, i + BATCH_SIZE);
       // Normalizar símbolos para maiúsculas e remover espaços
       const normalizedBatch = batch
-        .map(s => s.trim().toUpperCase())
-        .filter(symbol => !invalidSymbols.has(symbol));
+        .map((s) => s.trim().toUpperCase())
+        .filter((symbol) => !invalidSymbols.has(symbol));
       const symbolsString = normalizedBatch.join(',');
-      
+
       try {
         if (!symbolsString) {
           continue;
@@ -299,31 +322,39 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
 
         if (response.results && Array.isArray(response.results)) {
           for (const result of response.results) {
-            if (result.symbol && result.regularMarketPrice !== undefined && result.regularMarketPrice !== null) {
+            if (
+              result.symbol &&
+              result.regularMarketPrice !== undefined &&
+              result.regularMarketPrice !== null
+            ) {
               const price = result.regularMarketPrice;
               quotes.set(result.symbol, price);
-              
+
               // Atualizar cache sempre
               quoteCache[result.symbol] = {
                 price: price,
-                timestamp: now
+                timestamp: now,
               };
-              
+
               console.log(`✅ ${result.symbol}: R$ ${price.toFixed(2)}`);
             }
           }
         }
-        
+
         // Verificar quais símbolos não foram retornados
-        const returnedSymbols = new Set(response.results?.map(r => r.symbol?.toUpperCase()) || []);
-        const missingSymbols = batch.filter(s => {
+        const returnedSymbols = new Set(
+          response.results?.map((r) => r.symbol?.toUpperCase()) || [],
+        );
+        const missingSymbols = batch.filter((s) => {
           const symbolUpper = s.toUpperCase();
           return !returnedSymbols.has(symbolUpper);
         });
-        
+
         for (const symbol of missingSymbols) {
-          console.warn(`⚠️  Não foi possível obter cotação de ${symbol} - tentando busca individual...`);
-          
+          console.warn(
+            `⚠️  Não foi possível obter cotação de ${symbol} - tentando busca individual...`,
+          );
+
           // Tentar buscar individualmente antes de usar cache
           try {
             const price = await fetchSingleQuote(symbol, forceRefresh);
@@ -336,7 +367,7 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
           } catch (singleError) {
             console.warn(`⚠️  Erro ao buscar cotação individual de ${symbol}:`, singleError);
           }
-          
+
           // Se falhou mas temos cache antigo, usar cache como fallback apenas se não for forceRefresh
           if (!forceRefresh) {
             const cached = quoteCache[symbol];
@@ -350,18 +381,17 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
             console.warn(`❌ ${symbol} não encontrado na API (forceRefresh=true, sem cache)`);
           }
         }
-        
+
         // Aguardar antes do próximo batch (exceto no último)
         if (i + BATCH_SIZE < symbolsToFetch.length) {
-          await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
+          await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY));
         }
-        
       } catch (error) {
         // Verificar se é um erro de API (500, 429, etc.)
         let errorStatus: number | null = null;
         let errorMessage = '';
         let invalidSymbolFromMessage: string | null = null;
-        
+
         // Extrair informações do erro
         if (error && typeof error === 'object') {
           // Verificar se tem propriedade status diretamente
@@ -371,7 +401,7 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
               errorStatus = statusValue;
             }
           }
-          
+
           // Verificar se é uma instância de Error
           if (error instanceof Error) {
             errorMessage = error.message;
@@ -391,7 +421,9 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
         }
         // 404 "Nenhum resultado encontrado" = batch inteiro inválido; tratar todos como não encontrados
         if (errorStatus === 404 && !invalidSymbolFromMessage) {
-          console.warn(`⚠️  API brapi retornou 404 para batch. Símbolos podem ser inválidos (reserva, renda fixa, etc).`);
+          console.warn(
+            `⚠️  API brapi retornou 404 para batch. Símbolos podem ser inválidos (reserva, renda fixa, etc).`,
+          );
           for (const sym of normalizedBatch) {
             invalidSymbols.add(sym);
           }
@@ -399,8 +431,12 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
         }
 
         if (errorStatus === 404 && invalidSymbolFromMessage) {
-          console.warn(`⚠️  Símbolo inválido na API: ${invalidSymbolFromMessage}. Reprocessando batch sem ele.`);
-          const retryBatch = normalizedBatch.filter(symbol => symbol !== invalidSymbolFromMessage);
+          console.warn(
+            `⚠️  Símbolo inválido na API: ${invalidSymbolFromMessage}. Reprocessando batch sem ele.`,
+          );
+          const retryBatch = normalizedBatch.filter(
+            (symbol) => symbol !== invalidSymbolFromMessage,
+          );
           if (!retryBatch.length) {
             continue;
           }
@@ -411,7 +447,11 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
 
             if (retryResponse.results && Array.isArray(retryResponse.results)) {
               for (const result of retryResponse.results) {
-                if (result.symbol && result.regularMarketPrice !== undefined && result.regularMarketPrice !== null) {
+                if (
+                  result.symbol &&
+                  result.regularMarketPrice !== undefined &&
+                  result.regularMarketPrice !== null
+                ) {
                   const price = result.regularMarketPrice;
                   quotes.set(result.symbol, price);
                   quoteCache[result.symbol] = { price, timestamp: now };
@@ -421,10 +461,14 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
             }
 
             // Após retry, seguir fluxo normal para missingSymbols
-            const returnedSymbols = new Set(retryResponse.results?.map(r => r.symbol?.toUpperCase()) || []);
-            const missingSymbols = retryBatch.filter(s => !returnedSymbols.has(s.toUpperCase()));
+            const returnedSymbols = new Set(
+              retryResponse.results?.map((r) => r.symbol?.toUpperCase()) || [],
+            );
+            const missingSymbols = retryBatch.filter((s) => !returnedSymbols.has(s.toUpperCase()));
             for (const symbol of missingSymbols) {
-              console.warn(`⚠️  Não foi possível obter cotação de ${symbol} - tentando busca individual...`);
+              console.warn(
+                `⚠️  Não foi possível obter cotação de ${symbol} - tentando busca individual...`,
+              );
               try {
                 const price = await fetchSingleQuote(symbol, forceRefresh);
                 if (price !== null) {
@@ -441,7 +485,9 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
                 const cached = quoteCache[symbol];
                 if (cached) {
                   quotes.set(symbol, cached.price);
-                  console.log(`📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+                  console.log(
+                    `📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`,
+                  );
                 } else {
                   console.warn(`❌ ${symbol} não encontrado na API e não há cache disponível`);
                 }
@@ -451,40 +497,53 @@ export const fetchQuotes = async (symbols: string[], forceRefresh: boolean = fal
             }
 
             if (i + BATCH_SIZE < symbolsToFetch.length) {
-              await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
+              await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY));
             }
           } catch (retryError) {
-            console.error(`❌ Erro ao reprocessar batch sem ${invalidSymbolFromMessage}:`, retryError);
+            console.error(
+              `❌ Erro ao reprocessar batch sem ${invalidSymbolFromMessage}:`,
+              retryError,
+            );
           }
           continue;
         }
-        
+
         // Verificar se é erro 500 (pode estar na mensagem ou no status)
-        const is500Error = errorStatus === 500 || 
-          (errorMessage && (errorMessage.startsWith('500') || errorMessage.includes('500: Internal server error'))) ||
-          (error && typeof error === 'object' && 'status' in error && (error as { status?: number }).status === 500);
-        
+        const is500Error =
+          errorStatus === 500 ||
+          (errorMessage &&
+            (errorMessage.startsWith('500') ||
+              errorMessage.includes('500: Internal server error'))) ||
+          (error &&
+            typeof error === 'object' &&
+            'status' in error &&
+            (error as { status?: number }).status === 500);
+
         if (is500Error) {
-          console.warn(`⚠️  API brapi.dev retornou erro 500 para batch. Usando cache ou preços médios como fallback.`);
+          console.warn(
+            `⚠️  API brapi.dev retornou erro 500 para batch. Usando cache ou preços médios como fallback.`,
+          );
         } else {
           console.error(`❌ Erro ao buscar cotações do batch:`, error);
         }
-        
+
         // Para qualquer erro, tentar usar cache primeiro (não fazer requisições adicionais se for 500)
         for (const symbol of batch) {
           if (!forceRefresh) {
             const cached = quoteCache[symbol];
             if (cached) {
               quotes.set(symbol, cached.price);
-              console.log(`📦 Usando cache após erro para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+              console.log(
+                `📦 Usando cache após erro para ${symbol}: R$ ${cached.price.toFixed(2)}`,
+              );
             }
           }
         }
-        
+
         // Se ainda não temos todas as cotações e não é erro 500, tentar buscar individualmente
         // Para erro 500, não tentar buscar individualmente (economiza requisições)
         if (!is500Error) {
-          const missingSymbols = batch.filter(s => !quotes.has(s));
+          const missingSymbols = batch.filter((s) => !quotes.has(s));
           for (const symbol of missingSymbols) {
             try {
               const price = await fetchSingleQuote(symbol, forceRefresh);
@@ -522,7 +581,7 @@ export const fetchQuote = async (symbol: string): Promise<number | null> => {
   // Verificar cache primeiro
   const now = Date.now();
   const cached = quoteCache[symbol];
-  if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+  if (cached && now - cached.timestamp < CACHE_DURATION) {
     return cached.price;
   }
 
@@ -542,15 +601,24 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
 
   // Filtrar símbolos únicos, remover vazios e excluir ativos manuais (sem cotações externas)
   const upper = (x: string) => x.trim().toUpperCase();
-  const uniqueSymbols = [...new Set(symbols.filter(s => {
-    if (!s?.trim()) return false;
-    const u = upper(s);
-    if (u.startsWith('RESERVA-EMERG') || u.startsWith('RESERVA-OPORT') || u.startsWith('PERSONALIZADO')) return false;
-    if (u.startsWith('DEBENTURE-') || u.startsWith('FUNDO-')) return false;
-    if (/-\d{13}-/.test(u)) return false; // ativos manuais com timestamp
-    return true;
-  }))];
-  
+  const uniqueSymbols = [
+    ...new Set(
+      symbols.filter((s) => {
+        if (!s?.trim()) return false;
+        const u = upper(s);
+        if (
+          u.startsWith('RESERVA-EMERG') ||
+          u.startsWith('RESERVA-OPORT') ||
+          u.startsWith('PERSONALIZADO')
+        )
+          return false;
+        if (u.startsWith('DEBENTURE-') || u.startsWith('FUNDO-')) return false;
+        if (/-\d{13}-/.test(u)) return false; // ativos manuais com timestamp
+        return true;
+      }),
+    ),
+  ];
+
   if (uniqueSymbols.length === 0) {
     return [];
   }
@@ -562,19 +630,21 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
 
   // SDK permite buscar múltiplas de uma vez, processar em batches de 20
   const BATCH_SIZE = 20;
-  
+
   for (let i = 0; i < uniqueSymbols.length; i += BATCH_SIZE) {
     const batch = uniqueSymbols.slice(i, i + BATCH_SIZE);
     const symbolsString = batch.join(',');
-    
+
     try {
       const response = await client.quote.retrieve(symbolsString);
 
       if (response.results && Array.isArray(response.results)) {
         // Converter tipos do SDK para nosso formato
         const convertedResults: BrapiQuoteResult[] = response.results
-          .filter(r => r.symbol && r.regularMarketPrice !== null && r.regularMarketPrice !== undefined)
-          .map(r => ({
+          .filter(
+            (r) => r.symbol && r.regularMarketPrice !== null && r.regularMarketPrice !== undefined,
+          )
+          .map((r) => ({
             symbol: r.symbol!,
             shortName: r.shortName || '',
             longName: r.longName ?? undefined,
@@ -593,12 +663,13 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
 
       // Aguardar antes do próximo batch (exceto no último)
       if (i + BATCH_SIZE < uniqueSymbols.length) {
-        await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
+        await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY));
       }
-
     } catch (error) {
       if (error instanceof Brapi.APIError) {
-        console.error(`Erro ao buscar cotações detalhadas do batch: ${error.status} - ${error.message}`);
+        console.error(
+          `Erro ao buscar cotações detalhadas do batch: ${error.status} - ${error.message}`,
+        );
       } else {
         console.error(`Erro ao buscar cotações detalhadas do batch:`, error);
       }
@@ -612,7 +683,7 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
  * Limpa o cache de cotações
  */
 export const clearQuoteCache = (): void => {
-  Object.keys(quoteCache).forEach(key => delete quoteCache[key]);
+  Object.keys(quoteCache).forEach((key) => delete quoteCache[key]);
 };
 
 /**
@@ -621,19 +692,18 @@ export const clearQuoteCache = (): void => {
 export const getCacheStats = (): { size: number; oldestEntry: number | null } => {
   const keys = Object.keys(quoteCache);
   const now = Date.now();
-  
+
   let oldestTimestamp: number | null = null;
-  
+
   for (const key of keys) {
     const entry = quoteCache[key];
     if (!oldestTimestamp || entry.timestamp < oldestTimestamp) {
       oldestTimestamp = entry.timestamp;
     }
   }
-  
+
   return {
     size: keys.length,
-    oldestEntry: oldestTimestamp ? Math.floor((now - oldestTimestamp) / 1000) : null
+    oldestEntry: oldestTimestamp ? Math.floor((now - oldestTimestamp) / 1000) : null,
   };
 };
-

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { AcaoData, AcaoAtivo, AcaoSecao, SetorAcao } from '@/types/acoes';
-import { getAssetPrices } from '@/services/assetPriceService';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // Função helper para validar e converter setor para SetorAcao

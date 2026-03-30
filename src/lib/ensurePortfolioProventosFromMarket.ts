@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/prisma";
-import { getDividends } from "@/services/dividendService";
+import { prisma } from '@/lib/prisma';
+import { getDividends } from '@/services/pricing/dividendService';
 
 const normalizeDateStart = (date: Date) => {
   const normalized = new Date(date);
@@ -12,7 +12,7 @@ const buildTimeline = (trans: { date: Date; quantity: number; type: string }[]) 
   const timeline: { date: number; quantity: number }[] = [];
   let currentQuantity = 0;
   sorted.forEach((t) => {
-    currentQuantity += t.type === "compra" ? t.quantity : -t.quantity;
+    currentQuantity += t.type === 'compra' ? t.quantity : -t.quantity;
     timeline.push({ date: t.date.getTime(), quantity: currentQuantity });
   });
   return timeline;
@@ -63,7 +63,7 @@ export const ensurePortfolioProventosFromMarket = async (params: {
   const timeline = buildTimeline(transactions);
   const hoje = normalizeDateStart(new Date());
   const hojeMs = hoje.getTime();
-  const compraTimes = transactions.filter((t) => t.type === "compra").map((t) => t.date.getTime());
+  const compraTimes = transactions.filter((t) => t.type === 'compra').map((t) => t.date.getTime());
   const firstPurchaseDate =
     compraTimes.length > 0
       ? Math.min(...compraTimes)
@@ -101,7 +101,7 @@ export const ensurePortfolioProventosFromMarket = async (params: {
         tipo: d.tipo,
         dataCom: day,
         dataPagamento: day,
-        precificarPor: "valor",
+        precificarPor: 'valor',
         valorTotal,
         quantidadeBase: quantidade,
         impostoRenda: null,

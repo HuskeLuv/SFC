@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { getAssetHistory } from '@/services/assetPriceService';
+import { getAssetHistory } from '@/services/pricing/assetPriceService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // Tipos de índices disponíveis - todos buscados da brapi

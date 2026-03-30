@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { fetchDetailedQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from '@/services/brapiQuote';
+import { fetchDetailedQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from './brapiQuote';
 import { Decimal } from '@prisma/client/runtime/library';
 
 // ================== TYPES ==================

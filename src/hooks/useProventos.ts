@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 
 export interface ProventoData {
   id: string;
@@ -28,6 +29,24 @@ export interface SummaryBucket {
   count: number;
 }
 
+interface ProventosResponse {
+  proventos: ProventoData[];
+  grouped: Record<string, GroupedProventoData>;
+  monthly: Record<string, SummaryBucket>;
+  yearly: Record<string, SummaryBucket>;
+  total: number;
+  media: number;
+}
+
+const emptyResponse: ProventosResponse = {
+  proventos: [],
+  grouped: {},
+  monthly: {},
+  yearly: {},
+  total: 0,
+  media: 0,
+};
+
 interface UseProventosResult {
   proventos: ProventoData[];
   grouped: Record<string, GroupedProventoData>;
@@ -45,79 +64,46 @@ export const useProventos = (
   endDate?: string,
   groupBy: 'ativo' | 'classe' | 'tipo' = 'ativo',
 ): UseProventosResult => {
-  const [proventos, setProventos] = useState<ProventoData[]>([]);
-  const [grouped, setGrouped] = useState<Record<string, GroupedProventoData>>({});
-  const [monthly, setMonthly] = useState<Record<string, SummaryBucket>>({});
-  const [yearly, setYearly] = useState<Record<string, SummaryBucket>>({});
-  const [total, setTotal] = useState(0);
-  const [media, setMedia] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  const fetchProventos = useCallback(async () => {
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    setLoading(true);
-    setError(null);
-
-    try {
+  const {
+    data = emptyResponse,
+    isLoading: loading,
+    error: queryError,
+    refetch: queryRefetch,
+  } = useQuery<ProventosResponse>({
+    queryKey: [...queryKeys.proventos.all, startDate, endDate, groupBy],
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       params.append('groupBy', groupBy);
 
-      const response = await fetch(`/api/analises/proventos?${params.toString()}`, {
-        signal: controller.signal,
-      });
-
-      if (controller.signal.aborted) return;
+      const response = await fetch(`/api/analises/proventos?${params.toString()}`, { signal });
 
       if (!response.ok) {
         throw new Error('Erro ao buscar dados de proventos');
       }
 
-      const data = await response.json();
-      if (controller.signal.aborted) return;
-      setProventos(data.proventos || []);
-      setGrouped(data.grouped || {});
-      setMonthly(data.monthly || {});
-      setYearly(data.yearly || {});
-      setTotal(data.total || 0);
-      setMedia(data.media || 0);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-      setProventos([]);
-      setGrouped({});
-      setMonthly({});
-      setYearly({});
-      setTotal(0);
-      setMedia(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [startDate, endDate, groupBy]);
-
-  useEffect(() => {
-    void fetchProventos();
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, [fetchProventos]);
+      const json = await response.json();
+      return {
+        proventos: json.proventos || [],
+        grouped: json.grouped || {},
+        monthly: json.monthly || {},
+        yearly: json.yearly || {},
+        total: json.total || 0,
+        media: json.media || 0,
+      };
+    },
+  });
 
   return {
-    proventos,
-    grouped,
-    monthly,
-    yearly,
-    total,
-    media,
+    proventos: data.proventos,
+    grouped: data.grouped,
+    monthly: data.monthly,
+    yearly: data.yearly,
+    total: data.total,
+    media: data.media,
     loading,
-    error,
-    refetch: fetchProventos,
+    error: queryError ? (queryError as Error).message : null,
+    refetch: () => void queryRefetch(),
   };
 };

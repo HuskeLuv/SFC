@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
-import { getAllIndicators } from '@/services/marketIndicatorService';
+import { getAllIndicators } from '@/services/market/marketIndicatorService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 export const GET = withErrorHandler(async (request: NextRequest) => {

@@ -1,4 +1,4 @@
-import { getAssetHistory } from '@/services/assetPriceService';
+import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import type { Prisma } from '@prisma/client';
 
 const DAY_MS = 24 * 60 * 60 * 1000;

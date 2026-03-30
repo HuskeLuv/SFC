@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runPortfolioSnapshotsJob } from '@/services/portfolioSnapshotPersistence';
+import { runPortfolioSnapshotsJob } from '@/services/portfolio/portfolioSnapshotPersistence';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**

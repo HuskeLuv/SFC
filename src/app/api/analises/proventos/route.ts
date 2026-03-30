@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { getAssetPrices } from '@/services/assetPriceService';
-import { getDividends } from '@/services/dividendService';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
+import { getDividends } from '@/services/pricing/dividendService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';

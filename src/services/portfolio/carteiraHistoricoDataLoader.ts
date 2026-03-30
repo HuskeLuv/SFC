@@ -1,11 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { filterInvestmentsExclReservas } from '@/services/patrimonioHistoricoBuilder';
+import { filterInvestmentsExclReservas } from './patrimonioHistoricoBuilder';
 import type {
   FixedIncomeAssetWithAsset,
   PortfolioWithRelations,
   StockTransactionWithRelations,
-} from '@/services/patrimonioHistoricoBuilder';
+} from './patrimonioHistoricoBuilder';
 
 /**
  * Carrega dados mínimos para buildPatrimonioHistorico (cron / resumo).

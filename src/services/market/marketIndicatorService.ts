@@ -13,9 +13,7 @@ export type IndicatorValue = {
   changePercent: number | null;
 };
 
-const getIndicatorFromCache = async (
-  indicatorKey: string
-): Promise<IndicatorValue | null> => {
+const getIndicatorFromCache = async (indicatorKey: string): Promise<IndicatorValue | null> => {
   const row = await prisma.marketIndicatorCache.findUnique({
     where: { indicatorKey },
   });
@@ -33,7 +31,7 @@ const getIndicatorFromCache = async (
 const persistIndicator = async (
   indicatorKey: string,
   price: number,
-  changePercent: number | null
+  changePercent: number | null,
 ): Promise<void> => {
   await prisma.marketIndicatorCache.upsert({
     where: { indicatorKey },
@@ -76,11 +74,8 @@ const fetchBrapiQuote = async (symbol: string): Promise<IndicatorValue> => {
       return { price: priceFromQuote, changePercent };
     }
 
-    const historical = Array.isArray(result?.historicalDataPrice)
-      ? result.historicalDataPrice
-      : [];
-    const lastClose =
-      historical.length > 0 ? historical[historical.length - 1]?.close : null;
+    const historical = Array.isArray(result?.historicalDataPrice) ? result.historicalDataPrice : [];
+    const lastClose = historical.length > 0 ? historical[historical.length - 1]?.close : null;
     const price = Number.isFinite(lastClose) ? lastClose : null;
     return { price, changePercent };
   } catch (error) {
@@ -127,11 +122,7 @@ const fetchCurrencyQuote = async (currency: string): Promise<IndicatorValue> => 
 
     return { price, changePercent };
   } catch (error) {
-    console.error(
-      '[marketIndicatorService] Erro ao buscar moeda:',
-      currency,
-      error
-    );
+    console.error('[marketIndicatorService] Erro ao buscar moeda:', currency, error);
     return { price: null, changePercent: null };
   }
 };
@@ -153,21 +144,30 @@ const fetchCryptoQuotes = async (): Promise<Record<string, IndicatorValue>> => {
     const coins = Array.isArray(data?.coins) ? data.coins : [];
     const result: Record<string, IndicatorValue> = {};
 
-    coins.forEach((coin: { coin?: string; symbol?: string; regularMarketPrice?: number; price?: number; regularMarketChangePercent?: number; change_percentage_24h?: number }) => {
-      const symbol = String(coin?.coin ?? coin?.symbol ?? '').toUpperCase();
-      if (!symbol) return;
-      const price = Number.isFinite(coin?.regularMarketPrice)
-        ? coin.regularMarketPrice
-        : Number.isFinite(coin?.price)
-          ? coin.price
-          : null;
-      const changePercent = Number.isFinite(coin?.regularMarketChangePercent)
-        ? coin.regularMarketChangePercent
-        : Number.isFinite(coin?.change_percentage_24h)
-          ? coin.change_percentage_24h
-          : null;
-      result[symbol] = { price: price ?? null, changePercent: changePercent ?? null };
-    });
+    coins.forEach(
+      (coin: {
+        coin?: string;
+        symbol?: string;
+        regularMarketPrice?: number;
+        price?: number;
+        regularMarketChangePercent?: number;
+        change_percentage_24h?: number;
+      }) => {
+        const symbol = String(coin?.coin ?? coin?.symbol ?? '').toUpperCase();
+        if (!symbol) return;
+        const price = Number.isFinite(coin?.regularMarketPrice)
+          ? coin.regularMarketPrice
+          : Number.isFinite(coin?.price)
+            ? coin.price
+            : null;
+        const changePercent = Number.isFinite(coin?.regularMarketChangePercent)
+          ? coin.regularMarketChangePercent
+          : Number.isFinite(coin?.change_percentage_24h)
+            ? coin.change_percentage_24h
+            : null;
+        result[symbol] = { price: price ?? null, changePercent: changePercent ?? null };
+      },
+    );
 
     return result;
   } catch (error) {
@@ -181,7 +181,7 @@ const fetchCryptoQuotes = async (): Promise<Record<string, IndicatorValue>> => {
  */
 export const getIndicator = async (
   indicatorKey: string,
-  options?: { useBrapiFallback?: boolean }
+  options?: { useBrapiFallback?: boolean },
 ): Promise<IndicatorValue> => {
   const useFallback = options?.useBrapiFallback !== false;
 

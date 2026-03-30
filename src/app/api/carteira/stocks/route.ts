@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { getAssetPrices } from '@/services/assetPriceService';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // Função auxiliar para cores

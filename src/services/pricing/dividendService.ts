@@ -5,7 +5,13 @@
 
 import { prisma } from '@/lib/prisma';
 
-const BLOCKED_SYMBOL_PREFIXES = ['RESERVA-EMERG', 'RESERVA-OPORT', 'PERSONALIZADO', 'RENDA-FIXA', 'CONTA-CORRENTE'];
+const BLOCKED_SYMBOL_PREFIXES = [
+  'RESERVA-EMERG',
+  'RESERVA-OPORT',
+  'PERSONALIZADO',
+  'RENDA-FIXA',
+  'CONTA-CORRENTE',
+];
 
 const isBlockedSymbol = (symbol: string) =>
   BLOCKED_SYMBOL_PREFIXES.some((p) => symbol.toUpperCase().startsWith(p));
@@ -47,7 +53,10 @@ const parseNumericValue = (value: unknown): number | null => {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value === 'string') {
-    const normalized = value.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+    const normalized = value
+      .replace(/[^\d,.-]/g, '')
+      .replace(/\./g, '')
+      .replace(',', '.');
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : null;
   }
@@ -91,7 +100,9 @@ const normalizeDividendContainer = (container: unknown): Array<Record<string, un
 };
 
 /** BRAPI pode enviar `dividends: []` (truthy) e os dados reais em `dividendsData.cashDividends`. */
-const flattenBrapiResultDividends = (result: Record<string, unknown>): Array<Record<string, unknown>> => {
+const flattenBrapiResultDividends = (
+  result: Record<string, unknown>,
+): Array<Record<string, unknown>> => {
   const chunks: unknown[] = [
     result.dividends,
     result.dividendsHistory,
@@ -198,7 +209,7 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
  */
 export const getDividends = async (
   symbol: string,
-  options?: { useBrapiFallback?: boolean }
+  options?: { useBrapiFallback?: boolean },
 ): Promise<DividendEntry[]> => {
   if (!symbol?.trim()) return [];
   if (isBlockedSymbol(symbol)) return [];

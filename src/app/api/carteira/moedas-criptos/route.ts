@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { getAssetPrices } from '@/services/assetPriceService';
-import { getIndicator } from '@/services/marketIndicatorService';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
+import { getIndicator } from '@/services/market/marketIndicatorService';
 import type { MoedaCriptoAtivo, MoedaCriptoSecao } from '@/types/moedas-criptos';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';

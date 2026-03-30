@@ -32,11 +32,11 @@ vi.mock('@/services/impersonationLogger', () => ({
   logSensitiveEndpointAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@/services/assetPriceService', () => ({
+vi.mock('@/services/pricing/assetPriceService', () => ({
   getAssetPrices: vi.fn().mockResolvedValue({}),
 }));
 
-vi.mock('@/services/marketIndicatorService', () => ({
+vi.mock('@/services/market/marketIndicatorService', () => ({
   getIndicator: vi.fn().mockResolvedValue(null),
 }));
 
@@ -45,15 +45,15 @@ vi.mock('@/lib/simpleTtlCache', () => ({
   deleteTtlCacheKeyPrefix: vi.fn(),
 }));
 
-vi.mock('@/services/portfolioSeriesAggregation', () => ({
+vi.mock('@/services/portfolio/portfolioSeriesAggregation', () => ({
   applyChartAggregation: vi.fn().mockReturnValue([]),
 }));
 
-vi.mock('@/services/portfolioSnapshotReader', () => ({
+vi.mock('@/services/portfolio/portfolioSnapshotReader', () => ({
   loadHistoricoFromSnapshots: vi.fn().mockResolvedValue(null),
 }));
 
-vi.mock('@/services/patrimonioHistoricoBuilder', () => ({
+vi.mock('@/services/portfolio/patrimonioHistoricoBuilder', () => ({
   buildDailyTimeline: vi.fn().mockReturnValue([]),
   buildDailyPriceMap: vi.fn().mockReturnValue(new Map()),
   buildPatrimonioHistorico: vi.fn().mockReturnValue([]),

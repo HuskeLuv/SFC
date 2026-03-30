@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getClientSummary } from '@/services/consultantService';
-import { getAssetPrices } from '@/services/assetPriceService';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { logConsultantAction } from '@/services/impersonationLogger';
 import { authenticateConsultant, assertClientOwnership } from '@/utils/consultantAuth';
 
