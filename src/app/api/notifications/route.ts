@@ -1,8 +1,9 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { ApiAuthError, authenticateApiUser } from '@/utils/apiAuth';
+import { requireAuth } from '@/utils/auth';
 import { notificationsPatchSchema } from '@/utils/validation-schemas';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 const fetchNotifications = async (userId: string) => {
   return prisma.notification.findMany({
     where: { userId },
@@ -52,53 +53,47 @@ const mapNotification = (notification: Awaited<ReturnType<typeof fetchNotificati
     : null,
 });
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export const GET = withErrorHandler(async (request: NextRequest) => {
   let payload;
   try {
-    payload = authenticateApiUser(req);
-  } catch (error) {
-    if (error instanceof ApiAuthError) {
-      res.status(error.status).json({ error: error.message });
-      return;
-    }
-
-    res.status(401).json({ error: 'Não autenticado.' });
-    return;
+    payload = requireAuth(request);
+  } catch {
+    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   }
 
-  if (req.method === 'GET') {
-    const notifications = await fetchNotifications(payload.id);
-    res.status(200).json({
-      notifications: notifications.map(mapNotification),
-    });
-    return;
+  const notifications = await fetchNotifications(payload.id);
+  return NextResponse.json({
+    notifications: notifications.map(mapNotification),
+  });
+});
+
+export const PATCH = withErrorHandler(async (request: NextRequest) => {
+  let payload;
+  try {
+    payload = requireAuth(request);
+  } catch {
+    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   }
 
-  if (req.method === 'PATCH') {
-    const parsed = notificationsPatchSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Nenhum identificador informado.' });
-      return;
-    }
-    const { ids } = parsed.data;
+  const body = await request.json().catch(() => ({}));
+  const parsed = notificationsPatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Nenhum identificador informado.' }, { status: 400 });
+  }
+  const { ids } = parsed.data;
 
-    await prisma.notification.updateMany({
-      where: {
-        userId: payload.id,
-        id: {
-          in: ids,
-        },
-        readAt: null,
+  await prisma.notification.updateMany({
+    where: {
+      userId: payload.id,
+      id: {
+        in: ids,
       },
-      data: {
-        readAt: new Date(),
-      },
-    });
+      readAt: null,
+    },
+    data: {
+      readAt: new Date(),
+    },
+  });
 
-    res.status(204).end();
-    return;
-  }
-
-  res.setHeader('Allow', 'GET, PATCH');
-  res.status(405).json({ error: 'Método não permitido.' });
-}
+  return new NextResponse(null, { status: 204 });
+});

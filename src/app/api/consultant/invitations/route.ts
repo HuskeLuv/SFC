@@ -1,14 +1,15 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { ConsultantInviteStatus, UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
-import { authenticateConsultant } from '@/pages/api/consultant/[...params]';
+import { authenticateConsultant } from '@/utils/consultantAuth';
 import { consultantInvitationSchema } from '@/utils/validation-schemas';
 
+import { withErrorHandler } from '@/utils/apiErrorHandler';
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
-const handleGet = async (req: NextApiRequest, res: NextApiResponse) => {
-  const consultant = await authenticateConsultant(req);
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const consultant = await authenticateConsultant(request);
 
   const invitations = await prisma.consultantInvite.findMany({
     where: { consultantId: consultant.consultantId },
@@ -24,7 +25,7 @@ const handleGet = async (req: NextApiRequest, res: NextApiResponse) => {
     },
   });
 
-  res.status(200).json({
+  return NextResponse.json({
     invitations: invitations.map((invite) => ({
       id: invite.id,
       email: invite.email,
@@ -40,15 +41,15 @@ const handleGet = async (req: NextApiRequest, res: NextApiResponse) => {
         : null,
     })),
   });
-};
+});
 
-const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
-  const consultant = await authenticateConsultant(req);
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  const consultant = await authenticateConsultant(request);
 
-  const parsed = consultantInvitationSchema.safeParse(req.body);
+  const body = await request.json().catch(() => ({}));
+  const parsed = consultantInvitationSchema.safeParse(body);
   if (!parsed.success) {
-    res.status(400).json({ error: 'E-mail do cliente é obrigatório.' });
-    return;
+    return NextResponse.json({ error: 'E-mail do cliente é obrigatório.' }, { status: 400 });
   }
 
   const normalizedEmail = normalizeEmail(parsed.data.email);
@@ -61,8 +62,10 @@ const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
   });
 
   if (existingInvite) {
-    res.status(409).json({ error: 'Já existe um convite pendente para este e-mail.' });
-    return;
+    return NextResponse.json(
+      { error: 'Já existe um convite pendente para este e-mail.' },
+      { status: 409 },
+    );
   }
 
   const invitedUser = await prisma.user.findUnique({
@@ -71,20 +74,24 @@ const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
   });
 
   if (!invitedUser) {
-    res.status(404).json({ error: 'Nenhum usuário encontrado com este e-mail.' });
-    return;
+    return NextResponse.json(
+      { error: 'Nenhum usuário encontrado com este e-mail.' },
+      { status: 404 },
+    );
   }
 
   if (invitedUser.role === UserRole.consultant) {
-    res.status(400).json({ error: 'Consultores não podem receber convites de consultoria.' });
-    return;
+    return NextResponse.json(
+      { error: 'Consultores não podem receber convites de consultoria.' },
+      { status: 400 },
+    );
   }
 
   if (invitedUser.role !== UserRole.user) {
-    res
-      .status(400)
-      .json({ error: 'Apenas usuários finais podem receber convites de consultoria.' });
-    return;
+    return NextResponse.json(
+      { error: 'Apenas usuários finais podem receber convites de consultoria.' },
+      { status: 400 },
+    );
   }
 
   const existingClientLink = await prisma.clientConsultant.findFirst({
@@ -95,8 +102,10 @@ const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
   });
 
   if (existingClientLink) {
-    res.status(409).json({ error: 'Este cliente já está vinculado à consultoria.' });
-    return;
+    return NextResponse.json(
+      { error: 'Este cliente já está vinculado à consultoria.' },
+      { status: 409 },
+    );
   }
 
   const consultantProfile = await prisma.consultant.findUnique({
@@ -112,8 +121,7 @@ const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
   });
 
   if (!consultantProfile) {
-    res.status(404).json({ error: 'Perfil de consultor não encontrado.' });
-    return;
+    return NextResponse.json({ error: 'Perfil de consultor não encontrado.' }, { status: 404 });
   }
 
   const invitation = await prisma.consultantInvite.create({
@@ -141,39 +149,15 @@ const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
     },
   });
 
-  res.status(201).json({
-    invitation: {
-      id: invitation.id,
-      email: invitation.email,
-      status: invitation.status,
-      createdAt: invitation.createdAt.toISOString(),
+  return NextResponse.json(
+    {
+      invitation: {
+        id: invitation.id,
+        email: invitation.email,
+        status: invitation.status,
+        createdAt: invitation.createdAt.toISOString(),
+      },
     },
-  });
-};
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method === 'GET') {
-    try {
-      await handleGet(req, res);
-    } catch (error) {
-      const status = (error as { status?: number }).status ?? 500;
-      const message = (error as { message?: string }).message ?? 'Erro ao listar convites.';
-      res.status(status).json({ error: message });
-    }
-    return;
-  }
-
-  if (req.method === 'POST') {
-    try {
-      await handlePost(req, res);
-    } catch (error) {
-      const status = (error as { status?: number }).status ?? 500;
-      const message = (error as { message?: string }).message ?? 'Erro ao criar convite.';
-      res.status(status).json({ error: message });
-    }
-    return;
-  }
-
-  res.setHeader('Allow', 'GET, POST');
-  res.status(405).json({ error: 'Método não permitido.' });
-}
+    { status: 201 },
+  );
+});
