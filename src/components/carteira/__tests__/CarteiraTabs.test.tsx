@@ -66,11 +66,15 @@ const defaultCarteiraReturn = {
   resumo: mockResumo,
   loading: false,
   error: null,
-  formatCurrency: vi.fn((v: number) => `R$ ${v.toFixed(2)}`),
-  formatPercentage: vi.fn((v: number) => `${v.toFixed(2)}%`),
-  refetch: vi.fn(),
-  updateMeta: vi.fn(),
-  updateCaixaParaInvestir: vi.fn(),
+  formatCurrency: vi.fn((v: number | null | undefined) =>
+    v != null ? `R$ ${v.toFixed(2)}` : 'R$ 0,00',
+  ),
+  formatPercentage: vi.fn((v: number | null | undefined) =>
+    v != null ? `${v.toFixed(2)}%` : '0,00%',
+  ),
+  refetch: vi.fn().mockResolvedValue(undefined),
+  updateMeta: vi.fn().mockResolvedValue(true),
+  updateCaixaParaInvestir: vi.fn().mockResolvedValue(true),
 };
 
 const defaultAlocacaoReturn = {

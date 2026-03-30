@@ -112,12 +112,12 @@ Test infrastructure in `src/test/`: `setup.ts` (jest-dom matchers), `wrappers.ts
 
 ### Phase 4 — Testing & Reliability
 
-| #   | Task                                                                                                                                                                  | Priority | Files/Scope                                                               |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------- |
-| 4.1 | [x] **Expand API route test coverage** — Only 6 of 86 routes have tests (7%). Priority targets: auth routes, cashflow, stocks, consultant endpoints                   | HIGH     | `src/app/api/auth/**`, `src/app/api/cashflow/**`, `src/app/api/stocks/**` |
-| 4.2 | [x] **Add React Error Boundaries** — No error boundaries exist. Add at layout level and around chart/dynamic components to prevent full-page crashes                  | MEDIUM   | `src/app/layout.tsx`, chart wrapper components                            |
-| 4.3 | [x] **Add loading states and skeletons** — Page components render child components directly without loading/error UI. Add Suspense boundaries with skeleton fallbacks | MEDIUM   | `src/app/(admin)/` page components                                        |
-| 4.4 | [ ] **Add pagination to table API endpoints** — Table data endpoints return all rows without pagination. Add cursor/offset pagination to prevent large payloads       | MEDIUM   | API routes returning lists                                                |
+| #   | Task                                                                                                                                                                     | Priority | Files/Scope                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------- |
+| 4.1 | [x] **Expand API route test coverage** — Only 6 of 86 routes have tests (7%). Priority targets: auth routes, cashflow, stocks, consultant endpoints                      | HIGH     | `src/app/api/auth/**`, `src/app/api/cashflow/**`, `src/app/api/stocks/**` |
+| 4.2 | [x] **Add React Error Boundaries** — No error boundaries exist. Add at layout level and around chart/dynamic components to prevent full-page crashes                     | MEDIUM   | `src/app/layout.tsx`, chart wrapper components                            |
+| 4.3 | [x] **Add loading states and skeletons** — Page components render child components directly without loading/error UI. Add Suspense boundaries with skeleton fallbacks    | MEDIUM   | `src/app/(admin)/` page components                                        |
+| 4.4 | [x] **Add pagination to table API endpoints** — Opt-in offset pagination (page/limit params) on transactions, watchlist, invitations, investimento. Backwards compatible | MEDIUM   | `src/utils/pagination.ts`, 4 API routes                                   |
 
 ### Phase 5 — Data Layer & Future Architecture
 

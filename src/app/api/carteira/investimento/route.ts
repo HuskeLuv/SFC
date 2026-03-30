@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { investimentoCreateSchema, validationError } from '@/utils/validation-schemas';
+import { parsePaginationParams, paginatedResponse } from '@/utils/pagination';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // GET - Buscar investimentos categorizados do usuário
@@ -64,6 +65,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const investimentos = allInvestmentGroups
     .flatMap((group) => group.items || [])
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  const pagination = parsePaginationParams(request);
+  if (pagination) {
+    const total = investimentos.length;
+    const paged = investimentos.slice(pagination.skip, pagination.skip + pagination.take);
+    return NextResponse.json(paginatedResponse(paged, total, pagination.page, pagination.limit));
+  }
 
   return NextResponse.json(investimentos);
 });

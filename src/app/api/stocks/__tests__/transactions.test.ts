@@ -5,7 +5,7 @@ import { GET, POST } from '../transactions/route';
 const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   stock: { findUnique: vi.fn() },
-  stockTransaction: { findMany: vi.fn(), create: vi.fn() },
+  stockTransaction: { findMany: vi.fn(), create: vi.fn(), count: vi.fn() },
   portfolio: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
 
@@ -255,6 +255,68 @@ describe('/api/stocks/transactions', () => {
 
       expect(response.status).toBe(401);
       expect(data.error).toContain('Não autorizado');
+    });
+  });
+
+  describe('GET - Paginação', () => {
+    const mockTransactions = [
+      { id: 'tx-1', type: 'compra', quantity: 100, price: 35.5, stock: mockStock },
+      { id: 'tx-2', type: 'venda', quantity: 50, price: 40, stock: mockStock },
+      { id: 'tx-3', type: 'compra', quantity: 200, price: 30, stock: mockStock },
+      { id: 'tx-4', type: 'compra', quantity: 150, price: 32, stock: mockStock },
+      { id: 'tx-5', type: 'venda', quantity: 80, price: 38, stock: mockStock },
+    ];
+
+    it('retorna formato original sem parâmetros de paginação', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue(mockTransactions);
+
+      const response = await GET(createGetRequest());
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data).toHaveLength(5);
+      expect(mockPrisma.stockTransaction.count).not.toHaveBeenCalled();
+    });
+
+    it('retorna formato paginado com page e limit', async () => {
+      mockPrisma.stockTransaction.count.mockResolvedValue(5);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue(mockTransactions.slice(0, 2));
+
+      const request = new NextRequest('http://localhost/api/stocks/transactions?page=1&limit=2', {
+        method: 'GET',
+      });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.data).toHaveLength(2);
+      expect(data.pagination).toEqual({
+        page: 1,
+        limit: 2,
+        total: 5,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      });
+    });
+
+    it('retorna data vazio quando página excede total', async () => {
+      mockPrisma.stockTransaction.count.mockResolvedValue(5);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
+
+      const request = new NextRequest(
+        'http://localhost/api/stocks/transactions?page=999&limit=10',
+        { method: 'GET' },
+      );
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.data).toEqual([]);
+      expect(data.pagination.hasNextPage).toBe(false);
+      expect(data.pagination.page).toBe(999);
+      expect(data.pagination.total).toBe(5);
     });
   });
 });

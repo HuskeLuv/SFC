@@ -4,42 +4,67 @@ import { ConsultantInviteStatus, UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { authenticateConsultant } from '@/utils/consultantAuth';
 import { consultantInvitationSchema } from '@/utils/validation-schemas';
+import { parsePaginationParams, paginatedResponse } from '@/utils/pagination';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
+const inviteInclude = {
+  invitedUser: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
+} as const;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapInvite = (invite: any) => ({
+  id: invite.id,
+  email: invite.email,
+  status: invite.status,
+  createdAt: invite.createdAt.toISOString(),
+  respondedAt: invite.respondedAt ? invite.respondedAt.toISOString() : null,
+  invitedUser: invite.invitedUser
+    ? {
+        id: invite.invitedUser.id,
+        name: invite.invitedUser.name,
+        email: invite.invitedUser.email,
+      }
+    : null,
+});
+
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const consultant = await authenticateConsultant(request);
+  const pagination = parsePaginationParams(request);
+
+  if (pagination) {
+    const where = { consultantId: consultant.consultantId };
+    const [invitations, count] = await Promise.all([
+      prisma.consultantInvite.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: inviteInclude,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.consultantInvite.count({ where }),
+    ]);
+
+    return NextResponse.json(
+      paginatedResponse(invitations.map(mapInvite), count, pagination.page, pagination.limit),
+    );
+  }
 
   const invitations = await prisma.consultantInvite.findMany({
     where: { consultantId: consultant.consultantId },
     orderBy: { createdAt: 'desc' },
-    include: {
-      invitedUser: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-    },
+    include: inviteInclude,
   });
 
   return NextResponse.json({
-    invitations: invitations.map((invite) => ({
-      id: invite.id,
-      email: invite.email,
-      status: invite.status,
-      createdAt: invite.createdAt.toISOString(),
-      respondedAt: invite.respondedAt ? invite.respondedAt.toISOString() : null,
-      invitedUser: invite.invitedUser
-        ? {
-            id: invite.invitedUser.id,
-            name: invite.invitedUser.name,
-            email: invite.invitedUser.email,
-          }
-        : null,
-    })),
+    invitations: invitations.map(mapInvite),
   });
 });
 

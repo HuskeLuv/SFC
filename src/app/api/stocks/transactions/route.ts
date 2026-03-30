@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { stockTransactionSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { parsePaginationParams, paginatedResponse } from '@/utils/pagination';
 
 // GET - Buscar transações do usuário
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -16,15 +17,35 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
   }
 
-  const transactions = await prisma.stockTransaction.findMany({
-    where: { userId: user.id },
-    include: {
-      stock: true,
-    },
-    orderBy: { date: 'desc' },
-  });
+  const pagination = parsePaginationParams(request);
 
-  return NextResponse.json(transactions);
+  if (!pagination) {
+    const transactions = await prisma.stockTransaction.findMany({
+      where: { userId: user.id },
+      include: {
+        stock: true,
+      },
+      orderBy: { date: 'desc' },
+    });
+
+    return NextResponse.json(transactions);
+  }
+
+  const where = { userId: user.id };
+  const [count, transactions] = await Promise.all([
+    prisma.stockTransaction.count({ where }),
+    prisma.stockTransaction.findMany({
+      where,
+      include: { stock: true },
+      orderBy: { date: 'desc' },
+      skip: pagination.skip,
+      take: pagination.take,
+    }),
+  ]);
+
+  return NextResponse.json(
+    paginatedResponse(transactions, count, pagination.page, pagination.limit),
+  );
 });
 
 // POST - Registrar nova transação

@@ -5,7 +5,7 @@ import { GET, POST } from '../watchlist/route';
 const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   stock: { findUnique: vi.fn() },
-  watchlist: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn() },
+  watchlist: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), count: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -164,6 +164,87 @@ describe('/api/stocks/watchlist', () => {
 
       expect(response.status).toBe(401);
       expect(data.error).toContain('Não autorizado');
+    });
+  });
+
+  describe('GET - Paginação', () => {
+    const mockWatchlistItems = [
+      { id: 'wl-1', stockId: 'stock-1', stock: mockStock, addedAt: '2024-01-01' },
+      {
+        id: 'wl-2',
+        stockId: 'stock-2',
+        stock: { id: 'stock-2', ticker: 'VALE3', companyName: 'Vale' },
+        addedAt: '2024-01-02',
+      },
+      {
+        id: 'wl-3',
+        stockId: 'stock-3',
+        stock: { id: 'stock-3', ticker: 'ITUB4', companyName: 'Itaú' },
+        addedAt: '2024-01-03',
+      },
+      {
+        id: 'wl-4',
+        stockId: 'stock-4',
+        stock: { id: 'stock-4', ticker: 'BBDC4', companyName: 'Bradesco' },
+        addedAt: '2024-01-04',
+      },
+      {
+        id: 'wl-5',
+        stockId: 'stock-5',
+        stock: { id: 'stock-5', ticker: 'ABEV3', companyName: 'Ambev' },
+        addedAt: '2024-01-05',
+      },
+    ];
+
+    it('retorna formato original sem parâmetros de paginação', async () => {
+      mockPrisma.watchlist.findMany.mockResolvedValue(mockWatchlistItems);
+
+      const response = await GET(createGetRequest());
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data).toHaveLength(5);
+      expect(mockPrisma.watchlist.count).not.toHaveBeenCalled();
+    });
+
+    it('retorna formato paginado com page e limit', async () => {
+      mockPrisma.watchlist.count.mockResolvedValue(5);
+      mockPrisma.watchlist.findMany.mockResolvedValue(mockWatchlistItems.slice(0, 2));
+
+      const request = new NextRequest('http://localhost/api/stocks/watchlist?page=1&limit=2', {
+        method: 'GET',
+      });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.data).toHaveLength(2);
+      expect(data.pagination).toEqual({
+        page: 1,
+        limit: 2,
+        total: 5,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      });
+    });
+
+    it('retorna data vazio quando página excede total', async () => {
+      mockPrisma.watchlist.count.mockResolvedValue(5);
+      mockPrisma.watchlist.findMany.mockResolvedValue([]);
+
+      const request = new NextRequest('http://localhost/api/stocks/watchlist?page=999&limit=10', {
+        method: 'GET',
+      });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.data).toEqual([]);
+      expect(data.pagination.hasNextPage).toBe(false);
+      expect(data.pagination.page).toBe(999);
+      expect(data.pagination.total).toBe(5);
     });
   });
 });

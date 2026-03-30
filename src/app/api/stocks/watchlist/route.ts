@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { watchlistAddSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { parsePaginationParams, paginatedResponse } from '@/utils/pagination';
 
 // GET - Buscar watchlist do usuário
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -16,15 +17,33 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
   }
 
-  const watchlist = await prisma.watchlist.findMany({
-    where: { userId: user.id },
-    include: {
-      stock: true,
-    },
-    orderBy: { addedAt: 'desc' },
-  });
+  const pagination = parsePaginationParams(request);
 
-  return NextResponse.json(watchlist);
+  if (!pagination) {
+    const watchlist = await prisma.watchlist.findMany({
+      where: { userId: user.id },
+      include: {
+        stock: true,
+      },
+      orderBy: { addedAt: 'desc' },
+    });
+
+    return NextResponse.json(watchlist);
+  }
+
+  const where = { userId: user.id };
+  const [count, watchlist] = await Promise.all([
+    prisma.watchlist.count({ where }),
+    prisma.watchlist.findMany({
+      where,
+      include: { stock: true },
+      orderBy: { addedAt: 'desc' },
+      skip: pagination.skip,
+      take: pagination.take,
+    }),
+  ]);
+
+  return NextResponse.json(paginatedResponse(watchlist, count, pagination.page, pagination.limit));
 });
 
 // POST - Adicionar ativo ao watchlist

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import ErrorBoundary from '../ErrorBoundary';
 import LoadingSpinner from '../LoadingSpinner';
@@ -15,7 +15,8 @@ const ThrowError = ({ shouldThrow }: { shouldThrow: boolean }) => {
 };
 
 describe('ErrorBoundary', () => {
-  let consoleSpy: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let consoleSpy: any;
 
   beforeEach(() => {
     consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -90,8 +91,7 @@ describe('ErrorBoundary', () => {
   });
 
   it('does not show error details in production', () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
 
     render(
       <ErrorBoundary>
@@ -101,7 +101,7 @@ describe('ErrorBoundary', () => {
     expect(screen.getByText('Algo deu errado')).toBeInTheDocument();
     expect(screen.queryByText('Test error')).not.toBeInTheDocument();
 
-    process.env.NODE_ENV = originalEnv;
+    vi.unstubAllEnvs();
   });
 });
 

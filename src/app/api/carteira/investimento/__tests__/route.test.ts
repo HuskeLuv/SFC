@@ -34,10 +34,13 @@ vi.mock('@/utils/cashflowPersonalization', () => ({
 
 import { GET, POST } from '../route';
 
-const createGetRequest = () =>
-  new NextRequest('http://localhost/api/carteira/investimento', {
-    method: 'GET',
-  });
+const createGetRequest = (params?: Record<string, string>) => {
+  const url = new URL('http://localhost/api/carteira/investimento');
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  }
+  return new NextRequest(url, { method: 'GET' });
+};
 
 const createPostRequest = (body: object) =>
   new NextRequest('http://localhost/api/carteira/investimento', {
@@ -81,6 +84,78 @@ describe('GET /api/carteira/investimento', () => {
     const data = await response.json();
     expect(response.status).toBe(404);
     expect(data.error).toContain('Usuário não encontrado');
+  });
+
+  it('retorna formato original sem params de paginação', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    mockPrisma.cashflowGroup.findMany.mockResolvedValue([
+      {
+        id: 'g-1',
+        name: 'Investimentos',
+        type: 'investimento',
+        items: [
+          { id: 'item-1', name: 'CDB', values: [{ value: 1000 }] },
+          { id: 'item-2', name: 'Tesouro', values: [{ value: 2000 }] },
+          { id: 'item-3', name: 'LCI', values: [{ value: 3000 }] },
+        ],
+      },
+    ]);
+    const response = await GET(createGetRequest());
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data).toHaveLength(3);
+  });
+
+  it('retorna envelope paginado quando page e limit fornecidos', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    mockPrisma.cashflowGroup.findMany.mockResolvedValue([
+      {
+        id: 'g-1',
+        name: 'Investimentos',
+        type: 'investimento',
+        items: [
+          { id: 'item-1', name: 'AAA', values: [] },
+          { id: 'item-2', name: 'BBB', values: [] },
+          { id: 'item-3', name: 'CCC', values: [] },
+        ],
+      },
+    ]);
+    const response = await GET(createGetRequest({ page: '1', limit: '2' }));
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.data).toHaveLength(2);
+    expect(data.pagination).toEqual({
+      page: 1,
+      limit: 2,
+      total: 3,
+      totalPages: 2,
+      hasNextPage: true,
+      hasPreviousPage: false,
+    });
+  });
+
+  it('retorna dados vazios quando página está além do intervalo', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    mockPrisma.cashflowGroup.findMany.mockResolvedValue([
+      {
+        id: 'g-1',
+        name: 'Investimentos',
+        type: 'investimento',
+        items: [
+          { id: 'item-1', name: 'CDB', values: [] },
+          { id: 'item-2', name: 'Tesouro', values: [] },
+        ],
+      },
+    ]);
+    const response = await GET(createGetRequest({ page: '99', limit: '2' }));
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.data).toHaveLength(0);
+    expect(data.pagination.page).toBe(99);
+    expect(data.pagination.total).toBe(2);
+    expect(data.pagination.hasNextPage).toBe(false);
+    expect(data.pagination.hasPreviousPage).toBe(true);
   });
 });
 
