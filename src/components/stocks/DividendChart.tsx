@@ -1,22 +1,23 @@
-"use client";
-import React, { useState } from "react";
+'use client';
+import React, { useState } from 'react';
 // import Chart from "react-apexcharts";
-import { ApexOptions } from "apexcharts";
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { MoreDotIcon } from "@/icons";
-import dynamic from "next/dynamic";
+import { ApexOptions } from 'apexcharts';
+import { Dropdown } from '../ui/dropdown/Dropdown';
+import { DropdownItem } from '../ui/dropdown/DropdownItem';
+import { MoreDotIcon } from '@/icons';
+import dynamic from 'next/dynamic';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 // Dynamically import the ReactApexChart component
-const ReactApexChart = dynamic(() => import("react-apexcharts"), {
+const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
 });
 
 const DividendChart: React.FC = () => {
   const options: ApexOptions = {
-    colors: ["#465fff"],
+    colors: ['#465fff'],
     chart: {
-      fontFamily: "Outfit, sans-serif",
-      type: "bar",
+      fontFamily: 'Outfit, sans-serif',
+      type: 'bar',
       height: 200,
       toolbar: {
         show: false,
@@ -25,9 +26,9 @@ const DividendChart: React.FC = () => {
     plotOptions: {
       bar: {
         horizontal: false,
-        columnWidth: "39%",
+        columnWidth: '39%',
         borderRadius: 5,
-        borderRadiusApplication: "end",
+        borderRadiusApplication: 'end',
       },
     },
     dataLabels: {
@@ -36,10 +37,10 @@ const DividendChart: React.FC = () => {
     stroke: {
       show: true,
       width: 4,
-      colors: ["transparent"],
+      colors: ['transparent'],
     },
     xaxis: {
-      categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+      categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
       axisBorder: {
         show: false,
       },
@@ -49,9 +50,9 @@ const DividendChart: React.FC = () => {
     },
     legend: {
       show: true,
-      position: "top",
-      horizontalAlign: "left",
-      fontFamily: "Outfit",
+      position: 'top',
+      horizontalAlign: 'left',
+      fontFamily: 'Outfit',
     },
     yaxis: {
       title: {
@@ -80,7 +81,7 @@ const DividendChart: React.FC = () => {
 
   const series = [
     {
-      name: "Sales",
+      name: 'Sales',
       data: [168, 385, 201, 298, 187, 195],
     },
   ];
@@ -97,18 +98,12 @@ const DividendChart: React.FC = () => {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white px-5 pt-5 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:pt-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Dividendos
-        </h3>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Dividendos</h3>
         <div className="relative h-fit">
           <button onClick={toggleDropdown} className="dropdown-toggle">
             <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
           </button>
-          <Dropdown
-            isOpen={isOpen}
-            onClose={closeDropdown}
-            className="w-40 p-2"
-          >
+          <Dropdown isOpen={isOpen} onClose={closeDropdown} className="w-40 p-2">
             <DropdownItem
               onItemClick={closeDropdown}
               className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
@@ -125,12 +120,15 @@ const DividendChart: React.FC = () => {
         </div>
       </div>
       <div className="-ml-5">
-        <ReactApexChart
-          options={options}
-          series={series}
-          type="bar"
-          height={200}
-        />
+        <ErrorBoundary
+          fallback={
+            <div className="flex h-[200px] items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+              Erro ao carregar o grafico de dividendos
+            </div>
+          }
+        >
+          <ReactApexChart options={options} series={series} type="bar" height={200} />
+        </ErrorBoundary>
       </div>
     </div>
   );

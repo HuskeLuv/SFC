@@ -1,13 +1,14 @@
-"use client";
-import React, { useState } from "react";
-import { ApexOptions } from "apexcharts";
-import ChartTab from "../common/ChartTab";
-import dynamic from "next/dynamic";
-import { useStocks } from "@/hooks/useStocks";
-import TransactionModal from "./TransactionModal";
+'use client';
+import React, { useState } from 'react';
+import { ApexOptions } from 'apexcharts';
+import ChartTab from '../common/ChartTab';
+import dynamic from 'next/dynamic';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
+import { useStocks } from '@/hooks/useStocks';
+import TransactionModal from './TransactionModal';
 
 // Dynamically import the ReactApexChart component
-const ReactApexChart = dynamic(() => import("react-apexcharts"), {
+const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
 });
 
@@ -22,7 +23,7 @@ export default function PortfolioPerformance() {
     [1746240000000, stats.totalInvested * 0.97],
     [1746326400000, stats.totalInvested * 0.96],
     [1746412800000, stats.totalInvested * 0.98],
-    [1746672000000, stats.totalInvested * 1.00],
+    [1746672000000, stats.totalInvested * 1.0],
     [1746758400000, stats.totalInvested * 1.02],
     [1746844800000, stats.totalInvested * 1.01],
     [1746931200000, stats.totalInvested * 1.03],
@@ -32,7 +33,7 @@ export default function PortfolioPerformance() {
     [1747449600000, stats.totalInvested * 1.08],
     [1747536000000, stats.totalInvested * 1.07],
     [1747622400000, stats.totalInvested * 1.09],
-    [1747881600000, stats.totalInvested * 1.10],
+    [1747881600000, stats.totalInvested * 1.1],
     [1747968000000, stats.totalInvested * 1.12],
     [1748054400000, stats.totalInvested * 1.11],
     [1748140800000, stats.totalInvested * 1.13],
@@ -43,7 +44,7 @@ export default function PortfolioPerformance() {
     [1748832000000, stats.totalInvested * 1.17],
     [1749091200000, stats.totalInvested * 1.19],
     [1749177600000, stats.totalInvested * 1.21],
-    [1749264000000, stats.totalInvested * 1.20],
+    [1749264000000, stats.totalInvested * 1.2],
     [1749350400000, stats.totalInvested * 1.22],
     [1749436800000, stats.totalInvested * 1.24],
     [1749696000000, stats.totalInvested * 1.23],
@@ -51,7 +52,7 @@ export default function PortfolioPerformance() {
     [1749868800000, stats.totalInvested * 1.27],
     [1749955200000, stats.totalInvested * 1.26],
     [1750041600000, stats.totalInvested * 1.28],
-    [1750300800000, stats.totalInvested * 1.30],
+    [1750300800000, stats.totalInvested * 1.3],
     [1750387200000, stats.totalInvested * 1.29],
     [1750473600000, stats.totalInvested * 1.31],
     [1750560000000, stats.totalInvested * 1.33],
@@ -62,7 +63,7 @@ export default function PortfolioPerformance() {
     [1751164800000, stats.totalInvested * 1.37],
     [1751251200000, stats.totalInvested * 1.39],
     [1751506800000, stats.totalInvested * 1.38],
-    [1751593200000, stats.totalInvested * 1.40],
+    [1751593200000, stats.totalInvested * 1.4],
     [1751679600000, stats.totalInvested * 1.42],
     [1751766000000, stats.totalInvested * 1.41],
     [1751852400000, stats.totalInvested * 1.43],
@@ -73,7 +74,7 @@ export default function PortfolioPerformance() {
     [1752716400000, stats.totalInvested * 1.47],
     [1752802800000, stats.totalInvested * 1.49],
     [1752889200000, stats.totalInvested * 1.51],
-    [1752975600000, stats.totalInvested * 1.50],
+    [1752975600000, stats.totalInvested * 1.5],
     [1753062000000, stats.totalInvested * 1.52],
     [1753321200000, stats.totalInvested * 1.54],
     [1753407600000, stats.totalInvested * 1.53],
@@ -81,7 +82,7 @@ export default function PortfolioPerformance() {
     [1753580400000, stats.totalInvested * 1.57],
     [1753666800000, stats.totalInvested * 1.56],
     [1753926000000, stats.totalInvested * 1.58],
-    [1754012400000, stats.totalInvested * 1.60],
+    [1754012400000, stats.totalInvested * 1.6],
     [1754098800000, stats.totalInvested * 1.59],
     [1754185200000, stats.totalInvested * 1.61],
     [1754271600000, stats.totalInvested * 1.63],
@@ -92,7 +93,7 @@ export default function PortfolioPerformance() {
     [1754876400000, stats.totalInvested * 1.67],
     [1755135600000, stats.totalInvested * 1.69],
     [1755222000000, stats.totalInvested * 1.68],
-    [1755308400000, stats.totalInvested * 1.70],
+    [1755308400000, stats.totalInvested * 1.7],
     [1755394800000, stats.totalInvested * 1.72],
     [1755481200000, stats.totalInvested * 1.71],
     [1755740400000, stats.totalInvested * 1.73],
@@ -103,12 +104,12 @@ export default function PortfolioPerformance() {
     [1756345200000, stats.totalInvested * 1.77],
     [1756431600000, stats.totalInvested * 1.79],
     [1756518000000, stats.totalInvested * 1.81],
-    [1756604400000, stats.totalInvested * 1.80],
+    [1756604400000, stats.totalInvested * 1.8],
   ];
 
   const chartOptions: ApexOptions = {
     chart: {
-      type: "area",
+      type: 'area',
       height: 350,
       toolbar: {
         show: false,
@@ -121,12 +122,12 @@ export default function PortfolioPerformance() {
       enabled: false,
     },
     stroke: {
-      curve: "smooth",
+      curve: 'smooth',
       width: 2,
     },
-    colors: ["#3B82F6"],
+    colors: ['#3B82F6'],
     fill: {
-      type: "gradient",
+      type: 'gradient',
       gradient: {
         shadeIntensity: 1,
         opacityFrom: 0.7,
@@ -135,19 +136,19 @@ export default function PortfolioPerformance() {
       },
     },
     xaxis: {
-      type: "datetime",
+      type: 'datetime',
       labels: {
         style: {
-          colors: "#9CA3AF",
-          fontSize: "12px",
+          colors: '#9CA3AF',
+          fontSize: '12px',
         },
       },
     },
     yaxis: {
       labels: {
         style: {
-          colors: "#9CA3AF",
-          fontSize: "12px",
+          colors: '#9CA3AF',
+          fontSize: '12px',
         },
         formatter: function (value) {
           return `R$ ${value.toFixed(0)}`;
@@ -155,12 +156,12 @@ export default function PortfolioPerformance() {
       },
     },
     grid: {
-      borderColor: "#E5E7EB",
+      borderColor: '#E5E7EB',
       strokeDashArray: 5,
     },
     tooltip: {
       x: {
-        format: "dd MMM yyyy",
+        format: 'dd MMM yyyy',
       },
       y: {
         formatter: function (value) {
@@ -172,7 +173,7 @@ export default function PortfolioPerformance() {
 
   const series = [
     {
-      name: "Valor do Portfolio",
+      name: 'Valor do Portfolio',
       data: chartData,
     },
   ];
@@ -213,17 +214,21 @@ export default function PortfolioPerformance() {
           </div>
           <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
             <div className="text-sm text-gray-500 dark:text-gray-400">Retorno Total</div>
-            <div className={`text-lg font-semibold ${
-              stats.totalReturn >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
+            <div
+              className={`text-lg font-semibold ${
+                stats.totalReturn >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}
+            >
               R$ {stats.totalReturn.toFixed(2)}
             </div>
           </div>
           <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
             <div className="text-sm text-gray-500 dark:text-gray-400">Retorno %</div>
-            <div className={`text-lg font-semibold ${
-              stats.returnPercent >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
+            <div
+              className={`text-lg font-semibold ${
+                stats.returnPercent >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}
+            >
               {stats.returnPercent.toFixed(2)}%
             </div>
           </div>
@@ -234,24 +239,24 @@ export default function PortfolioPerformance() {
           <ChartTab
             tabs={[
               {
-                label: "1M",
-                value: "1m",
+                label: '1M',
+                value: '1m',
               },
               {
-                label: "3M",
-                value: "3m",
+                label: '3M',
+                value: '3m',
               },
               {
-                label: "6M",
-                value: "6m",
+                label: '6M',
+                value: '6m',
               },
               {
-                label: "1A",
-                value: "1y",
+                label: '1A',
+                value: '1y',
               },
               {
-                label: "Tudo",
-                value: "all",
+                label: 'Tudo',
+                value: 'all',
               },
             ]}
             activeTab="all"
@@ -260,27 +265,26 @@ export default function PortfolioPerformance() {
         </div>
 
         <div className="h-[350px]">
-          <ReactApexChart
-            options={chartOptions}
-            series={series}
-            type="area"
-            height={350}
-          />
+          <ErrorBoundary
+            fallback={
+              <div className="flex h-[350px] items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                Erro ao carregar o grafico de performance
+              </div>
+            }
+          >
+            <ReactApexChart options={chartOptions} series={series} type="area" height={350} />
+          </ErrorBoundary>
         </div>
 
         {/* Resumo do Portfolio */}
         {portfolio.length > 0 && (
           <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <h4 className="font-medium text-gray-800 dark:text-white mb-2">
-              Resumo do Portfolio
-            </h4>
+            <h4 className="font-medium text-gray-800 dark:text-white mb-2">Resumo do Portfolio</h4>
             <div className="text-sm text-gray-600 dark:text-gray-400">
               <div>Total de ativos: {portfolio.length}</div>
               <div>Quantidade total: {stats.totalQuantity}</div>
               {stats.totalInvested > 0 && (
-                <div>
-                  Preço médio: R$ {(stats.totalInvested / stats.totalQuantity).toFixed(2)}
-                </div>
+                <div>Preço médio: R$ {(stats.totalInvested / stats.totalQuantity).toFixed(2)}</div>
               )}
             </div>
           </div>
@@ -288,9 +292,7 @@ export default function PortfolioPerformance() {
 
         {portfolio.length === 0 && (
           <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">
-            <div className="text-gray-500 dark:text-gray-400">
-              Nenhum ativo no portfolio ainda
-            </div>
+            <div className="text-gray-500 dark:text-gray-400">Nenhum ativo no portfolio ainda</div>
             <div className="text-sm text-gray-400 dark:text-gray-500 mt-1">
               Registre suas primeiras compras para começar a acompanhar a performance
             </div>

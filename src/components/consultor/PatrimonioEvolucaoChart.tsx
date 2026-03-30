@@ -1,10 +1,11 @@
-"use client";
+'use client';
 
-import React, { useMemo } from "react";
-import { ApexOptions } from "apexcharts";
-import dynamic from "next/dynamic";
+import React, { useMemo } from 'react';
+import { ApexOptions } from 'apexcharts';
+import dynamic from 'next/dynamic';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 
-const ReactApexChart = dynamic(() => import("react-apexcharts"), {
+const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
 });
 
@@ -33,18 +34,18 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
     const categories = data.map((item) => {
       const date = new Date(item.month);
       const months = [
-        "Jan",
-        "Fev",
-        "Mar",
-        "Abr",
-        "Mai",
-        "Jun",
-        "Jul",
-        "Ago",
-        "Set",
-        "Out",
-        "Nov",
-        "Dez",
+        'Jan',
+        'Fev',
+        'Mar',
+        'Abr',
+        'Mai',
+        'Jun',
+        'Jul',
+        'Ago',
+        'Set',
+        'Out',
+        'Nov',
+        'Dez',
       ];
       return `${months[date.getMonth()]} ${date.getFullYear()}`;
     });
@@ -56,17 +57,17 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
 
   const options: ApexOptions = useMemo(
     () => ({
-      colors: ["#465FFF"],
+      colors: ['#465FFF'],
       chart: {
-        fontFamily: "Outfit, sans-serif",
+        fontFamily: 'Outfit, sans-serif',
         height: 350,
-        type: "area",
+        type: 'area',
         toolbar: {
           show: false,
         },
       },
       stroke: {
-        curve: "smooth",
+        curve: 'smooth',
         width: 3,
       },
       dataLabels: {
@@ -88,8 +89,8 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
         },
         labels: {
           style: {
-            colors: "#64748B",
-            fontSize: "12px",
+            colors: '#64748B',
+            fontSize: '12px',
           },
           rotate: -45,
           rotateAlways: false,
@@ -97,15 +98,15 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
       },
       yaxis: {
         title: {
-          text: "",
+          text: '',
           style: {
-            fontSize: "0px",
+            fontSize: '0px',
           },
         },
         labels: {
           style: {
-            colors: "#64748B",
-            fontSize: "12px",
+            colors: '#64748B',
+            fontSize: '12px',
           },
           formatter: (val: number) => {
             if (val >= 1000000) {
@@ -120,18 +121,18 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
       },
       tooltip: {
         x: {
-          format: "MMM yyyy",
+          format: 'MMM yyyy',
         },
         y: {
           formatter: (val: number) => currencyFormatter(val),
         },
       },
       fill: {
-        type: "gradient",
+        type: 'gradient',
         gradient: {
           opacityFrom: 0.55,
           opacityTo: 0,
-          gradientToColors: ["#465FFF"],
+          gradientToColors: ['#465FFF'],
         },
       },
       grid: {
@@ -145,7 +146,7 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
             show: true,
           },
         },
-        borderColor: "#E5E7EB",
+        borderColor: '#E5E7EB',
       },
     }),
     [chartData.categories, currencyFormatter],
@@ -154,7 +155,7 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
   const series = useMemo(
     () => [
       {
-        name: "Patrimônio Total",
+        name: 'Patrimônio Total',
         data: chartData.series,
       },
     ],
@@ -174,16 +175,18 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
   return (
     <div className="w-full">
       <div id="patrimony-evolution-chart">
-        <ReactApexChart
-          options={options}
-          series={series}
-          type="area"
-          height={350}
-        />
+        <ErrorBoundary
+          fallback={
+            <div className="flex h-[350px] items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+              Erro ao carregar o grafico de patrimonio
+            </div>
+          }
+        >
+          <ReactApexChart options={options} series={series} type="area" height={350} />
+        </ErrorBoundary>
       </div>
     </div>
   );
 };
 
 export default PatrimonioEvolucaoChart;
-

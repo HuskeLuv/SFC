@@ -1,10 +1,11 @@
-"use client";
+'use client';
 
-import dynamic from "next/dynamic";
-import React from "react";
-import type { ApexOptions } from "apexcharts";
+import dynamic from 'next/dynamic';
+import React from 'react';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
+import type { ApexOptions } from 'apexcharts';
 
-const ReactApexChart = dynamic(() => import("react-apexcharts"), {
+const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
 });
 
@@ -20,29 +21,29 @@ interface ConsultantPerformanceChartProps {
 
 const chartBaseOptions: ApexOptions = {
   chart: {
-    type: "area",
+    type: 'area',
     height: 320,
     toolbar: { show: false },
-    fontFamily: "Outfit, sans-serif",
+    fontFamily: 'Outfit, sans-serif',
   },
   stroke: {
-    curve: "smooth",
+    curve: 'smooth',
     width: 3,
   },
   fill: {
-    type: "gradient",
+    type: 'gradient',
     gradient: {
       shadeIntensity: 0.4,
       opacityFrom: 0.4,
       opacityTo: 0.05,
     },
   },
-  colors: ["#465FFF"],
+  colors: ['#465FFF'],
   dataLabels: {
     enabled: false,
   },
   grid: {
-    borderColor: "rgba(148, 163, 184, 0.2)",
+    borderColor: 'rgba(148, 163, 184, 0.2)',
     strokeDashArray: 4,
   },
   markers: {
@@ -58,29 +59,29 @@ const chartBaseOptions: ApexOptions = {
   yaxis: {
     labels: {
       formatter: (value) =>
-        value.toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
+        value.toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
           maximumFractionDigits: 0,
         }),
     },
   },
   xaxis: {
-    type: "category",
+    type: 'category',
     axisBorder: { show: false },
     axisTicks: { show: false },
     labels: {
       style: {
-        colors: "#64748B",
+        colors: '#64748B',
       },
     },
   },
   tooltip: {
     y: {
       formatter: (value) =>
-        value.toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
+        value.toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
         }),
     },
   },
@@ -93,9 +94,7 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
   if (isLoading) {
     return (
       <div className="flex h-64 w-full items-center justify-center rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          Carregando desempenho...
-        </span>
+        <span className="text-sm text-gray-500 dark:text-gray-400">Carregando desempenho...</span>
       </div>
     );
   }
@@ -118,7 +117,7 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
   const categories = data.map((point) => point.label);
   const series = [
     {
-      name: "Média mensal",
+      name: 'Média mensal',
       data: data.map((point) => Number(point.value.toFixed(2))),
     },
   ];
@@ -132,18 +131,26 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
         Média mensal das movimentações líquidas dos clientes nos últimos meses.
       </p>
       <div className="mt-6">
-        <ReactApexChart
-          options={{
-            ...chartBaseOptions,
-            xaxis: {
-              ...chartBaseOptions.xaxis,
-              categories,
-            },
-          }}
-          series={series}
-          type="area"
-          height={320}
-        />
+        <ErrorBoundary
+          fallback={
+            <div className="flex h-[320px] items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+              Erro ao carregar o grafico de desempenho
+            </div>
+          }
+        >
+          <ReactApexChart
+            options={{
+              ...chartBaseOptions,
+              xaxis: {
+                ...chartBaseOptions.xaxis,
+                categories,
+              },
+            }}
+            series={series}
+            type="area"
+            height={320}
+          />
+        </ErrorBoundary>
       </div>
     </div>
   );
@@ -151,4 +158,3 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
 
 export type { PerformancePoint };
 export default ConsultantPerformanceChart;
-

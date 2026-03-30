@@ -6,6 +6,7 @@ import { useIndices } from '@/hooks/useIndices';
 import { useCarteiraHistorico } from '@/hooks/useCarteiraHistorico';
 import dynamic from 'next/dynamic';
 import { ApexOptions } from 'apexcharts';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -274,12 +275,20 @@ export default function RentabilidadeResumo() {
         <div className="flex justify-center w-full min-h-[250px]">
           <div id="chartRentabilidadeResumo" className="w-full max-w-md">
             {donutData.series.length > 0 ? (
-              <ReactApexChart
-                options={donutOptions}
-                series={donutData.series}
-                type="donut"
-                height={250}
-              />
+              <ErrorBoundary
+                fallback={
+                  <div className="flex h-[250px] items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                    Erro ao carregar o grafico
+                  </div>
+                }
+              >
+                <ReactApexChart
+                  options={donutOptions}
+                  series={donutData.series}
+                  type="donut"
+                  height={250}
+                />
+              </ErrorBoundary>
             ) : (
               <div className="h-[250px] flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
                 Aguardando dados...
