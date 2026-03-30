@@ -13,9 +13,11 @@ npm run dev          # Start dev server
 npm run build        # Production build (runs ESLint + TypeScript checks)
 npm run lint         # ESLint
 npm run type-check   # TypeScript strict check (tsc --noEmit)
-npm test             # Run all tests (vitest run)
+npm test             # Run all unit tests (vitest run)
 npx vitest run src/app/api/carteira/operacao  # Run tests for a specific route
 npx vitest --watch   # Watch mode
+npm run test:e2e     # Run E2E tests (Playwright, requires dev server)
+npm run test:e2e:ui  # E2E tests with interactive UI
 npm run seed         # Seed database (npx tsx prisma/seed.ts)
 npx prisma migrate dev   # Run migrations
 npx prisma generate      # Regenerate Prisma client
@@ -137,7 +139,7 @@ Test infrastructure in `src/test/`: `setup.ts` (jest-dom matchers), `wrappers.ts
 | 6.4 | [x] **API route template tests** — 83 tests for identical cotacao (7 assets × 5 tests) and objetivo (8 assets × 6 tests) routes                                                                              | MEDIUM   | `src/app/api/carteira/{etf,fii,stocks,moedas-criptos,opcoes,previdencia-seguros,reit,fim-fia}/{cotacao,objetivo}/__tests__/` |
 | 6.5 | [x] **Component tests** — 54 tests: ErrorBoundary, LoadingSpinner, ComponentCard, SignInForm, ProtectedRoute, CarteiraTabs, GenericAssetTable, CaixaParaInvestirCard                                         | MEDIUM   | `src/components/{common,auth,carteira}/__tests__/`                                                                           |
 | 6.6 | [x] **Remaining API route tests** — 111 tests: analises (18), cashflow sub-routes (25), portfolio GET routes (46), profile/calendar/historico/reserves (26)                                                  | LOW      | `src/app/api/analises/**`, `src/app/api/cashflow/**`, `src/app/api/carteira/**`, `src/app/api/historico/**`                  |
-| 6.7 | [ ] **E2E tests** — Login flow, add asset, consultant impersonation. Requires Playwright setup                                                                                                               | LOW      | New Playwright config + `e2e/` directory                                                                                     |
+| 6.7 | [x] **E2E tests** — Playwright setup with 3 spec files: auth flow (5 tests), carteira dashboard (4 tests), navigation (3 tests). Run with `npm run test:e2e`                                                 | LOW      | `playwright.config.ts`, `e2e/`                                                                                               |
 
 ### Task Dependencies
 
