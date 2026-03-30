@@ -868,13 +868,6 @@ const AtivoEditarContent = () => {
                     </tbody>
                   </table>
                 </div>
-
-                {data.proventos.length === 0 && proventoEditingId !== 'new' ? (
-                  <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                    Nenhum provento cadastrado. Na primeira abertura, importamos do banco/BRAPI se
-                    houver histórico para o ticker; caso contrário, use &quot;Novo provento&quot;.
-                  </p>
-                ) : null}
               </div>
             </div>
           </div>
