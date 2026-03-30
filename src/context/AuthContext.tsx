@@ -100,17 +100,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         setError(null);
+        setLoading(false);
       } else {
         setUser(null);
         setActingClient(null);
         setError('Não autenticado');
+        setLoading(false);
       }
     } catch (error: unknown) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       setUser(null);
       setActingClient(null);
       setError('Erro ao verificar autenticação');
-    } finally {
       setLoading(false);
     }
   }, []);
