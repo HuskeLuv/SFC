@@ -1,1 +1,2 @@
 - [SFC Work Plan](project_workplan.md) — 23-task improvement plan across 5 phases, tracked in CLAUDE.md
+- [Deferred Tasks](project_deferred.md) — Tasks 3.5 (client/server audit) and 4.4 (pagination) deferred with rationale
