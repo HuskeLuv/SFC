@@ -1,6 +1,14 @@
-"use client";
+'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import { useRouter } from 'next/navigation';
 
 interface User {
@@ -32,28 +40,38 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [actingClient, setActingClient] = useState<ActingClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // Verificar se o usuário está autenticado
   const checkAuth = useCallback(async () => {
+    // Cancel any in-flight request
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       setLoading(true);
       // Usar cache: 'no-store' para garantir que sempre busque dados atualizados
       const response = await fetch('/api/auth/me', {
         cache: 'no-store',
         credentials: 'include',
+        signal: controller.signal,
       });
-      
+
+      if (controller.signal.aborted) return;
+
       if (response.ok) {
         const userData = await response.json();
-        
+
+        if (controller.signal.aborted) return;
+
         // Só atualizar o estado se os dados realmente mudaram
         // Isso evita re-renders desnecessários e loops infinitos
         setUser((prevUser) => {
@@ -68,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           }
           return userData;
         });
-        
+
         setActingClient((prevActingClient) => {
           const newActingClient = userData.actingClient ?? null;
           if (
@@ -80,31 +98,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           }
           return newActingClient;
         });
-        
+
         setError(null);
       } else {
-        setUser((prevUser) => {
-          if (prevUser === null) return null; // Já está null, não precisa atualizar
-          return null;
-        });
-        setActingClient((prevActingClient) => {
-          if (prevActingClient === null) return null; // Já está null, não precisa atualizar
-          return null;
-        });
+        setUser(null);
+        setActingClient(null);
         setError('Não autenticado');
       }
-    } catch {
-      setUser((prevUser) => {
-        if (prevUser === null) return null; // Já está null, não precisa atualizar
-        return null;
-      });
-      setActingClient((prevActingClient) => {
-        if (prevActingClient === null) return null; // Já está null, não precisa atualizar
-        return null;
-      });
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setUser(null);
+      setActingClient(null);
       setError('Erro ao verificar autenticação');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -116,11 +125,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         method: 'POST',
         credentials: 'include',
       });
-      
+
       // Limpar estado local
       setUser(null);
       setActingClient(null);
-      
+
       // Redirecionar para a tela de login
       router.push('/signin');
     } catch (err) {
@@ -140,6 +149,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Verificar autenticação na inicialização
   useEffect(() => {
     checkAuth();
+    return () => {
+      abortControllerRef.current?.abort();
+    };
   }, [checkAuth]);
 
   const isAuthenticated = !!user;
@@ -157,24 +169,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setError(null);
   }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        actingClient,
-        isAuthenticated,
-        isLoading,
-        error,
-        logout,
-        requireAuth,
-        checkAuth,
-        updateActingClient,
-        clearError,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      user,
+      actingClient,
+      isAuthenticated,
+      isLoading,
+      error,
+      logout,
+      requireAuth,
+      checkAuth,
+      updateActingClient,
+      clearError,
+    }),
+    [
+      user,
+      actingClient,
+      isAuthenticated,
+      isLoading,
+      error,
+      logout,
+      requireAuth,
+      checkAuth,
+      updateActingClient,
+      clearError,
+    ],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
@@ -184,4 +206,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

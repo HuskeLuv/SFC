@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface ProventoData {
   id: string;
@@ -54,7 +54,13 @@ export const useProventos = (
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const fetchProventos = useCallback(async () => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
@@ -64,13 +70,18 @@ export const useProventos = (
       if (endDate) params.append('endDate', endDate);
       params.append('groupBy', groupBy);
 
-      const response = await fetch(`/api/analises/proventos?${params.toString()}`);
+      const response = await fetch(`/api/analises/proventos?${params.toString()}`, {
+        signal: controller.signal,
+      });
+
+      if (controller.signal.aborted) return;
 
       if (!response.ok) {
         throw new Error('Erro ao buscar dados de proventos');
       }
 
       const data = await response.json();
+      if (controller.signal.aborted) return;
       setProventos(data.proventos || []);
       setGrouped(data.grouped || {});
       setMonthly(data.monthly || {});
@@ -78,6 +89,7 @@ export const useProventos = (
       setTotal(data.total || 0);
       setMedia(data.media || 0);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
       setProventos([]);
       setGrouped({});
@@ -86,12 +98,17 @@ export const useProventos = (
       setTotal(0);
       setMedia(0);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [startDate, endDate, groupBy]);
 
   useEffect(() => {
     void fetchProventos();
+    return () => {
+      abortControllerRef.current?.abort();
+    };
   }, [fetchProventos]);
 
   return {

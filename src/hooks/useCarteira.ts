@@ -84,6 +84,8 @@ export const useCarteira = () => {
   const [error, setError] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
   const hasFetchedRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
 
   const fetchResumo = useCallback(async (force = false, includeHistorico = true) => {
     // Prevenir múltiplas chamadas simultâneas
@@ -96,6 +98,10 @@ export const useCarteira = () => {
       return;
     }
 
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       isFetchingRef.current = true;
       setLoading(true);
@@ -105,20 +111,27 @@ export const useCarteira = () => {
       const response = await fetch(url, {
         method: 'GET',
         credentials: 'include',
+        signal: controller.signal,
       });
+
+      if (controller.signal.aborted) return;
 
       if (!response.ok) {
         throw new Error('Erro ao carregar dados da carteira');
       }
 
       const data = await response.json();
+      if (controller.signal.aborted) return;
       setResumo(data);
       hasFetchedRef.current = true;
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('Erro ao buscar resumo da carteira:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
       isFetchingRef.current = false;
     }
   }, []);
@@ -126,6 +139,10 @@ export const useCarteira = () => {
   const fetchResumoProgressive = useCallback(async (force = false) => {
     if (isFetchingRef.current) return;
     if (!force && hasFetchedRef.current) return;
+
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       isFetchingRef.current = true;
@@ -136,10 +153,13 @@ export const useCarteira = () => {
       const responseFast = await fetch('/api/carteira/resumo?includeHistorico=false', {
         method: 'GET',
         credentials: 'include',
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       if (!responseFast.ok) throw new Error('Erro ao carregar dados da carteira');
 
       const dataFast = await responseFast.json();
+      if (controller.signal.aborted) return;
       setResumo(dataFast);
       hasFetchedRef.current = true;
       setLoading(false);
@@ -149,12 +169,16 @@ export const useCarteira = () => {
       const responseFull = await fetch('/api/carteira/resumo', {
         method: 'GET',
         credentials: 'include',
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       if (responseFull.ok) {
         const dataFull = await responseFull.json();
+        if (controller.signal.aborted) return;
         setResumo(dataFull);
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('Erro ao buscar resumo da carteira:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
       setLoading(false);
@@ -177,11 +201,14 @@ export const useCarteira = () => {
           throw new Error('Erro ao atualizar meta de patrimônio');
         }
 
+        if (!isMountedRef.current) return false;
+
         // Recarregar dados após atualização (forçar reload)
         await fetchResumo(true);
         return true;
       } catch (err) {
         console.error('Erro ao atualizar meta:', err);
+        if (!isMountedRef.current) return false;
         setError(err instanceof Error ? err.message : 'Erro ao atualizar meta');
         return false;
       }
@@ -220,8 +247,11 @@ export const useCarteira = () => {
         return true;
       } catch (err) {
         // Rollback em caso de erro
-        setResumo(previousResumo);
+        if (isMountedRef.current) {
+          setResumo(previousResumo);
+        }
         console.error('Erro ao atualizar caixa para investir:', err);
+        if (!isMountedRef.current) return false;
         setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
         return false;
       }
@@ -245,6 +275,14 @@ export const useCarteira = () => {
     }
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   // Carregamento progressivo: resumo rápido primeiro, histórico completo em background
   useEffect(() => {

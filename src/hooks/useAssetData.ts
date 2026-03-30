@@ -66,6 +66,8 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
   const [error, setError] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
   const hasFetchedRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
 
   // Prevenir refetch desnecessario: so busca dados uma vez na montagem inicial
   // ou quando explicitamente forcado (ex: apos atualizacao de dados)
@@ -82,6 +84,11 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
         return;
       }
 
+      // Cancel any in-flight request
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       try {
         isFetchingRef.current = true;
         setLoading(true);
@@ -90,23 +97,30 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
         const response = await fetch(apiPath, {
           method: 'GET',
           credentials: 'include',
+          signal: controller.signal,
         });
+
+        if (controller.signal.aborted) return;
 
         if (!response.ok) {
           throw new Error(`Erro ao carregar dados ${label}`);
         }
 
         const responseData = await response.json();
+        if (controller.signal.aborted) return;
         setData(responseData);
         hasFetchedRef.current = true;
       } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         console.error(`Erro ao buscar dados ${label}:`, err);
         setError(err instanceof Error ? err.message : 'Erro desconhecido');
         if (throwOnError) {
           setData(null);
         }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
         isFetchingRef.current = false;
       }
     },
@@ -162,11 +176,14 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
           throw new Error('Erro ao atualizar caixa para investir');
         }
 
+        if (!isMountedRef.current) return false;
+
         // Recarregar dados apos atualizacao
         await fetchData(true);
         return true;
       } catch (err) {
         console.error('Erro ao atualizar caixa para investir:', err);
+        if (!isMountedRef.current) return false;
         setError(err instanceof Error ? err.message : 'Erro ao atualizar caixa para investir');
         return false;
       }
@@ -280,11 +297,14 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
       if (!throwOnError) return true;
     } catch (err) {
       // Rollback em caso de erro
-      setData(previousData);
+      if (isMountedRef.current) {
+        setData(previousData);
+      }
       console.error('Erro ao atualizar objetivo:', err);
       if (throwOnError) {
         throw err;
       }
+      if (!isMountedRef.current) return false;
       setError(err instanceof Error ? err.message : 'Erro ao atualizar objetivo');
       return false;
     }
@@ -305,6 +325,8 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
             throw new Error('Erro ao atualizar cotacao');
           }
 
+          if (!isMountedRef.current) return throwOnError ? undefined : false;
+
           // Recarregar dados apos atualizacao (forcar reload)
           await fetchData(true);
           if (!throwOnError) return true;
@@ -313,6 +335,7 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
           if (throwOnError) {
             throw err;
           }
+          if (!isMountedRef.current) return false;
           setError(err instanceof Error ? err.message : 'Erro ao atualizar cotacao');
           return false;
         }
@@ -328,15 +351,25 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
             body: JSON.stringify({ ativoId, campo: 'valorAtualizado', valor: novoValor }),
           });
           if (!response.ok) throw new Error('Erro ao atualizar valor');
+          if (!isMountedRef.current) return false;
           await fetchData(true);
           return true;
         } catch (err) {
           console.error('Erro ao atualizar valor:', err);
+          if (!isMountedRef.current) return false;
           setError(err instanceof Error ? err.message : 'Erro ao atualizar valor');
           return false;
         }
       }
     : undefined;
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   // So fazer fetch na montagem inicial
   useEffect(() => {

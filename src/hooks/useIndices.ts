@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface IndexData {
   date: number;
@@ -18,41 +18,57 @@ interface UseIndicesResult {
   refetch: () => void;
 }
 
-export const useIndices = (range: '1d' | '1mo' | '1y' | '2y' = '1y', startDate?: number): UseIndicesResult => {
+export const useIndices = (
+  range: '1d' | '1mo' | '1y' | '2y' = '1y',
+  startDate?: number,
+): UseIndicesResult => {
   const [indices, setIndices] = useState<IndexResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const fetchIndices = async () => {
+  const fetchIndices = useCallback(async () => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
-    
+
     try {
       let url = `/api/analises/indices?range=${range}`;
       if (startDate) {
         url += `&startDate=${startDate}`;
       }
-      
-      const response = await fetch(url);
-      
+
+      const response = await fetch(url, { signal: controller.signal });
+
+      if (controller.signal.aborted) return;
+
       if (!response.ok) {
         throw new Error('Erro ao buscar dados de índices');
       }
-      
+
       const data = await response.json();
+      if (controller.signal.aborted) return;
       setIndices(data.indices || []);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
       setIndices([]);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
-  };
+  }, [range, startDate]);
 
   useEffect(() => {
     void fetchIndices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, startDate]);
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, [fetchIndices]);
 
   return {
     indices,
@@ -61,5 +77,3 @@ export const useIndices = (range: '1d' | '1mo' | '1y' | '2y' = '1y', startDate?:
     refetch: fetchIndices,
   };
 };
-
-

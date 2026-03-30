@@ -19,6 +19,7 @@ export const useCashflowData = () => {
   const [error, setError] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
   const hasFetchedRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Prevenir refetch desnecessário: só busca dados uma vez na montagem inicial
   // ou quando explicitamente forçado (ex: após atualização de dados)
@@ -34,19 +35,29 @@ export const useCashflowData = () => {
       return;
     }
 
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       isFetchingRef.current = true;
       setLoading(true);
 
       // Buscar dados do cashflow normal
       // Novo endpoint retorna { year, groups }
-      const cashflowResponse = await fetch('/api/cashflow', { credentials: 'include' });
+      const cashflowResponse = await fetch('/api/cashflow', {
+        credentials: 'include',
+        signal: controller.signal,
+      });
 
       if (!cashflowResponse.ok) {
         throw new Error('Erro ao buscar dados do cashflow');
       }
 
+      if (controller.signal.aborted) return;
+
       const responseData = await cashflowResponse.json();
+      if (controller.signal.aborted) return;
       // Extrair grupos e ano da resposta
       const groups = responseData.groups || responseData; // Compatibilidade com formato antigo
       const year = responseData.year || new Date().getFullYear(); // Ano do fluxo de caixa
@@ -55,6 +66,7 @@ export const useCashflowData = () => {
       try {
         const investimentosResponse = await fetch(`/api/cashflow/investimentos?year=${year}`, {
           credentials: 'include',
+          signal: controller.signal,
         });
 
         if (investimentosResponse.ok) {
@@ -226,9 +238,12 @@ export const useCashflowData = () => {
         setData(groups);
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
       isFetchingRef.current = false;
       hasFetchedRef.current = true;
     }
@@ -237,6 +252,13 @@ export const useCashflowData = () => {
   const refetch = useCallback(async () => {
     await fetchData(true);
   }, [fetchData]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   // Só fazer fetch na montagem inicial
   useEffect(() => {
