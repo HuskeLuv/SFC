@@ -1,17 +1,14 @@
-export interface ImovelBemAtivo {
-  id: string;
-  nome: string;
+// Tipos para Imóveis e Bens
+
+import { BaseAtivo } from './base';
+
+export interface ImovelBemAtivo extends BaseAtivo {
   cidade: string;
   mandato: string; // Período de mandato ou gestão
   quantidade: number;
   precoAquisicao: number;
   melhorias: number; // Valor investido em melhorias
   valorTotal: number; // Preço de aquisição + melhorias
-  valorAtualizado: number;
-  riscoPorAtivo: number;
-  percentualCarteira: number;
-  rentabilidade: number;
-  observacoes?: string;
 }
 
 export interface ImovelBemResumo {
@@ -36,4 +33,3 @@ export interface ImovelBemData {
   ativos: ImovelBemAtivo[];
   totalGeral: ImovelBemTotalGeral;
 }
-

@@ -1,69 +1,54 @@
 // Tipos para Carteira Stocks (Ações Internacionais)
 
+import {
+  BaseQuantityAtivo,
+  BaseSecao,
+  BaseQuantitySecaoTotals,
+  BaseResumo,
+  BaseQuantityTotalGeral,
+  AlocacaoAtivo,
+  TabelaAuxiliar,
+} from './base';
+
 export type EstrategiaCarteiraStock = 'value' | 'growth' | 'risk';
 
-export type SectorCarteiraStock = 'technology' | 'financials' | 'healthcare' | 'consumer' | 'energy' | 'industrials' | 'materials' | 'utilities' | 'communication' | 'real_estate' | 'other';
+export type SectorCarteiraStock =
+  | 'technology'
+  | 'financials'
+  | 'healthcare'
+  | 'consumer'
+  | 'energy'
+  | 'industrials'
+  | 'materials'
+  | 'utilities'
+  | 'communication'
+  | 'real_estate'
+  | 'other';
 
-export interface CarteiraStockAtivo {
-  id: string;
-  ticker: string; // Ex: "AAPL", "MSFT", "GOOGL"
-  nome: string; // Nome completo da empresa ou ticker para exibição
+export interface CarteiraStockAtivo extends BaseQuantityAtivo {
   dataCompra?: string | null; // Data da primeira compra (YYYY-MM-DD)
   sector: SectorCarteiraStock;
   industryCategory: string; // Ex: "Software", "Banks", "Pharma"
-  quantidade: number; // Número de ações
-  precoAquisicao: number; // Preço de aquisição ou preço médio (USD)
-  valorTotal: number; // Calculado = quantidade * precoAquisicao (USD)
-  cotacaoAtual: number; // Cotação em tempo real (USD)
-  valorAtualizado: number; // Calculado = quantidade * cotacaoAtual (USD)
-  riscoPorAtivo: number; // Calculado em % do total da carteira de stocks
-  percentualCarteira: number; // Calculado em % da carteira total
-  objetivo: number; // Percentual desejado definido pelo usuário
-  quantoFalta: number; // Calculado = objetivo% - percentual atual
-  necessidadeAporte: number; // Calculado em USD para atingir o objetivo
-  rentabilidade: number; // Calculada automaticamente em %
   estrategia: EstrategiaCarteiraStock;
-  observacoes?: string;
-  dataUltimaAtualizacao?: Date;
 }
 
-export interface CarteiraStockSecao {
+export interface CarteiraStockSecao extends BaseSecao<CarteiraStockAtivo>, BaseQuantitySecaoTotals {
   estrategia: EstrategiaCarteiraStock;
-  nome: string;
-  ativos: CarteiraStockAtivo[];
-  totalQuantidade: number;
-  totalValorAplicado: number;
-  totalValorAtualizado: number;
-  totalPercentualCarteira: number;
-  totalRisco: number;
-  totalObjetivo: number;
-  totalQuantoFalta: number;
-  totalNecessidadeAporte: number;
-  rentabilidadeMedia: number;
 }
 
-export interface CarteiraStockResumo {
+export interface CarteiraStockResumo extends BaseResumo {
   necessidadeAporteTotal: number;
-  caixaParaInvestir: number;
-  saldoInicioMes: number;
   valorAtualizado: number;
-  rendimento: number;
-  rentabilidade: number;
 }
 
-export interface CarteiraStockTabelaAuxiliar {
+export interface CarteiraStockTabelaAuxiliar extends TabelaAuxiliar {
   ticker: string;
   nome: string;
   dataCompra?: string | null;
-  cotacaoAtual: number;
-  necessidadeAporte: number;
-  loteAproximado: number; // Quantidade de ações necessárias
 }
 
-export interface CarteiraStockAlocacaoAtivo {
+export interface CarteiraStockAlocacaoAtivo extends AlocacaoAtivo {
   ticker: string;
-  valor: number;
-  percentual: number;
   cor: string;
 }
 
@@ -72,15 +57,7 @@ export interface CarteiraStockData {
   secoes: CarteiraStockSecao[];
   tabelaAuxiliar: CarteiraStockTabelaAuxiliar[];
   alocacaoAtivo: CarteiraStockAlocacaoAtivo[];
-  totalGeral: {
-    quantidade: number;
-    valorAplicado: number;
-    valorAtualizado: number;
+  totalGeral: BaseQuantityTotalGeral & {
     percentualCarteira: number;
-    risco: number;
-    objetivo: number;
-    quantoFalta: number;
-    necessidadeAporte: number;
-    rentabilidade: number;
   };
 }

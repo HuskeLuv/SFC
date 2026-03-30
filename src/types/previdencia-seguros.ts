@@ -1,71 +1,41 @@
-export interface PrevidenciaSegurosAtivo {
-  id: string;
-  nome: string;
+// Tipos para Previdencia e Seguros
+
+import {
+  BaseQuantityAtivo,
+  BaseSecao,
+  BaseQuantitySecaoTotals,
+  BaseResumo,
+  BaseQuantityTotalGeral,
+  AlocacaoAtivo,
+  TabelaAuxiliar,
+} from './base';
+
+export interface PrevidenciaSegurosAtivo extends BaseQuantityAtivo {
   carencia: number; // em meses
   cotacaoResgate: number;
   liquidacaoResgate: number; // em dias
   modalidade: 'vida' | 'previdencia' | 'pensao' | 'outro';
   subclasse: 'whole_life' | 'term_life' | 'vgbl' | 'pgbl' | 'fundo_prev' | 'outro';
-  quantidade: number;
-  precoAquisicao: number;
-  valorTotal: number;
-  cotacaoAtual: number;
-  valorAtualizado: number;
-  riscoPorAtivo: number;
-  percentualCarteira: number;
-  objetivo: number;
-  quantoFalta: number;
-  necessidadeAporte: number;
-  rentabilidade: number;
-  observacoes?: string;
 }
 
-export interface PrevidenciaSegurosSecao {
-  nome: string;
+export interface PrevidenciaSegurosSecao
+  extends BaseSecao<PrevidenciaSegurosAtivo>, BaseQuantitySecaoTotals {
   tipo: 'seguro' | 'growth_fundos_prev';
-  ativos: PrevidenciaSegurosAtivo[];
-  totalQuantidade: number;
-  totalValorAplicado: number;
-  totalValorAtualizado: number;
-  totalRisco: number;
-  totalPercentualCarteira: number;
-  totalObjetivo: number;
-  totalQuantoFalta: number;
-  totalNecessidadeAporte: number;
-  rentabilidadeMedia: number;
 }
 
-export interface PrevidenciaSegurosResumo {
+export interface PrevidenciaSegurosResumo extends BaseResumo {
   necessidadeAporteTotal: number;
-  caixaParaInvestir: number;
-  saldoInicioMes: number;
   valorAtualizado: number;
-  rendimento: number;
-  rentabilidade: number;
 }
 
-export interface PrevidenciaSegurosTotalGeral {
-  quantidade: number;
-  valorAplicado: number;
-  valorAtualizado: number;
-  risco: number;
-  objetivo: number;
-  quantoFalta: number;
-  necessidadeAporte: number;
-  rentabilidade: number;
-}
+export type PrevidenciaSegurosTotalGeral = BaseQuantityTotalGeral;
 
-export interface PrevidenciaSegurosAlocacaoAtivo {
+export interface PrevidenciaSegurosAlocacaoAtivo extends AlocacaoAtivo {
   nome: string;
-  percentual: number;
-  valor: number;
 }
 
-export interface PrevidenciaSegurosTabelaAuxiliar {
+export interface PrevidenciaSegurosTabelaAuxiliar extends TabelaAuxiliar {
   nome: string;
-  cotacaoAtual: number;
-  necessidadeAporte: number;
-  loteAproximado: number;
 }
 
 export interface PrevidenciaSegurosData {
@@ -75,4 +45,3 @@ export interface PrevidenciaSegurosData {
   alocacaoAtivo: PrevidenciaSegurosAlocacaoAtivo[];
   tabelaAuxiliar: PrevidenciaSegurosTabelaAuxiliar[];
 }
-
