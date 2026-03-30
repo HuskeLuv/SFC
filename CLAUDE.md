@@ -59,11 +59,13 @@ Both `ignoreBuildErrors` and `ignoreDuringBuilds` are `false` — lint and type 
 
 ## Testing
 
-Vitest 1.6 with v8 coverage (88 test files, 699 tests). Tests live in `__tests__/` directories next to the module they test. Coverage threshold: 50% statements on `src/app/api/carteira/{operacao,aporte,resgate}/**/*.ts` plus `src/services/**/*.ts` and `src/hooks/**/*.ts`.
+Vitest 1.6 with v8 coverage (88 test files, 701 unit/integration tests). Tests live in `__tests__/` directories next to the module they test. Coverage threshold: 50% statements on `src/app/api/carteira/{operacao,aporte,resgate}/**/*.ts` plus `src/services/**/*.ts` and `src/hooks/**/*.ts`.
+
+Playwright E2E tests (13 tests, 3 spec files in `e2e/`). Run with `npm run test:e2e`. Auth setup uses seed user `usuario.demo@finapp.local` / `123456`. Requires dev server running.
 
 Test pattern: mock Prisma via `vi.hoisted()`, mock `requireAuthWithActing` from `@/utils/auth`, mock `@/lib/prisma`. Test the exported route handler (POST, GET, etc.) with `NextRequest`.
 
-Test infrastructure in `src/test/`: `setup.ts` (jest-dom matchers), `wrappers.tsx` (React Query test wrapper via `renderHookWithClient`), `mocks/prisma.ts` (reusable `createMockPrisma()` factory), `mocks/auth.ts` (`mockAuthAsUser`/`mockAuthAsConsultant`), `mocks/fetch.ts` (`mockFetchResponse`/`stubFetch`). Hook tests use `// @vitest-environment jsdom` directive.
+Test infrastructure in `src/test/`: `setup.ts` (jest-dom matchers), `wrappers.tsx` (React Query test wrapper via `renderHookWithClient`), `mocks/prisma.ts` (reusable `createMockPrisma()` factory), `mocks/auth.ts` (`mockAuthAsUser`/`mockAuthAsConsultant`), `mocks/fetch.ts` (`mockFetchResponse`/`stubFetch`). Hook/component tests use `// @vitest-environment jsdom` directive.
 
 ## Environment Variables Required
 
@@ -76,7 +78,7 @@ Test infrastructure in `src/test/`: `setup.ts` (jest-dom matchers), `wrappers.ts
 ## Work Plan — Issues, Improvements & Refactoring
 
 > Organized by phase. Each task has a status: `[ ]` pending, `[~]` in progress, `[x]` done.
-> Last updated: 2026-03-30 (Phase 6 added)
+> Last updated: 2026-03-30 (all phases complete except 5.3)
 
 ### Phase 1 — Security & Critical Fixes
 
