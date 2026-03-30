@@ -1,306 +1,26 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import { useReit } from '@/hooks/useReit';
-import { EstrategiaReit, ReitAtivo, ReitSecao } from '@/types/reit';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { ReitAtivo, ReitSecao } from '@/types/reit';
+import {
+  GenericAssetTable,
+  ColumnDef,
+  MetricCardConfig,
+  EditableObjetivoCell,
+  EditableValorCell,
+  BasicTablePlaceholderRows,
+} from '@/components/carteira/shared';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
 import PieChartReitAtivo from '@/components/charts/pie/PieChartReitAtivo';
-import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
-import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
-import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
-import AssetNameLink from '@/components/carteira/AssetNameLink';
-import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 
-const MIN_PLACEHOLDER_ROWS = 4;
-const REIT_COLUMN_COUNT = 14;
-const REIT_AUX_COLUMN_COUNT = 4;
-const REIT_SECTION_ORDER = ['value', 'growth', 'risk'] as const;
-const REIT_SECTION_NAMES: Record<(typeof REIT_SECTION_ORDER)[number], string> = {
+const SECTION_ORDER = ['value', 'growth', 'risk'] as const;
+const SECTION_NAMES: Record<string, string> = {
   value: 'Value',
   growth: 'Growth',
   risk: 'Risk',
 };
-
-interface ReitMetricCardProps {
-  title: string;
-  value: string;
-  color?: 'primary' | 'success' | 'warning' | 'error';
-}
-
-const ReitMetricCard: React.FC<ReitMetricCardProps> = ({ title, value, color = 'primary' }) => {
-  const colorClasses = {
-    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
-    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
-    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
-    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
-  };
-
-  return (
-    <div className={`rounded-lg p-4 ${colorClasses[color]}`}>
-      <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
-      <p className="text-xl font-semibold">{value}</p>
-    </div>
-  );
-};
-
-interface ReitTableRowProps {
-  ativo: ReitAtivo;
-  formatCurrency: (value: number) => string;
-  formatPercentage: (value: number) => string;
-  formatNumber: (value: number) => string;
-  onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-  onUpdateValorAtualizado: (ativoId: string, novoValor: number) => void;
-}
-
-const ReitTableRow: React.FC<ReitTableRowProps> = ({
-  ativo,
-  formatCurrency,
-  formatPercentage,
-  formatNumber,
-  onUpdateObjetivo,
-  onUpdateValorAtualizado,
-}) => {
-  const [isEditingObjetivo, setIsEditingObjetivo] = useState(false);
-  const [objetivoValue, setObjetivoValue] = useState(ativo.objetivo.toString());
-  const [isEditingValor, setIsEditingValor] = useState(false);
-  const [valorValue, setValorValue] = useState(
-    ativo.valorAtualizado.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }),
-  );
-
-  const parseValorMonetario = (str: string): number | null => {
-    const cleaned = str.replace(/[^\d,.]/g, '').trim();
-    if (!cleaned) return null;
-    const hasComma = cleaned.includes(',');
-    const normalized = hasComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
-    const num = Number.parseFloat(normalized);
-    return Number.isFinite(num) && num >= 0 ? num : null;
-  };
-
-  const formatValorMonetario = (num: number): string => {
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
-  const handleValorSubmit = (rawValue?: string) => {
-    const str = rawValue !== undefined ? rawValue : valorValue;
-    const numValor = parseValorMonetario(str);
-    if (numValor !== null) {
-      onUpdateValorAtualizado(ativo.id, numValor);
-      setIsEditingValor(false);
-    } else {
-      setValorValue(formatValorMonetario(ativo.valorAtualizado));
-      setIsEditingValor(false);
-    }
-  };
-
-  const handleValorKeyPress = (e: React.KeyboardEvent, rawValue: string) => {
-    if (e.key === 'Enter') {
-      handleValorSubmit(rawValue);
-    } else if (e.key === 'Escape') {
-      setValorValue(formatValorMonetario(ativo.valorAtualizado));
-      setIsEditingValor(false);
-    }
-  };
-
-  const handleObjetivoSubmit = () => {
-    const novoObjetivo = parseFloat(objetivoValue);
-    if (!isNaN(novoObjetivo) && novoObjetivo >= 0) {
-      onUpdateObjetivo(ativo.id, novoObjetivo);
-      setIsEditingObjetivo(false);
-    }
-  };
-
-  const handleObjetivoKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleObjetivoSubmit();
-    } else if (e.key === 'Escape') {
-      setObjetivoValue(ativo.objetivo.toString());
-      setIsEditingObjetivo(false);
-    }
-  };
-
-  return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs font-medium text-black">
-        <div>
-          <AssetNameLink portfolioId={ativo.id} ticker={ativo.ticker} nome={ativo.nome} />
-          {ativo.observacoes && <div className="text-xs text-black mt-1">{ativo.observacoes}</div>}
-        </div>
-      </td>
-      <td className="px-2 py-2 text-xs text-center">
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {ativo.setor.charAt(0).toUpperCase() + ativo.setor.slice(1).replace('_', ' ')}
-        </span>
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">{formatNumber(ativo.quantidade)}</td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.precoAquisicao)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.valorTotal)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <span className="text-black">{formatCurrency(ativo.cotacaoAtual)}</span>
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {isEditingValor ? (
-          <input
-            type="text"
-            inputMode="decimal"
-            value={valorValue}
-            onChange={(e) => setValorValue(e.target.value)}
-            onKeyDown={(e) => handleValorKeyPress(e, valorValue)}
-            onBlur={() => handleValorSubmit()}
-            onFocus={(e) => e.target.select()}
-            placeholder="0.00"
-            className="w-28 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white text-right"
-            autoFocus
-          />
-        ) : (
-          <div
-            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
-            onClick={() => {
-              setValorValue(formatValorMonetario(ativo.valorAtualizado));
-              setIsEditingValor(true);
-            }}
-          >
-            {formatCurrency(ativo.valorAtualizado)}
-          </div>
-        )}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(ativo.riscoPorAtivo)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(ativo.percentualCarteira)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right border border-black">
-        {isEditingObjetivo ? (
-          <div className="flex items-center space-x-1">
-            <input
-              type="number"
-              step="0.01"
-              value={objetivoValue}
-              onChange={(e) => setObjetivoValue(e.target.value)}
-              onKeyDown={handleObjetivoKeyPress}
-              onBlur={handleObjetivoSubmit}
-              className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-              autoFocus
-            />
-            <span className="text-xs text-black">%</span>
-          </div>
-        ) : (
-          <div
-            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
-            onClick={() => setIsEditingObjetivo(true)}
-          >
-            <span className="text-black">{formatPercentage(ativo.objetivo)}</span>
-          </div>
-        )}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(ativo.quantoFalta)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.necessidadeAporte)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(ativo.rentabilidade)}
-      </td>
-    </tr>
-  );
-};
-
-interface ReitSectionProps {
-  secao: ReitSecao;
-  formatCurrency: (value: number) => string;
-  formatPercentage: (value: number) => string;
-  formatNumber: (value: number) => string;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-  onUpdateValorAtualizado: (ativoId: string, novoValor: number) => void;
-}
-
-const ReitSection: React.FC<ReitSectionProps> = ({
-  secao,
-  formatCurrency,
-  formatPercentage,
-  formatNumber,
-  isExpanded,
-  onToggle,
-  onUpdateObjetivo,
-  onUpdateValorAtualizado,
-}) => {
-  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
-
-  return (
-    <>
-      {/* Cabeçalho da seção */}
-      <tr className="bg-[#808080] cursor-pointer" onClick={onToggle}>
-        <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
-          <div className="flex items-center space-x-2">
-            {isExpanded ? (
-              <ChevronUpIcon className="w-4 h-4" />
-            ) : (
-              <ChevronDownIcon className="w-4 h-4" />
-            )}
-            <span>{secao.nome}</span>
-          </div>
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatNumber(secao.totalQuantidade)}
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatCurrency(secao.totalValorAplicado)}
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatCurrency(secao.totalValorAtualizado)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalRisco)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalPercentualCarteira)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalObjetivo)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalQuantoFalta)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatCurrency(secao.totalNecessidadeAporte)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.rentabilidadeMedia)}
-        </td>
-      </tr>
-
-      {/* Ativos da seção */}
-      {isExpanded &&
-        secao.ativos.map((ativo) => (
-          <ReitTableRow
-            key={ativo.id}
-            ativo={ativo}
-            formatCurrency={formatCurrency}
-            formatPercentage={formatPercentage}
-            formatNumber={formatNumber}
-            onUpdateObjetivo={onUpdateObjetivo}
-            onUpdateValorAtualizado={onUpdateValorAtualizado}
-          />
-        ))}
-      {isExpanded && (
-        <BasicTablePlaceholderRows count={placeholderCount} colSpan={REIT_COLUMN_COUNT} />
-      )}
-    </>
-  );
-};
+const MIN_PLACEHOLDER_ROWS = 4;
 
 interface ReitTableProps {
   totalCarteira?: number;
@@ -318,108 +38,6 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     updateValorAtualizado,
     updateCaixaParaInvestir,
   } = useReit();
-  const { necessidadeAporteMap } = useCarteiraResumoContext();
-  const necessidadeAporteTotalCalculada =
-    necessidadeAporteMap.reits ?? data?.resumo?.necessidadeAporteTotal ?? 0;
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(REIT_SECTION_ORDER),
-  );
-
-  // Calcular risco (carteira total) e percentual da carteira da aba
-  const dataComRisco = useMemo(() => {
-    if (!data) return data;
-
-    const totalTabValue = data.totalGeral?.valorAtualizado || 0;
-    const shouldCalculateRisco = totalCarteira > 0;
-
-    const secoesComRisco = data.secoes.map((secao) => {
-      const totalPercentualCarteira =
-        totalTabValue > 0 ? (secao.totalValorAtualizado / totalTabValue) * 100 : 0;
-
-      return {
-        ...secao,
-        ativos: secao.ativos.map((ativo) => {
-          // Percentual daquele tipo de ativo (não da carteira total)
-          const percentualCarteira =
-            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
-          const objetivo = ativo.objetivo || 0;
-          // Quanto falta = diferença entre % atual e objetivo (em %)
-          const quantoFalta = objetivo - percentualCarteira;
-          // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
-          const necessidadeAporte =
-            totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
-
-          return {
-            ...ativo,
-            riscoPorAtivo: shouldCalculateRisco
-              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
-              : 0,
-            percentualCarteira,
-            quantoFalta,
-            necessidadeAporte,
-          };
-        }),
-        totalPercentualCarteira,
-        totalRisco: secao.ativos.reduce(
-          (sum, ativo) =>
-            sum +
-            (shouldCalculateRisco
-              ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100)
-              : 0),
-          0,
-        ),
-        totalQuantoFalta: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira =
-            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
-          const objetivo = ativo.objetivo || 0;
-          return sum + (objetivo - percentualCarteira);
-        }, 0),
-        totalNecessidadeAporte: secao.ativos.reduce((sum, ativo) => {
-          const percentualCarteira =
-            totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
-          const objetivo = ativo.objetivo || 0;
-          const quantoFalta = objetivo - percentualCarteira;
-          return (
-            sum + (totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0)
-          );
-        }, 0),
-      };
-    });
-
-    const totalGeralRisco = secoesComRisco.reduce(
-      (sum, secao) => sum + secao.ativos.reduce((s, ativo) => s + ativo.riscoPorAtivo, 0),
-      0,
-    );
-
-    // Recalcular totais gerais
-    const totalQuantoFalta = secoesComRisco.reduce((sum, secao) => sum + secao.totalQuantoFalta, 0);
-    const totalNecessidadeAporte = secoesComRisco.reduce(
-      (sum, secao) => sum + secao.totalNecessidadeAporte,
-      0,
-    );
-
-    return {
-      ...data,
-      secoes: secoesComRisco,
-      totalGeral: {
-        ...data.totalGeral,
-        risco: totalGeralRisco,
-        percentualCarteira: totalTabValue > 0 ? 100 : 0,
-        quantoFalta: totalQuantoFalta,
-        necessidadeAporte: totalNecessidadeAporte,
-      },
-    };
-  }, [data, totalCarteira]);
-
-  const toggleSection = (estrategia: string) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(estrategia)) {
-      newExpanded.delete(estrategia);
-    } else {
-      newExpanded.add(estrategia);
-    }
-    setExpandedSections(newExpanded);
-  };
 
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
@@ -432,256 +50,229 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
   const cotacaoDolar = data?.cotacaoDolar ?? null;
   const formatCurrencyBRL = (valueUSD: number) =>
     cotacaoDolar != null
-      ? (valueUSD * cotacaoDolar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      ? (valueUSD * cotacaoDolar).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        })
       : formatCurrency(valueUSD);
 
-  const normalizedSections = useMemo(() => {
-    const createEmptySection = (
-      estrategia: (typeof REIT_SECTION_ORDER)[number],
-      nome: string,
-    ): ReitSecao => ({
-      estrategia: estrategia as EstrategiaReit,
-      nome,
-      ativos: [],
-      totalQuantidade: 0,
-      totalValorAplicado: 0,
-      totalValorAtualizado: 0,
-      totalPercentualCarteira: 0,
-      totalRisco: 0,
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
-      rentabilidadeMedia: 0,
-    });
-
-    const sectionMap = new Map<string, ReitSecao>();
-    (dataComRisco?.secoes || []).forEach((secao) => {
-      const nome = REIT_SECTION_NAMES[secao.estrategia];
-      sectionMap.set(secao.estrategia, { ...secao, nome });
-    });
-
-    return REIT_SECTION_ORDER.map((estrategia) => {
-      const nome = REIT_SECTION_NAMES[estrategia];
-      return sectionMap.get(estrategia) ?? createEmptySection(estrategia, nome);
-    });
-  }, [dataComRisco?.secoes]);
-
-  if (loading) {
-    return <LoadingSpinner text="Carregando dados REIT..." />;
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
-            Erro ao carregar dados
-          </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{error}</p>
+  const columns: ColumnDef<ReitAtivo, ReitSecao>[] = [
+    {
+      key: 'nome',
+      header: 'Nome do Ativo',
+      align: 'left',
+      render: (a) => (
+        <div>
+          <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} />
+          {a.observacoes && <div className="text-xs text-black mt-1">{a.observacoes}</div>}
         </div>
-      </div>
-    );
-  }
+      ),
+    },
+    {
+      key: 'setor',
+      header: 'Setor',
+      align: 'center',
+      render: (a) => (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
+          {a.setor.charAt(0).toUpperCase() + a.setor.slice(1).replace('_', ' ')}
+        </span>
+      ),
+      renderSectionTotal: () => '-',
+      renderGrandTotal: () => '-',
+    },
+    {
+      key: 'quantidade',
+      header: 'Quantidade',
+      align: 'right',
+      render: (a, f) => f.formatNumber(a.quantidade),
+      renderSectionTotal: (s, f) => f.formatNumber(s.totalQuantidade),
+      renderGrandTotal: (t, f) => f.formatNumber((t?.quantidade as number) || 0),
+    },
+    {
+      key: 'precoAquisicao',
+      header: 'Preco Medio',
+      align: 'right',
+      render: (a, f) => f.formatCurrency(a.precoAquisicao),
+      renderSectionTotal: () => '-',
+      renderGrandTotal: () => '-',
+    },
+    {
+      key: 'valorTotal',
+      header: 'Valor Total',
+      align: 'right',
+      render: (a, f) => f.formatCurrency(a.valorTotal),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAplicado),
+      renderGrandTotal: (t) => formatCurrencyBRL((t?.valorAplicado as number) || 0),
+    },
+    {
+      key: 'cotacaoAtual',
+      header: 'Cotacao Atual',
+      align: 'right',
+      render: (a, f) => <span className="text-black">{f.formatCurrency(a.cotacaoAtual)}</span>,
+      renderSectionTotal: () => '-',
+      renderGrandTotal: () => '-',
+    },
+    {
+      key: 'valorAtualizado',
+      header: 'Valor Atualizado',
+      align: 'right',
+      render: (a, f) => (
+        <EditableValorCell
+          ativoId={a.id}
+          valorAtualizado={a.valorAtualizado}
+          formatCurrency={f.formatCurrency}
+          onUpdateValorAtualizado={handleUpdateValorAtualizado}
+          locale="en-US"
+          placeholder="0.00"
+        />
+      ),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAtualizado),
+      renderGrandTotal: (t) => formatCurrencyBRL((t?.valorAtualizado as number) || 0),
+    },
+    {
+      key: 'riscoPorAtivo',
+      header: (
+        <>
+          <span className="block">Risco Por Ativo</span>
+          <span className="block">(Carteira Total)</span>
+        </>
+      ),
+      align: 'right',
+      render: (a, f) => f.formatPercentage(a.riscoPorAtivo),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.totalRisco),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.risco as number) || 0),
+    },
+    {
+      key: 'percentualCarteira',
+      header: '% da Carteira',
+      align: 'right',
+      render: (a, f) => f.formatPercentage(a.percentualCarteira),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
+      renderGrandTotal: () => '100.00%',
+    },
+    {
+      key: 'objetivo',
+      header: 'Objetivo',
+      align: 'right',
+      cellClassName: 'border border-black',
+      render: (a, f) => (
+        <EditableObjetivoCell
+          ativoId={a.id}
+          objetivo={a.objetivo}
+          formatPercentage={f.formatPercentage}
+          onUpdateObjetivo={handleUpdateObjetivo}
+        />
+      ),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.totalObjetivo),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.objetivo as number) || 0),
+    },
+    {
+      key: 'quantoFalta',
+      header: 'Quanto Falta',
+      align: 'right',
+      render: (a, f) => f.formatPercentage(a.quantoFalta),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.totalQuantoFalta),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.quantoFalta as number) || 0),
+    },
+    {
+      key: 'necessidadeAporte',
+      header: 'Nec. Aporte $',
+      align: 'right',
+      render: (a, f) => f.formatCurrency(a.necessidadeAporte),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalNecessidadeAporte),
+      renderGrandTotal: (t) => formatCurrencyBRL((t?.necessidadeAporte as number) || 0),
+    },
+    {
+      key: 'rentabilidade',
+      header: 'Rentabilidade',
+      align: 'right',
+      render: (a, f) => f.formatPercentage(a.rentabilidade),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.rentabilidadeMedia),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.rentabilidade as number) || 0),
+    },
+  ];
+
+  // Extra "TOTAL EM USD" row
+  const extraTotalRows = (
+    <tr className="bg-[#404040] border-b border-gray-300">
+      <td className="px-2 py-2 text-xs text-white font-bold">TOTAL EM USD</td>
+      <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">
+        {formatCurrency(
+          ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ?? 0,
+        )}
+      </td>
+      <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">
+        {formatCurrency(
+          ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAtualizado as number) ??
+            0,
+        )}
+      </td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+    </tr>
+  );
+
+  const metricCards: MetricCardConfig[] = [
+    {
+      title: 'Necessidade de Aporte Total',
+      getValue: (_r, nec) => formatCurrencyBRL(nec ?? 0),
+      color: 'warning',
+    },
+    { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
+    {
+      title: 'Saldo Inicio do Mes',
+      getValue: (r) => formatCurrencyBRL((r?.saldoInicioMes as number) ?? 0),
+    },
+    {
+      title: 'Valor Atualizado',
+      getValue: (r) => formatCurrencyBRL((r?.valorAtualizado as number) ?? 0),
+    },
+    {
+      title: 'Rendimento',
+      getValue: (r) => formatCurrencyBRL((r?.rendimento as number) ?? 0),
+      color: 'success',
+    },
+    {
+      title: 'Rentabilidade',
+      getValue: (r) => formatPercentage((r?.rentabilidade as number) ?? 0),
+      color: 'success',
+    },
+  ];
 
   return (
-    <div className="space-y-4">
-      {/* Cards de resumo - em R$ quando cotacaoDolar disponível */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <ReitMetricCard
-          title="Necessidade de Aporte Total"
-          value={formatCurrencyBRL(necessidadeAporteTotalCalculada)}
-          color="warning"
-        />
-        <CaixaParaInvestirCard
-          value={data?.resumo?.caixaParaInvestir ?? 0}
-          formatCurrency={(value) => formatCurrencyBRL(value ?? 0)}
-          onSave={updateCaixaParaInvestir}
-          color="success"
-        />
-        <ReitMetricCard
-          title="Saldo Início do Mês"
-          value={formatCurrencyBRL(data?.resumo?.saldoInicioMes ?? 0)}
-        />
-        <ReitMetricCard
-          title="Valor Atualizado"
-          value={formatCurrencyBRL(data?.resumo?.valorAtualizado ?? 0)}
-        />
-        <ReitMetricCard
-          title="Rendimento"
-          value={formatCurrencyBRL(data?.resumo?.rendimento ?? 0)}
-          color="success"
-        />
-        <ReitMetricCard
-          title="Rentabilidade"
-          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
-          color="success"
-        />
-      </div>
-
-      {/* Tabela principal */}
-      <ComponentCard title="REIT - Detalhamento">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
-            <thead>
-              <tr
-                className="border-b border-gray-200 dark:border-gray-700"
-                style={{ backgroundColor: '#9E8A58' }}
-              >
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Nome do Ativo
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Setor
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Quantidade
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Preço Médio
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Valor Total
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Cotação Atual
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Valor Atualizado
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  <span className="block">Risco Por Ativo</span>
-                  <span className="block">(Carteira Total)</span>
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  % da Carteira
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Objetivo
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Quanto Falta
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Nec. Aporte $
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Rentabilidade
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Linha de totalização em R$ (quando cotacaoDolar disponível) */}
-              <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrencyBRL(dataComRisco?.totalGeral?.valorAplicado || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrencyBRL(dataComRisco?.totalGeral?.valorAtualizado || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.objetivo || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.quantoFalta || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrencyBRL(dataComRisco?.totalGeral?.necessidadeAporte || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
-                </td>
-              </tr>
-
-              {/* Linha de total em USD - apenas Valor Total e Valor Atualizado */}
-              <tr className="bg-[#404040] border-b border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL EM USD</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-              </tr>
-
-              {normalizedSections.map((secao) => (
-                <ReitSection
-                  key={secao.estrategia}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  isExpanded={expandedSections.has(secao.estrategia)}
-                  onToggle={() => toggleSection(secao.estrategia)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateValorAtualizado={handleUpdateValorAtualizado}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </ComponentCard>
-
-      {/* Gráfico e tabela auxiliar */}
+    <GenericAssetTable<ReitAtivo, ReitSecao>
+      data={data as unknown as Record<string, unknown>}
+      loading={loading}
+      error={error}
+      loadingText="Carregando dados REIT..."
+      columns={columns}
+      getSecoes={(d) => (d.secoes as ReitSecao[]) ?? []}
+      getSectionAtivos={(s) => s.ativos}
+      getSectionKey={(s) => s.estrategia}
+      getSectionName={(s) => s.nome || SECTION_NAMES[s.estrategia]}
+      getTotalGeral={(d) => (d.totalGeral as Record<string, unknown>) ?? {}}
+      getResumo={(d) => (d.resumo as Record<string, unknown>) ?? {}}
+      metricCards={metricCards}
+      necessidadeAporteKey="reits"
+      onUpdateCaixaParaInvestir={updateCaixaParaInvestir}
+      sectionOrder={SECTION_ORDER}
+      sectionNames={SECTION_NAMES}
+      tableTitle="REIT - Detalhamento"
+      formatCurrency={formatCurrency}
+      formatPercentage={formatPercentage}
+      formatNumber={formatNumber}
+      totalCarteira={totalCarteira}
+      extraTotalRows={extraTotalRows}
+    >
+      {/* Charts and aux table */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="xl:col-span-6">
           <ComponentCard title="Resumo de Aportes">
@@ -693,7 +284,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                       Nome Ativo
                     </th>
                     <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Cotação Atual
+                      Cotacao Atual
                     </th>
                     <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Necessidade Aporte
@@ -723,7 +314,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                   ))}
                   <BasicTablePlaceholderRows
                     count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
-                    colSpan={REIT_AUX_COLUMN_COUNT}
+                    colSpan={4}
                   />
                 </tbody>
               </table>
@@ -731,11 +322,11 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
           </ComponentCard>
         </div>
         <div className="xl:col-span-6">
-          <ComponentCard title="Distribuição por Ativo">
+          <ComponentCard title="Distribuicao por Ativo">
             <PieChartReitAtivo data={data?.alocacaoAtivo ?? []} />
           </ComponentCard>
         </div>
       </div>
-    </div>
+    </GenericAssetTable>
   );
 }

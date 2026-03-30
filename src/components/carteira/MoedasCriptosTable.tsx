@@ -1,243 +1,21 @@
 'use client';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useMoedasCriptos } from '@/hooks/useMoedasCriptos';
 import { MoedaCriptoAtivo, MoedaCriptoSecao } from '@/types/moedas-criptos';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
-import ComponentCard from '@/components/common/ComponentCard';
-import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
-import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
-import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import {
+  GenericAssetTable,
+  ColumnDef,
+  MetricCardConfig,
+  EditableObjetivoCell,
+} from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 
-const MIN_PLACEHOLDER_ROWS = 4;
-const MOEDAS_CRIPTOS_COLUMN_COUNT = 13;
-const MOEDAS_CRIPTOS_SECTION_ORDER = ['moedas', 'criptomoedas', 'metais_joias'] as const;
-const MOEDAS_CRIPTOS_SECTION_NAMES: Record<(typeof MOEDAS_CRIPTOS_SECTION_ORDER)[number], string> =
-  {
-    moedas: 'Moedas',
-    criptomoedas: 'Criptomoedas',
-    metais_joias: 'Metais e Joias',
-  };
-
-interface MoedasCriptosMetricCardProps {
-  title: string;
-  value: string;
-  color?: 'primary' | 'success' | 'warning' | 'error';
-}
-
-const MoedasCriptosMetricCard: React.FC<MoedasCriptosMetricCardProps> = ({
-  title,
-  value,
-  color = 'primary',
-}) => {
-  const colorClasses = {
-    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
-    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
-    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
-    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
-  };
-
-  return (
-    <div className={`rounded-lg p-4 ${colorClasses[color]}`}>
-      <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
-      <p className="text-xl font-semibold">{value}</p>
-    </div>
-  );
-};
-
-interface MoedasCriptosTableRowProps {
-  ativo: MoedaCriptoAtivo;
-  formatCurrency: (value: number, currency?: 'BRL' | 'USD') => string;
-  formatPercentage: (value: number) => string;
-  formatNumber: (value: number) => string;
-  onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-}
-
-const MoedasCriptosTableRow: React.FC<MoedasCriptosTableRowProps> = ({
-  ativo,
-  formatCurrency,
-  formatPercentage,
-  formatNumber,
-  onUpdateObjetivo,
-}) => {
-  const [isEditingObjetivo, setIsEditingObjetivo] = useState(false);
-  const [objetivoValue, setObjetivoValue] = useState(ativo.objetivo.toString());
-
-  const handleObjetivoSubmit = () => {
-    const novoObjetivo = parseFloat(objetivoValue);
-    if (!isNaN(novoObjetivo) && novoObjetivo >= 0) {
-      onUpdateObjetivo(ativo.id, novoObjetivo);
-      setIsEditingObjetivo(false);
-    }
-  };
-
-  const handleObjetivoKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleObjetivoSubmit();
-    } else if (e.key === 'Escape') {
-      setObjetivoValue(ativo.objetivo.toString());
-      setIsEditingObjetivo(false);
-    }
-  };
-
-  const currency = ativo.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-
-  return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs text-black">
-        <div>
-          <AssetNameLink portfolioId={ativo.id} ticker={ativo.ticker} nome={ativo.nome} />
-          {ativo.observacoes && <div className="text-xs text-black mt-1">{ativo.observacoes}</div>}
-        </div>
-      </td>
-      <td className="px-2 py-2 text-center">
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {ativo.indiceRastreado.charAt(0).toUpperCase() +
-            ativo.indiceRastreado.slice(1).replace('_', ' ')}
-        </span>
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">{formatNumber(ativo.quantidade)}</td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.precoAquisicao, currency)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.valorTotal, currency)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right">
-        <span className="text-black">{formatCurrency(ativo.cotacaoAtual, currency)}</span>
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.valorAtualizado, currency)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(ativo.riscoPorAtivo)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(ativo.percentualCarteira)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right border border-black">
-        {isEditingObjetivo ? (
-          <div className="flex items-center space-x-1">
-            <input
-              type="number"
-              step="0.01"
-              value={objetivoValue}
-              onChange={(e) => setObjetivoValue(e.target.value)}
-              onKeyDown={handleObjetivoKeyPress}
-              onBlur={handleObjetivoSubmit}
-              className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-              autoFocus
-            />
-            <span className="text-xs text-black">%</span>
-          </div>
-        ) : (
-          <div
-            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
-            onClick={() => setIsEditingObjetivo(true)}
-          >
-            <span className="text-black">{formatPercentage(ativo.objetivo)}</span>
-          </div>
-        )}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(ativo.quantoFalta)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatCurrency(ativo.necessidadeAporte, currency)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(ativo.rentabilidade)}
-      </td>
-    </tr>
-  );
-};
-
-interface MoedasCriptosSectionProps {
-  secao: MoedaCriptoSecao;
-  formatCurrency: (value: number, currency?: 'BRL' | 'USD') => string;
-  formatPercentage: (value: number) => string;
-  formatNumber: (value: number) => string;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
-}
-
-const MoedasCriptosSection: React.FC<MoedasCriptosSectionProps> = ({
-  secao,
-  formatCurrency,
-  formatPercentage,
-  formatNumber,
-  isExpanded,
-  onToggle,
-  onUpdateObjetivo,
-}) => {
-  const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length);
-  const currency = secao.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-
-  return (
-    <>
-      {/* Cabeçalho da seção */}
-      <tr className="bg-[#808080] cursor-pointer" onClick={onToggle}>
-        <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
-          <div className="flex items-center space-x-2">
-            {isExpanded ? (
-              <ChevronUpIcon className="w-4 h-4" />
-            ) : (
-              <ChevronDownIcon className="w-4 h-4" />
-            )}
-            <span>{secao.nome}</span>
-          </div>
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatNumber(secao.totalQuantidade)}
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatCurrency(secao.totalValorAplicado, currency)}
-        </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatCurrency(secao.totalValorAtualizado, currency)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalRisco)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalPercentualCarteira)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalObjetivo)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.totalQuantoFalta)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatCurrency(secao.totalNecessidadeAporte, currency)}
-        </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
-          {formatPercentage(secao.rentabilidadeMedia)}
-        </td>
-      </tr>
-
-      {/* Ativos da seção */}
-      {isExpanded &&
-        secao.ativos.map((ativo) => (
-          <MoedasCriptosTableRow
-            key={ativo.id}
-            ativo={ativo}
-            formatCurrency={formatCurrency}
-            formatPercentage={formatPercentage}
-            formatNumber={formatNumber}
-            onUpdateObjetivo={onUpdateObjetivo}
-          />
-        ))}
-      {isExpanded && (
-        <BasicTablePlaceholderRows count={placeholderCount} colSpan={MOEDAS_CRIPTOS_COLUMN_COUNT} />
-      )}
-    </>
-  );
+const SECTION_ORDER = ['moedas', 'criptomoedas', 'metais_joias'] as const;
+const SECTION_NAMES: Record<string, string> = {
+  moedas: 'Moedas',
+  criptomoedas: 'Criptomoedas',
+  metais_joias: 'Metais e Joias',
 };
 
 interface MoedasCriptosTableProps {
@@ -256,19 +34,19 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     updateCaixaParaInvestir,
     refetch,
   } = useMoedasCriptos();
-  const { necessidadeAporteMap, refreshTrigger } = useCarteiraResumoContext();
+  const { refreshTrigger } = useCarteiraResumoContext();
 
   useEffect(() => {
     if (refreshTrigger > 0) {
       refetch();
     }
   }, [refreshTrigger, refetch]);
-  const necessidadeAporteTotalCalculada =
-    necessidadeAporteMap.moedasCriptos ?? data?.resumo?.necessidadeAporteTotal ?? 0;
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(MOEDAS_CRIPTOS_SECTION_ORDER),
-  );
 
+  const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
+    await updateObjetivo(ativoId, novoObjetivo);
+  };
+
+  // MoedasCriptos has a custom risk computation (flat ativos, not per-section)
   const ativosComRisco = useMemo(() => {
     if (!data) return [];
 
@@ -277,13 +55,10 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     const shouldCalculateRisco = totalCarteira > 0;
 
     return ativos.map((ativo) => {
-      // Percentual daquele tipo de ativo (não da carteira total)
       const percentualCarteira =
         totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
       const objetivo = ativo.objetivo || 0;
-      // Quanto falta = diferença entre % atual e objetivo (em %)
       const quantoFalta = objetivo - percentualCarteira;
-      // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
       const necessidadeAporte =
         totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
 
@@ -299,20 +74,6 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     });
   }, [data, totalCarteira]);
 
-  const toggleSection = (tipo: string) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(tipo)) {
-      newExpanded.delete(tipo);
-    } else {
-      newExpanded.add(tipo);
-    }
-    setExpandedSections(newExpanded);
-  };
-
-  const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
-    await updateObjetivo(ativoId, novoObjetivo);
-  };
-
   const normalizedSections = useMemo(() => {
     const resolveSectionRegion = (ativos: MoedaCriptoAtivo[]) => {
       const hasUs = ativos.some((ativo) => ativo.regiao === 'estados_unidos');
@@ -323,7 +84,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     };
 
     const buildSection = (
-      tipo: (typeof MOEDAS_CRIPTOS_SECTION_ORDER)[number],
+      tipo: (typeof SECTION_ORDER)[number],
       nome: string,
       ativos: MoedaCriptoAtivo[],
     ): MoedaCriptoSecao => {
@@ -384,204 +145,215 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       grouped.metais_joias.push(ativo);
     });
 
-    return MOEDAS_CRIPTOS_SECTION_ORDER.map((tipo) => {
-      const nome = MOEDAS_CRIPTOS_SECTION_NAMES[tipo];
+    return SECTION_ORDER.map((tipo) => {
+      const nome = SECTION_NAMES[tipo];
       return buildSection(tipo, nome, grouped[tipo]);
     });
   }, [ativosComRisco]);
 
-  if (loading) {
-    return <LoadingSpinner text="Carregando dados de moedas e criptomoedas..." />;
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
-            Erro ao carregar dados
-          </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{error}</p>
+  const columns: ColumnDef<MoedaCriptoAtivo, MoedaCriptoSecao>[] = [
+    {
+      key: 'nome',
+      header: 'Nome do Ativo',
+      align: 'left',
+      render: (a) => (
+        <div>
+          <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} />
+          {a.observacoes && <div className="text-xs text-black mt-1">{a.observacoes}</div>}
         </div>
-      </div>
-    );
-  }
+      ),
+    },
+    {
+      key: 'indiceRastreado',
+      header: 'Indice Rastreado',
+      align: 'center',
+      render: (a) => (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
+          {a.indiceRastreado.charAt(0).toUpperCase() + a.indiceRastreado.slice(1).replace('_', ' ')}
+        </span>
+      ),
+      renderSectionTotal: () => '-',
+      renderGrandTotal: () => '-',
+    },
+    {
+      key: 'quantidade',
+      header: 'Quantidade',
+      align: 'right',
+      render: (a, f) => f.formatNumber(a.quantidade),
+      renderSectionTotal: (s, f) => f.formatNumber(s.totalQuantidade),
+      renderGrandTotal: (t, f) => f.formatNumber((t?.quantidade as number) || 0),
+    },
+    {
+      key: 'precoAquisicao',
+      header: 'Preco Aquisicao',
+      align: 'right',
+      render: (a, f) => {
+        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
+        return f.formatCurrency(a.precoAquisicao, currency);
+      },
+      renderSectionTotal: () => '-',
+      renderGrandTotal: () => '-',
+    },
+    {
+      key: 'valorTotal',
+      header: 'Valor Total',
+      align: 'right',
+      render: (a, f) => {
+        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
+        return f.formatCurrency(a.valorTotal, currency);
+      },
+      renderSectionTotal: (s, f) => {
+        const currency = s.regiao === 'estados_unidos' ? 'USD' : 'BRL';
+        return f.formatCurrency(s.totalValorAplicado, currency);
+      },
+      renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAplicado as number) || 0),
+    },
+    {
+      key: 'cotacaoAtual',
+      header: 'Cotacao em Tempo Real',
+      align: 'right',
+      render: (a, f) => {
+        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
+        return <span className="text-black">{f.formatCurrency(a.cotacaoAtual, currency)}</span>;
+      },
+      renderSectionTotal: () => '-',
+      renderGrandTotal: () => '-',
+    },
+    {
+      key: 'valorAtualizado',
+      header: 'Valor Atualizado',
+      align: 'right',
+      render: (a, f) => {
+        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
+        return f.formatCurrency(a.valorAtualizado, currency);
+      },
+      renderSectionTotal: (s, f) => {
+        const currency = s.regiao === 'estados_unidos' ? 'USD' : 'BRL';
+        return f.formatCurrency(s.totalValorAtualizado, currency);
+      },
+      renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAtualizado as number) || 0),
+    },
+    {
+      key: 'riscoPorAtivo',
+      header: (
+        <>
+          <span className="block">Risco Por Ativo</span>
+          <span className="block">(Carteira Total)</span>
+        </>
+      ),
+      align: 'right',
+      render: (a, f) => f.formatPercentage(a.riscoPorAtivo),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.totalRisco),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.risco as number) || 0),
+    },
+    {
+      key: 'percentualCarteira',
+      header: '% da Carteira',
+      align: 'right',
+      render: (a, f) => f.formatPercentage(a.percentualCarteira),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
+      renderGrandTotal: () => '100.00%',
+    },
+    {
+      key: 'objetivo',
+      header: 'Objetivo',
+      align: 'right',
+      cellClassName: 'border border-black',
+      render: (a, f) => (
+        <EditableObjetivoCell
+          ativoId={a.id}
+          objetivo={a.objetivo}
+          formatPercentage={f.formatPercentage}
+          onUpdateObjetivo={handleUpdateObjetivo}
+        />
+      ),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.totalObjetivo),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.objetivo as number) || 0),
+    },
+    {
+      key: 'quantoFalta',
+      header: 'Quanto Falta',
+      align: 'right',
+      render: (a, f) => f.formatPercentage(a.quantoFalta),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.totalQuantoFalta),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.quantoFalta as number) || 0),
+    },
+    {
+      key: 'necessidadeAporte',
+      header: 'Nec. Aporte $',
+      align: 'right',
+      render: (a, f) => {
+        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
+        return f.formatCurrency(a.necessidadeAporte, currency);
+      },
+      renderSectionTotal: (s, f) => {
+        const currency = s.regiao === 'estados_unidos' ? 'USD' : 'BRL';
+        return f.formatCurrency(s.totalNecessidadeAporte, currency);
+      },
+      renderGrandTotal: (t, f) => f.formatCurrency((t?.necessidadeAporte as number) || 0),
+    },
+    {
+      key: 'rentabilidade',
+      header: 'Rentabilidade',
+      align: 'right',
+      render: (a, f) => f.formatPercentage(a.rentabilidade),
+      renderSectionTotal: (s, f) => f.formatPercentage(s.rentabilidadeMedia),
+      renderGrandTotal: (t, f) => f.formatPercentage((t?.rentabilidade as number) || 0),
+    },
+  ];
+
+  const metricCards: MetricCardConfig[] = [
+    {
+      title: 'Necessidade de Aporte Total',
+      getValue: (_r, nec) => formatCurrency(nec ?? 0),
+      color: 'warning',
+    },
+    { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
+    {
+      title: 'Saldo Inicio do Mes',
+      getValue: (r) => formatCurrency((r?.saldoInicioMes as number) ?? 0),
+    },
+    {
+      title: 'Valor Atualizado',
+      getValue: (r) => formatCurrency((r?.valorAtualizado as number) ?? 0),
+    },
+    {
+      title: 'Rendimento',
+      getValue: (r) => formatCurrency((r?.rendimento as number) ?? 0),
+      color: 'success',
+    },
+    {
+      title: 'Rentabilidade',
+      getValue: (r) => formatPercentage((r?.rentabilidade as number) ?? 0),
+      color: 'success',
+    },
+  ];
 
   return (
-    <div className="space-y-4">
-      {/* Cards de resumo */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <MoedasCriptosMetricCard
-          title="Necessidade de Aporte Total"
-          value={formatCurrency(necessidadeAporteTotalCalculada)}
-          color="warning"
-        />
-        <CaixaParaInvestirCard
-          value={data?.resumo?.caixaParaInvestir ?? 0}
-          formatCurrency={(value) => formatCurrency(value ?? 0)}
-          onSave={updateCaixaParaInvestir}
-          color="success"
-        />
-        <MoedasCriptosMetricCard
-          title="Saldo Início do Mês"
-          value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
-        />
-        <MoedasCriptosMetricCard
-          title="Valor Atualizado"
-          value={formatCurrency(data?.resumo?.valorAtualizado ?? 0)}
-        />
-        <MoedasCriptosMetricCard
-          title="Rendimento"
-          value={formatCurrency(data?.resumo?.rendimento ?? 0)}
-          color="success"
-        />
-        <MoedasCriptosMetricCard
-          title="Rentabilidade"
-          value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
-          color="success"
-        />
-      </div>
-
-      {/* Tabela principal */}
-      <ComponentCard title="Moedas, Criptomoedas & Outros - Detalhamento">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
-            <thead>
-              <tr
-                className="border-b border-gray-200 dark:border-gray-700"
-                style={{ backgroundColor: '#9E8A58' }}
-              >
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Nome do Ativo
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Índice Rastreado
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Quantidade
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Preço Aquisição
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Valor Total
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Cotação em Tempo Real
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Valor Atualizado
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  <span className="block">Risco Por Ativo</span>
-                  <span className="block">(Carteira Total)</span>
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  % da Carteira
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Objetivo
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Quanto Falta
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Nec. Aporte $
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
-                  style={{ backgroundColor: '#9E8A58' }}
-                >
-                  Rentabilidade
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Linha de totalização */}
-              <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatNumber(data?.totalGeral?.quantidade || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(data?.totalGeral?.valorAplicado || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(data?.totalGeral?.valorAtualizado || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(data?.totalGeral?.risco || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(data?.totalGeral?.objetivo || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(data?.totalGeral?.quantoFalta || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatCurrency(data?.totalGeral?.necessidadeAporte || 0)}
-                </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
-                  {formatPercentage(data?.totalGeral?.rentabilidade || 0)}
-                </td>
-              </tr>
-
-              {normalizedSections.map((secao) => (
-                <MoedasCriptosSection
-                  key={secao.tipo}
-                  secao={secao}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  isExpanded={expandedSections.has(secao.tipo)}
-                  onToggle={() => toggleSection(secao.tipo)}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </ComponentCard>
-    </div>
+    <GenericAssetTable<MoedaCriptoAtivo, MoedaCriptoSecao>
+      data={data as unknown as Record<string, unknown>}
+      loading={loading}
+      error={error}
+      loadingText="Carregando dados de moedas e criptomoedas..."
+      columns={columns}
+      getSecoes={(d) => (d.secoes as MoedaCriptoSecao[]) ?? []}
+      getSectionAtivos={(s) => s.ativos}
+      getSectionKey={(s) => s.tipo}
+      getSectionName={(s) => s.nome}
+      getTotalGeral={(d) => (d.totalGeral as Record<string, unknown>) ?? {}}
+      getResumo={(d) => (d.resumo as Record<string, unknown>) ?? {}}
+      metricCards={metricCards}
+      necessidadeAporteKey="moedasCriptos"
+      onUpdateCaixaParaInvestir={updateCaixaParaInvestir}
+      sectionOrder={SECTION_ORDER}
+      sectionNames={SECTION_NAMES}
+      tableTitle="Moedas, Criptomoedas & Outros - Detalhamento"
+      formatCurrency={formatCurrency}
+      formatPercentage={formatPercentage}
+      formatNumber={formatNumber}
+      totalCarteira={totalCarteira}
+      normalizedSections={normalizedSections}
+      dataComRisco={data as unknown as Record<string, unknown>}
+    />
   );
 }

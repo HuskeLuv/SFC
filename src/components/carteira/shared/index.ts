@@ -9,5 +9,17 @@ export { default as CategoryBadge } from './CategoryBadge';
 export { default as EmptyState } from './EmptyState';
 export { default as ErrorState } from './ErrorState';
 export { default as SectionHeader } from './SectionHeader';
-export { StandardTablePlaceholderRows, BasicTablePlaceholderRows, UiTablePlaceholderRows } from './PlaceholderRows';
-
+export {
+  StandardTablePlaceholderRows,
+  BasicTablePlaceholderRows,
+  UiTablePlaceholderRows,
+} from './PlaceholderRows';
+export { default as GenericAssetTable } from './GenericAssetTable';
+export type {
+  ColumnDef,
+  Formatters,
+  MetricCardConfig,
+  GenericAssetTableProps,
+} from './GenericAssetTable';
+export { default as EditableObjetivoCell } from './EditableObjetivoCell';
+export { default as EditableValorCell } from './EditableValorCell';

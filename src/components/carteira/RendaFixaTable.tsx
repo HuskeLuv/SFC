@@ -5,45 +5,29 @@ import { RendaFixaSecao, RendaFixaAtivo, TipoRendaFixa } from '@/types/rendaFixa
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
-import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import { BasicTablePlaceholderRows, MetricCard } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RENDA_FIXA_COLUMN_COUNT = 13;
 const RENDA_FIXA_SECTION_ORDER = ['pos-fixada', 'prefixada', 'hibrida'] as const;
 const RENDA_FIXA_SECTION_NAMES: Record<(typeof RENDA_FIXA_SECTION_ORDER)[number], string> = {
-  'pos-fixada': 'Pós-fixada',
-  prefixada: 'Pré-fixada',
-  hibrida: 'Híbrida',
+  'pos-fixada': 'Pos-fixada',
+  prefixada: 'Pre-fixada',
+  hibrida: 'Hibrida',
 };
-import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 
-interface RendaFixaMetricCardProps {
-  title: string;
-  value: string;
-  color?: 'primary' | 'success' | 'warning' | 'error';
-}
-
-const RendaFixaMetricCard: React.FC<RendaFixaMetricCardProps> = ({
-  title,
-  value,
-  color = 'primary',
-}) => {
-  const colorClasses = {
-    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
-    default: 'bg-gray-50 text-gray-900 dark:bg-gray-800 dark:text-gray-100',
-    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
-    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
-    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
-  };
-
-  return (
-    <div className={`rounded-lg p-4 ${colorClasses[color]}`}>
-      <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
-      <p className="text-xl font-semibold">{value}</p>
-    </div>
-  );
+const formatPercentageSimple = (value: number | undefined | null): string => {
+  if (value === undefined || value === null || isNaN(value)) {
+    return '0,00%';
+  }
+  return `${value.toFixed(2)}%`;
 };
+
+// ---------------------------------------------------------------------------
+// RendaFixaTableRow -- keeps its own editable state (too custom to generalize)
+// ---------------------------------------------------------------------------
 
 interface RendaFixaTableRowProps {
   ativo: RendaFixaAtivo;
@@ -60,13 +44,6 @@ interface RendaFixaTableRowProps {
     valor: string | number,
   ) => void;
 }
-
-const formatPercentageSimple = (value: number | undefined | null): string => {
-  if (value === undefined || value === null || isNaN(value)) {
-    return '0,00%';
-  }
-  return `${value.toFixed(2)}%`;
-};
 
 const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
   ativo,
@@ -275,6 +252,10 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
   );
 };
 
+// ---------------------------------------------------------------------------
+// RendaFixaSection
+// ---------------------------------------------------------------------------
+
 interface RendaFixaSectionProps {
   secao: RendaFixaSecao;
   formatCurrency: (value: number) => string;
@@ -305,7 +286,6 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
 
   return (
     <>
-      {/* Cabeçalho da seção */}
       <tr className="bg-[#808080] cursor-pointer" onClick={onToggle}>
         <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
           <div className="flex items-center space-x-2">
@@ -343,7 +323,6 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
         <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
       </tr>
 
-      {/* Ativos da seção */}
       {isExpanded &&
         secao.ativos.map((ativo) => (
           <RendaFixaTableRow
@@ -360,6 +339,10 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
     </>
   );
 };
+
+// ---------------------------------------------------------------------------
+// Main RendaFixaTable component
+// ---------------------------------------------------------------------------
 
 interface RendaFixaTableProps {
   totalCarteira?: number;
@@ -382,7 +365,6 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
     new Set(RENDA_FIXA_SECTION_ORDER),
   );
 
-  // Calcular risco (carteira total) e percentual da carteira da aba
   const dataComRisco = useMemo(() => {
     if (!data) return data;
 
@@ -470,9 +452,9 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
 
   return (
     <div className="space-y-4">
-      {/* Cards de resumo */}
+      {/* Metric cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <RendaFixaMetricCard
+        <MetricCard
           title="Necessidade de Aporte"
           value={formatCurrency(necessidadeAporteCalculada)}
           color="warning"
@@ -483,27 +465,24 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
           onSave={updateCaixaParaInvestir}
           color="success"
         />
-        <RendaFixaMetricCard
-          title="Saldo Início do Mês"
+        <MetricCard
+          title="Saldo Inicio do Mes"
           value={formatCurrency(data?.resumo?.saldoInicioMes ?? 0)}
         />
-        <RendaFixaMetricCard
-          title="Saldo Atual"
-          value={formatCurrency(data?.resumo?.saldoAtual ?? 0)}
-        />
-        <RendaFixaMetricCard
+        <MetricCard title="Saldo Atual" value={formatCurrency(data?.resumo?.saldoAtual ?? 0)} />
+        <MetricCard
           title="Rendimento"
           value={formatCurrency(data?.resumo?.rendimento ?? 0)}
           color="success"
         />
-        <RendaFixaMetricCard
+        <MetricCard
           title="Rentabilidade"
           value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
           color="success"
         />
       </div>
 
-      {/* Tabela principal */}
+      {/* Main table */}
       <ComponentCard title="Renda Fixa">
         <div className="overflow-x-auto">
           <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
@@ -522,13 +501,13 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  Cotização de resgate
+                  Cotizacao de resgate
                 </th>
                 <th
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  Liquidação de resgate
+                  Liquidacao de resgate
                 </th>
                 <th
                   className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
@@ -589,12 +568,12 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
                   className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  Observações
+                  Observacoes
                 </th>
               </tr>
             </thead>
             <tbody>
-              {/* Linha de totalização */}
+              {/* Grand total row */}
               <tr className="bg-[#404040] border-t-2 border-gray-300">
                 <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
                 <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
