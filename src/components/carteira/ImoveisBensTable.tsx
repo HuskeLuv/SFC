@@ -5,6 +5,7 @@ import { ImovelBemAtivo } from '@/types/imoveis-bens';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const IMOVEIS_BENS_COLUMN_COUNT = 11;
@@ -90,7 +91,7 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs font-medium text-black">
         <div>
-          <div>{ativo.nome}</div>
+          <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
           {ativo.observacoes && <div className="text-xs text-black mt-1">{ativo.observacoes}</div>}
         </div>
       </td>

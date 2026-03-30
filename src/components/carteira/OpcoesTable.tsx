@@ -8,6 +8,7 @@ import {
   MetricCardConfig,
   EditableObjetivoCell,
 } from '@/components/carteira/shared';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const SECTION_ORDER = ['put', 'call'] as const;
 const SECTION_NAMES: Record<string, string> = {
@@ -51,7 +52,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       align: 'left',
       render: (a) => (
         <div>
-          <div className="font-semibold">{a.nome}</div>
+          <AssetNameLink portfolioId={a.id} ticker={a.nome} nomeComoPrincipal />
           {a.observacoes && <div className="text-xs text-black mt-1">{a.observacoes}</div>}
         </div>
       ),

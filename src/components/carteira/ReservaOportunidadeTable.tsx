@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table/StandardTable';
 import { TableBody } from '@/components/ui/table';
 import { StandardTablePlaceholderRows } from '@/components/carteira/shared';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_OPORTUNIDADE_COLUMN_COUNT = 13;
@@ -98,7 +99,9 @@ const ReservaOportunidadeTableRow: React.FC<ReservaOportunidadeTableRowProps> = 
 
   return (
     <StandardTableRow>
-      <StandardTableBodyCell align="left">{ativo.nome}</StandardTableBodyCell>
+      <StandardTableBodyCell align="left">
+        <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
+      </StandardTableBodyCell>
       <StandardTableBodyCell align="center">{ativo.cotizacaoResgate}</StandardTableBodyCell>
       <StandardTableBodyCell align="center">{ativo.liquidacaoResgate}</StandardTableBodyCell>
       <StandardTableBodyCell align="center">

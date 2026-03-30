@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table';
 import ComponentCard from '../common/ComponentCard';
 import { UiTablePlaceholderRows } from '@/components/carteira/shared';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_EMERGENCIA_COLUMN_COUNT = 12;
@@ -100,7 +101,9 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
 
   return (
     <TableRow className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.02]">
-      <TableCell className="px-2 py-2 text-xs text-black">{ativo.nome}</TableCell>
+      <TableCell className="px-2 py-2 text-xs text-black">
+        <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
+      </TableCell>
       <TableCell className="px-2 py-2 text-xs text-black text-center">
         {ativo.cotizacaoResgate}
       </TableCell>

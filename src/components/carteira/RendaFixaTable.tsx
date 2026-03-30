@@ -8,6 +8,7 @@ import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
 import { BasicTablePlaceholderRows, MetricCard } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RENDA_FIXA_COLUMN_COUNT = 13;
@@ -115,7 +116,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
       <td className="px-2 py-2 text-xs text-black">
-        <div>{ativo.nome}</div>
+        <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
       </td>
       <td className="px-2 py-2 text-xs text-center text-black">
         {isEditingCotizacao ? (
