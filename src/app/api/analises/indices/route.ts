@@ -494,32 +494,38 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   // Prioridade 1: Buscar em benchmark_cumulative_returns (dados ingeridos externamente)
   const benchmarkTypes = ['CDI', 'IBOV', 'IPCA', 'POUPANCA'] as const;
-  for (const benchmarkType of benchmarkTypes) {
-    try {
-      const data = await fetchBenchmarkCumulativeReturns(benchmarkType, rangeStart, rangeEnd);
-      if (data.length > 0) {
-        let filtered = data;
-        if (startDate) {
-          const startTs = startDate.getTime();
-          filtered = data.filter((item) => item.date >= startTs);
+  const benchmarkResults = await Promise.all(
+    benchmarkTypes.map(async (benchmarkType) => {
+      try {
+        const data = await fetchBenchmarkCumulativeReturns(benchmarkType, rangeStart, rangeEnd);
+        if (data.length > 0) {
+          let filtered = data;
+          if (startDate) {
+            const startTs = startDate.getTime();
+            filtered = data.filter((item) => item.date >= startTs);
+          }
+          const hoje = new Date();
+          hoje.setHours(23, 59, 59, 999);
+          filtered = filtered.filter((item) => item.date <= hoje.getTime());
+          if (filtered.length > 0) {
+            console.log(
+              `✅ ${benchmarkType}: ${filtered.length} pontos (benchmark_cumulative_returns)`,
+            );
+            return {
+              symbol: benchmarkType,
+              name: benchmarkType === 'POUPANCA' ? 'Poupança' : benchmarkType,
+              data: filtered,
+            } as IndexResponse;
+          }
         }
-        const hoje = new Date();
-        hoje.setHours(23, 59, 59, 999);
-        filtered = filtered.filter((item) => item.date <= hoje.getTime());
-        if (filtered.length > 0) {
-          results.push({
-            symbol: benchmarkType,
-            name: benchmarkType === 'POUPANCA' ? 'Poupança' : benchmarkType,
-            data: filtered,
-          });
-          console.log(
-            `✅ ${benchmarkType}: ${filtered.length} pontos (benchmark_cumulative_returns)`,
-          );
-        }
+      } catch (err) {
+        console.warn(`⚠️ ${benchmarkType} em benchmark_cumulative_returns:`, err);
       }
-    } catch (err) {
-      console.warn(`⚠️ ${benchmarkType} em benchmark_cumulative_returns:`, err);
-    }
+      return null;
+    }),
+  );
+  for (const result of benchmarkResults) {
+    if (result) results.push(result);
   }
 
   // Se já temos os 4 benchmarks, retornar

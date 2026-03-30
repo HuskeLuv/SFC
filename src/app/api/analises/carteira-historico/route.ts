@@ -276,8 +276,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
-  for (const symbol of transactionsPorSimbolo.keys()) {
-    const historico = await fetchAssetHistoryFromDb(symbol, timelineStart);
+  const entries = await Promise.all(
+    Array.from(transactionsPorSimbolo.keys()).map(async (symbol) => {
+      const historico = await fetchAssetHistoryFromDb(symbol, timelineStart);
+      return [symbol, historico] as const;
+    }),
+  );
+  for (const [symbol, historico] of entries) {
     historicosPorAtivo.set(symbol, historico);
   }
 

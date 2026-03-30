@@ -266,8 +266,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const proventos: ProventoData[] = [];
   const hojeMs = Date.now();
-  for (const asset of portfolioAssets) {
-    const dividends = await getDividends(asset.symbol, { useBrapiFallback: true });
+  const allDividends = await Promise.all(
+    portfolioAssets.map(async (asset) => {
+      const dividends = await getDividends(asset.symbol, { useBrapiFallback: true });
+      return { asset, dividends };
+    }),
+  );
+  for (const { asset, dividends } of allDividends) {
     if (dividends.length === 0) continue;
 
     const timeline = timelinesBySymbol.get(asset.symbol) || [];

@@ -135,6 +135,9 @@ model ConsultantInvite {
   createdAt     DateTime               @default(now())
   respondedAt   DateTime?
   notifications Notification[]
+
+  @@index([invitedUserId])
+  @@index([consultantId])
 }
 
 model Notification {
@@ -159,6 +162,8 @@ model Event {
   date   DateTime
   userId String
   user   User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 model DashboardData {
@@ -167,6 +172,8 @@ model DashboardData {
   user   User   @relation(fields: [userId], references: [id])
   metric String
   value  Float
+
+  @@index([userId])
 }
 
 model AlocacaoConfig {
@@ -199,6 +206,8 @@ model Cashflow {
   pago            Boolean
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model CashflowGroup {
@@ -290,6 +299,7 @@ model Watchlist {
   notes   String? // Observações do usuário
 
   @@unique([userId, stockId])
+  @@index([userId])
   @@map("watchlists")
 }
 
@@ -314,6 +324,7 @@ model Portfolio {
 
   @@unique([userId, stockId])
   @@unique([userId, assetId])
+  @@index([userId])
   @@index([userId, assetId])
   @@index([userId, stockId])
   @@map("portfolios")
