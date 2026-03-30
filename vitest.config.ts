@@ -14,6 +14,8 @@ export default defineConfig({
         'src/app/api/carteira/operacao/**/*.ts',
         'src/app/api/carteira/aporte/**/*.ts',
         'src/app/api/carteira/resgate/**/*.ts',
+        'src/services/**/*.ts',
+        'src/hooks/**/*.ts',
       ],
       exclude: ['**/__tests__/**'],
       thresholds: {
