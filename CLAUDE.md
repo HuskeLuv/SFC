@@ -57,7 +57,7 @@ Both `ignoreBuildErrors` and `ignoreDuringBuilds` are `false` — lint and type 
 
 ## Testing
 
-Vitest 1.6 with v8 coverage (59 test files, 558 tests). Tests live in `__tests__/` directories next to the module they test. Coverage threshold: 50% statements on `src/app/api/carteira/{operacao,aporte,resgate}/**/*.ts` plus `src/services/**/*.ts` and `src/hooks/**/*.ts`.
+Vitest 1.6 with v8 coverage (88 test files, 699 tests). Tests live in `__tests__/` directories next to the module they test. Coverage threshold: 50% statements on `src/app/api/carteira/{operacao,aporte,resgate}/**/*.ts` plus `src/services/**/*.ts` and `src/hooks/**/*.ts`.
 
 Test pattern: mock Prisma via `vi.hoisted()`, mock `requireAuthWithActing` from `@/utils/auth`, mock `@/lib/prisma`. Test the exported route handler (POST, GET, etc.) with `NextRequest`.
 
@@ -136,7 +136,7 @@ Test infrastructure in `src/test/`: `setup.ts` (jest-dom matchers), `wrappers.ts
 | 6.3 | [x] **Hook tests** — 40 tests covering useAssetData (18), useCarteira (12), useCashflow (10). Validates React Query migration with optimistic updates, progressive loading, multi-endpoint orchestration     | HIGH     | `src/hooks/__tests__/`                                                                                                       |
 | 6.4 | [x] **API route template tests** — 83 tests for identical cotacao (7 assets × 5 tests) and objetivo (8 assets × 6 tests) routes                                                                              | MEDIUM   | `src/app/api/carteira/{etf,fii,stocks,moedas-criptos,opcoes,previdencia-seguros,reit,fim-fia}/{cotacao,objetivo}/__tests__/` |
 | 6.5 | [x] **Component tests** — 54 tests: ErrorBoundary, LoadingSpinner, ComponentCard, SignInForm, ProtectedRoute, CarteiraTabs, GenericAssetTable, CaixaParaInvestirCard                                         | MEDIUM   | `src/components/{common,auth,carteira}/__tests__/`                                                                           |
-| 6.6 | [ ] **Remaining API route tests** — analises/_, ativos/[id]/_, cashflow sub-routes, consultant dashboard/overview, calendar, profile                                                                         | LOW      | `src/app/api/analises/**`, `src/app/api/ativos/**`, `src/app/api/cashflow/{items,structure,comments}/**`                     |
+| 6.6 | [x] **Remaining API route tests** — 111 tests: analises (18), cashflow sub-routes (25), portfolio GET routes (46), profile/calendar/historico/reserves (26)                                                  | LOW      | `src/app/api/analises/**`, `src/app/api/cashflow/**`, `src/app/api/carteira/**`, `src/app/api/historico/**`                  |
 | 6.7 | [ ] **E2E tests** — Login flow, add asset, consultant impersonation. Requires Playwright setup                                                                                                               | LOW      | New Playwright config + `e2e/` directory                                                                                     |
 
 ### Task Dependencies
