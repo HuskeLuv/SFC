@@ -1,10 +1,29 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // Desabilita source maps em produção para reduzir tamanho do bundle
+  productionBrowserSourceMaps: false,
+
+  // Remove o header X-Powered-By por segurança
+  poweredByHeader: false,
+
+  // Habilita strict mode do React
+  reactStrictMode: true,
+
+  // Otimização de imagens
+  images: {
+    formats: ['image/avif', 'image/webp'],
+  },
+
   // Configurações para resolver problemas de build no Vercel
   experimental: {
     // Configurações experimentais válidas para Next.js 15
-    optimizePackageImports: ['lucide-react', 'tailwind-merge'],
+    optimizePackageImports: [
+      'lucide-react',
+      'tailwind-merge',
+      'framer-motion',
+      '@fullcalendar/core',
+    ],
     // Desabilita avisos de enumeração de params (necessário para ApexCharts)
     dynamicIO: false,
   },
