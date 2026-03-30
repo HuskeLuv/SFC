@@ -26,17 +26,16 @@
     "baseUrl": ".",
     "outDir": "dist"
   },
-  "include": [
-    "next-env.d.ts", 
-    ".next/types/**/*.ts",
-    "src/**/*"
-  ],
+  "include": ["next-env.d.ts", ".next/types/**/*.ts", "src/**/*"],
   "exclude": [
     "node_modules",
     ".next",
     "out",
     "dist",
     "build",
-    "tests"
+    "tests",
+    "e2e",
+    "src/test",
+    "src/**/__tests__"
   ]
 }
