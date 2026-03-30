@@ -22,6 +22,8 @@
   - Lista clientes vinculados ao consultor autenticado.
 - `GET /api/consultant/overview`
   - Retorna estatísticas resumidas (quantidade de clientes, patrimônio total, rentabilidade média).
+- `GET /api/consultant/dashboard`
+  - Retorna dados completos do dashboard: overview, métricas, rankings de clientes, alertas de risco, aportes/resgates, distribuição de ativos e evolução patrimonial.
 - `GET /api/consultant/client/:id`
   - Entrega visão detalhada de um cliente: resumo financeiro, balanços, carteira, últimas movimentações.
   - Retorna `404` se o cliente não estiver vinculado ao consultor.

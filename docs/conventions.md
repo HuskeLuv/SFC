@@ -57,6 +57,39 @@
 - **Constraints applied:** `.finite()` and `.positive()` on monetary values; `.max(255)` on names; `.max(1000)` on descriptions/notes; `.email()` on emails; date strings validated via `new Date()` parsing
 - **Existing business logic untouched:** Zod validates structure and types at the entry point; domain-specific rules (e.g. quantity > available, date ranges) remain as-is after the schema check
 
+## Asset Types
+
+- Asset types extend base interfaces from `src/types/base.ts`. Use `BaseQuantityAtivo` for quantity-tracked assets (acoes, fii, etf, reit, stocks, opcoes, moedas-criptos, previdencia-seguros), `BaseFundAtivo` for fund-type assets (rendaFixa, fimFia), and `BaseAtivo` directly for unique structures (imoveis-bens).
+- Shared section totals use `BaseQuantitySecaoTotals` or `BaseFundSecaoTotals`.
+- When adding a new asset type, extend the appropriate base and only declare fields unique to that asset.
+- Asset data hooks use `useAssetData<T>` from `src/hooks/useAssetData.ts`. Specific hooks extend it with custom calculations.
+
+## API Error Handling
+
+- **Wrapper:** All App Router API handlers (`src/app/api/`) use `withErrorHandler` from `@/utils/apiErrorHandler.ts`
+- **Pattern:** Export handlers as `export const METHOD = withErrorHandler(async (request) => { ... });` — no manual try-catch needed for unhandled errors
+- **ApiError class:** Throw `new ApiError(statusCode, message, details?)` for known error conditions within business logic
+- **Common errors factory:** `Errors.unauthorized()`, `Errors.forbidden()`, `Errors.notFound(resource)`, `Errors.badRequest(message)`, `Errors.internal()` — all messages in Portuguese
+- **Auth errors:** Errors thrown by `requireAuth`/`requireAuthWithActing` (`'Não autorizado'`) are caught automatically by the wrapper and returned as 401
+- **Validation errors:** Zod `safeParse` + `validationError()` responses are returned inline (not thrown), so they bypass the wrapper — this is intentional
+- **Error messages language:** All user-facing error messages must be in Portuguese (this is a Brazilian platform)
+- **Standard messages:**
+  - 401: `'Não autorizado'`
+  - 403: `'Acesso negado'`
+  - 404: `'{Resource} não encontrado(a)'`
+  - 400: domain-specific Portuguese message
+  - 500: `'Erro interno do servidor'`
+
+  ```typescript
+  import { withErrorHandler } from '@/utils/apiErrorHandler';
+
+  export const GET = withErrorHandler(async (request) => {
+    const { targetUserId } = await requireAuthWithActing(request);
+    // ... business logic — no try-catch needed
+    return NextResponse.json(result);
+  });
+  ```
+
 ## Formatting
 
 - Prettier: semi, singleQuote, trailingComma all, printWidth 100, tabWidth 2

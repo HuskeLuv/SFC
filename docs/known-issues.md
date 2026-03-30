@@ -23,7 +23,7 @@
 - [x] ~~Consultant impersonation cookie stores raw clientId~~ — Fixed: replaced with opaque session token stored server-side in `impersonation_sessions` table
 - [x] ~~Impersonation cookie 2h expiration too long~~ — Fixed: reduced to 30 minutes
 - [x] ~~No impersonation session tracking~~ — Fixed: `ImpersonationSession` model tracks active sessions with start/end/expiry; `GET /api/consultant/active-sessions` endpoint for auditing
-- [ ] Legacy Pages Router still in src/pages/ (64K) — migrate to App Router
+- [x] ~~Legacy Pages Router still in src/pages/ (64K) — migrate to App Router~~ — Fixed: all routes migrated to App Router, `src/pages/` removed
 - [ ] Mixed Portuguese/English route naming
 - [ ] No React Error Boundaries
 - [ ] No accessibility (ARIA labels, focus management, contrast)
