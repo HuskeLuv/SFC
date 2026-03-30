@@ -2,9 +2,13 @@ import { defineConfig } from 'vitest/config';
 import path from 'node:path';
 
 export default defineConfig({
+  esbuild: {
+    jsx: 'automatic',
+  },
   test: {
     globals: true,
     environment: 'node',
+    setupFiles: ['./src/test/setup.ts'],
     exclude: ['**/node_modules/**', '**/.claude/**', '**/dist/**'],
     coverage: {
       enabled: true,
