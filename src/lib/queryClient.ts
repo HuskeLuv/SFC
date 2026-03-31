@@ -8,7 +8,7 @@ function makeQueryClient() {
       queries: {
         staleTime: 60 * 1000,
         gcTime: 5 * 60 * 1000,
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
         retry: 1,
       },
     },
@@ -16,6 +16,7 @@ function makeQueryClient() {
 }
 
 let browserQueryClient: QueryClient | undefined;
+let bfcacheListenerRegistered = false;
 
 export function getQueryClient() {
   if (typeof window === 'undefined') {
@@ -23,6 +24,14 @@ export function getQueryClient() {
   }
   if (!browserQueryClient) {
     browserQueryClient = makeQueryClient();
+  }
+  if (!bfcacheListenerRegistered) {
+    bfcacheListenerRegistered = true;
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted && browserQueryClient) {
+        browserQueryClient.invalidateQueries();
+      }
+    });
   }
   return browserQueryClient;
 }

@@ -67,11 +67,18 @@ function applyRateLimitHeaders(
 }
 
 /** Apply security headers to a response. */
-function setSecurityHeaders(response: NextResponse): void {
+function setSecurityHeaders(response: NextResponse, request: NextRequest): void {
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+
+  // Prevent Safari/macOS from serving stale pages and API responses from disk cache
+  const { pathname } = request.nextUrl;
+  if (!pathname.startsWith('/_next/static')) {
+    response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    response.headers.set('Vary', 'Cookie');
+  }
 }
 
 export async function middleware(request: NextRequest) {
@@ -96,7 +103,7 @@ export async function middleware(request: NextRequest) {
         { status: 429 },
       );
       applyRateLimitHeaders(response, result.headers);
-      setSecurityHeaders(response);
+      setSecurityHeaders(response, request);
       return response;
     }
 
@@ -106,7 +113,7 @@ export async function middleware(request: NextRequest) {
   // --- Public routes: allow through without auth ---
   if (isPublicRoute(pathname)) {
     const response = NextResponse.next();
-    setSecurityHeaders(response);
+    setSecurityHeaders(response, request);
     applyRateLimitHeaders(response, rateLimitHeaders);
     return response;
   }
@@ -117,7 +124,7 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/signin';
     const response = NextResponse.redirect(url);
-    setSecurityHeaders(response);
+    setSecurityHeaders(response, request);
     return response;
   }
 
@@ -129,7 +136,7 @@ export async function middleware(request: NextRequest) {
     url.pathname = '/signin';
     const response = NextResponse.redirect(url);
     response.cookies.delete('token');
-    setSecurityHeaders(response);
+    setSecurityHeaders(response, request);
     return response;
   }
 
@@ -144,14 +151,14 @@ export async function middleware(request: NextRequest) {
         { error: 'CSRF token missing or invalid' },
         { status: 403 },
       );
-      setSecurityHeaders(response);
+      setSecurityHeaders(response, request);
       return response;
     }
   }
 
   // --- Ensure CSRF cookie is set (for all authenticated responses) ---
   const response = NextResponse.next();
-  setSecurityHeaders(response);
+  setSecurityHeaders(response, request);
   applyRateLimitHeaders(response, rateLimitHeaders);
   if (!request.cookies.get(CSRF_COOKIE_NAME)) {
     response.cookies.set(CSRF_COOKIE_NAME, generateCsrfToken(), {

@@ -6,7 +6,7 @@ import { logConsultantAction } from '@/services/impersonationLogger';
 import { authenticateConsultant, assertClientOwnership } from '@/utils/consultantAuth';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-const CACHE_CONTROL_HEADER = 's-maxage=300, stale-while-revalidate=60';
+const CACHE_CONTROL_HEADER = 'private, no-cache, no-store, must-revalidate';
 
 const getClientBalances = async (clientId: string) => {
   const now = new Date();
