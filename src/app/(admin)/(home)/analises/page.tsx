@@ -1,14 +1,12 @@
-"use client";
-import React from "react";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import AnalisesTabs from "@/components/analises/AnalisesTabs";
+'use client';
+import React from 'react';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import CarteiraAnalise from '@/components/carteira/CarteiraAnalise';
 
 export default function Analises() {
   return (
     <ProtectedRoute>
-      <AnalisesTabs />
+      <CarteiraAnalise />
     </ProtectedRoute>
   );
 }
-
-

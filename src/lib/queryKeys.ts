@@ -29,4 +29,7 @@ export const queryKeys = {
   alocacao: {
     config: () => ['alocacao', 'config'] as const,
   },
+  riscoRetorno: {
+    all: ['riscoRetorno'] as const,
+  },
 } as const;
