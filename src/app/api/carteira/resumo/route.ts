@@ -519,11 +519,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   if (historicoPatrimonio.length === 0) {
     const hoje = new Date();
     const saldo = Math.round(saldoBruto * 100) / 100;
+    const aplicado = Math.round(valorAplicado * 100) / 100;
     for (let i = 11; i >= 0; i--) {
       const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
       historicoPatrimonio.push({
         data: data.getTime(),
-        valorAplicado: 0,
+        valorAplicado: aplicado,
         saldoBruto: saldo,
       });
     }

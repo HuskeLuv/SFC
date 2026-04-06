@@ -520,6 +520,17 @@ export const buildPatrimonioHistorico = async (
     });
   }
 
+  // Backfill: se todos os saldoBruto são 0 mas o valor atual é > 0 (sem histórico de preços no DB),
+  // preenche a série com o valor atual para evitar linha invisível no gráfico
+  const allSaldoZero =
+    patrimonioSeries.length > 0 && patrimonioSeries.every((p) => p.saldoBruto === 0);
+  if (allSaldoZero && saldoBrutoAtual > 0) {
+    const rounded = Math.round(saldoBrutoAtual * 100) / 100;
+    patrimonioSeries.forEach((p) => {
+      p.saldoBruto = rounded;
+    });
+  }
+
   const saldoBrutoRounded =
     Math.round((saldoBrutoAtual > 0 ? saldoBrutoAtual : valorAplicadoAtual) * 100) / 100;
   const valorAplicadoRounded = Math.round(valorAplicadoAtual * 100) / 100;

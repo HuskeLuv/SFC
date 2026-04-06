@@ -174,7 +174,7 @@ export default function LineChartCarteiraHistorico({
         },
       },
       yaxis: {
-        min: 0,
+        min: undefined,
         title: {
           text: '',
           style: {
