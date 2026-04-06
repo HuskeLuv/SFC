@@ -401,7 +401,7 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
  * Calcula startDate e endDate com base no range.
  * Usa getAssetHistory (DB-first) com fallback BRAPI.
  */
-const getRangeDates = (range: '1d' | '1mo' | '1y' | '2y', startDateParam?: Date) => {
+const getRangeDates = (range: string, startDateParam?: Date) => {
   const end = new Date();
   const start = new Date();
 
@@ -417,6 +417,15 @@ const getRangeDates = (range: '1d' | '1mo' | '1y' | '2y', startDateParam?: Date)
       break;
     case '2y':
       start.setFullYear(start.getFullYear() - 2);
+      break;
+    case '3y':
+      start.setFullYear(start.getFullYear() - 3);
+      break;
+    case '5y':
+      start.setFullYear(start.getFullYear() - 5);
+      break;
+    case '10y':
+      start.setFullYear(start.getFullYear() - 10);
       break;
     default:
       start.setFullYear(start.getFullYear() - 1);
@@ -481,7 +490,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   await requireAuthWithActing(request);
 
   const { searchParams } = new URL(request.url);
-  const range = (searchParams.get('range') || '1y') as '1d' | '1mo' | '1y' | '2y';
+  const range = searchParams.get('range') || '1y';
   const startDateParam = searchParams.get('startDate');
 
   let startDate: Date | undefined;

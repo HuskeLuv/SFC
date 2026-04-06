@@ -20,7 +20,7 @@ interface UseIndicesResult {
 }
 
 export const useIndices = (
-  range: '1d' | '1mo' | '1y' | '2y' = '1y',
+  range: '1d' | '1mo' | '1y' | '2y' | '3y' | '5y' | '10y' = '1y',
   startDate?: number,
 ): UseIndicesResult => {
   const {

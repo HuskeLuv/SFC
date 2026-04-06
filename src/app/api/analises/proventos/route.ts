@@ -184,7 +184,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     .filter(Boolean) as PortfolioAssetEntry[];
 
   if (portfolioAssets.length === 0) {
-    return NextResponse.json({ proventos: [], grouped: {}, total: 0, media: 0 });
+    return NextResponse.json({
+      proventos: [],
+      grouped: {},
+      monthly: {},
+      yearly: {},
+      total: 0,
+      media: 0,
+    });
   }
 
   const stockIds = portfolioAssets.map((item) => item.stockId).filter(Boolean) as string[];
@@ -262,7 +269,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
 
   const startDateTime = startDate ? new Date(startDate).getTime() : undefined;
-  const endDateTime = endDate ? new Date(endDate).getTime() : undefined;
+  // Incluir o dia inteiro do endDate (fim do dia)
+  const endDateTime = endDate
+    ? new Date(new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1).getTime()
+    : undefined;
 
   const proventos: ProventoData[] = [];
   const hojeMs = Date.now();
@@ -287,10 +297,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (dateTime > hojeMs) return; // Apenas histórico (exclui a_receber)
 
       const quantidadeHistorica = getQuantityAtDate(timeline, dateTime);
-      const quantidade = quantidadeHistorica > 0 ? quantidadeHistorica : asset.quantity;
+      // Usar quantidade histórica; fallback para atual apenas se não há timeline (sem transações)
+      const quantidade =
+        quantidadeHistorica > 0 ? quantidadeHistorica : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) return;
 
-      const valor = quantidade * d.valorUnitario;
+      const valor = Math.round(quantidade * d.valorUnitario * 100) / 100;
       proventos.push({
         id: `${asset.symbol}-${dateTime}-${index}`,
         data: d.date.toISOString(),
@@ -397,13 +409,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     yearlySummary[yearKey].count += 1;
   });
 
+  const totalProventos = proventos.reduce((sum, p) => sum + p.valor, 0);
+  const mesesComProventos = Object.keys(monthlySummary).length;
+  const mediaMensal = mesesComProventos > 0 ? totalProventos / mesesComProventos : 0;
+
   return NextResponse.json({
     proventos,
     grouped: groupedData,
     monthly: monthlySummary,
     yearly: yearlySummary,
-    total: proventos.reduce((sum, p) => sum + p.valor, 0),
-    media:
-      proventos.length > 0 ? proventos.reduce((sum, p) => sum + p.valor, 0) / proventos.length : 0,
+    total: Math.round(totalProventos * 100) / 100,
+    media: Math.round(mediaMensal * 100) / 100,
   });
 });

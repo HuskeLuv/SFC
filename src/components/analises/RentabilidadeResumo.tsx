@@ -164,21 +164,24 @@ export default function RentabilidadeResumo() {
 
     const rentabilidadeTotal = resumo.rentabilidade || 0;
     const cdi12Meses = rentabilidades.cdi.dozeMeses || 0;
-    const sobreCDI = cdi12Meses > 0 ? (rentabilidadeTotal / cdi12Meses - 1) * 100 : 0;
+    // "% sobre CDI" no mercado BR = percentual do CDI atingido (ex: 120% do CDI)
+    const sobreCDI = cdi12Meses > 0 ? (rentabilidadeTotal / cdi12Meses) * 100 : 0;
+    // "% REAL" = retorno acima do CDI (excesso de retorno)
+    const real = rentabilidadeTotal - cdi12Meses;
 
     return {
-      real: rentabilidadeTotal, // % REAL = rentabilidade total
-      total: rentabilidadeTotal, // % TOTAL = rentabilidade total (mesmo valor)
-      sobreCDI: sobreCDI, // % SOBRE CDI = quanto acima/abaixo do CDI
+      real,
+      total: rentabilidadeTotal,
+      sobreCDI,
     };
   }, [resumo, rentabilidades]);
 
   // Dados para o gráfico donut (Carteira, CDI, IBOV baseado na rentabilidade de 12 meses)
   const donutData = useMemo(() => {
-    // Usar valores absolutos para garantir valores positivos
-    const carteiraValor = Math.abs(rentabilidades.carteira.dozeMeses || 0);
-    const cdiValor = Math.abs(rentabilidades.cdi.dozeMeses || 0);
-    const ibovValor = Math.abs(rentabilidades.ibov.dozeMeses || 0);
+    // Usar valores reais (positivos) para o donut; séries negativas ficam de fora
+    const carteiraValor = Math.max(0, rentabilidades.carteira.dozeMeses || 0);
+    const cdiValor = Math.max(0, rentabilidades.cdi.dozeMeses || 0);
+    const ibovValor = Math.max(0, rentabilidades.ibov.dozeMeses || 0);
 
     const valores = [
       { nome: 'CARTEIRA', valor: carteiraValor, cor: '#465FFF' },

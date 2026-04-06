@@ -120,10 +120,11 @@ export default function RentabilidadeGeral() {
 
   // Range dos índices deve cobrir o período selecionado para evitar dados incompletos
   const indicesDailyRange = useMemo(() => {
-    if (selectedRange === '12m') return '1y';
+    if (selectedRange === '12m' || selectedRange === 'ano') return '1y';
     if (selectedRange === '2y') return '2y';
-    if (selectedRange === '3y' || selectedRange === '5y' || selectedRange === '10y') return '2y';
-    if (selectedRange === 'ano') return '1y';
+    if (selectedRange === '3y') return '3y';
+    if (selectedRange === '5y') return '5y';
+    if (selectedRange === '10y') return '10y';
     return '1y'; // "inicio" e default: 1y (indices API expande conforme startDate)
   }, [selectedRange]);
   // Para os períodos "1d" e "1mo", passar a data do primeiro investimento
@@ -157,7 +158,7 @@ export default function RentabilidadeGeral() {
         typeof (item as Record<string, number>)[key] === 'number' &&
         (item as Record<string, number>)[key] >= startDate,
     );
-    return filtered.length === 0 ? data : filtered;
+    return filtered;
   };
 
   /**
