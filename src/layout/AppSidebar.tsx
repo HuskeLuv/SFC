@@ -11,6 +11,7 @@ import {
   DollarLineIcon,
   GridIcon,
   HorizontaLDots,
+  PencilIcon,
   TableIcon,
   UserCircleIcon,
   DocsIcon,
@@ -38,6 +39,11 @@ const MAIN_NAV_ITEMS: NavItem[] = [
     name: 'Fluxo de Caixa',
     icon: <TableIcon />,
     path: '/fluxodecaixa',
+  },
+  {
+    name: 'Planejamento',
+    icon: <PencilIcon />,
+    path: '/planejamento-financeiro',
   },
   {
     icon: <CalenderIcon />,
@@ -103,7 +109,13 @@ const AppSidebar: React.FC = () => {
 
     // Se estiver personificado, mostrar apenas: Dashboard, Fluxo de Caixa, Carteira e Relatórios
     if (actingClient) {
-      const allowedItems = ['Dashboard', 'Fluxo de Caixa', 'Carteira', 'Relatórios'];
+      const allowedItems = [
+        'Dashboard',
+        'Fluxo de Caixa',
+        'Carteira',
+        'Relatórios',
+        'Planejamento',
+      ];
       items = items.filter((item) => allowedItems.includes(item.name));
     }
 
