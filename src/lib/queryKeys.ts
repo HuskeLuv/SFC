@@ -12,6 +12,7 @@ export const queryKeys = {
   },
   cashflow: {
     all: ['cashflow'] as const,
+    year: (year: number) => [...queryKeys.cashflow.all, year] as const,
   },
   reserva: {
     emergencia: () => ['reserva', 'emergencia'] as const,

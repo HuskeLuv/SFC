@@ -21,8 +21,29 @@ export const useGroupEditMode = () => {
   const [editingGroups, setEditingGroups] = useState<Set<string>>(new Set());
   const [editedItems, setEditedItems] = useState<Map<string, EditableItemData>>(new Map());
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
-  const [selectedColor, setSelectedColor] = useState<ColorOption | null>(null); // Cor selecionada para aplicar
-  const [isCommentModeActive, setIsCommentModeActive] = useState(false); // Modo de comentário ativo
+  // Unified UI mode: null = normal, { type: 'color', color } = color mode, { type: 'comment' } = comment mode
+  type UIMode = null | { type: 'color'; color: ColorOption } | { type: 'comment' };
+  const [uiMode, setUIMode] = useState<UIMode>(null);
+
+  // Derived state for backwards compatibility
+  const selectedColor = uiMode?.type === 'color' ? uiMode.color : null;
+  const isCommentModeActive = uiMode?.type === 'comment';
+
+  const setSelectedColor = useCallback((color: ColorOption | null) => {
+    setUIMode(color ? { type: 'color', color } : null);
+  }, []);
+
+  const setIsCommentModeActive = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    if (typeof value === 'function') {
+      setUIMode((prev) => {
+        const currentActive = prev?.type === 'comment';
+        const newActive = value(currentActive);
+        return newActive ? { type: 'comment' } : null;
+      });
+    } else {
+      setUIMode(value ? { type: 'comment' } : null);
+    }
+  }, []);
 
   const startEditing = useCallback((groupId: string, items: CashflowItem[]) => {
     setEditingGroups((prev) => new Set(prev).add(groupId));
@@ -98,9 +119,8 @@ export const useGroupEditMode = () => {
       return newSet;
     });
 
-    // Limpar cor selecionada quando sair do modo de edição
-    setSelectedColor(null);
-    setIsCommentModeActive(false);
+    // Limpar modo UI quando sair do modo de edição
+    setUIMode(null);
   }, []);
 
   const isEditing = useCallback(
@@ -214,9 +234,8 @@ export const useGroupEditMode = () => {
       return newSet;
     });
 
-    // Limpar cor selecionada ao cancelar
-    setSelectedColor(null);
-    setIsCommentModeActive(false);
+    // Limpar modo UI ao cancelar
+    setUIMode(null);
   }, []);
 
   const getEditedItem = useCallback(

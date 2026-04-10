@@ -11,6 +11,7 @@ const mockPrisma = vi.hoisted(() => ({
   cashflowValue: {
     findFirst: vi.fn(),
     create: vi.fn(),
+    createMany: vi.fn(),
     update: vi.fn(),
     deleteMany: vi.fn(),
   },
@@ -23,17 +24,27 @@ const mockPrisma = vi.hoisted(() => ({
     findFirst: vi.fn(),
     create: vi.fn(),
   },
+  $transaction: vi
+    .fn()
+    .mockImplementation((args: unknown) =>
+      Array.isArray(args)
+        ? Promise.all(args)
+        : (args as (tx: unknown) => Promise<unknown>)(mockPrisma),
+    ),
 }));
 
 const mockGetItemForUser = vi.hoisted(() => vi.fn());
 const mockPersonalizeItem = vi.hoisted(() => vi.fn());
+const mockEnsurePersonalizedItem = vi.hoisted(() => vi.fn());
+
+const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({
-  requireAuthWithActing: vi.fn().mockResolvedValue({
-    payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
-    targetUserId: 'user-123',
-    actingClient: null,
-  }),
+  requireAuthWithActing: mockRequireAuthWithActing,
+}));
+
+vi.mock('@/services/impersonationLogger', () => ({
+  logSensitiveEndpointAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -44,6 +55,7 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/utils/cashflowPersonalization', () => ({
   personalizeItem: mockPersonalizeItem,
   getItemForUser: mockGetItemForUser,
+  ensurePersonalizedItem: mockEnsurePersonalizedItem,
 }));
 
 vi.mock('jsonwebtoken', () => ({
@@ -85,7 +97,13 @@ describe('PATCH /api/cashflow/values', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
+      targetUserId: 'user-123',
+      actingClient: null,
+    });
     mockGetItemForUser.mockResolvedValue(mockItem);
+    mockEnsurePersonalizedItem.mockResolvedValue({ itemId: mockItem.id, item: mockItem });
   });
 
   it('atualiza valor mensal com sucesso (upsert - create)', async () => {
@@ -207,6 +225,8 @@ describe('PATCH /api/cashflow/values', () => {
   });
 
   it('retorna 401 quando token nao fornecido', async () => {
+    mockRequireAuthWithActing.mockRejectedValue(new Error('Não autorizado'));
+
     const response = await PATCH(
       createRequestNoToken({
         itemId: 'item-1',
@@ -218,7 +238,7 @@ describe('PATCH /api/cashflow/values', () => {
     const data = await response.json();
 
     expect(response.status).toBe(401);
-    expect(data.error).toContain('Token');
+    expect(data.error).toContain('autorizado');
   });
 
   it('atualiza campo name do item', async () => {
@@ -244,7 +264,7 @@ describe('PATCH /api/cashflow/values', () => {
 
   it('distribui annualTotal igualmente entre os 12 meses', async () => {
     mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 0 });
-    mockPrisma.cashflowValue.create.mockResolvedValue({});
+    mockPrisma.cashflowValue.createMany.mockResolvedValue({ count: 12 });
     mockPrisma.cashflowItem.findUnique.mockResolvedValue({
       ...mockItem,
       values: [],
@@ -259,7 +279,13 @@ describe('PATCH /api/cashflow/values', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mockPrisma.$transaction).toHaveBeenCalled();
     expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalled();
-    expect(mockPrisma.cashflowValue.create).toHaveBeenCalledTimes(12);
+    expect(mockPrisma.cashflowValue.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ month: 0, value: 1000 }),
+        expect.objectContaining({ month: 11, value: 1000 }),
+      ]),
+    });
   });
 });

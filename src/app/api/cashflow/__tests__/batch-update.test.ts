@@ -25,17 +25,27 @@ const mockPrisma = vi.hoisted(() => ({
     findFirst: vi.fn(),
     create: vi.fn(),
   },
+  $transaction: vi
+    .fn()
+    .mockImplementation((args: unknown) =>
+      Array.isArray(args)
+        ? Promise.all(args)
+        : (args as (tx: unknown) => Promise<unknown>)(mockPrisma),
+    ),
 }));
 
 const mockGetItemForUser = vi.hoisted(() => vi.fn());
 const mockPersonalizeItem = vi.hoisted(() => vi.fn());
+const mockEnsurePersonalizedItem = vi.hoisted(() => vi.fn());
+
+const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({
-  requireAuthWithActing: vi.fn().mockResolvedValue({
-    payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
-    targetUserId: 'user-123',
-    actingClient: null,
-  }),
+  requireAuthWithActing: mockRequireAuthWithActing,
+}));
+
+vi.mock('@/services/impersonationLogger', () => ({
+  logSensitiveEndpointAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -46,6 +56,7 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/utils/cashflowPersonalization', () => ({
   personalizeItem: mockPersonalizeItem,
   getItemForUser: mockGetItemForUser,
+  ensurePersonalizedItem: mockEnsurePersonalizedItem,
 }));
 
 vi.mock('jsonwebtoken', () => ({
@@ -78,13 +89,20 @@ const createRequestNoToken = (body: object) =>
 describe('PUT /api/cashflow/batch-update', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
+      targetUserId: 'user-123',
+      actingClient: null,
+    });
   });
 
   it('processa batch update com multiplos itens', async () => {
     const userItem1 = { id: 'item-1', name: 'Salario', userId: 'user-123', groupId: 'g1' };
     const userItem2 = { id: 'item-2', name: 'Bonus', userId: 'user-123', groupId: 'g1' };
 
-    mockGetItemForUser.mockResolvedValueOnce(userItem1).mockResolvedValueOnce(userItem2);
+    mockEnsurePersonalizedItem
+      .mockResolvedValueOnce({ itemId: 'item-1', item: userItem1 })
+      .mockResolvedValueOnce({ itemId: 'item-2', item: userItem2 });
 
     mockPrisma.cashflowItem.update.mockResolvedValue({});
     mockPrisma.cashflowValue.findFirst.mockResolvedValue(null);
@@ -135,6 +153,8 @@ describe('PUT /api/cashflow/batch-update', () => {
   });
 
   it('retorna 401 quando token nao fornecido', async () => {
+    mockRequireAuthWithActing.mockRejectedValue(new Error('Não autorizado'));
+
     const response = await PUT(
       createRequestNoToken({
         groupId: 'g1',
@@ -144,7 +164,7 @@ describe('PUT /api/cashflow/batch-update', () => {
     const data = await response.json();
 
     expect(response.status).toBe(401);
-    expect(data.error).toContain('Token');
+    expect(data.error).toContain('autorizado');
   });
 
   it('processa deletes corretamente', async () => {
@@ -169,8 +189,10 @@ describe('PUT /api/cashflow/batch-update', () => {
 
   it('personaliza item template antes de atualizar', async () => {
     const templateItem = { id: 'tpl-item-1', name: 'Salario', userId: null, groupId: 'g1' };
-    mockGetItemForUser.mockResolvedValue(templateItem);
-    mockPersonalizeItem.mockResolvedValue('personalized-item-1');
+    mockEnsurePersonalizedItem.mockResolvedValue({
+      itemId: 'personalized-item-1',
+      item: templateItem,
+    });
     mockPrisma.cashflowItem.update.mockResolvedValue({});
 
     const response = await PUT(
@@ -182,6 +204,6 @@ describe('PUT /api/cashflow/batch-update', () => {
     await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockPersonalizeItem).toHaveBeenCalledWith('tpl-item-1', 'user-123');
+    expect(mockEnsurePersonalizedItem).toHaveBeenCalledWith('tpl-item-1', 'user-123');
   });
 });

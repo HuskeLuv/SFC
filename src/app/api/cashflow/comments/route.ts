@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
-import { personalizeItem, getItemForUser } from '@/utils/cashflowPersonalization';
+import { requireAuthWithActing } from '@/utils/auth';
+import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
+import { getItemForUser, ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { cashflowCommentSchema, validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -11,12 +12,16 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * Query params: itemId, month, year
  */
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const token = request.cookies.get('token')?.value;
-  if (!token) {
-    return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
-  }
+  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  await logSensitiveEndpointAccess(
+    request,
+    payload,
+    targetUserId,
+    actingClient,
+    '/api/cashflow/comments',
+    'GET',
+  );
 
-  const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
   const { searchParams } = new URL(request.url);
   const itemId = searchParams.get('itemId');
   const month = searchParams.get('month');
@@ -30,7 +35,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   // Buscar item (pode ser template ou personalizado)
-  const item = await getItemForUser(itemId, payload.id);
+  const item = await getItemForUser(itemId, targetUserId);
   if (!item) {
     return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
   }
@@ -43,7 +48,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       where: {
         name: item.name,
         groupId: item.groupId,
-        userId: payload.id,
+        userId: targetUserId,
       },
     });
     if (personalizedItem) {
@@ -65,7 +70,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const cashflowValue = await prisma.cashflowValue.findFirst({
     where: {
       itemId: finalItemId,
-      userId: payload.id,
+      userId: targetUserId,
       year: yearInt,
       month: monthIndex,
     },
@@ -88,12 +93,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
  * Body: { itemId, month, year, comment }
  */
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
-  const token = request.cookies.get('token')?.value;
-  if (!token) {
-    return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
-  }
+  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  await logSensitiveEndpointAccess(
+    request,
+    payload,
+    targetUserId,
+    actingClient,
+    '/api/cashflow/comments',
+    'PATCH',
+  );
 
-  const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
   const body = await request.json();
   const parsed = cashflowCommentSchema.safeParse(body);
   if (!parsed.success) {
@@ -101,36 +110,25 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   }
   const { itemId, month, year, comment } = parsed.data;
 
-  // Log para debug (remover em produção se necessário)
-  console.log(
-    `[PATCH /api/cashflow/comments] Usuário ID do token: ${payload.id}, Email: ${payload.email}`,
-  );
-
-  // Buscar item (pode ser template ou personalizado)
-  const item = await getItemForUser(itemId, payload.id);
-  if (!item) {
-    return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
-  }
-
-  // Se é template, personalizar antes de adicionar comentário
-  let finalItemId = item.id;
-  if (item.userId === null) {
-    try {
-      finalItemId = await personalizeItem(item.id, payload.id);
-    } catch (error: unknown) {
-      console.error('Erro ao personalizar item:', error);
-      // Se o erro for sobre usuário não encontrado, pode ser que o token esteja usando ID antigo
-      if (error instanceof Error && error.message.includes('Usuário não encontrado')) {
-        return NextResponse.json(
-          { error: 'Sessão inválida. Por favor, faça login novamente.' },
-          { status: 401 },
-        );
-      }
+  // Ensure item is personalized (creates a copy if it's a template)
+  let finalItemId: string;
+  try {
+    ({ itemId: finalItemId } = await ensurePersonalizedItem(itemId, targetUserId));
+  } catch (error: unknown) {
+    console.error('Erro ao personalizar item:', error);
+    if (error instanceof Error && error.message.includes('Usuário não encontrado')) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Erro ao personalizar item.' },
-        { status: 500 },
+        { error: 'Sessão inválida. Por favor, faça login novamente.' },
+        { status: 401 },
       );
     }
+    if (error instanceof Error && error.message === 'Item não encontrado') {
+      return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Erro ao personalizar item.' },
+      { status: 500 },
+    );
   }
 
   // Normalizar comment (null se string vazia, trim se não vazio)
@@ -141,7 +139,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   const existingValue = await prisma.cashflowValue.findFirst({
     where: {
       itemId: finalItemId,
-      userId: payload.id,
+      userId: targetUserId,
       year: year,
       month: month,
     },
@@ -172,7 +170,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
     const newValue = await prisma.cashflowValue.create({
       data: {
         itemId: finalItemId,
-        userId: payload.id,
+        userId: targetUserId,
         year: year,
         month: month,
         value: defaultValue,

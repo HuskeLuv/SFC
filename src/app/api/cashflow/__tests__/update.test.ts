@@ -20,6 +20,7 @@ const mockPrisma = vi.hoisted(() => ({
     count: vi.fn(),
   },
   cashflowValue: { deleteMany: vi.fn() },
+  $transaction: vi.fn().mockResolvedValue([]),
 }));
 
 const mockPersonalizeGroup = vi.hoisted(() => vi.fn());
@@ -42,7 +43,10 @@ vi.mock('@/utils/cashflowPersonalization', () => ({
   getItemForUser: mockGetItemForUser,
   getGroupForUser: mockGetGroupForUser,
 }));
-vi.mock('@/services/impersonationLogger', () => ({ logDataUpdate: vi.fn() }));
+vi.mock('@/services/impersonationLogger', () => ({
+  logDataUpdate: vi.fn(),
+  logSensitiveEndpointAccess: vi.fn(),
+}));
 vi.mock('jsonwebtoken', () => ({
   default: { verify: () => ({ id: 'user-123', email: 'test@test.com', role: 'user' }) },
 }));

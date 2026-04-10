@@ -18,19 +18,16 @@ export function isTemplate<T extends { userId: string | null }>(entity: T): bool
 export async function personalizeGroup(
   templateGroupId: string,
   userId: string,
-  newParentId?: string | null
+  newParentId?: string | null,
 ): Promise<string> {
   // Verificar se o usuário existe PRIMEIRO (antes de qualquer processamento)
   // Isso evita processamento desnecessário e erros em chamadas recursivas
   const userExists = await prisma.user.findUnique({
     where: { id: userId },
   });
-  
+
   if (!userExists) {
-    // Verificar se existem usuários no banco (para debug)
-    const userCount = await prisma.user.count();
-    console.error(`[personalizeGroup] Usuário não encontrado. ID buscado: ${userId}, Total de usuários no banco: ${userCount}`);
-    throw new Error(`Usuário não encontrado no banco de dados. O token JWT pode estar desatualizado. Por favor, faça logout e login novamente.`);
+    throw new Error('Usuário não encontrado. Faça logout e login novamente.');
   }
 
   // Verificar se já existe personalização
@@ -51,14 +48,14 @@ export async function personalizeGroup(
   }
 
   // Determinar parentId correto
-  let finalParentId: string | null = newParentId !== undefined ? (newParentId || null) : null;
-  
+  let finalParentId: string | null = newParentId !== undefined ? newParentId || null : null;
+
   // Se não foi fornecido explicitamente e grupo tem parent no template, tentar personalizar o parent também
   if (finalParentId === null && templateGroup.parentId) {
     const templateParent = await prisma.cashflowGroup.findUnique({
       where: { id: templateGroup.parentId },
     });
-    
+
     if (templateParent && templateParent.userId === null) {
       // Parent também é template - personalizar parent primeiro
       // Não precisamos verificar o usuário novamente aqui pois já verificamos no início
@@ -90,36 +87,55 @@ export async function personalizeGroup(
     return existingCustom.id; // Já existe personalização
   }
 
-  // Criar cópia do grupo
-  const customGroup = await prisma.cashflowGroup.create({
-    data: {
-      userId,
-      name: templateGroup.name,
-      type: templateGroup.type,
-      orderIndex: templateGroup.orderIndex,
-      parentId: finalParentId,
-    },
-  });
+  // Criar cópia do grupo dentro de uma transação para evitar race conditions
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Double-check dentro da transação
+      const existing = await tx.cashflowGroup.findFirst({
+        where: { userId, name: templateGroup.name, parentId: finalParentId },
+      });
+      if (existing) return existing.id;
 
-  // Copiar itens
-  for (const templateItem of templateGroup.items) {
-    await prisma.cashflowItem.create({
-      data: {
-        userId,
-        groupId: customGroup.id,
-        name: templateItem.name,
-        significado: templateItem.significado,
-        rank: templateItem.rank,
-      },
+      const customGroup = await tx.cashflowGroup.create({
+        data: {
+          userId,
+          name: templateGroup.name,
+          type: templateGroup.type,
+          orderIndex: templateGroup.orderIndex,
+          parentId: finalParentId,
+        },
+      });
+
+      // Copiar itens dentro da mesma transação
+      for (const templateItem of templateGroup.items) {
+        await tx.cashflowItem.create({
+          data: {
+            userId,
+            groupId: customGroup.id,
+            name: templateItem.name,
+            significado: templateItem.significado,
+            rank: templateItem.rank,
+          },
+        });
+      }
+
+      return customGroup.id;
     });
-  }
 
-  // Copiar filhos recursivamente (com parentId correto)
-  for (const child of templateGroup.children) {
-    await personalizeGroup(child.id, userId, customGroup.id);
-  }
+    // Copiar filhos FORA da transação (chamam personalizeGroup recursivamente com suas próprias transações)
+    for (const child of templateGroup.children) {
+      await personalizeGroup(child.id, userId, result);
+    }
 
-  return customGroup.id;
+    return result;
+  } catch (error) {
+    // Se criação falhou por race condition, tentar encontrar o existente
+    const existing = await prisma.cashflowGroup.findFirst({
+      where: { userId, name: templateGroup.name, parentId: finalParentId },
+    });
+    if (existing) return existing.id;
+    throw error;
+  }
 }
 
 /**
@@ -128,18 +144,15 @@ export async function personalizeGroup(
 export async function personalizeItem(
   templateItemId: string,
   userId: string,
-  targetGroupId?: string
+  targetGroupId?: string,
 ): Promise<string> {
   // Verificar se o usuário existe PRIMEIRO (antes de qualquer processamento)
   const userExists = await prisma.user.findUnique({
     where: { id: userId },
   });
-  
+
   if (!userExists) {
-    // Verificar se existem usuários no banco (para debug)
-    const userCount = await prisma.user.count();
-    console.error(`[personalizeItem] Usuário não encontrado. ID buscado: ${userId}, Total de usuários no banco: ${userCount}`);
-    throw new Error(`Usuário não encontrado no banco de dados. O token JWT pode estar desatualizado. Por favor, faça logout e login novamente.`);
+    throw new Error('Usuário não encontrado. Faça logout e login novamente.');
   }
 
   const templateItem = await prisma.cashflowItem.findUnique({
@@ -182,28 +195,44 @@ export async function personalizeItem(
     finalGroupId = personalizedGroupId;
   }
 
-  // Criar cópia do item
-  const customItem = await prisma.cashflowItem.create({
-    data: {
-      userId,
-      groupId: finalGroupId,
-      name: templateItem.name,
-      significado: templateItem.significado,
-      rank: templateItem.rank,
-    },
-  });
+  // Criar cópia do item dentro de uma transação para evitar race conditions
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Double-check dentro da transação
+      const existing = await tx.cashflowItem.findFirst({
+        where: { userId, name: templateItem.name, groupId: finalGroupId },
+      });
+      if (existing) return existing.id;
 
-  return customItem.id;
+      const customItem = await tx.cashflowItem.create({
+        data: {
+          userId,
+          groupId: finalGroupId,
+          name: templateItem.name,
+          significado: templateItem.significado,
+          rank: templateItem.rank,
+        },
+      });
+
+      return customItem.id;
+    });
+
+    return result;
+  } catch (error) {
+    // Se criação falhou por race condition, tentar encontrar o existente
+    const existing = await prisma.cashflowItem.findFirst({
+      where: { userId, name: templateItem.name, groupId: finalGroupId },
+    });
+    if (existing) return existing.id;
+    throw error;
+  }
 }
 
 /**
  * Obtém item personalizado ou template para um usuário
  * Se não existe personalização, retorna template
  */
-export async function getItemForUser(
-  itemId: string,
-  userId: string
-): Promise<CashflowItem | null> {
+export async function getItemForUser(itemId: string, userId: string): Promise<CashflowItem | null> {
   // Primeiro tentar buscar item personalizado
   const customItem = await prisma.cashflowItem.findFirst({
     where: {
@@ -225,11 +254,30 @@ export async function getItemForUser(
 }
 
 /**
+ * Ensures an item is personalized for the user.
+ * If the item is a template (userId === null), creates a personalized copy.
+ * Returns the ID of the personalized item.
+ */
+export async function ensurePersonalizedItem(
+  itemId: string,
+  userId: string,
+): Promise<{ itemId: string; item: CashflowItem }> {
+  const item = await getItemForUser(itemId, userId);
+  if (!item) {
+    throw new Error('Item não encontrado');
+  }
+
+  const finalItemId = item.userId === null ? await personalizeItem(item.id, userId) : item.id;
+
+  return { itemId: finalItemId, item };
+}
+
+/**
  * Obtém grupo personalizado ou template para um usuário
  */
 export async function getGroupForUser(
   groupId: string,
-  userId: string
+  userId: string,
 ): Promise<CashflowGroup | null> {
   // Primeiro tentar buscar grupo personalizado
   const customGroup = await prisma.cashflowGroup.findFirst({
@@ -257,7 +305,7 @@ export async function getGroupForUser(
 export async function hasPersonalization(
   templateId: string,
   userId: string,
-  type: 'group' | 'item'
+  type: 'group' | 'item',
 ): Promise<boolean> {
   if (type === 'group') {
     const template = await prisma.cashflowGroup.findUnique({
@@ -291,4 +339,3 @@ export async function hasPersonalization(
     return !!custom;
   }
 }
-

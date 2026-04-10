@@ -37,7 +37,7 @@ export interface CashflowGroup {
 }
 
 export interface AlertState {
-  type: "success" | "error";
+  type: 'success' | 'error';
   title: string;
   message: string;
 }
@@ -45,22 +45,4 @@ export interface AlertState {
 export interface NewRowData {
   name: string; // era descricao
   significado: string;
-} 
-
-// Campos adicionais que podem ser úteis para o modelo hierárquico
-export interface CashflowItemExtended extends CashflowItem {
-  // Campos opcionais que podem ser adicionados no futuro
-  categoria?: string;           // Categoria do item (ex: "Investimentos", "Moradia")
-  formaPagamento?: string;      // Forma de pagamento (ex: "PIX", "Cartão", "Dinheiro")
-  status?: 'pago' | 'pendente' | 'recebido'; // Status do pagamento/recebimento
-  dataVencimento?: Date;        // Data de vencimento
-  observacoes?: string;         // Observações adicionais
 }
-
-// Campos que podem ser adicionados ao CashflowValue
-export interface CashflowValueExtended extends CashflowValue {
-  // Campos opcionais que podem ser adicionados no futuro
-  dataPagamento?: Date;         // Data efetiva do pagamento
-  status?: 'pago' | 'pendente' | 'recebido'; // Status específico do mês
-  observacoes?: string;         // Observações do mês
-} 

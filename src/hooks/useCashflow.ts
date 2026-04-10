@@ -15,16 +15,18 @@ interface InvestimentoItem {
   values?: CashflowValue[];
 }
 
-export const useCashflowData = () => {
+export const useCashflowData = (year?: number) => {
+  const currentYear = year ?? new Date().getFullYear();
+
   const {
     data = [],
     isLoading: loading,
     error: queryError,
     refetch: queryRefetch,
   } = useQuery<CashflowGroup[]>({
-    queryKey: queryKeys.cashflow.all,
+    queryKey: queryKeys.cashflow.year(currentYear),
     queryFn: async ({ signal }) => {
-      const cashflowResponse = await fetch('/api/cashflow', {
+      const cashflowResponse = await fetch(`/api/cashflow?year=${currentYear}`, {
         credentials: 'include',
         signal,
       });
@@ -35,14 +37,16 @@ export const useCashflowData = () => {
 
       const responseData = await cashflowResponse.json();
       const groups = responseData.groups || responseData;
-      const year = responseData.year || new Date().getFullYear();
 
       // Fetch calculated investments
       try {
-        const investimentosResponse = await fetch(`/api/cashflow/investimentos?year=${year}`, {
-          credentials: 'include',
-          signal,
-        });
+        const investimentosResponse = await fetch(
+          `/api/cashflow/investimentos?year=${currentYear}`,
+          {
+            credentials: 'include',
+            signal,
+          },
+        );
 
         if (investimentosResponse.ok) {
           const investimentosData = await investimentosResponse.json();
@@ -50,9 +54,7 @@ export const useCashflowData = () => {
 
           const findInvestmentGroup = (groupList: CashflowGroup[]): CashflowGroup | null => {
             for (const group of groupList) {
-              const isInvestmentGroup =
-                group.name === 'Investimentos' || group.type === 'investimento';
-              if (isInvestmentGroup) return group;
+              if (group.type === 'investimento') return group;
               if (group.children && group.children.length > 0) {
                 const found = findInvestmentGroup(group.children);
                 if (found) return found;
@@ -62,7 +64,7 @@ export const useCashflowData = () => {
           };
 
           const findAndUpdateInvestmentGroup = (group: CashflowGroup): CashflowGroup => {
-            const isInvestment = group.name === 'Investimentos' || group.type === 'investimento';
+            const isInvestment = group.type === 'investimento';
 
             if (isInvestment && !investimentosJaAdicionados) {
               investimentosJaAdicionados = true;
@@ -112,11 +114,7 @@ export const useCashflowData = () => {
 
             if (investmentGroup) {
               gruposComInvestimentos = gruposComInvestimentos.map((group: CashflowGroup) => {
-                if (
-                  group.id === investmentGroup.id ||
-                  group.name === 'Investimentos' ||
-                  group.type === 'investimento'
-                ) {
+                if (group.id === investmentGroup.id || group.type === 'investimento') {
                   const itensCalculados = investimentosData.investimentos.map(
                     (inv: InvestimentoItem) => ({
                       id: inv.id,
@@ -262,8 +260,7 @@ export const useProcessedData = (data: CashflowGroup[]) => {
     };
 
     const processGroup = (group: CashflowGroup, isInvestmentGroup: boolean = false) => {
-      const isInvestment =
-        isInvestmentGroup || group.name === 'Investimentos' || group.type === 'investimento';
+      const isInvestment = isInvestmentGroup || group.type === 'investimento';
 
       if (group.items?.length) {
         group.items.forEach((item) => {
@@ -368,7 +365,7 @@ export const useProcessedData = (data: CashflowGroup[]) => {
 
     const totalByMonth = Array(12).fill(0);
     data.forEach((group) => {
-      if (group.name === 'Investimentos') return;
+      if (group.type === 'investimento') return;
       const arr = groupTotals[group.id];
       if (arr) {
         const isReceita = isReceitaGroupByType(group.type);

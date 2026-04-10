@@ -7,16 +7,18 @@ const mockPrisma = vi.hoisted(() => ({
   cashflowValue: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
 }));
 
-const mockJwtVerify = vi.hoisted(() =>
-  vi.fn().mockReturnValue({ id: 'user-123', email: 'test@test.com' }),
-);
+const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());
 
 const mockGetItemForUser = vi.hoisted(() => vi.fn());
 const mockPersonalizeItem = vi.hoisted(() => vi.fn());
+const mockEnsurePersonalizedItem = vi.hoisted(() => vi.fn());
 
-vi.mock('jsonwebtoken', () => ({
-  default: { verify: mockJwtVerify },
-  verify: mockJwtVerify,
+vi.mock('@/utils/auth', () => ({
+  requireAuthWithActing: mockRequireAuthWithActing,
+}));
+
+vi.mock('@/services/impersonationLogger', () => ({
+  logSensitiveEndpointAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -27,6 +29,7 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/utils/cashflowPersonalization', () => ({
   getItemForUser: mockGetItemForUser,
   personalizeItem: mockPersonalizeItem,
+  ensurePersonalizedItem: mockEnsurePersonalizedItem,
 }));
 
 const createGetRequest = (params: Record<string, string> = {}) => {
@@ -53,7 +56,11 @@ const createPatchRequest = (body: Record<string, unknown>) => {
 describe('GET /api/cashflow/comments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockJwtVerify.mockReturnValue({ id: 'user-123', email: 'test@test.com' });
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
+      targetUserId: 'user-123',
+      actingClient: null,
+    });
   });
 
   it('retorna comentario para item valido', async () => {
@@ -77,6 +84,8 @@ describe('GET /api/cashflow/comments', () => {
   });
 
   it('retorna 401 quando token nao fornecido', async () => {
+    mockRequireAuthWithActing.mockRejectedValue(new Error('Não autorizado'));
+
     const url = new URL('http://localhost/api/cashflow/comments');
     const req = new NextRequest(url, { method: 'GET' });
 
@@ -84,7 +93,7 @@ describe('GET /api/cashflow/comments', () => {
     const data = await response.json();
 
     expect(response.status).toBe(401);
-    expect(data.error).toContain('Token');
+    expect(data.error).toContain('autorizado');
   });
 
   it('retorna 400 quando parametros obrigatorios ausentes', async () => {
@@ -115,15 +124,17 @@ describe('GET /api/cashflow/comments', () => {
 describe('PATCH /api/cashflow/comments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockJwtVerify.mockReturnValue({ id: 'user-123', email: 'test@test.com' });
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
+      targetUserId: 'user-123',
+      actingClient: null,
+    });
   });
 
   it('atualiza comentario existente', async () => {
-    mockGetItemForUser.mockResolvedValue({
-      id: 'item-1',
-      name: 'Salario',
-      groupId: 'g1',
-      userId: 'user-123',
+    mockEnsurePersonalizedItem.mockResolvedValue({
+      itemId: 'item-1',
+      item: { id: 'item-1', name: 'Salario', groupId: 'g1', userId: 'user-123' },
     });
     mockPrisma.cashflowValue.findFirst.mockResolvedValue({
       id: 'v1',

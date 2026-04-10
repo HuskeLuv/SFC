@@ -46,7 +46,7 @@ import { GroupRenderContext } from './dataTableTwoTypes';
 export default function DataTableTwo() {
   const { csrfFetch } = useCsrf();
   const { data, loading, error, refetch } = useCashflowData();
-  const currentYear = new Date().getFullYear();
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
   const startDateISO = useMemo(() => new Date(currentYear, 0, 1).toISOString(), [currentYear]);
   const endDateISO = useMemo(
     () => new Date(currentYear, 11, 31, 23, 59, 59).toISOString(),
@@ -142,7 +142,7 @@ export default function DataTableTwo() {
   const investimentosByMonth = useMemo(() => {
     const findInvestimentosGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
       for (const group of groups) {
-        if (group.name === 'Investimentos' || group.type === 'investimento') {
+        if (group.type === 'investimento') {
           return group;
         }
         if (group.children) {
@@ -217,18 +217,12 @@ export default function DataTableTwo() {
       });
     };
 
-    const timeout1 = setTimeout(ensureJanuaryVisible, 0);
-    const timeout2 = setTimeout(ensureJanuaryVisible, 100);
-    const timeout3 = setTimeout(ensureJanuaryVisible, 300);
-    const timeout4 = setTimeout(ensureJanuaryVisible, 500);
-    const timeout5 = setTimeout(ensureJanuaryVisible, 1000);
+    // Run immediately, then retry with a single delayed attempt for late-rendering content
+    ensureJanuaryVisible();
+    const timeout = setTimeout(ensureJanuaryVisible, 300);
 
     return () => {
-      clearTimeout(timeout1);
-      clearTimeout(timeout2);
-      clearTimeout(timeout3);
-      clearTimeout(timeout4);
-      clearTimeout(timeout5);
+      clearTimeout(timeout);
     };
   }, [loading, data]);
 
@@ -267,10 +261,17 @@ export default function DataTableTwo() {
     itemId: null,
     itemName: '',
     month: 0,
-    year: new Date().getFullYear(),
+    year: currentYear,
     initialComment: null,
     updatedAt: null,
   });
+
+  // Reset comment modal on unmount
+  useEffect(() => {
+    return () => {
+      setCommentModal((prev) => ({ ...prev, isOpen: false }));
+    };
+  }, []);
 
   // Função para buscar comentário
   const fetchComment = useCallback(async (itemId: string, month: number, year: number) => {
@@ -279,6 +280,7 @@ export default function DataTableTwo() {
         `/api/cashflow/comments?itemId=${itemId}&month=${month}&year=${year}`,
         {
           credentials: 'include',
+          signal: AbortSignal.timeout(10000),
         },
       );
       if (!response.ok) {
@@ -298,18 +300,19 @@ export default function DataTableTwo() {
         updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
       };
     } catch (error: unknown) {
-      console.error('Erro ao buscar comentário:', error);
+      console.error(
+        `Erro ao buscar comentário (item=${itemId}, month=${month}, year=${year}):`,
+        error,
+      );
       throw error;
     }
   }, []);
 
   // Handler para clicar no botão de comentário
+  // setIsCommentModeActive already clears color mode via unified UIMode
   const handleCommentButtonClick = useCallback(() => {
-    setIsCommentModeActive((prev) => !prev);
-    if (!isCommentModeActive) {
-      setSelectedColor(null);
-    }
-  }, [isCommentModeActive, setIsCommentModeActive, setSelectedColor]);
+    setIsCommentModeActive((prev: boolean) => !prev);
+  }, [setIsCommentModeActive]);
 
   // Handler para clicar em uma célula quando em modo de comentário
   const handleCommentCellClick = useCallback(
@@ -328,7 +331,6 @@ export default function DataTableTwo() {
           return;
         }
 
-        const currentYear = new Date().getFullYear();
         const { comment, updatedAt } = await fetchComment(itemId, monthIndex, currentYear);
 
         setCommentModal({
@@ -356,7 +358,14 @@ export default function DataTableTwo() {
         setIsCommentModeActive(false);
       }
     },
-    [isCommentModeActive, processedData.groups, fetchComment, setIsCommentModeActive, showAlert],
+    [
+      isCommentModeActive,
+      processedData.groups,
+      fetchComment,
+      setIsCommentModeActive,
+      showAlert,
+      currentYear,
+    ],
   );
 
   // Handler para salvar comentário
@@ -548,7 +557,7 @@ export default function DataTableTwo() {
             isColorModeActive={selectedColor !== null}
             isCommentModeActive={isCommentModeActive}
             onCommentCellClick={handleCommentCellClick}
-            currentYear={new Date().getFullYear()}
+            currentYear={currentYear}
             isLastItem={isLastItem}
           />
         );
@@ -565,7 +574,7 @@ export default function DataTableTwo() {
             startEditing={startEditing}
             stopEditing={stopEditing}
             isEditing={isEditing}
-            currentYear={new Date().getFullYear()}
+            currentYear={currentYear}
             isLastItem={isLastItem}
           />
         );
@@ -585,6 +594,7 @@ export default function DataTableTwo() {
       applyColorToCell,
       handleCommentCellClick,
       isCommentModeActive,
+      currentYear,
     ],
   );
 
@@ -646,7 +656,7 @@ export default function DataTableTwo() {
           <TableHeaderComponent showActionsColumn={anyGroupEditing} />
           <TableBody>
             {processedData.groups
-              .filter((group) => group.name !== 'Investimentos')
+              .filter((group) => group.type !== 'investimento')
               .map((group, groupIndex, groups) => {
                 const isFirstDespesaGroup =
                   !isReceitaGroupByType(group.type) &&
@@ -753,7 +763,7 @@ export default function DataTableTwo() {
 
             {/* Investimentos group */}
             {processedData.groups
-              .filter((group) => group.name === 'Investimentos')
+              .filter((group) => group.type === 'investimento')
               .map((group) => (
                 <React.Fragment key={group.id}>
                   <GroupHeader

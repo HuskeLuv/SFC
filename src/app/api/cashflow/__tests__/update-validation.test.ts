@@ -20,6 +20,7 @@ const mockPrisma = vi.hoisted(() => ({
     count: vi.fn(),
   },
   cashflowValue: { deleteMany: vi.fn() },
+  $transaction: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
@@ -37,12 +38,16 @@ vi.mock('@/utils/cashflowPersonalization', () => ({
   getItemForUser: vi.fn(),
   getGroupForUser: vi.fn(),
 }));
-vi.mock('@/services/impersonationLogger', () => ({ logDataUpdate: vi.fn() }));
+vi.mock('@/services/impersonationLogger', () => ({
+  logDataUpdate: vi.fn(),
+  logSensitiveEndpointAccess: vi.fn(),
+}));
 vi.mock('jsonwebtoken', () => ({
   default: { verify: () => ({ id: 'user-123', email: 'test@test.com', role: 'user' }) },
 }));
 
 import { PATCH } from '../update/route';
+import { requireAuthWithActing } from '@/utils/auth';
 
 const createRequest = (body: object) => {
   const req = new NextRequest('http://localhost/api/cashflow/update', {
@@ -107,6 +112,7 @@ describe('PATCH /api/cashflow/update — validation', () => {
   });
 
   it('retorna 401 quando token nao fornecido', async () => {
+    vi.mocked(requireAuthWithActing).mockRejectedValueOnce(new Error('Não autorizado'));
     const req = new NextRequest('http://localhost/api/cashflow/update', {
       method: 'PATCH',
       body: JSON.stringify({

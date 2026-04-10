@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
-import { personalizeItem, getItemForUser } from '@/utils/cashflowPersonalization';
+import { requireAuthWithActing } from '@/utils/auth';
+import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
+import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { cashflowBatchUpdateSchema, validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -24,12 +25,16 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * }
  */
 export const PUT = withErrorHandler(async (request: NextRequest) => {
-  const token = request.cookies.get('token')?.value;
-  if (!token) {
-    return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
-  }
+  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  await logSensitiveEndpointAccess(
+    request,
+    payload,
+    targetUserId,
+    actingClient,
+    '/api/cashflow/batch-update',
+    'PUT',
+  );
 
-  const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
   const body = await request.json();
   const parsed = cashflowBatchUpdateSchema.safeParse(body);
   if (!parsed.success) {
@@ -47,20 +52,16 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         const item = await prisma.cashflowItem.findFirst({
           where: {
             id: itemId,
-            userId: payload.id, // Só pode deletar itens do usuário
+            userId: targetUserId, // Só pode deletar itens do usuário
           },
         });
 
         if (item) {
-          // Deletar valores associados
-          await prisma.cashflowValue.deleteMany({
-            where: { itemId },
-          });
-
-          // Deletar item
-          await prisma.cashflowItem.delete({
-            where: { id: itemId },
-          });
+          // Deletar valores e item em uma única transação
+          await prisma.$transaction([
+            prisma.cashflowValue.deleteMany({ where: { itemId } }),
+            prisma.cashflowItem.delete({ where: { id: itemId } }),
+          ]);
 
           results.push({ itemId, success: true });
         } else {
@@ -84,17 +85,13 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           continue;
         }
 
-        // Buscar item (pode ser template ou personalizado)
-        const item = await getItemForUser(itemId, payload.id);
-        if (!item) {
+        // Ensure item is personalized (creates a copy if it's a template)
+        let finalItemId: string;
+        try {
+          ({ itemId: finalItemId } = await ensurePersonalizedItem(itemId, targetUserId));
+        } catch {
           results.push({ itemId, success: false, error: 'Item não encontrado' });
           continue;
-        }
-
-        // Se é template, criar cópia personalizada
-        let finalItemId = item.id;
-        if (item.userId === null) {
-          finalItemId = await personalizeItem(item.id, payload.id);
         }
 
         // Atualizar campos do item
@@ -125,17 +122,22 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
             const existingValue = await prisma.cashflowValue.findFirst({
               where: {
                 itemId: finalItemId,
-                userId: payload.id,
+                userId: targetUserId,
                 year: currentYear,
                 month,
               },
             });
 
+            const numericValue = parseFloat(value.toString());
+            if (!Number.isFinite(numericValue)) {
+              continue; // Ignorar valores inválidos
+            }
+
             const updateData: {
               value: number;
               color?: string | null;
             } = {
-              value: parseFloat(value.toString()),
+              value: numericValue,
             };
 
             // Incluir cor se fornecida
@@ -154,10 +156,10 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
               await prisma.cashflowValue.create({
                 data: {
                   itemId: finalItemId,
-                  userId: payload.id,
+                  userId: targetUserId,
                   year: currentYear,
                   month,
-                  value: parseFloat(value.toString()),
+                  value: numericValue,
                   color: color !== undefined ? color : null,
                 },
               });

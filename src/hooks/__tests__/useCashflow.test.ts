@@ -90,7 +90,7 @@ describe('useCashflowData', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/cashflow',
+      expect.stringContaining('/api/cashflow?year='),
       expect.objectContaining({ credentials: 'include' }),
     );
     expect(result.current.data.length).toBeGreaterThanOrEqual(2);
@@ -222,9 +222,13 @@ describe('useCashflowData', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    // Year is used internally for the investimentos endpoint call
+    // Year from the hook is used for both calls
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/cashflow/investimentos?year=2025',
+      expect.stringContaining('/api/cashflow?year='),
+      expect.objectContaining({ credentials: 'include' }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/cashflow/investimentos?year='),
       expect.objectContaining({ credentials: 'include' }),
     );
   });

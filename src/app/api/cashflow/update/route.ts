@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { requireAuthWithActing } from '@/utils/auth';
+import { logSensitiveEndpointAccess, logDataUpdate } from '@/services/impersonationLogger';
 import {
   personalizeGroup,
   personalizeItem,
@@ -40,17 +41,16 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * }
  */
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
-  // Verificar autenticação
-  const token = request.cookies.get('token')?.value;
-  if (!token) {
-    return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
-  }
+  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  await logSensitiveEndpointAccess(
+    request,
+    payload,
+    targetUserId,
+    actingClient,
+    '/api/cashflow/update',
+    'PATCH',
+  );
 
-  const jwtPayload = jwt.verify(token, process.env.JWT_SECRET!) as {
-    id: string;
-    email: string;
-    role: string;
-  };
   const requestBody = await request.json();
   const parsed = cashflowUpdateSchema.safeParse(requestBody);
   if (!parsed.success) {
@@ -58,35 +58,23 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   }
   const { operation, type, id, data } = parsed.data;
 
-  // Verificar personificação e registrar log se necessário
-  const { requireAuthWithActing } = await import('@/utils/auth');
-  const { logDataUpdate } = await import('@/services/impersonationLogger');
-  let authResult: Awaited<ReturnType<typeof requireAuthWithActing>> | null = null;
-  try {
-    authResult = await requireAuthWithActing(request);
-  } catch {
-    // Se falhar, usar payload do JWT diretamente
-  }
-
-  const payload = jwtPayload;
-
   // Operações com grupos
   let result;
   if (type === 'group') {
-    result = await handleGroupOperation(operation, id, (data || {}) as GroupData, payload.id);
+    result = await handleGroupOperation(operation, id, (data || {}) as GroupData, targetUserId);
   } else if (type === 'item') {
-    result = await handleItemOperation(operation, id, (data || {}) as ItemData, payload.id);
+    result = await handleItemOperation(operation, id, (data || {}) as ItemData, targetUserId);
   } else {
     return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
   }
 
-  // Registrar log se estiver personificado
-  if (authResult?.actingClient) {
+  // Registrar log detalhado se estiver personificado
+  if (actingClient) {
     await logDataUpdate(
       request,
-      { id: authResult.payload.id, role: authResult.payload.role },
-      authResult.targetUserId,
-      authResult.actingClient,
+      { id: payload.id, role: payload.role },
+      targetUserId,
+      actingClient,
       '/api/cashflow/update',
       'PATCH',
       { operation, type, id, data },
@@ -369,17 +357,11 @@ async function handleItemOperation(
       );
     }
 
-    // Deletar valores associados primeiro
-    if (item.values.length > 0) {
-      await prisma.cashflowValue.deleteMany({
-        where: { itemId: id },
-      });
-    }
-
-    // Deletar item
-    await prisma.cashflowItem.delete({
-      where: { id },
-    });
+    // Deletar valores e item em uma única transação
+    await prisma.$transaction([
+      prisma.cashflowValue.deleteMany({ where: { itemId: id } }),
+      prisma.cashflowItem.delete({ where: { id } }),
+    ]);
 
     return NextResponse.json({ success: true, message: 'Item deletado com sucesso' });
   }

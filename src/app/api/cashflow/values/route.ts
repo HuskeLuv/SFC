@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
-import { personalizeItem, getItemForUser } from '@/utils/cashflowPersonalization';
+import { requireAuthWithActing } from '@/utils/auth';
+import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
+import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { cashflowValuePatchSchema, validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
-  const token = request.cookies.get('token')?.value;
-  if (!token) {
-    return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
-  }
+  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  await logSensitiveEndpointAccess(
+    request,
+    payload,
+    targetUserId,
+    actingClient,
+    '/api/cashflow/values',
+    'PATCH',
+  );
 
-  const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
   const body = await request.json();
   const parsed = cashflowValuePatchSchema.safeParse(body);
   if (!parsed.success) {
@@ -19,17 +24,12 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   }
   const { itemId, field, value, monthIndex } = parsed.data;
 
-  // Buscar item (pode ser template ou personalizado)
-  const item = await getItemForUser(itemId, payload.id);
-  if (!item) {
+  // Ensure item is personalized (creates a copy if it's a template)
+  let finalItemId: string;
+  try {
+    ({ itemId: finalItemId } = await ensurePersonalizedItem(itemId, targetUserId));
+  } catch {
     return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
-  }
-
-  // Se é template, criar cópia personalizada antes de editar
-  let finalItemId = item.id;
-  if (item.userId === null) {
-    // É template - criar cópia personalizada
-    finalItemId = await personalizeItem(item.id, payload.id);
   }
 
   let updatedItem;
@@ -54,43 +54,43 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       data: updateData,
       include: {
         values: {
-          where: { userId: payload.id },
+          where: { userId: targetUserId },
         },
       },
     });
   } else if (field === 'monthlyValue' && typeof monthIndex === 'number') {
-    // Se é template, garantir que item foi personalizado
-    if (item.userId === null) {
-      finalItemId = await personalizeItem(item.id, payload.id);
-    }
-
     const currentYear = new Date().getFullYear();
 
     // Update monthly value
     const existingValue = await prisma.cashflowValue.findFirst({
       where: {
         itemId: finalItemId,
-        userId: payload.id,
+        userId: targetUserId,
         year: currentYear,
         month: monthIndex,
       },
     });
 
+    const numericValue = parseFloat(String(value));
+    if (!Number.isFinite(numericValue)) {
+      return NextResponse.json({ error: 'Valor inválido' }, { status: 400 });
+    }
+
     if (existingValue) {
       // Update existing value
       await prisma.cashflowValue.update({
         where: { id: existingValue.id },
-        data: { value: parseFloat(String(value)) },
+        data: { value: numericValue },
       });
     } else {
       // Create new value
       await prisma.cashflowValue.create({
         data: {
           itemId: finalItemId,
-          userId: payload.id,
+          userId: targetUserId,
           year: currentYear,
           month: monthIndex,
-          value: parseFloat(String(value)),
+          value: numericValue,
         },
       });
     }
@@ -99,47 +99,44 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       where: { id: finalItemId },
       include: {
         values: {
-          where: { userId: payload.id },
+          where: { userId: targetUserId },
         },
       },
     });
   } else if (field === 'annualTotal') {
-    // Se é template, garantir que item foi personalizado
-    if (item.userId === null) {
-      finalItemId = await personalizeItem(item.id, payload.id);
-    }
-
     const currentYear = new Date().getFullYear();
     const annualTotal = parseFloat(String(value));
+    if (!Number.isFinite(annualTotal)) {
+      return NextResponse.json({ error: 'Valor anual inválido' }, { status: 400 });
+    }
     const monthlyValue = annualTotal / 12;
 
-    // Delete all existing monthly values for this user and year
-    await prisma.cashflowValue.deleteMany({
-      where: {
-        itemId: finalItemId,
-        userId: payload.id,
-        year: currentYear,
-      },
-    });
-
-    // Create new monthly values with equal distribution
-    for (let month = 0; month < 12; month++) {
-      await prisma.cashflowValue.create({
-        data: {
+    // Deletar valores existentes e criar novos em uma única transação
+    await prisma.$transaction(async (tx) => {
+      await tx.cashflowValue.deleteMany({
+        where: {
           itemId: finalItemId,
-          userId: payload.id,
+          userId: targetUserId,
           year: currentYear,
-          month: month,
-          value: monthlyValue,
         },
       });
-    }
+
+      await tx.cashflowValue.createMany({
+        data: Array.from({ length: 12 }, (_, month) => ({
+          itemId: finalItemId,
+          userId: targetUserId,
+          year: currentYear,
+          month,
+          value: monthlyValue,
+        })),
+      });
+    });
 
     updatedItem = await prisma.cashflowItem.findUnique({
       where: { id: finalItemId },
       include: {
         values: {
-          where: { userId: payload.id },
+          where: { userId: targetUserId },
         },
       },
     });

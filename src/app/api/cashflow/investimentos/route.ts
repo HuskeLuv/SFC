@@ -98,9 +98,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const yearParam = searchParams.get('year');
   const targetYear = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
 
-  // Log para debug
-  console.log(`[Cashflow Investimentos] Buscando investimentos para ano: ${targetYear}`);
-  console.log(`[Cashflow Investimentos] Total de transações encontradas: ${transacoes.length}`);
+  if (yearParam && (isNaN(targetYear) || targetYear < 1900 || targetYear > 2100)) {
+    return NextResponse.json(
+      { error: 'Parâmetro year inválido. Deve ser um número entre 1900 e 2100.' },
+      { status: 400 },
+    );
+  }
 
   // Processar cada transação
   for (const transacao of transacoes) {
@@ -115,15 +118,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
     // Filtrar apenas transações do ano solicitado
     if (transactionYear !== targetYear) {
-      console.log(
-        `[Cashflow Investimentos] Transação filtrada: ano ${transactionYear} !== ${targetYear}`,
-      );
       continue;
     }
-
-    console.log(
-      `[Cashflow Investimentos] Processando transação: ${tipoAtivo}, mês ${mes}, valor R$ ${valor}`,
-    );
 
     tiposAtivos.add(tipoAtivo);
 
@@ -224,18 +220,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   // Ordenar por ordem definida (usar order já que rank não é mais numérico)
   investimentosCalculados.sort((a, b) => (a.order || 999) - (b.order || 999));
-
-  // Log para debug
-  console.log(
-    `[Cashflow Investimentos] Investimentos calculados: ${investimentosCalculados.length}`,
-  );
-  console.log(`[Cashflow Investimentos] Tipos de ativos com transações: ${tiposAtivos.size}`);
-  investimentosCalculados.forEach((inv) => {
-    const totalAnual = inv.totalAnual || 0;
-    if (totalAnual > 0) {
-      console.log(`[Cashflow Investimentos] - ${inv.name}: R$ ${totalAnual.toFixed(2)}`);
-    }
-  });
 
   // Calcular totais por mês (todos os tipos somados)
   const totaisPorMes = Array.from({ length: 12 }, (_, mes) => {
