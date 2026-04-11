@@ -34,40 +34,46 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   });
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
-  // Buscar portfolio do usuário com ações brasileiras (tabela Stock)
+  // Buscar portfolio do usuário com ações brasileiras e BDRs.
+  // Ações brasileiras vivem na tabela Stock (join via stockId).
+  // BDRs vivem na tabela Asset com type='bdr'|'brd' (join via assetId) — o
+  // wizard grava BDRs pelo fallback genérico da rota operacao e sem este
+  // branch os BDRs ficariam invisíveis em todas as abas.
   const portfolio = await prisma.portfolio.findMany({
     where: {
       userId,
-      stockId: { not: null }, // Buscar apenas portfolios com stockId (ações)
+      OR: [{ stockId: { not: null } }, { asset: { type: { in: ['bdr', 'brd'] } } }],
     },
     include: {
-      stock: true, // Incluir relação com Stock
-      asset: true, // Incluir relação com Asset para compatibilidade
+      stock: true,
+      asset: true,
     },
   });
 
-  // Filtrar apenas itens com stock válido e que NÃO sejam FIIs
-  // FIIs geralmente têm ticker terminando em '11'
-  const acoesPortfolio = portfolio.filter((item) => {
+  // Separar em dois grupos: ações (Stock, ticker não terminando em '11') e
+  // BDRs (Asset com type bdr/brd). FIIs (ticker terminando em '11') são
+  // excluídos — aparecem na aba FIIs.
+  const acoesStockPortfolio = portfolio.filter((item) => {
     if (!item.stock) return false;
-    // Excluir FIIs: tickers que terminam em '11'
     const ticker = item.stock.ticker.toUpperCase();
     return !ticker.endsWith('11');
   });
+  const bdrPortfolio = portfolio.filter(
+    (item) => item.asset && (item.asset.type === 'bdr' || item.asset.type === 'brd'),
+  );
 
-  // Buscar cotações atuais dos ativos (banco primeiro, fallback BRAPI quando necessário)
-  const symbols = acoesPortfolio.map((item) => item.stock!.ticker);
-  const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
+  // Buscar cotações atuais (banco primeiro, fallback BRAPI quando necessário)
+  const stockSymbols = acoesStockPortfolio.map((item) => item.stock!.ticker);
+  const bdrSymbols = bdrPortfolio.map((item) => item.asset!.symbol);
+  const quotes = await getAssetPrices([...stockSymbols, ...bdrSymbols], {
+    useBrapiFallback: true,
+  });
 
-  // Converter para formato AcaoAtivo
-  const acoesAtivos: AcaoAtivo[] = acoesPortfolio.map((item) => {
+  const mapStockPortfolioItem = (item: (typeof acoesStockPortfolio)[number]): AcaoAtivo => {
     const valorTotal = item.totalInvested;
     const ticker = item.stock!.ticker;
 
-    // Buscar cotação atual da brapi
     let cotacaoAtual = quotes.get(ticker);
-
-    // Se ainda não encontrou, usar preço médio como último recurso
     if (!cotacaoAtual) {
       console.warn(
         `⚠️  Não foi possível obter cotação de ${ticker}, usando preço médio como fallback`,
@@ -75,14 +81,10 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       cotacaoAtual = item.avgPrice;
     }
 
-    // Calcular valor atualizado com cotação atual
     const valorAtualizado = item.quantity * cotacaoAtual;
-
-    // Calcular rentabilidade real
     const rentabilidade =
       item.avgPrice > 0 ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 : 0;
 
-    // Usar estratégia do portfolio ou padrão 'value'
     const estrategia =
       item.estrategia && ['value', 'growth', 'risk'].includes(item.estrategia)
         ? (item.estrategia as 'value' | 'growth' | 'risk')
@@ -90,7 +92,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
 
     return {
       id: item.id,
-      ticker: ticker,
+      ticker,
       nome: item.stock!.companyName,
       setor: parseSetorAcao(item.stock!.sector),
       subsetor: item.stock!.subsector || '',
@@ -99,17 +101,63 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       valorTotal,
       cotacaoAtual,
       valorAtualizado,
-      riscoPorAtivo: 0, // Calcular depois
-      percentualCarteira: 0, // Calcular depois
+      riscoPorAtivo: 0,
+      percentualCarteira: 0,
       objetivo: item.objetivo ?? 0,
-      quantoFalta: 0, // Calcular depois
-      necessidadeAporte: 0, // Calcular depois
+      quantoFalta: 0,
+      necessidadeAporte: 0,
       rentabilidade,
       estrategia,
       observacoes: undefined,
       dataUltimaAtualizacao: item.lastUpdate,
     };
-  });
+  };
+
+  const mapBdrPortfolioItem = (item: (typeof bdrPortfolio)[number]): AcaoAtivo => {
+    const valorTotal = item.totalInvested;
+    const ticker = item.asset!.symbol;
+
+    let cotacaoAtual = quotes.get(ticker);
+    if (!cotacaoAtual) {
+      cotacaoAtual = item.avgPrice;
+    }
+
+    const valorAtualizado = item.quantity * cotacaoAtual;
+    const rentabilidade =
+      item.avgPrice > 0 ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 : 0;
+
+    const estrategia =
+      item.estrategia && ['value', 'growth', 'risk'].includes(item.estrategia)
+        ? (item.estrategia as 'value' | 'growth' | 'risk')
+        : 'value';
+
+    return {
+      id: item.id,
+      ticker,
+      nome: item.asset!.name,
+      setor: 'outros',
+      subsetor: '',
+      quantidade: item.quantity,
+      precoAquisicao: item.avgPrice,
+      valorTotal,
+      cotacaoAtual,
+      valorAtualizado,
+      riscoPorAtivo: 0,
+      percentualCarteira: 0,
+      objetivo: item.objetivo ?? 0,
+      quantoFalta: 0,
+      necessidadeAporte: 0,
+      rentabilidade,
+      estrategia,
+      observacoes: undefined,
+      dataUltimaAtualizacao: item.lastUpdate,
+    };
+  };
+
+  const acoesAtivos: AcaoAtivo[] = [
+    ...acoesStockPortfolio.map(mapStockPortfolioItem),
+    ...bdrPortfolio.map(mapBdrPortfolioItem),
+  ];
 
   // Calcular totais gerais
   const totalQuantidade = acoesAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);

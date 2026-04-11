@@ -59,6 +59,29 @@ const operacaoBaseSchema = z
   })
   .passthrough();
 
+/**
+ * For catalog-based asset categories (the ones that hit the generic fallback
+ * below because they have no manual-creation branch), enforce that the
+ * resolved Asset.type matches what the corresponding per-category GET filter
+ * expects. Without this check, a mis-typed catalog row can be written into
+ * Portfolio successfully but remain invisible in the user's table.
+ *
+ * Keep in sync with the `where.asset.type` filters in:
+ *   src/app/api/carteira/{etf,reit,moedas-criptos,fim-fia,previdencia-seguros}/route.ts
+ *   src/app/api/carteira/stocks/route.ts
+ *   src/app/api/assets/route.ts (bdr mapping)
+ */
+const expectedAssetTypeByTipoAtivo: Record<string, readonly string[]> = {
+  etf: ['etf'],
+  reit: ['reit'],
+  stock: ['stock'],
+  bdr: ['bdr', 'brd'],
+  criptoativo: ['crypto', 'currency', 'metal', 'commodity'],
+  moeda: ['crypto', 'currency', 'metal', 'commodity'],
+  previdencia: ['previdencia'],
+  fundo: ['fund', 'funds'],
+};
+
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
 
@@ -233,10 +256,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       );
     }
   } else if (tipoAtivo === 'criptoativo') {
-    if (!dataCompra || !quantidade || !cotacaoCompra) {
+    if (!dataCompra || !assetId || !quantidade || !cotacaoCompra) {
       return NextResponse.json(
         {
-          error: 'Campos obrigatórios para este tipo: dataCompra, quantidade, cotacaoCompra',
+          error:
+            'Campos obrigatórios para criptoativo: dataCompra, assetId, quantidade, cotacaoCompra',
         },
         { status: 400 },
       );
@@ -1280,7 +1304,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       data: {
         symbol: assetSymbol,
         name: assetName,
-        type: 'insurance',
+        type: 'previdencia',
         currency: 'BRL',
         source: 'manual',
       },
@@ -1386,6 +1410,25 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     });
     if (!asset) {
       return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
+    }
+
+    // Defensive guard: if this tipoAtivo maps to a known set of Asset.type
+    // discriminators, the resolved asset must match — otherwise the Portfolio
+    // row would be created successfully but invisible in the user's table.
+    const expectedTypes = expectedAssetTypeByTipoAtivo[tipoAtivo];
+    if (expectedTypes && !expectedTypes.includes(asset.type)) {
+      console.error(
+        `Type mismatch for tipoAtivo="${tipoAtivo}" assetId="${assetId}": ` +
+          `asset has type="${asset.type}", expected one of [${expectedTypes.join(', ')}]`,
+      );
+      return NextResponse.json(
+        {
+          error:
+            `Tipo do ativo não corresponde ao tipo selecionado ` +
+            `(esperado: ${expectedTypes.join(' ou ')}, encontrado: ${asset.type}).`,
+        },
+        { status: 400 },
+      );
     }
   }
 

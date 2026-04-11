@@ -490,6 +490,12 @@ describe('POST /api/carteira/operacao', () => {
 
   describe('Stocks (ações US)', () => {
     it('adiciona stock com sucesso', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-1',
+        symbol: 'AAPL',
+        name: 'Apple',
+        type: 'stock',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'stock',
@@ -551,6 +557,12 @@ describe('POST /api/carteira/operacao', () => {
 
   describe('Criptoativos', () => {
     it('adiciona criptoativo com sucesso', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-btc',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        type: 'crypto',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'criptoativo',
@@ -583,6 +595,22 @@ describe('POST /api/carteira/operacao', () => {
       expect(data.error).toContain('cotacaoCompra');
     });
 
+    it('retorna 400 quando assetId ausente para criptoativo', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'criptoativo',
+          instituicaoId: 'inst-1',
+          dataCompra: '2024-01-15',
+          quantidade: 0.5,
+          cotacaoCompra: 40000,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('assetId');
+      expect(mockPrisma.portfolio.create).not.toHaveBeenCalled();
+    });
+
     it('retorna 400 quando quantidade ou cotacaoCompra <= 0', async () => {
       const response = await POST(
         createRequest({
@@ -602,6 +630,12 @@ describe('POST /api/carteira/operacao', () => {
 
   describe('Moedas', () => {
     it('adiciona moeda com sucesso', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-usd',
+        symbol: 'USD',
+        name: 'Dólar',
+        type: 'currency',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'moeda',
@@ -637,6 +671,12 @@ describe('POST /api/carteira/operacao', () => {
 
   describe('BDR e ETF', () => {
     it('adiciona BDR com sucesso', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-bdr',
+        symbol: 'AAPL34',
+        name: 'Apple BDR',
+        type: 'bdr',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'bdr',
@@ -655,6 +695,12 @@ describe('POST /api/carteira/operacao', () => {
     });
 
     it('adiciona ETF com sucesso', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-etf',
+        symbol: 'BOVA11',
+        name: 'iShares Ibovespa',
+        type: 'etf',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'etf',
@@ -692,6 +738,12 @@ describe('POST /api/carteira/operacao', () => {
 
   describe('REIT', () => {
     it('adiciona REIT com assetId com sucesso', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-reit',
+        symbol: 'O',
+        name: 'Realty Income',
+        type: 'reit',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'reit',
@@ -907,6 +959,12 @@ describe('POST /api/carteira/operacao', () => {
     });
 
     it('adiciona previdência por cotas com sucesso', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-prev',
+        symbol: 'PREV-XP',
+        name: 'XP Previdência',
+        type: 'previdencia',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'previdencia',
@@ -956,6 +1014,79 @@ describe('POST /api/carteira/operacao', () => {
       const data = await response.json();
       expect(response.status).toBe(404);
       expect(data.error).toContain('não encontrado');
+    });
+  });
+
+  describe('Defensive type validation (phase B)', () => {
+    // Regression: before Phase B, a catalog asset whose type drifted from
+    // what the category GET filter expects could be added to the Portfolio
+    // successfully, but would never appear in its table.
+    it('retorna 400 quando ETF aponta para asset com type errado', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-wrong',
+        symbol: 'FOO',
+        name: 'Foo',
+        type: 'insurance',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'etf',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-wrong',
+          dataCompra: '2024-01-15',
+          quantidade: 10,
+          cotacaoUnitaria: 100,
+          regiaoEtf: 'brasil',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error.toLowerCase()).toContain('tipo');
+      expect(mockPrisma.portfolio.create).not.toHaveBeenCalled();
+    });
+
+    it('retorna 400 quando previdencia aponta para asset com type legado insurance', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-legacy',
+        symbol: 'PREV-LEG',
+        name: 'Previdência Legado',
+        type: 'insurance',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'previdencia',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-legacy',
+          dataCompra: '2024-01-15',
+          quantidade: 10,
+          cotacaoUnitaria: 100,
+          metodo: 'cotas',
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(mockPrisma.portfolio.create).not.toHaveBeenCalled();
+    });
+
+    it('permite criptoativo com type=currency (aceita família crypto/currency/metal/commodity)', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-stable',
+        symbol: 'USDC',
+        name: 'USD Coin',
+        type: 'currency',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'criptoativo',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-stable',
+          dataCompra: '2024-01-15',
+          quantidade: 100,
+          cotacaoCompra: 5,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(201);
+      expect(data.success).toBe(true);
     });
   });
 

@@ -44,38 +44,30 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   });
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
-  // Buscar portfolio do usuário com FIIs
-  // FIIs podem estar em stockId (tabela Stock) ou assetId (tabela Asset)
+  // Buscar portfolio do usuário com FIIs.
+  // FIIs brasileiros vivem na tabela Stock com ticker terminando em '11'
+  // (ou nome contendo "fii"/"fundo imobiliário" — o fallback abaixo cobre
+  // esse caso em memória). FIIs salvos na tabela Asset (path alternativo)
+  // também são aceitos.
   const portfolio = await prisma.portfolio.findMany({
     where: {
       userId,
-      OR: [
-        {
-          stockId: { not: null },
-        },
-        {
-          asset: {
-            type: 'fii',
-          },
-        },
-      ],
+      OR: [{ stock: { ticker: { endsWith: '11' } } }, { asset: { type: 'fii' } }],
     },
     include: {
-      stock: true, // Incluir relação com Stock
-      asset: true, // Incluir relação com Asset
+      stock: true,
+      asset: true,
     },
   });
 
-  // Filtrar apenas FIIs: stocks com ticker terminando em '11' OU assets do tipo 'fii'
+  // Sanity-check em memória: o filtro SQL já restringe, mas mantemos a
+  // checagem para preservar o comportamento caso algum registro tenha
+  // ticker em caixa mista (Prisma `endsWith` é case-sensitive por padrão).
   const fiiPortfolio = portfolio.filter((item) => {
-    // Se é stock com ticker terminando em '11', é FII
     if (item.stock && item.stock.ticker && item.stock.ticker.toUpperCase().endsWith('11')) {
       return true;
     }
-
-    // Se é asset do tipo 'fii', é FII
     if (item.asset && item.asset.type === 'fii') return true;
-
     return false;
   });
 

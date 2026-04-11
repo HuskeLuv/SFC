@@ -82,6 +82,17 @@ describe('/api/carteira/fii', () => {
       expect(data.secoes.length).toBeGreaterThan(0);
       expect(data.secoes[0].ativos[0].ticker).toBe('HGLG11');
     });
+
+    it('phase C: filtro SQL usa endsWith 11 ou asset.type=fii (não faz over-fetch)', async () => {
+      await GET(createGetRequest());
+      expect(mockPrisma.portfolio.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [{ stock: { ticker: { endsWith: '11' } } }, { asset: { type: 'fii' } }],
+          }),
+        }),
+      );
+    });
   });
 
   describe('POST', () => {

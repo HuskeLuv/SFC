@@ -82,6 +82,86 @@ describe('/api/carteira/acoes', () => {
       expect(data.secoes.length).toBeGreaterThan(0);
       expect(data.secoes[0].ativos[0].ticker).toBe('PETR4');
     });
+
+    it('regression (phase C): BDR armazenado via assetId aparece na tabela de ações', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p-bdr',
+          userId: 'user-1',
+          quantity: 5,
+          totalInvested: 250,
+          avgPrice: 50,
+          objetivo: 10,
+          estrategia: 'growth',
+          stockId: null,
+          stock: null,
+          assetId: 'a-bdr',
+          asset: { symbol: 'AAPL34', name: 'Apple BDR', type: 'bdr', currency: 'BRL' },
+          lastUpdate: new Date(),
+        },
+      ]);
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      expect(res.status).toBe(200);
+
+      const allAtivos = data.secoes.flatMap(
+        (s: { ativos: Array<{ ticker: string; nome: string }> }) => s.ativos,
+      );
+      expect(allAtivos).toHaveLength(1);
+      expect(allAtivos[0].ticker).toBe('AAPL34');
+      expect(allAtivos[0].nome).toBe('Apple BDR');
+
+      expect(mockPrisma.portfolio.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              { stockId: { not: null } },
+              { asset: { type: { in: ['bdr', 'brd'] } } },
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('não inclui FIIs (ticker terminando em 11) na tabela de ações', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p-fii',
+          userId: 'user-1',
+          quantity: 20,
+          totalInvested: 2000,
+          avgPrice: 100,
+          objetivo: 15,
+          estrategia: 'value',
+          stockId: 's-fii',
+          stock: { ticker: 'KNRI11', companyName: 'Kinea', sector: null, subsector: null },
+          asset: null,
+          lastUpdate: new Date(),
+        },
+        {
+          id: 'p-acao',
+          userId: 'user-1',
+          quantity: 30,
+          totalInvested: 900,
+          avgPrice: 30,
+          objetivo: 15,
+          estrategia: 'value',
+          stockId: 's-acao',
+          stock: { ticker: 'VALE3', companyName: 'Vale', sector: 'materiais', subsector: '' },
+          asset: null,
+          lastUpdate: new Date(),
+        },
+      ]);
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      expect(res.status).toBe(200);
+
+      const tickers = data.secoes.flatMap((s: { ativos: Array<{ ticker: string }> }) =>
+        s.ativos.map((a) => a.ticker),
+      );
+      expect(tickers).toContain('VALE3');
+      expect(tickers).not.toContain('KNRI11');
+    });
   });
 
   describe('POST', () => {

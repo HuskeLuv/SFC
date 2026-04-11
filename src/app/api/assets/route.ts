@@ -173,7 +173,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       'tesouro-direto': ['bond'],
       'renda-fixa-prefixada': ['bond'],
       'renda-fixa-posfixada': ['bond'],
-      previdencia: ['insurance'],
+      previdencia: ['previdencia'],
       criptoativo: ['crypto'],
       moeda: ['currency'],
       personalizado: ['custom'],
