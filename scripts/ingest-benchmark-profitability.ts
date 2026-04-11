@@ -6,7 +6,7 @@
  * Ou:  echo '<json>' | npx tsx scripts/ingest-benchmark-profitability.ts
  */
 
-import { ingestBenchmarkProfitability } from '../src/services/benchmarkProfitabilityIngestion';
+import { ingestBenchmarkProfitability } from '../src/services/market/benchmarkProfitabilityIngestion';
 import prisma from '../src/lib/prisma';
 import * as fs from 'fs';
 
@@ -21,7 +21,9 @@ async function main() {
       input = await new Promise<string>((resolve) => {
         let data = '';
         process.stdin.setEncoding('utf-8');
-        process.stdin.on('data', (chunk) => { data += chunk; });
+        process.stdin.on('data', (chunk) => {
+          data += chunk;
+        });
         process.stdin.on('end', () => resolve(data));
       });
     }

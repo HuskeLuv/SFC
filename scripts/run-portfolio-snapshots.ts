@@ -2,7 +2,7 @@
  * Executa o job de snapshots de patrimônio (pré-cálculo diário).
  * Uso: npm run snapshots:portfolio
  */
-import { runPortfolioSnapshotsJob } from '../src/services/portfolioSnapshotPersistence';
+import { runPortfolioSnapshotsJob } from '../src/services/portfolio/portfolioSnapshotPersistence';
 import prisma from '../src/lib/prisma';
 
 async function main() {
