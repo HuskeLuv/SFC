@@ -3,7 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
-import { getDividends } from '@/services/pricing/dividendService';
+import { getDividends, getCorporateActions } from '@/services/pricing/dividendService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -263,8 +263,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const quote = quotes.get(asset.symbol);
     const price = quote || asset.avgPrice;
     const current = price > 0 ? price * asset.quantity : 0;
-    const invested =
-      asset.totalInvested > 0 ? asset.totalInvested : asset.avgPrice * asset.quantity;
+    const invested = asset.avgPrice * asset.quantity;
     assetValuesBySymbol.set(asset.symbol, { invested, current });
   });
 
@@ -413,6 +412,31 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const mesesComProventos = Object.keys(monthlySummary).length;
   const mediaMensal = mesesComProventos > 0 ? totalProventos / mesesComProventos : 0;
 
+  // Fetch corporate actions (splits/inplits/bonuses) for all portfolio assets
+  const allCorporateActions = await Promise.all(
+    portfolioAssets.map(async (asset) => {
+      const actions = await getCorporateActions(asset.symbol, { useBrapiFallback: true });
+      return actions.map((a) => ({
+        symbol: asset.symbol,
+        ativo: asset.name || asset.symbol,
+        classe: mapAssetTypeToClasse(asset),
+        data: a.date.toISOString(),
+        type: a.type,
+        factor: a.factor,
+        completeFactor: a.completeFactor,
+      }));
+    }),
+  );
+  const corporateActions = allCorporateActions
+    .flat()
+    .filter((a) => {
+      const dateTime = new Date(a.data).getTime();
+      if (startDateTime && dateTime < startDateTime) return false;
+      if (endDateTime && dateTime > endDateTime) return false;
+      return true;
+    })
+    .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+
   return NextResponse.json({
     proventos,
     grouped: groupedData,
@@ -420,5 +444,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     yearly: yearlySummary,
     total: Math.round(totalProventos * 100) / 100,
     media: Math.round(mediaMensal * 100) / 100,
+    corporateActions,
   });
 });

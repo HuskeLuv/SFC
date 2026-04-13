@@ -16,6 +16,7 @@ const mockPrisma = vi.hoisted(() => ({
 
 const mockGetAssetPrices = vi.hoisted(() => vi.fn().mockResolvedValue(new Map()));
 const mockGetDividends = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const mockGetCorporateActions = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const mockLogSensitiveEndpointAccess = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('@/utils/auth', () => ({
@@ -32,6 +33,7 @@ vi.mock('@/services/pricing/assetPriceService', () => ({
 
 vi.mock('@/services/pricing/dividendService', () => ({
   getDividends: mockGetDividends,
+  getCorporateActions: mockGetCorporateActions,
 }));
 
 vi.mock('@/services/impersonationLogger', () => ({

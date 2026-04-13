@@ -439,6 +439,24 @@ model AssetDividendHistory {
   @@map("asset_dividend_history")
 }
 
+// Ações corporativas: desdobramento (split), grupamento (inplit), bonificação
+model AssetCorporateAction {
+  id             String   @id @default(uuid())
+  symbol         String
+  date           DateTime // Data ex (lastDatePrior) ou data de aprovação
+  type           String   // "DESDOBRAMENTO" | "GRUPAMENTO" | "BONIFICACAO"
+  factor         Float    // 2.0 para split 2:1, 0.5 para grupamento 1:2
+  completeFactor String?  // "2 para 1" (legível)
+  isinCode       String?
+  source         String   @default("BRAPI")
+  createdAt      DateTime @default(now())
+
+  @@unique([symbol, date, type])
+  @@index([symbol])
+  @@index([symbol, date])
+  @@map("asset_corporate_actions")
+}
+
 // Fundamentos do ativo (P/L, Beta, Dividend Yield) - banco primeiro, fallback BRAPI
 model AssetFundamentals {
   id             String    @id @default(uuid())

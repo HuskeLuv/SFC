@@ -416,7 +416,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               } else if (formData.tipoAtivo === 'debenture') {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === 'DEBENTURE-MANUAL');
               } else if (formData.tipoAtivo === 'fundo') {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === 'FUNDO-MANUAL');
+                isValid = !!(formData.ativo?.trim() && formData.assetId);
               } else if (formData.tipoAtivo === 'reit') {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === 'REIT-MANUAL');
               } else if (formData.tipoAtivo === 'stock') {
@@ -426,7 +426,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               } else if (formData.tipoAtivo === 'previdencia') {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === 'PREVIDENCIA-MANUAL');
               } else if (formData.tipoAtivo === 'tesouro-direto') {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === 'TESOURO-MANUAL');
+                isValid = !!(formData.ativo?.trim() && formData.assetId);
               } else if (formData.tipoAtivo === 'opcoes') {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === 'OPCAO-MANUAL');
               } else if (formData.tipoAtivo === 'reserva-oportunidade') {

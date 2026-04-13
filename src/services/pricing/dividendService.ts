@@ -1,5 +1,5 @@
 /**
- * Serviço de proventos/dividendos.
+ * Serviço de proventos/dividendos e ações corporativas (split/inplit/bonificação).
  * Regra: banco primeiro, fallback BRAPI apenas quando necessário, persistir no banco.
  */
 
@@ -117,11 +117,35 @@ const flattenBrapiResultDividends = (
   return merged;
 };
 
+/**
+ * Extract stockDividends (splits/inplits/bonuses) from BRAPI result.
+ * These live in `result.dividendsData.stockDividends`.
+ */
+const extractStockDividends = (result: Record<string, unknown>): Array<Record<string, unknown>> => {
+  const dividendsData = result.dividendsData as Record<string, unknown> | undefined;
+  if (!dividendsData || typeof dividendsData !== 'object') return [];
+  const stockDividends = dividendsData.stockDividends;
+  if (!Array.isArray(stockDividends)) return [];
+  return stockDividends as Array<Record<string, unknown>>;
+};
+
+// ================== TYPES ==================
+
 export interface DividendEntry {
   date: Date;
   tipo: string;
   valorUnitario: number;
 }
+
+export interface CorporateActionEntry {
+  date: Date;
+  type: string; // "DESDOBRAMENTO" | "GRUPAMENTO" | "BONIFICACAO"
+  factor: number;
+  completeFactor: string | null;
+  isinCode: string | null;
+}
+
+// ================== DIVIDEND FUNCTIONS ==================
 
 /**
  * Busca dividendos do banco para um símbolo.
@@ -145,6 +169,7 @@ const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
 
 /**
  * Busca dividendos na BRAPI e persiste no banco.
+ * Also extracts and persists corporate actions (splits/inplits/bonuses) from the same response.
  */
 const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<DividendEntry[]> => {
   const apiKey = process.env.BRAPI_API_KEY;
@@ -166,11 +191,10 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
     const result = (results[0] || {}) as Record<string, unknown>;
     const normalized = flattenBrapiResultDividends(result);
 
-    if (normalized.length === 0) continue;
-
     const dbSymbol = symbol.trim().toUpperCase();
     const entries: DividendEntry[] = [];
 
+    // Persist cash dividends
     for (const d of normalized) {
       const date = extractDividendDate(d);
       const valorUnitario = extractDividendAmount(d);
@@ -199,7 +223,46 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
       });
     }
 
-    if (entries.length > 0) return entries;
+    // Persist corporate actions (splits/inplits/bonuses) from same response
+    const stockDividends = extractStockDividends(result);
+    for (const sd of stockDividends) {
+      const type = (sd.label as string) || '';
+      const factor = Number(sd.factor);
+      if (!type || !Number.isFinite(factor) || factor <= 0) continue;
+
+      const rawDate = (sd.lastDatePrior as string) || (sd.approvedOn as string);
+      if (!rawDate) continue;
+      const parsed = new Date(rawDate);
+      if (Number.isNaN(parsed.getTime())) continue;
+
+      const dateNorm = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+
+      try {
+        await prisma.assetCorporateAction.upsert({
+          where: {
+            symbol_date_type: {
+              symbol: dbSymbol,
+              date: dateNorm,
+              type,
+            },
+          },
+          update: { factor, completeFactor: (sd.completeFactor as string) || null },
+          create: {
+            symbol: dbSymbol,
+            date: dateNorm,
+            type,
+            factor,
+            completeFactor: (sd.completeFactor as string) || null,
+            isinCode: (sd.isinCode as string) || null,
+            source: 'BRAPI',
+          },
+        });
+      } catch {
+        // Silently continue — corporate actions are best-effort
+      }
+    }
+
+    if (entries.length > 0 || stockDividends.length > 0) return entries;
   }
   return [];
 };
@@ -221,6 +284,48 @@ export const getDividends = async (
 
   if (useFallback) {
     return fetchAndPersistDividendsFromBrapi(symbol);
+  }
+  return [];
+};
+
+// ================== CORPORATE ACTION FUNCTIONS ==================
+
+/**
+ * Busca ações corporativas (splits/inplits/bonificações) do banco.
+ */
+const getCorporateActionsFromDb = async (symbol: string): Promise<CorporateActionEntry[]> => {
+  const variants = getDbSymbolVariants(symbol);
+  const rows = await prisma.assetCorporateAction.findMany({
+    where: { symbol: { in: variants } },
+    orderBy: { date: 'asc' },
+    select: { date: true, type: true, factor: true, completeFactor: true, isinCode: true },
+  });
+  return rows.map((r) => ({
+    date: r.date,
+    type: r.type,
+    factor: r.factor,
+    completeFactor: r.completeFactor,
+    isinCode: r.isinCode,
+  }));
+};
+
+/**
+ * Busca ações corporativas: banco primeiro, fallback BRAPI (via getDividends que persiste ambos).
+ */
+export const getCorporateActions = async (
+  symbol: string,
+  options?: { useBrapiFallback?: boolean },
+): Promise<CorporateActionEntry[]> => {
+  if (!symbol?.trim()) return [];
+  if (isBlockedSymbol(symbol)) return [];
+
+  const fromDb = await getCorporateActionsFromDb(symbol);
+  if (fromDb.length > 0) return fromDb;
+
+  // Trigger BRAPI fetch (which persists both dividends AND corporate actions)
+  if (options?.useBrapiFallback !== false) {
+    await fetchAndPersistDividendsFromBrapi(symbol);
+    return getCorporateActionsFromDb(symbol);
   }
   return [];
 };

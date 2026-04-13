@@ -20,6 +20,22 @@ interface AlocacaoAtivo {
   descricao: string;
 }
 
+const CATEGORIA_TO_TAB: Record<string, string> = {
+  reservaEmergencia: 'reserva-emergencia',
+  reservaOportunidade: 'reserva-oportunidade',
+  rendaFixaFundos: 'renda-fixa',
+  fimFia: 'fim-fia',
+  fiis: 'fiis',
+  acoes: 'acoes',
+  stocks: 'stocks',
+  reits: 'reit',
+  etfs: 'etf',
+  moedasCriptos: 'moedas-criptos',
+  previdenciaSeguros: 'previdencia',
+  opcoes: 'opcoes',
+  imoveisBens: 'imoveis',
+};
+
 interface AlocacaoAtivosTableProps {
   distribuicao: {
     reservaEmergencia: { valor: number; percentual: number };
@@ -38,12 +54,14 @@ interface AlocacaoAtivosTableProps {
   };
   alocacaoConfig: UseAlocacaoConfigReturn;
   caixaParaInvestir?: number;
+  onNavigateToTab?: (tabId: string) => void;
 }
 
 export default function AlocacaoAtivosTable({
   distribuicao,
   alocacaoConfig,
   caixaParaInvestir = 0,
+  onNavigateToTab,
 }: AlocacaoAtivosTableProps) {
   // Total Dinheiro: exclui Imóveis e Bens
   const totalDinheiro =
@@ -373,8 +391,18 @@ export default function AlocacaoAtivosTable({
                   className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-white dark:bg-gray-900"
                   style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
                 >
-                  <TableCell className="px-2 font-medium text-gray-800 dark:text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-l border-gray-200 border-r-0">
-                    {ativo.classeAtivo}
+                  <TableCell className="px-2 font-medium text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-l border-gray-200 border-r-0">
+                    {onNavigateToTab && CATEGORIA_TO_TAB[ativo.categoria] ? (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab(CATEGORIA_TO_TAB[ativo.categoria])}
+                        className="text-brand-500 hover:text-brand-600 dark:text-brand-400 dark:hover:text-brand-300 hover:underline cursor-pointer"
+                      >
+                        {ativo.classeAtivo}
+                      </button>
+                    ) : (
+                      <span className="text-gray-800 dark:text-white">{ativo.classeAtivo}</span>
+                    )}
                   </TableCell>
                   <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 font-mono">
                     {formatarMoeda(ativo.total)}
