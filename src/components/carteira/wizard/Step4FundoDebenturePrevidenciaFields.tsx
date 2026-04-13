@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useEffect } from 'react';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
@@ -16,6 +16,19 @@ export default function Step4FundoDebenturePrevidenciaFields({
   decimalInputProps,
   onFormDataChange,
 }: Step4FieldsProps) {
+  const isCvmFund =
+    formData.tipoAtivo === 'fundo' && formData.assetId && formData.assetId !== 'FUNDO-MANUAL';
+
+  // For CVM-backed funds, default to 'cotas' method to encourage quota-based entry
+  useEffect(() => {
+    if (!isCvmFund) return;
+
+    if (formData.cotacaoUnitaria === 0) {
+      onFormDataChange({ metodo: 'cotas' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.assetId]);
+
   const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
   const totalCalculado = formData.quantidade * formData.cotacaoUnitaria;
   const TIPO_DEBENTURE_OPTIONS = [
@@ -95,6 +108,15 @@ export default function Step4FundoDebenturePrevidenciaFields({
           {errors.fundoDestino && (
             <p className="mt-1 text-sm text-red-500">{errors.fundoDestino}</p>
           )}
+        </div>
+      )}
+
+      {isCvmFund && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            Fundo vinculado ao cadastro CVM. O valor da cota será atualizado automaticamente via
+            dados abertos da CVM.
+          </p>
         </div>
       )}
 

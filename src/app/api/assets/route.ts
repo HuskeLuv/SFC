@@ -160,6 +160,70 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     });
   }
 
+  // Para Tesouro Direto: buscar títulos do catálogo sincronizado do Tesouro Transparente
+  if (tipo === 'tesouro-direto') {
+    const assets = await prisma.asset.findMany({
+      where: {
+        type: 'tesouro-direto',
+        source: 'tesouro_gov',
+        ...(search && {
+          OR: [
+            { symbol: { contains: search, mode: 'insensitive' } },
+            { name: { contains: search, mode: 'insensitive' } },
+          ],
+        }),
+      },
+      take: limit,
+      orderBy: [{ name: 'asc' }],
+    });
+
+    return NextResponse.json({
+      success: true,
+      assets: assets.map((asset) => ({
+        id: asset.id,
+        symbol: asset.symbol,
+        name: asset.name,
+        type: 'tesouro-direto',
+        currency: 'BRL',
+        source: 'tesouro_gov',
+        currentPrice: asset.currentPrice?.toNumber() ?? null,
+      })),
+      count: assets.length,
+    });
+  }
+
+  // Para Fundos: buscar no catálogo CVM sincronizado + fundos existentes do usuário
+  if (tipo === 'fundo') {
+    const assets = await prisma.asset.findMany({
+      where: {
+        type: { in: ['fund', 'funds'] },
+        ...(search && {
+          OR: [
+            { symbol: { contains: search, mode: 'insensitive' } },
+            { name: { contains: search, mode: 'insensitive' } },
+            { cnpj: { contains: search } },
+          ],
+        }),
+      },
+      take: limit,
+      orderBy: [{ name: 'asc' }],
+    });
+
+    return NextResponse.json({
+      success: true,
+      assets: assets.map((asset) => ({
+        id: asset.id,
+        symbol: asset.symbol,
+        name: asset.name,
+        type: asset.type,
+        currency: asset.currency,
+        source: asset.source,
+        currentPrice: asset.currentPrice?.toNumber() ?? null,
+      })),
+      count: assets.length,
+    });
+  }
+
   // Para outros tipos, buscar na tabela Asset
   const baseFilters: Record<string, unknown> = {};
 
@@ -169,11 +233,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       etf: ['etf'],
       reit: ['reit'],
       debenture: ['bond'],
-      fundo: ['fund', 'funds'],
-      'tesouro-direto': ['bond'],
       'renda-fixa-prefixada': ['bond'],
       'renda-fixa-posfixada': ['bond'],
-      previdencia: ['previdencia'],
       criptoativo: ['crypto'],
       moeda: ['currency'],
       personalizado: ['custom'],

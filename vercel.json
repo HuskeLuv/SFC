@@ -17,6 +17,22 @@
   },
   "crons": [
     {
+      "path": "/api/cron/economic-indexes",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/tesouro-direto-sync",
+      "schedule": "15 6 * * *"
+    },
+    {
+      "path": "/api/cron/cvm-fund-sync",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/cvm-catalog-sync",
+      "schedule": "0 5 * * 0"
+    },
+    {
       "path": "/api/cron/brapi-sync",
       "schedule": "0 7 * * *"
     },

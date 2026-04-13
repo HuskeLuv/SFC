@@ -10,6 +10,7 @@ import {
 } from './Step3ManualEntry';
 import Step3RendaFixaSelect from './Step3RendaFixaSelect';
 import Step3MoedaSelect from './Step3MoedaSelect';
+import Step3SearchWithManualFallback from './Step3SearchWithManualFallback';
 
 interface Step3AssetProps {
   formData: WizardFormData;
@@ -35,11 +36,10 @@ export default function Step3Asset({
       return;
     }
 
-    // Stocks, previdência, tesouro direto e opções são adicionados manualmente - não buscar na Brapi
+    // Stocks, previdência e opções são adicionados manualmente - não buscar na API
     if (
       formData.tipoAtivo === 'stock' ||
       formData.tipoAtivo === 'previdencia' ||
-      formData.tipoAtivo === 'tesouro-direto' ||
       formData.tipoAtivo === 'opcoes'
     ) {
       setAssetOptions([]);
@@ -204,18 +204,13 @@ export default function Step3Asset({
   // Fundo
   if (formData.tipoAtivo === 'fundo') {
     return (
-      <Step3SimpleManual
+      <Step3SearchWithManualFallback
         {...stepProps}
-        title="💡 Como adicionar fundo manualmente"
-        instructions={[
-          'Informe o nome completo do fundo de investimento (ex: XP Macro FIM, BTG Pactual FIA)',
-          'Use o nome como aparece no extrato ou aplicativo da corretora',
-          'No próximo passo você selecionará se é FIM ou FIA e informará valor ou quantidade de cotas',
-        ]}
-        inputLabel="Nome do fundo *"
-        inputPlaceholder="Ex: XP Macro FIM, BTG Pactual FIA"
-        assetIdPrefix="FUNDO"
-        confirmLabel="Fundo informado"
+        tipoAtivo="fundo"
+        searchPlaceholder="Ex: XP Macro FIM, BTG Pactual FIA"
+        manualTitle="Não encontrou o fundo?"
+        manualPrefix="FUNDO"
+        manualPlaceholder="Ex: XP Macro FIM, BTG Pactual FIA"
       />
     );
   }
@@ -261,18 +256,13 @@ export default function Step3Asset({
   // Tesouro Direto
   if (formData.tipoAtivo === 'tesouro-direto') {
     return (
-      <Step3SimpleManual
+      <Step3SearchWithManualFallback
         {...stepProps}
-        title="💡 Como adicionar Tesouro Direto manualmente"
-        instructions={[
-          'Informe o nome do título (ex: Tesouro Selic 2029, Tesouro IPCA+ 2035)',
-          'Use o nome como aparece no extrato ou aplicativo do Tesouro Direto',
-          'No próximo passo você escolherá onde exibir (Reserva de Emergência, Reserva de Oportunidade ou Renda Fixa) e informará os dados do investimento',
-        ]}
-        inputLabel="Nome do título do Tesouro Direto *"
-        inputPlaceholder="Ex: Tesouro Selic 2029, Tesouro IPCA+ 2035"
-        assetIdPrefix="TESOURO"
-        confirmLabel="Título informado"
+        tipoAtivo="tesouro-direto"
+        searchPlaceholder="Ex: Tesouro Selic 2029, Tesouro IPCA+ 2035"
+        manualTitle="Não encontrou o título?"
+        manualPrefix="TESOURO"
+        manualPlaceholder="Ex: Tesouro Selic 2029, Tesouro IPCA+ 2035"
       />
     );
   }

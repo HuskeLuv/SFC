@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { RENDA_FIXA_INDEXADORES_POS } from '@/types/wizard';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
@@ -15,6 +15,20 @@ const TESOURO_DESTINO_OPTIONS = [
   { value: 'renda-fixa-hibrida', label: 'Renda Fixa (Híbrida)' },
 ];
 
+interface TesouroPriceData {
+  baseDate: string;
+  buyRate: number | null;
+  sellRate: number | null;
+  buyPU: number | null;
+  sellPU: number | null;
+}
+
+interface TesouroAssetData {
+  name: string;
+  bondType?: string;
+  maturityDate?: string;
+}
+
 export default function Step4TesouroDiretoFields({
   formData,
   errors,
@@ -22,7 +36,62 @@ export default function Step4TesouroDiretoFields({
   handleDecimalInputChange,
   getDecimalInputValue,
   decimalInputProps,
+  onFormDataChange,
 }: Step4FieldsProps) {
+  const [tesouroDetails, setTesouroDetails] = useState<{
+    asset: TesouroAssetData;
+    price: TesouroPriceData | null;
+  } | null>(null);
+
+  const isDbBacked = formData.assetId && formData.assetId !== 'TESOURO-MANUAL';
+
+  // Fetch Tesouro details when a DB-backed asset is selected
+  useEffect(() => {
+    if (!isDbBacked) {
+      setTesouroDetails(null);
+      return;
+    }
+
+    const fetchDetails = async () => {
+      try {
+        const res = await fetch(
+          `/api/tesouro-direto/details?assetId=${encodeURIComponent(formData.assetId)}`,
+          { credentials: 'include' },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success) {
+          setTesouroDetails(data);
+
+          // Auto-fill maturity date and description
+          if (data.asset?.maturityDate) {
+            const maturity = data.asset.maturityDate.split('T')[0];
+            onFormDataChange({
+              dataVencimento: maturity,
+              vencimento: maturity,
+              descricao: data.asset.name || formData.descricao,
+            });
+          }
+
+          // Auto-fill unit price with sellPU
+          if (data.price?.sellPU) {
+            onFormDataChange({ cotacaoUnitaria: data.price.sellPU });
+          }
+
+          // Auto-fill annual rate with sellRate (for prefixado)
+          if (data.price?.sellRate) {
+            onFormDataChange({ taxaJurosAnual: data.price.sellRate });
+          }
+        }
+      } catch {
+        // Silently fail — fields can still be filled manually
+      }
+    };
+
+    fetchDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.assetId]);
+
   const tesouroDestino = formData.tesouroDestino;
   const tesouroEmReserva =
     tesouroDestino === 'reserva-emergencia' || tesouroDestino === 'reserva-oportunidade';
@@ -52,6 +121,38 @@ export default function Step4TesouroDiretoFields({
           <p className="mt-1 text-sm text-red-500">{errors.tesouroDestino}</p>
         )}
       </div>
+
+      {isDbBacked && tesouroDetails?.price && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            Dados do Tesouro Transparente
+          </h4>
+          <div className="grid grid-cols-2 gap-2 text-sm text-blue-700 dark:text-blue-300">
+            {tesouroDetails.price.sellPU && (
+              <div>
+                <span className="font-medium">PU Venda:</span>{' '}
+                {`R$ ${tesouroDetails.price.sellPU.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`}
+              </div>
+            )}
+            {tesouroDetails.price.sellRate !== null && (
+              <div>
+                <span className="font-medium">Taxa Venda:</span>{' '}
+                {`${tesouroDetails.price.sellRate.toFixed(4)}% a.a.`}
+              </div>
+            )}
+            {tesouroDetails.asset?.maturityDate && (
+              <div>
+                <span className="font-medium">Vencimento:</span>{' '}
+                {new Date(tesouroDetails.asset.maturityDate).toLocaleDateString('pt-BR')}
+              </div>
+            )}
+            <div>
+              <span className="font-medium">Data base:</span>{' '}
+              {new Date(tesouroDetails.price.baseDate).toLocaleDateString('pt-BR')}
+            </div>
+          </div>
+        </div>
+      )}
 
       {tesouroEmReserva && (
         <>

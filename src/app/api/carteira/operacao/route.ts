@@ -1071,6 +1071,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         source: 'manual',
       },
     });
+  } else if (tipoAtivo === 'fundo' && assetId && assetId !== 'FUNDO-MANUAL') {
+    // DB-backed fund (from CVM catalog or previous entry)
+    asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    if (!asset) {
+      return NextResponse.json({ error: 'Fundo não encontrado' }, { status: 404 });
+    }
   } else if (tipoAtivo === 'fundo' && assetId === 'FUNDO-MANUAL') {
     const nomeFundo = (requestBody.ativo || '').trim();
     if (!nomeFundo) {
@@ -1334,6 +1340,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         source: 'manual',
       },
     });
+  } else if (tipoAtivo === 'tesouro-direto' && assetId && assetId !== 'TESOURO-MANUAL') {
+    // DB-backed Tesouro Direto (from Tesouro Transparente catalog)
+    asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    if (!asset) {
+      return NextResponse.json(
+        { error: 'Título do Tesouro Direto não encontrado' },
+        { status: 404 },
+      );
+    }
   } else if (tipoAtivo === 'tesouro-direto' && assetId === 'TESOURO-MANUAL') {
     const nomeTesouro = (requestBody.ativo || '').trim();
     if (!nomeTesouro) {

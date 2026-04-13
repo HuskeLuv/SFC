@@ -386,6 +386,7 @@ model Asset {
   source         String    @default("brapi") // Fonte dos dados
   currentPrice   Decimal?  @db.Decimal(18, 6) // Preço atual; IBOV pode exceder 10^4
   priceUpdatedAt DateTime? // Data da última atualização de preço
+  cnpj           String?   // CNPJ para fundos — vincula a dados CVM
   updatedAt      DateTime  @updatedAt
 
   // Relacionamentos
@@ -398,6 +399,7 @@ model Asset {
   @@index([symbol])
   @@index([type])
   @@index([source])
+  @@index([cnpj])
   @@map("assets")
 }
 
@@ -476,10 +478,12 @@ model FixedIncomeAsset {
   annualRate     Float
   indexer        FixedIncomeIndexer?
   indexerPercent Float?
-  liquidityType  FixedIncomeLiquidity?
-  taxExempt      Boolean               @default(false)
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  liquidityType    FixedIncomeLiquidity?
+  taxExempt        Boolean               @default(false)
+  tesouroBondType  String?               // "Tesouro Selic", "Tesouro IPCA+", etc. — vincula a TesouroDiretoPrice
+  tesouroMaturity  DateTime?             // Vencimento do titulo Tesouro — vincula a TesouroDiretoPrice
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   @@index([userId])
   @@index([assetId])
@@ -566,7 +570,7 @@ model EconomicIndex {
   id         String   @id @default(uuid())
   indexType  String   // "CDI" | "IPCA"
   date       DateTime // Data de referência
-  value      Decimal  @db.Decimal(10, 6) // Taxa do período (decimal para precisão)
+  value      Decimal  @db.Decimal(14, 6) // Taxa do período ou valor absoluto de índice (IMA-B pode exceder 9999)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -618,4 +622,44 @@ model PortfolioPerformance {
   @@unique([userId, date])
   @@index([userId, date])
   @@map("portfolio_performance")
+}
+
+// Preços diários de títulos do Tesouro Direto (fonte: Tesouro Transparente)
+model TesouroDiretoPrice {
+  id           String   @id @default(uuid())
+  bondType     String   // "Tesouro Selic", "Tesouro IPCA+", "Tesouro Prefixado", etc.
+  maturityDate DateTime // Data de vencimento do título
+  baseDate     DateTime // Data base da cotação
+  buyRate      Decimal? @db.Decimal(10, 6) // Taxa compra manhã (% a.a.)
+  sellRate     Decimal? @db.Decimal(10, 6) // Taxa venda manhã (% a.a.)
+  buyPU        Decimal? @db.Decimal(18, 6) // PU compra manhã (R$)
+  sellPU       Decimal? @db.Decimal(18, 6) // PU venda manhã (R$)
+  basePU       Decimal? @db.Decimal(18, 6) // PU base manhã (R$)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([bondType, maturityDate, baseDate])
+  @@index([bondType, maturityDate])
+  @@index([baseDate])
+  @@map("tesouro_direto_prices")
+}
+
+// Cotas diárias de fundos de investimento (fonte: CVM Dados Abertos)
+model CvmFundQuota {
+  id           String   @id @default(uuid())
+  cnpj         String   // CNPJ do fundo (14 dígitos, sem formatação)
+  date         DateTime // DT_COMPTC — data de referência da cota
+  quotaValue   Decimal  @db.Decimal(18, 8) // VL_QUOTA — valor da cota (alta precisão)
+  netWorth     Decimal? @db.Decimal(18, 2) // VL_PATRIM_LIQ — patrimônio líquido
+  totalValue   Decimal? @db.Decimal(18, 2) // VL_TOTAL — valor total da carteira
+  shareholders Int?     // NR_COTST — número de cotistas
+  dailyInflow  Decimal? @db.Decimal(18, 2) // CAPTC_DIA — captação do dia
+  dailyOutflow Decimal? @db.Decimal(18, 2) // RESG_DIA — resgate do dia
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([cnpj, date])
+  @@index([cnpj])
+  @@index([date])
+  @@map("cvm_fund_quotas")
 }
