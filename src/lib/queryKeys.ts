@@ -33,4 +33,7 @@ export const queryKeys = {
   riscoRetorno: {
     all: ['riscoRetorno'] as const,
   },
+  coberturaFgc: {
+    all: ['coberturaFgc'] as const,
+  },
 } as const;

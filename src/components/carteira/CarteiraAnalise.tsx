@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import RentabilidadeGeral from '@/components/analises/RentabilidadeGeral';
 import ProventosTabs from '@/components/analises/ProventosTabs';
 import RiscoRetorno from '@/components/analises/RiscoRetorno';
+import CoberturaFgc from '@/components/analises/CoberturaFgc';
 
 interface TabButtonProps {
   id: string;
@@ -41,6 +42,7 @@ const tabs = [
   { id: 'rentabilidade-geral', label: 'Rentabilidade Geral' },
   { id: 'proventos', label: 'Proventos' },
   { id: 'risco-retorno', label: 'Risco x Retorno' },
+  { id: 'cobertura-fgc', label: 'Cobertura FGC' },
 ];
 
 export default function CarteiraAnalise() {
@@ -87,6 +89,11 @@ export default function CarteiraAnalise() {
           {/* Risco x Retorno */}
           <TabContent id="risco-retorno" isActive={activeTab === 'risco-retorno'}>
             <RiscoRetorno />
+          </TabContent>
+
+          {/* Cobertura FGC */}
+          <TabContent id="cobertura-fgc" isActive={activeTab === 'cobertura-fgc'}>
+            <CoberturaFgc />
           </TabContent>
         </div>
       </div>
