@@ -8,7 +8,16 @@ const batchSize = 50;
 const toDayDate = (ts: number): Date => normalizeDateStart(new Date(ts));
 
 /**
+ * Number of trailing days to persist per cron run.
+ * The full history is still computed (needed for TWR), but only the
+ * last PERSIST_TAIL_DAYS entries are written to the DB, keeping the
+ * cron well within Vercel's 60s function limit.
+ */
+const PERSIST_TAIL_DAYS = 3;
+
+/**
  * Persiste série diária em portfolio_daily_snapshots e portfolio_performance (TWR).
+ * Only writes the last PERSIST_TAIL_DAYS entries to stay within timeout limits.
  */
 export const persistPatrimonioSnapshotsForUser = async (userId: string, timelineEndDate: Date) => {
   const { portfolio, fixedIncomeAssets, stockTransactions, investmentsExclReservas } =
@@ -33,8 +42,12 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
   let snapshotsWritten = 0;
   let performancesWritten = 0;
 
-  for (let i = 0; i < historicoPatrimonio.length; i += batchSize) {
-    const slice = historicoPatrimonio.slice(i, i + batchSize);
+  // Only persist the tail — the full history is computed for TWR accuracy
+  // but we only write the most recent days to minimize DB operations.
+  const patrimonioTail = historicoPatrimonio.slice(-PERSIST_TAIL_DAYS);
+
+  for (let i = 0; i < patrimonioTail.length; i += batchSize) {
+    const slice = patrimonioTail.slice(i, i + batchSize);
     await prisma.$transaction(
       slice.map((row) => {
         const day = toDayDate(row.data);
@@ -60,12 +73,18 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
     snapshotsWritten += slice.length;
   }
 
-  for (let i = 0; i < historicoTWR.length; i += batchSize) {
-    const slice = historicoTWR.slice(i, i + batchSize);
+  // For TWR, we need the previous entry for dailyReturn calculation,
+  // so take PERSIST_TAIL_DAYS + 1 but only write the tail.
+  const twrSliceStart = Math.max(0, historicoTWR.length - PERSIST_TAIL_DAYS);
+  const twrTail = historicoTWR.slice(twrSliceStart);
+
+  for (let i = 0; i < twrTail.length; i += batchSize) {
+    const slice = twrTail.slice(i, i + batchSize);
     await prisma.$transaction(
       slice.map((row, j) => {
-        const idx = i + j;
-        const prevTwr = idx > 0 ? historicoTWR[idx - 1] : null;
+        // Absolute index in the full TWR array for dailyReturn calc
+        const absIdx = twrSliceStart + i + j;
+        const prevTwr = absIdx > 0 ? historicoTWR[absIdx - 1] : null;
         let dailyReturn: number | null = null;
         if (prevTwr) {
           const fPrev = 1 + (prevTwr.value ?? 0) / 100;

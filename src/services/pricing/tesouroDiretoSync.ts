@@ -10,8 +10,9 @@ const TESOURO_CSV_URL =
 /** Number of rows to upsert per transaction batch */
 const BATCH_SIZE = 50;
 
-/** Default: only parse rows from the last N days (daily cron) */
-const DEFAULT_LOOKBACK_DAYS = 7;
+/** Default: only parse rows from the last N days (daily cron).
+ *  Reduced from 7 to 3 to minimize DB writes within Vercel's 60s limit. */
+const DEFAULT_LOOKBACK_DAYS = 3;
 
 /** CSV column separator */
 const SEPARATOR = ';';
@@ -125,7 +126,7 @@ export async function runTesouroDiretoSync(
     console.log('📥 Baixando CSV do Tesouro Transparente...');
     const { data: csvText } = await axios.get<string>(TESOURO_CSV_URL, {
       responseType: 'text',
-      timeout: 30000,
+      timeout: 20000, // 20s download — leaves 40s for parsing + DB writes within Vercel's 60s limit
     });
 
     const lines = csvText.split('\n');

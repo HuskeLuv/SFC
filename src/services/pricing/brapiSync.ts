@@ -724,6 +724,243 @@ export const syncAssets = async (): Promise<{
   }
 };
 
+// ================== SCOPED SYNC FUNCTIONS ==================
+
+/**
+ * Syncs only the asset catalog (metadata) — no price fetching.
+ * Fast enough for a single Vercel cron invocation (~10-20s).
+ */
+export const syncCatalog = async (): Promise<{
+  stocks: SyncResult;
+  crypto: SyncResult;
+  moedas: SyncResult;
+  total: SyncResult;
+  duration: number;
+}> => {
+  const startTime = Date.now();
+  const [stocks, cryptos] = await Promise.all([fetchStocks(), fetchCrypto()]);
+  const [stocksResult, cryptoResult, moedasResult] = await Promise.all([
+    syncStocks(stocks),
+    syncCrypto(cryptos),
+    syncMoedas(),
+  ]);
+  const total: SyncResult = {
+    inserted: stocksResult.inserted + cryptoResult.inserted + moedasResult.inserted,
+    updated: stocksResult.updated + cryptoResult.updated + moedasResult.updated,
+    errors: stocksResult.errors + cryptoResult.errors + moedasResult.errors,
+  };
+  return {
+    stocks: stocksResult,
+    crypto: cryptoResult,
+    moedas: moedasResult,
+    total,
+    duration: (Date.now() - startTime) / 1000,
+  };
+};
+
+/**
+ * Syncs prices for a specific asset scope ('stocks' | 'crypto-currencies').
+ * Each scope runs in its own cron invocation to stay within Vercel timeout.
+ */
+export const syncPricesByScope = async (
+  scope: 'stocks' | 'crypto-currencies',
+): Promise<SyncPriceResult> => {
+  console.log(`💰 Sincronizando preços (${scope})...`);
+
+  const startTime = Date.now();
+  let totalInserted = 0;
+  let totalUpdated = 0;
+  let errors = 0;
+
+  const excludedTypes = ['emergency', 'opportunity', 'personalizado', 'imovel'];
+  const excludedPrefixes = [
+    'RESERVA-EMERG',
+    'RESERVA-OPORT',
+    'PERSONALIZADO',
+    'RENDA-FIXA',
+    'CONTA-CORRENTE',
+  ];
+
+  const typeFilter =
+    scope === 'stocks'
+      ? { notIn: [...excludedTypes, 'crypto', 'currency'] }
+      : { in: ['crypto', 'currency'] };
+
+  const assets = await prisma.asset.findMany({
+    where: {
+      type: typeFilter,
+      source: { not: 'manual' },
+      AND: [
+        { symbol: { not: { startsWith: 'RESERVA-' } } },
+        { symbol: { not: { startsWith: 'RENDA-FIXA' } } },
+        { symbol: { not: { startsWith: 'CONTA-CORRENTE' } } },
+      ],
+    },
+    select: { id: true, symbol: true, currency: true, type: true },
+  });
+
+  if (assets.length === 0) {
+    return {
+      totalInserted: 0,
+      totalUpdated: 0,
+      errors: 0,
+      duration: (Date.now() - startTime) / 1000,
+    };
+  }
+
+  const assetBySymbol = new Map(assets.map((a) => [a.symbol.toUpperCase(), a]));
+
+  const processResults = async (
+    results: Array<{
+      symbol: string;
+      regularMarketPrice: number;
+      regularMarketTime?: string;
+      currency?: string;
+    }>,
+  ) => {
+    for (const r of results) {
+      if (!r.symbol || r.regularMarketPrice == null || r.regularMarketPrice <= 0) continue;
+      const symbolUpper = r.symbol.toUpperCase();
+      const asset = assetBySymbol.get(symbolUpper);
+      if (!asset) continue;
+      const marketDate = parseMarketDate(r.regularMarketTime);
+      const currency = r.currency || asset.currency;
+      try {
+        const existing = await prisma.assetPriceHistory.findUnique({
+          where: {
+            symbol_date: {
+              symbol: symbolUpper,
+              date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
+            },
+          },
+        });
+        await prisma.$transaction([
+          prisma.assetPriceHistory.upsert({
+            where: {
+              symbol_date: {
+                symbol: symbolUpper,
+                date: new Date(
+                  marketDate.getFullYear(),
+                  marketDate.getMonth(),
+                  marketDate.getDate(),
+                ),
+              },
+            },
+            update: { price: new Decimal(r.regularMarketPrice) },
+            create: {
+              assetId: asset.id,
+              symbol: symbolUpper,
+              price: new Decimal(r.regularMarketPrice),
+              currency: currency ?? null,
+              source: 'BRAPI',
+              date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
+            },
+          }),
+          prisma.asset.update({
+            where: { id: asset.id },
+            data: { currentPrice: new Decimal(r.regularMarketPrice), priceUpdatedAt: marketDate },
+          }),
+        ]);
+        if (existing) totalUpdated++;
+        else totalInserted++;
+      } catch (persistErr) {
+        console.warn(`   Erro ao persistir preço de ${r.symbol}:`, persistErr);
+        errors++;
+      }
+    }
+  };
+
+  const BATCH_SIZE = 20;
+
+  if (scope === 'crypto-currencies') {
+    // Currencies
+    const currencyAssets = assets.filter((a) => a.type === 'currency');
+    for (let i = 0; i < currencyAssets.length; i += BATCH_SIZE) {
+      const batch = currencyAssets.slice(i, i + BATCH_SIZE);
+      const symbols = batch.map((a) => a.symbol.toUpperCase());
+      try {
+        const currencyQuotes = await fetchCurrencyQuotes(symbols);
+        const results = symbols
+          .filter((sym) => {
+            const p = currencyQuotes.get(sym);
+            return p != null && p > 0;
+          })
+          .map((sym) => ({
+            symbol: sym,
+            regularMarketPrice: currencyQuotes.get(sym)!,
+            regularMarketTime: new Date().toISOString(),
+            currency: 'BRL',
+          }));
+        await processResults(results);
+        if (i + BATCH_SIZE < currencyAssets.length)
+          await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+      } catch (batchErr) {
+        console.error('   Erro no batch de moedas:', batchErr);
+        errors += batch.length;
+      }
+    }
+    // Crypto
+    const cryptoAssets = assets.filter((a) => a.type === 'crypto');
+    for (let i = 0; i < cryptoAssets.length; i += BATCH_SIZE) {
+      const batch = cryptoAssets.slice(i, i + BATCH_SIZE);
+      const syms = batch.map((a) => a.symbol);
+      try {
+        const cryptoQuotes = await fetchCryptoQuotes(syms, 'BRL');
+        const results = syms
+          .filter((sym) => {
+            const p = cryptoQuotes.get(sym.toUpperCase());
+            return p != null && p > 0;
+          })
+          .map((sym) => ({
+            symbol: sym.toUpperCase(),
+            regularMarketPrice: cryptoQuotes.get(sym.toUpperCase())!,
+            regularMarketTime: new Date().toISOString(),
+            currency: 'BRL',
+          }));
+        await processResults(results);
+        if (i + BATCH_SIZE < cryptoAssets.length)
+          await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+      } catch (batchErr) {
+        console.error('   Erro no batch de cripto:', batchErr);
+        errors += batch.length;
+      }
+    }
+  } else {
+    // Stocks (non-crypto, non-currency)
+    const symbols = assets
+      .map((a) => a.symbol.trim().toUpperCase())
+      .filter(
+        (s) =>
+          !excludedPrefixes.some((p) => s.startsWith(p)) &&
+          !s.startsWith('-') &&
+          /^[A-Za-z]/.test(s),
+      );
+    for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+      const batch = symbols.slice(i, i + BATCH_SIZE);
+      try {
+        const results = await fetchDetailedQuotes(batch);
+        await processResults(results);
+        if (i + BATCH_SIZE < symbols.length)
+          await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+      } catch (batchErr) {
+        console.error('   Erro no batch de preços:', batchErr);
+        errors += batch.length;
+      }
+    }
+  }
+
+  const duration = (Date.now() - startTime) / 1000;
+
+  await prisma.syncPriceLog.create({
+    data: { totalInserted, totalUpdated, errors, duration: Math.round(duration) },
+  });
+
+  console.log(
+    `   Preços (${scope}): ${totalInserted} ins, ${totalUpdated} upd, ${errors} err (${duration.toFixed(1)}s)`,
+  );
+  return { totalInserted, totalUpdated, errors, duration };
+};
+
 // ================== UTILITY FUNCTIONS ==================
 
 /**

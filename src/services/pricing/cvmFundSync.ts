@@ -117,10 +117,13 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
   let errors = 0;
   let fundsProcessed = 0;
 
-  // 1. Find target CNPJs from user portfolios
+  // 1. Find target CNPJs — only funds users actually hold in their portfolios.
+  //    Previously this queried ALL 25k CVM assets, causing massive filtered rows
+  //    and timeouts. Now we only sync what's actually in someone's portfolio.
   const fundAssets = await prisma.asset.findMany({
     where: {
       cnpj: { not: null },
+      portfolios: { some: {} },
     },
     select: { id: true, symbol: true, cnpj: true },
   });
@@ -150,7 +153,7 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
       console.log(`📥 Tentando baixar: ${url}`);
       const response = await axios.get(url, {
         responseType: 'arraybuffer',
-        timeout: 30000,
+        timeout: 20000, // 20s — leave headroom for parsing + DB writes within Vercel's 60s limit
       });
       zipBuffer = response.data;
       usedMonth = month;

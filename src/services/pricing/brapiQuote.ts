@@ -18,7 +18,7 @@ const getBrapiClient = (): Brapi => {
     brapiClient = new Brapi({
       apiKey: apiKey || undefined,
       maxRetries: 2, // SDK já tem retry automático
-      timeout: 60000, // 60 segundos
+      timeout: 25000, // 25s — leave headroom for Vercel's 60s function limit
     });
   }
 
