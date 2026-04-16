@@ -213,9 +213,15 @@ const AtivoEditarContent = () => {
         });
         if (res.ok) {
           await loadData();
+        } else {
+          const errBody = await res.json().catch(() => ({}));
+          console.error(`Erro ao salvar ${field}:`, res.status, errBody);
+          setError(`Erro ao salvar: ${(errBody as { error?: string }).error || res.statusText}`);
+          await loadData();
         }
       } catch (err) {
         console.error('Erro ao atualizar transação:', err);
+        setError('Erro de rede ao salvar alteração');
       }
     },
     [loadData, csrfFetch],
