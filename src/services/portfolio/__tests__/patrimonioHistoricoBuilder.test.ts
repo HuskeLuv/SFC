@@ -87,11 +87,12 @@ describe('buildDailyTimeline', () => {
     expect(timeline[0]).toBe(normalizeDateStart(d).getTime());
   });
 
-  it('retorna dias consecutivos para intervalo multi-dia', () => {
+  it('retorna dias consecutivos para intervalo multi-dia (sem fins de semana)', () => {
+    // Jan 1 (Wed) through Jan 5 (Sun) 2025 → Wed, Thu, Fri = 3 weekdays
     const start = new Date(2025, 0, 1);
     const end = new Date(2025, 0, 5);
     const timeline = buildDailyTimeline(start, end);
-    expect(timeline).toHaveLength(5);
+    expect(timeline).toHaveLength(3);
     expect(timeline[1] - timeline[0]).toBe(DAY_MS);
   });
 
@@ -114,11 +115,18 @@ describe('buildDailyTimeline', () => {
     });
   });
 
-  it('funciona com intervalo de 30 dias', () => {
+  it('funciona com intervalo de 30 dias (exclui fins de semana)', () => {
+    // Jan 2025 has 23 weekdays (31 days - 4 Sat - 4 Sun)
     const start = new Date(2025, 0, 1);
     const end = new Date(2025, 0, 31);
     const timeline = buildDailyTimeline(start, end);
-    expect(timeline).toHaveLength(31);
+    expect(timeline).toHaveLength(23);
+    // Verify no weekends
+    timeline.forEach((t) => {
+      const d = new Date(t);
+      expect(d.getDay()).not.toBe(0); // not Sunday
+      expect(d.getDay()).not.toBe(6); // not Saturday
+    });
   });
 });
 

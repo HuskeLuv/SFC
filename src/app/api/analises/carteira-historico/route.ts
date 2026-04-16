@@ -22,6 +22,9 @@ const buildDailyTimeline = (startDate: Date, endDate: Date) => {
   const timeline: number[] = [];
 
   for (let day = start; day <= end; day += DAY_MS) {
+    const d = new Date(day);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue; // Skip weekends
     timeline.push(day);
   }
 

@@ -45,6 +45,12 @@ export const buildDailyTimeline = (startDate: Date, endDate: Date) => {
   const timeline: number[] = [];
 
   for (let day = start; day <= end; day += DAY_MS) {
+    const d = new Date(day);
+    const dow = d.getDay();
+    // Skip weekends — B3 and most markets are closed Sat/Sun.
+    // Holidays are not filtered (prices just carry forward), which is fine
+    // since no trades happen and portfolio value stays flat.
+    if (dow === 0 || dow === 6) continue;
     timeline.push(day);
   }
 
