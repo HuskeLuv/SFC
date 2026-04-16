@@ -460,9 +460,18 @@ export const buildPatrimonioHistorico = async (
   }
 
   const quantitiesBySymbol = new Map<string, number>();
+  const timelineStartTs = timeline.length > 0 ? timeline[0] : hoje.getTime();
   allSymbols.forEach((symbol) => {
     const portfolioInfo = portfolioBySymbol.get(symbol);
-    if (portfolioInfo && !firstTransactionBySymbol.has(symbol)) {
+    const firstTx = firstTransactionBySymbol.get(symbol);
+    // Use portfolio quantity when there are no transactions, OR when all
+    // transactions are before the timeline start (e.g. maxHistoricoMonths
+    // truncated the timeline past the purchase date).
+    const allTxBeforeTimeline = firstTx !== undefined && firstTx < timelineStartTs;
+    const hasNoTransactionsInTimeline =
+      !firstTransactionBySymbol.has(symbol) || allTxBeforeTimeline;
+
+    if (portfolioInfo && hasNoTransactionsInTimeline) {
       quantitiesBySymbol.set(symbol, portfolioInfo.quantity);
     } else {
       quantitiesBySymbol.set(symbol, 0);
@@ -475,6 +484,19 @@ export const buildPatrimonioHistorico = async (
   let manualInvestmentsValue = 0;
   let valorAplicadoDia = 0;
   const patrimonioSeries: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
+
+  // Pre-seed valorAplicado and cashBalance from transactions before the timeline.
+  // Without this, assets bought years ago but with maxHistoricoMonths truncation
+  // would show as having zero invested capital, distorting TWR.
+  for (const [day, delta] of appliedDeltasByDay) {
+    if (day < timelineStartTs) valorAplicadoDia += delta;
+  }
+  for (const [day, delta] of aportesByDay) {
+    if (day < timelineStartTs) cashBalance += delta;
+  }
+  for (const [day, delta] of cashDeltasByDay) {
+    if (day < timelineStartTs) cashBalance += delta;
+  }
 
   for (const day of timeline) {
     if (manualValuesByDay.has(day)) {
