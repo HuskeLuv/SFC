@@ -7,7 +7,7 @@ interface AssetFgcInfo {
   produto: string;
   valorAtual: number;
   valorInvestido: number;
-  vencimento: string;
+  vencimento: string | null;
   coberto: boolean;
   isentoIR: boolean;
 }

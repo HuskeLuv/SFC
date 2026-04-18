@@ -347,10 +347,30 @@ export default function CoberturaFgc() {
                               {formatBRL(ativo.valorAtual)}
                             </td>
                             <td className="whitespace-nowrap px-5 py-3 text-gray-700 dark:text-gray-300">
-                              {new Date(ativo.vencimento).toLocaleDateString('pt-BR')}
+                              {ativo.vencimento
+                                ? new Date(ativo.vencimento).toLocaleDateString('pt-BR')
+                                : '—'}
                             </td>
                             <td className="whitespace-nowrap px-5 py-3 text-center">
-                              {ativo.coberto ? (
+                              {ativo.coberto && ativo.valorAtual > inst.limiteFgc ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M12 9v4" />
+                                    <path d="M12 17h.01" />
+                                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                  </svg>
+                                  Parcialmente Coberto
+                                </span>
+                              ) : ativo.coberto ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                                   <svg
                                     width="12"

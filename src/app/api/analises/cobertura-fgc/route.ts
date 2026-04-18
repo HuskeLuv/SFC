@@ -45,11 +45,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     fixedIncomeAssets = [];
   }
 
-  // 2. Fetch portfolio entries for bond/cash assets
+  // 2. Fetch portfolio entries for FGC-relevant assets.
+  // Includes emergency/opportunity reserves to pick up Poupança e Conta Corrente,
+  // que são cobertas pelo FGC mesmo sem um FixedIncomeAsset associado.
   const portfolio = await prisma.portfolio.findMany({
     where: {
       userId: targetUserId,
-      asset: { type: { in: ['bond', 'cash'] } },
+      asset: { type: { in: ['bond', 'cash', 'emergency', 'opportunity'] } },
     },
     include: { asset: true },
   });
@@ -132,7 +134,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     produto: string;
     valorAtual: number;
     valorInvestido: number;
-    vencimento: string;
+    vencimento: string | null;
     coberto: boolean;
     isentoIR: boolean;
   }
@@ -152,29 +154,61 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const institutionGroups = new Map<string, InstitutionGroup>();
 
+  // Poupança e conta corrente são cobertas pelo FGC ("depósitos à vista" no caso da conta corrente)
+  // e não têm FixedIncomeAsset associado — derivamos a info do símbolo do asset.
+  const getDepositInfo = (symbol: string | null) => {
+    if (!symbol) return null;
+    if (symbol.startsWith('POUPANCA-')) {
+      return { produto: 'Poupança', isentoIR: true };
+    }
+    if (symbol.startsWith('CONTA-CORRENTE-')) {
+      return { produto: 'Conta Corrente', isentoIR: false };
+    }
+    return null;
+  };
+
   for (const item of portfolio) {
     if (!item.assetId) continue;
     const fi = fixedIncomeByAssetId.get(item.assetId);
-    if (!fi) continue;
 
     const instId = institutionIdByAssetId.get(item.assetId) || 'desconhecida';
     const inst = instId !== 'desconhecida' ? institutionById.get(instId) : null;
     const instName = inst?.nome || 'Instituição não identificada';
     const cnpj = inst?.cnpj || null;
 
-    const valorAtual = calculateCurrentValue(fi, item);
-    const coberto = isFgcCovered(fi.type);
+    let asset: AssetFgcInfo;
+    let valorAtual: number;
+    let coberto: boolean;
 
-    const asset: AssetFgcInfo = {
-      id: item.id,
-      nome: fi.description || item.asset?.name || 'Renda Fixa',
-      produto: getProductLabel(fi.type),
-      valorAtual,
-      valorInvestido: fi.investedAmount,
-      vencimento: fi.maturityDate.toISOString(),
-      coberto,
-      isentoIR: fi.taxExempt,
-    };
+    if (fi) {
+      valorAtual = calculateCurrentValue(fi, item);
+      coberto = isFgcCovered(fi.type);
+      asset = {
+        id: item.id,
+        nome: fi.description || item.asset?.name || 'Renda Fixa',
+        produto: getProductLabel(fi.type),
+        valorAtual,
+        valorInvestido: fi.investedAmount,
+        vencimento: fi.maturityDate.toISOString(),
+        coberto,
+        isentoIR: fi.taxExempt,
+      };
+    } else {
+      const deposit = getDepositInfo(item.asset?.symbol ?? null);
+      if (!deposit) continue;
+      valorAtual = item.totalInvested ?? item.avgPrice * item.quantity;
+      coberto = true;
+      asset = {
+        id: item.id,
+        nome: item.asset?.name || deposit.produto,
+        produto: deposit.produto,
+        valorAtual,
+        valorInvestido: valorAtual,
+        vencimento: null,
+        coberto,
+        isentoIR: deposit.isentoIR,
+      };
+    }
 
     const groupKey = inst?.cnpj || instId; // Group by CNPJ when available (same CNPJ = same FGC limit)
     if (!institutionGroups.has(groupKey)) {
