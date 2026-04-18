@@ -59,6 +59,28 @@ export const PATCH = withErrorHandler(
       return NextResponse.json({ error: 'Transação não encontrada' }, { status: 404 });
     }
 
+    // Manter invariante total = quantity * price ao editar um campo isoladamente;
+    // caso contrário, recálculos de portfolio usam valores obsoletos e geram preço médio distorcido.
+    const hasQuantity = updates.quantity !== undefined;
+    const hasPrice = updates.price !== undefined;
+    const hasTotal = updates.total !== undefined;
+
+    if (hasQuantity || hasPrice || hasTotal) {
+      const nextQuantity = hasQuantity
+        ? (updates.quantity as number)
+        : Number(transaction.quantity);
+      const nextPrice = hasPrice ? (updates.price as number) : Number(transaction.price);
+
+      if (hasTotal && !hasQuantity && !hasPrice) {
+        const nextTotal = updates.total as number;
+        if (nextQuantity > 0) {
+          updates.price = nextTotal / nextQuantity;
+        }
+      } else if (!hasTotal) {
+        updates.total = nextQuantity * nextPrice;
+      }
+    }
+
     await prisma.stockTransaction.update({
       where: { id },
       data: updates,

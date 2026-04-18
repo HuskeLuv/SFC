@@ -104,6 +104,132 @@ describe('PATCH /api/historico/transacao/[id]', () => {
     expect(response.status).toBe(400);
     expect(data.error).toBeDefined();
   });
+
+  it('recalcula total ao editar apenas quantity', async () => {
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+      id: 'tx-1',
+      userId: 'user-1',
+      assetId: 'asset-1',
+      stockId: null,
+      type: 'compra',
+      quantity: 100,
+      price: 10,
+      total: 1000,
+      asset: { symbol: 'PETR4' },
+      stock: null,
+    });
+    mockPrisma.stockTransaction.update.mockResolvedValue({});
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { type: 'compra', quantity: 50, price: 10, total: 500 },
+    ]);
+    mockPrisma.portfolio.update.mockResolvedValue({});
+
+    const response = await callPATCH({ quantity: 50 });
+    expect(response.status).toBe(200);
+
+    expect(mockPrisma.stockTransaction.update).toHaveBeenCalledWith({
+      where: { id: 'tx-1' },
+      data: { quantity: 50, total: 500 },
+    });
+    expect(mockPrisma.portfolio.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          quantity: 50,
+          avgPrice: 10,
+          totalInvested: 500,
+        }),
+      }),
+    );
+  });
+
+  it('recalcula total ao editar apenas price', async () => {
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+      id: 'tx-1',
+      userId: 'user-1',
+      assetId: 'asset-1',
+      stockId: null,
+      type: 'compra',
+      quantity: 100,
+      price: 10,
+      total: 1000,
+      asset: { symbol: 'PETR4' },
+      stock: null,
+    });
+    mockPrisma.stockTransaction.update.mockResolvedValue({});
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { type: 'compra', quantity: 100, price: 8, total: 800 },
+    ]);
+    mockPrisma.portfolio.update.mockResolvedValue({});
+
+    const response = await callPATCH({ price: 8 });
+    expect(response.status).toBe(200);
+
+    expect(mockPrisma.stockTransaction.update).toHaveBeenCalledWith({
+      where: { id: 'tx-1' },
+      data: { price: 8, total: 800 },
+    });
+  });
+
+  it('recalcula price ao editar apenas total', async () => {
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+      id: 'tx-1',
+      userId: 'user-1',
+      assetId: 'asset-1',
+      stockId: null,
+      type: 'compra',
+      quantity: 100,
+      price: 10,
+      total: 1000,
+      asset: { symbol: 'PETR4' },
+      stock: null,
+    });
+    mockPrisma.stockTransaction.update.mockResolvedValue({});
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { type: 'compra', quantity: 100, price: 7.5, total: 750 },
+    ]);
+    mockPrisma.portfolio.update.mockResolvedValue({});
+
+    const response = await callPATCH({ total: 750 });
+    expect(response.status).toBe(200);
+
+    expect(mockPrisma.stockTransaction.update).toHaveBeenCalledWith({
+      where: { id: 'tx-1' },
+      data: { total: 750, price: 7.5 },
+    });
+  });
+
+  it('não mexe em quantity/price/total quando só edita date', async () => {
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+      id: 'tx-1',
+      userId: 'user-1',
+      assetId: 'asset-1',
+      stockId: null,
+      type: 'compra',
+      quantity: 100,
+      price: 10,
+      total: 1000,
+      asset: { symbol: 'PETR4' },
+      stock: null,
+    });
+    mockPrisma.stockTransaction.update.mockResolvedValue({});
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { type: 'compra', quantity: 100, price: 10, total: 1000 },
+    ]);
+    mockPrisma.portfolio.update.mockResolvedValue({});
+
+    const response = await callPATCH({ date: '2025-01-15' });
+    expect(response.status).toBe(200);
+
+    const updateCall = mockPrisma.stockTransaction.update.mock.calls[0][0];
+    expect(updateCall.data).not.toHaveProperty('quantity');
+    expect(updateCall.data).not.toHaveProperty('price');
+    expect(updateCall.data).not.toHaveProperty('total');
+    expect(updateCall.data.date).toBeInstanceOf(Date);
+  });
 });
 
 describe('DELETE /api/historico/transacao/[id]', () => {
