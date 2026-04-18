@@ -150,12 +150,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (!fixedIncome) {
         return null;
       }
-      // Usar valor atualizado do portfolio (avgPrice) se foi editado manualmente
+      // Usar valor atualizado do portfolio (avgPrice) se foi editado manualmente.
+      // Para Tesouro do catálogo, preferir o PU oficial (Asset.currentPrice = sellPU
+      // mantido por bridgeTesouroToAssetPrices) sobre a fórmula aproximada.
       const valorAtualizadoCalculado = calculateFixedIncomeValue(fixedIncome);
+      const isTesouroCatalogo = item.asset?.type === 'tesouro-direto';
+      const tesouroCurrentPrice = isTesouroCatalogo
+        ? (item.asset?.currentPrice?.toNumber() ?? null)
+        : null;
       const valorAtualizado =
-        item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-          ? item.avgPrice * item.quantity
-          : valorAtualizadoCalculado;
+        tesouroCurrentPrice && tesouroCurrentPrice > 0 && item.quantity > 0
+          ? tesouroCurrentPrice * item.quantity
+          : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+            ? item.avgPrice * item.quantity
+            : valorAtualizadoCalculado;
       const valorInicial = fixedIncome.investedAmount;
       const rentabilidade =
         valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0;

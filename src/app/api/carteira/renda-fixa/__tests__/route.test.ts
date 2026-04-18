@@ -83,6 +83,49 @@ describe('/api/carteira/renda-fixa', () => {
         }),
       );
     });
+
+    it('uses Asset.currentPrice * quantity for catalog tesouro valuation', async () => {
+      const tesouroAssetId = 'asset-td-1';
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'pf-1',
+          assetId: tesouroAssetId,
+          quantity: 10,
+          avgPrice: 100, // cost basis — should NOT be used since currentPrice exists
+          totalInvested: 1000,
+          asset: {
+            id: tesouroAssetId,
+            type: 'tesouro-direto',
+            name: 'Tesouro Selic 2029',
+            currentPrice: { toNumber: () => 150 },
+          },
+        },
+      ]);
+      mockPrisma.fixedIncomeAsset.findMany.mockResolvedValue([
+        {
+          id: 'fi-1',
+          assetId: tesouroAssetId,
+          type: 'CDB_PRE',
+          description: 'Tesouro Selic 2029',
+          startDate: new Date('2024-01-01'),
+          maturityDate: new Date('2029-03-01'),
+          investedAmount: 1000,
+          annualRate: 0,
+          indexer: 'CDI',
+          indexerPercent: 100,
+          liquidityType: null,
+          taxExempt: true,
+          tesouroBondType: 'Tesouro Selic',
+          tesouroMaturity: new Date('2029-03-01'),
+        },
+      ]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      expect(res.status).toBe(200);
+      // 150 * 10 = 1500 (currentPrice path), not 100 * 10 = 1000 (avgPrice path)
+      expect(data.totalGeral.valorAtualizado).toBe(1500);
+    });
   });
 
   describe('POST', () => {
