@@ -1818,6 +1818,34 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         indexerForAsset = rendaFixaIndexer || null;
       }
 
+      // For catalog-picked Tesouro, link this FixedIncomeAsset to TesouroDiretoPrice
+      // so bridgeTesouroToAssetPrices() can keep Asset.currentPrice in sync with sellPU.
+      // The catalog Asset.name is "{bondType} {maturityYear}" (see syncTesouroAssetCatalog).
+      let tesouroBondType: string | null = null;
+      let tesouroMaturity: Date | null = null;
+      if (isTesouroRendaFixa && asset?.type === 'tesouro-direto' && asset.name) {
+        const nameMatch = asset.name.match(/^(.+)\s(\d{4})$/);
+        if (nameMatch) {
+          const bondType = nameMatch[1];
+          const maturityYear = parseInt(nameMatch[2], 10);
+          const exactPrice = await prisma.tesouroDiretoPrice.findFirst({
+            where: {
+              bondType,
+              maturityDate: {
+                gte: new Date(`${maturityYear}-01-01`),
+                lt: new Date(`${maturityYear + 1}-01-01`),
+              },
+            },
+            orderBy: { baseDate: 'desc' },
+            select: { maturityDate: true },
+          });
+          if (exactPrice) {
+            tesouroBondType = bondType;
+            tesouroMaturity = exactPrice.maturityDate;
+          }
+        }
+      }
+
       await prisma.fixedIncomeAsset.create({
         data: {
           userId: targetUserId,
@@ -1832,6 +1860,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           indexerPercent: indexerPercentForAsset ?? null,
           liquidityType: isTesouroRendaFixa ? null : rendaFixaLiquidity || null,
           taxExempt: isTesouroRendaFixa ? true : Boolean(rendaFixaTaxExempt),
+          tesouroBondType,
+          tesouroMaturity,
         },
       });
     } catch (error) {

@@ -10,6 +10,7 @@ const mockPrisma = vi.hoisted(() => ({
   stockTransaction: { create: vi.fn() },
   portfolio: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
   fixedIncomeAsset: { create: vi.fn() },
+  tesouroDiretoPrice: { findFirst: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -69,6 +70,7 @@ describe('POST /api/carteira/operacao', () => {
     mockPrisma.portfolio.create.mockResolvedValue(mockPortfolio);
     mockPrisma.portfolio.findFirst.mockResolvedValue(null);
     mockPrisma.fixedIncomeAsset.create.mockResolvedValue({});
+    mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue(null);
   });
 
   describe('Autenticação', () => {
@@ -956,6 +958,75 @@ describe('POST /api/carteira/operacao', () => {
       expect(data.success).toBe(true);
       expect(mockPrisma.asset.findUnique).toHaveBeenCalled();
       expect(mockPrisma.portfolio.create).toHaveBeenCalled();
+    });
+
+    it('popula tesouroBondType e tesouroMaturity quando tesouro do catálogo vai para renda fixa', async () => {
+      const exactMaturity = new Date('2029-03-01');
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-td-cat',
+        symbol: 'TD-TESOURO-SELIC-2029',
+        name: 'Tesouro Selic 2029',
+        type: 'tesouro-direto',
+      });
+      mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValueOnce({
+        maturityDate: exactMaturity,
+      });
+
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'tesouro-direto',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-td-cat',
+          dataCompra: '2024-01-15',
+          valorInvestido: 5000,
+          metodo: 'valor',
+          tesouroDestino: 'renda-fixa-posfixada',
+          dataInicio: '2024-01-15',
+          dataVencimento: '2029-03-01',
+          taxaJurosAnual: 100,
+          rendaFixaIndexer: 'CDI',
+          rendaFixaIndexerPercent: 100,
+          descricao: 'Tesouro Selic 2029',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(201);
+      expect(data.success).toBe(true);
+      expect(mockPrisma.tesouroDiretoPrice.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ bondType: 'Tesouro Selic' }),
+        }),
+      );
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tesouroBondType: 'Tesouro Selic',
+            tesouroMaturity: exactMaturity,
+          }),
+        }),
+      );
+    });
+
+    it('não popula tesouroBondType para tesouro destinado a reserva', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'tesouro-direto',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-td',
+          dataCompra: '2024-01-15',
+          valorInvestido: 5000,
+          metodo: 'valor',
+          tesouroDestino: 'reserva-emergencia',
+          cotizacaoResgate: 'D+1',
+          liquidacaoResgate: 'D+1',
+          vencimento: '2029-01-01',
+          benchmark: 'Selic',
+        }),
+      );
+      expect(response.status).toBe(201);
+      // Reservas don't go through the FixedIncomeAsset.create path at all
+      expect(mockPrisma.fixedIncomeAsset.create).not.toHaveBeenCalled();
+      expect(mockPrisma.tesouroDiretoPrice.findFirst).not.toHaveBeenCalled();
     });
 
     it('adiciona previdência por cotas com sucesso', async () => {
