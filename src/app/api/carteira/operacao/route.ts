@@ -1500,9 +1500,42 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       quantidadeFinal = quantidade;
       precoFinal = cotacaoUnitaria;
     } else {
+      // "Por valor investido": derivar quantidade a partir do PU do dia da compra
+      // (TesouroDiretoPrice) para que Portfolio.quantity * Asset.currentPrice reflita
+      // a variação de mercado no valor atualizado. Fallback: quantity=1 quando o PU
+      // do dia não está disponível (ex: Tesouro manual ou bondType/maturity não casa).
       valorCalculado = valorInvestido;
-      quantidadeFinal = 1;
-      precoFinal = valorInvestido;
+      let derivedFromCatalog = false;
+      if (asset?.type === 'tesouro-direto' && asset.name) {
+        const dataRef = dataCompra || dataInicio;
+        const nameMatch = asset.name.match(/^(.+)\s(\d{4})$/);
+        if (dataRef && nameMatch) {
+          const bondType = nameMatch[1].trim();
+          const maturityYear = parseInt(nameMatch[2], 10);
+          const precoDia = await prisma.tesouroDiretoPrice.findFirst({
+            where: {
+              bondType,
+              maturityDate: {
+                gte: new Date(`${maturityYear}-01-01`),
+                lt: new Date(`${maturityYear + 1}-01-01`),
+              },
+              baseDate: { lte: new Date(dataRef) },
+            },
+            orderBy: { baseDate: 'desc' },
+            select: { sellPU: true },
+          });
+          const sellPU = precoDia?.sellPU ? Number(precoDia.sellPU) : 0;
+          if (sellPU > 0) {
+            quantidadeFinal = valorInvestido / sellPU;
+            precoFinal = sellPU;
+            derivedFromCatalog = true;
+          }
+        }
+      }
+      if (!derivedFromCatalog) {
+        quantidadeFinal = 1;
+        precoFinal = valorInvestido;
+      }
     }
   } else if (tipoAtivo === 'debenture' || tipoAtivo === 'fundo' || tipoAtivo === 'previdencia') {
     const metodoCotas = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';

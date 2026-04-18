@@ -559,6 +559,24 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           { symbol: string; type: string | null; currency: string | null; name: string | null }
         >();
 
+  // Catalog Tesouro Direto compartilha asset.type='tesouro-direto' entre usuários;
+  // a intenção de colocá-lo numa reserva fica registrada em transaction.notes.tesouroDestino.
+  const tesouroReservaDestinoByAssetId = new Map<string, 'emergencia' | 'oportunidade'>();
+  for (const tx of stockTransactions) {
+    if (tx.type !== 'compra' || !tx.assetId || !tx.notes) continue;
+    if (tesouroReservaDestinoByAssetId.has(tx.assetId)) continue;
+    try {
+      const parsed = JSON.parse(tx.notes);
+      if (parsed?.tesouroDestino === 'reserva-oportunidade') {
+        tesouroReservaDestinoByAssetId.set(tx.assetId, 'oportunidade');
+      } else if (parsed?.tesouroDestino === 'reserva-emergencia') {
+        tesouroReservaDestinoByAssetId.set(tx.assetId, 'emergencia');
+      }
+    } catch {
+      // ignora notas malformadas
+    }
+  }
+
   // Categorizar portfolio baseado no tipo do ativo
   for (const item of portfolio) {
     const symbol = item.asset?.symbol || item.stock?.ticker;
@@ -566,13 +584,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
     const asset = item.asset ?? assetsBySymbol.get(symbol.trim().toUpperCase()) ?? null;
     const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
+    const tesouroReservaDestino = item.assetId
+      ? tesouroReservaDestinoByAssetId.get(item.assetId)
+      : undefined;
 
     // Calcular valor atual com cotação
     const isReserva =
       asset?.type === 'emergency' ||
       asset?.type === 'opportunity' ||
       symbol?.startsWith('RESERVA-EMERG') ||
-      symbol?.startsWith('RESERVA-OPORT');
+      symbol?.startsWith('RESERVA-OPORT') ||
+      tesouroReservaDestino !== undefined;
     const currentPrice = quotes.get(symbol);
     const valorAtual = fixedIncome
       ? getFixedIncomeCurrentValue(fixedIncome, item, new Date())
@@ -598,7 +620,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
       // Verificar se é reserva antes de categorizar
       if (isReserva) {
-        if (tipo === 'opportunity' || symbol?.startsWith('RESERVA-OPORT')) {
+        if (tesouroReservaDestino === 'oportunidade') {
+          categorias.reservaOportunidade += valorAtualBRL;
+        } else if (tesouroReservaDestino === 'emergencia') {
+          categorias.reservaEmergencia += valorAtualBRL;
+        } else if (tipo === 'opportunity' || symbol?.startsWith('RESERVA-OPORT')) {
           categorias.reservaOportunidade += valorAtualBRL;
         } else if (tipo === 'emergency' || symbol?.startsWith('RESERVA-EMERG')) {
           categorias.reservaEmergencia += valorAtualBRL;

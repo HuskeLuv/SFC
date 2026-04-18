@@ -47,11 +47,34 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
+  // Catalog Tesouro Direto tem asset.type='tesouro-direto' (compartilhado entre usuários),
+  // então não casa com os filtros padrão de reserva. Identificamos o destino pela nota da
+  // transação de compra (operacao/route.ts grava metadata.tesouroDestino).
+  const userPurchaseNotes = await prisma.stockTransaction.findMany({
+    where: { userId: targetUserId, type: 'compra', notes: { not: null } },
+    select: { assetId: true, notes: true },
+  });
+  const tesouroReservaOportunidadeAssetIds = new Set<string>();
+  for (const tx of userPurchaseNotes) {
+    if (!tx.assetId || !tx.notes) continue;
+    try {
+      const parsed = JSON.parse(tx.notes);
+      if (parsed?.tesouroDestino === 'reserva-oportunidade') {
+        tesouroReservaOportunidadeAssetIds.add(tx.assetId);
+      }
+    } catch {
+      // ignora notas malformadas
+    }
+  }
+
   // Filtrar apenas os itens de reserva de oportunidade
   // Agora cada investimento tem seu próprio asset com símbolo único (RESERVA-OPORT-*)
   const portfolio = allUserPortfolio.filter((item) => {
     if (!item.asset) return false;
-    return item.asset.type === 'opportunity' || item.asset.symbol?.startsWith('RESERVA-OPORT');
+    if (item.asset.type === 'opportunity') return true;
+    if (item.asset.symbol?.startsWith('RESERVA-OPORT')) return true;
+    if (item.assetId && tesouroReservaOportunidadeAssetIds.has(item.assetId)) return true;
+    return false;
   });
 
   // Buscar resumo da carteira para calcular percentuais
@@ -169,10 +192,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const resgate = totalResgates;
     // Usar avgPrice * quantity se disponível (valor editado manualmente), senão calcular
     const valorAtualizadoCalculado = valorInicial + aporte - resgate;
+    // Para Tesouro Direto do catálogo, usar currentPrice * quantity para refletir
+    // variação de mercado (quantity foi derivada do PU do dia da compra em operacao/route.ts).
+    const currentPrice = item.asset?.currentPrice ? Number(item.asset.currentPrice) : 0;
+    const isCatalogTesouro = item.asset?.type === 'tesouro-direto';
     const valorAtualizado =
-      item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-        ? item.avgPrice * item.quantity
-        : valorAtualizadoCalculado;
+      isCatalogTesouro && currentPrice > 0 && item.quantity > 0
+        ? currentPrice * item.quantity
+        : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+          ? item.avgPrice * item.quantity
+          : valorAtualizadoCalculado;
 
     // Calcular percentual da carteira
     const percentualCarteira = saldoBrutoTotal > 0 ? (valorAtualizado / saldoBrutoTotal) * 100 : 0;

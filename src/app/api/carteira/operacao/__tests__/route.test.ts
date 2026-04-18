@@ -960,6 +960,82 @@ describe('POST /api/carteira/operacao', () => {
       expect(mockPrisma.portfolio.create).toHaveBeenCalled();
     });
 
+    it('deriva quantity a partir do PU do dia da compra quando tesouro do catálogo é adicionado por valor', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-td-cat',
+        symbol: 'TD-TESOURO-SELIC-2029',
+        name: 'Tesouro Selic 2029',
+        type: 'tesouro-direto',
+      });
+      // Primeira chamada (PU do dia): sellPU=2500 → quantity=10000/2500=4
+      // Segunda chamada (maturity para FixedIncomeAsset): retorna maturityDate
+      mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue({
+        sellPU: 2500,
+        maturityDate: new Date('2029-03-01'),
+      });
+
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'tesouro-direto',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-td-cat',
+          dataCompra: '2024-01-15',
+          valorInvestido: 10000,
+          metodo: 'valor',
+          tesouroDestino: 'reserva-oportunidade',
+          cotizacaoResgate: 'D+1',
+          liquidacaoResgate: 'D+1',
+          vencimento: '2029-03-01',
+          benchmark: 'Selic',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.portfolio.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            quantity: 4,
+            avgPrice: 2500,
+            totalInvested: 10000,
+          }),
+        }),
+      );
+    });
+
+    it('cai para quantity=1 quando tesouro do catálogo não tem PU do dia', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-td-cat',
+        symbol: 'TD-TESOURO-SELIC-2029',
+        name: 'Tesouro Selic 2029',
+        type: 'tesouro-direto',
+      });
+      mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue(null);
+
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'tesouro-direto',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-td-cat',
+          dataCompra: '2024-01-15',
+          valorInvestido: 10000,
+          metodo: 'valor',
+          tesouroDestino: 'reserva-oportunidade',
+          cotizacaoResgate: 'D+1',
+          liquidacaoResgate: 'D+1',
+          vencimento: '2029-03-01',
+          benchmark: 'Selic',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.portfolio.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            quantity: 1,
+            avgPrice: 10000,
+          }),
+        }),
+      );
+    });
+
     it('popula tesouroBondType e tesouroMaturity quando tesouro do catálogo vai para renda fixa', async () => {
       const exactMaturity = new Date('2029-03-01');
       mockPrisma.asset.findUnique.mockResolvedValueOnce({
@@ -968,8 +1044,9 @@ describe('POST /api/carteira/operacao', () => {
         name: 'Tesouro Selic 2029',
         type: 'tesouro-direto',
       });
-      mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValueOnce({
+      mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue({
         maturityDate: exactMaturity,
+        sellPU: null,
       });
 
       const response = await POST(

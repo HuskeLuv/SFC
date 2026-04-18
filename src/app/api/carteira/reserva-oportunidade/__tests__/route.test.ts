@@ -118,4 +118,78 @@ describe('GET /api/carteira/reserva-oportunidade', () => {
     expect(response.status).toBe(401);
     expect(data.error).toContain('Não autorizado');
   });
+
+  it('inclui Tesouro Direto do catálogo quando destino é reserva-oportunidade', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    const tesouroPortfolioItem = {
+      id: 'port-tesouro',
+      userId: 'user-1',
+      quantity: 1,
+      avgPrice: 10000,
+      totalInvested: 10000,
+      assetId: 'asset-tesouro',
+      asset: {
+        id: 'asset-tesouro',
+        name: 'Tesouro Selic 2029',
+        type: 'tesouro-direto',
+        symbol: 'TESOURO-SELIC-2029',
+      },
+    };
+    mockPrisma.portfolio.findMany
+      .mockResolvedValueOnce([tesouroPortfolioItem])
+      .mockResolvedValueOnce([{ ...tesouroPortfolioItem, stock: null }]);
+    mockPrisma.stockTransaction.findMany
+      .mockResolvedValueOnce([
+        {
+          assetId: 'asset-tesouro',
+          notes: JSON.stringify({
+            tesouroDestino: 'reserva-oportunidade',
+            benchmark: 'SELIC',
+          }),
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const response = await GET(createGetRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.ativos).toHaveLength(1);
+    expect(data.ativos[0].nome).toBe('Tesouro Selic 2029');
+  });
+
+  it('não inclui Tesouro Direto cujo destino é renda-fixa', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    const tesouroPortfolioItem = {
+      id: 'port-tesouro',
+      userId: 'user-1',
+      quantity: 1,
+      avgPrice: 10000,
+      totalInvested: 10000,
+      assetId: 'asset-tesouro',
+      asset: {
+        id: 'asset-tesouro',
+        name: 'Tesouro Prefixado 2027',
+        type: 'tesouro-direto',
+        symbol: 'TESOURO-PRE-2027',
+      },
+    };
+    mockPrisma.portfolio.findMany
+      .mockResolvedValueOnce([tesouroPortfolioItem])
+      .mockResolvedValueOnce([{ ...tesouroPortfolioItem, stock: null }]);
+    mockPrisma.stockTransaction.findMany
+      .mockResolvedValueOnce([
+        {
+          assetId: 'asset-tesouro',
+          notes: JSON.stringify({ tesouroDestino: 'renda-fixa-prefixada' }),
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const response = await GET(createGetRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.ativos).toHaveLength(0);
+  });
 });
