@@ -37,7 +37,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     where: {
       userId: targetUserId,
       asset: {
-        type: { in: ['bond', 'cash'] },
+        type: { in: ['bond', 'cash', 'tesouro-direto'] },
       },
     },
     include: { asset: true },

@@ -70,6 +70,19 @@ describe('/api/carteira/renda-fixa', () => {
       expect(data.totalGeral).toHaveProperty('valorAtualizado');
       expect(data.totalGeral).toHaveProperty('rentabilidade');
     });
+
+    it('includes tesouro-direto in the asset.type filter', async () => {
+      await GET(createGetRequest());
+      expect(mockPrisma.portfolio.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            asset: expect.objectContaining({
+              type: { in: ['bond', 'cash', 'tesouro-direto'] },
+            }),
+          }),
+        }),
+      );
+    });
   });
 
   describe('POST', () => {
