@@ -33,6 +33,11 @@ export const queryKeys = {
   riscoRetorno: {
     all: ['riscoRetorno'] as const,
   },
+  sensibilidadeCarteira: {
+    all: ['sensibilidadeCarteira'] as const,
+    window: (windowMonths: number) =>
+      [...queryKeys.sensibilidadeCarteira.all, windowMonths] as const,
+  },
   coberturaFgc: {
     all: ['coberturaFgc'] as const,
   },

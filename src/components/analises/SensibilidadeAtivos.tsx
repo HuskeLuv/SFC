@@ -23,7 +23,7 @@ export default function SensibilidadeAtivos({ data }: SensibilidadeAtivosProps) 
   const maxBeta = data.length > 0 ? Math.max(...data.map((d) => d.beta), 1) : 1;
 
   return (
-    <ComponentCard title="Sensibilidade dos Ativos">
+    <ComponentCard title="Sensibilidade ao Mercado (Beta)">
       <div className="space-y-4">
         {/* Asset list */}
         <div className="max-h-[420px] overflow-y-auto custom-scrollbar">
