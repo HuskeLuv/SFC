@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
+import { getAllIndicators } from '@/services/market/marketIndicatorService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // Função auxiliar para cores
@@ -29,6 +30,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   if (!user) {
     return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+  }
+
+  // Cotação do dólar para conversão USD → BRL na UI (tabela exibe em BRL + linha TOTAL EM USD)
+  let cotacaoDolar: number | null = null;
+  try {
+    const indicators = await getAllIndicators();
+    cotacaoDolar = indicators.dolar?.price ?? null;
+  } catch {
+    // Ignora — sem cotação a UI cai no formato USD
   }
 
   // Buscar caixa para investir específico de Stocks
@@ -248,6 +258,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
 
   const data = {
+    cotacaoDolar,
     resumo,
     secoes,
     totalGeral: {

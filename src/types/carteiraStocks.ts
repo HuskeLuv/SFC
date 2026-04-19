@@ -53,6 +53,7 @@ export interface CarteiraStockAlocacaoAtivo extends AlocacaoAtivo {
 }
 
 export interface CarteiraStockData {
+  cotacaoDolar?: number | null;
   resumo: CarteiraStockResumo;
   secoes: CarteiraStockSecao[];
   tabelaAuxiliar: CarteiraStockTabelaAuxiliar[];

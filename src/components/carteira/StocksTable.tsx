@@ -41,6 +41,15 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     await updateObjetivo(ativoId, novoObjetivo);
   };
 
+  const cotacaoDolar = data?.cotacaoDolar ?? null;
+  const formatCurrencyBRL = (valueUSD: number) =>
+    cotacaoDolar != null
+      ? (valueUSD * cotacaoDolar).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        })
+      : formatCurrency(valueUSD);
+
   const columns: ColumnDef<CarteiraStockAtivo, CarteiraStockSecao>[] = [
     {
       key: 'nome',
@@ -101,7 +110,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       align: 'right',
       render: (a, f) => f.formatCurrency(a.valorTotal),
       renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAplicado),
-      renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAplicado as number) ?? 0),
+      renderGrandTotal: (t) => formatCurrencyBRL((t?.valorAplicado as number) ?? 0),
     },
     {
       key: 'cotacaoAtual',
@@ -117,7 +126,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       align: 'right',
       render: (a, f) => f.formatCurrency(a.valorAtualizado),
       renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAtualizado),
-      renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAtualizado as number) ?? 0),
+      renderGrandTotal: (t) => formatCurrencyBRL((t?.valorAtualizado as number) ?? 0),
     },
     {
       key: 'riscoPorAtivo',
@@ -170,7 +179,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       align: 'right',
       render: (a, f) => f.formatCurrency(a.necessidadeAporte),
       renderSectionTotal: (s, f) => f.formatCurrency(s.totalNecessidadeAporte),
-      renderGrandTotal: (t, f) => f.formatCurrency((t?.necessidadeAporte as number) ?? 0),
+      renderGrandTotal: (t) => formatCurrencyBRL((t?.necessidadeAporte as number) ?? 0),
     },
     {
       key: 'rentabilidade',
@@ -185,21 +194,21 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
   const metricCards: MetricCardConfig[] = [
     {
       title: 'Necessidade de Aporte Total',
-      getValue: (_r, nec) => formatCurrency(nec ?? 0),
+      getValue: (_r, nec) => formatCurrencyBRL(nec ?? 0),
       color: 'warning',
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
     {
       title: 'Saldo Inicio do Mes',
-      getValue: (r) => formatCurrency((r?.saldoInicioMes as number) ?? 0),
+      getValue: (r) => formatCurrencyBRL((r?.saldoInicioMes as number) ?? 0),
     },
     {
       title: 'Valor Atualizado',
-      getValue: (r) => formatCurrency((r?.valorAtualizado as number) ?? 0),
+      getValue: (r) => formatCurrencyBRL((r?.valorAtualizado as number) ?? 0),
     },
     {
       title: 'Rendimento',
-      getValue: (r) => formatCurrency((r?.rendimento as number) ?? 0),
+      getValue: (r) => formatCurrencyBRL((r?.rendimento as number) ?? 0),
       color: 'success',
     },
     {
@@ -208,6 +217,35 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       color: 'success',
     },
   ];
+
+  // Extra "TOTAL EM USD" row — mesma ordem e contagem das 14 colunas acima
+  const extraTotalRows = (
+    <tr className="bg-[#404040] border-b border-gray-300">
+      <td className="px-2 py-2 text-xs text-white font-bold">TOTAL EM USD</td>
+      <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">
+        {formatCurrency(
+          ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ?? 0,
+        )}
+      </td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">
+        {formatCurrency(
+          ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAtualizado as number) ??
+            0,
+        )}
+      </td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+    </tr>
+  );
 
   return (
     <GenericAssetTable<CarteiraStockAtivo, CarteiraStockSecao>
@@ -232,6 +270,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
+      extraTotalRows={extraTotalRows}
     >
       {/* Charts and aux table */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
