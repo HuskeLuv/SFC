@@ -390,12 +390,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const currentPrice = quotes.get(symbol);
       const currency = item.asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
       let valorItem = currentPrice ? item.quantity * currentPrice : item.quantity * item.avgPrice;
-      // Stocks em USD sem cotação: avgPrice já está em BRL
-      // Crypto/currency/metal/commodity: getAssetPrices retorna em BRL, não converter
+      // Crypto/currency/metal/commodity: getAssetPrices já devolve em BRL, não converter
       const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
-      const valorJaEmBRL =
-        (item.asset?.type === 'stock' && !currentPrice) ||
-        (currentPrice != null && tiposPrecoEmBRL.includes(item.asset?.type || ''));
+      const valorJaEmBRL = currentPrice != null && tiposPrecoEmBRL.includes(item.asset?.type || '');
       if (!valorJaEmBRL) {
         valorItem = toBRL(valorItem, currency);
       }
@@ -606,13 +603,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
             ? item.totalInvested
             : item.quantity * item.avgPrice; // Reservas: alinhado com reserva-oportunidade (avgPrice*quantity quando editado)
 
-    // Converter USD para BRL (tabela de alocação exibe tudo em R$)
-    // Crypto/currency/metal/commodity: getAssetPrices retorna em BRL. Stocks sem cotação: avgPrice já em BRL
+    // Converter USD → BRL (tabela de alocação exibe tudo em R$).
+    // Crypto/currency/metal/commodity: getAssetPrices já devolve em BRL.
     const currency = asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
     const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
     const valorJaEmBRL =
-      (asset?.type === 'stock' && !currentPrice && !isReserva) ||
-      (currentPrice != null && !isReserva && tiposPrecoEmBRL.includes(asset?.type || ''));
+      currentPrice != null && !isReserva && tiposPrecoEmBRL.includes(asset?.type || '');
     const valorAtualBRL = valorJaEmBRL ? valorAtual : toBRL(valorAtual, currency);
 
     if (asset) {
