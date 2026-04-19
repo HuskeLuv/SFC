@@ -98,6 +98,7 @@ model User {
   alocacaoConfigs               AlocacaoConfig[]
   portfolioDailySnapshots       PortfolioDailySnapshot[]
   portfolioPerformances         PortfolioPerformance[]
+  sensibilidadeCaches           PortfolioSensibilidadeCache[]
 }
 
 model Consultant {
@@ -625,6 +626,22 @@ model PortfolioDailySnapshot {
   @@unique([userId, date])
   @@index([userId, date])
   @@map("portfolio_daily_snapshots")
+}
+
+// Cache da "Sensibilidade da Carteira" (correlação ativo↔carteira + MRC).
+// Invalidado por portfolioHash (mudança de composição) ou por idade (TTL na leitura).
+model PortfolioSensibilidadeCache {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  windowMonths  Int // janela solicitada (12..60)
+  portfolioHash String // sha256 de (symbol:quantity:avgPrice) ordenado
+  payload       Json // SensibilidadeCarteiraResponse serializado
+  computedAt    DateTime @default(now())
+
+  @@unique([userId, windowMonths])
+  @@index([userId])
+  @@map("portfolio_sensibilidade_cache")
 }
 
 // TWR pré-calculado por dia (alinha ao historicoTWR do resumo)
