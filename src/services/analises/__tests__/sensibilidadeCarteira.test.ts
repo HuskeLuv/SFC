@@ -4,6 +4,7 @@ import {
   annualizedVolatility,
   buildSensibilidadeCarteira,
   classifyCorrelation,
+  computeBeta,
   covariance,
   extractMonthlyCloses,
   marginalRiskContribution,
@@ -139,6 +140,63 @@ describe('classifyCorrelation', () => {
     expect(classifyCorrelation(0.0)).toBe('baixa');
     expect(classifyCorrelation(-0.3)).toBe('baixa');
     expect(classifyCorrelation(-0.5)).toBe('negativa');
+  });
+});
+
+describe('computeBeta', () => {
+  // Sequência explícita de 14 meses (Jan/2024..Fev/2025) → 13 retornos (> MIN = 12).
+  const months14: Array<[number, number]> = [
+    [2024, 1],
+    [2024, 2],
+    [2024, 3],
+    [2024, 4],
+    [2024, 5],
+    [2024, 6],
+    [2024, 7],
+    [2024, 8],
+    [2024, 9],
+    [2024, 10],
+    [2024, 11],
+    [2024, 12],
+    [2025, 1],
+    [2025, 2],
+  ];
+  const daily = (closes: number[]) =>
+    months14.map(([y, m], i) => ({ date: utc(y, m, 28), value: closes[i] }));
+
+  it('β = 1 quando o ativo replica o mercado', () => {
+    const market = [100, 101, 103, 102, 104, 105, 103, 104, 107, 107, 109, 108, 110, 111];
+    const beta = computeBeta(daily(market), daily(market));
+    expect(beta).not.toBeNull();
+    expect(beta!).toBeCloseTo(1, 6);
+  });
+
+  it('β = 2 quando o ativo amplifica o mercado 2×', () => {
+    const market = [100, 101, 103, 102, 104, 105, 103, 104, 107, 107, 109, 108, 110, 111];
+    // retornos do ativo = 2 × retornos do mercado
+    const asset: number[] = [100];
+    for (let i = 1; i < market.length; i++) {
+      const r = market[i] / market[i - 1] - 1;
+      asset.push(asset[i - 1] * (1 + 2 * r));
+    }
+    const beta = computeBeta(daily(asset), daily(market));
+    expect(beta).not.toBeNull();
+    expect(beta!).toBeCloseTo(2, 4);
+  });
+
+  it('retorna null quando há menos de 12 meses em comum', () => {
+    const short: Array<{ date: number; value: number }> = [
+      { date: utc(2025, 1, 28), value: 100 },
+      { date: utc(2025, 2, 28), value: 101 },
+    ];
+    const market = [100, 101, 103, 102, 104, 105, 103, 104, 107, 107, 109, 108, 110, 111];
+    expect(computeBeta(short, daily(market))).toBeNull();
+  });
+
+  it('retorna null quando variância do mercado é zero', () => {
+    const flat = Array(14).fill(100);
+    const asset = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113];
+    expect(computeBeta(daily(asset), daily(flat))).toBeNull();
   });
 });
 

@@ -6,6 +6,12 @@ import {
   buildPatrimonioHistorico,
   filterInvestmentsExclReservas,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { getAssetHistory, isNonMarketSymbol } from '@/services/pricing/assetPriceService';
+import { computeBeta } from '@/services/analises/sensibilidadeCarteira';
+
+/** Janela para cálculo de beta: 24 meses, mesma usada em sensibilidade-carteira. */
+const BETA_WINDOW_MONTHS = 24;
+const IBOV_SYMBOL = '^BVSP';
 
 interface RiscoRetornoMetrics {
   retornoAnual: number;
@@ -212,32 +218,47 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     anual[ano] = calcularMetricas(retornosDoAno, cdiDoAno);
   }
 
-  // Sensibilidade dos ativos (beta)
-  const symbols = portfolio
-    .map((item) => item.asset?.symbol || item.stock?.ticker)
-    .filter((s): s is string => !!s);
+  // Sensibilidade ao mercado (beta) — calculado localmente vs. IBOVESPA.
+  // BRAPI não fornece beta para ações B3, então derivamos do histórico de preços
+  // armazenado em AssetPriceHistory (DB-first, com fallback BRAPI em getAssetHistory).
+  const marketSymbols = [
+    ...new Set(
+      portfolio
+        .map((item) => (item.asset?.symbol || item.stock?.ticker || '').toUpperCase())
+        .filter((s) => s && !isNonMarketSymbol(s)),
+    ),
+  ];
 
-  const uniqueSymbols = [...new Set(symbols)];
+  const betaEndDate = new Date();
+  const betaStartDate = new Date(betaEndDate);
+  betaStartDate.setMonth(betaStartDate.getMonth() - (BETA_WINDOW_MONTHS + 1));
 
-  const fundamentals =
-    uniqueSymbols.length > 0
-      ? await prisma.assetFundamentals.findMany({
-          where: { symbol: { in: uniqueSymbols } },
-        })
-      : [];
+  const ibovHistory = await getAssetHistory(IBOV_SYMBOL, betaStartDate, betaEndDate);
 
-  const fundamentalsMap = new Map(fundamentals.map((f) => [f.symbol, f]));
+  const betaBySymbol = new Map<string, number>();
+  if (ibovHistory.length > 0) {
+    const entries = await Promise.all(
+      marketSymbols.map(async (symbol) => {
+        const assetHistory = await getAssetHistory(symbol, betaStartDate, betaEndDate);
+        const beta = computeBeta(assetHistory, ibovHistory);
+        return { symbol, beta };
+      }),
+    );
+    for (const { symbol, beta } of entries) {
+      if (beta !== null) betaBySymbol.set(symbol, beta);
+    }
+  }
 
   const sensibilidade: SensibilidadeItem[] = portfolio
     .map((item) => {
-      const ticker = item.asset?.symbol || item.stock?.ticker;
+      const ticker = (item.asset?.symbol || item.stock?.ticker || '').toUpperCase();
       if (!ticker) return null;
-      const fund = fundamentalsMap.get(ticker);
-      if (!fund?.beta) return null;
+      const beta = betaBySymbol.get(ticker);
+      if (beta === undefined) return null;
       return {
         ticker,
         nome: item.asset?.name || item.stock?.companyName || ticker,
-        beta: Number(fund.beta),
+        beta,
       };
     })
     .filter((item): item is SensibilidadeItem => item !== null)

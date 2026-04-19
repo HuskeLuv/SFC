@@ -135,6 +135,24 @@ export function annualizedVolatility(monthlyReturns: number[]): number {
   return stddev(monthlyReturns) * Math.sqrt(12) * 100;
 }
 
+/**
+ * Beta clássico: β = cov(R_ativo, R_mercado) / var(R_mercado).
+ * Recebe históricos diários do ativo e do índice de mercado (ex.: ^BVSP).
+ * Retorna `null` se não houver pelo menos 12 meses em comum ou se var_m == 0.
+ */
+export function computeBeta(
+  assetDaily: Array<{ date: number; value: number }>,
+  marketDaily: Array<{ date: number; value: number }>,
+): number | null {
+  const assetReturns = monthlyReturnsFromCloses(extractMonthlyCloses(assetDaily));
+  const marketReturns = monthlyReturnsFromCloses(extractMonthlyCloses(marketDaily));
+  const aligned = alignSeries(assetReturns, marketReturns);
+  if (aligned.keys.length < MIN_MONTHS_FOR_CORRELATION) return null;
+  const varM = variance(aligned.b);
+  if (varM === 0) return null;
+  return covariance(aligned.a, aligned.b) / varM;
+}
+
 /** Classificação por correlação (faixas inspiradas na UI do Kinvo). */
 export function classifyCorrelation(correl: number): SensibilidadeBucket {
   if (correl > 0.7) return 'alta';
