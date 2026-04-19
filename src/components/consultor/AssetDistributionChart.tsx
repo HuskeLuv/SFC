@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import React, { useMemo } from "react";
-import { ApexOptions } from "apexcharts";
-import ApexChartWrapper from "@/components/charts/ApexChartWrapper";
+import React, { useMemo } from 'react';
+import { ApexOptions } from 'apexcharts';
+import ApexChartWrapper from '@/components/charts/ApexChartWrapper';
 
 interface AssetDistribution {
   class: string;
@@ -17,34 +17,34 @@ interface AssetDistributionChartProps {
 
 // Mapeamento de tipos de ativos para cores (mesma ordem do PieChartCarteiraInvestimentos)
 const ASSET_TYPE_COLORS: Record<string, string> = {
-  "Reserva de Oportunidade": "#BFDBFE", // Azul pastel
-  "Renda Fixa & Fundos de Renda Fixa": "#A7F3D0", // Verde pastel
-  "FIM/FIA": "#DDD6FE", // Roxo pastel
-  "FII's": "#FECACA", // Vermelho pastel
-  "Ações": "#93C5FD", // Azul claro pastel
-  "Stocks": "#BBF7D0", // Verde menta pastel
-  "REIT's": "#E9D5FF", // Lilás pastel
-  "ETF's": "#FED7AA", // Laranja pastel
-  "Moedas, Criptomoedas & outros": "#FEF3C7", // Amarelo pastel
-  "Previdência & Seguros": "#D1D5DB", // Cinza pastel
-  "Opções": "#FBBF24", // Dourado pastel
-  "Outros": "#9CA3AF", // Cinza médio para outros tipos
+  'Reserva de Oportunidade': '#BFDBFE', // Azul pastel
+  'Renda Fixa & Fundos de Renda Fixa': '#A7F3D0', // Verde pastel
+  'FIM/FIA': '#DDD6FE', // Roxo pastel
+  "FII's": '#FECACA', // Vermelho pastel
+  Ações: '#93C5FD', // Azul claro pastel
+  Stocks: '#BBF7D0', // Verde menta pastel
+  "REIT's": '#E9D5FF', // Lilás pastel
+  "ETF's": '#FED7AA', // Laranja pastel
+  'Moedas, Criptomoedas & outros': '#FEF3C7', // Amarelo pastel
+  'Previdência e Seguros': '#D1D5DB', // Cinza pastel
+  Opções: '#FBBF24', // Dourado pastel
+  Outros: '#9CA3AF', // Cinza médio para outros tipos
 };
 
 // Ordem padrão dos tipos de ativos (mesma ordem do PieChartCarteiraInvestimentos)
 const ASSET_TYPE_ORDER = [
-  "Reserva de Oportunidade",
-  "Renda Fixa & Fundos de Renda Fixa",
-  "FIM/FIA",
+  'Reserva de Oportunidade',
+  'Renda Fixa & Fundos de Renda Fixa',
+  'FIM/FIA',
   "FII's",
-  "Ações",
-  "Stocks",
+  'Ações',
+  'Stocks',
   "REIT's",
   "ETF's",
-  "Moedas, Criptomoedas & outros",
-  "Previdência & Seguros",
-  "Opções",
-  "Outros",
+  'Moedas, Criptomoedas & outros',
+  'Previdência e Seguros',
+  'Opções',
+  'Outros',
 ];
 
 const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
@@ -64,7 +64,7 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
     });
 
     // Criar array com todos os tipos de ativos na ordem padrão
-    const allLabels = ASSET_TYPE_ORDER.filter((label) => label !== "Outros"); // Excluir "Outros" da lista padrão se não houver dados
+    const allLabels = ASSET_TYPE_ORDER.filter((label) => label !== 'Outros'); // Excluir "Outros" da lista padrão se não houver dados
     const labels: string[] = [];
     const series: number[] = [];
     const colors: string[] = [];
@@ -74,15 +74,15 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
       const item = dataMap.get(label);
       labels.push(label);
       series.push(item ? Number(item.percentage.toFixed(2)) : 0);
-      colors.push(ASSET_TYPE_COLORS[label] || "#D1D5DB");
+      colors.push(ASSET_TYPE_COLORS[label] || '#D1D5DB');
     });
 
     // Adicionar "Outros" se existir nos dados
-    const outrosItem = dataMap.get("Outros");
+    const outrosItem = dataMap.get('Outros');
     if (outrosItem && outrosItem.value > 0) {
-      labels.push("Outros");
+      labels.push('Outros');
       series.push(Number(outrosItem.percentage.toFixed(2)));
-      colors.push(ASSET_TYPE_COLORS["Outros"] || "#D1D5DB");
+      colors.push(ASSET_TYPE_COLORS['Outros'] || '#D1D5DB');
     }
 
     return { labels, series, colors };
@@ -93,48 +93,48 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
       colors: chartData.colors,
       labels: chartData.labels,
       chart: {
-        fontFamily: "Outfit, sans-serif",
-        type: "donut",
+        fontFamily: 'Outfit, sans-serif',
+        type: 'donut',
       },
       stroke: {
         show: false,
         width: 4,
-        colors: ["transparent"],
+        colors: ['transparent'],
       },
       plotOptions: {
         pie: {
           donut: {
-            size: "65%",
-            background: "transparent",
+            size: '65%',
+            background: 'transparent',
             labels: {
               show: true,
               name: {
                 show: true,
                 offsetY: -10,
-                color: isDarkMode ? "#ffffff" : "#1D2939",
-                fontSize: "14px",
-                fontWeight: "500",
+                color: isDarkMode ? '#ffffff' : '#1D2939',
+                fontSize: '14px',
+                fontWeight: '500',
               },
               value: {
                 show: true,
                 offsetY: 10,
-                color: isDarkMode ? "#D1D5DB" : "#667085",
-                fontSize: "12px",
-                fontWeight: "400",
+                color: isDarkMode ? '#D1D5DB' : '#667085',
+                fontSize: '12px',
+                fontWeight: '400',
                 formatter: (val: string) => {
                   const numeric = Number(val);
                   if (Number.isFinite(numeric)) {
                     return `${numeric.toFixed(2)}%`;
                   }
-                  return "0.00%";
+                  return '0.00%';
                 },
               },
               total: {
                 show: true,
-                label: "Total Aplicado",
-                color: isDarkMode ? "#ffffff" : "#000000",
-                fontSize: "16px",
-                fontWeight: "bold",
+                label: 'Total Aplicado',
+                color: isDarkMode ? '#ffffff' : '#000000',
+                fontSize: '16px',
+                fontWeight: 'bold',
                 formatter: () => {
                   const total = data.reduce((sum, item) => sum + item.value, 0);
                   return currencyFormatter(total);
@@ -155,7 +155,7 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
             if (opts?.seriesIndex !== undefined) {
               const label = chartData.labels[opts.seriesIndex];
               const percentage = chartData.series[opts.seriesIndex] || 0;
-              
+
               // Buscar o valor real nos dados originais
               const originalItem = data.find((d) => d.class === label);
               if (originalItem) {
@@ -166,19 +166,19 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
             }
             const seriesValue = opts?.series?.[opts.seriesIndex ?? 0] ?? 0;
             const numeric = Number(seriesValue);
-            return Number.isFinite(numeric) ? `${numeric.toFixed(2)}%` : "0.00%";
+            return Number.isFinite(numeric) ? `${numeric.toFixed(2)}%` : '0.00%';
           },
         },
       },
       legend: {
         show: true,
-        position: "bottom",
-        fontFamily: "Outfit, sans-serif",
+        position: 'bottom',
+        fontFamily: 'Outfit, sans-serif',
         fontWeight: 400,
-        fontSize: "14px",
-        colors: isDarkMode ? ["#ffffff"] : ["#000000"],
+        fontSize: '14px',
+        colors: isDarkMode ? ['#ffffff'] : ['#000000'],
         labels: {
-          colors: isDarkMode ? "#ffffff" : "#000000",
+          colors: isDarkMode ? '#ffffff' : '#000000',
         },
         formatter: (seriesName: string, opts?: { seriesIndex?: number }) => {
           if (opts?.seriesIndex !== undefined) {
@@ -191,7 +191,7 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
           width: 8,
           height: 8,
           strokeWidth: 0,
-          strokeColor: "#fff",
+          strokeColor: '#fff',
           fillColors: undefined,
           radius: 12,
           customHTML: undefined,
@@ -212,7 +212,7 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
               width: 350,
             },
             legend: {
-              fontSize: "12px",
+              fontSize: '12px',
               itemMargin: {
                 horizontal: 8,
                 vertical: 4,
@@ -262,4 +262,3 @@ const AssetDistributionChart: React.FC<AssetDistributionChartProps> = ({
 };
 
 export default AssetDistributionChart;
-

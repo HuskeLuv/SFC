@@ -115,7 +115,7 @@ export default function AlocacaoAtivosTable({
       reits: "REIT's",
       etfs: "ETF's",
       moedasCriptos: 'Moedas, Criptomoedas & Outros',
-      previdenciaSeguros: 'Previdência & Seguros',
+      previdenciaSeguros: 'Previdência e Seguros',
       opcoes: 'Opções',
       imoveisBens: 'Imóveis e Bens',
     };

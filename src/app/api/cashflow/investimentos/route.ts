@@ -147,7 +147,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     bond: 'Renda Fixa & Fundos Renda Fixa',
     fund: 'Fundos (FIM / FIA)',
     currency: 'Moedas, Criptomoedas & Outros',
-    insurance: 'Previdência & Seguros',
+    insurance: 'Previdência e Seguros',
     real_estate: 'Imóveis Físicos',
     emergency: 'Reserva Emergência',
     opportunity: 'Reserva Oportunidade',

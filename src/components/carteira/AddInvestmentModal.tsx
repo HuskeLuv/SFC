@@ -19,7 +19,7 @@ const categoriaOptions = [
   { value: 'reit', label: "REIT's" },
   { value: 'etf', label: "ETF's" },
   { value: 'crypto', label: 'Moedas, Criptomoedas & outros' },
-  { value: 'previdencia', label: 'Previdência & Seguros' },
+  { value: 'previdencia', label: 'Previdência e Seguros' },
   { value: 'opcao', label: 'Opções' },
 ];
 

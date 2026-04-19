@@ -89,7 +89,7 @@ const tabs = [
   { id: 'reit', label: "REIT's" },
   { id: 'etf', label: "ETF's" },
   { id: 'moedas-criptos', label: 'Moedas, Criptomoedas & outros' },
-  { id: 'previdencia', label: 'Previdência & Seguros' },
+  { id: 'previdencia', label: 'Previdência e Seguros' },
   { id: 'opcoes', label: 'Opções' },
   { id: 'imoveis', label: 'Imóveis & Bens' },
 ];
@@ -260,7 +260,7 @@ export default function CarteiraResumo() {
             <MoedasCriptosTable totalCarteira={resumo?.saldoBruto || 0} />
           </TabContent>
 
-          {/* Previdência & Seguros */}
+          {/* Previdência e Seguros */}
           <TabContent id="previdencia" isActive={activeTab === 'previdencia'}>
             <PrevidenciaSegurosTable totalCarteira={resumo?.saldoBruto || 0} />
           </TabContent>

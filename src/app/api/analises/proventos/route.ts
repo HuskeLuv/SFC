@@ -83,7 +83,7 @@ const mapAssetTypeToClasse = (entry: PortfolioAssetEntry) => {
   }
 
   if (assetType === 'insurance') {
-    return 'Previdência & Seguros';
+    return 'Previdência e Seguros';
   }
 
   if (assetType === 'opportunity') {

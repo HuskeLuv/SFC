@@ -259,7 +259,7 @@ export default function PrevidenciaSegurosTable({
       </div>
 
       {/* Tabela principal */}
-      <ComponentCard title="Previdência & Seguros - Detalhamento">
+      <ComponentCard title="Previdência e Seguros - Detalhamento">
         <div className="overflow-x-auto">
           <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <thead>

@@ -101,7 +101,7 @@ export default function PieChartCarteiraInvestimentos({
         '#FFFF00', // REIT's
         '#E46C0A', // ETF's
         '#C4BD97', // Moedas, Criptomoedas & Outros
-        '#EEECE1', // Previdência & Seguros
+        '#EEECE1', // Previdência e Seguros
         '#00CCFF', // Opções
       ],
       labels: [
@@ -115,7 +115,7 @@ export default function PieChartCarteiraInvestimentos({
         "REIT's",
         "ETF's",
         'Moedas, Criptomoedas & outros',
-        'Previdência & Seguros',
+        'Previdência e Seguros',
         'Opções',
       ],
       chart: {

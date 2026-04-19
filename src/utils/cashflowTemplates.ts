@@ -7,30 +7,76 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
     { name: 'Entradas', orderIndex: 1, parentId: null, type: 'entrada' as const },
     { name: 'Entradas Fixas', orderIndex: 1, parentId: 'Entradas', type: 'entrada' as const },
     { name: 'Entradas Variáveis', orderIndex: 2, parentId: 'Entradas', type: 'entrada' as const },
-    { name: 'Sem Tributação', orderIndex: 1, parentId: 'Entradas Variáveis', type: 'entrada' as const },
-    { name: 'Com Tributação', orderIndex: 2, parentId: 'Entradas Variáveis', type: 'entrada' as const },
+    {
+      name: 'Sem Tributação',
+      orderIndex: 1,
+      parentId: 'Entradas Variáveis',
+      type: 'entrada' as const,
+    },
+    {
+      name: 'Com Tributação',
+      orderIndex: 2,
+      parentId: 'Entradas Variáveis',
+      type: 'entrada' as const,
+    },
     { name: 'Despesas', orderIndex: 2, parentId: null, type: 'despesa' as const },
     { name: 'Despesas Fixas', orderIndex: 1, parentId: 'Despesas', type: 'despesa' as const },
     { name: 'Habitação', orderIndex: 1, parentId: 'Despesas Fixas', type: 'despesa' as const },
     { name: 'Transporte', orderIndex: 2, parentId: 'Despesas Fixas', type: 'despesa' as const },
     { name: 'Saúde', orderIndex: 3, parentId: 'Despesas Fixas', type: 'despesa' as const },
     { name: 'Educação', orderIndex: 4, parentId: 'Despesas Fixas', type: 'despesa' as const },
-    { name: 'Animais de Estimação', orderIndex: 5, parentId: 'Despesas Fixas', type: 'despesa' as const },
-    { name: 'Despesas Pessoais', orderIndex: 6, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    {
+      name: 'Animais de Estimação',
+      orderIndex: 5,
+      parentId: 'Despesas Fixas',
+      type: 'despesa' as const,
+    },
+    {
+      name: 'Despesas Pessoais',
+      orderIndex: 6,
+      parentId: 'Despesas Fixas',
+      type: 'despesa' as const,
+    },
     { name: 'Lazer', orderIndex: 7, parentId: 'Despesas Fixas', type: 'despesa' as const },
     { name: 'Impostos', orderIndex: 8, parentId: 'Despesas Fixas', type: 'despesa' as const },
-    { name: 'Despesas Empresa', orderIndex: 9, parentId: 'Despesas Fixas', type: 'despesa' as const },
-    { name: 'Planejamento Financeiro', orderIndex: 10, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    {
+      name: 'Despesas Empresa',
+      orderIndex: 9,
+      parentId: 'Despesas Fixas',
+      type: 'despesa' as const,
+    },
+    {
+      name: 'Planejamento Financeiro',
+      orderIndex: 10,
+      parentId: 'Despesas Fixas',
+      type: 'despesa' as const,
+    },
     { name: 'Despesas Variáveis', orderIndex: 2, parentId: 'Despesas', type: 'despesa' as const },
     { name: 'Investimentos', orderIndex: 3, parentId: null, type: 'investimento' as const },
   ],
   itensPorGrupo: {
     'Entradas Fixas': [
       { name: 'Salário', significado: 'Remuneração mensal', rank: 'essencial' },
-      { name: "Receita Proventos FII's", significado: 'Proventos de fundos imobiliários', rank: 'normal' },
-      { name: 'Receita Renda Fixa (Préfixado)', significado: 'Renda fixa prefixada', rank: 'essencial' },
-      { name: 'Receita Renda Fixa (Pósfixado)', significado: 'Renda fixa pós-fixada', rank: 'normal' },
-      { name: 'Receita Renda Fixa (Híbridos)', significado: 'Renda fixa híbrida', rank: 'essencial' },
+      {
+        name: "Receita Proventos FII's",
+        significado: 'Proventos de fundos imobiliários',
+        rank: 'normal',
+      },
+      {
+        name: 'Receita Renda Fixa (Préfixado)',
+        significado: 'Renda fixa prefixada',
+        rank: 'essencial',
+      },
+      {
+        name: 'Receita Renda Fixa (Pósfixado)',
+        significado: 'Renda fixa pós-fixada',
+        rank: 'normal',
+      },
+      {
+        name: 'Receita Renda Fixa (Híbridos)',
+        significado: 'Renda fixa híbrida',
+        rank: 'essencial',
+      },
       { name: 'Aluguéis', significado: 'Recebimento de aluguéis', rank: 'normal' },
       { name: 'Outros', significado: 'Outras receitas fixas', rank: 'essencial' },
     ],
@@ -52,7 +98,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Ganho de Capital Aplicações SEM Isenção' },
       { name: 'Outros' },
     ],
-    'Habitação': [
+    Habitação: [
       { name: 'Aluguel / Prestação' },
       { name: 'Condomínio' },
       { name: 'IPTU + Taxas Municipais' },
@@ -70,7 +116,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Seguro Residência' },
       { name: 'Outros' },
     ],
-    'Transporte': [
+    Transporte: [
       { name: 'Prestação Moto/ Carro' },
       { name: 'IPVA + Seguro Obrigatório Carro' },
       { name: 'Licenciamento Carro' },
@@ -91,7 +137,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Acessórios' },
       { name: 'Outros' },
     ],
-    'Saúde': [
+    Saúde: [
       { name: 'Plano de Saúde' },
       { name: 'Seguro Vida' },
       { name: 'Médicos e terapeutas' },
@@ -102,7 +148,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Fisioterapia' },
       { name: 'Outros' },
     ],
-    'Educação': [
+    Educação: [
       { name: 'Escola/Faculdade' },
       { name: 'Cursos' },
       { name: 'Material escolar' },
@@ -123,7 +169,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Cuidados pessoais' },
       { name: 'Outros' },
     ],
-    'Lazer': [
+    Lazer: [
       { name: 'Cinema' },
       { name: 'Teatro' },
       { name: 'Restaurantes' },
@@ -131,11 +177,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Hobbies' },
       { name: 'Outros' },
     ],
-    'Impostos': [
-      { name: 'IRPF' },
-      { name: 'ISS' },
-      { name: 'Outros impostos' },
-    ],
+    Impostos: [{ name: 'IRPF' }, { name: 'ISS' }, { name: 'Outros impostos' }],
     'Despesas Empresa': [
       { name: 'Administrativas/Operacionais' },
       { name: 'Fornecedores' },
@@ -159,7 +201,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Viagem' },
       { name: 'Outros' },
     ],
-    'Investimentos': [
+    Investimentos: [
       { name: 'Reserva Emergência' },
       { name: 'Reserva Oportunidade' },
       { name: 'Renda Fixa & Fundos Renda Fixa' },
@@ -170,7 +212,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: "REIT's" },
       { name: "ETF's" },
       { name: 'Moedas, Criptomoedas & Outros' },
-      { name: 'Previdência & Seguros' },
+      { name: 'Previdência e Seguros' },
       { name: 'Imóveis Físicos' },
     ],
   },
@@ -199,9 +241,7 @@ export async function seedTemplates() {
       type: grupo.type,
       orderIndex: grupo.orderIndex,
       parentId:
-        grupo.parentId && createdGroups[grupo.parentId]
-          ? createdGroups[grupo.parentId].id
-          : null,
+        grupo.parentId && createdGroups[grupo.parentId] ? createdGroups[grupo.parentId].id : null,
     };
 
     const group = await prisma.cashflowGroup.create({ data: groupData });
@@ -212,9 +252,7 @@ export async function seedTemplates() {
   console.log('\n📝 Criando itens padrão (templates)...\n');
   let itemsCount = 0;
 
-  for (const [groupName, items] of Object.entries(
-    CASHFLOW_TEMPLATE_STRUCTURE.itensPorGrupo,
-  )) {
+  for (const [groupName, items] of Object.entries(CASHFLOW_TEMPLATE_STRUCTURE.itensPorGrupo)) {
     const group = createdGroups[groupName];
     if (!group) {
       console.log(`   ⚠️  Grupo não encontrado: ${groupName}`);
@@ -228,8 +266,8 @@ export async function seedTemplates() {
         userId: null,
         groupId: group.id,
         name: item.name,
-        significado: 'significado' in item ? item.significado ?? null : null,
-        rank: 'rank' in item ? item.rank ?? null : null,
+        significado: 'significado' in item ? (item.significado ?? null) : null,
+        rank: 'rank' in item ? (item.rank ?? null) : null,
       })),
     });
     itemsCount += items.length;
@@ -240,4 +278,3 @@ export async function seedTemplates() {
     `\n✅ Estrutura padrão criada: ${Object.keys(createdGroups).length} grupos, ${itemsCount} itens\n`,
   );
 }
-

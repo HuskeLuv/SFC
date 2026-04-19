@@ -947,7 +947,7 @@ export const getConsolidatedAssetDistribution = async (
           classKey = 'Renda Fixa & Fundos de Renda Fixa';
           break;
         case 'insurance':
-          classKey = 'Previdência & Seguros';
+          classKey = 'Previdência e Seguros';
           break;
         case 'opportunity':
           classKey = 'Reserva de Oportunidade';
@@ -995,7 +995,7 @@ export const getConsolidatedAssetDistribution = async (
     "REIT's",
     "ETF's",
     'Moedas, Criptomoedas & outros',
-    'Previdência & Seguros',
+    'Previdência e Seguros',
     'Opções',
     'Outros',
   ];
