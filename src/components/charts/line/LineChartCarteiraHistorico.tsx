@@ -94,17 +94,66 @@ interface LineChartCarteiraHistoricoProps {
   }>;
 }
 
+type PeriodoId = '1M' | '3M' | '6M' | 'YTD' | '1A' | 'MAX';
+
+const PERIODOS: Array<{ id: PeriodoId; label: string }> = [
+  { id: '1M', label: '1M' },
+  { id: '3M', label: '3M' },
+  { id: '6M', label: '6M' },
+  { id: 'YTD', label: 'YTD' },
+  { id: '1A', label: '1A' },
+  { id: 'MAX', label: 'Máx' },
+];
+
+/** Timestamp inicial (ms) para o período; null significa "sem limite" (Máx). */
+const periodoStart = (id: PeriodoId, latestTs: number): number | null => {
+  const d = new Date(latestTs);
+  switch (id) {
+    case '1M':
+      d.setMonth(d.getMonth() - 1);
+      return d.getTime();
+    case '3M':
+      d.setMonth(d.getMonth() - 3);
+      return d.getTime();
+    case '6M':
+      d.setMonth(d.getMonth() - 6);
+      return d.getTime();
+    case 'YTD':
+      return new Date(d.getFullYear(), 0, 1).getTime();
+    case '1A':
+      d.setFullYear(d.getFullYear() - 1);
+      return d.getTime();
+    case 'MAX':
+      return null;
+  }
+};
+
 export default function LineChartCarteiraHistorico({
   data: historicoData,
 }: LineChartCarteiraHistoricoProps) {
+  const [periodo, setPeriodo] = useState<PeriodoId>('MAX');
+
+  const filteredData = useMemo(() => {
+    if (historicoData.length === 0) return historicoData;
+    const latestTs = historicoData[historicoData.length - 1].data;
+    const startTs = periodoStart(periodo, latestTs);
+    if (startTs == null) return historicoData;
+    const cut = historicoData.filter((item) => item.data >= startTs);
+    // Se o período corta toda a série (poucos pontos), preserva ao menos os 2 últimos
+    // para o gráfico não ficar vazio
+    return cut.length >= 2 ? cut : historicoData.slice(-2);
+  }, [historicoData, periodo]);
+
   const appliedSeries = useMemo(
-    () => historicoData.map((item) => [item.data, item.valorAplicado]),
-    [historicoData],
+    () => filteredData.map((item) => [item.data, item.valorAplicado]),
+    [filteredData],
   );
   const grossSeries = useMemo(
-    () => historicoData.map((item) => [item.data, item.saldoBruto]),
-    [historicoData],
+    () => filteredData.map((item) => [item.data, item.saldoBruto]),
+    [filteredData],
   );
+
+  const isShortPeriod = periodo === '1M' || periodo === '3M' || periodo === '6M';
 
   const options: ApexOptions = useMemo(
     () => ({
@@ -169,6 +218,9 @@ export default function LineChartCarteiraHistorico({
               'Nov',
               'Dez',
             ];
+            if (isShortPeriod) {
+              return `${String(date.getDate()).padStart(2, '0')} ${months[date.getMonth()]}`;
+            }
             return `${months[date.getMonth()]} ${date.getFullYear()}`;
           },
         },
@@ -243,7 +295,7 @@ export default function LineChartCarteiraHistorico({
         borderColor: '#E5E7EB',
       },
     }),
-    [],
+    [isShortPeriod],
   );
 
   const series = useMemo(
@@ -262,6 +314,26 @@ export default function LineChartCarteiraHistorico({
 
   return (
     <div className="max-w-full overflow-x-auto custom-scrollbar">
+      <div className="mb-3 flex flex-wrap items-center gap-1">
+        {PERIODOS.map((p) => {
+          const isActive = p.id === periodo;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setPeriodo(p.id)}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                isActive
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+              aria-pressed={isActive}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
       <div id="chartPatrimonio" className="min-w-[600px] xl:min-w-full">
         <ApexChartWrapper options={options} series={series} type="area" height={335} />
       </div>
