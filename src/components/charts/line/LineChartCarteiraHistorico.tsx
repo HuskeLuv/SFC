@@ -246,6 +246,7 @@ export default function LineChartCarteiraHistorico({
       tooltip: {
         shared: true,
         intersect: false,
+        inverseOrder: true,
         x: {
           format: 'MMM yyyy',
           formatter: (val: number) => {
