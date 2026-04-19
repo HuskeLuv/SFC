@@ -114,9 +114,7 @@ export default function ProventosDistribuicaoChart({
       },
       dataLabels: {
         enabled: true,
-        formatter: (val: number) => {
-          return viewMode === 'yield' ? `${val.toFixed(2)}%` : `${val.toFixed(2)}%`;
-        },
+        formatter: (val: number) => `${Number(val).toFixed(2)}%`,
       },
       tooltip: {
         y: {
@@ -124,7 +122,7 @@ export default function ProventosDistribuicaoChart({
             if (viewMode === 'yield') {
               return `${val.toFixed(2)}%`;
             }
-            return `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            return `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           },
         },
       },
@@ -144,7 +142,11 @@ export default function ProventosDistribuicaoChart({
                 fontSize: '16px',
                 fontWeight: 700,
                 formatter: (val: string) => {
-                  return `R$ ${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                  const num = Number(val);
+                  if (viewMode === 'yield') {
+                    return `${num.toFixed(2)}%`;
+                  }
+                  return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                 },
               },
               total: {
@@ -157,7 +159,7 @@ export default function ProventosDistribuicaoChart({
                   if (viewMode === 'yield') {
                     return `${total.toFixed(2)}%`;
                   }
-                  return `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                  return `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                 },
               },
             },
