@@ -30,6 +30,38 @@ const extractBaseTickerFromManualSymbol = (symbol: string): string | null => {
   return m ? m[1] : null;
 };
 
+/**
+ * Símbolos sem cotação BRAPI — reservas, renda fixa, fundos/debêntures/tesouro
+ * manuais, personalizados, ou com padrões de ID interno.
+ */
+const isNonMarketSymbol = (symbol: string): boolean => {
+  const s = symbol.trim().toUpperCase();
+  return (
+    s.startsWith('RESERVA-EMERG') ||
+    s.startsWith('RESERVA-OPORT') ||
+    s.startsWith('RENDA-FIXA') ||
+    s.startsWith('CONTA-CORRENTE') ||
+    s.startsWith('PERSONALIZADO') ||
+    s.startsWith('DEBENTURE-') ||
+    s.startsWith('FUNDO-') ||
+    s.startsWith('TD-') ||
+    /-\d{13}-/.test(s) ||
+    s.startsWith('-') ||
+    /^\d/.test(s)
+  );
+};
+
+/**
+ * Símbolos sem histórico via BRAPI /api/quote — inclui os de `isNonMarketSymbol`
+ * e pares FX (XXX-YYY): BRAPI serve cotação de FX em `/api/v2/currency` mas
+ * não fornece série histórica desse endpoint.
+ */
+const isUnsupportedByBrapiHistory = (symbol: string): boolean => {
+  if (isNonMarketSymbol(symbol)) return true;
+  const s = symbol.trim().toUpperCase();
+  return /^[A-Z]{3}-[A-Z]{3}$/.test(s);
+};
+
 /** Símbolos para tentar na Brapi: ações B3 podem precisar do sufixo .SA */
 const getBrapiSymbolsToTry = (symbol: string): string[] => {
   const s = symbol.trim().toUpperCase();
@@ -83,20 +115,7 @@ export const getAssetPrice = async (
   if (!symbol?.trim()) return null;
 
   const normalized = symbol.trim().toUpperCase();
-  if (
-    normalized.startsWith('RESERVA-EMERG') ||
-    normalized.startsWith('RESERVA-OPORT') ||
-    normalized.startsWith('RENDA-FIXA') ||
-    normalized.startsWith('CONTA-CORRENTE') ||
-    normalized.startsWith('PERSONALIZADO') ||
-    normalized.startsWith('DEBENTURE-') ||
-    normalized.startsWith('FUNDO-') ||
-    /-\d{13}-/.test(normalized) ||
-    normalized.startsWith('-') ||
-    /^\d/.test(normalized)
-  ) {
-    return null;
-  }
+  if (isNonMarketSymbol(normalized)) return null;
 
   const useFallback = options?.useBrapiFallback !== false;
   const todayDate = today();
@@ -192,19 +211,7 @@ export const getAssetPrices = async (
     }
   }
 
-  const uniqueSymbols = rawSymbols.filter(
-    (s) =>
-      !s.startsWith('RESERVA-EMERG') &&
-      !s.startsWith('RESERVA-OPORT') &&
-      !s.startsWith('RENDA-FIXA') &&
-      !s.startsWith('CONTA-CORRENTE') &&
-      !s.startsWith('PERSONALIZADO') &&
-      !s.startsWith('DEBENTURE-') &&
-      !s.startsWith('FUNDO-') &&
-      !/-\d{13}-/.test(s) &&
-      !s.startsWith('-') &&
-      /^[A-Za-z]/.test(s),
-  );
+  const uniqueSymbols = rawSymbols.filter((s) => !isNonMarketSymbol(s) && /^[A-Za-z]/.test(s));
 
   // Incluir tickers base dos manuais para buscar cotação (ex: "O" para REIT)
   const symbolsToProcess = [...new Set([...uniqueSymbols, ...baseTickersFromManual])];
@@ -386,20 +393,8 @@ export const getAssetHistory = async (
   if (!symbol?.trim()) return [];
 
   const normalized = symbol.trim().toUpperCase();
-  if (
-    normalized.startsWith('RESERVA-EMERG') ||
-    normalized.startsWith('RESERVA-OPORT') ||
-    normalized.startsWith('RENDA-FIXA') ||
-    normalized.startsWith('CONTA-CORRENTE') ||
-    normalized.startsWith('PERSONALIZADO') ||
-    normalized.startsWith('DEBENTURE-') ||
-    normalized.startsWith('FUNDO-') ||
-    /-\d{13}-/.test(normalized) ||
-    normalized.startsWith('-') ||
-    /^\d/.test(normalized)
-  ) {
-    return [];
-  }
+  if (isUnsupportedByBrapiHistory(normalized)) return [];
+
   const start = normalizeDateToDayStart(startDate);
   const end = normalizeDateToDayStart(endDate);
 

@@ -266,6 +266,7 @@ describe('assetPriceService', () => {
         'PERSONALIZADO-ABC',
         'DEBENTURE-XYZ',
         'FUNDO-MULT',
+        'TD-TESOURO-SELIC-2027',
       ];
 
       for (const sym of blockedSymbols) {
@@ -368,7 +369,12 @@ describe('assetPriceService', () => {
       mockPrisma.asset.findMany.mockResolvedValue([]);
       mockPrisma.assetPriceHistory.findMany.mockResolvedValue([]);
 
-      const result = await getAssetPrices(['RESERVA-EMERG-001', 'RENDA-FIXA-CDB', 'FUNDO-MULT']);
+      const result = await getAssetPrices([
+        'RESERVA-EMERG-001',
+        'RENDA-FIXA-CDB',
+        'FUNDO-MULT',
+        'TD-TESOURO-SELIC-2027',
+      ]);
 
       expect(result.size).toBe(0);
     });
@@ -428,7 +434,15 @@ describe('assetPriceService', () => {
     });
 
     it('filters blocked symbols and returns empty', async () => {
-      const blockedSymbols = ['RESERVA-EMERG-001', 'RENDA-FIXA-CDB', 'DEBENTURE-XYZ', 'FUNDO-ABC'];
+      const blockedSymbols = [
+        'RESERVA-EMERG-001',
+        'RENDA-FIXA-CDB',
+        'DEBENTURE-XYZ',
+        'FUNDO-ABC',
+        'TD-TESOURO-IPCA-2045',
+        'USD-BRL',
+        'EUR-BRL',
+      ];
 
       for (const sym of blockedSymbols) {
         const result = await getAssetHistory(sym, startDate, endDate);
