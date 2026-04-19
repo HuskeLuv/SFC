@@ -34,7 +34,7 @@ const extractBaseTickerFromManualSymbol = (symbol: string): string | null => {
  * Símbolos sem cotação BRAPI — reservas, renda fixa, fundos/debêntures/tesouro
  * manuais, personalizados, ou com padrões de ID interno.
  */
-const isNonMarketSymbol = (symbol: string): boolean => {
+export const isNonMarketSymbol = (symbol: string): boolean => {
   const s = symbol.trim().toUpperCase();
   return (
     s.startsWith('RESERVA-EMERG') ||
