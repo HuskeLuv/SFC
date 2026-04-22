@@ -4,6 +4,15 @@ import { prisma } from '@/lib/prisma';
 import { getAssetPrices, getAssetHistory } from '@/services/pricing/assetPriceService';
 import { getDividends } from '@/services/pricing/dividendService';
 import { getFundamentals } from '@/services/pricing/fundamentalsService';
+import {
+  buildDailyTimeline as buildBusinessDayTimeline,
+  buildFixedIncomeFactorSeries,
+  normalizeDateStart as normalizeDateStartShared,
+  type CdiDaily,
+  type IpcaMonthly,
+  type TesouroPU,
+  type FixedIncomeAssetWithAsset,
+} from '@/services/portfolio/patrimonioHistoricoBuilder';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -100,6 +109,236 @@ const tipoOperacaoMap: Record<string, string> = {
   venda: 'Resgate',
 };
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+type PortfolioForFI = {
+  id: string;
+  assetId: string | null;
+  asset: { symbol: string; name: string; type?: string | null } | null;
+};
+
+type FixedIncomeRecord = {
+  id: string;
+  userId: string;
+  assetId: string;
+  type: string;
+  description: string;
+  startDate: Date;
+  maturityDate: Date;
+  investedAmount: number;
+  annualRate: number;
+  indexer: string | null;
+  indexerPercent: number | null;
+  liquidityType: string | null;
+  taxExempt: boolean;
+  tesouroBondType: string | null;
+  tesouroMaturity: Date | null;
+};
+
+const MAX_HISTORICO_MESES_FI = 24;
+
+const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedIncomeRecord) => {
+  const hoje = normalizeDateStartShared(new Date());
+  const startDate = normalizeDateStartShared(fi.startDate);
+  const maturityDate = normalizeDateStartShared(fi.maturityDate);
+
+  // Sempre acumula o fator a partir da startDate real (para o TWR exibido ser correto),
+  // mas limita a janela exibida a MAX_HISTORICO_MESES_FI meses.
+  const minStart = new Date(hoje.getFullYear(), hoje.getMonth() - MAX_HISTORICO_MESES_FI, 1);
+  const displayStart =
+    startDate.getTime() < minStart.getTime() ? normalizeDateStartShared(minStart) : startDate;
+
+  const fullTimeline = buildBusinessDayTimeline(startDate, hoje);
+
+  // Queries bounded pelo range do ativo
+  const [cdiRows, ipcaRows, tesouroRows] = await Promise.all([
+    fi.indexer === 'CDI' || fi.tesouroBondType
+      ? prisma.economicIndex.findMany({
+          where: { indexType: 'CDI', date: { gte: startDate, lte: hoje } },
+          orderBy: { date: 'asc' },
+        })
+      : Promise.resolve([] as Array<{ date: Date; value: unknown }>),
+    fi.indexer === 'IPCA' || fi.tesouroBondType
+      ? prisma.economicIndex.findMany({
+          where: { indexType: 'IPCA', date: { gte: startDate, lte: hoje } },
+          orderBy: { date: 'asc' },
+        })
+      : Promise.resolve([] as Array<{ date: Date; value: unknown }>),
+    fi.tesouroBondType && fi.tesouroMaturity
+      ? prisma.tesouroDiretoPrice.findMany({
+          where: {
+            bondType: fi.tesouroBondType,
+            maturityDate: fi.tesouroMaturity,
+            baseDate: { gte: startDate, lte: hoje },
+          },
+          orderBy: { baseDate: 'asc' },
+        })
+      : Promise.resolve(
+          [] as Array<{ baseDate: Date; basePU: unknown; sellPU: unknown; buyPU: unknown }>,
+        ),
+  ]);
+
+  const cdi: CdiDaily = new Map();
+  cdiRows.forEach((row) => {
+    const val = Number(row.value);
+    if (Number.isFinite(val)) cdi.set(normalizeDateStartShared(row.date).getTime(), val);
+  });
+
+  const ipca: IpcaMonthly = new Map();
+  ipcaRows.forEach((row) => {
+    const val = Number(row.value);
+    if (!Number.isFinite(val)) return;
+    const d = new Date(row.date);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    ipca.set(key, val);
+  });
+
+  const tesouroPU: TesouroPU = new Map();
+  let tesouroPUAtStart = 0;
+  if (tesouroRows.length > 0) {
+    tesouroRows.forEach((row) => {
+      const pu = Number(row.basePU ?? 0) || Number(row.sellPU ?? 0) || Number(row.buyPU ?? 0);
+      if (Number.isFinite(pu) && pu > 0) {
+        tesouroPU.set(normalizeDateStartShared(row.baseDate).getTime(), pu);
+      }
+    });
+    // PU em (ou o primeiro após) a data de aplicação
+    const startKey = startDate.getTime();
+    const sortedKeys = Array.from(tesouroPU.keys()).sort((a, b) => a - b);
+    const candidateAtOrBefore = [...sortedKeys].reverse().find((k) => k <= startKey);
+    const firstAfter = sortedKeys.find((k) => k >= startKey);
+    const chosen = candidateAtOrBefore ?? firstAfter;
+    if (chosen !== undefined) tesouroPUAtStart = tesouroPU.get(chosen) ?? 0;
+  }
+
+  const fiWithAsset: FixedIncomeAssetWithAsset = {
+    id: fi.id,
+    userId: fi.userId,
+    assetId: fi.assetId,
+    type: fi.type,
+    description: fi.description,
+    startDate: fi.startDate,
+    maturityDate: fi.maturityDate,
+    investedAmount: fi.investedAmount,
+    annualRate: fi.annualRate,
+    indexer: fi.indexer,
+    indexerPercent: fi.indexerPercent,
+    liquidityType: fi.liquidityType,
+    taxExempt: fi.taxExempt,
+    tesouroBondType: fi.tesouroBondType,
+    tesouroMaturity: fi.tesouroMaturity,
+    asset: portfolio.asset ?? null,
+  };
+
+  const factorByDay = buildFixedIncomeFactorSeries(fiWithAsset, fullTimeline, {
+    cdi,
+    ipca,
+    tesouroPU,
+    tesouroPUAtStart,
+  });
+
+  const displayStartTs = displayStart.getTime();
+  const displayTimeline = fullTimeline.filter((d) => d >= displayStartTs);
+
+  const historicoPatrimonio = displayTimeline.map((day) => ({
+    data: day,
+    valorAplicado: round2(fi.investedAmount),
+    saldoBruto: round2(fi.investedAmount * (factorByDay.get(day) ?? 1)),
+  }));
+
+  // Fluxo único na inception (quando dentro da janela de exibição)
+  const cashFlowsByDay = new Map<number, number>();
+  const startTs = normalizeDateStartShared(startDate).getTime();
+  if (startTs >= displayStartTs) {
+    cashFlowsByDay.set(startTs, fi.investedAmount);
+  }
+
+  const historicoTWR = (() => {
+    // Reutiliza a fórmula de TWR: (saldo_t - saldo_{t-1} - fluxo_t) / saldo_{t-1}
+    if (historicoPatrimonio.length === 0) return [] as Array<{ date: number; value: number }>;
+    const out: Array<{ date: number; value: number }> = [];
+    let cumulative = 1;
+    for (let i = 0; i < historicoPatrimonio.length; i++) {
+      if (i === 0) {
+        out.push({ date: historicoPatrimonio[i].data, value: 0 });
+        continue;
+      }
+      const vInicial = historicoPatrimonio[i - 1].saldoBruto;
+      const vFinal = historicoPatrimonio[i].saldoBruto;
+      const fluxo = cashFlowsByDay.get(historicoPatrimonio[i].data) ?? 0;
+      let retornoDia = 0;
+      if (vInicial > 0) {
+        retornoDia = (vFinal - vInicial - fluxo) / vInicial;
+        if (!Number.isFinite(retornoDia) || retornoDia > 0.5 || retornoDia < -0.5) retornoDia = 0;
+      }
+      cumulative *= 1 + retornoDia;
+      out.push({
+        date: historicoPatrimonio[i].data,
+        value: Math.round((cumulative - 1) * 10000) / 100,
+      });
+    }
+    return out;
+  })();
+
+  const finalFactor = factorByDay.get(fullTimeline[fullTimeline.length - 1]) ?? 1;
+  const saldoBruto = round2(fi.investedAmount * finalFactor);
+  const valorAplicado = round2(fi.investedAmount);
+  const resultado = round2(saldoBruto - valorAplicado);
+  const rentabilidade = valorAplicado > 0 ? (resultado / valorAplicado) * 100 : 0;
+
+  return NextResponse.json({
+    ativo: {
+      nome: portfolio.asset?.name || fi.description,
+      ticker: portfolio.asset?.symbol || '',
+      instituicao: null,
+    },
+    posicao: {
+      quantidade: 1,
+      precoMedio: valorAplicado,
+      valorAplicado,
+      saldoBruto,
+      rentabilidade,
+      resultado,
+      cotacaoAtual: saldoBruto,
+    },
+    transacoes: [
+      {
+        id: `fi-inception-${fi.id}`,
+        tipoOperacao: 'Aporte',
+        quantity: 1,
+        price: valorAplicado,
+        total: valorAplicado,
+        date: fi.startDate.toISOString(),
+        fees: null,
+        notes: null,
+      },
+      ...(maturityDate.getTime() <= hoje.getTime()
+        ? [
+            {
+              id: `fi-maturity-${fi.id}`,
+              tipoOperacao: 'Vencimento',
+              quantity: 1,
+              price: saldoBruto,
+              total: saldoBruto,
+              date: fi.maturityDate.toISOString(),
+              fees: null,
+              notes: null,
+            },
+          ]
+        : []),
+    ],
+    historicoPatrimonio,
+    historicoTWR,
+    proventos: [],
+    fundamentos: {
+      pl: '—',
+      beta: '—',
+      dividendYield: '—',
+    },
+    isFixedIncome: true,
+  });
+};
+
 export const GET = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { targetUserId } = await requireAuthWithActing(request);
@@ -112,6 +351,14 @@ export const GET = withErrorHandler(
 
     if (!portfolio) {
       return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
+    }
+
+    const fixedIncome = portfolio.assetId
+      ? await prisma.fixedIncomeAsset.findUnique({ where: { assetId: portfolio.assetId } })
+      : null;
+
+    if (fixedIncome) {
+      return await buildFixedIncomeResponse(portfolio, fixedIncome);
     }
 
     const symbol = portfolio.asset?.symbol || portfolio.stock?.ticker;

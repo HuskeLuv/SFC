@@ -17,6 +17,8 @@ export type FixedIncomeAssetWithAsset = {
   indexerPercent: number | null;
   liquidityType: string | null;
   taxExempt: boolean;
+  tesouroBondType?: string | null;
+  tesouroMaturity?: Date | null;
   asset: { symbol: string; name: string; type?: string | null } | null;
 };
 
@@ -118,10 +120,134 @@ export const calculateFixedIncomeValue = (
   return Math.round(valorAtual * 100) / 100;
 };
 
-const getDayKey = (ts: number): number => {
+export const getDayKey = (ts: number): number => {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
   return d.getTime();
+};
+
+/** Taxa diária do CDI (fração decimal, ex.: 0.000521 para ~13.65% a.a.) indexada por dayKey. */
+export type CdiDaily = Map<number, number>;
+
+/** Taxa mensal do IPCA (fração decimal, ex.: 0.005 para 0.5% no mês) indexada por 'YYYY-MM'. */
+export type IpcaMonthly = Map<string, number>;
+
+/** Preço Unitário (PU) diário de um título do Tesouro Direto indexado por dayKey. */
+export type TesouroPU = Map<number, number>;
+
+export interface FixedIncomeFactorContext {
+  cdi?: CdiDaily;
+  ipca?: IpcaMonthly;
+  tesouroPU?: TesouroPU;
+  /** PU do Tesouro na data de aplicação (ou o primeiro PU disponível após ela). */
+  tesouroPUAtStart?: number;
+}
+
+const BUSINESS_DAYS_PER_YEAR = 252;
+
+const monthKeyOf = (ts: number): string => {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+/**
+ * Constrói a série diária de fatores de rentabilidade acumulados para um ativo de renda fixa.
+ *
+ * Retorna um `Map<dayKey, factor>` em que `factor` é o multiplicador do principal na data:
+ * `saldoBruto(day) = investedAmount * factor(day)`.
+ *
+ * O `timeline` deve ser composto por dias úteis (o helper `buildDailyTimeline` já filtra
+ * fim de semana). Para correção do TWR ao longo do período exibido, passe um timeline que
+ * comece na `fi.startDate` real; o chamador pode então "fatiar" para exibição.
+ *
+ * Regras de acréscimo (aplicadas a cada dia útil após a data de aplicação e até o vencimento):
+ * - **PRE**: `factor *= (1 + annualRate)^(1/252)`
+ * - **CDI**: `factor *= 1 + cdi_dia * indexerPercent` (carrega o último CDI conhecido em gaps)
+ * - **IPCA**: `factor *= (1 + annualRate)^(1/252)` (spread) + aplica IPCA do mês ao cruzar
+ *   para o mês seguinte
+ * - **Tesouro Direto** (`tesouroBondType` preenchido e PU disponível): `factor = pu_dia / pu_start`
+ *   (carrega o último PU conhecido em gaps). Se nunca houve PU, cai no `indexer` do registro.
+ *
+ * Após a data de vencimento, o fator é congelado no valor apurado no vencimento.
+ */
+export const buildFixedIncomeFactorSeries = (
+  fi: FixedIncomeAssetWithAsset,
+  timeline: number[],
+  ctx: FixedIncomeFactorContext = {},
+): Map<number, number> => {
+  const result = new Map<number, number>();
+  if (timeline.length === 0) return result;
+
+  const startTs = normalizeDateStart(new Date(fi.startDate)).getTime();
+  const maturityTs = normalizeDateStart(new Date(fi.maturityDate)).getTime();
+
+  const annualRate = Number(fi.annualRate) / 100;
+  const indexerPercent = fi.indexerPercent != null ? Number(fi.indexerPercent) / 100 : 1;
+  const indexer = (fi.indexer || 'PRE').toUpperCase();
+  const hasTesouroPU =
+    Boolean(fi.tesouroBondType) &&
+    Boolean(ctx.tesouroPU) &&
+    typeof ctx.tesouroPUAtStart === 'number' &&
+    ctx.tesouroPUAtStart > 0;
+
+  const dailyPreFactor =
+    1 + annualRate > 0 ? Math.pow(1 + annualRate, 1 / BUSINESS_DAYS_PER_YEAR) : 1;
+
+  let factor = 1;
+  let lastCdi = 0;
+  let lastTesouroPU = ctx.tesouroPUAtStart ?? 0;
+  // Inicia no mês da aplicação para que o IPCA do mês em curso não seja aplicado
+  // quando cruzarmos para o próximo mês (seria cobrar IPCA retroativo da fração pré-aplicação).
+  let lastMonthApplied = monthKeyOf(startTs);
+
+  for (const day of timeline) {
+    if (day < startTs) {
+      result.set(day, 1);
+      continue;
+    }
+
+    if (day > maturityTs) {
+      // Fator congelado no valor apurado até o vencimento
+      result.set(day, factor);
+      continue;
+    }
+
+    if (hasTesouroPU) {
+      const pu = ctx.tesouroPU!.get(day);
+      if (pu && pu > 0) {
+        lastTesouroPU = pu;
+      }
+      if (lastTesouroPU > 0 && ctx.tesouroPUAtStart! > 0) {
+        factor = lastTesouroPU / ctx.tesouroPUAtStart!;
+      }
+    } else if (day > startTs) {
+      // IPCA: aplica a taxa do mês anterior ao cruzar para um novo mês
+      if (indexer === 'IPCA') {
+        const currentMonth = monthKeyOf(day);
+        if (currentMonth !== lastMonthApplied) {
+          const ipcaRate = ctx.ipca?.get(lastMonthApplied);
+          if (ipcaRate != null && Number.isFinite(ipcaRate)) {
+            factor *= 1 + ipcaRate;
+          }
+          lastMonthApplied = currentMonth;
+        }
+        factor *= dailyPreFactor;
+      } else if (indexer === 'CDI') {
+        const cdiRate = ctx.cdi?.get(day);
+        if (cdiRate != null && Number.isFinite(cdiRate)) {
+          lastCdi = cdiRate;
+        }
+        factor *= 1 + lastCdi * indexerPercent;
+      } else {
+        // PRE (default)
+        factor *= dailyPreFactor;
+      }
+    }
+
+    result.set(day, factor);
+  }
+
+  return result;
 };
 
 export const calculateHistoricoTWR = (

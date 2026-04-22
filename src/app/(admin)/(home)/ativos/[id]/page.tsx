@@ -105,6 +105,7 @@ interface AtivoData {
     beta: number | string;
     dividendYield: string;
   };
+  isFixedIncome?: boolean;
 }
 
 function AtivoDetalheContent() {
@@ -576,7 +577,7 @@ function AtivoDetalheContent() {
                 period={rentabilidadePeriod as '1mo' | '1y'}
                 chartType="line"
                 customColors={['#06B6D4', '#8B5CF6', '#F59E0B']}
-                allowedIndices={['CDI', 'IBOV']}
+                allowedIndices={data.isFixedIncome ? ['CDI', 'IPCA'] : ['CDI', 'IBOV']}
                 carteiraLabel="Ativo"
                 legendPosition="bottom"
               />
