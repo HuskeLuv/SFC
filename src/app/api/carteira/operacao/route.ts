@@ -1739,6 +1739,94 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
+  // Prepara os dados do FixedIncomeAsset ANTES da criação do Portfolio para permitir
+  // commit atômico em $transaction. Sem isso, se a criação do FI falhar após o Portfolio
+  // ter sido persistido, sobra um Portfolio órfão (sem taxa/indexador associado) que
+  // aparece na tabela de RF sem "valor atual" calculável e quebra os gráficos em /ativos/[id].
+  let fixedIncomeCreateData: Parameters<typeof prisma.fixedIncomeAsset.create>[0]['data'] | null =
+    null;
+  if ((isRendaFixa || isTesouroRendaFixa) && asset?.id) {
+    const descricaoTesouro = requestBody.descricao || requestBody.ativo;
+    const dataInicioTesouro = dataCompra || dataInicio;
+    const valorAplicadoTesouro =
+      (requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual') &&
+      quantidade > 0 &&
+      cotacaoUnitaria > 0
+        ? quantidade * cotacaoUnitaria
+        : valorInvestido;
+
+    let rendaFixaTipoForAsset = rendaFixaTipo;
+    let annualRateForAsset: number;
+    let indexerPercentForAsset: number | null;
+    let indexerForAsset: string | null;
+
+    if (isTesouroRendaFixa) {
+      rendaFixaTipoForAsset = tesouroDestino === 'renda-fixa-hibrida' ? 'CDB_HIB' : 'CDB_PRE';
+      annualRateForAsset =
+        tesouroDestino === 'renda-fixa-prefixada'
+          ? taxaJurosAnual
+          : tesouroDestino === 'renda-fixa-hibrida'
+            ? (taxaFixaAnual ?? 0)
+            : (taxaJurosAnual ?? 100);
+      indexerPercentForAsset =
+        tesouroDestino === 'renda-fixa-prefixada'
+          ? null
+          : (rendaFixaIndexerPercent ?? taxaJurosAnual ?? 100);
+      indexerForAsset =
+        tesouroDestino === 'renda-fixa-prefixada' ? 'PRE' : rendaFixaIndexer || null;
+    } else {
+      annualRateForAsset =
+        tipoAtivo === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? taxaJurosAnual) : taxaJurosAnual;
+      indexerPercentForAsset =
+        tipoAtivo === 'renda-fixa-hibrida' ? taxaJurosAnual : rendaFixaIndexerPercent;
+      indexerForAsset = rendaFixaIndexer || null;
+    }
+
+    let tesouroBondType: string | null = null;
+    let tesouroMaturity: Date | null = null;
+    if (isTesouroRendaFixa && asset?.type === 'tesouro-direto' && asset.name) {
+      const nameMatch = asset.name.match(/^(.+)\s(\d{4})$/);
+      if (nameMatch) {
+        const bondType = nameMatch[1];
+        const maturityYear = parseInt(nameMatch[2], 10);
+        const exactPrice = await prisma.tesouroDiretoPrice.findFirst({
+          where: {
+            bondType,
+            maturityDate: {
+              gte: new Date(`${maturityYear}-01-01`),
+              lt: new Date(`${maturityYear + 1}-01-01`),
+            },
+          },
+          orderBy: { baseDate: 'desc' },
+          select: { maturityDate: true },
+        });
+        if (exactPrice) {
+          tesouroBondType = bondType;
+          tesouroMaturity = exactPrice.maturityDate;
+        }
+      }
+    }
+
+    fixedIncomeCreateData = {
+      userId: targetUserId,
+      assetId: asset.id,
+      type: rendaFixaTipoForAsset as Parameters<
+        typeof prisma.fixedIncomeAsset.create
+      >[0]['data']['type'],
+      description: isTesouroRendaFixa ? descricaoTesouro : descricao,
+      startDate: new Date(isTesouroRendaFixa ? dataInicioTesouro : dataInicio),
+      maturityDate: new Date(dataVencimento),
+      investedAmount: isTesouroRendaFixa ? valorAplicadoTesouro : valorAplicado,
+      annualRate: annualRateForAsset,
+      indexer: indexerForAsset as 'PRE' | 'CDI' | 'IPCA' | null,
+      indexerPercent: indexerPercentForAsset ?? null,
+      liquidityType: isTesouroRendaFixa ? null : rendaFixaLiquidity || null,
+      taxExempt: isTesouroRendaFixa ? true : Boolean(rendaFixaTaxExempt),
+      tesouroBondType,
+      tesouroMaturity,
+    };
+  }
+
   // Atualizar ou criar portfolio
   // Para reservas (emergency e opportunity) e personalizado, sempre criar um novo portfolio
   // Para outros tipos, atualizar se existir ou criar novo
@@ -1750,8 +1838,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     isTesouroRendaFixa ||
     isFundoReserva
   ) {
-    // Para reservas, tesouro em reserva e fundo em reserva, sempre criar um novo portfolio (não somar com existente)
-    await prisma.portfolio.create({
+    const portfolioCreateArgs = {
       data: {
         userId: targetUserId,
         assetId: asset!.id,
@@ -1760,7 +1847,31 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         totalInvested: valorFinal,
         lastUpdate: new Date(),
       },
-    });
+    };
+
+    if (fixedIncomeCreateData) {
+      // Para reservas, tesouro em reserva e fundo em reserva, sempre criar um novo portfolio (não somar com existente)
+      try {
+        await prisma.$transaction([
+          prisma.portfolio.create(portfolioCreateArgs),
+          prisma.fixedIncomeAsset.create({ data: fixedIncomeCreateData }),
+        ]);
+      } catch (error) {
+        const prismaError = error as { code?: string };
+        if (prismaError?.code === 'P2021') {
+          return NextResponse.json(
+            {
+              error:
+                'Tabela de renda fixa não encontrada. Execute as migrations antes de adicionar ativos de renda fixa.',
+            },
+            { status: 500 },
+          );
+        }
+        throw error;
+      }
+    } else {
+      await prisma.portfolio.create(portfolioCreateArgs);
+    }
   } else {
     // Para outros tipos, verificar se existe e atualizar ou criar
     const portfolioExistente = await prisma.portfolio.findFirst({
@@ -1809,106 +1920,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           lastUpdate: new Date(),
         },
       });
-    }
-  }
-
-  if ((isRendaFixa || isTesouroRendaFixa) && asset?.id) {
-    try {
-      const descricaoTesouro = requestBody.descricao || requestBody.ativo;
-      const dataInicioTesouro = dataCompra || dataInicio;
-      const valorAplicadoTesouro =
-        (requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual') &&
-        quantidade > 0 &&
-        cotacaoUnitaria > 0
-          ? quantidade * cotacaoUnitaria
-          : valorInvestido;
-
-      let rendaFixaTipoForAsset = rendaFixaTipo;
-      let annualRateForAsset: number;
-      let indexerPercentForAsset: number | null;
-      let indexerForAsset: string | null;
-
-      if (isTesouroRendaFixa) {
-        rendaFixaTipoForAsset = tesouroDestino === 'renda-fixa-hibrida' ? 'CDB_HIB' : 'CDB_PRE';
-        // Tesouro: % do indexador e taxa fixa anual foram removidos do formulário - usar defaults
-        annualRateForAsset =
-          tesouroDestino === 'renda-fixa-prefixada'
-            ? taxaJurosAnual
-            : tesouroDestino === 'renda-fixa-hibrida'
-              ? (taxaFixaAnual ?? 0)
-              : (taxaJurosAnual ?? 100);
-        indexerPercentForAsset =
-          tesouroDestino === 'renda-fixa-prefixada'
-            ? null
-            : (rendaFixaIndexerPercent ?? taxaJurosAnual ?? 100);
-        indexerForAsset =
-          tesouroDestino === 'renda-fixa-prefixada' ? 'PRE' : rendaFixaIndexer || null;
-      } else {
-        annualRateForAsset =
-          tipoAtivo === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? taxaJurosAnual) : taxaJurosAnual;
-        indexerPercentForAsset =
-          tipoAtivo === 'renda-fixa-hibrida' ? taxaJurosAnual : rendaFixaIndexerPercent;
-        indexerForAsset = rendaFixaIndexer || null;
-      }
-
-      // For catalog-picked Tesouro, link this FixedIncomeAsset to TesouroDiretoPrice
-      // so bridgeTesouroToAssetPrices() can keep Asset.currentPrice in sync with sellPU.
-      // The catalog Asset.name is "{bondType} {maturityYear}" (see syncTesouroAssetCatalog).
-      let tesouroBondType: string | null = null;
-      let tesouroMaturity: Date | null = null;
-      if (isTesouroRendaFixa && asset?.type === 'tesouro-direto' && asset.name) {
-        const nameMatch = asset.name.match(/^(.+)\s(\d{4})$/);
-        if (nameMatch) {
-          const bondType = nameMatch[1];
-          const maturityYear = parseInt(nameMatch[2], 10);
-          const exactPrice = await prisma.tesouroDiretoPrice.findFirst({
-            where: {
-              bondType,
-              maturityDate: {
-                gte: new Date(`${maturityYear}-01-01`),
-                lt: new Date(`${maturityYear + 1}-01-01`),
-              },
-            },
-            orderBy: { baseDate: 'desc' },
-            select: { maturityDate: true },
-          });
-          if (exactPrice) {
-            tesouroBondType = bondType;
-            tesouroMaturity = exactPrice.maturityDate;
-          }
-        }
-      }
-
-      await prisma.fixedIncomeAsset.create({
-        data: {
-          userId: targetUserId,
-          assetId: asset.id,
-          type: rendaFixaTipoForAsset,
-          description: isTesouroRendaFixa ? descricaoTesouro : descricao,
-          startDate: new Date(isTesouroRendaFixa ? dataInicioTesouro : dataInicio),
-          maturityDate: new Date(dataVencimento),
-          investedAmount: isTesouroRendaFixa ? valorAplicadoTesouro : valorAplicado,
-          annualRate: annualRateForAsset,
-          indexer: indexerForAsset as 'PRE' | 'CDI' | 'IPCA' | null,
-          indexerPercent: indexerPercentForAsset ?? null,
-          liquidityType: isTesouroRendaFixa ? null : rendaFixaLiquidity || null,
-          taxExempt: isTesouroRendaFixa ? true : Boolean(rendaFixaTaxExempt),
-          tesouroBondType,
-          tesouroMaturity,
-        },
-      });
-    } catch (error) {
-      const prismaError = error as { code?: string };
-      if (prismaError?.code === 'P2021') {
-        return NextResponse.json(
-          {
-            error:
-              'Tabela de renda fixa não encontrada. Execute as migrations antes de adicionar ativos de renda fixa.',
-          },
-          { status: 500 },
-        );
-      }
-      throw error;
     }
   }
 

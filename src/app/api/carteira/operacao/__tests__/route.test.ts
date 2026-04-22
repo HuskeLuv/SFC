@@ -11,6 +11,7 @@ const mockPrisma = vi.hoisted(() => ({
   portfolio: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
   fixedIncomeAsset: { create: vi.fn() },
   tesouroDiretoPrice: { findFirst: vi.fn() },
+  $transaction: vi.fn((ops: Array<Promise<unknown>>) => Promise.all(ops)),
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
