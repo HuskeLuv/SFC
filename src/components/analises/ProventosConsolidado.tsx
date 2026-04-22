@@ -120,35 +120,30 @@ export default function ProventosConsolidado() {
           bigValue={formatCurrency(kpis.totalInvestido)}
           subLabel="Aportes nos últ. 12 meses:"
           subValue={formatCurrency(kpis.aportesUlt12m)}
-          tooltip="Capital total investido em ativos que pagam proventos"
         />
         <ProventosKpiCard
           title="Renda acumulada"
           bigValue={formatCurrency(kpis.rendaAcumulada.periodo)}
           subLabel="Últimos 12 meses"
           subValue={formatCurrency(kpis.rendaAcumulada.ult12m)}
-          tooltip="Soma de todos os proventos recebidos no período selecionado"
         />
         <ProventosKpiCard
           title="Média mensal"
           bigValue={formatCurrency(kpis.mediaMensal.periodo)}
           subLabel="Últimos 12 meses"
           subValue={formatCurrency(kpis.mediaMensal.ult12m)}
-          tooltip="Renda média por mês no período selecionado"
         />
         <ProventosKpiCard
           title="Resultado (YoC)"
           bigValue={formatPercent(kpis.yoc.periodo)}
           subLabel="Últimos 12 meses"
           subValue={formatPercent(kpis.yoc.ult12m)}
-          tooltip="Yield on Cost: renda acumulada dividida pelo capital investido"
         />
         <ProventosKpiCard
           title="Proventos a receber"
           bigValue={formatCurrency(kpis.aReceber.futuro)}
           subLabel="Esse mês:"
           subValue={formatCurrency(kpis.aReceber.esseMes)}
-          tooltip="Proventos já anunciados com pagamento previsto no futuro"
         />
       </div>
 

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 
 export interface ProventoData {
@@ -99,6 +99,10 @@ export const useProventos = (
     refetch: queryRefetch,
   } = useQuery<ProventosResponse>({
     queryKey: [...queryKeys.proventos.all, startDate, endDate, groupBy],
+    // Mantém os dados anteriores visíveis enquanto um novo período/grupo é buscado.
+    // Sem isso, cada clique em pílula troca a queryKey e isLoading volta a true,
+    // fazendo a página inteira piscar o spinner.
+    placeholderData: keepPreviousData,
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
