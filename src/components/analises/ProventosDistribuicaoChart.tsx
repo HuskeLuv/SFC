@@ -3,6 +3,17 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { GroupedProventoData } from '@/hooks/useProventos';
 
+const hasFunctionValue = (value: unknown): boolean => {
+  if (typeof value === 'function') return true;
+  if (!value) return false;
+  if (Array.isArray(value)) return value.some((item) => hasFunctionValue(item));
+  if (typeof value !== 'object') return false;
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    if (hasFunctionValue((value as Record<string, unknown>)[key])) return true;
+  }
+  return false;
+};
+
 const ApexChartWrapper = React.memo(
   ({
     options,
@@ -18,7 +29,9 @@ const ApexChartWrapper = React.memo(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
 
+    // JSON-stringify destrói callbacks (formatters); preserva `options` íntegro quando há funções.
     const sanitizedOptions = useMemo(() => {
+      if (hasFunctionValue(options)) return options;
       try {
         return JSON.parse(JSON.stringify(options)) as ApexOptions;
       } catch {
