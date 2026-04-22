@@ -330,6 +330,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       currentValue: number;
       dividendYield: number;
       yoc: number;
+      // Enriquecimento para exibição tipo Kinvo (preenchido apenas quando groupBy==='ativo')
+      classe?: string;
+      quantidadeAtual?: number;
+      precoMedio?: number;
+      cotacaoAtual?: number;
+      ultimoProvento?: number;
+      magicNumber?: number;
     }
   > = {};
   const groupAssets = new Map<string, Set<string>>();
@@ -386,6 +393,43 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
     data.dividendYield = data.currentValue > 0 ? (data.total / data.currentValue) * 100 : 0;
     data.yoc = data.invested > 0 ? (data.total / data.invested) * 100 : 0;
+
+    // Enriquecer grupos por ATIVO com campos esperados pela tabela estilo Kinvo
+    if (groupBy === 'ativo') {
+      const symbol = data.items[0]?.symbol;
+      if (!symbol) return;
+      const asset = portfolioAssets.find((a) => a.symbol === symbol);
+      if (!asset) return;
+
+      const classe = mapAssetTypeToClasse(asset);
+      const quote = quotes.get(symbol) ?? asset.avgPrice;
+
+      // Último provento por cota (ordenado por data asc)
+      const sortedItems = [...data.items].sort(
+        (a, b) => new Date(a.data).getTime() - new Date(b.data).getTime(),
+      );
+      const ultimoProvento = sortedItems[sortedItems.length - 1]?.valorUnitario ?? 0;
+
+      data.classe = classe;
+      data.quantidadeAtual = asset.quantity;
+      data.precoMedio = asset.avgPrice;
+      data.cotacaoAtual = quote;
+      data.ultimoProvento = ultimoProvento;
+
+      // Magic number: apenas FIIs — ceil(cotação / provento_médio_mensal_por_cota)
+      if (classe === "FII's" && asset.quantity > 0 && quote > 0) {
+        // Calcula média mensal por cota usando últimos 12m deste ativo
+        const doze_m_ms = Date.now() - 365 * 24 * 60 * 60 * 1000;
+        const ult12mTotalAtivo = data.items
+          .filter((item) => new Date(item.data).getTime() >= doze_m_ms)
+          .reduce((sum, item) => sum + item.valor, 0);
+        const mediaMensalTotalAtivo = ult12mTotalAtivo / 12;
+        const mediaMensalPorCota = mediaMensalTotalAtivo / asset.quantity;
+        if (mediaMensalPorCota > 0) {
+          data.magicNumber = Math.ceil(quote / mediaMensalPorCota);
+        }
+      }
+    }
   });
 
   const monthlySummary: Record<string, { total: number; count: number }> = {};
@@ -411,6 +455,105 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const totalProventos = proventos.reduce((sum, p) => sum + p.valor, 0);
   const mesesComProventos = Object.keys(monthlySummary).length;
   const mediaMensal = mesesComProventos > 0 ? totalProventos / mesesComProventos : 0;
+
+  // ============================================================================
+  // KPI block — valores independentes do filtro de período do usuário quando
+  // possível (para o card "Últimos 12 meses" sempre refletir o mesmo recorte).
+  // ============================================================================
+  const hojeKpi = new Date();
+  hojeKpi.setHours(0, 0, 0, 0);
+  const hojeKpiMs = hojeKpi.getTime();
+  const doze_m_ms = hojeKpiMs - 365 * 24 * 60 * 60 * 1000;
+  const primeiroDiaMes = new Date(hojeKpi.getFullYear(), hojeKpi.getMonth(), 1).getTime();
+  const ultimoInstanteMes =
+    new Date(hojeKpi.getFullYear(), hojeKpi.getMonth() + 1, 1).getTime() - 1;
+
+  // Proventos a receber (futuros, status='a_receber')
+  let aReceberFuturo = 0;
+  let aReceberEsseMes = 0;
+  for (const { asset, dividends } of allDividends) {
+    for (const d of dividends) {
+      const dateTime = d.date.getTime();
+      if (dateTime <= hojeKpiMs) continue;
+      const quantidade = asset.quantity;
+      if (quantidade <= 0) continue;
+      const valor = quantidade * d.valorUnitario;
+      aReceberFuturo += valor;
+      if (dateTime >= primeiroDiaMes && dateTime <= ultimoInstanteMes) {
+        aReceberEsseMes += valor;
+      }
+    }
+  }
+
+  // Histórico completo (sem filtro de startDate/endDate) — usamos para recortes fixos de 12m
+  const proventosRealizadosTodos: { data: number; valor: number }[] = [];
+  for (const { asset, dividends } of allDividends) {
+    const timeline = timelinesBySymbol.get(asset.symbol) || [];
+    const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
+    for (const d of dividends) {
+      const dateTime = d.date.getTime();
+      if (dateTime > hojeKpiMs) continue;
+      if (purchaseDateTime && dateTime < purchaseDateTime) continue;
+      const qtdHist = getQuantityAtDate(timeline, dateTime);
+      const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
+      if (quantidade <= 0) continue;
+      proventosRealizadosTodos.push({ data: dateTime, valor: quantidade * d.valorUnitario });
+    }
+  }
+
+  const rendaUlt12m = proventosRealizadosTodos
+    .filter((p) => p.data >= doze_m_ms)
+    .reduce((s, p) => s + p.valor, 0);
+  const mediaMensalUlt12m = rendaUlt12m / 12;
+
+  let totalInvestidoAtual = 0;
+  assetValuesBySymbol.forEach((v) => {
+    totalInvestidoAtual += v.invested;
+  });
+
+  const aportesUlt12m = transactions
+    .filter((t) => t.type === 'compra' && t.date.getTime() >= doze_m_ms)
+    .reduce((s, t) => {
+      const total = Number(t.total);
+      return s + (Number.isFinite(total) && total > 0 ? total : t.price * t.quantity);
+    }, 0);
+
+  // Média mensal do período filtrado: usa o intervalo [startDate, endDate] se ambos definidos;
+  // caso contrário, mantém o comportamento antigo (meses com proventos efetivos).
+  let mediaMensalPeriodo = mediaMensal;
+  if (startDateTime && endDateTime) {
+    const startObj = new Date(startDateTime);
+    const endObj = new Date(endDateTime);
+    const months =
+      (endObj.getFullYear() - startObj.getFullYear()) * 12 +
+      (endObj.getMonth() - startObj.getMonth()) +
+      1;
+    if (months > 0) mediaMensalPeriodo = totalProventos / months;
+  }
+
+  const yocPeriodo = totalInvestidoAtual > 0 ? (totalProventos / totalInvestidoAtual) * 100 : 0;
+  const yocUlt12m = totalInvestidoAtual > 0 ? (rendaUlt12m / totalInvestidoAtual) * 100 : 0;
+
+  const kpis = {
+    totalInvestido: Math.round(totalInvestidoAtual * 100) / 100,
+    aportesUlt12m: Math.round(aportesUlt12m * 100) / 100,
+    rendaAcumulada: {
+      periodo: Math.round(totalProventos * 100) / 100,
+      ult12m: Math.round(rendaUlt12m * 100) / 100,
+    },
+    mediaMensal: {
+      periodo: Math.round(mediaMensalPeriodo * 100) / 100,
+      ult12m: Math.round(mediaMensalUlt12m * 100) / 100,
+    },
+    yoc: {
+      periodo: Math.round(yocPeriodo * 100) / 100,
+      ult12m: Math.round(yocUlt12m * 100) / 100,
+    },
+    aReceber: {
+      futuro: Math.round(aReceberFuturo * 100) / 100,
+      esseMes: Math.round(aReceberEsseMes * 100) / 100,
+    },
+  };
 
   // Fetch corporate actions (splits/inplits/bonuses) for all portfolio assets
   const allCorporateActions = await Promise.all(
@@ -445,5 +588,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     total: Math.round(totalProventos * 100) / 100,
     media: Math.round(mediaMensal * 100) / 100,
     corporateActions,
+    kpis,
   });
 });

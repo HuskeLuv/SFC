@@ -22,12 +22,37 @@ export interface GroupedProventoData {
   currentValue?: number;
   dividendYield?: number;
   yoc?: number;
+  // Enriquecimento para exibição tipo Kinvo (somente quando groupBy === 'ativo')
+  classe?: string;
+  quantidadeAtual?: number;
+  precoMedio?: number;
+  cotacaoAtual?: number;
+  ultimoProvento?: number;
+  magicNumber?: number;
 }
 
 export interface SummaryBucket {
   total: number;
   count: number;
 }
+
+export interface ProventosKpis {
+  totalInvestido: number;
+  aportesUlt12m: number;
+  rendaAcumulada: { periodo: number; ult12m: number };
+  mediaMensal: { periodo: number; ult12m: number };
+  yoc: { periodo: number; ult12m: number };
+  aReceber: { futuro: number; esseMes: number };
+}
+
+const emptyKpis: ProventosKpis = {
+  totalInvestido: 0,
+  aportesUlt12m: 0,
+  rendaAcumulada: { periodo: 0, ult12m: 0 },
+  mediaMensal: { periodo: 0, ult12m: 0 },
+  yoc: { periodo: 0, ult12m: 0 },
+  aReceber: { futuro: 0, esseMes: 0 },
+};
 
 interface ProventosResponse {
   proventos: ProventoData[];
@@ -36,6 +61,7 @@ interface ProventosResponse {
   yearly: Record<string, SummaryBucket>;
   total: number;
   media: number;
+  kpis: ProventosKpis;
 }
 
 const emptyResponse: ProventosResponse = {
@@ -45,6 +71,7 @@ const emptyResponse: ProventosResponse = {
   yearly: {},
   total: 0,
   media: 0,
+  kpis: emptyKpis,
 };
 
 interface UseProventosResult {
@@ -54,6 +81,7 @@ interface UseProventosResult {
   yearly: Record<string, SummaryBucket>;
   total: number;
   media: number;
+  kpis: ProventosKpis;
   loading: boolean;
   error: string | null;
   refetch: () => void;
@@ -91,6 +119,7 @@ export const useProventos = (
         yearly: json.yearly || {},
         total: json.total || 0,
         media: json.media || 0,
+        kpis: json.kpis || emptyKpis,
       };
     },
   });
@@ -102,6 +131,7 @@ export const useProventos = (
     yearly: data.yearly,
     total: data.total,
     media: data.media,
+    kpis: data.kpis,
     loading,
     error: queryError ? (queryError as Error).message : null,
     refetch: () => void queryRefetch(),

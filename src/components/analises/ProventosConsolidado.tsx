@@ -1,31 +1,80 @@
-"use client";
-import React, { useState } from "react";
-import ComponentCard from "@/components/common/ComponentCard";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import { useProventos } from "@/hooks/useProventos";
-import ProventosHistoricoChart from "./ProventosHistoricoChart";
-import ProventosDistribuicao from "./ProventosDistribuicao";
-import DatePicker from "@/components/form/date-picker";
+'use client';
+import React, { useMemo, useState } from 'react';
+import ComponentCard from '@/components/common/ComponentCard';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useProventos } from '@/hooks/useProventos';
+import ProventosHistoricoChart from './ProventosHistoricoChart';
+import ProventosDistribuicao from './ProventosDistribuicao';
+import ProventosKpiCard from './ProventosKpiCard';
 
-const GROUP_BY_OPTIONS = [
-  { value: "ativo", label: "Por Ativo" },
-  { value: "classe", label: "Por Classe de Ativo" },
-  { value: "tipo", label: "Por Tipo de Provento" },
-] as const;
+type PeriodPill = 'ano' | '12m' | '24m' | '36m' | 'inicio';
+type GroupByType = 'ativo' | 'classe' | 'tipo';
 
-type GroupByType = typeof GROUP_BY_OPTIONS[number]["value"];
+const PERIOD_OPTIONS: Array<{ value: PeriodPill; label: string }> = [
+  { value: 'ano', label: 'No ano' },
+  { value: '12m', label: '12 meses' },
+  { value: '24m', label: '24 meses' },
+  { value: '36m', label: '36 meses' },
+  { value: 'inicio', label: 'Do início' },
+];
+
+const formatDateBR = (d: Date) =>
+  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+const formatCurrency = (value: number) =>
+  `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const formatPercent = (value: number) => `${value.toFixed(2)}%`;
+
+/** Resolve a date range (ISO strings) for each period pill. */
+const resolvePeriodRange = (pill: PeriodPill): { startDate?: string; endDate?: string } => {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  const endDate = today.toISOString().split('T')[0];
+
+  if (pill === 'inicio') return {};
+
+  const start = new Date(today);
+  if (pill === 'ano') {
+    start.setMonth(0);
+    start.setDate(1);
+  } else if (pill === '12m') {
+    start.setFullYear(start.getFullYear() - 1);
+  } else if (pill === '24m') {
+    start.setFullYear(start.getFullYear() - 2);
+  } else if (pill === '36m') {
+    start.setFullYear(start.getFullYear() - 3);
+  }
+  start.setHours(0, 0, 0, 0);
+  return { startDate: start.toISOString().split('T')[0], endDate };
+};
 
 export default function ProventosConsolidado() {
-  const [groupBy, setGroupBy] = useState<GroupByType>("ativo");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"total" | "yield">("total");
-  
-  const { proventos, grouped, monthly, yearly, total, media, loading, error } = useProventos(
-    startDate || undefined,
-    endDate || undefined,
-    groupBy
+  const [period, setPeriod] = useState<PeriodPill>('24m');
+  const [groupBy, setGroupBy] = useState<GroupByType>('ativo');
+
+  const { startDate, endDate } = useMemo(() => resolvePeriodRange(period), [period]);
+
+  const { proventos, grouped, monthly, yearly, kpis, loading, error } = useProventos(
+    startDate,
+    endDate,
+    groupBy,
   );
+
+  const periodLabel = useMemo(() => {
+    if (!startDate || !endDate) {
+      // "Do início" — usa a data do primeiro provento, se houver
+      if (proventos.length === 0) return '—';
+      const datas = proventos
+        .map((p) => new Date(p.data).getTime())
+        .filter((t) => Number.isFinite(t));
+      if (datas.length === 0) return '—';
+      const start = new Date(Math.min(...datas));
+      const end = new Date(Math.max(...datas));
+      return `${formatDateBR(start)} - ${formatDateBR(end)}`;
+    }
+    return `${formatDateBR(new Date(startDate))} - ${formatDateBR(new Date(endDate))}`;
+  }, [startDate, endDate, proventos]);
 
   if (loading) {
     return <LoadingSpinner text="Carregando dados de proventos..." />;
@@ -46,56 +95,61 @@ export default function ProventosConsolidado() {
 
   return (
     <div className="space-y-6">
-      {/* Filtros */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Agrupar por:
-          </label>
-          <select
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as GroupByType)}
-            className="w-full h-11 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 bg-transparent text-gray-800 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:focus:border-brand-800"
+      {/* Period pills */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <span className="text-sm text-gray-500 dark:text-gray-400">Período:</span>
+        {PERIOD_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setPeriod(opt.value)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              period === opt.value
+                ? 'bg-brand-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+            }`}
           >
-            {GROUP_BY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <DatePicker
-            id="start-date"
-            label="Data Inicial"
-            mode="single"
-            defaultDate={startDate ? new Date(startDate) : undefined}
-            onChange={(selectedDates) => {
-              if (selectedDates && selectedDates.length > 0) {
-                const date = selectedDates[0];
-                if (date instanceof Date) {
-                  setStartDate(date.toISOString().split('T')[0]);
-                }
-              }
-            }}
-          />
-        </div>
-        <div>
-          <DatePicker
-            id="end-date"
-            label="Data Final"
-            mode="single"
-            defaultDate={endDate ? new Date(endDate) : undefined}
-            onChange={(selectedDates) => {
-              if (selectedDates && selectedDates.length > 0) {
-                const date = selectedDates[0];
-                if (date instanceof Date) {
-                  setEndDate(date.toISOString().split('T')[0]);
-                }
-              }
-            }}
-          />
-        </div>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
+        <ProventosKpiCard
+          title="Total investido"
+          bigValue={formatCurrency(kpis.totalInvestido)}
+          subLabel="Aportes nos últ. 12 meses:"
+          subValue={formatCurrency(kpis.aportesUlt12m)}
+          tooltip="Capital total investido em ativos que pagam proventos"
+        />
+        <ProventosKpiCard
+          title="Renda acumulada"
+          bigValue={formatCurrency(kpis.rendaAcumulada.periodo)}
+          subLabel="Últimos 12 meses"
+          subValue={formatCurrency(kpis.rendaAcumulada.ult12m)}
+          tooltip="Soma de todos os proventos recebidos no período selecionado"
+        />
+        <ProventosKpiCard
+          title="Média mensal"
+          bigValue={formatCurrency(kpis.mediaMensal.periodo)}
+          subLabel="Últimos 12 meses"
+          subValue={formatCurrency(kpis.mediaMensal.ult12m)}
+          tooltip="Renda média por mês no período selecionado"
+        />
+        <ProventosKpiCard
+          title="Resultado (YoC)"
+          bigValue={formatPercent(kpis.yoc.periodo)}
+          subLabel="Últimos 12 meses"
+          subValue={formatPercent(kpis.yoc.ult12m)}
+          tooltip="Yield on Cost: renda acumulada dividida pelo capital investido"
+        />
+        <ProventosKpiCard
+          title="Proventos a receber"
+          bigValue={formatCurrency(kpis.aReceber.futuro)}
+          subLabel="Esse mês:"
+          subValue={formatCurrency(kpis.aReceber.esseMes)}
+          tooltip="Proventos já anunciados com pagamento previsto no futuro"
+        />
       </div>
 
       {/* Gráfico de Histórico */}
@@ -103,58 +157,13 @@ export default function ProventosConsolidado() {
         <ProventosHistoricoChart proventos={proventos} />
       </ComponentCard>
 
-      {/* Distribuição de Proventos */}
-      <ComponentCard title="Distribuição de Proventos">
-        <div className="space-y-4">
-          {/* Toggle de modo de exibição */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Modo de exibição:
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setViewMode("total")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    viewMode === "total"
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  Total e Média
-                </button>
-                <button
-                  onClick={() => setViewMode("yield")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    viewMode === "yield"
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  Yield on Cost
-                </button>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Média mensal: <span className="font-semibold text-gray-900 dark:text-white">
-                  R$ {media.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Total acumulado: <span className="font-semibold text-gray-900 dark:text-white">
-                  R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          <ProventosDistribuicao
-            grouped={grouped}
-            viewMode={viewMode}
-          />
-        </div>
-      </ComponentCard>
+      {/* Distribuição */}
+      <ProventosDistribuicao
+        grouped={grouped}
+        groupBy={groupBy}
+        onGroupByChange={setGroupBy}
+        periodLabel={periodLabel}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ComponentCard title="Proventos por Mês">
@@ -175,17 +184,18 @@ export default function ProventosConsolidado() {
                   .sort((a, b) => a[0].localeCompare(b[0]))
                   .map(([month, data]) => (
                     <tr key={month} className="border-b border-gray-100 dark:border-gray-800">
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                        {month}
-                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{month}</td>
                       <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
-                        R$ {data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatCurrency(data.total)}
                       </td>
                     </tr>
                   ))}
                 {Object.keys(monthly).length === 0 && (
                   <tr>
-                    <td colSpan={2} className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <td
+                      colSpan={2}
+                      className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
+                    >
                       Nenhum provento encontrado no período selecionado
                     </td>
                   </tr>
@@ -213,17 +223,18 @@ export default function ProventosConsolidado() {
                   .sort((a, b) => a[0].localeCompare(b[0]))
                   .map(([year, data]) => (
                     <tr key={year} className="border-b border-gray-100 dark:border-gray-800">
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                        {year}
-                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{year}</td>
                       <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
-                        R$ {data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatCurrency(data.total)}
                       </td>
                     </tr>
                   ))}
                 {Object.keys(yearly).length === 0 && (
                   <tr>
-                    <td colSpan={2} className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <td
+                      colSpan={2}
+                      className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
+                    >
                       Nenhum provento encontrado no período selecionado
                     </td>
                   </tr>
@@ -236,4 +247,3 @@ export default function ProventosConsolidado() {
     </div>
   );
 }
-
