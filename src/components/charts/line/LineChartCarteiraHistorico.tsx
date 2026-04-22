@@ -153,6 +153,25 @@ export default function LineChartCarteiraHistorico({
     [filteredData],
   );
 
+  // Ajusta o eixo Y para uma janela apertada em torno dos dados. Sem isso o ApexCharts
+  // força min=0 no gráfico de área, e ativos cujo valor parte alto (ex.: CDB de R$ 10k
+  // rendendo 0,5%/mês) ficam colados no topo com a maior parte do gráfico vazia.
+  const yAxisMin = useMemo(() => {
+    if (filteredData.length === 0) return undefined;
+    const values = filteredData
+      .flatMap((item) => [item.valorAplicado, item.saldoBruto])
+      .filter((v) => Number.isFinite(v));
+    if (values.length === 0) return undefined;
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const range = maxValue - minValue;
+    // Se todos os valores são iguais (ou quase), abre uma janela mínima de 5% em volta.
+    const padding = range > 0 ? range * 0.1 : Math.max(minValue * 0.05, 1);
+    const candidate = minValue - padding;
+    // Evita min negativo quando todos os valores são positivos
+    return minValue >= 0 ? Math.max(0, candidate) : candidate;
+  }, [filteredData]);
+
   const isShortPeriod = periodo === '1M' || periodo === '3M' || periodo === '6M';
 
   const options: ApexOptions = useMemo(
@@ -226,7 +245,8 @@ export default function LineChartCarteiraHistorico({
         },
       },
       yaxis: {
-        min: undefined,
+        min: yAxisMin,
+        forceNiceScale: true,
         title: {
           text: '',
           style: {
@@ -296,7 +316,7 @@ export default function LineChartCarteiraHistorico({
         borderColor: '#E5E7EB',
       },
     }),
-    [isShortPeriod],
+    [isShortPeriod, yAxisMin],
   );
 
   const series = useMemo(
