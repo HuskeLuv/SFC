@@ -3,9 +3,17 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { Prisma } from '@prisma/client';
+import {
+  buildDailyTimeline,
+  buildFixedIncomeFactorSeries,
+  normalizeDateStart,
+  type CdiDaily,
+  type IpcaMonthly,
+  type TesouroPU,
+  type FixedIncomeAssetWithAsset,
+} from '@/services/portfolio/patrimonioHistoricoBuilder';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
@@ -114,19 +122,146 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
   const today = new Date();
-  const normalizeDate = (date: Date) =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  // Carrega CDI/IPCA/Tesouro PU necessários para todos os ativos deste usuário uma única vez.
+  // Sem isso, CDBs 100%/110% CDI (que têm annualRate=0 e usam indexer=CDI + indexerPercent)
+  // ficam com valor atual == valor aplicado (fórmula antiga só olhava annualRate).
+  const earliestStart = fixedIncomeAssets.reduce<Date | null>((min, fi) => {
+    const start = normalizeDateStart(new Date(fi.startDate));
+    if (!min || start.getTime() < min.getTime()) return start;
+    return min;
+  }, null);
+
+  const hasCdiLinked = fixedIncomeAssets.some(
+    (fi) => fi.indexer === 'CDI' || Boolean(fi.tesouroBondType),
+  );
+  const hasIpcaLinked = fixedIncomeAssets.some(
+    (fi) => fi.indexer === 'IPCA' || Boolean(fi.tesouroBondType),
+  );
+  const tesouroAssets = fixedIncomeAssets.filter((fi) => fi.tesouroBondType && fi.tesouroMaturity);
+
+  const [cdiRows, ipcaRows, tesouroRows] = earliestStart
+    ? await Promise.all([
+        hasCdiLinked
+          ? prisma.economicIndex.findMany({
+              where: { indexType: 'CDI', date: { gte: earliestStart, lte: today } },
+              orderBy: { date: 'asc' },
+            })
+          : Promise.resolve([] as Array<{ date: Date; value: unknown }>),
+        hasIpcaLinked
+          ? prisma.economicIndex.findMany({
+              where: { indexType: 'IPCA', date: { gte: earliestStart, lte: today } },
+              orderBy: { date: 'asc' },
+            })
+          : Promise.resolve([] as Array<{ date: Date; value: unknown }>),
+        tesouroAssets.length > 0
+          ? prisma.tesouroDiretoPrice.findMany({
+              where: {
+                OR: tesouroAssets.map((fi) => ({
+                  bondType: fi.tesouroBondType!,
+                  maturityDate: fi.tesouroMaturity!,
+                })),
+                baseDate: { gte: earliestStart, lte: today },
+              },
+              orderBy: { baseDate: 'asc' },
+            })
+          : Promise.resolve(
+              [] as Array<{
+                bondType: string;
+                maturityDate: Date;
+                baseDate: Date;
+                basePU: unknown;
+                sellPU: unknown;
+                buyPU: unknown;
+              }>,
+            ),
+      ])
+    : [[], [], []];
+
+  const cdiGlobal: CdiDaily = new Map();
+  cdiRows.forEach((row) => {
+    const val = Number(row.value);
+    if (Number.isFinite(val)) cdiGlobal.set(normalizeDateStart(row.date).getTime(), val);
+  });
+
+  const ipcaGlobal: IpcaMonthly = new Map();
+  ipcaRows.forEach((row) => {
+    const val = Number(row.value);
+    if (!Number.isFinite(val)) return;
+    const d = new Date(row.date);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    ipcaGlobal.set(key, val);
+  });
+
+  // Indexa PUs por "{bondType}|{maturityISO}" → Map<dayKey, pu>
+  const tesouroPUByBond = new Map<string, TesouroPU>();
+  tesouroRows.forEach((row) => {
+    const pu = Number(row.basePU ?? 0) || Number(row.sellPU ?? 0) || Number(row.buyPU ?? 0);
+    if (!Number.isFinite(pu) || pu <= 0) return;
+    const key = `${row.bondType}|${row.maturityDate.toISOString()}`;
+    let m = tesouroPUByBond.get(key);
+    if (!m) {
+      m = new Map();
+      tesouroPUByBond.set(key, m);
+    }
+    m.set(normalizeDateStart(row.baseDate).getTime(), pu);
+  });
+
+  const getTesouroContext = (fi: (typeof fixedIncomeAssets)[number]) => {
+    if (!fi.tesouroBondType || !fi.tesouroMaturity)
+      return { tesouroPU: undefined, tesouroPUAtStart: 0 };
+    const key = `${fi.tesouroBondType}|${fi.tesouroMaturity.toISOString()}`;
+    const tesouroPU = tesouroPUByBond.get(key);
+    if (!tesouroPU) return { tesouroPU: undefined, tesouroPUAtStart: 0 };
+    const startKey = normalizeDateStart(new Date(fi.startDate)).getTime();
+    const sortedKeys = Array.from(tesouroPU.keys()).sort((a, b) => a - b);
+    const atOrBefore = [...sortedKeys].reverse().find((k) => k <= startKey);
+    const firstAfter = sortedKeys.find((k) => k >= startKey);
+    const chosen = atOrBefore ?? firstAfter;
+    return {
+      tesouroPU,
+      tesouroPUAtStart: chosen !== undefined ? (tesouroPU.get(chosen) ?? 0) : 0,
+    };
+  };
+
   const calculateFixedIncomeValue = (fixedIncome: (typeof fixedIncomeAssets)[number]) => {
-    const start = normalizeDate(new Date(fixedIncome.startDate));
-    const maturity = normalizeDate(new Date(fixedIncome.maturityDate));
-    const current = normalizeDate(today);
-    const endDate = current.getTime() > maturity.getTime() ? maturity : current;
-    if (endDate.getTime() <= start.getTime()) {
+    const start = normalizeDateStart(new Date(fixedIncome.startDate));
+    const todayNorm = normalizeDateStart(today);
+    if (todayNorm.getTime() <= start.getTime()) {
       return fixedIncome.investedAmount;
     }
-    const days = Math.floor((endDate.getTime() - start.getTime()) / DAY_MS);
-    const rate = fixedIncome.annualRate / 100;
-    const valorAtual = fixedIncome.investedAmount * Math.pow(1 + rate, days / 365);
+    const timeline = buildDailyTimeline(start, todayNorm);
+    if (timeline.length === 0) return fixedIncome.investedAmount;
+
+    const ctx = getTesouroContext(fixedIncome);
+    const fiForHelper: FixedIncomeAssetWithAsset = {
+      id: fixedIncome.id,
+      userId: fixedIncome.userId,
+      assetId: fixedIncome.assetId,
+      type: String(fixedIncome.type),
+      description: fixedIncome.description,
+      startDate: fixedIncome.startDate,
+      maturityDate: fixedIncome.maturityDate,
+      investedAmount: fixedIncome.investedAmount,
+      annualRate: fixedIncome.annualRate,
+      indexer: fixedIncome.indexer,
+      indexerPercent: fixedIncome.indexerPercent,
+      liquidityType: fixedIncome.liquidityType as string | null,
+      taxExempt: fixedIncome.taxExempt,
+      tesouroBondType: fixedIncome.tesouroBondType,
+      tesouroMaturity: fixedIncome.tesouroMaturity,
+      asset: null,
+    };
+
+    const factors = buildFixedIncomeFactorSeries(fiForHelper, timeline, {
+      cdi: cdiGlobal,
+      ipca: ipcaGlobal,
+      tesouroPU: ctx.tesouroPU,
+      tesouroPUAtStart: ctx.tesouroPUAtStart,
+    });
+    const lastDay = timeline[timeline.length - 1];
+    const finalFactor = factors.get(lastDay) ?? 1;
+    const valorAtual = fixedIncome.investedAmount * finalFactor;
     return Math.round(valorAtual * 100) / 100;
   };
 

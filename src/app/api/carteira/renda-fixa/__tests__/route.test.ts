@@ -7,6 +7,8 @@ const mockPrisma = vi.hoisted(() => ({
   fixedIncomeAsset: { findMany: vi.fn() },
   stockTransaction: { findMany: vi.fn() },
   dashboardData: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
+  economicIndex: { findMany: vi.fn() },
+  tesouroDiretoPrice: { findMany: vi.fn() },
 }));
 
 vi.mock('@/utils/auth', () => ({
@@ -42,6 +44,8 @@ describe('/api/carteira/renda-fixa', () => {
     mockPrisma.portfolio.findMany.mockResolvedValue([]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
     mockPrisma.dashboardData.findFirst.mockResolvedValue(null);
+    mockPrisma.economicIndex.findMany.mockResolvedValue([]);
+    mockPrisma.tesouroDiretoPrice.findMany.mockResolvedValue([]);
   });
 
   describe('GET', () => {
