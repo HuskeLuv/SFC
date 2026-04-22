@@ -486,6 +486,25 @@ export default function RentabilidadeChart({
 
   const chartType = chartTypeProp ?? (period === '1mo' || period === '1y' ? 'bar' : 'line');
 
+  // Janela apertada no eixo Y. Sem isso, para ativos de renda fixa cuja rentabilidade
+  // cresce suavemente (0 → 2%), a curva fica colada no rodapé do gráfico.
+  const yAxisMin = useMemo(() => {
+    const values: number[] = [];
+    series.forEach((s) => {
+      s.data.forEach((point) => {
+        if (Array.isArray(point) && point.length === 2 && Number.isFinite(point[1])) {
+          values.push(point[1]);
+        }
+      });
+    });
+    if (values.length === 0) return undefined;
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const range = maxValue - minValue;
+    const padding = range > 0 ? range * 0.1 : Math.max(Math.abs(minValue) * 0.05, 0.5);
+    return minValue - padding;
+  }, [series]);
+
   // Calcular número de anos únicos quando período for anual (após agrupamento)
   const uniqueYearsCount = useMemo(() => {
     if (period !== '1y') return undefined;
@@ -643,6 +662,7 @@ export default function RentabilidadeChart({
         },
       },
       yaxis: {
+        min: yAxisMin,
         decimalsInFloat: 2,
         forceNiceScale: true,
         title: {
@@ -748,7 +768,7 @@ export default function RentabilidadeChart({
     }
 
     return baseOptions;
-  }, [period, chartType, uniqueYearsCount, customColors, legendPosition]);
+  }, [period, chartType, uniqueYearsCount, customColors, legendPosition, yAxisMin]);
 
   const hasSeriesData = Array.isArray(series) && series.length > 0;
 

@@ -55,6 +55,19 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
     return { categories, series };
   }, [data]);
 
+  // Janela apertada no eixo Y (evita ApexCharts forçar min=0 no tipo 'area',
+  // o que empurra a curva pro topo quando a série começa em valor alto).
+  const yAxisMin = useMemo(() => {
+    const values = chartData.series.filter((v) => Number.isFinite(v));
+    if (values.length === 0) return undefined;
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const range = maxValue - minValue;
+    const padding = range > 0 ? range * 0.1 : Math.max(minValue * 0.05, 1);
+    const candidate = minValue - padding;
+    return minValue >= 0 ? Math.max(0, candidate) : candidate;
+  }, [chartData.series]);
+
   const options: ApexOptions = useMemo(
     () => ({
       colors: ['#465FFF'],
@@ -97,6 +110,8 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
         },
       },
       yaxis: {
+        min: yAxisMin,
+        forceNiceScale: true,
         title: {
           text: '',
           style: {
@@ -149,7 +164,7 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
         borderColor: '#E5E7EB',
       },
     }),
-    [chartData.categories, currencyFormatter],
+    [chartData.categories, currencyFormatter, yAxisMin],
   );
 
   const series = useMemo(
