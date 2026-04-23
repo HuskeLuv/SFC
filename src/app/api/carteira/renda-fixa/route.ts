@@ -285,22 +285,37 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (!fixedIncome) {
         return null;
       }
-      // Usar valor atualizado do portfolio (avgPrice) se foi editado manualmente.
-      // Para Tesouro do catálogo, preferir o PU oficial (Asset.currentPrice = sellPU
-      // mantido por bridgeTesouroToAssetPrices) sobre a fórmula aproximada.
+      // Prioridade do valor atualizado:
+      //   1. PU Tesouro Direto (Asset.currentPrice mantido por bridgeTesouroToAssetPrices)
+      //   2. Marcação na curva via CDI/IPCA/taxa pré, quando o cálculo de fato
+      //      acumulou rendimento (calc > investido) — evita travar valor manual
+      //      legítimo quando faltam dados de série
+      //   3. Edição manual (avgPrice * quantidade)
+      //   4. Fallback: o próprio valor calculado (mesmo que igual ao investido)
       const valorAtualizadoCalculado = calculateFixedIncomeValue(fixedIncome);
       const isTesouroCatalogo = item.asset?.type === 'tesouro-direto';
       const tesouroCurrentPrice = isTesouroCatalogo
         ? (item.asset?.currentPrice?.toNumber() ?? null)
         : null;
-      const isAutoUpdated = Boolean(
+      const isTesouroAutoPriced = Boolean(
         tesouroCurrentPrice && tesouroCurrentPrice > 0 && item.quantity > 0,
       );
-      const valorAtualizado = isAutoUpdated
+      const hasIndexerOrRate =
+        fixedIncome.indexer === 'CDI' ||
+        fixedIncome.indexer === 'IPCA' ||
+        fixedIncome.annualRate > 0;
+      const isCurveAutoPriced =
+        !isTesouroAutoPriced &&
+        hasIndexerOrRate &&
+        valorAtualizadoCalculado > fixedIncome.investedAmount;
+      const isAutoUpdated = isTesouroAutoPriced || isCurveAutoPriced;
+      const valorAtualizado = isTesouroAutoPriced
         ? tesouroCurrentPrice! * item.quantity
-        : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-          ? item.avgPrice * item.quantity
-          : valorAtualizadoCalculado;
+        : isCurveAutoPriced
+          ? valorAtualizadoCalculado
+          : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+            ? item.avgPrice * item.quantity
+            : valorAtualizadoCalculado;
       const valorInicial = fixedIncome.investedAmount;
       const rentabilidade =
         valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0;

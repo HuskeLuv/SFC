@@ -88,6 +88,51 @@ describe('/api/carteira/renda-fixa', () => {
       );
     });
 
+    it('marks pre-fixed CDB to curve and exposes isAutoUpdated', async () => {
+      const startDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000); // ~200 dias atrás
+      const maturityDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'pf-cdb',
+          assetId: 'asset-cdb',
+          quantity: 1,
+          avgPrice: 1000, // edição manual antiga - deve ser ignorada quando curva cresce
+          totalInvested: 1000,
+          asset: { id: 'asset-cdb', type: 'bond', name: 'CDB Pré 12%', currentPrice: null },
+        },
+      ]);
+      mockPrisma.fixedIncomeAsset.findMany.mockResolvedValue([
+        {
+          id: 'fi-cdb',
+          assetId: 'asset-cdb',
+          type: 'CDB_PRE',
+          description: 'CDB Pré 12%',
+          startDate,
+          maturityDate,
+          investedAmount: 1000,
+          annualRate: 12, // 12% a.a. - cresce sem precisar de série CDI
+          indexer: 'PRE',
+          indexerPercent: null,
+          liquidityType: null,
+          taxExempt: false,
+          tesouroBondType: null,
+          tesouroMaturity: null,
+        },
+      ]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      expect(res.status).toBe(200);
+      const ativo = data.secoes.flatMap((s: { ativos: unknown[] }) => s.ativos)[0] as {
+        valorAtualizado: number;
+        isAutoUpdated: boolean;
+      };
+      expect(ativo.isAutoUpdated).toBe(true);
+      expect(ativo.valorAtualizado).toBeGreaterThan(1000);
+      // ~200 dias úteis a 12% a.a. ≈ ~10% crescimento → valor entre 1050 e 1130
+      expect(ativo.valorAtualizado).toBeLessThan(1150);
+    });
+
     it('uses Asset.currentPrice * quantity for catalog tesouro valuation', async () => {
       const tesouroAssetId = 'asset-td-1';
       mockPrisma.portfolio.findMany.mockResolvedValue([
