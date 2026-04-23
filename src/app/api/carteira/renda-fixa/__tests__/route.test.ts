@@ -3,9 +3,9 @@ import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
-  portfolio: { findMany: vi.fn() },
+  portfolio: { findMany: vi.fn(), findUnique: vi.fn() },
   fixedIncomeAsset: { findMany: vi.fn() },
-  stockTransaction: { findMany: vi.fn() },
+  stockTransaction: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
   dashboardData: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
   economicIndex: { findMany: vi.fn() },
   tesouroDiretoPrice: { findMany: vi.fn() },
@@ -129,6 +129,9 @@ describe('/api/carteira/renda-fixa', () => {
       expect(res.status).toBe(200);
       // 150 * 10 = 1500 (currentPrice path), not 100 * 10 = 1000 (avgPrice path)
       expect(data.totalGeral.valorAtualizado).toBe(1500);
+      // The asset is flagged as auto-updated so the UI can disable manual editing
+      const tesouroAtivo = data.secoes.flatMap((s: { ativos: unknown[] }) => s.ativos)[0];
+      expect(tesouroAtivo.isAutoUpdated).toBe(true);
     });
   });
 
@@ -140,6 +143,21 @@ describe('/api/carteira/renda-fixa', () => {
       const data = await res.json();
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
+    });
+
+    it('rejects manual valorAtualizado edit on tesouro-direto catalog assets', async () => {
+      mockPrisma.portfolio.findUnique.mockResolvedValue({
+        id: 'pf-1',
+        userId: 'user-1',
+        assetId: 'asset-td-1',
+        asset: { type: 'tesouro-direto' },
+      });
+      const res = await POST(
+        createPostRequest({ ativoId: 'pf-1', campo: 'valorAtualizado', valor: 9999 }),
+      );
+      const data = await res.json();
+      expect(res.status).toBe(400);
+      expect(data.error).toMatch(/Tesouro Direto/);
     });
   });
 });

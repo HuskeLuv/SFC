@@ -293,12 +293,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const tesouroCurrentPrice = isTesouroCatalogo
         ? (item.asset?.currentPrice?.toNumber() ?? null)
         : null;
-      const valorAtualizado =
-        tesouroCurrentPrice && tesouroCurrentPrice > 0 && item.quantity > 0
-          ? tesouroCurrentPrice * item.quantity
-          : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-            ? item.avgPrice * item.quantity
-            : valorAtualizadoCalculado;
+      const isAutoUpdated = Boolean(
+        tesouroCurrentPrice && tesouroCurrentPrice > 0 && item.quantity > 0,
+      );
+      const valorAtualizado = isAutoUpdated
+        ? tesouroCurrentPrice! * item.quantity
+        : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+          ? item.avgPrice * item.quantity
+          : valorAtualizadoCalculado;
       const valorInicial = fixedIncome.investedAmount;
       const rentabilidade =
         valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0;
@@ -328,6 +330,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         rentabilidade,
         observacoes: metadata.observacoes,
         tipo,
+        isAutoUpdated,
       };
     })
     .filter((ativo): ativo is NonNullable<typeof ativo> => Boolean(ativo));
@@ -538,6 +541,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     });
 
     if (campo === 'valorAtualizado') {
+      // Tesouro do catálogo é precificado pelo PU oficial — bloquear sobrescrita manual.
+      if (portfolio.asset?.type === 'tesouro-direto') {
+        return NextResponse.json(
+          {
+            error:
+              'Valor atualizado de Tesouro Direto é sincronizado automaticamente e não pode ser editado.',
+          },
+          { status: 400 },
+        );
+      }
       // Atualizar avgPrice do portfolio
       await prisma.portfolio.update({
         where: { id: ativoId },

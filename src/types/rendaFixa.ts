@@ -11,6 +11,7 @@ export interface RendaFixaAtivo extends BaseFundAtivo {
   vencimento: Date;
   benchmark: string; // Ex: "CDI", "IPCA + Spread"
   tipo: TipoRendaFixa;
+  isAutoUpdated?: boolean; // true para Tesouro Direto sincronizado (PU oficial)
 }
 
 export interface RendaFixaSecao extends BaseSecao<RendaFixaAtivo> {

@@ -187,7 +187,11 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
       <td className="px-2 py-2 text-xs text-right text-black">{formatCurrency(ativo.aporte)}</td>
       <td className="px-2 py-2 text-xs text-right text-black">{formatCurrency(ativo.resgate)}</td>
       <td className="px-2 py-2 text-xs text-right text-black">
-        {isEditingValor ? (
+        {ativo.isAutoUpdated ? (
+          <div title="Sincronizado automaticamente (PU Tesouro Direto)" className="px-1 py-0.5">
+            {formatCurrency(ativo.valorAtualizado)}
+          </div>
+        ) : isEditingValor ? (
           <input
             type="number"
             step="0.01"
