@@ -201,6 +201,79 @@ describe('PATCH /api/historico/transacao/[id]', () => {
     });
   });
 
+  it('preserva avgPrice ao recalcular após venda parcial (custo médio proporcional)', async () => {
+    // Cenário: compra 100 @ 10, vende 50 @ 15. avgPrice deve seguir 10 (não 5).
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+      id: 'tx-buy',
+      userId: 'user-1',
+      assetId: 'asset-1',
+      stockId: null,
+      type: 'compra',
+      quantity: 100,
+      price: 10,
+      total: 1000,
+      asset: { symbol: 'PETR4' },
+      stock: null,
+    });
+    mockPrisma.stockTransaction.update.mockResolvedValue({});
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { type: 'compra', quantity: 100, price: 10, total: 1000, date: new Date('2025-01-01') },
+      { type: 'venda', quantity: 50, price: 15, total: 750, date: new Date('2025-02-01') },
+    ]);
+    mockPrisma.portfolio.update.mockResolvedValue({});
+
+    await callPATCH({ price: 10 });
+
+    expect(mockPrisma.portfolio.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          quantity: 50,
+          avgPrice: 10, // mantém custo de aquisição, não vira 5
+          totalInvested: 500,
+        }),
+      }),
+    );
+  });
+
+  it('atualiza avgPrice quando edita compra após venda', async () => {
+    // Cenário: usuário tinha compra 100 @ 10 e venda 50 @ 15.
+    // Edita o total da compra para 1500 (preço 15). Esperado:
+    //   - 100 @ 15 (custo 1500), avg=15
+    //   - venda 50 a custo 15 → totalInvested=750, qty=50, avg=15
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+      id: 'tx-buy',
+      userId: 'user-1',
+      assetId: 'asset-1',
+      stockId: null,
+      type: 'compra',
+      quantity: 100,
+      price: 10,
+      total: 1000,
+      asset: { symbol: 'PETR4' },
+      stock: null,
+    });
+    mockPrisma.stockTransaction.update.mockResolvedValue({});
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { type: 'compra', quantity: 100, price: 15, total: 1500, date: new Date('2025-01-01') },
+      { type: 'venda', quantity: 50, price: 15, total: 750, date: new Date('2025-02-01') },
+    ]);
+    mockPrisma.portfolio.update.mockResolvedValue({});
+
+    await callPATCH({ total: 1500 });
+
+    expect(mockPrisma.portfolio.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          quantity: 50,
+          avgPrice: 15,
+          totalInvested: 750,
+        }),
+      }),
+    );
+  });
+
   it('não mexe em quantity/price/total quando só edita date', async () => {
     mockPrisma.stockTransaction.findFirst.mockResolvedValue({
       id: 'tx-1',

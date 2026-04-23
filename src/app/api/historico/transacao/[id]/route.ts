@@ -96,49 +96,15 @@ export const PATCH = withErrorHandler(
         portfolioWhere.stockId = transaction.stockId;
       }
 
-      const portfolio = await prisma.portfolio.findFirst({
-        where: portfolioWhere,
-      });
+      const portfolio = await prisma.portfolio.findFirst({ where: portfolioWhere });
 
       if (portfolio) {
-        const txWhere: { userId: string; assetId?: string; stockId?: string } = {
-          userId: targetUserId,
-        };
-        if (transaction.assetId) txWhere.assetId = transaction.assetId;
-        else if (transaction.stockId) txWhere.stockId = transaction.stockId;
-
-        const allTransactions = await prisma.stockTransaction.findMany({
-          where: txWhere,
-          orderBy: { date: 'asc' },
-        });
-
-        let totalInvested = 0;
-        let totalQuantity = 0;
-
-        for (const tx of allTransactions) {
-          const qty = Number(tx.quantity);
-          const price = Number(tx.price);
-          const total = Number(tx.total);
-          if (tx.type === 'compra') {
-            totalQuantity += qty;
-            totalInvested += total > 0 ? total : qty * price;
-          } else {
-            totalQuantity -= qty;
-            totalInvested -= total > 0 ? total : qty * price;
-          }
-        }
-
-        const avgPrice = totalQuantity > 0 ? totalInvested / totalQuantity : 0;
-
-        await prisma.portfolio.update({
-          where: { id: portfolio.id },
-          data: {
-            quantity: totalQuantity,
-            avgPrice: avgPrice,
-            totalInvested: totalInvested,
-            lastUpdate: new Date(),
-          },
-        });
+        await recalculatePortfolioFromTransactions(
+          targetUserId,
+          transaction.assetId,
+          transaction.stockId,
+          portfolio.id,
+        );
       }
     }
 
@@ -170,30 +136,38 @@ async function recalculatePortfolioFromTransactions(
     return;
   }
 
-  let totalInvested = 0;
-  let totalQuantity = 0;
-
+  // Custo médio ponderado (moving-average cost basis):
+  // - compra acumula qty + custo total
+  // - venda remove qty E o CUSTO PROPORCIONAL (qty * avg_at_sale), não o valor da venda.
+  // Subtrair a receita da venda como fazia antes distorce o avgPrice toda vez que existe
+  // qualquer venda no histórico — o que mascarava edições posteriores em compras.
+  let runningQty = 0;
+  let runningCost = 0;
   for (const tx of allTransactions) {
     const qty = Number(tx.quantity);
     const price = Number(tx.price);
     const total = Number(tx.total);
+    const txValue = total > 0 ? total : qty * price;
+
     if (tx.type === 'compra') {
-      totalQuantity += qty;
-      totalInvested += total > 0 ? total : qty * price;
-    } else {
-      totalQuantity -= qty;
-      totalInvested -= total > 0 ? total : qty * price;
+      runningQty += qty;
+      runningCost += txValue;
+    } else if (runningQty > 0) {
+      const avgAtSale = runningCost / runningQty;
+      const sellQty = Math.min(qty, runningQty);
+      runningCost -= avgAtSale * sellQty;
+      runningQty -= sellQty;
     }
   }
 
-  const avgPrice = totalQuantity > 0 ? totalInvested / totalQuantity : 0;
+  const avgPrice = runningQty > 0 ? runningCost / runningQty : 0;
 
   await prisma.portfolio.update({
     where: { id: portfolioId },
     data: {
-      quantity: totalQuantity,
-      avgPrice: avgPrice,
-      totalInvested: totalInvested,
+      quantity: runningQty,
+      avgPrice,
+      totalInvested: runningCost,
       lastUpdate: new Date(),
     },
   });
