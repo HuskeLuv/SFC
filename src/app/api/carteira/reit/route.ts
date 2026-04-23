@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { getAllIndicators } from '@/services/market/marketIndicatorService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -84,8 +85,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
-  // REITs: valores atualizados apenas manualmente (não buscar na Brapi)
-  // valorAtualizado = avgPrice * quantity (avgPrice é atualizado quando o usuário edita manualmente)
+  // Cotações via banco (BRAPI sync) com fallback para fetch direto quando faltar
+  const reitSymbols = portfolio.filter((item) => item.asset).map((item) => item.asset!.symbol);
+  const quotes = await getAssetPrices(reitSymbols, { useBrapiFallback: true });
+
   const reitAtivos = portfolio
     .filter((item) => item.asset)
     .map((item) => {
@@ -97,11 +100,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         notes?.estrategia === 'value'
           ? notes.estrategia
           : 'value';
-      const valorAtualizado =
-        item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-          ? item.avgPrice * item.quantity
-          : item.totalInvested;
-      const cotacaoAtual = item.quantity > 0 ? valorAtualizado / item.quantity : item.avgPrice || 0;
+      const cotacaoAtual = quotes.get(item.asset!.symbol) || item.avgPrice;
+      const valorAtualizado = item.quantity * cotacaoAtual;
 
       return {
         id: item.id,
@@ -120,9 +120,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         quantoFalta: 0,
         necessidadeAporte: 0,
         rentabilidade:
-          item.totalInvested > 0
-            ? ((valorAtualizado - item.totalInvested) / item.totalInvested) * 100
-            : 0,
+          item.avgPrice > 0 ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 : 0,
         estrategia,
         observacoes: undefined,
         dataUltimaAtualizacao: item.lastUpdate,
@@ -270,40 +268,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
   const body = await request.json();
-  const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir, campo, valor } = body;
-
-  if (campo && valor !== undefined && ativoId) {
-    const portfolio = await prisma.portfolio.findUnique({
-      where: { id: ativoId },
-      include: { asset: true },
-    });
-
-    if (!portfolio) {
-      return NextResponse.json({ error: 'Portfolio não encontrado' }, { status: 404 });
-    }
-    if (portfolio.userId !== targetUserId) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
-    }
-
-    if (campo === 'valorAtualizado') {
-      const numValor = typeof valor === 'number' ? valor : parseFloat(valor as string);
-      if (!Number.isFinite(numValor) || numValor < 0) {
-        return NextResponse.json(
-          { error: 'Valor atualizado deve ser um número maior ou igual a zero' },
-          { status: 400 },
-        );
-      }
-      const qty = portfolio.quantity || 1;
-      const novoAvgPrice = qty > 0 ? numValor / qty : numValor;
-
-      await prisma.portfolio.update({
-        where: { id: ativoId },
-        data: { avgPrice: novoAvgPrice, lastUpdate: new Date() },
-      });
-
-      return NextResponse.json({ success: true, message: 'Valor atualizado com sucesso' });
-    }
-  }
+  const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
 
   if (caixaParaInvestir !== undefined) {
     if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {

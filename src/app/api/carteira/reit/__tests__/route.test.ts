@@ -22,6 +22,10 @@ vi.mock('@/services/market/marketIndicatorService', () => ({
   getAllIndicators: vi.fn().mockResolvedValue({ dolar: { price: 5.0 } }),
 }));
 
+vi.mock('@/services/pricing/assetPriceService', () => ({
+  getAssetPrices: vi.fn().mockResolvedValue(new Map()),
+}));
+
 import { GET, POST } from '../route';
 
 const createGetRequest = () =>

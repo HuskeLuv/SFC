@@ -7,7 +7,6 @@ import {
   ColumnDef,
   MetricCardConfig,
   EditableObjetivoCell,
-  EditableValorCell,
   BasicTablePlaceholderRows,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
@@ -35,16 +34,11 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     formatPercentage,
     formatNumber,
     updateObjetivo,
-    updateValorAtualizado,
     updateCaixaParaInvestir,
   } = useReit();
 
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
-  };
-
-  const handleUpdateValorAtualizado = async (ativoId: string, novoValor: number) => {
-    await updateValorAtualizado(ativoId, novoValor);
   };
 
   const cotacaoDolar = data?.cotacaoDolar ?? null;
@@ -116,16 +110,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       key: 'valorAtualizado',
       header: 'Valor Atualizado',
       align: 'right',
-      render: (a, f) => (
-        <EditableValorCell
-          ativoId={a.id}
-          valorAtualizado={a.valorAtualizado}
-          formatCurrency={f.formatCurrency}
-          onUpdateValorAtualizado={handleUpdateValorAtualizado}
-          locale="en-US"
-          placeholder="0.00"
-        />
-      ),
+      render: (a, f) => f.formatCurrency(a.valorAtualizado),
       renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAtualizado),
       renderGrandTotal: (t) => formatCurrencyBRL((t?.valorAtualizado as number) || 0),
     },

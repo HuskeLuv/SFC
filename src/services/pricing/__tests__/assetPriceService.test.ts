@@ -349,13 +349,10 @@ describe('assetPriceService', () => {
       const manualSymbol = 'AAPL-1731234567890-abc';
       const manualSymbolUpper = manualSymbol.toUpperCase();
 
-      // 1st findMany: manual asset type check (to exclude REITs)
-      mockPrisma.asset.findMany
-        .mockResolvedValueOnce([{ symbol: manualSymbolUpper, type: 'stock' }])
-        // 2nd findMany: assetsWithPrice batch DB lookup — base ticker AAPL has today's price
-        .mockResolvedValueOnce([
-          { symbol: 'AAPL', currentPrice: new Decimal(180), priceUpdatedAt: TODAY },
-        ]);
+      // assetsWithPrice batch DB lookup — base ticker AAPL has today's price
+      mockPrisma.asset.findMany.mockResolvedValueOnce([
+        { symbol: 'AAPL', currentPrice: new Decimal(180), priceUpdatedAt: TODAY },
+      ]);
 
       mockPrisma.assetPriceHistory.findMany.mockResolvedValue([]);
 

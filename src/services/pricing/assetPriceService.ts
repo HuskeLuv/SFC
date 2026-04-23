@@ -188,26 +188,15 @@ export const getAssetPrices = async (
     s.trim().toUpperCase(),
   );
 
-  // Símbolos manuais (stock): "AAPL-1731234567890-abc" -> buscar cotação pelo ticker base "AAPL"
-  // REITs são excluídos: valores atualizados apenas manualmente, não via Brapi
+  // Símbolos manuais (stock, reit): "AAPL-1731234567890-abc" -> buscar cotação pelo ticker base "AAPL"
   const manualToBase = new Map<string, string>();
   const baseTickersFromManual = new Set<string>();
   const manualSymbols = rawSymbols.filter((s) => extractBaseTickerFromManualSymbol(s));
-  if (manualSymbols.length > 0) {
-    const assetsManual = await prisma.asset.findMany({
-      where: { symbol: { in: manualSymbols } },
-      select: { symbol: true, type: true },
-    });
-    const reitSymbols = new Set(
-      assetsManual.filter((a) => a.type === 'reit').map((a) => a.symbol.toUpperCase()),
-    );
-    for (const s of manualSymbols) {
-      if (reitSymbols.has(s)) continue; // REIT: não buscar na Brapi
-      const base = extractBaseTickerFromManualSymbol(s);
-      if (base) {
-        manualToBase.set(s, base);
-        baseTickersFromManual.add(base);
-      }
+  for (const s of manualSymbols) {
+    const base = extractBaseTickerFromManualSymbol(s);
+    if (base) {
+      manualToBase.set(s, base);
+      baseTickersFromManual.add(base);
     }
   }
 
