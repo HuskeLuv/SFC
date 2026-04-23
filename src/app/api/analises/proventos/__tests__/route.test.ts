@@ -11,6 +11,7 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 
 const mockPrisma = vi.hoisted(() => ({
   portfolio: { findMany: vi.fn().mockResolvedValue([]) },
+  portfolioProvento: { findMany: vi.fn().mockResolvedValue([]) },
   stockTransaction: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
@@ -59,6 +60,7 @@ describe('GET /api/analises/proventos', () => {
       actingClient: null,
     });
     mockPrisma.portfolio.findMany.mockResolvedValue([]);
+    mockPrisma.portfolioProvento.findMany.mockResolvedValue([]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
     mockGetAssetPrices.mockResolvedValue(new Map());
     mockGetDividends.mockResolvedValue([]);
@@ -149,6 +151,121 @@ describe('GET /api/analises/proventos', () => {
 
     expect(response.status).toBe(200);
     expect(data.grouped).toBeDefined();
+  });
+
+  it('inclui JCP cadastrado manualmente no total e no YoC', async () => {
+    const now = new Date();
+    const lastMonth = new Date(now.getTime() - 30 * 86400000);
+    const jcpDate = new Date(now.getTime() - 10 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: lastMonth,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+    ]);
+
+    // Sem dividendos da BRAPI — JCP é a única fonte de provento.
+    mockGetDividends.mockResolvedValue([]);
+    mockPrisma.portfolioProvento.findMany.mockResolvedValue([
+      {
+        id: 'pp-jcp-1',
+        portfolioId: 'p1',
+        userId: 'user-123',
+        tipo: 'JCP',
+        dataCom: jcpDate,
+        dataPagamento: jcpDate,
+        precificarPor: 'valor',
+        valorTotal: 100, // bruto
+        quantidadeBase: 100,
+        impostoRenda: 15, // 15% IRRF
+      },
+    ]);
+
+    mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 35]]));
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.proventos.length).toBe(1);
+    expect(data.proventos[0].tipo).toBe('JCP');
+    expect(data.proventos[0].valor).toBe(100);
+    expect(data.kpis.rendaAcumulada.periodo).toBe(100);
+    // YoC = 100 / 3000 (avgPrice * quantidade) = 3.33%
+    expect(data.kpis.yoc.periodo).toBeCloseTo(3.33, 1);
+    expect(data.kpis.yoc.ult12m).toBeCloseTo(3.33, 1);
+  });
+
+  it('soma JCP manual com dividendos BRAPI no YoC', async () => {
+    const now = new Date();
+    const lastMonth = new Date(now.getTime() - 30 * 86400000);
+    const dividendDate = new Date(now.getTime() - 15 * 86400000);
+    const jcpDate = new Date(now.getTime() - 5 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: lastMonth,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: lastMonth,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { ticker: 'PETR4' },
+        asset: null,
+      },
+    ]);
+    mockGetDividends.mockResolvedValue([
+      { date: dividendDate, tipo: 'Dividendo', valorUnitario: 0.5 }, // 100 * 0.5 = 50
+    ]);
+    mockPrisma.portfolioProvento.findMany.mockResolvedValue([
+      {
+        id: 'pp-jcp-1',
+        portfolioId: 'p1',
+        userId: 'user-123',
+        tipo: 'JCP',
+        dataCom: jcpDate,
+        dataPagamento: jcpDate,
+        precificarPor: 'valor',
+        valorTotal: 80,
+        quantidadeBase: 100,
+        impostoRenda: 12,
+      },
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 35]]));
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.proventos.length).toBe(2);
+    expect(data.kpis.rendaAcumulada.periodo).toBe(130); // 50 + 80
+    expect(data.kpis.yoc.periodo).toBeCloseTo(4.33, 1); // 130 / 3000
   });
 
   it('retorna 401 quando nao autenticado', async () => {

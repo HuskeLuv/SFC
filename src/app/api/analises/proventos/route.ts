@@ -162,6 +162,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     include: { stock: true, asset: true },
   });
 
+  // Proventos cadastrados manualmente (inclui JCP com IRRF separado).
+  // Não vêm da BRAPI; precisam entrar no agregado para que o YoC reflita o
+  // total real recebido pelo usuário.
+  const manualProventos = portfolio.length
+    ? await prisma.portfolioProvento.findMany({
+        where: { userId: targetUserId, portfolioId: { in: portfolio.map((p) => p.id) } },
+      })
+    : [];
+  const portfolioById = new Map(portfolio.map((p) => [p.id, p]));
+
   const portfolioAssets: PortfolioAssetEntry[] = portfolio
     .map((item) => {
       const symbol = item.stock?.ticker || item.asset?.symbol;
@@ -316,6 +326,35 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       });
     });
   }
+
+  // Anexa proventos manuais (PortfolioProvento) — bruto via valorTotal.
+  manualProventos.forEach((mp) => {
+    const pf = portfolioById.get(mp.portfolioId);
+    const symbol = pf?.stock?.ticker || pf?.asset?.symbol;
+    if (!symbol || isBlockedSymbol(symbol)) return;
+    const asset = portfolioAssets.find((a) => a.symbol === symbol);
+    if (!asset) return;
+
+    const dateTime = mp.dataPagamento.getTime();
+    if (dateTime > hojeMs) return;
+    if (startDateTime && dateTime < startDateTime) return;
+    if (endDateTime && dateTime > endDateTime) return;
+
+    const quantidade = mp.quantidadeBase || 0;
+    const valor = Math.round(mp.valorTotal * 100) / 100;
+    proventos.push({
+      id: `manual-${mp.id}`,
+      data: mp.dataPagamento.toISOString(),
+      symbol,
+      ativo: asset.name || symbol,
+      tipo: mp.tipo,
+      classe: mapAssetTypeToClasse(asset),
+      valor,
+      quantidade,
+      valorUnitario: quantidade > 0 ? mp.valorTotal / quantidade : 0,
+      status: 'realizado' as const,
+    });
+  });
 
   proventos.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
@@ -484,6 +523,18 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       }
     }
   }
+  // Proventos manuais a receber (já vêm com valorTotal pronto)
+  manualProventos.forEach((mp) => {
+    const pf = portfolioById.get(mp.portfolioId);
+    const symbol = pf?.stock?.ticker || pf?.asset?.symbol;
+    if (!symbol || isBlockedSymbol(symbol)) return;
+    const dateTime = mp.dataPagamento.getTime();
+    if (dateTime <= hojeKpiMs) return;
+    aReceberFuturo += mp.valorTotal;
+    if (dateTime >= primeiroDiaMes && dateTime <= ultimoInstanteMes) {
+      aReceberEsseMes += mp.valorTotal;
+    }
+  });
 
   // Histórico completo (sem filtro de startDate/endDate) — usamos para recortes fixos de 12m
   const proventosRealizadosTodos: { data: number; valor: number }[] = [];
@@ -500,6 +551,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       proventosRealizadosTodos.push({ data: dateTime, valor: quantidade * d.valorUnitario });
     }
   }
+
+  // Proventos manuais (PortfolioProvento) entram no histórico realizado
+  manualProventos.forEach((mp) => {
+    const pf = portfolioById.get(mp.portfolioId);
+    const symbol = pf?.stock?.ticker || pf?.asset?.symbol;
+    if (!symbol || isBlockedSymbol(symbol)) return;
+    const dateTime = mp.dataPagamento.getTime();
+    if (dateTime > hojeKpiMs) return;
+    proventosRealizadosTodos.push({ data: dateTime, valor: mp.valorTotal });
+  });
 
   const rendaUlt12m = proventosRealizadosTodos
     .filter((p) => p.data >= doze_m_ms)
