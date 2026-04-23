@@ -1,13 +1,15 @@
 /**
- * Backfill script to recover data lost during the cron outage (April 11-15, 2026).
+ * Backfill script to recover data lost during the cron outage.
  *
  * Run with: npx tsx scripts/backfill-cron-data.ts
  *
  * What it does:
- * 1. Tesouro Direto: re-syncs with 10-day lookback to catch April 10-15
- * 2. BRAPI prices: syncs current prices for all asset types
- * 3. CVM Fund Sync: runs the daily sync (table was empty)
- * 4. Portfolio Snapshots: rebuilds full history for all users (covers missing days)
+ * 1. EconomicIndex (BACEN): 5-year backfill of CDI, IPCA, SELIC, IMAB, etc.
+ * 2. IBOV daily history: 1-year window via BRAPI quote/^BVSP
+ * 3. Tesouro Direto: re-syncs with 30-day lookback
+ * 4. BRAPI prices: syncs current prices for all asset types
+ * 5. CVM Fund Sync: runs the daily sync
+ * 6. Portfolio Snapshots: rebuilds full history for all users (covers missing days)
  *
  * Safe to run multiple times — all operations use upsert.
  */
@@ -22,11 +24,39 @@ async function backfill() {
   console.log('=== BACKFILL START ===');
   console.log(`Date: ${new Date().toISOString()}\n`);
 
-  // 1. Tesouro Direto — re-sync with 10 day lookback
-  console.log('─── 1/4: Tesouro Direto (10-day lookback) ───');
+  // 1. EconomicIndex — 5-year BACEN backfill
+  console.log('─── 1/6: EconomicIndex (BACEN, 5-year backfill) ───');
+  try {
+    const { runEconomicIndexesIngestion } =
+      await import('../src/services/market/economicIndexesIngestion');
+    const result = await runEconomicIndexesIngestion(undefined, undefined, true);
+    console.log(
+      `   OK: ${result.totalInserted} inserted, ${result.totalUpdated} updated across ${Object.keys(result.details).length} séries`,
+    );
+  } catch (e) {
+    console.error('   FAILED:', e instanceof Error ? e.message : e);
+  }
+  console.log('');
+
+  // 2. IBOV history — feeds the rentabilidade chart benchmark line
+  console.log('─── 2/6: IBOV daily history (1-year window) ───');
+  try {
+    const { getAssetHistory } = await import('../src/services/pricing/assetPriceService');
+    const end = new Date();
+    const start = new Date();
+    start.setFullYear(start.getFullYear() - 1);
+    const series = await getAssetHistory('^BVSP', start, end, { useBrapiFallback: true });
+    console.log(`   OK: ${series.length} data points fetched/persisted for ^BVSP`);
+  } catch (e) {
+    console.error('   FAILED:', e instanceof Error ? e.message : e);
+  }
+  console.log('');
+
+  // 3. Tesouro Direto — re-sync with 30 day lookback (covers full outage window)
+  console.log('─── 3/6: Tesouro Direto (30-day lookback) ───');
   try {
     const { runTesouroDiretoSync } = await import('../src/services/pricing/tesouroDiretoSync');
-    const result = await runTesouroDiretoSync(10);
+    const result = await runTesouroDiretoSync(30);
     console.log(
       `   OK: ${result.inserted} inserted, ${result.updated} updated, latest: ${result.latestDate}`,
     );
@@ -35,8 +65,8 @@ async function backfill() {
   }
   console.log('');
 
-  // 2. BRAPI prices — sync all scopes
-  console.log('─── 2/4: BRAPI Prices ───');
+  // 4. BRAPI prices — sync all scopes
+  console.log('─── 4/6: BRAPI Prices ───');
   try {
     const { syncCatalog, syncPricesByScope } = await import('../src/services/pricing/brapiSync');
 
@@ -62,8 +92,8 @@ async function backfill() {
   }
   console.log('');
 
-  // 3. CVM Fund Sync
-  console.log('─── 3/4: CVM Fund Sync ───');
+  // 5. CVM Fund Sync
+  console.log('─── 5/6: CVM Fund Sync ───');
   try {
     const { runCvmFundSync } = await import('../src/services/pricing/cvmFundSync');
     const result = await runCvmFundSync();
@@ -75,8 +105,8 @@ async function backfill() {
   }
   console.log('');
 
-  // 4. Portfolio Snapshots — rebuild full history for all users
-  console.log('─── 4/4: Portfolio Snapshots (full rebuild) ───');
+  // 6. Portfolio Snapshots — rebuild full history for all users
+  console.log('─── 6/6: Portfolio Snapshots (full rebuild) ───');
   try {
     const { normalizeDateStart, buildPatrimonioHistorico } =
       await import('../src/services/portfolio/patrimonioHistoricoBuilder');
