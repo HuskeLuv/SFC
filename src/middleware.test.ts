@@ -73,6 +73,12 @@ describe('Middleware', () => {
       expect(res.status).not.toBe(307);
     });
 
+    it('should allow /api/cron/* without JWT token (Vercel cron uses Bearer auth)', async () => {
+      const res = await middleware(createRequest('/api/cron/economic-indexes'));
+      expect(res.status).not.toBe(307);
+      expect(res.headers.get('location')).toBeNull();
+    });
+
     it('should redirect protected routes to /signin without JWT token', async () => {
       const res = await middleware(createRequest('/dashboard'));
       expect(res.status).toBe(307);
