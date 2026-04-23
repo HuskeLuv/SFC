@@ -118,16 +118,21 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       key: 'valorAtualizado',
       header: 'Valor Atualizado',
       align: 'right',
-      render: (a, f) => (
-        <EditableValorCell
-          ativoId={a.id}
-          valorAtualizado={a.valorAtualizado}
-          formatCurrency={f.formatCurrency}
-          onUpdateValorAtualizado={handleUpdateValorAtualizado}
-          locale="pt-BR"
-          placeholder="0,00"
-        />
-      ),
+      render: (a, f) =>
+        a.isAutoUpdated ? (
+          <span title="Sincronizado automaticamente (cota CVM)">
+            {f.formatCurrency(a.valorAtualizado)}
+          </span>
+        ) : (
+          <EditableValorCell
+            ativoId={a.id}
+            valorAtualizado={a.valorAtualizado}
+            formatCurrency={f.formatCurrency}
+            onUpdateValorAtualizado={handleUpdateValorAtualizado}
+            locale="pt-BR"
+            placeholder="0,00"
+          />
+        ),
       renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAtualizado),
       renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAtualizado as number) || 0),
     },

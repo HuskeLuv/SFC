@@ -13,6 +13,7 @@ export interface FimFiaAtivo extends BaseFundAtivo {
   quantoFalta: number; // Calculado = objetivo% - percentual atual
   necessidadeAporte: number; // Calculado = diferença para atingir o objetivo
   tipo: TipoFimFia;
+  isAutoUpdated?: boolean; // true quando precificado pela cota CVM (Asset.currentPrice)
 }
 
 export interface FimFiaSecao extends BaseSecao<FimFiaAtivo>, BaseFundSecaoTotals {

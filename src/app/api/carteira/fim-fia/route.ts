@@ -104,8 +104,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const aporte = totalAportes;
     const resgate = totalResgates;
     const valorCalculado = valorInicial + aporte - resgate;
-    const valorAtualizado =
-      item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+    // Cota CVM sincronizada (bridgeCvmToAssetPrices) tem prioridade sobre edição manual.
+    const cvmCurrentPrice = item.asset?.currentPrice?.toNumber() ?? null;
+    const isAutoUpdated = Boolean(cvmCurrentPrice && cvmCurrentPrice > 0 && item.quantity > 0);
+    const valorAtualizado = isAutoUpdated
+      ? cvmCurrentPrice! * item.quantity
+      : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
         ? item.avgPrice * item.quantity
         : valorCalculado;
     const notes = assetId ? latestCompraNotes.get(assetId) : null;
@@ -132,6 +136,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       rentabilidade: valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0,
       tipo: tipoFundo,
       observacoes: notes?.observacoes,
+      isAutoUpdated,
     };
   });
 
@@ -267,6 +272,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
 
     if (campo === 'valorAtualizado') {
+      // Fundo com cota CVM sincronizada (Asset.currentPrice) — bloquear sobrescrita manual.
+      const cvmPrice = portfolio.asset?.currentPrice?.toNumber() ?? 0;
+      if (cvmPrice > 0) {
+        return NextResponse.json(
+          {
+            error:
+              'Valor atualizado deste fundo é sincronizado automaticamente pela cota CVM e não pode ser editado.',
+          },
+          { status: 400 },
+        );
+      }
       const numValor = typeof valor === 'number' ? valor : parseFloat(valor as string);
       if (!Number.isFinite(numValor) || numValor < 0) {
         return NextResponse.json(
