@@ -458,7 +458,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
                   return (
                     <th
                       key={col.key}
-                      className={`px-2 py-2 font-bold text-black text-xs cursor-pointer ${alignClass} ${col.headerClassName ?? ''}`}
+                      className={`px-2 py-2 font-bold text-black text-xs ${alignClass} ${col.headerClassName ?? ''}`}
                       style={{ backgroundColor: HEADER_BG_COLOR }}
                     >
                       {col.header}

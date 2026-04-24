@@ -497,80 +497,80 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-left whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Nome dos Ativos
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-center whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Cotizacao de resgate
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-center whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Liquidacao de resgate
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-center whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Vencimento
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-center whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Benchmark
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Valor inicial aplicado
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Aporte
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Resgate
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Valor Atualizado
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   % Carteira
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   <span className="block">Risco por ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Rentabilidade
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer whitespace-nowrap"
+                  className="px-2 py-2 font-bold text-black text-xs text-left whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Observacoes

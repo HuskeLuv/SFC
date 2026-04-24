@@ -244,68 +244,68 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
                 style={{ backgroundColor: '#9E8A58' }}
               >
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-left cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-left"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Nome do Ativo
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-center"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Cidade
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-center"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Mandato
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-right"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Quantidade
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-right"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Preço Aquisição
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-right"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Melhorias
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-right"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Valor Total
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-right"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Valor Atualizado
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-right"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-right"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   % da Carteira Total
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right cursor-pointer"
+                  className="px-2 py-2 font-bold text-black text-xs text-right"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
                   Rentabilidade
