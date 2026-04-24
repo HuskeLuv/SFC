@@ -268,6 +268,61 @@ describe('GET /api/analises/proventos', () => {
     expect(data.kpis.yoc.periodo).toBeCloseTo(4.33, 1); // 130 / 3000
   });
 
+  it('YoC e DY por ativo usam trailing-12m (ignora filtro de período)', async () => {
+    const now = new Date();
+    const oldDividend = new Date(now.getTime() - 500 * 86400000); // > 1 ano atrás
+    const recentDividend = new Date(now.getTime() - 60 * 86400000); // dentro de 12m
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 1000,
+        avgPrice: 10,
+        lastUpdate: new Date(now.getTime() - 600 * 86400000),
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 10,
+        total: 1000,
+        date: new Date(now.getTime() - 600 * 86400000),
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { ticker: 'PETR4' },
+        asset: null,
+      },
+    ]);
+    mockGetDividends.mockResolvedValue([
+      { date: oldDividend, tipo: 'Dividendo', valorUnitario: 5 }, // 100 * 5 = 500 (fora de 12m)
+      { date: recentDividend, tipo: 'Dividendo', valorUnitario: 1 }, // 100 * 1 = 100 (dentro)
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 20]]));
+
+    // Filtro "desde sempre" — inclui o dividendo antigo em data.total
+    const startDate = new Date(now.getTime() - 1000 * 86400000).toISOString();
+    const response = await GET(createRequest({ startDate, endDate: now.toISOString() }));
+    const data = await response.json();
+
+    const grouped = data.grouped.Petrobras;
+    expect(grouped).toBeDefined();
+    expect(grouped.total).toBe(600); // 500 + 100 no período filtrado
+    // YoC/DY usam APENAS últimos 12m (apenas os 100)
+    // YoC = 100 / 1000 (invested) = 10%
+    expect(grouped.yoc).toBeCloseTo(10, 1);
+    // DY = 100 / (20 * 100) = 100 / 2000 = 5%
+    expect(grouped.dividendYield).toBeCloseTo(5, 1);
+  });
+
   it('retorna 401 quando nao autenticado', async () => {
     mockRequireAuthWithActing.mockRejectedValueOnce(new Error('Não autorizado'));
 

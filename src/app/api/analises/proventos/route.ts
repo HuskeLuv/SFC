@@ -358,6 +358,36 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   proventos.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
+  // Janela trailing-12m por símbolo — usado para YoC/DY por ativo (convenção do
+  // mercado), independente do filtro que o usuário aplicou na página. Aplica as
+  // mesmas regras do feed principal (data de compra e quantidade histórica).
+  const doze_m_ms_row = hojeMs - 365 * 24 * 60 * 60 * 1000;
+  const ult12mBySymbol = new Map<string, number>();
+  const addUlt12m = (symbol: string, valor: number) => {
+    ult12mBySymbol.set(symbol, (ult12mBySymbol.get(symbol) || 0) + valor);
+  };
+  for (const { asset, dividends } of allDividends) {
+    const timeline = timelinesBySymbol.get(asset.symbol) || [];
+    const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
+    for (const d of dividends) {
+      const dateTime = d.date.getTime();
+      if (dateTime > hojeMs || dateTime < doze_m_ms_row) continue;
+      if (purchaseDateTime && dateTime < purchaseDateTime) continue;
+      const qtdHist = getQuantityAtDate(timeline, dateTime);
+      const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
+      if (quantidade <= 0) continue;
+      addUlt12m(asset.symbol, quantidade * d.valorUnitario);
+    }
+  }
+  manualProventos.forEach((mp) => {
+    const pf = portfolioById.get(mp.portfolioId);
+    const symbol = pf?.stock?.ticker || pf?.asset?.symbol;
+    if (!symbol || isBlockedSymbol(symbol)) return;
+    const dateTime = mp.dataPagamento.getTime();
+    if (dateTime > hojeMs || dateTime < doze_m_ms_row) return;
+    addUlt12m(symbol, mp.valorTotal);
+  });
+
   // Agrupar dados conforme solicitado
   const groupedData: Record<
     string,
@@ -423,15 +453,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   Object.entries(groupedData).forEach(([key, data]) => {
     const symbolsSet = groupAssets.get(key) || new Set();
+    let ult12mTotal = 0;
     symbolsSet.forEach((symbol) => {
       const values = assetValuesBySymbol.get(symbol);
-      if (!values) return;
-      data.invested += values.invested;
-      data.currentValue += values.current;
+      if (values) {
+        data.invested += values.invested;
+        data.currentValue += values.current;
+      }
+      ult12mTotal += ult12mBySymbol.get(symbol) || 0;
     });
 
-    data.dividendYield = data.currentValue > 0 ? (data.total / data.currentValue) * 100 : 0;
-    data.yoc = data.invested > 0 ? (data.total / data.invested) * 100 : 0;
+    // YoC e Dividend Yield seguem convenção do mercado: sempre últimos 12 meses,
+    // independente do filtro de período (que alimenta apenas "Total Acumulado").
+    data.dividendYield = data.currentValue > 0 ? (ult12mTotal / data.currentValue) * 100 : 0;
+    data.yoc = data.invested > 0 ? (ult12mTotal / data.invested) * 100 : 0;
 
     // Enriquecer grupos por ATIVO com campos esperados pela tabela estilo Kinvo
     if (groupBy === 'ativo') {
