@@ -99,6 +99,7 @@ model User {
   portfolioDailySnapshots       PortfolioDailySnapshot[]
   portfolioPerformances         PortfolioPerformance[]
   sensibilidadeCaches           PortfolioSensibilidadeCache[]
+  riscoRetornoCache             PortfolioRiscoRetornoCache?
 }
 
 model Consultant {
@@ -642,6 +643,19 @@ model PortfolioSensibilidadeCache {
   @@unique([userId, windowMonths])
   @@index([userId])
   @@map("portfolio_sensibilidade_cache")
+}
+
+// Cache do payload completo de /api/analises/risco-retorno. Invalida quando a
+// composição da carteira (hash de symbol:quantity:avgPrice) muda, com TTL de 24h.
+model PortfolioRiscoRetornoCache {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioHash String // sha256 de (symbol:quantity:avgPrice) ordenado
+  payload       Json // RiscoRetornoResponse serializado
+  computedAt    DateTime @default(now())
+
+  @@map("portfolio_risco_retorno_cache")
 }
 
 // TWR pré-calculado por dia (alinha ao historicoTWR do resumo)

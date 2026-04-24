@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
@@ -12,6 +13,20 @@ import { computeBeta } from '@/services/analises/sensibilidadeCarteira';
 /** Janela para cálculo de beta: 24 meses, mesma usada em sensibilidade-carteira. */
 const BETA_WINDOW_MONTHS = 24;
 const IBOV_SYMBOL = '^BVSP';
+/** TTL do cache — carteira estável serve do cache por até 24h. */
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/** Hash estável da composição: invalida o cache quando posição/preço médio muda. */
+function computePortfolioHash(
+  items: Array<{ symbol: string; quantity: number; avgPrice: number }>,
+): string {
+  const normalized = items
+    .filter((i) => i.symbol)
+    .map((i) => `${i.symbol}:${i.quantity}:${i.avgPrice}`)
+    .sort()
+    .join('|');
+  return createHash('sha256').update(normalized).digest('hex');
+}
 
 interface RiscoRetornoMetrics {
   retornoAnual: number;
@@ -147,6 +162,24 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }),
   ]);
 
+  // Cache hit: hash da composição igual + idade < TTL → serve payload cru.
+  const portfolioHash = computePortfolioHash(
+    portfolio.map((p) => ({
+      symbol: (p.asset?.symbol || p.stock?.ticker || '').toUpperCase(),
+      quantity: p.quantity,
+      avgPrice: p.avgPrice,
+    })),
+  );
+  const cached = await prisma.portfolioRiscoRetornoCache.findUnique({
+    where: { userId: targetUserId },
+  });
+  if (cached && cached.portfolioHash === portfolioHash) {
+    const age = Date.now() - cached.computedAt.getTime();
+    if (age <= CACHE_MAX_AGE_MS) {
+      return NextResponse.json(cached.payload as unknown as RiscoRetornoResponse);
+    }
+  }
+
   const allInvestments = investmentGroups.flatMap((g) => g.items || []);
   const cashflowInvestments = filterInvestmentsExclReservas(allInvestments);
 
@@ -270,6 +303,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     sensibilidade,
     anosDisponiveis,
   };
+
+  await prisma.portfolioRiscoRetornoCache.upsert({
+    where: { userId: targetUserId },
+    update: {
+      portfolioHash,
+      payload: response as unknown as object,
+      computedAt: new Date(),
+    },
+    create: {
+      userId: targetUserId,
+      portfolioHash,
+      payload: response as unknown as object,
+    },
+  });
 
   return NextResponse.json(response);
 });
