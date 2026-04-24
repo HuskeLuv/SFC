@@ -509,19 +509,28 @@ const tryFetchHistoryFromBrapi = async (
       }
     }
 
-    for (const p of toPersist) {
-      await prisma.assetPriceHistory.upsert({
-        where: { symbol_date: { symbol: dbSymbol, date: p.date } },
-        update: { price: new Decimal(p.value) },
-        create: {
-          assetId: asset.id,
-          symbol: dbSymbol,
-          price: new Decimal(p.value),
-          currency: asset.currency,
-          source: 'BRAPI',
-          date: p.date,
-        },
-      });
+    // Antes era um loop de await upsert — ~250 round-trips pra 1 ano de cotações.
+    // Agora: 1 deleteMany + 1 createMany dentro de uma transação. BRAPI é fonte
+    // autoritativa, então sobrescrever (em vez de fazer merge) dá o mesmo
+    // resultado do upsert com uma fração do custo.
+    if (toPersist.length > 0) {
+      const dates = toPersist.map((p) => p.date);
+      await prisma.$transaction([
+        prisma.assetPriceHistory.deleteMany({
+          where: { symbol: dbSymbol, date: { in: dates } },
+        }),
+        prisma.assetPriceHistory.createMany({
+          data: toPersist.map((p) => ({
+            assetId: asset.id,
+            symbol: dbSymbol,
+            price: new Decimal(p.value),
+            currency: asset.currency,
+            source: 'BRAPI',
+            date: p.date,
+          })),
+          skipDuplicates: true,
+        }),
+      ]);
     }
 
     return data.sort((a, b) => a.date - b.date);

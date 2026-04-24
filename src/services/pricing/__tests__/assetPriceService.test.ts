@@ -14,8 +14,10 @@ const mockPrisma = vi.hoisted(() => ({
     findFirst: vi.fn(),
     findMany: vi.fn(),
     upsert: vi.fn(),
+    deleteMany: vi.fn(),
+    createMany: vi.fn(),
   },
-  $transaction: vi.fn(),
+  $transaction: vi.fn().mockResolvedValue([]),
 }));
 
 const mockFetchQuotes = vi.hoisted(() => vi.fn().mockResolvedValue(new Map()));
