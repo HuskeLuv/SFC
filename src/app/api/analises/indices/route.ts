@@ -314,16 +314,17 @@ const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
         return recordDate <= hojeTimestamp;
       })
       .map((record) => {
-        // Converter decimal para percentual anual
-        // value está em decimal (0.00045 = taxa diária)
-        // CDI diário: converter para taxa anual multiplicando por 252 dias úteis
-        // Exemplo: 0.00045 * 252 * 100 = 11.34% ao ano
-        const dailyRate = Number(record.value); // 0.00045 (taxa diária em decimal)
-        const annualRate = dailyRate * 252 * 100; // Taxa anual em percentual (11.34%)
+        // Converter decimal para percentual anual (composição, não multiplicação linear).
+        // value está em decimal (0.00054 = taxa diária ≈ 0.054%/dia).
+        // Anualização: (1 + daily)^252 - 1 — multiplicar por 252 subestima em ~1pp
+        // e desalinha com o índice composto que buildDailyIndexFromAnnualRate monta
+        // e com o asset side em buildFixedIncomeFactorSeries.
+        const dailyRate = Number(record.value);
+        const annualRate = (Math.pow(1 + dailyRate, 252) - 1) * 100;
 
         return {
           date: new Date(record.date).getTime(),
-          value: annualRate, // Taxa anual em percentual (ex: 11.34 para 11.34%)
+          value: annualRate, // Taxa anual em percentual (ex: 14.54 para 14.54%)
         };
       });
 
