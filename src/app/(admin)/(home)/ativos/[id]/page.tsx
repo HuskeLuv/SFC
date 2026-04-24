@@ -156,7 +156,18 @@ function AtivoDetalheContent() {
 
   const filteredHistoricoTWR = useMemo(() => {
     if (!data?.historicoTWR?.length || !rentabilidadeStartDate) return data?.historicoTWR ?? [];
-    return data.historicoTWR.filter((h) => h.date >= rentabilidadeStartDate);
+    const filtered = data.historicoTWR.filter((h) => h.date >= rentabilidadeStartDate);
+    if (filtered.length === 0) return filtered;
+    // Rebase: o TWR do ativo é cumulativo desde a primeira compra. O benchmark
+    // (CDI/IPCA/IBOV) começa em 0% na data inicial da janela. Sem rebasear, o
+    // ativo entra no gráfico com todo o ganho acumulado e parece estar acima do
+    // benchmark mesmo quando o rendimento no período filtrado foi menor.
+    const baseFactor = 1 + filtered[0].value / 100;
+    if (baseFactor <= 0) return filtered;
+    return filtered.map((h) => ({
+      date: h.date,
+      value: Math.round(((1 + h.value / 100) / baseFactor - 1) * 10000) / 100,
+    }));
   }, [data?.historicoTWR, rentabilidadeStartDate]);
 
   const indicesRange = rentabilidadeRange === '12M' ? '1y' : '2y';
