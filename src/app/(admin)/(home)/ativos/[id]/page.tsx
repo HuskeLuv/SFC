@@ -309,7 +309,10 @@ function AtivoDetalheContent() {
     indicesForMonthly,
   ]);
 
-  const rentabilidadePeriod = rentabilidadeRange === '12M' ? '1mo' : '1y';
+  // 12M → dia a dia (TD tem PU diário, renda variável tem preço de fechamento
+  // diário — agrupar por mês engole a curva). Períodos maiores agregam por mês
+  // para evitar 1000+ pontos em ranges longos.
+  const rentabilidadePeriod = rentabilidadeRange === '12M' ? '1d' : '1mo';
 
   const extratoUnificado = useMemo(() => {
     const items: Array<{
