@@ -36,6 +36,12 @@ export function useRiscoRetorno() {
       if (!response.ok) throw new Error('Erro ao carregar dados de risco x retorno');
       return response.json();
     },
+    // Payload cobre 36m de histórico + betas — carteira estável serve do cache
+    // do servidor por 24h; no cliente mantemos 20 min de frescor pra evitar
+    // refetch em toda troca de tab.
+    staleTime: 20 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const error = queryError ? (queryError as Error).message : null;
