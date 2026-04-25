@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { Prisma } from '@prisma/client';
+import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 
 /** FGC coverage limit per CPF per institution (CNPJ). */
 const FGC_LIMIT_PER_INSTITUTION = 250_000;
@@ -27,37 +27,28 @@ function getProductLabel(fixedIncomeType: string): string {
   return fixedIncomeType.split('_')[0];
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
 
-  // 1. Fetch all fixed income assets for the user
-  let fixedIncomeAssets: Awaited<ReturnType<typeof prisma.fixedIncomeAsset.findMany>> = [];
-  try {
-    fixedIncomeAssets = await prisma.fixedIncomeAsset.findMany({
-      where: { userId: targetUserId },
-      include: { asset: true },
-    });
-  } catch (error) {
-    const prismaError = error as Prisma.PrismaClientKnownRequestError;
-    if (prismaError?.code !== 'P2021') throw error;
-    fixedIncomeAssets = [];
-  }
+  // 1. Pricer compartilhado: carrega todos os FixedIncomeAssets do usuário (qualquer aba)
+  // e expõe marcação na curva (CDI/IPCA/Tesouro PU), igual à aba Renda Fixa.
+  const pricer = await createFixedIncomePricer(targetUserId);
+  const { fixedIncomeAssets, fixedIncomeByAssetId } = pricer;
 
-  // 2. Fetch portfolio entries for FGC-relevant assets.
-  // Includes emergency/opportunity reserves to pick up Poupança e Conta Corrente,
-  // que são cobertas pelo FGC mesmo sem um FixedIncomeAsset associado.
+  // 2. Fetch portfolio entries para FGC: qualquer item com FixedIncomeAsset associado
+  // (independente de asset.type — pega CDB/LCI/LCA registrados em outras abas) + Poupança
+  // e Conta Corrente em reservas (cobertas pelo FGC sem FI associado).
+  const fixedIncomeAssetIdSet = new Set(fixedIncomeAssets.map((fi) => fi.assetId));
   const portfolio = await prisma.portfolio.findMany({
     where: {
       userId: targetUserId,
-      asset: { type: { in: ['bond', 'cash', 'emergency', 'opportunity'] } },
+      OR: [
+        { assetId: { in: Array.from(fixedIncomeAssetIdSet) } },
+        { asset: { type: { in: ['cash', 'emergency', 'opportunity'] } } },
+      ],
     },
     include: { asset: true },
   });
-
-  // 3. Build map of fixedIncomeAsset by assetId
-  const fixedIncomeByAssetId = new Map(fixedIncomeAssets.map((fi) => [fi.assetId, fi]));
 
   // 4. Get institution info from transaction notes
   const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
@@ -103,28 +94,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       : [];
   const institutionById = new Map(institutions.map((i) => [i.id, i]));
 
-  // 6. Calculate current value for each fixed income asset
-  const today = new Date();
-  const normalizeDate = (date: Date) =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
+  // 6. Valor atual com a mesma prioridade da aba Renda Fixa: marcação na curva quando
+  // produz valor > investido (rendimento acumulado), caso contrário avgPrice*quantity
+  // (edição manual ou valor inicial). Não usar `avgPrice > 0` como gatilho único: na
+  // criação avgPrice = valorAplicado, e a curva nunca seria preferida.
   const calculateCurrentValue = (
     fi: (typeof fixedIncomeAssets)[number],
     portfolioItem: (typeof portfolio)[number],
   ) => {
-    // Use manually updated value if available
+    const valorCalculado = pricer.getCurrentValue(fi);
+    if (valorCalculado > fi.investedAmount) return valorCalculado;
     if (portfolioItem.avgPrice > 0 && portfolioItem.quantity > 0) {
       return portfolioItem.avgPrice * portfolioItem.quantity;
     }
-    // Otherwise calculate from rate
-    const start = normalizeDate(new Date(fi.startDate));
-    const maturity = normalizeDate(new Date(fi.maturityDate));
-    const current = normalizeDate(today);
-    const endDate = current.getTime() > maturity.getTime() ? maturity : current;
-    if (endDate.getTime() <= start.getTime()) return fi.investedAmount;
-    const days = Math.floor((endDate.getTime() - start.getTime()) / DAY_MS);
-    const rate = fi.annualRate / 100;
-    return Math.round(fi.investedAmount * Math.pow(1 + rate, days / 365) * 100) / 100;
+    return valorCalculado;
   };
 
   // 7. Build FGC coverage data grouped by institution
@@ -181,6 +164,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     let coberto: boolean;
 
     if (fi) {
+      // Tesouro Direto não é coberto pelo FGC (tem garantia do Tesouro Nacional).
+      // Filtrar fora pra não poluir esta aba — relevante para Tesouro+Reserva, que cria
+      // FixedIncomeAsset com tesouroBondType preenchido.
+      if (fi.tesouroBondType) continue;
       valorAtual = calculateCurrentValue(fi, item);
       coberto = isFgcCovered(fi.type);
       asset = {
