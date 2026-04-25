@@ -94,7 +94,7 @@ describe('buildFixedIncomeFactorSeries', () => {
     expect(factors110.get(timeline[21])!).toBeGreaterThan(factors100.get(timeline[21])!);
   });
 
-  it('CDI — carrega último CDI conhecido em dias sem dado', () => {
+  it('CDI — não compõe em dias sem dado (feriados/gaps do BACEN)', () => {
     const start = new Date(2025, 0, 2);
     const timeline = buildDailyTimeline(start, new Date(start.getTime() + 20 * 24 * 3600 * 1000));
     const fi = makeFi({ startDate: start, annualRate: 0, indexer: 'CDI', indexerPercent: 100 });
@@ -106,8 +106,11 @@ describe('buildFixedIncomeFactorSeries', () => {
 
     // Dia 1: aplica 0.0005
     expect(factors.get(timeline[1])).toBeCloseTo(1.0005, 10);
-    // Dia 2 em diante: carrega 0.0005 (último conhecido)
-    expect(factors.get(timeline[2])).toBeCloseTo(Math.pow(1.0005, 2), 10);
+    // Dia 2 em diante: BACEN não publicou — fator permanece em 1.0005 (sem nova
+    // composição). Carregar o lastCdi nesses dias inflava o saldo em ~2,5%/5 anos
+    // por causa de feriados nacionais.
+    expect(factors.get(timeline[2])).toBeCloseTo(1.0005, 10);
+    expect(factors.get(timeline[5])).toBeCloseTo(1.0005, 10);
   });
 
   it('IPCA + 5% a.a. — aplica IPCA ao cruzar de mês e spread prefixado diariamente', () => {

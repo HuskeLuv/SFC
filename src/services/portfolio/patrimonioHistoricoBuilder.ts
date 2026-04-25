@@ -184,6 +184,9 @@ export const buildFixedIncomeFactorSeries = (
   const annualRate = Number(fi.annualRate) / 100;
   const indexerPercent = fi.indexerPercent != null ? Number(fi.indexerPercent) / 100 : 1;
   const indexer = (fi.indexer || 'PRE').toUpperCase();
+  const isHibrido = String(fi.type || '')
+    .toUpperCase()
+    .endsWith('_HIB');
   const hasTesouroPU =
     Boolean(fi.tesouroBondType) &&
     Boolean(ctx.tesouroPU) &&
@@ -221,23 +224,36 @@ export const buildFixedIncomeFactorSeries = (
         factor = lastTesouroPU / ctx.tesouroPUAtStart!;
       }
     } else if (day > startTs) {
-      // IPCA: aplica a taxa do mês anterior ao cruzar para um novo mês
+      // IPCA: aplica a taxa do mês anterior ao cruzar para um novo mês.
+      // IPCA é publicado ~10 dias após o fechamento do mês — só avança lastMonthApplied
+      // quando a taxa estiver disponível, senão aplicamos retroativamente nos dias seguintes.
       if (indexer === 'IPCA') {
         const currentMonth = monthKeyOf(day);
         if (currentMonth !== lastMonthApplied) {
           const ipcaRate = ctx.ipca?.get(lastMonthApplied);
           if (ipcaRate != null && Number.isFinite(ipcaRate)) {
             factor *= 1 + ipcaRate;
+            lastMonthApplied = currentMonth;
           }
-          lastMonthApplied = currentMonth;
         }
+        // Para híbrido (IPCA + X%), o spread (annualRate) é aplicado diariamente.
         factor *= dailyPreFactor;
       } else if (indexer === 'CDI') {
+        // Só compõe CDI em dias em que o BACEN realmente publicou taxa. Em feriados
+        // nacionais (sem publicação) não há rendimento — antes carregávamos `lastCdi`
+        // para o feriado, gerando ~10 compoundings extras/ano e desviando ~2,5%/5 anos
+        // pra cima vs cálculo do mercado (Kinvo etc.).
         const cdiRate = ctx.cdi?.get(day);
         if (cdiRate != null && Number.isFinite(cdiRate)) {
           lastCdi = cdiRate;
+          factor *= 1 + lastCdi * indexerPercent;
+          // Para híbrido (CDI + X%), o spread (annualRate) é aplicado diariamente.
+          // Em pós-fixada o annualRate é overload do "% do indexador" no wizard, então
+          // aplicar dailyPreFactor lá causaria dupla contagem. Restringe-se a _HIB.
+          if (isHibrido && annualRate > 0) {
+            factor *= dailyPreFactor;
+          }
         }
-        factor *= 1 + lastCdi * indexerPercent;
       } else {
         // PRE (default)
         factor *= dailyPreFactor;
