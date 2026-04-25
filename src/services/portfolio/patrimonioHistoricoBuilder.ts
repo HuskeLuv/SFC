@@ -330,6 +330,16 @@ export type BuildPatrimonioHistoricoParams = {
   maxHistoricoMonths?: number | null;
   /** Se true, último ponto da série usa saldoBrutoAtual/valorAplicadoAtual (comportamento da API). */
   patchLastDayWithLiveTotals: boolean;
+  /**
+   * Builder opcional que devolve a série diária de valor (`investedAmount * fator`) para um FI,
+   * usando marcação na curva (CDI/IPCA/Tesouro PU). Sem ele, o histórico aplica apenas o
+   * `annualRate` simples — CDB 100% CDI fica estagnado no histórico. Use o `createFixedIncomePricer`
+   * para criar e passe o `buildValueSeriesForAsset`.
+   */
+  fixedIncomeValueSeriesBuilder?: (
+    fi: FixedIncomeAssetWithAsset,
+    timeline: number[],
+  ) => Array<{ date: number; value: number }>;
   /** Fim da linha do tempo (ex.: ontem no job diário). Default: hoje. */
   timelineEndDate?: Date;
 };
@@ -367,6 +377,7 @@ export const buildPatrimonioHistorico = async (
     valorAplicadoAtual,
     twrStartDate,
     maxHistoricoMonths = 24,
+    fixedIncomeValueSeriesBuilder,
     patchLastDayWithLiveTotals,
     timelineEndDate,
   } = params;
@@ -552,10 +563,14 @@ export const buildPatrimonioHistorico = async (
   fixedIncomeAssets.forEach((fixedIncome) => {
     const symbol = fixedIncome.asset?.symbol;
     if (!symbol) return;
-    const points = timeline.map((day) => ({
-      date: day,
-      value: calculateFixedIncomeValue(fixedIncome, new Date(day)),
-    }));
+    // Quando disponível, usa marcação na curva (CDI/IPCA/Tesouro PU) — caso contrário, cai
+    // no fallback simples baseado em annualRate (estagnado para CDBs 100% CDI).
+    const points = fixedIncomeValueSeriesBuilder
+      ? fixedIncomeValueSeriesBuilder(fixedIncome, timeline)
+      : timeline.map((day) => ({
+          date: day,
+          value: calculateFixedIncomeValue(fixedIncome, new Date(day)),
+        }));
     fixedIncomePricePointsBySymbol.set(symbol, points);
   });
 
@@ -582,10 +597,13 @@ export const buildPatrimonioHistorico = async (
     } else {
       history = [...pricePoints, ...fixedIncomePoints];
     }
+    // FI tem curva (CDI/IPCA/Tesouro PU) e NÃO deve ser achatado em uma reta no avgPrice.
+    // Reservas/personalizados/imóveis sem curva caem na linha plana abaixo.
+    const hasFixedIncomeCurve = fixedIncomePoints.length > 0;
 
     const initialPrice = pricePoints.length > 0 ? pricePoints[0]?.value : portfolioInfo?.avgPrice;
 
-    if (isManual && portfolioInfo?.avgPrice && portfolioInfo.avgPrice > 0) {
+    if (isManual && !hasFixedIncomeCurve && portfolioInfo?.avgPrice && portfolioInfo.avgPrice > 0) {
       history = [
         { date: timelineStart.getTime(), value: portfolioInfo.avgPrice },
         { date: hoje.getTime(), value: portfolioInfo.avgPrice },

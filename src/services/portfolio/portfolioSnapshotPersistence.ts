@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { normalizeDateStart } from './patrimonioHistoricoBuilder';
 import { buildPatrimonioHistorico } from './patrimonioHistoricoBuilder';
 import { loadCarteiraHistoricoData } from './carteiraHistoricoDataLoader';
+import { createFixedIncomePricer } from './fixedIncomePricing';
 
 const batchSize = 50;
 
@@ -23,6 +24,10 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
   const { portfolio, fixedIncomeAssets, stockTransactions, investmentsExclReservas } =
     await loadCarteiraHistoricoData(userId);
 
+  const fiPricer = await createFixedIncomePricer(userId, {
+    asOfDate: timelineEndDate,
+  });
+
   const { historicoPatrimonio, historicoTWR } = await buildPatrimonioHistorico({
     portfolio,
     fixedIncomeAssets,
@@ -33,6 +38,7 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
     maxHistoricoMonths: null,
     patchLastDayWithLiveTotals: false,
     timelineEndDate,
+    fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
   });
 
   if (historicoPatrimonio.length === 0) {

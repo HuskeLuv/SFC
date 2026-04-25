@@ -8,6 +8,8 @@ import {
   buildPatrimonioHistorico,
   filterInvestmentsExclReservas,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
+import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { getAssetHistory, isNonMarketSymbol } from '@/services/pricing/assetPriceService';
 import { buildSensibilidadeCarteira, monthKey } from '@/services/analises/sensibilidadeCarteira';
 import type { SensibilidadeCarteiraResponse } from '@/types/analises';
@@ -137,6 +139,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     valorAplicado += item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
   }
 
+  const fiPricer = await createFixedIncomePricer(targetUserId, {
+    preloadedAssets: fixedIncomeAssets as unknown as FixedIncomeAssetWithAsset[],
+  });
   const built = await buildPatrimonioHistorico({
     portfolio,
     fixedIncomeAssets,
@@ -146,6 +151,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     valorAplicadoAtual: valorAplicado,
     maxHistoricoMonths: windowMonths + 1,
     patchLastDayWithLiveTotals: true,
+    fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
   });
 
   const portfolioMonthlyReturns = monthlyReturnsFromTWR(built.historicoTWR);

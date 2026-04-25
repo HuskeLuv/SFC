@@ -1745,7 +1745,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // aparece na tabela de RF sem "valor atual" calculável e quebra os gráficos em /ativos/[id].
   let fixedIncomeCreateData: Parameters<typeof prisma.fixedIncomeAsset.create>[0]['data'] | null =
     null;
-  if ((isRendaFixa || isTesouroRendaFixa) && asset?.id) {
+  if ((isRendaFixa || isTesouroRendaFixa || isTesouroReserva) && asset?.id) {
     const descricaoTesouro = requestBody.descricao || requestBody.ativo;
     const dataInicioTesouro = dataCompra || dataInicio;
     const valorAplicadoTesouro =
@@ -1774,6 +1774,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           : (rendaFixaIndexerPercent ?? taxaJurosAnual ?? 100);
       indexerForAsset =
         tesouroDestino === 'renda-fixa-prefixada' ? 'PRE' : rendaFixaIndexer || null;
+    } else if (isTesouroReserva) {
+      // Tesouro em Reserva: marcação na curva via PU do Tesouro (preferencial) ou via
+      // benchmark informado. Sem taxa fixa adicional — reservas usam liquidez diária.
+      const benchmarkUpper = String(benchmark || '').toUpperCase();
+      rendaFixaTipoForAsset = 'CDB_PRE';
+      annualRateForAsset = 0;
+      if (benchmarkUpper.includes('IPCA')) {
+        indexerForAsset = 'IPCA';
+        indexerPercentForAsset = 100;
+      } else if (benchmarkUpper.includes('CDI') || benchmarkUpper.includes('SELIC')) {
+        indexerForAsset = 'CDI';
+        indexerPercentForAsset = 100;
+      } else {
+        indexerForAsset = 'CDI';
+        indexerPercentForAsset = 100;
+      }
     } else {
       annualRateForAsset =
         tipoAtivo === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? taxaJurosAnual) : taxaJurosAnual;
@@ -1784,7 +1800,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     let tesouroBondType: string | null = null;
     let tesouroMaturity: Date | null = null;
-    if (isTesouroRendaFixa && asset?.type === 'tesouro-direto' && asset.name) {
+    if (
+      (isTesouroRendaFixa || isTesouroReserva) &&
+      asset?.type === 'tesouro-direto' &&
+      asset.name
+    ) {
       const nameMatch = asset.name.match(/^(.+)\s(\d{4})$/);
       if (nameMatch) {
         const bondType = nameMatch[1];
@@ -1807,21 +1827,43 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       }
     }
 
+    const startDateForFi = isTesouroRendaFixa
+      ? dataInicioTesouro
+      : isTesouroReserva
+        ? dataCompra
+        : dataInicio;
+    const maturityDateForFi =
+      isTesouroReserva && vencimento ? vencimento : dataVencimento || vencimento;
+    const investedForFi = isTesouroRendaFixa
+      ? valorAplicadoTesouro
+      : isTesouroReserva
+        ? valorInvestido
+        : valorAplicado;
+    const descriptionForFi = isTesouroRendaFixa
+      ? descricaoTesouro
+      : isTesouroReserva
+        ? requestBody.descricao || requestBody.ativo || asset.name
+        : descricao;
+
     fixedIncomeCreateData = {
       userId: targetUserId,
       assetId: asset.id,
       type: rendaFixaTipoForAsset as Parameters<
         typeof prisma.fixedIncomeAsset.create
       >[0]['data']['type'],
-      description: isTesouroRendaFixa ? descricaoTesouro : descricao,
-      startDate: new Date(isTesouroRendaFixa ? dataInicioTesouro : dataInicio),
-      maturityDate: new Date(dataVencimento),
-      investedAmount: isTesouroRendaFixa ? valorAplicadoTesouro : valorAplicado,
+      description: descriptionForFi,
+      startDate: new Date(startDateForFi),
+      maturityDate: new Date(maturityDateForFi),
+      investedAmount: investedForFi,
       annualRate: annualRateForAsset,
       indexer: indexerForAsset as 'PRE' | 'CDI' | 'IPCA' | null,
       indexerPercent: indexerPercentForAsset ?? null,
-      liquidityType: isTesouroRendaFixa ? null : rendaFixaLiquidity || null,
-      taxExempt: isTesouroRendaFixa ? true : Boolean(rendaFixaTaxExempt),
+      liquidityType: isTesouroRendaFixa
+        ? null
+        : isTesouroReserva
+          ? 'DAILY'
+          : rendaFixaLiquidity || null,
+      taxExempt: isTesouroRendaFixa ? true : isTesouroReserva ? true : Boolean(rendaFixaTaxExempt),
       tesouroBondType,
       tesouroMaturity,
     };

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
+import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const parseNotes = (notes?: string | null) => {
@@ -49,6 +50,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     },
     include: { asset: true },
   });
+
+  // Pricer compartilhado: aplica a mesma marcação na curva (CDI/IPCA/Tesouro PU) usada
+  // pela aba Renda Fixa, para que ativos com fixedIncomeAsset adicionados nesta aba
+  // sejam precificados consistentemente.
+  const pricer = await createFixedIncomePricer(targetUserId);
 
   const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
   const transactions =
@@ -104,14 +110,24 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const aporte = totalAportes;
     const resgate = totalResgates;
     const valorCalculado = valorInicial + aporte - resgate;
+    // Renda fixa (CDB/LCI/LCA/Tesouro): se há fixedIncomeAsset, prefere marcação na curva
+    // quando produz valor > investido (rendimento acumulado). Caso contrário cai pros
+    // demais critérios (CVM/manual) — mesma prioridade da aba Renda Fixa.
+    const fixedIncome = item.assetId ? pricer.fixedIncomeByAssetId.get(item.assetId) : undefined;
+    const fiCurveValue = fixedIncome ? pricer.getCurrentValue(fixedIncome) : 0;
+    const fiHasCurve = fixedIncome ? fiCurveValue > fixedIncome.investedAmount : false;
     // Cota CVM sincronizada (bridgeCvmToAssetPrices) tem prioridade sobre edição manual.
     const cvmCurrentPrice = item.asset?.currentPrice?.toNumber() ?? null;
-    const isAutoUpdated = Boolean(cvmCurrentPrice && cvmCurrentPrice > 0 && item.quantity > 0);
-    const valorAtualizado = isAutoUpdated
-      ? cvmCurrentPrice! * item.quantity
-      : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-        ? item.avgPrice * item.quantity
-        : valorCalculado;
+    const isAutoUpdated = Boolean(
+      fiHasCurve || (cvmCurrentPrice && cvmCurrentPrice > 0 && item.quantity > 0),
+    );
+    const valorAtualizado = fiHasCurve
+      ? fiCurveValue
+      : cvmCurrentPrice && cvmCurrentPrice > 0 && item.quantity > 0
+        ? cvmCurrentPrice * item.quantity
+        : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
+          ? item.avgPrice * item.quantity
+          : valorCalculado;
     const notes = assetId ? latestCompraNotes.get(assetId) : null;
 
     const tipoFundo =

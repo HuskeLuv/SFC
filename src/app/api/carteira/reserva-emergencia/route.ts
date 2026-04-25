@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
+import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const parseNotes = (notes?: string | null) => {
@@ -76,6 +77,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (item.assetId && tesouroReservaEmergenciaAssetIds.has(item.assetId)) return true;
     return false;
   });
+
+  // Pricer compartilhado: aplica a mesma marcação na curva (CDI/IPCA/Tesouro PU) usada
+  // pela aba Renda Fixa, para que CDB/LCI/LCA/Tesouro adicionados nesta aba sejam
+  // precificados consistentemente.
+  const pricer = await createFixedIncomePricer(targetUserId);
 
   // Buscar resumo da carteira para calcular percentuais
   const allPortfolio = await prisma.portfolio.findMany({
@@ -192,12 +198,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const resgate = totalResgates;
     // Usar avgPrice * quantity se disponível (valor editado manualmente), senão calcular
     const valorAtualizadoCalculado = valorInicial + aporte - resgate;
+    // Renda fixa (CDB/LCI/LCA/Tesouro): se há fixedIncomeAsset, prefere marcação na curva
+    // quando ela acumulou rendimento (calc > investido). Caso contrário cai pra avgPrice
+    // editado ou pro valorCalculado, na mesma ordem de prioridade da aba Renda Fixa.
+    const fixedIncome = item.assetId ? pricer.fixedIncomeByAssetId.get(item.assetId) : undefined;
+    const fiCurveValue = fixedIncome ? pricer.getCurrentValue(fixedIncome) : 0;
+    const fiHasCurve = fixedIncome ? fiCurveValue > fixedIncome.investedAmount : false;
     // Para Tesouro Direto do catálogo, usar currentPrice * quantity para refletir
     // variação de mercado (quantity foi derivada do PU do dia da compra em operacao/route.ts).
     const currentPrice = item.asset?.currentPrice ? Number(item.asset.currentPrice) : 0;
     const isCatalogTesouro = item.asset?.type === 'tesouro-direto';
-    const valorAtualizado =
-      isCatalogTesouro && currentPrice > 0 && item.quantity > 0
+    const valorAtualizado = fiHasCurve
+      ? fiCurveValue
+      : isCatalogTesouro && currentPrice > 0 && item.quantity > 0
         ? currentPrice * item.quantity
         : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
           ? item.avgPrice * item.quantity

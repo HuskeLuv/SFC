@@ -7,6 +7,8 @@ import {
   buildPatrimonioHistorico,
   filterInvestmentsExclReservas,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
+import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { getAssetHistory, isNonMarketSymbol } from '@/services/pricing/assetPriceService';
 import { computeBeta } from '@/services/analises/sensibilidadeCarteira';
 
@@ -191,6 +193,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     valorAplicado += item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
   }
 
+  // Pricer compartilhado: marcação na curva (CDI/IPCA/Tesouro PU) para FI no histórico.
+  // Reusa fixedIncomeAssets já carregado pra evitar query duplicada.
+  const fiPricer = await createFixedIncomePricer(targetUserId, {
+    preloadedAssets: fixedIncomeAssets as unknown as FixedIncomeAssetWithAsset[],
+  });
+
   // Constrói histórico de patrimônio com TWR (até 36 meses)
   const built = await buildPatrimonioHistorico({
     portfolio,
@@ -201,6 +209,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     valorAplicadoAtual: valorAplicado,
     maxHistoricoMonths: 36,
     patchLastDayWithLiveTotals: true,
+    fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
   });
 
   // Busca CDI dos últimos 3 anos (para cobrir dados anuais)

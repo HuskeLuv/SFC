@@ -8,11 +8,11 @@ import { Prisma } from '@prisma/client';
 import { deleteTtlCacheKeyPrefix, getTtlCache } from '@/lib/simpleTtlCache';
 import { applyChartAggregation } from '@/services/portfolio/portfolioSeriesAggregation';
 import { loadHistoricoFromSnapshots } from '@/services/portfolio/portfolioSnapshotReader';
+import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import {
   buildDailyTimeline,
   buildDailyPriceMap,
   buildPatrimonioHistorico,
-  calculateFixedIncomeValue,
   filterInvestmentsExclReservas,
   getRawPatrimonioTimelineStart,
   normalizeDateStart,
@@ -39,18 +39,29 @@ type FixedIncomeAssetWithAsset = {
   asset: { symbol: string; name: string; type?: string | null } | null;
 };
 
-/** Valor atual de renda fixa: usa valor editado manualmente (avgPrice*quantity) se existir, senão calculado */
+/**
+ * Valor atual de renda fixa, com a mesma prioridade da aba Renda Fixa:
+ *   1. Marcação na curva (CDI/IPCA/Tesouro PU) quando produz valor > investedAmount,
+ *      indicando rendimento real acumulado. Senão a curva é descartada.
+ *   2. Edição manual (avgPrice * quantity), se informada.
+ *   3. Fallback para o valor calculado (pode ser igual a investedAmount).
+ *
+ * Apenas comparar `avgPrice > 0` não basta: na criação, avgPrice é setado para
+ * valorAplicado e quantity=1 — sem este predicado a curva nunca seria usada.
+ */
 const getFixedIncomeCurrentValue = (
   fixedIncome: FixedIncomeAssetWithAsset | null,
   portfolioItem: { avgPrice: number; quantity: number },
-  referenceDate: Date,
+  pricerGetCurrentValue: (fi: FixedIncomeAssetWithAsset) => number,
 ): number => {
   if (!fixedIncome) return 0;
+  const valorCalculado = pricerGetCurrentValue(fixedIncome);
+  if (valorCalculado > fixedIncome.investedAmount) return valorCalculado;
   const valorEditado =
     portfolioItem.avgPrice > 0 && portfolioItem.quantity > 0
       ? portfolioItem.avgPrice * portfolioItem.quantity
       : 0;
-  return valorEditado > 0 ? valorEditado : calculateFixedIncomeValue(fixedIncome, referenceDate);
+  return valorEditado > 0 ? valorEditado : valorCalculado;
 };
 
 const runPatrimonioScenarioTest = () => {
@@ -280,6 +291,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     fixedIncomeByAssetId.set(fixedIncome.assetId, fixedIncome);
   });
 
+  // Pricer compartilhado para marcação na curva (CDI/IPCA/Tesouro PU). Reutilizado em
+  // todas as iterações do portfolio para que CDB/LCI/LCA/Tesouro tenham o mesmo valor
+  // atual em qualquer aba (resumo, reservas, FIM/FIA, renda fixa).
+  const fiPricer = await createFixedIncomePricer(targetUserId, {
+    preloadedAssets: fixedIncomeAssets,
+  });
+
   // Mesclar grupos (personalizações têm prioridade)
   const allInvestmentGroups = [...investmentGroupsCustom];
   const templateMap = new Map(investmentGroupsTemplate.map((g) => [g.name, g]));
@@ -379,7 +397,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       stocksCurrentValue += valorReserva;
       // Categorias são preenchidas no loop "Categorizar portfolio" abaixo - não duplicar aqui
     } else if (fixedIncome) {
-      stocksCurrentValue += getFixedIncomeCurrentValue(fixedIncome, item, new Date());
+      stocksCurrentValue += getFixedIncomeCurrentValue(fixedIncome, item, fiPricer.getCurrentValue);
     } else if (isImovelBem || isPersonalizado) {
       // Imóveis e bens + Personalizados: usar totalInvested (valor atualizado manualmente) ou quantity * avgPrice
       const valorImovel =
@@ -491,6 +509,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         twrStartDate,
         maxHistoricoMonths: 24,
         patchLastDayWithLiveTotals: true,
+        fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
       });
       if (usePortfolioSnapshots) {
         const startMs = built.historicoPatrimonio[0]?.data ?? hoje.getTime();
@@ -594,7 +613,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       tesouroReservaDestino !== undefined;
     const currentPrice = quotes.get(symbol);
     const valorAtual = fixedIncome
-      ? getFixedIncomeCurrentValue(fixedIncome, item, new Date())
+      ? getFixedIncomeCurrentValue(fixedIncome, item, fiPricer.getCurrentValue)
       : currentPrice && !isReserva
         ? item.quantity * currentPrice
         : isReserva && item.avgPrice && item.avgPrice > 0 && item.quantity > 0

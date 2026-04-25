@@ -1085,7 +1085,9 @@ describe('POST /api/carteira/operacao', () => {
       );
     });
 
-    it('não popula tesouroBondType para tesouro destinado a reserva', async () => {
+    it('cria fixedIncomeAsset com indexer derivado de benchmark para tesouro em reserva', async () => {
+      // Asset não-catálogo (sem name "Tesouro X 2029"): tesouroBondType permanece null,
+      // mas o FI ainda é criado para que reserva use marcação na curva via CDI/IPCA.
       const response = await POST(
         createRequest({
           tipoAtivo: 'tesouro-direto',
@@ -1102,9 +1104,18 @@ describe('POST /api/carteira/operacao', () => {
         }),
       );
       expect(response.status).toBe(201);
-      // Reservas don't go through the FixedIncomeAsset.create path at all
-      expect(mockPrisma.fixedIncomeAsset.create).not.toHaveBeenCalled();
-      expect(mockPrisma.tesouroDiretoPrice.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            indexer: 'CDI',
+            indexerPercent: 100,
+            liquidityType: 'DAILY',
+            taxExempt: true,
+            tesouroBondType: null,
+            tesouroMaturity: null,
+          }),
+        }),
+      );
     });
 
     it('adiciona previdência por cotas com sucesso', async () => {
