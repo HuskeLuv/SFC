@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { requireAuthWithActing } from '@/utils/auth';
 import { withErrorHandler, Errors } from '@/utils/apiErrorHandler';
@@ -116,11 +117,18 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json(empty);
   }
 
-  // Cache hit: hash igual + idade < TTL
+  // Cache hit: hash igual + idade < TTL. Em ambientes sem a tabela migrada (P2021),
+  // segue sem cache em vez de quebrar a rota.
   const portfolioHash = computePortfolioHash(positions);
-  const cached = await prisma.portfolioSensibilidadeCache.findUnique({
-    where: { userId_windowMonths: { userId: targetUserId, windowMonths } },
-  });
+  let cached: Awaited<ReturnType<typeof prisma.portfolioSensibilidadeCache.findUnique>> = null;
+  try {
+    cached = await prisma.portfolioSensibilidadeCache.findUnique({
+      where: { userId_windowMonths: { userId: targetUserId, windowMonths } },
+    });
+  } catch (error) {
+    const prismaError = error as Prisma.PrismaClientKnownRequestError;
+    if (prismaError?.code !== 'P2021') throw error;
+  }
   if (cached && cached.portfolioHash === portfolioHash) {
     const age = Date.now() - cached.computedAt.getTime();
     if (age <= CACHE_MAX_AGE_MS) {
@@ -177,20 +185,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     calculadoEm: new Date(),
   });
 
-  await prisma.portfolioSensibilidadeCache.upsert({
-    where: { userId_windowMonths: { userId: targetUserId, windowMonths } },
-    update: {
-      portfolioHash,
-      payload: response as unknown as object,
-      computedAt: new Date(),
-    },
-    create: {
-      userId: targetUserId,
-      windowMonths,
-      portfolioHash,
-      payload: response as unknown as object,
-    },
-  });
+  try {
+    await prisma.portfolioSensibilidadeCache.upsert({
+      where: { userId_windowMonths: { userId: targetUserId, windowMonths } },
+      update: {
+        portfolioHash,
+        payload: response as unknown as object,
+        computedAt: new Date(),
+      },
+      create: {
+        userId: targetUserId,
+        windowMonths,
+        portfolioHash,
+        payload: response as unknown as object,
+      },
+    });
+  } catch (error) {
+    const prismaError = error as Prisma.PrismaClientKnownRequestError;
+    if (prismaError?.code !== 'P2021') throw error;
+  }
 
   return NextResponse.json(response);
 });

@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -172,9 +173,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       avgPrice: p.avgPrice,
     })),
   );
-  const cached = await prisma.portfolioRiscoRetornoCache.findUnique({
-    where: { userId: targetUserId },
-  });
+  // Cache é opcional — em ambientes onde a tabela ainda não foi migrada (P2021),
+  // seguimos sem cache em vez de quebrar a rota.
+  let cached: Awaited<ReturnType<typeof prisma.portfolioRiscoRetornoCache.findUnique>> = null;
+  try {
+    cached = await prisma.portfolioRiscoRetornoCache.findUnique({
+      where: { userId: targetUserId },
+    });
+  } catch (error) {
+    const prismaError = error as Prisma.PrismaClientKnownRequestError;
+    if (prismaError?.code !== 'P2021') throw error;
+  }
   if (cached && cached.portfolioHash === portfolioHash) {
     const age = Date.now() - cached.computedAt.getTime();
     if (age <= CACHE_MAX_AGE_MS) {
@@ -313,19 +322,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     anosDisponiveis,
   };
 
-  await prisma.portfolioRiscoRetornoCache.upsert({
-    where: { userId: targetUserId },
-    update: {
-      portfolioHash,
-      payload: response as unknown as object,
-      computedAt: new Date(),
-    },
-    create: {
-      userId: targetUserId,
-      portfolioHash,
-      payload: response as unknown as object,
-    },
-  });
+  try {
+    await prisma.portfolioRiscoRetornoCache.upsert({
+      where: { userId: targetUserId },
+      update: {
+        portfolioHash,
+        payload: response as unknown as object,
+        computedAt: new Date(),
+      },
+      create: {
+        userId: targetUserId,
+        portfolioHash,
+        payload: response as unknown as object,
+      },
+    });
+  } catch (error) {
+    const prismaError = error as Prisma.PrismaClientKnownRequestError;
+    if (prismaError?.code !== 'P2021') throw error;
+    // Sem cache em ambientes sem a tabela migrada — devolvemos o payload mesmo assim.
+  }
 
   return NextResponse.json(response);
 });
