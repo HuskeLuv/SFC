@@ -190,6 +190,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     (tesouroDestino === 'renda-fixa-prefixada' ||
       tesouroDestino === 'renda-fixa-posfixada' ||
       tesouroDestino === 'renda-fixa-hibrida');
+  // Reserva manual (CDB/LCI/LCA, etc) registrada via aba Reserva de Oportunidade/Emergência.
+  // Step4ReservaFields coleta dataCompra/vencimento/benchmark — mesmos campos de Tesouro
+  // em reserva. Sem um FixedIncomeAsset, o pricer em /api/carteira/reserva-* não consegue
+  // aplicar marcação na curva e o "valor atualizado" fica congelado em valorInvestido.
+  const isManualReserva = isReserva && Boolean(vencimento) && Boolean(dataCompra);
   const isFundoReserva =
     tipoAtivo === 'fundo' &&
     (fundoDestino === 'reserva-emergencia' || fundoDestino === 'reserva-oportunidade');
@@ -1745,7 +1750,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // aparece na tabela de RF sem "valor atual" calculável e quebra os gráficos em /ativos/[id].
   let fixedIncomeCreateData: Parameters<typeof prisma.fixedIncomeAsset.create>[0]['data'] | null =
     null;
-  if ((isRendaFixa || isTesouroRendaFixa || isTesouroReserva) && asset?.id) {
+  if ((isRendaFixa || isTesouroRendaFixa || isTesouroReserva || isManualReserva) && asset?.id) {
     const descricaoTesouro = requestBody.descricao || requestBody.ativo;
     const dataInicioTesouro = dataCompra || dataInicio;
     const valorAplicadoTesouro =
@@ -1774,9 +1779,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           : (rendaFixaIndexerPercent ?? taxaJurosAnual ?? 100);
       indexerForAsset =
         tesouroDestino === 'renda-fixa-prefixada' ? 'PRE' : rendaFixaIndexer || null;
-    } else if (isTesouroReserva) {
-      // Tesouro em Reserva: marcação na curva via PU do Tesouro (preferencial) ou via
-      // benchmark informado. Sem taxa fixa adicional — reservas usam liquidez diária.
+    } else if (isTesouroReserva || isManualReserva) {
+      // Reservas (Tesouro ou manual CDB/LCI/LCA): marcação na curva via benchmark
+      // informado pelo usuário. Sem taxa fixa adicional — reservas usam liquidez diária.
       const benchmarkUpper = String(benchmark || '').toUpperCase();
       rendaFixaTipoForAsset = 'CDB_PRE';
       annualRateForAsset = 0;
@@ -1829,19 +1834,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     const startDateForFi = isTesouroRendaFixa
       ? dataInicioTesouro
-      : isTesouroReserva
+      : isTesouroReserva || isManualReserva
         ? dataCompra
         : dataInicio;
     const maturityDateForFi =
-      isTesouroReserva && vencimento ? vencimento : dataVencimento || vencimento;
+      (isTesouroReserva || isManualReserva) && vencimento
+        ? vencimento
+        : dataVencimento || vencimento;
     const investedForFi = isTesouroRendaFixa
       ? valorAplicadoTesouro
-      : isTesouroReserva
+      : isTesouroReserva || isManualReserva
         ? valorInvestido
         : valorAplicado;
     const descriptionForFi = isTesouroRendaFixa
       ? descricaoTesouro
-      : isTesouroReserva
+      : isTesouroReserva || isManualReserva
         ? requestBody.descricao || requestBody.ativo || asset.name
         : descricao;
 
@@ -1860,7 +1867,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       indexerPercent: indexerPercentForAsset ?? null,
       liquidityType: isTesouroRendaFixa
         ? null
-        : isTesouroReserva
+        : isTesouroReserva || isManualReserva
           ? 'DAILY'
           : rendaFixaLiquidity || null,
       taxExempt: isTesouroRendaFixa ? true : isTesouroReserva ? true : Boolean(rendaFixaTaxExempt),
