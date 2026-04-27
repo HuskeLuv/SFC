@@ -24,9 +24,10 @@ interface IndexResponse {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const normalizeDateStart = (date: Date) => {
-  const normalized = new Date(date);
-  normalized.setHours(0, 0, 0, 0);
-  return normalized;
+  // Mesma lógica do patrimonioHistoricoBuilder: BACEN/economicIndex armazena datas
+  // como UTC midnight (`new Date('YYYY-MM-DD')`); ancorar em UTC mantém o alinhamento
+  // entre as chaves do byDate e os timestamps do iterador independentemente do fuso.
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 };
 
 const normalizeToStartZero = (data: IndexData[], startDate?: Date): IndexData[] => {
@@ -63,7 +64,7 @@ const normalizeToStartZero = (data: IndexData[], startDate?: Date): IndexData[] 
 };
 
 const isBusinessDay = (date: Date) => {
-  const day = date.getDay();
+  const day = date.getUTCDay();
   return day !== 0 && day !== 6;
 };
 
@@ -230,31 +231,36 @@ const interpolateDailyIndex = (monthlyIndex: IndexData[], endDate?: Date): Index
   return daily;
 };
 
-const buildDailyIndexFromAnnualRate = (rateSeries: IndexData[], endDate?: Date): IndexData[] => {
+/**
+ * Compõe o índice CDI base 100 a partir das taxas DIÁRIAS brutas do BACEN.
+ *
+ * Mesma metodologia de `buildFixedIncomeFactorSeries` (lado do ativo): só compõe
+ * nos dias em que existe publicação do BACEN, usando `(1 + dailyRate)` direto —
+ * sem o roundtrip "anualiza × tira raiz 252" + "carry forward em todo dia útil",
+ * que (a) sub-estima o índice quando a Selic sobe e a chave do iterador não bate
+ * com a chave do row, e (b) sobre-estima compondo em feriados nacionais.
+ *
+ * `rateSeries[].value` deve estar em DECIMAL (ex.: 0.000540 = 0,054%/dia).
+ */
+const buildCDIIndexFromDailyRates = (rateSeries: IndexData[], endDate?: Date): IndexData[] => {
   if (rateSeries.length === 0) return [];
 
   const sorted = [...rateSeries].sort((a, b) => a.date - b.date);
   const start = normalizeDateStart(new Date(sorted[0].date)).getTime();
   const end = normalizeDateStart(endDate || new Date()).getTime();
-  let indexValue = 100;
 
   const byDate = new Map(
-    sorted.map((item) => [normalizeDateStart(new Date(item.date)).getTime(), item.value]),
+    sorted.map((item) => [normalizeDateStart(new Date(item.date)).getTime(), Number(item.value)]),
   );
-  let currentRate = byDate.get(start) ?? sorted[0].value;
+
+  let indexValue = 100;
   const daily: IndexData[] = [{ date: start, value: indexValue }];
 
   for (let day = start + DAY_MS; day <= end; day += DAY_MS) {
-    const newRate = byDate.get(day);
-    if (Number.isFinite(newRate)) {
-      currentRate = newRate as number;
+    const dailyRate = byDate.get(day);
+    if (dailyRate != null && Number.isFinite(dailyRate)) {
+      indexValue *= 1 + dailyRate;
     }
-
-    if (isBusinessDay(new Date(day))) {
-      const dailyFactor = Math.pow(1 + Number(currentRate) / 100, 1 / 252);
-      indexValue *= dailyFactor;
-    }
-
     daily.push({ date: day, value: indexValue });
   }
 
@@ -314,17 +320,12 @@ const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
         return recordDate <= hojeTimestamp;
       })
       .map((record) => {
-        // Converter decimal para percentual anual (composição, não multiplicação linear).
-        // value está em decimal (0.00054 = taxa diária ≈ 0.054%/dia).
-        // Anualização: (1 + daily)^252 - 1 — multiplicar por 252 subestima em ~1pp
-        // e desalinha com o índice composto que buildDailyIndexFromAnnualRate monta
-        // e com o asset side em buildFixedIncomeFactorSeries.
-        const dailyRate = Number(record.value);
-        const annualRate = (Math.pow(1 + dailyRate, 252) - 1) * 100;
-
+        // Devolve a taxa DIÁRIA bruta (decimal, ex.: 0.000540). O composer
+        // `buildCDIIndexFromDailyRates` aplica `(1 + dailyRate)` em cada dia
+        // publicado pelo BACEN — mesma metodologia do pricer no asset side.
         return {
           date: new Date(record.date).getTime(),
-          value: annualRate, // Taxa anual em percentual (ex: 14.54 para 14.54%)
+          value: Number(record.value),
         };
       });
 
@@ -601,7 +602,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     try {
       const cdiData = await fetchCDIHistory(startDate);
       if (Array.isArray(cdiData) && cdiData.length > 0) {
-        const dailyIndex = buildDailyIndexFromAnnualRate(cdiData);
+        const dailyIndex = buildCDIIndexFromDailyRates(cdiData);
         if (!validateIndexSeries(dailyIndex, 'CDI')) {
           console.error('[CDI] Série ignorada por validação.');
         } else {
