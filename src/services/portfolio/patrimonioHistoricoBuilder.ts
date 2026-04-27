@@ -36,9 +36,13 @@ export type StockTransactionWithRelations = Prisma.StockTransactionGetPayload<{
 }>;
 
 export const normalizeDateStart = (date: Date) => {
-  const normalized = new Date(date);
-  normalized.setHours(0, 0, 0, 0);
-  return normalized;
+  // Datas calendário (YYYY-MM-DD) são armazenadas no DB como UTC midnight via
+  // `new Date('YYYY-MM-DD')`. Normalizar via setHours/getDay locais shifta o
+  // calendar day em fusos negativos (em BRT, BACEN-segunda → key local-domingo,
+  // que é filtrada como fim-de-semana → ~1 dia de CDI perdido por semana →
+  // CDB 100% CDI rende ~10% abaixo do CDI real em 3 anos). Ancorar em UTC
+  // mantém o alinhamento entre timeline e map de índices independente do fuso.
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 };
 
 export const buildDailyTimeline = (startDate: Date, endDate: Date) => {
@@ -48,7 +52,7 @@ export const buildDailyTimeline = (startDate: Date, endDate: Date) => {
 
   for (let day = start; day <= end; day += DAY_MS) {
     const d = new Date(day);
-    const dow = d.getDay();
+    const dow = d.getUTCDay();
     // Skip weekends — B3 and most markets are closed Sat/Sun.
     // Holidays are not filtered (prices just carry forward), which is fine
     // since no trades happen and portfolio value stays flat.
@@ -147,7 +151,7 @@ const BUSINESS_DAYS_PER_YEAR = 252;
 
 const monthKeyOf = (ts: number): string => {
   const d = new Date(ts);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 };
 
 /**

@@ -41,36 +41,40 @@ beforeEach(() => {
 /* ================================================================== */
 
 describe('normalizeDateStart', () => {
-  it('normaliza para meia-noite', () => {
-    const date = new Date(2025, 5, 15, 14, 30, 45, 123);
+  // Pós-fix de TZ: a função ancora datas em UTC midnight (calendar day UTC) para
+  // evitar que servidores em fuso negativo (BRT) shiftem o calendar day. Os tests
+  // usam getUTC* accessors para validar o comportamento independente do fuso.
+
+  it('normaliza para meia-noite UTC', () => {
+    const date = new Date(Date.UTC(2025, 5, 15, 14, 30, 45, 123));
     const result = normalizeDateStart(date);
-    expect(result.getHours()).toBe(0);
-    expect(result.getMinutes()).toBe(0);
-    expect(result.getSeconds()).toBe(0);
-    expect(result.getMilliseconds()).toBe(0);
+    expect(result.getUTCHours()).toBe(0);
+    expect(result.getUTCMinutes()).toBe(0);
+    expect(result.getUTCSeconds()).toBe(0);
+    expect(result.getUTCMilliseconds()).toBe(0);
   });
 
-  it('preserva ano, mes e dia', () => {
-    const date = new Date(2025, 11, 31, 23, 59, 59);
+  it('preserva ano, mes e dia (em UTC)', () => {
+    const date = new Date(Date.UTC(2025, 11, 31, 23, 59, 59));
     const result = normalizeDateStart(date);
-    expect(result.getFullYear()).toBe(2025);
-    expect(result.getMonth()).toBe(11);
-    expect(result.getDate()).toBe(31);
+    expect(result.getUTCFullYear()).toBe(2025);
+    expect(result.getUTCMonth()).toBe(11);
+    expect(result.getUTCDate()).toBe(31);
   });
 
   it('nao modifica a data original', () => {
-    const date = new Date(2025, 0, 1, 12, 0, 0);
+    const date = new Date(Date.UTC(2025, 0, 1, 12, 0, 0));
     const originalTime = date.getTime();
     normalizeDateStart(date);
     expect(date.getTime()).toBe(originalTime);
   });
 
-  it('funciona com datas de borda (1 de janeiro)', () => {
-    const date = new Date(2025, 0, 1, 0, 0, 0, 0);
+  it('funciona com datas de borda (1 de janeiro UTC)', () => {
+    const date = new Date(Date.UTC(2025, 0, 1, 0, 0, 0, 0));
     const result = normalizeDateStart(date);
-    expect(result.getFullYear()).toBe(2025);
-    expect(result.getMonth()).toBe(0);
-    expect(result.getDate()).toBe(1);
+    expect(result.getUTCFullYear()).toBe(2025);
+    expect(result.getUTCMonth()).toBe(0);
+    expect(result.getUTCDate()).toBe(1);
     expect(result.getTime()).toBe(date.getTime());
   });
 });
@@ -81,51 +85,51 @@ describe('normalizeDateStart', () => {
 
 describe('buildDailyTimeline', () => {
   it('retorna um unico dia quando start == end', () => {
-    const d = new Date(2025, 0, 10);
+    const d = new Date(Date.UTC(2025, 0, 10));
     const timeline = buildDailyTimeline(d, d);
     expect(timeline).toHaveLength(1);
     expect(timeline[0]).toBe(normalizeDateStart(d).getTime());
   });
 
   it('retorna dias consecutivos para intervalo multi-dia (sem fins de semana)', () => {
-    // Jan 1 (Wed) through Jan 5 (Sun) 2025 → Wed, Thu, Fri = 3 weekdays
-    const start = new Date(2025, 0, 1);
-    const end = new Date(2025, 0, 5);
+    // Jan 1 (Wed UTC) through Jan 5 (Sun UTC) 2025 → Wed, Thu, Fri = 3 weekdays
+    const start = new Date(Date.UTC(2025, 0, 1));
+    const end = new Date(Date.UTC(2025, 0, 5));
     const timeline = buildDailyTimeline(start, end);
     expect(timeline).toHaveLength(3);
     expect(timeline[1] - timeline[0]).toBe(DAY_MS);
   });
 
   it('retorna array vazio quando start > end', () => {
-    const start = new Date(2025, 0, 10);
-    const end = new Date(2025, 0, 5);
+    const start = new Date(Date.UTC(2025, 0, 10));
+    const end = new Date(Date.UTC(2025, 0, 5));
     const timeline = buildDailyTimeline(start, end);
     expect(timeline).toHaveLength(0);
   });
 
   it('normaliza horas no start e end', () => {
-    const start = new Date(2025, 0, 1, 15, 30);
-    const end = new Date(2025, 0, 3, 8, 0);
+    const start = new Date(Date.UTC(2025, 0, 1, 15, 30));
+    const end = new Date(Date.UTC(2025, 0, 3, 8, 0));
     const timeline = buildDailyTimeline(start, end);
     expect(timeline).toHaveLength(3);
-    // All should be at midnight
+    // All should be at UTC midnight
     timeline.forEach((t) => {
       const d = new Date(t);
-      expect(d.getHours()).toBe(0);
+      expect(d.getUTCHours()).toBe(0);
     });
   });
 
   it('funciona com intervalo de 30 dias (exclui fins de semana)', () => {
     // Jan 2025 has 23 weekdays (31 days - 4 Sat - 4 Sun)
-    const start = new Date(2025, 0, 1);
-    const end = new Date(2025, 0, 31);
+    const start = new Date(Date.UTC(2025, 0, 1));
+    const end = new Date(Date.UTC(2025, 0, 31));
     const timeline = buildDailyTimeline(start, end);
     expect(timeline).toHaveLength(23);
-    // Verify no weekends
+    // Verify no weekends (UTC weekday)
     timeline.forEach((t) => {
       const d = new Date(t);
-      expect(d.getDay()).not.toBe(0); // not Sunday
-      expect(d.getDay()).not.toBe(6); // not Saturday
+      expect(d.getUTCDay()).not.toBe(0); // not Sunday
+      expect(d.getUTCDay()).not.toBe(6); // not Saturday
     });
   });
 });
@@ -478,7 +482,7 @@ describe('buildPatrimonioHistorico', () => {
   });
 
   it('constroi timeline a partir da transacao mais antiga', async () => {
-    const txDate = new Date(2025, 0, 15);
+    const txDate = new Date(Date.UTC(2025, 0, 15));
     const _hoje = normalizeDateStart(new Date());
 
     const tx = {
@@ -506,15 +510,15 @@ describe('buildPatrimonioHistorico', () => {
     });
 
     expect(result.historicoPatrimonio.length).toBeGreaterThanOrEqual(3);
-    // First day should be on or after tx date
+    // First day should be on or after tx date (UTC calendar day)
     const firstDay = new Date(result.historicoPatrimonio[0].data);
-    expect(firstDay.getDate()).toBe(15);
-    expect(firstDay.getMonth()).toBe(0);
+    expect(firstDay.getUTCDate()).toBe(15);
+    expect(firstDay.getUTCMonth()).toBe(0);
   });
 
   it('aplica maxHistoricoMonths para limitar inicio da timeline', async () => {
-    const txDate = new Date(2020, 0, 1); // 5+ years ago
-    const endDate = new Date(2025, 0, 31);
+    const txDate = new Date(Date.UTC(2020, 0, 1)); // 5+ years ago
+    const endDate = new Date(Date.UTC(2025, 0, 31));
 
     const tx = {
       id: 'tx-1',
@@ -543,8 +547,8 @@ describe('buildPatrimonioHistorico', () => {
 
     // With maxHistoricoMonths=3 and endDate=Jan 2025, start should be ~Oct 2024
     const firstDay = new Date(result.historicoPatrimonio[0].data);
-    expect(firstDay.getFullYear()).toBeGreaterThanOrEqual(2024);
-    expect(firstDay.getMonth()).toBeGreaterThanOrEqual(9); // October or later
+    expect(firstDay.getUTCFullYear()).toBeGreaterThanOrEqual(2024);
+    expect(firstDay.getUTCMonth()).toBeGreaterThanOrEqual(9); // October or later
   });
 
   it('patchLastDayWithLiveTotals atualiza ultimo ponto', async () => {
