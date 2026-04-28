@@ -5,6 +5,10 @@ import { getAssetPrices, getAssetHistory } from '@/services/pricing/assetPriceSe
 import { getDividends } from '@/services/pricing/dividendService';
 import { getFundamentals } from '@/services/pricing/fundamentalsService';
 import {
+  extractMonthlyCloses,
+  monthlyReturnsFromCloses,
+} from '@/services/analises/sensibilidadeCarteira';
+import {
   buildDailyTimeline as buildBusinessDayTimeline,
   buildFixedIncomeFactorSeries,
   normalizeDateStart as normalizeDateStartShared,
@@ -502,6 +506,12 @@ export const GET = withErrorHandler(
     let historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }> =
       [];
     let historicoTWR: Array<{ date: number; value: number }> = [];
+    let riskAndReturn: {
+      sharpe: number;
+      volatilidade: number;
+      retornoAnual: number;
+      retornoCDI: number;
+    } | null = null;
 
     if (isManual && portfolio.quantity > 0) {
       const dayTimeline = buildDailyTimeline(effectiveStart, hoje);
@@ -578,6 +588,67 @@ export const GET = withErrorHandler(
         date: h.data,
         value: h.value,
       }));
+
+      // Risk & return do ativo individual (sharpe, vol anualizada ×√252, retorno anualizado,
+      // CDI no mesmo período). Espelha o `riskAndReturn` que o Kinvo expõe em
+      // /ProductAnalysis/GetPeriodicProductProfitability/{id}/4.
+      //
+      // Usa janela fixa de 24m a partir de hoje (independente da data da primeira compra do
+      // usuário) para que o cálculo seja sobre o desempenho do ATIVO, não da posição.
+      const riskWindowStart = new Date(hoje.getFullYear(), hoje.getMonth() - 24, 1);
+      const riskHistory = await fetchAssetHistoryFromDb(ticker, riskWindowStart);
+      if (riskHistory.length >= 30) {
+        const monthlyCloses = extractMonthlyCloses(riskHistory);
+        const monthlyReturnsMap = monthlyReturnsFromCloses(monthlyCloses);
+        const monthlyReturns = Array.from(monthlyReturnsMap.values());
+        const dailyReturns: number[] = [];
+        for (let i = 1; i < riskHistory.length; i++) {
+          const prev = riskHistory[i - 1].value;
+          const curr = riskHistory[i].value;
+          if (prev > 0 && curr > 0) dailyReturns.push(curr / prev - 1);
+        }
+        if (monthlyReturns.length >= 2 && dailyReturns.length >= 2) {
+          // Retorno anualizado: composição geométrica dos retornos mensais.
+          const produto = monthlyReturns.reduce((acc, r) => acc * (1 + r), 1);
+          const meses = monthlyReturns.length;
+          const retornoAnual =
+            meses >= 12 ? (produto ** (12 / meses) - 1) * 100 : (produto - 1) * 100;
+
+          // Vol anualizada com √252 (convenção de mercado).
+          const mediaD = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
+          const varD =
+            dailyReturns.reduce((s, r) => s + (r - mediaD) ** 2, 0) / (dailyReturns.length - 1);
+          const volatilidade = Math.sqrt(varD) * Math.sqrt(252) * 100;
+
+          // CDI alinhado aos mesmos meses do retorno do ativo.
+          const monthsKeys = Array.from(monthlyReturnsMap.keys()).sort();
+          if (monthsKeys.length > 0) {
+            const oldestMonth = monthsKeys[0];
+            const [oldYear, oldMonth] = oldestMonth.split('-').map(Number);
+            const cdiStart = new Date(oldYear, oldMonth - 1, 1);
+            const cdiRecords = await prisma.economicIndex.findMany({
+              where: { indexType: 'CDI', date: { gte: cdiStart } },
+              orderBy: { date: 'asc' },
+            });
+            const cdiByMonth = new Map<string, number>();
+            for (const r of cdiRecords) {
+              const key = `${r.date.getFullYear()}-${String(r.date.getMonth() + 1).padStart(2, '0')}`;
+              cdiByMonth.set(key, (cdiByMonth.get(key) ?? 1) * (1 + Number(r.value)));
+            }
+            const cdiProduto = monthsKeys.reduce((acc, k) => acc * (cdiByMonth.get(k) ?? 1), 1);
+            const retornoCDI =
+              meses >= 12 ? (cdiProduto ** (12 / meses) - 1) * 100 : (cdiProduto - 1) * 100;
+            const sharpe = volatilidade > 0 ? (retornoAnual - retornoCDI) / volatilidade : 0;
+            const round = (n: number) => Math.round(n * 100) / 100;
+            riskAndReturn = {
+              sharpe: round(sharpe),
+              volatilidade: round(volatilidade),
+              retornoAnual: round(retornoAnual),
+              retornoCDI: round(retornoCDI),
+            };
+          }
+        }
+      }
     }
 
     return NextResponse.json({
@@ -605,6 +676,7 @@ export const GET = withErrorHandler(
         dividendYield:
           fundamentals.dividendYield !== null ? `${fundamentals.dividendYield.toFixed(2)}%` : '—',
       },
+      riskAndReturn,
     });
   },
 );
