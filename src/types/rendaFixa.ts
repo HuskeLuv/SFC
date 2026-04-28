@@ -4,6 +4,17 @@ import { BaseFundAtivo, BaseSecao, BaseResumo, BaseFundTotalGeral } from './base
 
 export type TipoRendaFixa = 'pos-fixada' | 'prefixada' | 'hibrida';
 
+export interface RendaFixaIRProjection {
+  isento: boolean;
+  motivoIsencao: string | null;
+  category: 'isento' | 'tabela_regressiva';
+  diasDecorridos: number;
+  aliquota: number;
+  rendimentoBruto: number;
+  ir: number;
+  valorLiquido: number;
+}
+
 export interface RendaFixaAtivo extends BaseFundAtivo {
   percentualRentabilidade: number;
   cotizacaoResgate: string; // Ex: "D+0", "D+1", "D+30"
@@ -12,6 +23,8 @@ export interface RendaFixaAtivo extends BaseFundAtivo {
   benchmark: string; // Ex: "CDI", "IPCA + Spread"
   tipo: TipoRendaFixa;
   isAutoUpdated?: boolean; // true para Tesouro Direto sincronizado (PU oficial)
+  /** IR projetado se resgatar hoje. Calculado pelo serviço fixedIncomeIR. */
+  ir?: RendaFixaIRProjection;
 }
 
 export interface RendaFixaSecao extends BaseSecao<RendaFixaAtivo> {

@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
+import { calcularIRRendaFixa } from '@/services/ir/fixedIncomeIR';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -162,6 +163,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const isPosFixada = fixedIncome.indexer === 'CDI' || fixedIncome.indexer === 'IPCA';
       const tipo = isHibrido ? 'hibrida' : isPosFixada ? 'pos-fixada' : 'prefixada';
 
+      // IR projetado se resgatar hoje. Tesouro identifica-se pelo bondType setado
+      // pelo /operacao quando o ativo veio do catálogo Tesouro.
+      const isTesouro = Boolean(fixedIncome.tesouroBondType) || isTesouroAutoPriced;
+      const ir = calcularIRRendaFixa({
+        type: fixedIncome.type,
+        isTesouro,
+        startDate: new Date(fixedIncome.startDate),
+        valorAplicado: valorInicial,
+        saldoBruto: valorAtualizado,
+      });
+
       return {
         id: item.id,
         nome: fixedIncome.description || item.asset?.name || 'Renda Fixa',
@@ -180,6 +192,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         observacoes: metadata.observacoes,
         tipo,
         isAutoUpdated,
+        ir,
       };
     })
     .filter((ativo): ativo is NonNullable<typeof ativo> => Boolean(ativo));

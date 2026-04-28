@@ -8,6 +8,7 @@ import {
   extractMonthlyCloses,
   monthlyReturnsFromCloses,
 } from '@/services/analises/sensibilidadeCarteira';
+import { calcularIRRendaFixa } from '@/services/ir/fixedIncomeIR';
 import {
   buildDailyTimeline as buildBusinessDayTimeline,
   buildFixedIncomeFactorSeries,
@@ -290,6 +291,15 @@ const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedInco
   const resultado = round2(saldoBruto - valorAplicado);
   const rentabilidade = valorAplicado > 0 ? (resultado / valorAplicado) * 100 : 0;
 
+  // IR projetado se resgatar hoje (tabela regressiva ou isenção PF para LCI/LCA/CRI/CRA/LIG).
+  const ir = calcularIRRendaFixa({
+    type: fi.type,
+    isTesouro: Boolean(fi.tesouroBondType),
+    startDate: fi.startDate,
+    valorAplicado,
+    saldoBruto,
+  });
+
   return NextResponse.json({
     ativo: {
       nome: portfolio.asset?.name || fi.description,
@@ -339,6 +349,7 @@ const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedInco
       beta: '—',
       dividendYield: '—',
     },
+    ir,
     isFixedIncome: true,
   });
 };
