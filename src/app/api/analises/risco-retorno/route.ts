@@ -10,8 +10,13 @@ import {
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTotals';
 import { getAssetHistory, isNonMarketSymbol } from '@/services/pricing/assetPriceService';
-import { computeBeta } from '@/services/analises/sensibilidadeCarteira';
+import {
+  computeBeta,
+  extractMonthlyCloses,
+  monthlyReturnsFromCloses,
+} from '@/services/analises/sensibilidadeCarteira';
 
 /** Janela para cálculo de beta: 24 meses, mesma usada em sensibilidade-carteira. */
 const BETA_WINDOW_MONTHS = 24;
@@ -42,6 +47,14 @@ interface SensibilidadeItem {
   ticker: string;
   nome: string;
   beta: number;
+  /** Retorno anualizado do ativo na janela de beta (24m). Undefined quando histórico insuficiente. */
+  retornoAnual?: number;
+  /** CDI no mesmo período do retorno do ativo. */
+  retornoCDI?: number;
+  /** Volatilidade anualizada (×√252) dos retornos diários do ativo. */
+  volatilidade?: number;
+  /** Sharpe = (retornoAnual - retornoCDI) / volatilidade. */
+  sharpe?: number;
 }
 
 interface RiscoRetornoResponse {
@@ -86,14 +99,33 @@ function calcularRetornosMensaisTWR(
 }
 
 /**
- * Calcula volatilidade anualizada (desvio padrão dos retornos mensais × √12).
+ * Extrai retornos diários a partir do TWR acumulado, mantendo a data para filtragem por ano.
  */
-function calcularVolatilidade(retornosMensais: number[]): number {
-  if (retornosMensais.length < 2) return 0;
-  const media = retornosMensais.reduce((a, b) => a + b, 0) / retornosMensais.length;
-  const variancia =
-    retornosMensais.reduce((sum, r) => sum + (r - media) ** 2, 0) / (retornosMensais.length - 1);
-  return Math.sqrt(variancia) * Math.sqrt(12);
+function calcularRetornosDiariosTWR(
+  historicoTWR: Array<{ data: number; value: number }>,
+): Array<{ data: number; retorno: number }> {
+  const retornos: Array<{ data: number; retorno: number }> = [];
+  for (let i = 1; i < historicoTWR.length; i++) {
+    const twrAnterior = 1 + historicoTWR[i - 1].value / 100;
+    const twrAtual = 1 + historicoTWR[i].value / 100;
+    if (twrAnterior > 0) {
+      retornos.push({ data: historicoTWR[i].data, retorno: twrAtual / twrAnterior - 1 });
+    }
+  }
+  return retornos;
+}
+
+/**
+ * Volatilidade anualizada — desvio padrão amostral × √(observações por ano).
+ * Para retornos diários (~252 dias úteis/ano) o multiplicador é √252; para mensais, √12.
+ * Usar diários produz valores mais alinhados com o padrão de mercado (Kinvo, B3, etc.),
+ * pois retornos mensais inflam a vol amostral em janelas curtas.
+ */
+function calcularVolatilidade(retornos: number[], obsPorAno: number): number {
+  if (retornos.length < 2) return 0;
+  const media = retornos.reduce((a, b) => a + b, 0) / retornos.length;
+  const variancia = retornos.reduce((sum, r) => sum + (r - media) ** 2, 0) / (retornos.length - 1);
+  return Math.sqrt(variancia) * Math.sqrt(obsPorAno);
 }
 
 /**
@@ -113,10 +145,17 @@ function calcularRetorno(retornosMensais: number[]): number {
 
 /**
  * Calcula métricas de risco x retorno.
+ * - Retorno e CDI usam retornos mensais (composição geométrica → anualização suave).
+ * - Volatilidade usa retornos diários (×√252) — convenção de mercado, evita inflar a
+ *   dispersão por causa da granularidade mensal.
  */
-function calcularMetricas(retornosMensais: number[], cdiPeriodo: number): RiscoRetornoMetrics {
+function calcularMetricas(
+  retornosMensais: number[],
+  retornosDiarios: number[],
+  cdiPeriodo: number,
+): RiscoRetornoMetrics {
   const retornoAnual = calcularRetorno(retornosMensais);
-  const volatilidade = calcularVolatilidade(retornosMensais) * 100;
+  const volatilidade = calcularVolatilidade(retornosDiarios, 252) * 100;
   const sharpe = volatilidade > 0 ? (retornoAnual - cdiPeriodo) / volatilidade : 0;
 
   return {
@@ -139,6 +178,45 @@ function calcularCdiPeriodo(
   if (filtered.length === 0) return 0;
   const acumulado = filtered.reduce((acc, r) => acc * (1 + Number(r.value)), 1);
   return (acumulado - 1) * 100;
+}
+
+/**
+ * Constrói o fator mensal acumulado do CDI a partir das taxas diárias.
+ * Map de 'YYYY-MM' → ∏(1 + cdi_dia) do mês.
+ */
+function buildCdiFatorMensal(
+  cdiRecords: Array<{ date: Date; value: unknown }>,
+): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const r of cdiRecords) {
+    const d = r.date;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const prev = result.get(key) ?? 1;
+    result.set(key, prev * (1 + Number(r.value)));
+  }
+  return result;
+}
+
+/**
+ * CDI acumulado para os mesmos meses cobertos pelos retornos da carteira, com a mesma
+ * regra de anualização do `calcularRetorno`. Garante que o Sharpe compare períodos iguais
+ * (ex.: carteira de 6 meses → CDI dos mesmos 6 meses, sem anualizar).
+ */
+function calcularCdiCarteira(
+  retornosMensais: Array<{ year: number; month: number }>,
+  cdiFatorMensal: Map<string, number>,
+): number {
+  if (retornosMensais.length === 0) return 0;
+  const product = retornosMensais.reduce((acc, r) => {
+    const key = `${r.year}-${String(r.month).padStart(2, '0')}`;
+    const factor = cdiFatorMensal.get(key) ?? 1;
+    return acc * factor;
+  }, 1);
+  const meses = retornosMensais.length;
+  if (meses >= 12) {
+    return (product ** (12 / meses) - 1) * 100;
+  }
+  return (product - 1) * 100;
 }
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -194,18 +272,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const allInvestments = investmentGroups.flatMap((g) => g.items || []);
   const cashflowInvestments = filterInvestmentsExclReservas(allInvestments);
 
-  // Calcula saldo bruto e valor aplicado atuais
-  let saldoBruto = 0;
-  let valorAplicado = 0;
-  for (const item of portfolio) {
-    saldoBruto += item.quantity * item.avgPrice;
-    valorAplicado += item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
-  }
-
   // Pricer compartilhado: marcação na curva (CDI/IPCA/Tesouro PU) para FI no histórico.
   // Reusa fixedIncomeAssets já carregado pra evitar query duplicada.
   const fiPricer = await createFixedIncomePricer(targetUserId, {
     preloadedAssets: fixedIncomeAssets as unknown as FixedIncomeAssetWithAsset[],
+  });
+
+  // Saldo bruto = valor de mercado real (cotações + FI marcado na curva). Usar
+  // `quantity * avgPrice` aqui combinado com `patchLastDayWithLiveTotals` cravava o último
+  // dia em custo de aquisição, criando um penhasco artificial e inflando volatilidade.
+  const { saldoBruto, valorAplicado } = await computePortfolioLiveTotals({
+    portfolio,
+    fixedIncomeAssets: fixedIncomeAssets as unknown as FixedIncomeAssetWithAsset[],
+    investmentsExclReservas: cashflowInvestments,
+    fiPricer,
   });
 
   // Constrói histórico de patrimônio com TWR (até 36 meses)
@@ -233,23 +313,22 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     orderBy: { date: 'asc' },
   });
 
-  // CDI anualizado (últimos 12 meses)
-  const umAnoAtras = new Date();
-  umAnoAtras.setFullYear(umAnoAtras.getFullYear() - 1);
-  let cdiAnual = 13.15; // fallback SELIC atual
-  const cdiUltimoAno = cdiRecords.filter((r) => r.date >= umAnoAtras);
-  if (cdiUltimoAno.length > 0) {
-    const acumulado = cdiUltimoAno.reduce((acc, r) => acc * (1 + Number(r.value)), 1);
-    const diasUteis = cdiUltimoAno.length;
-    cdiAnual = (acumulado ** (252 / diasUteis) - 1) * 100;
-  }
+  // Fator mensal do CDI: alimenta tanto a carteira (período = retornos disponíveis) quanto
+  // os anos isolados, sempre comparando exatamente os mesmos meses do retorno do investidor.
+  const cdiFatorMensal = buildCdiFatorMensal(cdiRecords);
 
-  // Calcula retornos mensais a partir do TWR (desconsidera aportes/resgates)
+  // Calcula retornos mensais (retorno + CDI) e diários (volatilidade) a partir do TWR.
   const retornosMensais = calcularRetornosMensaisTWR(built.historicoTWR);
+  const retornosDiarios = calcularRetornosDiariosTWR(built.historicoTWR);
 
-  // Métricas gerais (carteira — todos os meses disponíveis)
-  const todosRetornos = retornosMensais.map((r) => r.retorno);
-  const carteira = calcularMetricas(todosRetornos, cdiAnual);
+  // Métricas gerais (carteira — todos os meses disponíveis). CDI alinhado ao mesmo período
+  // dos retornos: para 6 meses, comparamos contra CDI de 6 meses; para >=12, anualizamos
+  // ambos. O cdi 12m anualizado anterior superestimava a referência em períodos curtos e
+  // distorcia o índice Sharpe.
+  const todosRetornosMensais = retornosMensais.map((r) => r.retorno);
+  const todosRetornosDiarios = retornosDiarios.map((r) => r.retorno);
+  const cdiCarteira = calcularCdiCarteira(retornosMensais, cdiFatorMensal);
+  const carteira = calcularMetricas(todosRetornosMensais, todosRetornosDiarios, cdiCarteira);
 
   // Métricas por ano
   const anosSet = new Set(retornosMensais.map((r) => r.year));
@@ -259,14 +338,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const anual: Record<number, RiscoRetornoMetrics> = {};
   for (const ano of anosDisponiveis) {
-    const retornosDoAno = retornosMensais.filter((r) => r.year === ano).map((r) => r.retorno);
+    const retornosMesDoAno = retornosMensais.filter((r) => r.year === ano).map((r) => r.retorno);
+    const retornosDiaDoAno = retornosDiarios
+      .filter((r) => new Date(r.data).getFullYear() === ano)
+      .map((r) => r.retorno);
 
     // CDI real acumulado do ano (jan 1 até dez 31 ou hoje)
     const inicioAno = new Date(ano, 0, 1);
     const fimAno = ano === anoAtual ? new Date() : new Date(ano, 11, 31);
     const cdiDoAno = calcularCdiPeriodo(cdiRecords, inicioAno, fimAno);
 
-    anual[ano] = calcularMetricas(retornosDoAno, cdiDoAno);
+    anual[ano] = calcularMetricas(retornosMesDoAno, retornosDiaDoAno, cdiDoAno);
   }
 
   // Sensibilidade ao mercado (beta) — calculado localmente vs. IBOVESPA.
@@ -287,16 +369,61 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const ibovHistory = await getAssetHistory(IBOV_SYMBOL, betaStartDate, betaEndDate);
 
   const betaBySymbol = new Map<string, number>();
+  // Métricas por ativo (sharpe, vol, retornos) reaproveitando o histórico já carregado
+  // pra beta. Evita uma segunda rodada de getAssetHistory; útil pra ranking de risco/retorno
+  // por posição (ex.: "qual ativo tem o melhor sharpe").
+  const metricsBySymbol = new Map<
+    string,
+    Pick<SensibilidadeItem, 'retornoAnual' | 'retornoCDI' | 'volatilidade' | 'sharpe'>
+  >();
   if (ibovHistory.length > 0) {
     const entries = await Promise.all(
       marketSymbols.map(async (symbol) => {
         const assetHistory = await getAssetHistory(symbol, betaStartDate, betaEndDate);
         const beta = computeBeta(assetHistory, ibovHistory);
-        return { symbol, beta };
+        return { symbol, beta, assetHistory };
       }),
     );
-    for (const { symbol, beta } of entries) {
+    for (const { symbol, beta, assetHistory } of entries) {
       if (beta !== null) betaBySymbol.set(symbol, beta);
+
+      // Sharpe/vol/retorno por ativo: derivados do mesmo histórico de preços usado
+      // pra beta. Só calcula quando há pelo menos 2 retornos mensais (3 fechamentos).
+      if (assetHistory.length < 30) continue;
+      const monthlyCloses = extractMonthlyCloses(assetHistory);
+      const monthlyReturns = monthlyReturnsFromCloses(monthlyCloses);
+      if (monthlyReturns.size < 2) continue;
+      const retornosMensaisAtivo = Array.from(monthlyReturns.values());
+
+      // Retornos diários: razão entre fechamentos consecutivos.
+      const dailyReturns: number[] = [];
+      for (let i = 1; i < assetHistory.length; i++) {
+        const prev = assetHistory[i - 1].value;
+        const curr = assetHistory[i].value;
+        if (prev > 0 && curr > 0) dailyReturns.push(curr / prev - 1);
+      }
+      if (dailyReturns.length < 2) continue;
+
+      // CDI alinhado aos meses do retorno do ativo (mesma regra que aplicamos pra carteira).
+      const monthsAtivo = Array.from(monthlyReturns.keys()).sort();
+      const cdiPorAtivo = (() => {
+        if (monthsAtivo.length === 0) return 0;
+        const product = monthsAtivo.reduce((acc, key) => {
+          const factor = cdiFatorMensal.get(key) ?? 1;
+          return acc * factor;
+        }, 1);
+        const meses = monthsAtivo.length;
+        if (meses >= 12) return (product ** (12 / meses) - 1) * 100;
+        return (product - 1) * 100;
+      })();
+
+      const m = calcularMetricas(retornosMensaisAtivo, dailyReturns, cdiPorAtivo);
+      metricsBySymbol.set(symbol, {
+        retornoAnual: m.retornoAnual,
+        retornoCDI: m.retornoCDI,
+        volatilidade: m.volatilidade,
+        sharpe: m.sharpe,
+      });
     }
   }
 
@@ -310,6 +437,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         ticker,
         nome: item.asset?.name || item.stock?.companyName || ticker,
         beta,
+        ...metricsBySymbol.get(ticker),
       };
     })
     .filter((item): item is SensibilidadeItem => item !== null)

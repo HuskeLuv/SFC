@@ -12,6 +12,10 @@ interface SensibilidadeItem {
   ticker: string;
   nome: string;
   beta: number;
+  retornoAnual?: number;
+  retornoCDI?: number;
+  volatilidade?: number;
+  sharpe?: number;
 }
 
 export interface RiscoRetornoResponse {
