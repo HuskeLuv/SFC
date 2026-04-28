@@ -22,12 +22,16 @@ export interface GroupedProventoData {
   currentValue?: number;
   dividendYield?: number;
   yoc?: number;
+  yocLifetime?: number;
+  lifetimeProventos?: number;
+  proceedsPercentage?: number;
   // Enriquecimento para exibição tipo Kinvo (somente quando groupBy === 'ativo')
   classe?: string;
   quantidadeAtual?: number;
   precoMedio?: number;
   cotacaoAtual?: number;
   ultimoProvento?: number;
+  ultimoProventoTotal?: number;
   magicNumber?: number;
 }
 
@@ -39,18 +43,18 @@ export interface SummaryBucket {
 export interface ProventosKpis {
   totalInvestido: number;
   aportesUlt12m: number;
-  rendaAcumulada: { periodo: number; ult12m: number };
+  rendaAcumulada: { periodo: number; ult12m: number; lifetime: number };
   mediaMensal: { periodo: number; ult12m: number };
-  yoc: { periodo: number; ult12m: number };
+  yoc: { periodo: number; ult12m: number; lifetime: number };
   aReceber: { futuro: number; esseMes: number };
 }
 
 const emptyKpis: ProventosKpis = {
   totalInvestido: 0,
   aportesUlt12m: 0,
-  rendaAcumulada: { periodo: 0, ult12m: 0 },
+  rendaAcumulada: { periodo: 0, ult12m: 0, lifetime: 0 },
   mediaMensal: { periodo: 0, ult12m: 0 },
-  yoc: { periodo: 0, ult12m: 0 },
+  yoc: { periodo: 0, ult12m: 0, lifetime: 0 },
   aReceber: { futuro: 0, esseMes: 0 },
 };
 

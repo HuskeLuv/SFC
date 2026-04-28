@@ -332,4 +332,146 @@ describe('GET /api/analises/proventos', () => {
     expect(response.status).toBe(401);
     expect(data.error).toContain('Não autorizado');
   });
+
+  it('expoe yocLifetime, lifetimeProventos e ultimoProventoTotal por ativo', async () => {
+    const now = new Date();
+    const oldDividend = new Date(now.getTime() - 500 * 86400000);
+    const recentDividend = new Date(now.getTime() - 60 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 1000,
+        avgPrice: 10,
+        lastUpdate: new Date(now.getTime() - 600 * 86400000),
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 10,
+        total: 1000,
+        date: new Date(now.getTime() - 600 * 86400000),
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { ticker: 'PETR4' },
+        asset: null,
+      },
+    ]);
+    mockGetDividends.mockResolvedValue([
+      { date: oldDividend, tipo: 'Dividendo', valorUnitario: 5 }, // 500 (lifetime mas fora de 12m)
+      { date: recentDividend, tipo: 'Dividendo', valorUnitario: 1 }, // 100 (12m e lifetime)
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 20]]));
+
+    const startDate = new Date(now.getTime() - 1000 * 86400000).toISOString();
+    const response = await GET(createRequest({ startDate, endDate: now.toISOString() }));
+    const data = await response.json();
+
+    const grouped = data.grouped.Petrobras;
+    expect(grouped).toBeDefined();
+    // yocLifetime considera todo o histórico, não só últimos 12m
+    expect(grouped.yocLifetime).toBeCloseTo(60, 1); // 600 / 1000 * 100
+    expect(grouped.lifetimeProventos).toBe(600);
+    expect(grouped.ultimoProventoTotal).toBe(100); // última distribuição em $
+    expect(grouped.proceedsPercentage).toBe(100); // único ativo
+
+    expect(data.kpis.rendaAcumulada.lifetime).toBe(600);
+    expect(data.kpis.yoc.lifetime).toBeCloseTo(60, 1);
+  });
+
+  it('proceedsPercentage soma 100% quando há mais de um ativo', async () => {
+    const now = new Date();
+    const txDate = new Date(now.getTime() - 30 * 86400000);
+    const dividendDate = new Date(now.getTime() - 10 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: txDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+      {
+        id: 'p2',
+        userId: 'user-123',
+        quantity: 50,
+        totalInvested: 2000,
+        avgPrice: 40,
+        lastUpdate: txDate,
+        stockId: 'stock-2',
+        assetId: null,
+        stock: { id: 'stock-2', ticker: 'ITUB4', companyName: 'Itau' },
+        asset: null,
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: txDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { ticker: 'PETR4' },
+        asset: null,
+      },
+      {
+        id: 'tx-2',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 50,
+        price: 40,
+        total: 2000,
+        date: txDate,
+        stockId: 'stock-2',
+        assetId: null,
+        stock: { ticker: 'ITUB4' },
+        asset: null,
+      },
+    ]);
+    // PETR4: 100 cotas × 0.75 = 75; ITUB4: 50 cotas × 0.5 = 25 → total 100
+    mockGetDividends.mockImplementation(async (symbol: string) => {
+      if (symbol === 'PETR4')
+        return [{ date: dividendDate, tipo: 'Dividendo', valorUnitario: 0.75 }];
+      if (symbol === 'ITUB4')
+        return [{ date: dividendDate, tipo: 'Dividendo', valorUnitario: 0.5 }];
+      return [];
+    });
+    mockGetAssetPrices.mockResolvedValue(
+      new Map([
+        ['PETR4', 35],
+        ['ITUB4', 45],
+      ]),
+    );
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(data.kpis.rendaAcumulada.periodo).toBe(100);
+    const sum =
+      (data.grouped.Petrobras?.proceedsPercentage ?? 0) +
+      (data.grouped.Itau?.proceedsPercentage ?? 0);
+    expect(sum).toBeCloseTo(100, 1);
+    expect(data.grouped.Petrobras?.proceedsPercentage).toBeCloseTo(75, 1);
+    expect(data.grouped.Itau?.proceedsPercentage).toBeCloseTo(25, 1);
+  });
 });

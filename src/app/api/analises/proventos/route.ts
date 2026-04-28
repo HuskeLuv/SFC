@@ -361,22 +361,35 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Janela trailing-12m por símbolo — usado para YoC/DY por ativo (convenção do
   // mercado), independente do filtro que o usuário aplicou na página. Aplica as
   // mesmas regras do feed principal (data de compra e quantidade histórica).
+  // lifetimeBySymbol agrega o histórico completo (desde a primeira compra),
+  // alimenta yocLifetime e lastProceedsReceived por ativo.
   const doze_m_ms_row = hojeMs - 365 * 24 * 60 * 60 * 1000;
   const ult12mBySymbol = new Map<string, number>();
+  const lifetimeBySymbol = new Map<string, number>();
+  const lastProceedsBySymbol = new Map<string, { date: number; total: number }>();
   const addUlt12m = (symbol: string, valor: number) => {
     ult12mBySymbol.set(symbol, (ult12mBySymbol.get(symbol) || 0) + valor);
+  };
+  const addLifetime = (symbol: string, valor: number, dateTime: number) => {
+    lifetimeBySymbol.set(symbol, (lifetimeBySymbol.get(symbol) || 0) + valor);
+    const prev = lastProceedsBySymbol.get(symbol);
+    if (!prev || dateTime > prev.date) {
+      lastProceedsBySymbol.set(symbol, { date: dateTime, total: valor });
+    }
   };
   for (const { asset, dividends } of allDividends) {
     const timeline = timelinesBySymbol.get(asset.symbol) || [];
     const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
     for (const d of dividends) {
       const dateTime = d.date.getTime();
-      if (dateTime > hojeMs || dateTime < doze_m_ms_row) continue;
+      if (dateTime > hojeMs) continue;
       if (purchaseDateTime && dateTime < purchaseDateTime) continue;
       const qtdHist = getQuantityAtDate(timeline, dateTime);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
-      addUlt12m(asset.symbol, quantidade * d.valorUnitario);
+      const valor = quantidade * d.valorUnitario;
+      addLifetime(asset.symbol, valor, dateTime);
+      if (dateTime >= doze_m_ms_row) addUlt12m(asset.symbol, valor);
     }
   }
   manualProventos.forEach((mp) => {
@@ -384,8 +397,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const symbol = pf?.stock?.ticker || pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
     const dateTime = mp.dataPagamento.getTime();
-    if (dateTime > hojeMs || dateTime < doze_m_ms_row) return;
-    addUlt12m(symbol, mp.valorTotal);
+    if (dateTime > hojeMs) return;
+    addLifetime(symbol, mp.valorTotal, dateTime);
+    if (dateTime >= doze_m_ms_row) addUlt12m(symbol, mp.valorTotal);
   });
 
   // Agrupar dados conforme solicitado
@@ -399,12 +413,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       currentValue: number;
       dividendYield: number;
       yoc: number;
+      yocLifetime: number;
+      lifetimeProventos: number;
+      proceedsPercentage: number;
       // Enriquecimento para exibição tipo Kinvo (preenchido apenas quando groupBy==='ativo')
       classe?: string;
       quantidadeAtual?: number;
       precoMedio?: number;
       cotacaoAtual?: number;
       ultimoProvento?: number;
+      ultimoProventoTotal?: number;
       magicNumber?: number;
     }
   > = {};
@@ -436,6 +454,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         currentValue: 0,
         dividendYield: 0,
         yoc: 0,
+        yocLifetime: 0,
+        lifetimeProventos: 0,
+        proceedsPercentage: 0,
       };
     }
 
@@ -454,6 +475,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   Object.entries(groupedData).forEach(([key, data]) => {
     const symbolsSet = groupAssets.get(key) || new Set();
     let ult12mTotal = 0;
+    let lifetimeTotal = 0;
     symbolsSet.forEach((symbol) => {
       const values = assetValuesBySymbol.get(symbol);
       if (values) {
@@ -461,12 +483,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         data.currentValue += values.current;
       }
       ult12mTotal += ult12mBySymbol.get(symbol) || 0;
+      lifetimeTotal += lifetimeBySymbol.get(symbol) || 0;
     });
 
     // YoC e Dividend Yield seguem convenção do mercado: sempre últimos 12 meses,
     // independente do filtro de período (que alimenta apenas "Total Acumulado").
     data.dividendYield = data.currentValue > 0 ? (ult12mTotal / data.currentValue) * 100 : 0;
     data.yoc = data.invested > 0 ? (ult12mTotal / data.invested) * 100 : 0;
+    data.lifetimeProventos = Math.round(lifetimeTotal * 100) / 100;
+    data.yocLifetime = data.invested > 0 ? (lifetimeTotal / data.invested) * 100 : 0;
 
     // Enriquecer grupos por ATIVO com campos esperados pela tabela estilo Kinvo
     if (groupBy === 'ativo') {
@@ -483,12 +508,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         (a, b) => new Date(a.data).getTime() - new Date(b.data).getTime(),
       );
       const ultimoProvento = sortedItems[sortedItems.length - 1]?.valorUnitario ?? 0;
+      const ultimoProventoTotal = lastProceedsBySymbol.get(symbol)?.total ?? 0;
 
       data.classe = classe;
       data.quantidadeAtual = asset.quantity;
       data.precoMedio = asset.avgPrice;
       data.cotacaoAtual = quote;
       data.ultimoProvento = ultimoProvento;
+      data.ultimoProventoTotal = Math.round(ultimoProventoTotal * 100) / 100;
 
       // Magic number: apenas FIIs — ceil(cotação / provento_médio_mensal_por_cota)
       if (classe === "FII's" && asset.quantity > 0 && quote > 0) {
@@ -529,6 +556,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const totalProventos = proventos.reduce((sum, p) => sum + p.valor, 0);
   const mesesComProventos = Object.keys(monthlySummary).length;
   const mediaMensal = mesesComProventos > 0 ? totalProventos / mesesComProventos : 0;
+
+  // Contribuição de cada grupo (% do total acumulado da carteira no período).
+  // Útil para gráficos pizza e tabela "qual ativo gerou mais proventos".
+  if (totalProventos > 0) {
+    Object.values(groupedData).forEach((data) => {
+      data.proceedsPercentage = Math.round((data.total / totalProventos) * 100 * 100) / 100;
+    });
+  }
 
   // ============================================================================
   // KPI block — valores independentes do filtro de período do usuário quando
@@ -601,6 +636,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     .filter((p) => p.data >= doze_m_ms)
     .reduce((s, p) => s + p.valor, 0);
   const mediaMensalUlt12m = rendaUlt12m / 12;
+  const rendaLifetime = proventosRealizadosTodos.reduce((s, p) => s + p.valor, 0);
 
   let totalInvestidoAtual = 0;
   assetValuesBySymbol.forEach((v) => {
@@ -629,6 +665,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const yocPeriodo = totalInvestidoAtual > 0 ? (totalProventos / totalInvestidoAtual) * 100 : 0;
   const yocUlt12m = totalInvestidoAtual > 0 ? (rendaUlt12m / totalInvestidoAtual) * 100 : 0;
+  const yocLifetime = totalInvestidoAtual > 0 ? (rendaLifetime / totalInvestidoAtual) * 100 : 0;
 
   const kpis = {
     totalInvestido: Math.round(totalInvestidoAtual * 100) / 100,
@@ -636,6 +673,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     rendaAcumulada: {
       periodo: Math.round(totalProventos * 100) / 100,
       ult12m: Math.round(rendaUlt12m * 100) / 100,
+      lifetime: Math.round(rendaLifetime * 100) / 100,
     },
     mediaMensal: {
       periodo: Math.round(mediaMensalPeriodo * 100) / 100,
@@ -644,6 +682,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     yoc: {
       periodo: Math.round(yocPeriodo * 100) / 100,
       ult12m: Math.round(yocUlt12m * 100) / 100,
+      lifetime: Math.round(yocLifetime * 100) / 100,
     },
     aReceber: {
       futuro: Math.round(aReceberFuturo * 100) / 100,
