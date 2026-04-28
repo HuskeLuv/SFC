@@ -40,14 +40,32 @@ export interface SummaryBucket {
   count: number;
 }
 
+export interface FutureIncomeWindow {
+  sum: number;
+  lastDate: string | null;
+  topPayer: { name: string | null; value: number };
+}
+
 export interface ProventosKpis {
   totalInvestido: number;
   aportesUlt12m: number;
   rendaAcumulada: { periodo: number; ult12m: number; lifetime: number };
   mediaMensal: { periodo: number; ult12m: number };
   yoc: { periodo: number; ult12m: number; lifetime: number };
-  aReceber: { futuro: number; esseMes: number };
+  aReceber: {
+    futuro: number;
+    esseMes: number;
+    nextMonth: FutureIncomeWindow;
+    next3Months: FutureIncomeWindow;
+    next12Months: FutureIncomeWindow;
+  };
 }
+
+const emptyWindow: FutureIncomeWindow = {
+  sum: 0,
+  lastDate: null,
+  topPayer: { name: null, value: 0 },
+};
 
 const emptyKpis: ProventosKpis = {
   totalInvestido: 0,
@@ -55,7 +73,13 @@ const emptyKpis: ProventosKpis = {
   rendaAcumulada: { periodo: 0, ult12m: 0, lifetime: 0 },
   mediaMensal: { periodo: 0, ult12m: 0 },
   yoc: { periodo: 0, ult12m: 0, lifetime: 0 },
-  aReceber: { futuro: 0, esseMes: 0 },
+  aReceber: {
+    futuro: 0,
+    esseMes: 0,
+    nextMonth: emptyWindow,
+    next3Months: emptyWindow,
+    next12Months: emptyWindow,
+  },
 };
 
 interface ProventosResponse {

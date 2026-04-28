@@ -389,6 +389,103 @@ describe('GET /api/analises/proventos', () => {
     expect(data.kpis.yoc.lifetime).toBeCloseTo(60, 1);
   });
 
+  it('expoe aReceber.nextMonth/next3Months/next12Months com top payer e lastDate', async () => {
+    const now = new Date();
+    const txDate = new Date(now.getTime() - 30 * 86400000);
+    const in10d = new Date(now.getTime() + 10 * 86400000);
+    const in60d = new Date(now.getTime() + 60 * 86400000);
+    const in200d = new Date(now.getTime() + 200 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: txDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+      {
+        id: 'p2',
+        userId: 'user-123',
+        quantity: 50,
+        totalInvested: 2000,
+        avgPrice: 40,
+        lastUpdate: txDate,
+        stockId: 'stock-2',
+        assetId: null,
+        stock: { id: 'stock-2', ticker: 'ITUB4', companyName: 'Itau' },
+        asset: null,
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: txDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { ticker: 'PETR4' },
+        asset: null,
+      },
+      {
+        id: 'tx-2',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 50,
+        price: 40,
+        total: 2000,
+        date: txDate,
+        stockId: 'stock-2',
+        assetId: null,
+        stock: { ticker: 'ITUB4' },
+        asset: null,
+      },
+    ]);
+    // Futuros: PETR4 paga R$200 em 10d (no 1m); ITUB4 paga R$50 em 60d (no 3m mas fora de 1m);
+    // PETR4 paga R$300 em 200d (só no 12m).
+    mockGetDividends.mockImplementation(async (symbol: string) => {
+      if (symbol === 'PETR4')
+        return [
+          { date: in10d, tipo: 'Dividendo', valorUnitario: 2 }, // 100 × 2 = 200
+          { date: in200d, tipo: 'Dividendo', valorUnitario: 3 }, // 100 × 3 = 300
+        ];
+      if (symbol === 'ITUB4') return [{ date: in60d, tipo: 'Dividendo', valorUnitario: 1 }]; // 50 × 1 = 50
+      return [];
+    });
+    mockGetAssetPrices.mockResolvedValue(
+      new Map([
+        ['PETR4', 35],
+        ['ITUB4', 45],
+      ]),
+    );
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+    const aReceber = data.kpis.aReceber;
+
+    expect(aReceber.futuro).toBe(550); // 200 + 50 + 300
+    expect(aReceber.nextMonth.sum).toBe(200); // só PETR4 in10d
+    expect(aReceber.nextMonth.topPayer.name).toBe('Petrobras');
+    expect(aReceber.nextMonth.topPayer.value).toBe(200);
+    expect(aReceber.next3Months.sum).toBe(250); // 200 + 50
+    expect(aReceber.next3Months.topPayer.name).toBe('Petrobras');
+    expect(aReceber.next3Months.topPayer.value).toBe(200);
+    expect(aReceber.next12Months.sum).toBe(550);
+    expect(aReceber.next12Months.topPayer.name).toBe('Petrobras');
+    expect(aReceber.next12Months.topPayer.value).toBe(500); // 200 + 300
+    expect(aReceber.nextMonth.lastDate).toBeTruthy();
+    expect(aReceber.next12Months.lastDate).toBeTruthy();
+  });
+
   it('proceedsPercentage soma 100% quando há mais de um ativo', async () => {
     const now = new Date();
     const txDate = new Date(now.getTime() - 30 * 86400000);

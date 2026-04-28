@@ -578,8 +578,47 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     new Date(hojeKpi.getFullYear(), hojeKpi.getMonth() + 1, 1).getTime() - 1;
 
   // Proventos a receber (futuros, status='a_receber')
+  // Janelas para breakdown granular (próximo mês / próximos 3m / próximos 12m).
+  // Cada janela é cumulativa a partir de hoje (Kinvo's getProceedsFutureIncome).
+  const proximoMes_ms = hojeKpiMs + 30 * 86400000;
+  const proximos3m_ms = hojeKpiMs + 90 * 86400000;
+  const proximos12m_ms = hojeKpiMs + 365 * 86400000;
   let aReceberFuturo = 0;
   let aReceberEsseMes = 0;
+  let nextMonthSum = 0;
+  let next3MonthsSum = 0;
+  let next12MonthsSum = 0;
+  let nextMonthLastDate = 0;
+  let next3MonthsLastDate = 0;
+  let next12MonthsLastDate = 0;
+  const futureBySymbol1m = new Map<string, { name: string; value: number }>();
+  const futureBySymbol3m = new Map<string, { name: string; value: number }>();
+  const futureBySymbol12m = new Map<string, { name: string; value: number }>();
+  const accumulateFuture = (symbol: string, name: string, dateTime: number, valor: number) => {
+    aReceberFuturo += valor;
+    if (dateTime >= primeiroDiaMes && dateTime <= ultimoInstanteMes) {
+      aReceberEsseMes += valor;
+    }
+    const bumpBucket = (bucket: Map<string, { name: string; value: number }>) => {
+      const prev = bucket.get(symbol);
+      bucket.set(symbol, { name, value: (prev?.value ?? 0) + valor });
+    };
+    if (dateTime <= proximoMes_ms) {
+      nextMonthSum += valor;
+      if (dateTime > nextMonthLastDate) nextMonthLastDate = dateTime;
+      bumpBucket(futureBySymbol1m);
+    }
+    if (dateTime <= proximos3m_ms) {
+      next3MonthsSum += valor;
+      if (dateTime > next3MonthsLastDate) next3MonthsLastDate = dateTime;
+      bumpBucket(futureBySymbol3m);
+    }
+    if (dateTime <= proximos12m_ms) {
+      next12MonthsSum += valor;
+      if (dateTime > next12MonthsLastDate) next12MonthsLastDate = dateTime;
+      bumpBucket(futureBySymbol12m);
+    }
+  };
   for (const { asset, dividends } of allDividends) {
     for (const d of dividends) {
       const dateTime = d.date.getTime();
@@ -587,10 +626,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const quantidade = asset.quantity;
       if (quantidade <= 0) continue;
       const valor = quantidade * d.valorUnitario;
-      aReceberFuturo += valor;
-      if (dateTime >= primeiroDiaMes && dateTime <= ultimoInstanteMes) {
-        aReceberEsseMes += valor;
-      }
+      accumulateFuture(asset.symbol, asset.name || asset.symbol, dateTime, valor);
     }
   }
   // Proventos manuais a receber (já vêm com valorTotal pronto)
@@ -600,11 +636,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (!symbol || isBlockedSymbol(symbol)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime <= hojeKpiMs) return;
-    aReceberFuturo += mp.valorTotal;
-    if (dateTime >= primeiroDiaMes && dateTime <= ultimoInstanteMes) {
-      aReceberEsseMes += mp.valorTotal;
-    }
+    const name = pf?.stock?.companyName || pf?.asset?.name || symbol;
+    accumulateFuture(symbol, name, dateTime, mp.valorTotal);
   });
+
+  const topPayer = (
+    bucket: Map<string, { name: string; value: number }>,
+  ): { name: string | null; value: number } => {
+    let bestName: string | null = null;
+    let bestValue = -Infinity;
+    bucket.forEach((entry) => {
+      if (entry.value > bestValue) {
+        bestValue = entry.value;
+        bestName = entry.name;
+      }
+    });
+    if (bestName === null) return { name: null, value: 0 };
+    return { name: bestName, value: Math.round(bestValue * 100) / 100 };
+  };
+  const isoOrNull = (ms: number): string | null => (ms > 0 ? new Date(ms).toISOString() : null);
 
   // Histórico completo (sem filtro de startDate/endDate) — usamos para recortes fixos de 12m
   const proventosRealizadosTodos: { data: number; valor: number }[] = [];
@@ -687,6 +737,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     aReceber: {
       futuro: Math.round(aReceberFuturo * 100) / 100,
       esseMes: Math.round(aReceberEsseMes * 100) / 100,
+      nextMonth: {
+        sum: Math.round(nextMonthSum * 100) / 100,
+        lastDate: isoOrNull(nextMonthLastDate),
+        topPayer: topPayer(futureBySymbol1m),
+      },
+      next3Months: {
+        sum: Math.round(next3MonthsSum * 100) / 100,
+        lastDate: isoOrNull(next3MonthsLastDate),
+        topPayer: topPayer(futureBySymbol3m),
+      },
+      next12Months: {
+        sum: Math.round(next12MonthsSum * 100) / 100,
+        lastDate: isoOrNull(next12MonthsLastDate),
+        topPayer: topPayer(futureBySymbol12m),
+      },
     },
   };
 
