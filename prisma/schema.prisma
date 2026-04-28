@@ -100,6 +100,7 @@ model User {
   portfolioPerformances         PortfolioPerformance[]
   sensibilidadeCaches           PortfolioSensibilidadeCache[]
   riscoRetornoCache             PortfolioRiscoRetornoCache?
+  portfolioGoal                 PortfolioGoal?
 }
 
 model Consultant {
@@ -656,6 +657,19 @@ model PortfolioRiscoRetornoCache {
   computedAt    DateTime @default(now())
 
   @@map("portfolio_risco_retorno_cache")
+}
+
+// Meta de patrimônio do usuário: "alcançar R$ X até ano Y". Singleton por userId.
+model PortfolioGoal {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetEquity  Decimal  @db.Decimal(15, 2) // patrimônio alvo em BRL
+  targetYear    Int // ano-alvo (ex.: 2030); cálculo de cronograma assume dezembro
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("portfolio_goals")
 }
 
 // TWR pré-calculado por dia (alinha ao historicoTWR do resumo)
