@@ -26,6 +26,7 @@ const mockFiPricer = vi.hoisted(() =>
 const mockComputeLiveTotals = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ saldoBruto: 0, valorAplicado: 0 }),
 );
+const mockGetAssetHistory = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 
 vi.mock('@/utils/auth', () => ({
   requireAuthWithActing: mockRequireAuthWithActing,
@@ -48,6 +49,10 @@ vi.mock('@/services/portfolio/portfolioLiveTotals', () => ({
   computePortfolioLiveTotals: mockComputeLiveTotals,
 }));
 
+vi.mock('@/services/pricing/assetPriceService', () => ({
+  getAssetHistory: mockGetAssetHistory,
+}));
+
 import { GET } from '../route';
 
 const createRequest = () =>
@@ -66,6 +71,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     mockPrisma.cashflowGroup.findMany.mockResolvedValue([]);
     mockPrisma.fixedIncomeAsset.findMany.mockResolvedValue([]);
     mockPrisma.economicIndex.findMany.mockResolvedValue([]);
+    mockGetAssetHistory.mockResolvedValue([]);
   });
 
   it('retorna janelas zeradas quando não há histórico', async () => {
@@ -182,5 +188,79 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     mockRequireAuthWithActing.mockRejectedValueOnce(new Error('Não autorizado'));
     const response = await GET(createRequest());
     expect(response.status).toBe(401);
+  });
+
+  it('inclui ibovReturn, ipcaReturn e excessOverIbov por janela', async () => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const um_ano_atras = now.getTime() - 365 * 86400000;
+    mockBuildPatrimonio.mockResolvedValue({
+      historicoPatrimonio: [],
+      historicoTWR: [
+        { data: um_ano_atras, value: 0 },
+        { data: now.getTime(), value: 15 },
+      ],
+      historicoTWRPeriodo: [],
+      cashFlowsByDay: new Map(),
+    });
+    // CDI 12m ≈ 12%; IPCA 12m ≈ 4%; IBOV cotação 100→110 = 10%.
+    const cdiDaily = Array.from({ length: 365 }, (_, i) => ({
+      date: new Date(um_ano_atras + i * 86400000),
+      value: 0.0003,
+    }));
+    const ipcaDaily = Array.from({ length: 365 }, (_, i) => ({
+      date: new Date(um_ano_atras + i * 86400000),
+      value: 0.0001,
+    }));
+    mockPrisma.economicIndex.findMany.mockImplementation(
+      async (args: { where: { indexType: string } }) => {
+        if (args.where.indexType === 'CDI') return cdiDaily;
+        if (args.where.indexType === 'IPCA') return ipcaDaily;
+        return [];
+      },
+    );
+    mockGetAssetHistory.mockResolvedValue([
+      { date: um_ano_atras, value: 100 },
+      { date: now.getTime(), value: 110 },
+    ]);
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+    const j = data.janelas.in12Months;
+
+    expect(j.portfolioReturn).toBeCloseTo(15, 1);
+    expect(j.cdiReturn).toBeGreaterThan(0);
+    expect(j.ipcaReturn).toBeGreaterThan(0);
+    expect(j.ibovReturn).toBeCloseTo(10, 1);
+    expect(j.excessOverCdi).toBeCloseTo(j.portfolioReturn - j.cdiReturn, 1);
+    expect(j.excessOverIbov).toBeCloseTo(j.portfolioReturn - j.ibovReturn, 1);
+  });
+
+  it('zera ibov/ipca quando histórico do benchmark está vazio (não quebra)', async () => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const um_ano_atras = now.getTime() - 365 * 86400000;
+    mockBuildPatrimonio.mockResolvedValue({
+      historicoPatrimonio: [],
+      historicoTWR: [
+        { data: um_ano_atras, value: 0 },
+        { data: now.getTime(), value: 5 },
+      ],
+      historicoTWRPeriodo: [],
+      cashFlowsByDay: new Map(),
+    });
+    mockPrisma.economicIndex.findMany.mockResolvedValue([]);
+    mockGetAssetHistory.mockResolvedValue([]);
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+    const j = data.janelas.in12Months;
+
+    expect(j.portfolioReturn).toBeCloseTo(5, 1);
+    expect(j.cdiReturn).toBe(0);
+    expect(j.ipcaReturn).toBe(0);
+    expect(j.ibovReturn).toBe(0);
+    expect(j.excessOverCdi).toBeCloseTo(5, 1);
+    expect(j.excessOverIbov).toBeCloseTo(5, 1);
   });
 });

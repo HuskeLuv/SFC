@@ -8,7 +8,10 @@ import {
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTotals';
+import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+
+const IBOV_SYMBOL = '^BVSP';
 
 /**
  * Rentabilidade da carteira em janelas pré-cortadas (lastDay, inTheMonth,
@@ -30,7 +33,10 @@ type WindowKey =
 interface WindowMetric {
   portfolioReturn: number;
   cdiReturn: number;
+  ibovReturn: number;
+  ipcaReturn: number;
   excessOverCdi: number;
+  excessOverIbov: number;
   fromDate: string | null;
   toDate: string | null;
 }
@@ -74,20 +80,42 @@ function windowReturnPct(
   return (toFrac / fromFrac - 1) * 100;
 }
 
-/** CDI acumulado entre [fromMs, toMs] usando taxas diárias. */
-function cdiReturnPct(
-  cdiRecords: Array<{ date: Date; value: unknown }>,
+/** Retorno acumulado a partir de fatores diários (CDI/IPCA) entre [fromMs, toMs]. */
+function compoundReturnPct(
+  records: Array<{ date: Date; value: unknown }>,
   fromMs: number,
   toMs: number,
 ): number {
   if (toMs <= fromMs) return 0;
   let acumulado = 1;
-  for (const r of cdiRecords) {
+  for (const r of records) {
     const ts = r.date.getTime();
     if (ts < fromMs || ts > toMs) continue;
     acumulado *= 1 + Number(r.value);
   }
   return (acumulado - 1) * 100;
+}
+
+/**
+ * Retorno de uma série de cotações (preço) entre fromMs e toMs.
+ * Usa o último preço <= fromMs como ponto de partida (mesmo binary-search-like
+ * fallback usado em twrAt). Útil para IBOV onde temos cotação diária, não fator.
+ */
+function priceSeriesReturnPct(
+  serie: Array<{ date: number; value: number }>,
+  fromMs: number,
+  toMs: number,
+): number {
+  if (serie.length < 2) return 0;
+  // Find latest price <= fromMs
+  let priceFrom: number | null = null;
+  let priceTo: number | null = null;
+  for (const p of serie) {
+    if (p.date <= fromMs && p.value > 0) priceFrom = p.value;
+    if (p.date <= toMs && p.value > 0) priceTo = p.value;
+  }
+  if (priceFrom === null || priceTo === null || priceFrom <= 0) return 0;
+  return (priceTo / priceFrom - 1) * 100;
 }
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -144,7 +172,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const empty: WindowMetric = {
       portfolioReturn: 0,
       cdiReturn: 0,
+      ibovReturn: 0,
+      ipcaReturn: 0,
       excessOverCdi: 0,
+      excessOverIbov: 0,
       fromDate: null,
       toDate: null,
     };
@@ -163,14 +194,22 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     } as RentabilidadeJanelasResponse);
   }
 
-  // CDI dos últimos 36 meses para todas as janelas (com folga de 1 dia).
+  // Benchmarks dos últimos 36 meses. CDI/IPCA vêm como fator diário em economicIndex;
+  // IBOV é série de preço (cotação) em assetPriceHistory.
   const trintaSeisMesesAtras = new Date();
   trintaSeisMesesAtras.setFullYear(trintaSeisMesesAtras.getFullYear() - 3);
   trintaSeisMesesAtras.setHours(0, 0, 0, 0);
-  const cdiRecords = await prisma.economicIndex.findMany({
-    where: { indexType: 'CDI', date: { gte: trintaSeisMesesAtras } },
-    orderBy: { date: 'asc' },
-  });
+  const [cdiRecords, ipcaRecords, ibovHistory] = await Promise.all([
+    prisma.economicIndex.findMany({
+      where: { indexType: 'CDI', date: { gte: trintaSeisMesesAtras } },
+      orderBy: { date: 'asc' },
+    }),
+    prisma.economicIndex.findMany({
+      where: { indexType: 'IPCA', date: { gte: trintaSeisMesesAtras } },
+      orderBy: { date: 'asc' },
+    }),
+    getAssetHistory(IBOV_SYMBOL, trintaSeisMesesAtras, new Date()).catch(() => []),
+  ]);
 
   const lastPoint = serie[serie.length - 1];
   const firstPoint = serie[0];
@@ -187,6 +226,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return d.getTime();
   };
 
+  const round = (n: number) => Math.round(n * 100) / 100;
   const buildWindow = (fromMs: number, toMs: number): WindowMetric => {
     // Clamp aos limites da série (só importa se a janela exceder o histórico disponível).
     const clampedFrom = Math.max(fromMs, firstPoint.data);
@@ -195,18 +235,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       return {
         portfolioReturn: 0,
         cdiReturn: 0,
+        ibovReturn: 0,
+        ipcaReturn: 0,
         excessOverCdi: 0,
+        excessOverIbov: 0,
         fromDate: new Date(clampedFrom).toISOString(),
         toDate: new Date(clampedTo).toISOString(),
       };
     }
     const portfolioReturn = windowReturnPct(serie, clampedFrom, clampedTo);
-    const cdiR = cdiReturnPct(cdiRecords, clampedFrom, clampedTo);
-    const round = (n: number) => Math.round(n * 100) / 100;
+    const cdiR = compoundReturnPct(cdiRecords, clampedFrom, clampedTo);
+    const ipcaR = compoundReturnPct(ipcaRecords, clampedFrom, clampedTo);
+    const ibovR = priceSeriesReturnPct(ibovHistory, clampedFrom, clampedTo);
     return {
       portfolioReturn: round(portfolioReturn),
       cdiReturn: round(cdiR),
+      ibovReturn: round(ibovR),
+      ipcaReturn: round(ipcaR),
       excessOverCdi: round(portfolioReturn - cdiR),
+      excessOverIbov: round(portfolioReturn - ibovR),
       fromDate: new Date(clampedFrom).toISOString(),
       toDate: new Date(clampedTo).toISOString(),
     };
