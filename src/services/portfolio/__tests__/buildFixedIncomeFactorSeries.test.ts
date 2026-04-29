@@ -249,6 +249,36 @@ describe('buildFixedIncomeFactorSeries', () => {
         expect(factors.get(d)).toBe(1);
       });
   });
+
+  it('Timeline truncado (start antes do timeline) — factor acumula do startDate, não do timeline[0]', () => {
+    // Aplicação em 2023; timeline pedido só cobre 2025 em diante (ex.: maxHistoricoMonths
+    // truncou o histórico). O fator do PRIMEIRO dia do timeline deve refletir os ~2 anos
+    // de rentabilidade pré-timeline — não pode resetar em 1.
+    const startDate = new Date(2023, 0, 2);
+    const fi = makeFi({ startDate, annualRate: 12, indexer: 'PRE' });
+    const truncatedStart = new Date(2025, 0, 2);
+    const truncatedEnd = new Date(2025, 2, 31);
+    const timeline = buildDailyTimeline(truncatedStart, truncatedEnd);
+
+    const factors = buildFixedIncomeFactorSeries(fi, timeline);
+
+    // Como referência: factor com timeline COMPLETO (de startDate até truncatedEnd).
+    const fullTimeline = buildDailyTimeline(startDate, truncatedEnd);
+    const fullFactors = buildFixedIncomeFactorSeries(fi, fullTimeline);
+
+    // Factor no primeiro dia do timeline truncado deve ser igual ao do timeline completo
+    // naquele mesmo dia (ou seja, refletindo os ~2 anos de PRE acumulados antes).
+    const firstDayKey = timeline[0];
+    expect(factors.get(firstDayKey)).toBeCloseTo(fullFactors.get(firstDayKey)!, 8);
+    expect(factors.get(firstDayKey)!).toBeGreaterThan(1.2); // ~2 anos a 12% a.a.
+
+    // Factor no último dia também deve coincidir com o timeline completo.
+    const lastDayKey = timeline[timeline.length - 1];
+    expect(factors.get(lastDayKey)).toBeCloseTo(fullFactors.get(lastDayKey)!, 8);
+
+    // Resultado contém apenas dias do timeline solicitado, não os dias intermediários.
+    expect(factors.size).toBe(timeline.length);
+  });
 });
 
 // Mantém referência para evitar TS warning de import não usado em alguns cenários

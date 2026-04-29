@@ -200,6 +200,18 @@ export const buildFixedIncomeFactorSeries = (
   const dailyPreFactor =
     1 + annualRate > 0 ? Math.pow(1 + annualRate, 1 / BUSINESS_DAYS_PER_YEAR) : 1;
 
+  // Quando o timeline pedido começa DEPOIS da data de aplicação (ex.: maxHistoricoMonths
+  // trunca um CDB iniciado em 2020 para um timeline que começa em 2023), precisamos
+  // primeiro acumular o factor sobre o gap pré-timeline. Sem isso o factor reseta em 1
+  // no início do timeline e perde anos de rentabilidade — defasagem que era "consertada"
+  // pelo patch live no último dia, gerando spike artificial no TWR.
+  const requestedStart = timeline[0];
+  const requestedEnd = timeline[timeline.length - 1];
+  const requested = new Set(timeline);
+  const fullStart = startTs < requestedStart ? new Date(startTs) : new Date(requestedStart);
+  const fullTimeline =
+    startTs < requestedStart ? buildDailyTimeline(fullStart, new Date(requestedEnd)) : timeline;
+
   let factor = 1;
   let lastCdi = 0;
   let lastTesouroPU = ctx.tesouroPUAtStart ?? 0;
@@ -207,15 +219,15 @@ export const buildFixedIncomeFactorSeries = (
   // quando cruzarmos para o próximo mês (seria cobrar IPCA retroativo da fração pré-aplicação).
   let lastMonthApplied = monthKeyOf(startTs);
 
-  for (const day of timeline) {
+  for (const day of fullTimeline) {
     if (day < startTs) {
-      result.set(day, 1);
+      if (requested.has(day)) result.set(day, 1);
       continue;
     }
 
     if (day > maturityTs) {
       // Fator congelado no valor apurado até o vencimento
-      result.set(day, factor);
+      if (requested.has(day)) result.set(day, factor);
       continue;
     }
 
@@ -264,7 +276,7 @@ export const buildFixedIncomeFactorSeries = (
       }
     }
 
-    result.set(day, factor);
+    if (requested.has(day)) result.set(day, factor);
   }
 
   return result;
