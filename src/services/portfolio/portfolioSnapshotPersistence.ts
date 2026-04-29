@@ -39,6 +39,7 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
     patchLastDayWithLiveTotals: false,
     timelineEndDate,
     fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
+    implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
   });
 
   if (historicoPatrimonio.length === 0) {

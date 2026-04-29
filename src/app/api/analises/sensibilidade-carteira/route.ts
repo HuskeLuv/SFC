@@ -11,6 +11,7 @@ import {
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTotals';
 import { getAssetHistory, isNonMarketSymbol } from '@/services/pricing/assetPriceService';
 import { buildSensibilidadeCarteira, monthKey } from '@/services/analises/sensibilidadeCarteira';
 import type { SensibilidadeCarteiraResponse } from '@/types/analises';
@@ -140,15 +141,18 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const allInvestments = investmentGroups.flatMap((g) => g.items || []);
   const cashflowInvestments = filterInvestmentsExclReservas(allInvestments);
 
-  let saldoBruto = 0;
-  let valorAplicado = 0;
-  for (const item of portfolio) {
-    saldoBruto += item.quantity * item.avgPrice;
-    valorAplicado += item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
-  }
-
   const fiPricer = await createFixedIncomePricer(targetUserId, {
     preloadedAssets: fixedIncomeAssets as unknown as FixedIncomeAssetWithAsset[],
+  });
+
+  // Saldo bruto = valor de mercado real (cotações + FI marcado na curva). Usar
+  // `quantity * avgPrice` aqui combinado com `patchLastDayWithLiveTotals` cravava o último
+  // dia em custo de aquisição, distorcendo o TWR usado nas correlações.
+  const { saldoBruto, valorAplicado } = await computePortfolioLiveTotals({
+    portfolio,
+    fixedIncomeAssets: fixedIncomeAssets as unknown as FixedIncomeAssetWithAsset[],
+    investmentsExclReservas: cashflowInvestments,
+    fiPricer,
   });
   const built = await buildPatrimonioHistorico({
     portfolio,
@@ -160,6 +164,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     maxHistoricoMonths: windowMonths + 1,
     patchLastDayWithLiveTotals: true,
     fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
+    implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
   });
 
   const portfolioMonthlyReturns = monthlyReturnsFromTWR(built.historicoTWR);

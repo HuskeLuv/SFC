@@ -299,6 +299,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     maxHistoricoMonths: 36,
     patchLastDayWithLiveTotals: true,
     fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
+    implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
   });
 
   // Busca CDI dos últimos 3 anos (para cobrir dados anuais)

@@ -519,6 +519,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         maxHistoricoMonths: 24,
         patchLastDayWithLiveTotals: true,
         fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
+        implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
       });
       if (usePortfolioSnapshots) {
         const startMs = built.historicoPatrimonio[0]?.data ?? hoje.getTime();
