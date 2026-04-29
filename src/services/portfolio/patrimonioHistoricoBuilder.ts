@@ -373,6 +373,17 @@ export type BuildPatrimonioHistoricoParams = {
     fi: FixedIncomeAssetWithAsset,
     timeline: number[],
   ) => Array<{ date: number; value: number }>;
+  /**
+   * Builder opcional que devolve a série diária de valor para uma posição que rende
+   * CDI implícito (reservas de emergência/oportunidade, previdência/seguros) — para
+   * que essas posições não fiquem estagnadas no histórico. Default: 100% do CDI.
+   */
+  implicitCdiValueSeriesBuilder?: (
+    startDate: Date,
+    investedAmount: number,
+    indexerPercent: number,
+    timeline: number[],
+  ) => Array<{ date: number; value: number }>;
   /** Fim da linha do tempo (ex.: ontem no job diário). Default: hoje. */
   timelineEndDate?: Date;
 };
@@ -411,6 +422,7 @@ export const buildPatrimonioHistorico = async (
     twrStartDate,
     maxHistoricoMonths = 24,
     fixedIncomeValueSeriesBuilder,
+    implicitCdiValueSeriesBuilder,
     patchLastDayWithLiveTotals,
     timelineEndDate,
   } = params;
@@ -614,6 +626,38 @@ export const buildPatrimonioHistorico = async (
     points.forEach((p) => valueByDay.set(p.date, p.value));
     fixedIncomeValuesBySymbol.set(symbol, valueByDay);
   });
+
+  // Curva CDI 100% implícita para Reservas (emergência/oportunidade) e Previdência/Seguros:
+  // não temos um FixedIncomeAsset registrado pra elas, mas o usuário espera que rendam.
+  // Default 100% do CDI até cadastro explícito do indexador no asset.
+  if (implicitCdiValueSeriesBuilder) {
+    portfolio.forEach((item) => {
+      const symbol = item.asset?.symbol || item.stock?.ticker;
+      if (!symbol) return;
+      // Skip se já temos curva FI explícita (ex.: reserva alocada num CDB cadastrado).
+      if (fixedIncomeValuesBySymbol.has(symbol)) return;
+      const isReserva =
+        item.asset?.type === 'emergency' ||
+        item.asset?.type === 'opportunity' ||
+        symbol.startsWith('RESERVA-EMERG') ||
+        symbol.startsWith('RESERVA-OPORT');
+      const isPrevidenciaSeguro = item.asset?.type === 'previdencia';
+      if (!isReserva && !isPrevidenciaSeguro) return;
+      const investedAmount =
+        item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
+      if (investedAmount <= 0) return;
+      const firstTxTs = firstTransactionBySymbol.get(symbol);
+      const startDate = firstTxTs
+        ? new Date(firstTxTs)
+        : item.lastUpdate
+          ? new Date(item.lastUpdate)
+          : new Date(timelineStart);
+      const points = implicitCdiValueSeriesBuilder(startDate, investedAmount, 100, timeline);
+      const valueByDay = new Map<number, number>();
+      points.forEach((p) => valueByDay.set(p.date, p.value));
+      fixedIncomeValuesBySymbol.set(symbol, valueByDay);
+    });
+  }
 
   const pricesBySymbol = new Map<string, Map<number, number>>();
   const fallbackPriceBySymbol = new Map<string, number>();

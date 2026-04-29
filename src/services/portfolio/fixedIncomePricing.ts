@@ -21,6 +21,18 @@ export type FixedIncomePricer = {
     fi: FixedIncomeAssetWithAsset,
     timeline: number[],
   ) => Array<{ date: number; value: number }>;
+  /**
+   * Curva CDI implícita para posições sem FI registrado mas que rendem CDI (reservas
+   * de emergência/oportunidade, previdência/seguros). Recebe data de início, valor
+   * aplicado e % do CDI; retorna a série diária `investedAmount × factor` ao longo do
+   * timeline. Antes de `startDate`, value=0.
+   */
+  buildImplicitCdiValueSeries: (
+    startDate: Date,
+    investedAmount: number,
+    indexerPercent: number,
+    timeline: number[],
+  ) => Array<{ date: number; value: number }>;
   fixedIncomeByAssetId: Map<string, FixedIncomeAssetWithAsset>;
   fixedIncomeAssets: FixedIncomeAssetWithAsset[];
 };
@@ -52,7 +64,16 @@ const toFiHelper = (fi: FixedIncomeAssetWithAsset): FixedIncomeAssetWithAsset =>
  */
 export const createFixedIncomePricer = async (
   userId: string,
-  options?: { asOfDate?: Date; preloadedAssets?: FixedIncomeAssetWithAsset[] },
+  options?: {
+    asOfDate?: Date;
+    preloadedAssets?: FixedIncomeAssetWithAsset[];
+    /**
+     * Data de início do timeline do portfolio. Se passada, força carregamento do CDI a
+     * partir dela (necessário para a curva implícita de reservas/previdência mesmo
+     * quando o usuário não tem FI vinculado a CDI).
+     */
+    portfolioStartDate?: Date;
+  },
 ): Promise<FixedIncomePricer> => {
   const today = options?.asOfDate ?? new Date();
 
@@ -73,25 +94,25 @@ export const createFixedIncomePricer = async (
   const fixedIncomeByAssetId = new Map<string, FixedIncomeAssetWithAsset>();
   fixedIncomeAssets.forEach((fi) => fixedIncomeByAssetId.set(fi.assetId, fi));
 
-  if (fixedIncomeAssets.length === 0) {
-    return {
-      getCurrentValue: (fi) => fi.investedAmount,
-      buildValueSeriesForAsset: (fi, timeline) =>
-        timeline.map((day) => ({ date: day, value: fi.investedAmount })),
-      fixedIncomeByAssetId,
-      fixedIncomeAssets,
-    };
-  }
-
-  const earliestStart = fixedIncomeAssets.reduce<Date | null>((min, fi) => {
+  // Default 24 meses atrás quando o caller não informou. Garante que a curva CDI
+  // implícita (reservas/previdência) tenha taxas carregadas mesmo sem FI registrado
+  // — caso contrário o factor builder cai em factor=1 (sem rendimento).
+  const portfolioStartDate = options?.portfolioStartDate
+    ? normalizeDateStart(options.portfolioStartDate)
+    : normalizeDateStart(new Date(today.getTime() - 24 * 30 * 24 * 60 * 60 * 1000));
+  const earliestFiStart = fixedIncomeAssets.reduce<Date | null>((min, fi) => {
     const start = normalizeDateStart(new Date(fi.startDate));
     if (!min || start.getTime() < min.getTime()) return start;
     return min;
   }, null);
+  const earliestStart =
+    earliestFiStart && earliestFiStart.getTime() < portfolioStartDate.getTime()
+      ? earliestFiStart
+      : portfolioStartDate;
 
-  const hasCdiLinked = fixedIncomeAssets.some(
-    (fi) => fi.indexer === 'CDI' || Boolean(fi.tesouroBondType),
-  );
+  // Sempre carrega CDI: a curva implícita pra reservas/previdência precisa da
+  // taxa diária mesmo quando nenhum FI vincula ao CDI.
+  const hasCdiLinked = true;
   const hasIpcaLinked = fixedIncomeAssets.some(
     (fi) => fi.indexer === 'IPCA' || Boolean(fi.tesouroBondType),
   );
@@ -236,9 +257,45 @@ export const createFixedIncomePricer = async (
     }));
   };
 
+  const buildImplicitCdiValueSeries = (
+    startDate: Date,
+    investedAmount: number,
+    indexerPercent: number,
+    timeline: number[],
+  ): Array<{ date: number; value: number }> => {
+    if (timeline.length === 0 || investedAmount <= 0) return [];
+    // FI sintético com vencimento em futuro distante. Mantém o mesmo motor de
+    // cálculo (buildFactorSeries) — qualquer ajuste de regra CDI vale aqui também.
+    const fakeFi: FixedIncomeAssetWithAsset = {
+      id: '__implicit_cdi__',
+      userId,
+      assetId: '__implicit_cdi__',
+      type: 'CDB_PRE',
+      description: 'Reserva/Previdência (CDI implícito)',
+      startDate,
+      maturityDate: new Date(2099, 0, 1),
+      investedAmount,
+      annualRate: 0,
+      indexer: 'CDI',
+      indexerPercent,
+      liquidityType: null,
+      taxExempt: false,
+      tesouroBondType: null,
+      tesouroMaturity: null,
+      asset: null,
+    };
+    const factors = buildFactorSeries(fakeFi, timeline);
+    const startTs = normalizeDateStart(startDate).getTime();
+    return timeline.map((day) => ({
+      date: day,
+      value: day < startTs ? 0 : investedAmount * (factors.get(day) ?? 1),
+    }));
+  };
+
   return {
     getCurrentValue,
     buildValueSeriesForAsset,
+    buildImplicitCdiValueSeries,
     fixedIncomeByAssetId,
     fixedIncomeAssets,
   };
