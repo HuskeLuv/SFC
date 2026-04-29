@@ -1,9 +1,11 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import RentabilidadeGeral from '@/components/analises/RentabilidadeGeral';
 import ProventosTabs from '@/components/analises/ProventosTabs';
 import RiscoRetorno from '@/components/analises/RiscoRetorno';
 import CoberturaFgc from '@/components/analises/CoberturaFgc';
+import IRTabs from '@/components/analises/IRTabs';
 
 interface TabButtonProps {
   id: string;
@@ -43,10 +45,20 @@ const tabs = [
   { id: 'proventos', label: 'Proventos' },
   { id: 'risco-retorno', label: 'Risco x Retorno' },
   { id: 'cobertura-fgc', label: 'Cobertura FGC' },
+  { id: 'imposto-de-renda', label: 'Imposto de Renda' },
 ];
 
 export default function CarteiraAnalise() {
-  const [activeTab, setActiveTab] = useState('rentabilidade-geral');
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab = tabs.find((t) => t.id === tabParam)?.id ?? 'rentabilidade-geral';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (tabParam && tabs.some((t) => t.id === tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   return (
     <div>
@@ -94,6 +106,11 @@ export default function CarteiraAnalise() {
           {/* Cobertura FGC */}
           <TabContent id="cobertura-fgc" isActive={activeTab === 'cobertura-fgc'}>
             <CoberturaFgc />
+          </TabContent>
+
+          {/* Imposto de Renda */}
+          <TabContent id="imposto-de-renda" isActive={activeTab === 'imposto-de-renda'}>
+            <IRTabs />
           </TabContent>
         </div>
       </div>

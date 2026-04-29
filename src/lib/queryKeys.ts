@@ -41,4 +41,12 @@ export const queryKeys = {
   coberturaFgc: {
     all: ['coberturaFgc'] as const,
   },
+  ir: {
+    all: ['ir'] as const,
+    resumoAnual: (year: number) => [...queryKeys.ir.all, 'resumoAnual', year] as const,
+    mensal: () => [...queryKeys.ir.all, 'mensal'] as const,
+    stocksUs: () => [...queryKeys.ir.all, 'stocksUs'] as const,
+    cripto: () => [...queryKeys.ir.all, 'cripto'] as const,
+    comecotas: () => [...queryKeys.ir.all, 'comecotas'] as const,
+  },
 } as const;
