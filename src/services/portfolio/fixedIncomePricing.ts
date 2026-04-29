@@ -227,9 +227,12 @@ export const createFixedIncomePricer = async (
   const buildValueSeriesForAsset = (fi: FixedIncomeAssetWithAsset, timeline: number[]) => {
     if (timeline.length === 0) return [] as Array<{ date: number; value: number }>;
     const factors = buildFactorSeries(fi, timeline);
+    const startTs = normalizeDateStart(new Date(fi.startDate)).getTime();
     return timeline.map((day) => ({
       date: day,
-      value: fi.investedAmount * (factors.get(day) ?? 1),
+      // Antes da data de aplicação, a posição não existia — value = 0 evita
+      // inflar o saldoBruto histórico com FI ainda não aplicado.
+      value: day < startTs ? 0 : fi.investedAmount * (factors.get(day) ?? 1),
     }));
   };
 
