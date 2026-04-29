@@ -237,7 +237,7 @@ describe('apurarRendaVariavel — compensação de prejuízo', () => {
     expect(feb.porCategoria.acao_br?.lucroTributavel).toBe(3000);
     expect(feb.porCategoria.acao_br?.irDevido).toBe(450); // 3000 * 0.15
     expect(feb.porCategoria.acao_br?.saldoPrejuizoFinal).toBe(0);
-    expect(result.saldosPrejuizoAtual.acao_br).toBe(0);
+    expect(result.saldosPrejuizoAtual.rvComum).toBe(0);
   });
 
   it('prejuízo de FII NÃO compensa com lucro de ações', () => {
@@ -279,7 +279,7 @@ describe('apurarRendaVariavel — compensação de prejuízo', () => {
     expect(feb.porCategoria.acao_br?.prejuizoCompensado).toBe(0);
     expect(feb.porCategoria.acao_br?.irDevido).toBe(750); // 5000 * 0.15
     expect(result.saldosPrejuizoAtual.fii).toBe(500); // prejuízo do FII permanece
-    expect(result.saldosPrejuizoAtual.acao_br).toBe(0);
+    expect(result.saldosPrejuizoAtual.rvComum).toBe(0);
   });
 
   it('lucro isento (≤ 20k) NÃO consome saldo de prejuízo de mês anterior', () => {
@@ -319,7 +319,50 @@ describe('apurarRendaVariavel — compensação de prejuízo', () => {
     expect(feb.porCategoria.acao_br?.isento).toBe(true);
     expect(feb.porCategoria.acao_br?.prejuizoCompensado).toBe(0);
     expect(feb.porCategoria.acao_br?.saldoPrejuizoFinal).toBe(5000); // intacto
-    expect(result.saldosPrejuizoAtual.acao_br).toBe(5000);
+    expect(result.saldosPrejuizoAtual.rvComum).toBe(5000);
+  });
+
+  it('prejuízo de ETF compensa lucro de ações no mesmo pool rvComum', () => {
+    const result = apurarRendaVariavel([
+      // Janeiro: ETF com prejuízo de 5000.
+      tx({
+        date: new Date('2025-01-01'),
+        type: 'compra',
+        symbol: 'BOVA11',
+        quantity: 100,
+        price: 100,
+        category: 'etf_br',
+      }),
+      tx({
+        date: new Date('2025-01-15'),
+        type: 'venda',
+        symbol: 'BOVA11',
+        quantity: 100,
+        price: 50,
+        category: 'etf_br',
+      }),
+      // Fevereiro: ações com lucro 8000 (vendas > 20k para tributar).
+      tx({
+        date: new Date('2025-02-01'),
+        type: 'compra',
+        symbol: 'PETR4',
+        quantity: 1000,
+        price: 30,
+      }),
+      tx({
+        date: new Date('2025-02-15'),
+        type: 'venda',
+        symbol: 'PETR4',
+        quantity: 1000,
+        price: 38,
+      }),
+    ]);
+    const feb = result.meses.find((m) => m.yearMonth === '2025-02')!;
+    expect(feb.porCategoria.acao_br?.lucroBruto).toBe(8000);
+    expect(feb.porCategoria.acao_br?.prejuizoCompensado).toBe(5000);
+    expect(feb.porCategoria.acao_br?.lucroTributavel).toBe(3000);
+    expect(feb.porCategoria.acao_br?.irDevido).toBe(450);
+    expect(result.saldosPrejuizoAtual.rvComum).toBe(0);
   });
 });
 
@@ -327,7 +370,7 @@ describe('apurarRendaVariavel — bordas', () => {
   it('input vazio retorna meses vazios', () => {
     const result = apurarRendaVariavel([]);
     expect(result.meses).toEqual([]);
-    expect(result.saldosPrejuizoAtual).toEqual({ acao_br: 0, fii: 0, etf_br: 0 });
+    expect(result.saldosPrejuizoAtual).toEqual({ rvComum: 0, fii: 0 });
   });
 
   it('apenas compras (sem vendas) não geram apuração', () => {

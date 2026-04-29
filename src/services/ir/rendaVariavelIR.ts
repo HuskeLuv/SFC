@@ -9,10 +9,9 @@
  *    é isento E o saldo de prejuízo a compensar não é consumido.
  *  - Alíquotas: 15% (ações + ETF) / 20% (FII). Day trade (20% sem isenção)
  *    NÃO é tratado — foco em swing/longo prazo conforme escopo definido.
- *  - Loss carryforward por categoria — ações, ETF e FII têm pools separados.
- *    Receita Federal trata ações+ETF como mesmo "grupo de renda variável
- *    comum"; mantemos separados aqui como aproximação conservadora pra
- *    primeira iteração. Refinar quando tiver demanda.
+ *  - Loss carryforward em 2 pools: 'rvComum' (ações + ETF, conforme RFB
+ *    trata como mesmo grupo de renda variável comum) e 'fii' (separado, regra
+ *    própria). Prejuízo de ETF compensa lucro de ação e vice-versa.
  *  - IRRF retido na fonte (0,005%) NÃO é deduzido — projeção bruta de DARF.
  *
  * Sem I/O. Recebe transactions já categorizadas pelo caller; retorna meses
@@ -63,11 +62,21 @@ export interface MonthlyApuracao {
   irTotalDevido: number;
 }
 
+/**
+ * Pool de prejuízo a compensar:
+ *  - rvComum: compartilhado entre ações BR e ETF BR.
+ *  - fii: separado (compensa só com vendas de FII).
+ */
+export type LossPoolKey = 'rvComum' | 'fii';
+
 export interface ApuracaoResult {
   meses: MonthlyApuracao[];
-  /** Saldo de prejuízo a compensar atual (após o último mês processado) por categoria. */
-  saldosPrejuizoAtual: Record<RendaVariavelCategory, number>;
+  /** Saldo de prejuízo a compensar atual (após o último mês processado). */
+  saldosPrejuizoAtual: Record<LossPoolKey, number>;
 }
+
+const lossPoolFor = (category: RendaVariavelCategory): LossPoolKey =>
+  category === 'fii' ? 'fii' : 'rvComum';
 
 const ISENCAO_ACOES_VENDAS_MES = 20000;
 
@@ -133,11 +142,10 @@ export function apurarRendaVariavel(transactions: RvTransaction[]): ApuracaoResu
     cats.get(sell.category)!.push(sell);
   }
 
-  // Process months chronologically; manter loss carryforward por categoria.
-  const saldoPrejuizo: Record<RendaVariavelCategory, number> = {
-    acao_br: 0,
+  // Process months chronologically; loss carryforward em 2 pools (rvComum + fii).
+  const saldoPrejuizo: Record<LossPoolKey, number> = {
+    rvComum: 0,
     fii: 0,
-    etf_br: 0,
   };
   const meses: MonthlyApuracao[] = [];
   const sortedYMs = [...byMonth.keys()].sort();
@@ -179,19 +187,20 @@ export function apurarRendaVariavel(transactions: RvTransaction[]): ApuracaoResu
       let irDevido = 0;
       let aliquotaAplicada = 0;
 
+      const pool = lossPoolFor(category);
       if (isento) {
         // Lucro isento — não consome saldo de prejuízo, não gera IR.
       } else if (lucroBruto > 0) {
-        prejuizoCompensado = Math.min(saldoPrejuizo[category], lucroBruto);
+        prejuizoCompensado = Math.min(saldoPrejuizo[pool], lucroBruto);
         lucroTributavel = lucroBruto - prejuizoCompensado;
-        saldoPrejuizo[category] -= prejuizoCompensado;
+        saldoPrejuizo[pool] -= prejuizoCompensado;
         if (lucroTributavel > 0) {
           irDevido = lucroTributavel * aliquotaCategoria;
           aliquotaAplicada = aliquotaCategoria;
         }
       } else if (lucroBruto < 0) {
-        // Prejuízo: acumula no saldo da categoria para compensar meses futuros.
-        saldoPrejuizo[category] += Math.abs(lucroBruto);
+        // Prejuízo: acumula no pool correspondente para compensar meses futuros.
+        saldoPrejuizo[pool] += Math.abs(lucroBruto);
       }
 
       monthly.porCategoria[category] = {
@@ -204,7 +213,7 @@ export function apurarRendaVariavel(transactions: RvTransaction[]): ApuracaoResu
         motivoIsencao,
         aliquota: aliquotaAplicada,
         irDevido: round2(irDevido),
-        saldoPrejuizoFinal: round2(saldoPrejuizo[category]),
+        saldoPrejuizoFinal: round2(saldoPrejuizo[pool]),
       };
       monthly.irTotalDevido += irDevido;
     }
@@ -216,9 +225,8 @@ export function apurarRendaVariavel(transactions: RvTransaction[]): ApuracaoResu
   return {
     meses,
     saldosPrejuizoAtual: {
-      acao_br: round2(saldoPrejuizo.acao_br),
+      rvComum: round2(saldoPrejuizo.rvComum),
       fii: round2(saldoPrejuizo.fii),
-      etf_br: round2(saldoPrejuizo.etf_br),
     },
   };
 }
