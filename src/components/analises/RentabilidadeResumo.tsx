@@ -156,23 +156,48 @@ export default function RentabilidadeResumo() {
     resumo?.historicoTWR,
   ]);
 
-  // Cards de resumo refletem a janela de 12 meses, igual ao donut e à linha
-  // "12 meses" da tabela. Misturar `resumo.rentabilidade` (acumulado desde o
-  // início) com CDI de 12m gera números sem sentido (ex: 400% sobre CDI).
+  // Cards de resumo refletem rentabilidade ACUMULADA desde o início da
+  // carteira (mesmo critério do Kinvo). CDI de comparação também é calculado
+  // desde firstInvestmentDate para que % SOBRE CDI e % REAL fiquem coerentes.
+  // O filtro por firstInvestmentDate é aplicado em indices1y na busca, então
+  // calcularRentabilidade(cdi1y, firstInvestmentDate, hoje) devolve o
+  // acumulado do período.
   const valoresResumo = useMemo(() => {
-    const carteira12m = rentabilidades.carteira.dozeMeses || 0;
-    const cdi12m = rentabilidades.cdi.dozeMeses || 0;
-    // "% sobre CDI" no mercado BR = percentual do CDI atingido (ex: 120% do CDI).
-    const sobreCDI = cdi12m > 0 ? (carteira12m / cdi12m) * 100 : 0;
-    // "% REAL" = retorno acima do CDI (excesso de retorno) no mesmo período.
-    const real = carteira12m - cdi12m;
+    const carteiraTotal = resumo?.rentabilidade ?? 0;
+
+    let cdiAcumulado = 0;
+    if (firstInvestmentDate) {
+      const cdi1y = indices1y.find((i) => i.name === 'CDI');
+      if (cdi1y?.data && cdi1y.data.length > 0) {
+        const hojeTs = (() => {
+          const d = new Date();
+          d.setHours(0, 0, 0, 0);
+          return d.getTime();
+        })();
+        const filtrados = cdi1y.data.filter(
+          (item) => item.date >= firstInvestmentDate && item.date <= hojeTs,
+        );
+        if (filtrados.length > 0) {
+          const inicio = filtrados[0]?.value ?? 0;
+          const fim = filtrados[filtrados.length - 1]?.value ?? 0;
+          const cumInicio = 1 + inicio / 100;
+          const cumFim = 1 + fim / 100;
+          if (cumInicio > 0) {
+            cdiAcumulado = (cumFim / cumInicio - 1) * 100;
+          }
+        }
+      }
+    }
+
+    const sobreCDI = cdiAcumulado > 0 ? (carteiraTotal / cdiAcumulado) * 100 : 0;
+    const real = carteiraTotal - cdiAcumulado;
 
     return {
       real,
-      total: carteira12m,
+      total: carteiraTotal,
       sobreCDI,
     };
-  }, [rentabilidades]);
+  }, [resumo?.rentabilidade, firstInvestmentDate, indices1y]);
 
   // Dados para o gráfico donut (Carteira, CDI, IBOV baseado na rentabilidade de 12 meses)
   const donutData = useMemo(() => {
