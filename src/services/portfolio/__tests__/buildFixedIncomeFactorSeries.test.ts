@@ -67,8 +67,9 @@ describe('buildFixedIncomeFactorSeries', () => {
     for (const day of timeline) cdi.set(day, 0.0005);
 
     const factors = buildFixedIncomeFactorSeries(fi, timeline, { cdi });
-    // 21 dias úteis à taxa diária 0.0005
-    const expected = Math.pow(1.0005, 21);
+    // 22 dias úteis compostos até timeline[21] inclusive (D+0 conta — CDI
+    // do dia da aplicação incide).
+    const expected = Math.pow(1.0005, 22);
     expect(factors.get(timeline[21])).toBeCloseTo(expected, 10);
   });
 
@@ -89,9 +90,33 @@ describe('buildFixedIncomeFactorSeries', () => {
       { cdi },
     );
 
-    const expected110 = Math.pow(1 + 0.0005 * 1.1, 21);
+    const expected110 = Math.pow(1 + 0.0005 * 1.1, 22);
     expect(factors110.get(timeline[21])).toBeCloseTo(expected110, 10);
     expect(factors110.get(timeline[21])!).toBeGreaterThan(factors100.get(timeline[21])!);
+  });
+
+  it('CDI — compõe no próprio dia da aplicação (D+0)', () => {
+    // CDB BMG comprado hoje rende a taxa do CDI de hoje. Sem isso, o user
+    // veria saldo "estagnado" até o dia útil seguinte (gap visual).
+    const start = new Date(2025, 0, 2);
+    const fi = makeFi({ startDate: start, annualRate: 0, indexer: 'CDI', indexerPercent: 100 });
+    const timeline = buildDailyTimeline(start, new Date(start.getTime() + 5 * 24 * 3600 * 1000));
+    const cdi: CdiDaily = new Map();
+    cdi.set(timeline[0], 0.0005); // CDI publicado para o startDay
+
+    const factors = buildFixedIncomeFactorSeries(fi, timeline, { cdi });
+    expect(factors.get(timeline[0])).toBeCloseTo(1.0005, 10);
+  });
+
+  it('PRE no startDay — segue D+1 (não compõe no próprio dia)', () => {
+    // Convenção D+1 mantida para PRE/IPCA: o ganho começa no dia útil seguinte.
+    // Só CDI passa a aplicar D+0 (alinhamento com Kinvo + BACEN publica D+1).
+    const start = new Date(2025, 0, 2);
+    const fi = makeFi({ startDate: start, annualRate: 12, indexer: 'PRE' });
+    const timeline = buildDailyTimeline(start, new Date(start.getTime() + 5 * 24 * 3600 * 1000));
+    const factors = buildFixedIncomeFactorSeries(fi, timeline);
+    expect(factors.get(timeline[0])).toBeCloseTo(1, 10);
+    expect(factors.get(timeline[1])).toBeCloseTo(Math.pow(1.12, 1 / 252), 10);
   });
 
   it('CDI — não compõe em dias sem dado (feriados/gaps do BACEN)', () => {
@@ -227,7 +252,7 @@ describe('buildFixedIncomeFactorSeries', () => {
       timeline,
       { cdi },
     );
-    expect(factors.get(timeline[10])).toBeCloseTo(Math.pow(1.0005, 10), 10);
+    expect(factors.get(timeline[10])).toBeCloseTo(Math.pow(1.0005, 11), 10);
   });
 
   it('Timeline vazio — retorna mapa vazio', () => {

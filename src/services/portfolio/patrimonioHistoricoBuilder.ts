@@ -238,6 +238,21 @@ export const buildFixedIncomeFactorSeries = (
   let factor = 1;
   let lastCdi = 0;
   let lastTesouroPU = ctx.tesouroPUAtStart ?? 0;
+  // Pre-popula lastTesouroPU com o PU mais recente publicado (<= startTs).
+  // Sem isso, posições compradas em dias sem publicação de PU (D+1 do BACEN
+  // ainda em atraso, fim de semana, feriado) usariam o `tesouroPUAtStart`
+  // como factor — ignorando o PU oficial mais recente. Especialmente
+  // importante quando `tesouroPUAtStart` é o preço pago (qty=1) em vez do
+  // PU oficial (qty fracional), caso em que lastTesouroPU = preço pago dá
+  // factor=1 sem refletir o ganho de mercado.
+  if (hasTesouroPU && ctx.tesouroPU) {
+    const sortedKeys = Array.from(ctx.tesouroPU.keys())
+      .filter((k) => k <= startTs)
+      .sort();
+    const latest = sortedKeys[sortedKeys.length - 1];
+    const pu = latest !== undefined ? ctx.tesouroPU.get(latest) : undefined;
+    if (pu && pu > 0) lastTesouroPU = pu;
+  }
   // Inicia no mês da aplicação para que o IPCA do mês em curso não seja aplicado
   // quando cruzarmos para o próximo mês (seria cobrar IPCA retroativo da fração pré-aplicação).
   let lastMonthApplied = monthKeyOf(startTs);
@@ -262,6 +277,24 @@ export const buildFixedIncomeFactorSeries = (
       if (lastTesouroPU > 0 && ctx.tesouroPUAtStart! > 0) {
         factor = lastTesouroPU / ctx.tesouroPUAtStart!;
       }
+    } else if (indexer === 'CDI' && day >= startTs) {
+      // CDI compõe a partir do próprio dia da aplicação (D+0) — alinha com
+      // Kinvo e outras plataformas. Convenção D+1 (`day > startTs`) criava
+      // gap visual de 2 dias entre compra e primeiro rendimento (1 dia da
+      // regra + 1 dia de defasagem da publicação BACEN).
+      // Só compõe em dias em que o BACEN realmente publicou taxa — sem
+      // carry-forward em feriados (que gerava ~10 compoundings extras/ano).
+      const cdiRate = ctx.cdi?.get(day);
+      if (cdiRate != null && Number.isFinite(cdiRate)) {
+        lastCdi = cdiRate;
+        factor *= 1 + lastCdi * indexerPercent;
+        // Para híbrido (CDI + X%), o spread (annualRate) é aplicado diariamente.
+        // Em pós-fixada o annualRate é overload do "% do indexador" no wizard, então
+        // aplicar dailyPreFactor lá causaria dupla contagem. Restringe-se a _HIB.
+        if (isHibrido && annualRate > 0) {
+          factor *= dailyPreFactor;
+        }
+      }
     } else if (day > startTs) {
       // IPCA: aplica a taxa do mês anterior ao cruzar para um novo mês.
       // IPCA é publicado ~10 dias após o fechamento do mês — só avança lastMonthApplied
@@ -277,24 +310,8 @@ export const buildFixedIncomeFactorSeries = (
         }
         // Para híbrido (IPCA + X%), o spread (annualRate) é aplicado diariamente.
         factor *= dailyPreFactor;
-      } else if (indexer === 'CDI') {
-        // Só compõe CDI em dias em que o BACEN realmente publicou taxa. Em feriados
-        // nacionais (sem publicação) não há rendimento — antes carregávamos `lastCdi`
-        // para o feriado, gerando ~10 compoundings extras/ano e desviando ~2,5%/5 anos
-        // pra cima vs cálculo do mercado (Kinvo etc.).
-        const cdiRate = ctx.cdi?.get(day);
-        if (cdiRate != null && Number.isFinite(cdiRate)) {
-          lastCdi = cdiRate;
-          factor *= 1 + lastCdi * indexerPercent;
-          // Para híbrido (CDI + X%), o spread (annualRate) é aplicado diariamente.
-          // Em pós-fixada o annualRate é overload do "% do indexador" no wizard, então
-          // aplicar dailyPreFactor lá causaria dupla contagem. Restringe-se a _HIB.
-          if (isHibrido && annualRate > 0) {
-            factor *= dailyPreFactor;
-          }
-        }
       } else {
-        // PRE (default)
+        // PRE (default) — segue D+1 (rendimento começa no dia útil seguinte).
         factor *= dailyPreFactor;
       }
     }
