@@ -1,6 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useState } from 'react';
 import RentabilidadeGeral from '@/components/analises/RentabilidadeGeral';
 import ProventosTabs from '@/components/analises/ProventosTabs';
 import RiscoRetorno from '@/components/analises/RiscoRetorno';
@@ -49,16 +48,7 @@ const tabs = [
 ];
 
 export default function CarteiraAnalise() {
-  const searchParams = useSearchParams();
-  const tabParam = searchParams.get('tab');
-  const initialTab = tabs.find((t) => t.id === tabParam)?.id ?? 'rentabilidade-geral';
-  const [activeTab, setActiveTab] = useState(initialTab);
-
-  useEffect(() => {
-    if (tabParam && tabs.some((t) => t.id === tabParam)) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
+  const [activeTab, setActiveTab] = useState('rentabilidade-geral');
 
   return (
     <div>
