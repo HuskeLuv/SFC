@@ -156,25 +156,23 @@ export default function RentabilidadeResumo() {
     resumo?.historicoTWR,
   ]);
 
-  // Calcular valores de resumo (% REAL, % TOTAL, % SOBRE CDI)
+  // Cards de resumo refletem a janela de 12 meses, igual ao donut e à linha
+  // "12 meses" da tabela. Misturar `resumo.rentabilidade` (acumulado desde o
+  // início) com CDI de 12m gera números sem sentido (ex: 400% sobre CDI).
   const valoresResumo = useMemo(() => {
-    if (!resumo) {
-      return { real: 0, total: 0, sobreCDI: 0 };
-    }
-
-    const rentabilidadeTotal = resumo.rentabilidade || 0;
-    const cdi12Meses = rentabilidades.cdi.dozeMeses || 0;
-    // "% sobre CDI" no mercado BR = percentual do CDI atingido (ex: 120% do CDI)
-    const sobreCDI = cdi12Meses > 0 ? (rentabilidadeTotal / cdi12Meses) * 100 : 0;
-    // "% REAL" = retorno acima do CDI (excesso de retorno)
-    const real = rentabilidadeTotal - cdi12Meses;
+    const carteira12m = rentabilidades.carteira.dozeMeses || 0;
+    const cdi12m = rentabilidades.cdi.dozeMeses || 0;
+    // "% sobre CDI" no mercado BR = percentual do CDI atingido (ex: 120% do CDI).
+    const sobreCDI = cdi12m > 0 ? (carteira12m / cdi12m) * 100 : 0;
+    // "% REAL" = retorno acima do CDI (excesso de retorno) no mesmo período.
+    const real = carteira12m - cdi12m;
 
     return {
       real,
-      total: rentabilidadeTotal,
+      total: carteira12m,
       sobreCDI,
     };
-  }, [resumo, rentabilidades]);
+  }, [rentabilidades]);
 
   // Dados para o gráfico donut (Carteira, CDI, IBOV baseado na rentabilidade de 12 meses)
   const donutData = useMemo(() => {
