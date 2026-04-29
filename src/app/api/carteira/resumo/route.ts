@@ -286,17 +286,18 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
   }
 
-  const fixedIncomeByAssetId = new Map<string, FixedIncomeAssetWithAsset>();
-  fixedIncomeAssets.forEach((fixedIncome) => {
-    fixedIncomeByAssetId.set(fixedIncome.assetId, fixedIncome);
-  });
-
   // Pricer compartilhado para marcação na curva (CDI/IPCA/Tesouro PU). Reutilizado em
   // todas as iterações do portfolio para que CDB/LCI/LCA/Tesouro tenham o mesmo valor
   // atual em qualquer aba (resumo, reservas, FIM/FIA, renda fixa).
   const fiPricer = await createFixedIncomePricer(targetUserId, {
     preloadedAssets: fixedIncomeAssets,
   });
+
+  // Usa o map enriched do pricer (com `qty` populado do Portfolio). Sem isso,
+  // Tesouro Direto cadastrado em estilo Kinvo (qty=1, avgPrice=valor pago) cai
+  // no caminho do PU oficial e não reflete o ganho real até o BACEN publicar
+  // o PU do dia.
+  const fixedIncomeByAssetId = fiPricer.fixedIncomeByAssetId;
 
   // Mesclar grupos (personalizações têm prioridade)
   const allInvestmentGroups = [...investmentGroupsCustom];
