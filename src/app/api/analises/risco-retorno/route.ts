@@ -82,8 +82,13 @@ function calcularRetornosMensaisTWR(
   const meses = Array.from(porMes.entries()).sort(([a], [b]) => a.localeCompare(b));
   const retornos: Array<{ year: number; month: number; retorno: number }> = [];
 
-  for (let i = 1; i < meses.length; i++) {
-    const twrAnterior = 1 + meses[i - 1][1].twrAcumulado / 100;
+  // O TWR cumulativo antes do primeiro ponto da série é, por definição, 0%
+  // (factor=1). Incluir o primeiro mês com twrAnterior=0 garante que o retorno
+  // mensal do mês de início entre na composição — sem isso, `calcularRetorno`
+  // descarta o primeiro mês inteiro e devolve só a variação do segundo em
+  // diante (na carteira do kinvo, ignora +65% de março e mostra só +8% de abril).
+  for (let i = 0; i < meses.length; i++) {
+    const twrAnterior = i === 0 ? 1 : 1 + meses[i - 1][1].twrAcumulado / 100;
     const twrAtual = 1 + meses[i][1].twrAcumulado / 100;
     if (twrAnterior > 0) {
       const [yearStr, monthStr] = meses[i][0].split('-');
