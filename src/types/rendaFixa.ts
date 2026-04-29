@@ -11,6 +11,8 @@ export interface RendaFixaIRProjection {
   diasDecorridos: number;
   aliquota: number;
   rendimentoBruto: number;
+  /** IOF nos primeiros 30 dias (0 a partir do 30º dia). */
+  iof: number;
   ir: number;
   valorLiquido: number;
 }

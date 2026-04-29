@@ -10,9 +10,10 @@
  *      361-720:   17.5%
  *      ≥721:      15.0%
  *  - IR só incide se rendimento > 0 (prejuízo não tributa).
- *
- * IOF dos primeiros 30 dias NÃO é calculado aqui — foco em investidor de
- * longo prazo. Quando necessário, expandir o resultado com `iof` separado.
+ *  - IOF regressivo nos primeiros 30 dias (tabela oficial RFB): aplicado sobre
+ *    o rendimento e ABATE a base de cálculo do IR — ir = (rendimento - iof) ×
+ *    aliquota. A partir do 30º dia, IOF = 0. Aplica-se a CDB/LF/RDB/Tesouro,
+ *    NÃO a isentos (LCI/LCA/CRI/CRA/LIG).
  *
  * Sem I/O, sem prisma. Recebe o que precisa e devolve o cálculo.
  */
@@ -47,9 +48,11 @@ export interface FixedIncomeIRResult {
   aliquota: number;
   /** Rendimento bruto = saldoBruto - valorAplicado (pode ser negativo). */
   rendimentoBruto: number;
-  /** Imposto devido sobre o rendimento (0 quando isento ou rendimento ≤ 0). */
+  /** IOF cobrado sobre o rendimento — só nos primeiros 30 dias e em ativos não isentos. */
+  iof: number;
+  /** Imposto devido sobre (rendimento - iof). 0 quando isento ou rendimento ≤ 0. */
   ir: number;
-  /** saldoBruto - ir. Quando rendimento ≤ 0, igual a saldoBruto. */
+  /** saldoBruto - iof - ir. Quando rendimento ≤ 0, igual a saldoBruto. */
   valorLiquido: number;
 }
 
@@ -73,6 +76,22 @@ export function aliquotaTabelaRegressiva(diasDecorridos: number): number {
   if (diasDecorridos <= 360) return 0.2;
   if (diasDecorridos <= 720) return 0.175;
   return 0.15;
+}
+
+/**
+ * Tabela regressiva de IOF para resgates nos primeiros 30 dias (Decreto
+ * 6.306/2007, art. 32). Indexada por dia (1..29). Dia 30+ → 0%.
+ * Aplicada sobre o rendimento, antes do IR.
+ */
+const TABELA_IOF: readonly number[] = [
+  0.96, 0.93, 0.9, 0.86, 0.83, 0.8, 0.76, 0.73, 0.7, 0.66, 0.63, 0.6, 0.56, 0.53, 0.5, 0.46, 0.43,
+  0.4, 0.36, 0.33, 0.3, 0.26, 0.23, 0.2, 0.16, 0.13, 0.1, 0.06, 0.03,
+] as const;
+
+export function aliquotaIof(diasDecorridos: number): number {
+  if (diasDecorridos < 1) return TABELA_IOF[0];
+  if (diasDecorridos >= 30) return 0;
+  return TABELA_IOF[diasDecorridos - 1] ?? 0;
 }
 
 /**
@@ -108,13 +127,17 @@ export function calcularIRRendaFixa(input: FixedIncomeIRInput): FixedIncomeIRRes
       diasDecorridos,
       aliquota: 0,
       rendimentoBruto: round2(rendimentoBruto),
+      iof: 0,
       ir: 0,
       valorLiquido: round2(input.saldoBruto),
     };
   }
 
+  const iofPercent = aliquotaIof(diasDecorridos);
+  const iof = rendimentoBruto * iofPercent;
+  const baseIR = rendimentoBruto - iof;
   const aliquota = aliquotaTabelaRegressiva(diasDecorridos);
-  const ir = rendimentoBruto * aliquota;
+  const ir = Math.max(0, baseIR) * aliquota;
   return {
     isento: false,
     motivoIsencao: null,
@@ -122,8 +145,9 @@ export function calcularIRRendaFixa(input: FixedIncomeIRInput): FixedIncomeIRRes
     diasDecorridos,
     aliquota,
     rendimentoBruto: round2(rendimentoBruto),
+    iof: round2(iof),
     ir: round2(ir),
-    valorLiquido: round2(input.saldoBruto - ir),
+    valorLiquido: round2(input.saldoBruto - iof - ir),
   };
 }
 

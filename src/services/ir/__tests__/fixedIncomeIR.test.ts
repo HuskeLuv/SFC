@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { calcularIRRendaFixa, classifyForIR, aliquotaTabelaRegressiva } from '../fixedIncomeIR';
+import {
+  calcularIRRendaFixa,
+  classifyForIR,
+  aliquotaTabelaRegressiva,
+  aliquotaIof,
+} from '../fixedIncomeIR';
 
 describe('aliquotaTabelaRegressiva', () => {
   it('22.5% até 180 dias', () => {
@@ -160,6 +165,81 @@ describe('calcularIRRendaFixa', () => {
     });
     expect(result.isento).toBe(true);
     expect(result.motivoIsencao).toBe('LCA');
+    expect(result.iof).toBe(0);
     expect(result.ir).toBe(0);
+  });
+});
+
+describe('aliquotaIof', () => {
+  it('dia 1 → 96%, dia 15 → 50%, dia 29 → 3%', () => {
+    expect(aliquotaIof(1)).toBe(0.96);
+    expect(aliquotaIof(15)).toBe(0.5);
+    expect(aliquotaIof(29)).toBe(0.03);
+  });
+  it('dia 30 e além → 0%', () => {
+    expect(aliquotaIof(30)).toBe(0);
+    expect(aliquotaIof(31)).toBe(0);
+    expect(aliquotaIof(365)).toBe(0);
+  });
+});
+
+describe('calcularIRRendaFixa — IOF nos primeiros 30 dias', () => {
+  const start = new Date('2025-01-01');
+
+  it('CDB resgatado em 10 dias: IOF 66% sobre rendimento e IR sobre o saldo', () => {
+    const result = calcularIRRendaFixa({
+      type: 'CDB_PRE',
+      isTesouro: false,
+      startDate: start,
+      asOfDate: new Date(start.getTime() + 10 * 86400000),
+      valorAplicado: 1000,
+      saldoBruto: 1100, // rendimento R$100
+    });
+    expect(result.diasDecorridos).toBe(10);
+    expect(result.iof).toBe(66); // 100 * 0.66
+    // base IR = 100 - 66 = 34, alíquota 22.5% → 7.65
+    expect(result.aliquota).toBe(0.225);
+    expect(result.ir).toBe(7.65);
+    expect(result.valorLiquido).toBe(1100 - 66 - 7.65);
+  });
+
+  it('LCI nos primeiros 30 dias NÃO sofre IOF (isento)', () => {
+    const result = calcularIRRendaFixa({
+      type: 'LCI_PRE',
+      isTesouro: false,
+      startDate: start,
+      asOfDate: new Date(start.getTime() + 5 * 86400000),
+      valorAplicado: 1000,
+      saldoBruto: 1100,
+    });
+    expect(result.isento).toBe(true);
+    expect(result.iof).toBe(0);
+    expect(result.ir).toBe(0);
+  });
+
+  it('CDB com 30 dias: IOF zerado', () => {
+    const result = calcularIRRendaFixa({
+      type: 'CDB_PRE',
+      isTesouro: false,
+      startDate: start,
+      asOfDate: new Date(start.getTime() + 30 * 86400000),
+      valorAplicado: 1000,
+      saldoBruto: 1100,
+    });
+    expect(result.iof).toBe(0);
+    expect(result.ir).toBe(22.5); // 100 * 0.225
+  });
+
+  it('Tesouro nos primeiros 30 dias também sofre IOF', () => {
+    const result = calcularIRRendaFixa({
+      type: null,
+      isTesouro: true,
+      startDate: start,
+      asOfDate: new Date(start.getTime() + 5 * 86400000),
+      valorAplicado: 1000,
+      saldoBruto: 1100,
+    });
+    expect(result.iof).toBeGreaterThan(0);
+    expect(result.iof).toBe(83); // 100 * 0.83
   });
 });
