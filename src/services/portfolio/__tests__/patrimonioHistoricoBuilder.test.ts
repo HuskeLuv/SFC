@@ -324,10 +324,30 @@ describe('calculateHistoricoTWR', () => {
     expect(calculateHistoricoTWR([], new Map())).toEqual([]);
   });
 
-  it('primeiro elemento sempre tem value=0', () => {
+  it('primeiro elemento sem cashflow tem value=0', () => {
     const series = [{ data: 1, saldoBruto: 1000 }];
     const result = calculateHistoricoTWR(series, new Map());
     expect(result).toEqual([{ data: 1, value: 0 }]);
+  });
+
+  it('primeiro elemento captura ganho instantâneo (saldoBruto vs cashflow)', () => {
+    // User comprou ITUB4 a R$32 num dia em que o mercado fechou em R$45
+    // (preço de aquisição abaixo do mercado — caso típico do CSV de teste).
+    // O TWR no dia da compra captura o ganho de +40%.
+    const day = normalizeDateStart(new Date(2026, 1, 28)).getTime();
+    const series = [{ data: day, saldoBruto: 1377.6 }]; // 30 × R$45.92 (mercado)
+    const cashFlows = new Map([[day, 960]]); // 30 × R$32 (preço pago)
+    const result = calculateHistoricoTWR(series, cashFlows);
+    // retorno = (1377.6 - 960) / 960 = +43.5%
+    expect(result[0].value).toBeCloseTo(43.5, 1);
+  });
+
+  it('clampa ganho instantâneo extremo (>100% ou <-100%) para 0', () => {
+    const day = normalizeDateStart(new Date(2026, 0, 1)).getTime();
+    const series = [{ data: day, saldoBruto: 5000 }];
+    const cashFlows = new Map([[day, 1000]]); // +400% → clamped
+    const result = calculateHistoricoTWR(series, cashFlows);
+    expect(result[0].value).toBe(0);
   });
 
   it('calcula retorno diario simples (sem fluxo de caixa)', () => {
