@@ -638,7 +638,15 @@ export const buildPatrimonioHistorico = async (
 
     let history: Array<{ date: number; value: number }> = [];
     if (!isManual) {
-      history = [...(historyBySymbol.get(symbol) ?? []), ...pricePoints];
+      // Preço de mercado (brapi/AssetPriceHistory) tem prioridade sobre o
+      // preço pago no tx. Sem isso, comprar 30 ações ITUB4 a R$33 num dia em
+      // que o mercado fecha em R$44 sobrescrevia o priceMap pra R$33 — o
+      // saldo "perdia" R$11 × posição_total nesse dia, distorcendo o TWR.
+      // Pricepoints só preenchem dias em que a brapi não publicou cotação.
+      const brapi = historyBySymbol.get(symbol) ?? [];
+      const brapiDays = new Set(brapi.map((h) => normalizeDateStart(new Date(h.date)).getTime()));
+      const supplemental = pricePoints.filter((p) => !brapiDays.has(p.date));
+      history = [...brapi, ...supplemental];
     } else {
       history = [...pricePoints];
     }
