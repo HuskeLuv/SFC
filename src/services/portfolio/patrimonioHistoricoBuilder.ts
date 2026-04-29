@@ -19,6 +19,12 @@ export type FixedIncomeAssetWithAsset = {
   taxExempt: boolean;
   tesouroBondType?: string | null;
   tesouroMaturity?: Date | null;
+  /**
+   * Quantidade da posição (cotas para Tesouro). Quando presente, o pricer
+   * usa `investedAmount / qty` como preço efetivo de aquisição em vez do PU
+   * oficial — alinha com o comportamento do Kinvo (1 cota × R$ pago).
+   */
+  qty?: number;
   asset: { symbol: string; name: string; type?: string | null } | null;
 };
 
@@ -309,24 +315,35 @@ export const calculateHistoricoTWR = (
   let cumulative = 1;
 
   for (let i = 0; i < patrimonioSeries.length; i++) {
-    if (i === 0) {
-      result.push({ data: patrimonioSeries[i].data, value: 0 });
-      continue;
-    }
-
-    const valorInicial = patrimonioSeries[i - 1].saldoBruto;
     const valorFinal = patrimonioSeries[i].saldoBruto;
     const dayKey = getDayKey(patrimonioSeries[i].data);
     const fluxo = cashFlowsByDay.get(dayKey) ?? cashFlowsByDay.get(patrimonioSeries[i].data) ?? 0;
 
     let retornoDia = 0;
-    if (valorInicial > 0) {
-      retornoDia = (valorFinal - valorInicial - fluxo) / valorInicial;
-      if (!Number.isFinite(retornoDia) || retornoDia > 0.5 || retornoDia < -0.5) {
+    if (i === 0) {
+      // Primeiro ponto: usa o cashflow do dia (aporte) como base, capturando
+      // o ganho instantâneo entre o preço pago e o preço de mercado naquele
+      // dia. Sem isso, o TWR forçava 0 no início e descartava a diferença —
+      // padrão Kinvo/B3 inclui esse ganho na rentabilidade do período.
+      if (fluxo > 0) {
+        retornoDia = (valorFinal - fluxo) / fluxo;
+        // Clamp mais largo no primeiro ponto: ganho instantâneo de até ±100%
+        // pode acontecer quando o preço pago foge muito do preço de mercado
+        // (CSVs de teste, doações, herança, retomada de posição antiga sem PU).
+        if (!Number.isFinite(retornoDia) || retornoDia > 1 || retornoDia < -1) {
+          retornoDia = 0;
+        }
+      }
+    } else {
+      const valorInicial = patrimonioSeries[i - 1].saldoBruto;
+      if (valorInicial > 0) {
+        retornoDia = (valorFinal - valorInicial - fluxo) / valorInicial;
+        if (!Number.isFinite(retornoDia) || retornoDia > 0.5 || retornoDia < -0.5) {
+          retornoDia = 0;
+        }
+      } else if (valorFinal > 0 && fluxo > 0) {
         retornoDia = 0;
       }
-    } else if (valorFinal > 0 && fluxo > 0) {
-      retornoDia = 0;
     }
 
     cumulative *= 1 + retornoDia;

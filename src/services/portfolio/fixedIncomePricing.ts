@@ -7,8 +7,28 @@ import {
   type CdiDaily,
   type FixedIncomeAssetWithAsset,
   type IpcaMonthly,
+  type PortfolioWithRelations,
   type TesouroPU,
 } from './patrimonioHistoricoBuilder';
+
+/**
+ * Anexa `qty` (do Portfolio) a cada FixedIncomeAsset por assetId. Permite ao
+ * pricer calcular o preço efetivo de aquisição (`investedAmount / qty`) — usado
+ * principalmente em Tesouro Direto pra alinhar com o comportamento do Kinvo,
+ * onde a posição é 1 cota × R$ pago em vez de qty fracional × PU oficial.
+ */
+export const enrichFixedIncomeWithQty = (
+  fixedIncomeAssets: FixedIncomeAssetWithAsset[],
+  portfolio: PortfolioWithRelations[],
+): FixedIncomeAssetWithAsset[] => {
+  const qtyByAssetId = new Map<string, number>();
+  for (const item of portfolio) {
+    if (item.assetId && item.quantity > 0) {
+      qtyByAssetId.set(item.assetId, item.quantity);
+    }
+  }
+  return fixedIncomeAssets.map((fi) => ({ ...fi, qty: qtyByAssetId.get(fi.assetId) }));
+};
 
 export type FixedIncomePricer = {
   getCurrentValue: (fi: FixedIncomeAssetWithAsset) => number;
@@ -53,6 +73,7 @@ const toFiHelper = (fi: FixedIncomeAssetWithAsset): FixedIncomeAssetWithAsset =>
   taxExempt: fi.taxExempt,
   tesouroBondType: fi.tesouroBondType,
   tesouroMaturity: fi.tesouroMaturity,
+  qty: fi.qty,
   asset: fi.asset ?? null,
 });
 
@@ -88,6 +109,29 @@ export const createFixedIncomePricer = async (
       const prismaError = error as Prisma.PrismaClientKnownRequestError;
       if (prismaError?.code !== 'P2021') throw error;
       fixedIncomeAssets = [];
+    }
+  }
+
+  // Enriquece cada FI com `qty` do Portfolio. O pricer (Tesouro Direto) usa
+  // `investedAmount / qty` como preço efetivo de aquisição quando qty está
+  // presente — alinha o ganho com o que o user pagou, não com o PU oficial
+  // na data da compra.
+  if (fixedIncomeAssets.length > 0 && fixedIncomeAssets.some((fi) => fi.qty == null)) {
+    try {
+      const portfolioQtys = await prisma.portfolio.findMany({
+        where: { userId, assetId: { in: fixedIncomeAssets.map((fi) => fi.assetId) } },
+        select: { assetId: true, quantity: true },
+      });
+      const qtyMap = new Map(portfolioQtys.map((p) => [p.assetId, p.quantity]));
+      fixedIncomeAssets = fixedIncomeAssets.map((fi) => ({
+        ...fi,
+        qty: fi.qty ?? qtyMap.get(fi.assetId),
+      }));
+    } catch (error) {
+      // P2021 ou outros erros não-fatais aqui só significam que `qty` não vai ser
+      // populado — caímos no caminho original (PU oficial como base de aquisição).
+      const prismaError = error as Prisma.PrismaClientKnownRequestError;
+      if (prismaError?.code !== 'P2021') throw error;
     }
   }
 
@@ -208,6 +252,14 @@ export const createFixedIncomePricer = async (
     const key = `${fi.tesouroBondType}|${fi.tesouroMaturity.toISOString()}`;
     const tesouroPU = tesouroPUByBond.get(key);
     if (!tesouroPU) return { tesouroPU: undefined, tesouroPUAtStart: 0 };
+    // Quando temos qty na posição, o "PU efetivo de aquisição" é o que o user
+    // realmente pagou por cota: investedAmount / qty. Isso captura o ganho real
+    // mesmo quando o user cadastra 1 cota × R$ pago (estilo Kinvo) em vez de
+    // qty fracional × PU oficial. Em compras alinhadas com PU oficial os dois
+    // caminhos convergem (qty = investedAmount / pu_oficial → razão = 1).
+    if (fi.qty && fi.qty > 0 && fi.investedAmount > 0) {
+      return { tesouroPU, tesouroPUAtStart: fi.investedAmount / fi.qty };
+    }
     const startKey = normalizeDateStart(new Date(fi.startDate)).getTime();
     const sortedKeys = Array.from(tesouroPU.keys()).sort((a, b) => a - b);
     const atOrBefore = [...sortedKeys].reverse().find((k) => k <= startKey);
