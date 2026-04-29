@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useSidebar } from '../context/SidebarContext';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -12,7 +12,6 @@ import {
   GridIcon,
   HorizontaLDots,
   PencilIcon,
-  PieChartIcon,
   TableIcon,
   UserCircleIcon,
   DocsIcon,
@@ -35,17 +34,6 @@ const MAIN_NAV_ITEMS: NavItem[] = [
     icon: <DollarLineIcon />,
     name: 'Carteira',
     path: '/carteira',
-  },
-  {
-    icon: <PieChartIcon />,
-    name: 'Análises',
-    subItems: [
-      { name: 'Rentabilidade', path: '/analises?tab=rentabilidade-geral' },
-      { name: 'Proventos', path: '/analises?tab=proventos' },
-      { name: 'Risco x Retorno', path: '/analises?tab=risco-retorno' },
-      { name: 'Cobertura FGC', path: '/analises?tab=cobertura-fgc' },
-      { name: 'Imposto de Renda', path: '/analises?tab=imposto-de-renda' },
-    ],
   },
   {
     name: 'Fluxo de Caixa',
@@ -100,7 +88,6 @@ const supportItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { user, actingClient } = useAuth();
 
   const dashboardPath =
@@ -262,19 +249,7 @@ const AppSidebar: React.FC = () => {
 
   // const isActive = (path: string) => path === pathname;
 
-  const isActive = useCallback(
-    (path: string) => {
-      const [pathPart, queryPart] = path.split('?');
-      if (pathPart !== pathname) return false;
-      if (!queryPart) return true;
-      const target = new URLSearchParams(queryPart);
-      for (const [key, value] of target) {
-        if (searchParams.get(key) !== value) return false;
-      }
-      return true;
-    },
-    [pathname, searchParams],
-  );
+  const isActive = useCallback((path: string) => path === pathname, [pathname]);
 
   useEffect(() => {
     // Check if the current path matches any submenu item
