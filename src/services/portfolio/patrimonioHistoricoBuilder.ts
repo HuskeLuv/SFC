@@ -45,6 +45,23 @@ export const normalizeDateStart = (date: Date) => {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 };
 
+/**
+ * Mapeia uma data de transação para o dia útil em que ela passa a "valer" no
+ * timeline. Transações em fim de semana (B3 fechada) são empurradas para a
+ * próxima segunda-feira; do contrário ficariam órfãs — `buildDailyTimeline`
+ * filtra fins de semana, então `appliedDeltasByDay.get(day)` para um sábado
+ * nunca é consultado e o aporte some silenciosamente da série.
+ */
+export const shiftToBusinessDay = (ts: number): number => {
+  let day = ts;
+  for (let i = 0; i < 7; i++) {
+    const dow = new Date(day).getUTCDay();
+    if (dow !== 0 && dow !== 6) return day;
+    day += DAY_MS;
+  }
+  return ts;
+};
+
 export const buildDailyTimeline = (startDate: Date, endDate: Date) => {
   const start = normalizeDateStart(startDate).getTime();
   const end = normalizeDateStart(endDate).getTime();
@@ -446,7 +463,9 @@ export const buildPatrimonioHistorico = async (
   const manualValuesByDay = new Map<number, number>();
   investmentsExclReservas.forEach((investment) => {
     (investment.values || []).forEach((value) => {
-      const day = normalizeDateStart(new Date(value.year, value.month, 1)).getTime();
+      const day = shiftToBusinessDay(
+        normalizeDateStart(new Date(value.year, value.month, 1)).getTime(),
+      );
       manualValuesByDay.set(day, (manualValuesByDay.get(day) || 0) + value.value);
     });
   });
@@ -462,7 +481,7 @@ export const buildPatrimonioHistorico = async (
     const symbol = transaction.stock?.ticker || transaction.asset?.symbol;
     if (!symbol) return;
 
-    const day = normalizeDateStart(transaction.date).getTime();
+    const day = shiftToBusinessDay(normalizeDateStart(transaction.date).getTime());
     const qtyDelta = transaction.type === 'compra' ? transaction.quantity : -transaction.quantity;
 
     if (!transactionsBySymbol.has(symbol)) {
@@ -503,7 +522,7 @@ export const buildPatrimonioHistorico = async (
     if (!symbol) return;
     if (transactionsBySymbol.has(symbol)) return;
 
-    const day = normalizeDateStart(item.lastUpdate || new Date()).getTime();
+    const day = shiftToBusinessDay(normalizeDateStart(item.lastUpdate || new Date()).getTime());
     if (!transactionsBySymbol.has(symbol)) {
       transactionsBySymbol.set(symbol, new Map());
     }
@@ -575,7 +594,11 @@ export const buildPatrimonioHistorico = async (
 
   const timeline = buildDailyTimeline(timelineStart, hoje);
 
-  const fixedIncomePricePointsBySymbol = new Map<string, Array<{ date: number; value: number }>>();
+  // Cada FI symbol tem uma série de VALOR TOTAL DA POSIÇÃO por dia (investedAmount × factor),
+  // não preço unitário. Mantemos isolado de pricesBySymbol pra evitar que o builder
+  // multiplique por qty (qty>1 quando o usuário cadastrou cotas como qty num fundo
+  // erroneamente classificado como FI, inflando o saldo em quantity vezes).
+  const fixedIncomeValuesBySymbol = new Map<string, Map<number, number>>();
   fixedIncomeAssets.forEach((fixedIncome) => {
     const symbol = fixedIncome.asset?.symbol;
     if (!symbol) return;
@@ -587,7 +610,9 @@ export const buildPatrimonioHistorico = async (
           date: day,
           value: calculateFixedIncomeValue(fixedIncome, new Date(day)),
         }));
-    fixedIncomePricePointsBySymbol.set(symbol, points);
+    const valueByDay = new Map<number, number>();
+    points.forEach((p) => valueByDay.set(p.date, p.value));
+    fixedIncomeValuesBySymbol.set(symbol, valueByDay);
   });
 
   const pricesBySymbol = new Map<string, Map<number, number>>();
@@ -602,24 +627,26 @@ export const buildPatrimonioHistorico = async (
   const historyBySymbol = new Map(symbolsToFetch.map((s, i) => [s, fetchedHistories[i] ?? []]));
 
   for (const symbol of allSymbols) {
+    // Símbolos com curva FI são contabilizados via valor total da posição
+    // (fixedIncomeValuesBySymbol) — não popular pricesBySymbol pra eles, senão o
+    // valor total entraria como "preço unitário" e seria multiplicado por qty.
+    if (fixedIncomeValuesBySymbol.has(symbol)) continue;
+
     const portfolioInfo = portfolioBySymbol.get(symbol);
     const isManual = portfolioInfo?.isManual ?? false;
     const pricePoints = pricePointsBySymbol.get(symbol) || [];
-    const fixedIncomePoints = fixedIncomePricePointsBySymbol.get(symbol) || [];
 
     let history: Array<{ date: number; value: number }> = [];
     if (!isManual) {
       history = [...(historyBySymbol.get(symbol) ?? []), ...pricePoints];
     } else {
-      history = [...pricePoints, ...fixedIncomePoints];
+      history = [...pricePoints];
     }
-    // FI tem curva (CDI/IPCA/Tesouro PU) e NÃO deve ser achatado em uma reta no avgPrice.
-    // Reservas/personalizados/imóveis sem curva caem na linha plana abaixo.
-    const hasFixedIncomeCurve = fixedIncomePoints.length > 0;
 
     const initialPrice = pricePoints.length > 0 ? pricePoints[0]?.value : portfolioInfo?.avgPrice;
 
-    if (isManual && !hasFixedIncomeCurve && portfolioInfo?.avgPrice && portfolioInfo.avgPrice > 0) {
+    if (isManual && portfolioInfo?.avgPrice && portfolioInfo.avgPrice > 0) {
+      // Reservas/personalizados/imóveis sem curva: linha plana no avgPrice.
       history = [
         { date: timelineStart.getTime(), value: portfolioInfo.avgPrice },
         { date: hoje.getTime(), value: portfolioInfo.avgPrice },
@@ -705,6 +732,16 @@ export const buildPatrimonioHistorico = async (
 
     let valorMercadoAtivos = 0;
     allSymbols.forEach((symbol) => {
+      // FI: valor total da posição já vem do pricer (investedAmount × factor).
+      // Não multiplicar por qty aqui — ignora o quantity arbitrário do portfolio
+      // (qty=1 pra FI normal, qty=N quando o user cadastrou cotas indevidamente).
+      const fiValues = fixedIncomeValuesBySymbol.get(symbol);
+      if (fiValues) {
+        const v = fiValues.get(day);
+        if (v && Number.isFinite(v) && v > 0) valorMercadoAtivos += v;
+        return;
+      }
+
       const quantity = quantitiesBySymbol.get(symbol) || 0;
       if (!quantity) return;
 
@@ -803,7 +840,9 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   const manualValuesByDay = new Map<number, number>();
   investmentsExclReservas.forEach((investment) => {
     (investment.values || []).forEach((value) => {
-      const day = normalizeDateStart(new Date(value.year, value.month, 1)).getTime();
+      const day = shiftToBusinessDay(
+        normalizeDateStart(new Date(value.year, value.month, 1)).getTime(),
+      );
       manualValuesByDay.set(day, (manualValuesByDay.get(day) || 0) + value.value);
     });
   });
@@ -814,7 +853,7 @@ export const buildPatrimonioCashFlowsByDayOnly = (
     const symbol = transaction.stock?.ticker || transaction.asset?.symbol;
     if (!symbol) return;
 
-    const day = normalizeDateStart(transaction.date).getTime();
+    const day = shiftToBusinessDay(normalizeDateStart(transaction.date).getTime());
     const totalValue = getTransactionValue(transaction);
     const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
     cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
@@ -827,7 +866,7 @@ export const buildPatrimonioCashFlowsByDayOnly = (
     const hasTx = stockTransactions.some((t) => (t.stock?.ticker || t.asset?.symbol) === symbol);
     if (hasTx) return;
 
-    const day = normalizeDateStart(item.lastUpdate || new Date()).getTime();
+    const day = shiftToBusinessDay(normalizeDateStart(item.lastUpdate || new Date()).getTime());
     const investedValue =
       item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
     const cashDelta = -investedValue;
