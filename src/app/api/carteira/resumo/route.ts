@@ -407,12 +407,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     } else if (symbol) {
       const currentPrice = quotes.get(symbol);
       const currency = item.asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
-      let valorItem = currentPrice ? item.quantity * currentPrice : item.quantity * item.avgPrice;
-      // Crypto/currency/metal/commodity: getAssetPrices já devolve em BRL, não converter
       const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
-      const valorJaEmBRL = currentPrice != null && tiposPrecoEmBRL.includes(item.asset?.type || '');
-      if (!valorJaEmBRL) {
-        valorItem = toBRL(valorItem, currency);
+      let valorItem: number;
+      if (currentPrice != null) {
+        // currentPrice vem da brapi/getAssetPrices na moeda nativa do asset.
+        valorItem = item.quantity * currentPrice;
+        const valorJaEmBRL = tiposPrecoEmBRL.includes(item.asset?.type || '');
+        if (!valorJaEmBRL) {
+          valorItem = toBRL(valorItem, currency);
+        }
+      } else {
+        // Sem cotação live: cai pro avgPrice. /api/carteira/operacao grava
+        // avgPrice já em BRL (preço × cotacaoMoeda na compra), então NÃO
+        // aplicar toBRL aqui senão fica dupla conversão (ex.: USD avgPrice=2448
+        // BRL × cotação atual = R$24k pra um VOO de R$5k).
+        valorItem = item.quantity * item.avgPrice;
       }
       stocksCurrentValue += valorItem;
     } else {
@@ -624,11 +633,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
     // Converter USD → BRL (tabela de alocação exibe tudo em R$).
     // Crypto/currency/metal/commodity: getAssetPrices já devolve em BRL.
+    // Quando cai no fallback (sem currentPrice ou FI ou reserva), valorAtual
+    // já está em BRL — avgPrice/totalInvested são gravados em BRL pela
+    // /api/carteira/operacao. Só converte quando veio de currentPrice (USD).
     const currency = asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
     const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
-    const valorJaEmBRL =
-      currentPrice != null && !isReserva && tiposPrecoEmBRL.includes(asset?.type || '');
-    const valorAtualBRL = valorJaEmBRL ? valorAtual : toBRL(valorAtual, currency);
+    const usouCurrentPriceUSD =
+      currentPrice != null &&
+      !isReserva &&
+      !fixedIncome &&
+      !tiposPrecoEmBRL.includes(asset?.type || '');
+    const valorAtualBRL = usouCurrentPriceUSD ? toBRL(valorAtual, currency) : valorAtual;
 
     if (asset) {
       const tipo = asset.type?.toLowerCase() || '';
