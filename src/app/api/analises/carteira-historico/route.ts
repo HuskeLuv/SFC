@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { getAssetHistory } from '@/services/pricing/assetPriceService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 interface IndexData {
@@ -125,7 +126,6 @@ const calculateTwrSeries = (portfolioValues: IndexData[], cashFlowsByDay: Map<nu
 };
 
 const fetchAssetHistoryFromDb = async (symbol: string, startDate?: Date): Promise<IndexData[]> => {
-  const { getAssetHistory } = await import('@/services/pricing/assetPriceService');
   const start = startDate
     ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
     : new Date(Date.now() - 365 * DAY_MS);
