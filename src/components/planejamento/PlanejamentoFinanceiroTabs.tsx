@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import MetaViverDeRenda from './MetaViverDeRenda';
 import AportesMensais from './AportesMensais';
+import Aposentadoria from './Aposentadoria';
 
 interface TabButtonProps {
   id: string;
@@ -108,7 +109,7 @@ export default function PlanejamentoFinanceiroTabs() {
           </TabContent>
 
           <TabContent id="aposentadoria" isActive={activeTab === 'aposentadoria'}>
-            <BlankPage title="Aposentadoria" />
+            <Aposentadoria />
           </TabContent>
         </div>
       </div>
