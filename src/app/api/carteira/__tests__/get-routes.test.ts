@@ -16,6 +16,8 @@ const mockPrisma = vi.hoisted(() => ({
   assetPriceHistory: { findMany: vi.fn() },
   cashflowGroup: { findMany: vi.fn() },
   marketIndicatorCache: { findUnique: vi.fn() },
+  economicIndex: { findMany: vi.fn().mockResolvedValue([]) },
+  tesouroDiretoPrice: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
