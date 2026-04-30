@@ -5,6 +5,7 @@
  */
 
 import Brapi from 'brapi';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 
 // ================== SDK CLIENT ==================
 
@@ -18,7 +19,10 @@ const getBrapiClient = (): Brapi => {
     brapiClient = new Brapi({
       apiKey: apiKey || undefined,
       maxRetries: 2, // SDK já tem retry automático
-      timeout: 25000, // 25s — leave headroom for Vercel's 60s function limit
+      // 10s — antes era 25s, deixava cascade de rotas paradas até quase o
+      // teto de 60s da Vercel function quando BRAPI ficava degradado.
+      // Caller normaliza ausência de cotação para null/empty Map e segue.
+      timeout: 10000,
     });
   }
 
@@ -87,7 +91,7 @@ export const fetchCryptoQuotes = async (
   try {
     const coinList = unique.join(',');
     const url = `https://brapi.dev/api/v2/crypto?coin=${encodeURIComponent(coinList)}&currency=${currency}&token=${apiKey}`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
       console.warn(`⚠️  Brapi v2/crypto retornou ${response.status} para ${coinList}`);
@@ -107,7 +111,11 @@ export const fetchCryptoQuotes = async (
       }
     }
   } catch (err) {
-    console.error('[fetchCryptoQuotes] Erro ao buscar cotações de cripto:', err);
+    if ((err as Error)?.name === 'AbortError') {
+      console.warn('[fetchCryptoQuotes] timeout 10s — degradando para vazio');
+    } else {
+      console.error('[fetchCryptoQuotes] Erro ao buscar cotações de cripto:', err);
+    }
   }
 
   return result;
@@ -135,7 +143,7 @@ export const fetchCurrencyQuotes = async (symbols: string[]): Promise<Map<string
   for (const symbol of currencySymbols) {
     try {
       const url = `https://brapi.dev/api/v2/currency?currency=${encodeURIComponent(symbol)}${tokenParam}`;
-      const response = await fetch(url, { cache: 'no-store' });
+      const response = await fetchWithTimeout(url, { cache: 'no-store' });
 
       if (!response.ok) continue;
 
@@ -155,7 +163,11 @@ export const fetchCurrencyQuotes = async (symbols: string[]): Promise<Map<string
         console.log(`✅ ${symbol} (currency): R$ ${price.toFixed(2)}`);
       }
     } catch (err) {
-      console.error(`[fetchCurrencyQuotes] Erro ao buscar ${symbol}:`, err);
+      if ((err as Error)?.name === 'AbortError') {
+        console.warn(`[fetchCurrencyQuotes] timeout 10s para ${symbol}`);
+      } else {
+        console.error(`[fetchCurrencyQuotes] Erro ao buscar ${symbol}:`, err);
+      }
     }
   }
 

@@ -5,6 +5,7 @@
 
 import prisma from '@/lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutos
 
@@ -55,7 +56,7 @@ const fetchBrapiQuote = async (symbol: string): Promise<IndicatorValue> => {
     const tokenParam = apiKey ? `&token=${apiKey}` : '';
     const url = `https://brapi.dev/api/quote/${symbol}?range=1d&interval=1d${tokenParam}`;
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       headers: {
         'Content-Type': 'application/json',
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
@@ -90,7 +91,7 @@ const fetchCurrencyQuote = async (currency: string): Promise<IndicatorValue> => 
     const tokenParam = apiKey ? `&token=${apiKey}` : '';
     const url = `https://brapi.dev/api/v2/currency?currency=${currency}${tokenParam}`;
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       headers: {
         'Content-Type': 'application/json',
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
@@ -133,7 +134,7 @@ const fetchCryptoQuotes = async (): Promise<Record<string, IndicatorValue>> => {
 
   try {
     const url = `https://brapi.dev/api/v2/crypto?coin=BTC,ETH&currency=BRL&token=${apiKey}`;
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       headers: {
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
