@@ -49,7 +49,9 @@ describe('GET /api/consultant/clients', () => {
   it('retorna Cache-Control header', async () => {
     const response = await GET(createRequest());
 
-    expect(response.headers.get('Cache-Control')).toBe('s-maxage=300, stale-while-revalidate=60');
+    expect(response.headers.get('Cache-Control')).toBe(
+      'private, no-cache, no-store, must-revalidate',
+    );
   });
 
   it('retorna 401 quando nao autenticado', async () => {
