@@ -69,14 +69,14 @@ enum FixedIncomeLiquidity {
 }
 
 model User {
-  id                            String                       @id @default(uuid())
-  email                         String                       @unique
+  id                            String                        @id @default(uuid())
+  email                         String                        @unique
   password                      String
   name                          String
   avatarUrl                     String?
-  createdAt                     DateTime                     @default(now())
-  updatedAt                     DateTime                     @updatedAt
-  role                          UserRole                     @default(user)
+  createdAt                     DateTime                      @default(now())
+  updatedAt                     DateTime                      @updatedAt
+  role                          UserRole                      @default(user)
   events                        Event[]
   dashboard                     DashboardData[]
   cashflows                     Cashflow[]
@@ -84,17 +84,17 @@ model User {
   cashflowItems                 CashflowItem[]
   cashflowValues                CashflowValue[]
   consultantProfile             Consultant?
-  consultancies                 ClientConsultant[]           @relation("ClientConsultantClients")
+  consultancies                 ClientConsultant[]            @relation("ClientConsultantClients")
   // Stocks
   watchlists                    Watchlist[]
   portfolios                    Portfolio[]
   stockTransactions             StockTransaction[]
-  portfolioProventos          PortfolioProvento[]
+  portfolioProventos            PortfolioProvento[]
   fixedIncomeAssets             FixedIncomeAsset[]
   notifications                 Notification[]
-  consultantInvites             ConsultantInvite[]           @relation("UserConsultantInvites")
-  impersonationLogsAsConsultant ConsultantImpersonationLog[] @relation("ImpersonationLogConsultant")
-  impersonationLogsAsClient     ConsultantImpersonationLog[] @relation("ImpersonationLogClient")
+  consultantInvites             ConsultantInvite[]            @relation("UserConsultantInvites")
+  impersonationLogsAsConsultant ConsultantImpersonationLog[]  @relation("ImpersonationLogConsultant")
+  impersonationLogsAsClient     ConsultantImpersonationLog[]  @relation("ImpersonationLogClient")
   alocacaoConfigs               AlocacaoConfig[]
   portfolioDailySnapshots       PortfolioDailySnapshot[]
   portfolioPerformances         PortfolioPerformance[]
@@ -224,29 +224,46 @@ model CashflowGroup {
   children   CashflowGroup[] @relation("SubGroups")
   items      CashflowItem[]
   orderIndex Int             @default(0)
+  // Override layer: quando setado, esta linha personaliza o template apontado.
+  // Permite link estável entre override e template (mais robusto que match por nome).
+  templateId String?
+  template   CashflowGroup?  @relation("GroupOverride", fields: [templateId], references: [id])
+  overrides  CashflowGroup[] @relation("GroupOverride")
+  // Tombstone: usuário ocultou um template. Override row com hidden=true some do tree.
+  hidden     Boolean         @default(false)
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
+  @@unique([userId, templateId])
   @@index([userId])
   @@index([parentId])
+  @@index([templateId])
 }
 
 model CashflowItem {
-  id          String        @id @default(uuid())
+  id          String         @id @default(uuid())
   userId      String? // null se for item padrão (template)
-  user        User?         @relation(fields: [userId], references: [id])
+  user        User?          @relation(fields: [userId], references: [id])
   groupId     String
-  group       CashflowGroup @relation(fields: [groupId], references: [id])
+  group       CashflowGroup  @relation(fields: [groupId], references: [id])
   name        String
   significado String? // explicação opcional
   rank        String? // ordem de importância (essencial, normal, etc.)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  // Override layer: quando setado, esta linha personaliza o item-template apontado.
+  templateId  String?
+  template    CashflowItem?  @relation("ItemOverride", fields: [templateId], references: [id])
+  overrides   CashflowItem[] @relation("ItemOverride")
+  // Tombstone: usuário ocultou um item-template.
+  hidden      Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   values CashflowValue[]
 
+  @@unique([userId, templateId])
   @@index([groupId])
   @@index([userId])
+  @@index([templateId])
 }
 
 model CashflowValue {
@@ -308,21 +325,21 @@ model Watchlist {
 
 // Portfolio do usuário (ações que possui)
 model Portfolio {
-  id            String   @id @default(uuid())
+  id            String              @id @default(uuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id])
+  user          User                @relation(fields: [userId], references: [id])
   stockId       String? // Pode ser null para compatibilidade
-  stock         Stock?   @relation(fields: [stockId], references: [id])
+  stock         Stock?              @relation(fields: [stockId], references: [id])
   assetId       String? // Nova referência para Asset
-  asset         Asset?   @relation(fields: [assetId], references: [id])
+  asset         Asset?              @relation(fields: [assetId], references: [id])
   quantity      Float // Quantidade (Float para suportar criptomoedas com frações, ex: 0.000001 BTC)
   avgPrice      Float // Preço médio de compra
   totalInvested Float // Total investido
-  objetivo      Float    @default(0) // Objetivo percentual do ativo
+  objetivo      Float               @default(0) // Objetivo percentual do ativo
   estrategia    String? // Estratégia da ação: 'value', 'growth' ou 'risk'
   tipoFii       String? // Tipo do FII: 'fofi', 'tvm' ou 'tijolo'
   regiaoEtf     String? // Região do ETF: 'brasil' ou 'estados_unidos'
-  lastUpdate    DateTime @default(now())
+  lastUpdate    DateTime            @default(now())
   proventos     PortfolioProvento[]
 
   @@unique([userId, stockId])
@@ -335,20 +352,20 @@ model Portfolio {
 
 // Proventos registrados pelo usuário por posição na carteira (edição na tela de ativo)
 model PortfolioProvento {
-  id              String    @id @default(uuid())
-  portfolioId     String
-  portfolio       Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tipo            String
-  dataCom         DateTime
-  dataPagamento   DateTime
-  precificarPor   String    @default("valor")
-  valorTotal      Float
-  quantidadeBase  Float
-  impostoRenda    Float?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String    @id @default(uuid())
+  portfolioId    String
+  portfolio      Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo           String
+  dataCom        DateTime
+  dataPagamento  DateTime
+  precificarPor  String    @default("valor")
+  valorTotal     Float
+  quantidadeBase Float
+  impostoRenda   Float?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([portfolioId])
   @@index([userId])
@@ -389,15 +406,15 @@ model Asset {
   source         String    @default("brapi") // Fonte dos dados
   currentPrice   Decimal?  @db.Decimal(18, 6) // Preço atual; IBOV pode exceder 10^4
   priceUpdatedAt DateTime? // Data da última atualização de preço
-  cnpj           String?   // CNPJ para fundos — vincula a dados CVM
+  cnpj           String? // CNPJ para fundos — vincula a dados CVM
   updatedAt      DateTime  @updatedAt
 
   // Relacionamentos
-  watchlists        Watchlist[]
-  portfolios        Portfolio[]
-  transactions      StockTransaction[]
-  fixedIncomeAsset  FixedIncomeAsset?
-  priceHistory      AssetPriceHistory[]
+  watchlists       Watchlist[]
+  portfolios       Portfolio[]
+  transactions     StockTransaction[]
+  fixedIncomeAsset FixedIncomeAsset?
+  priceHistory     AssetPriceHistory[]
 
   @@index([symbol])
   @@index([type])
@@ -431,8 +448,8 @@ model AssetDividendHistory {
   id            String   @id @default(uuid())
   symbol        String
   date          DateTime // Data do provento (pagamento/ex)
-  tipo          String   // "Dividendo", "JCP", etc.
-  valorUnitario Float    // Valor por cota/ação
+  tipo          String // "Dividendo", "JCP", etc.
+  valorUnitario Float // Valor por cota/ação
   source        String   @default("BRAPI")
   createdAt     DateTime @default(now())
 
@@ -447,9 +464,9 @@ model AssetCorporateAction {
   id             String   @id @default(uuid())
   symbol         String
   date           DateTime // Data ex (lastDatePrior) ou data de aprovação
-  type           String   // "DESDOBRAMENTO" | "GRUPAMENTO" | "BONIFICACAO"
-  factor         Float    // 2.0 para split 2:1, 0.5 para grupamento 1:2
-  completeFactor String?  // "2 para 1" (legível)
+  type           String // "DESDOBRAMENTO" | "GRUPAMENTO" | "BONIFICACAO"
+  factor         Float // 2.0 para split 2:1, 0.5 para grupamento 1:2
+  completeFactor String? // "2 para 1" (legível)
   isinCode       String?
   source         String   @default("BRAPI")
   createdAt      DateTime @default(now())
@@ -462,12 +479,12 @@ model AssetCorporateAction {
 
 // Fundamentos do ativo (P/L, Beta, Dividend Yield) - banco primeiro, fallback BRAPI
 model AssetFundamentals {
-  id             String    @id @default(uuid())
-  symbol         String    @unique
-  priceEarnings  Float?    // P/L
-  beta           Float?
-  dividendYield  Float?    // Em %
-  updatedAt      DateTime  @updatedAt
+  id            String   @id @default(uuid())
+  symbol        String   @unique
+  priceEarnings Float? // P/L
+  beta          Float?
+  dividendYield Float? // Em %
+  updatedAt     DateTime @updatedAt
 
   @@map("asset_fundamentals")
 }
@@ -478,7 +495,7 @@ model SyncPriceLog {
   totalUpdated  Int      @default(0)
   totalInserted Int      @default(0)
   errors        Int      @default(0)
-  duration      Int      // segundos
+  duration      Int // segundos
   executedAt    DateTime @default(now())
 
   @@index([executedAt])
@@ -486,25 +503,25 @@ model SyncPriceLog {
 }
 
 model FixedIncomeAsset {
-  id             String                @id @default(uuid())
-  userId         String
-  user           User                  @relation(fields: [userId], references: [id])
-  assetId        String                @unique
-  asset          Asset                 @relation(fields: [assetId], references: [id])
-  type           FixedIncomeType
-  description    String
-  startDate      DateTime
-  maturityDate   DateTime
-  investedAmount Float
-  annualRate     Float
-  indexer        FixedIncomeIndexer?
-  indexerPercent Float?
-  liquidityType    FixedIncomeLiquidity?
-  taxExempt        Boolean               @default(false)
-  tesouroBondType  String?               // "Tesouro Selic", "Tesouro IPCA+", etc. — vincula a TesouroDiretoPrice
-  tesouroMaturity  DateTime?             // Vencimento do titulo Tesouro — vincula a TesouroDiretoPrice
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  id              String                @id @default(uuid())
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id])
+  assetId         String                @unique
+  asset           Asset                 @relation(fields: [assetId], references: [id])
+  type            FixedIncomeType
+  description     String
+  startDate       DateTime
+  maturityDate    DateTime
+  investedAmount  Float
+  annualRate      Float
+  indexer         FixedIncomeIndexer?
+  indexerPercent  Float?
+  liquidityType   FixedIncomeLiquidity?
+  taxExempt       Boolean               @default(false)
+  tesouroBondType String? // "Tesouro Selic", "Tesouro IPCA+", etc. — vincula a TesouroDiretoPrice
+  tesouroMaturity DateTime? // Vencimento do titulo Tesouro — vincula a TesouroDiretoPrice
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   @@index([userId])
   @@index([assetId])
@@ -575,7 +592,7 @@ model ImpersonationSession {
 model BenchmarkCumulativeReturn {
   id               String   @id @default(uuid())
   date             DateTime // Data de referência (início do dia)
-  benchmarkType    String   // "CDI" | "IBOV" | "IPCA" | "POUPANCA"
+  benchmarkType    String // "CDI" | "IBOV" | "IPCA" | "POUPANCA"
   cumulativeReturn Decimal  @db.Decimal(10, 4) // Rentabilidade acumulada em %
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -588,12 +605,12 @@ model BenchmarkCumulativeReturn {
 }
 
 model EconomicIndex {
-  id         String   @id @default(uuid())
-  indexType  String   // "CDI" | "IPCA"
-  date       DateTime // Data de referência
-  value      Decimal  @db.Decimal(14, 6) // Taxa do período ou valor absoluto de índice (IMA-B pode exceder 9999)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(uuid())
+  indexType String // "CDI" | "IPCA"
+  date      DateTime // Data de referência
+  value     Decimal  @db.Decimal(14, 6) // Taxa do período ou valor absoluto de índice (IMA-B pode exceder 9999)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([indexType, date])
   @@index([indexType])
@@ -616,14 +633,14 @@ model MarketIndicatorCache {
 
 // Snapshot diário de patrimônio (pré-calculado pelo job; leitura rápida no resumo)
 model PortfolioDailySnapshot {
-  id             String   @id @default(uuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date           DateTime // início do dia (UTC/local consistente com o restante do app)
-  totalValue     Decimal  @db.Decimal(18, 4) // saldo bruto
-  totalInvested  Decimal  @db.Decimal(18, 4) // valor aplicado
-  totalEarnings  Decimal  @db.Decimal(18, 4) // rendimentos acumulados (proventos no caixa do modelo)
-  createdAt      DateTime @default(now())
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime // início do dia (UTC/local consistente com o restante do app)
+  totalValue    Decimal  @db.Decimal(18, 4) // saldo bruto
+  totalInvested Decimal  @db.Decimal(18, 4) // valor aplicado
+  totalEarnings Decimal  @db.Decimal(18, 4) // rendimentos acumulados (proventos no caixa do modelo)
+  createdAt     DateTime @default(now())
 
   @@unique([userId, date])
   @@index([userId, date])
@@ -661,26 +678,26 @@ model PortfolioRiscoRetornoCache {
 
 // Meta de patrimônio do usuário: "alcançar R$ X até ano Y". Singleton por userId.
 model PortfolioGoal {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  targetEquity  Decimal  @db.Decimal(15, 2) // patrimônio alvo em BRL
-  targetYear    Int // ano-alvo (ex.: 2030); cálculo de cronograma assume dezembro
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetEquity Decimal  @db.Decimal(15, 2) // patrimônio alvo em BRL
+  targetYear   Int // ano-alvo (ex.: 2030); cálculo de cronograma assume dezembro
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("portfolio_goals")
 }
 
 // TWR pré-calculado por dia (alinha ao historicoTWR do resumo)
 model PortfolioPerformance {
-  id                String   @id @default(uuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date              DateTime
-  dailyReturn       Decimal? @db.Decimal(14, 8) // fração diária (ex.: 0.0012)
-  cumulativeReturn  Decimal  @db.Decimal(14, 6) // % acumulada TWR
-  createdAt         DateTime @default(now())
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date             DateTime
+  dailyReturn      Decimal? @db.Decimal(14, 8) // fração diária (ex.: 0.0012)
+  cumulativeReturn Decimal  @db.Decimal(14, 6) // % acumulada TWR
+  createdAt        DateTime @default(now())
 
   @@unique([userId, date])
   @@index([userId, date])
@@ -690,7 +707,7 @@ model PortfolioPerformance {
 // Preços diários de títulos do Tesouro Direto (fonte: Tesouro Transparente)
 model TesouroDiretoPrice {
   id           String   @id @default(uuid())
-  bondType     String   // "Tesouro Selic", "Tesouro IPCA+", "Tesouro Prefixado", etc.
+  bondType     String // "Tesouro Selic", "Tesouro IPCA+", "Tesouro Prefixado", etc.
   maturityDate DateTime // Data de vencimento do título
   baseDate     DateTime // Data base da cotação
   buyRate      Decimal? @db.Decimal(10, 6) // Taxa compra manhã (% a.a.)
@@ -710,12 +727,12 @@ model TesouroDiretoPrice {
 // Cotas diárias de fundos de investimento (fonte: CVM Dados Abertos)
 model CvmFundQuota {
   id           String   @id @default(uuid())
-  cnpj         String   // CNPJ do fundo (14 dígitos, sem formatação)
+  cnpj         String // CNPJ do fundo (14 dígitos, sem formatação)
   date         DateTime // DT_COMPTC — data de referência da cota
   quotaValue   Decimal  @db.Decimal(18, 8) // VL_QUOTA — valor da cota (alta precisão)
   netWorth     Decimal? @db.Decimal(18, 2) // VL_PATRIM_LIQ — patrimônio líquido
   totalValue   Decimal? @db.Decimal(18, 2) // VL_TOTAL — valor total da carteira
-  shareholders Int?     // NR_COTST — número de cotistas
+  shareholders Int? // NR_COTST — número de cotistas
   dailyInflow  Decimal? @db.Decimal(18, 2) // CAPTC_DIA — captação do dia
   dailyOutflow Decimal? @db.Decimal(18, 2) // RESG_DIA — resgate do dia
   createdAt    DateTime @default(now())
