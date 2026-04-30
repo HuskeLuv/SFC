@@ -45,30 +45,36 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   const currentYear = new Date().getFullYear();
   const results: Array<{ itemId: string; success: boolean; error?: string }> = [];
 
-  // Processar deletados
+  // Processar deletados — single round-trip de ownership check + bulk delete
+  // em transação. Antes era 1 findFirst + 1 transação por id (até 3N RTTs).
   if (deletes && Array.isArray(deletes) && deletes.length > 0) {
-    for (const itemId of deletes) {
-      try {
-        const item = await prisma.cashflowItem.findFirst({
-          where: {
-            id: itemId,
-            userId: targetUserId, // Só pode deletar itens do usuário
-          },
-        });
+    try {
+      const owned = await prisma.cashflowItem.findMany({
+        where: { id: { in: deletes }, userId: targetUserId },
+        select: { id: true },
+      });
+      const ownedIds = new Set(owned.map((i) => i.id));
 
-        if (item) {
-          // Deletar valores e item em uma única transação
-          await prisma.$transaction([
-            prisma.cashflowValue.deleteMany({ where: { itemId } }),
-            prisma.cashflowItem.delete({ where: { id: itemId } }),
-          ]);
+      if (ownedIds.size > 0) {
+        const ids = [...ownedIds];
+        await prisma.$transaction([
+          prisma.cashflowValue.deleteMany({ where: { itemId: { in: ids } } }),
+          prisma.cashflowItem.deleteMany({
+            where: { id: { in: ids }, userId: targetUserId },
+          }),
+        ]);
+      }
 
+      for (const itemId of deletes) {
+        if (ownedIds.has(itemId)) {
           results.push({ itemId, success: true });
         } else {
           results.push({ itemId, success: false, error: 'Item não encontrado' });
         }
-      } catch (error) {
-        console.error(`Erro ao deletar item ${itemId}:`, error);
+      }
+    } catch (error) {
+      console.error('Erro ao deletar items:', error);
+      for (const itemId of deletes) {
         results.push({ itemId, success: false, error: 'Erro ao deletar' });
       }
     }

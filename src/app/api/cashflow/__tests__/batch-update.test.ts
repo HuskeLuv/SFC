@@ -5,10 +5,12 @@ import { PUT } from '../batch-update/route';
 const mockPrisma = vi.hoisted(() => ({
   cashflowItem: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    deleteMany: vi.fn(),
   },
   cashflowValue: {
     findFirst: vi.fn(),
@@ -168,10 +170,9 @@ describe('PUT /api/cashflow/batch-update', () => {
   });
 
   it('processa deletes corretamente', async () => {
-    const item = { id: 'item-1', name: 'Item', userId: 'user-123' };
-    mockPrisma.cashflowItem.findFirst.mockResolvedValue(item);
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([{ id: 'item-1' }]);
     mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 0 });
-    mockPrisma.cashflowItem.delete.mockResolvedValue(item);
+    mockPrisma.cashflowItem.deleteMany.mockResolvedValue({ count: 1 });
 
     const response = await PUT(
       createRequest({
@@ -185,6 +186,30 @@ describe('PUT /api/cashflow/batch-update', () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
     expect(data.results).toContainEqual({ itemId: 'item-1', success: true });
+  });
+
+  it('marca itens não pertencentes ao usuário como não encontrados', async () => {
+    // findMany only returns the one the user actually owns
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([{ id: 'item-1' }]);
+    mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.cashflowItem.deleteMany.mockResolvedValue({ count: 1 });
+
+    const response = await PUT(
+      createRequest({
+        groupId: 'g1',
+        updates: [],
+        deletes: ['item-1', 'item-foreign'],
+      }),
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.results).toContainEqual({ itemId: 'item-1', success: true });
+    expect(data.results).toContainEqual({
+      itemId: 'item-foreign',
+      success: false,
+      error: 'Item não encontrado',
+    });
   });
 
   it('personaliza item template antes de atualizar', async () => {
