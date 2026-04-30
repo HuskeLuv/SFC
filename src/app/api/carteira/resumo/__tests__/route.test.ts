@@ -52,7 +52,12 @@ vi.mock('@/services/portfolio/portfolioSeriesAggregation', () => ({
 }));
 
 vi.mock('@/services/portfolio/portfolioSnapshotReader', () => ({
-  loadHistoricoFromSnapshots: vi.fn().mockResolvedValue(null),
+  loadHistoricoFromSnapshots: vi.fn().mockResolvedValue({
+    historicoPatrimonio: [],
+    historicoTWR: [],
+    historicoTWRPeriodo: [],
+    coverageOk: false,
+  }),
 }));
 
 vi.mock('@/services/portfolio/patrimonioHistoricoBuilder', () => ({

@@ -69,7 +69,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const twrStartDateParam = searchParams.get('twrStartDate');
   const twrStartDate = twrStartDateParam ? parseInt(twrStartDateParam, 10) : undefined;
   const includeHistorico = searchParams.get('includeHistorico') !== 'false';
-  const usePortfolioSnapshots = process.env.USE_PORTFOLIO_SNAPSHOTS === 'true';
+  // Snapshot path é o caminho rápido: lê portfolio_daily_snapshots em vez de
+  // recomputar o histórico inteiro. Default true; o reader retorna coverageOk=false
+  // quando não há dados suficientes (usuário novo ou cron ainda não acumulou 24m),
+  // caindo graciosamente no live builder. Opt-out via USE_PORTFOLIO_SNAPSHOTS=false.
+  const usePortfolioSnapshots = process.env.USE_PORTFOLIO_SNAPSHOTS !== 'false';
   const resumoCacheKey = `${targetUserId}:ih=${includeHistorico}:twr=${twrStartDate ?? ''}`;
 
   if (usePortfolioSnapshots) {
