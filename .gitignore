@@ -63,3 +63,6 @@ next-env.d.ts
 
 # claude worktrees
 .claude/worktrees/
+
+# kinvo comparison artefacts (HAR files, snapshots — podem conter tokens/PII)
+scripts/kinvo-captures/
