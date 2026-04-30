@@ -18,9 +18,13 @@ const mockPrisma = vi.hoisted(() => ({
     findUnique: vi.fn(),
     upsert: vi.fn(),
   },
+  economicIndex: { findMany: vi.fn().mockResolvedValue([]) },
+  tesouroDiretoPrice: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const mockGetAssetHistory = vi.hoisted(() => vi.fn());
+const mockGetAssetPrices = vi.hoisted(() => vi.fn());
+const mockGetIndicator = vi.hoisted(() => vi.fn());
 const mockBuildPatrimonioHistorico = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
@@ -32,8 +36,12 @@ vi.mock('@/services/pricing/assetPriceService', async () => {
   return {
     ...actual,
     getAssetHistory: mockGetAssetHistory,
+    getAssetPrices: mockGetAssetPrices,
   };
 });
+vi.mock('@/services/market/marketIndicatorService', () => ({
+  getIndicator: mockGetIndicator,
+}));
 vi.mock('@/services/portfolio/patrimonioHistoricoBuilder', async () => {
   const actual = await vi.importActual<
     typeof import('@/services/portfolio/patrimonioHistoricoBuilder')
@@ -105,6 +113,8 @@ describe('GET /api/analises/sensibilidade-carteira', () => {
     mockPrisma.portfolioSensibilidadeCache.findUnique.mockResolvedValue(null);
     mockPrisma.portfolioSensibilidadeCache.upsert.mockResolvedValue({});
     mockGetAssetHistory.mockResolvedValue([]);
+    mockGetAssetPrices.mockResolvedValue(new Map<string, number>());
+    mockGetIndicator.mockResolvedValue({ price: 5 });
     mockBuildPatrimonioHistorico.mockResolvedValue({
       historicoPatrimonio: [],
       historicoTWR: twrFromMonthlyReturns(months, portfolioReturns),
