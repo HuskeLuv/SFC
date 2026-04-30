@@ -13,12 +13,9 @@ const mockJwt = vi.hoisted(() => ({
   sign: vi.fn().mockReturnValue('mock-token'),
 }));
 
-const mockSetupUserCashflow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-
 vi.mock('@/lib/prisma', () => ({ default: mockPrisma }));
 vi.mock('bcrypt', () => ({ default: mockBcrypt }));
 vi.mock('jsonwebtoken', () => ({ default: mockJwt }));
-vi.mock('@/utils/cashflowSetup', () => ({ setupUserCashflow: mockSetupUserCashflow }));
 
 import { POST } from '../../auth/register/route';
 
@@ -50,7 +47,6 @@ describe('POST /api/auth/register', () => {
     mockPrisma.user.create.mockResolvedValue(createdUser);
     mockBcrypt.hash.mockResolvedValue('hashed-password');
     mockJwt.sign.mockReturnValue('mock-token');
-    mockSetupUserCashflow.mockResolvedValue(undefined);
   });
 
   it('registra usuario com sucesso e retorna token', async () => {
@@ -77,15 +73,6 @@ describe('POST /api/auth/register', () => {
         role: 'user',
       },
     });
-    expect(mockSetupUserCashflow).toHaveBeenCalledWith({ userId: 'user-new' });
-  });
-
-  it('continua mesmo se setupUserCashflow falhar', async () => {
-    mockSetupUserCashflow.mockRejectedValue(new Error('cashflow error'));
-
-    const response = await POST(createRequest(validBody));
-
-    expect(response.status).toBe(200);
   });
 
   describe('Validacao Zod', () => {

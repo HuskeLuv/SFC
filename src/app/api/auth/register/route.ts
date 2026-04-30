@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { setupUserCashflow } from '@/utils/cashflowSetup';
 import { registerSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -26,18 +25,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       password: hashed,
       name,
       role: 'user',
-      // Não definimos avatarUrl - o sistema usará iniciais automaticamente
     },
   });
 
-  // Novo usuário usa templates diretamente (userId = null)
-  // Não cria cópias físicas - personalização acontece sob demanda
-
-  try {
-    await setupUserCashflow({ userId: user.id });
-  } catch (setupError) {
-    console.error('Erro ao configurar cashflow para novo usuário:', setupError);
-  }
+  // Sem clone de templates: o read path do cashflow combina templates (userId=null)
+  // com overrides do usuário sob demanda. Personalização materializa rows só quando
+  // o usuário de fato edita algo (clone-on-write em cashflowPersonalization.ts).
 
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role },
