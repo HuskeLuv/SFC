@@ -430,18 +430,10 @@ export type BuildPatrimonioHistoricoResult = {
   cashFlowsByDay: Map<number, number>;
 };
 
-const isReservaCashflowItem = (name: string | null) => {
-  if (!name) return false;
-  const n = name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '');
-  return (
-    (n.includes('reserva') && n.includes('emergencia')) ||
-    (n.includes('reserva') && n.includes('oportunidade')) ||
-    n.includes('emergencia')
-  );
-};
+// Re-export do util leve para preservar back-compat de consumers que importam
+// daqui. Novas rotas devem importar diretamente de `@/utils/cashflowFilters`
+// (não puxa as ~1k linhas deste arquivo).
+export { filterInvestmentsExclReservas } from '@/utils/cashflowFilters';
 
 export const buildPatrimonioHistorico = async (
   params: BuildPatrimonioHistoricoParams,
@@ -968,10 +960,6 @@ export const buildPatrimonioCashFlowsByDayOnly = (
 
   return cashFlowsByDay;
 };
-
-/** Filtra itens de investimento do cashflow excluindo reservas (mesma regra do resumo). */
-export const filterInvestmentsExclReservas = <T extends { name: string | null }>(items: T[]): T[] =>
-  items.filter((item) => !isReservaCashflowItem(item.name));
 
 /**
  * Início bruto da linha do tempo (sem cap de meses). Usado para leitura de snapshots.
