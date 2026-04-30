@@ -18,6 +18,13 @@ import type {
 /** Mínimo de meses em comum entre ativo e carteira para cálculo considerado válido. */
 const MIN_MONTHS_FOR_CORRELATION = 12;
 
+/**
+ * Mínimo de observações DIÁRIAS em comum para cálculo de beta. 30 = ~6 semanas, suficiente
+ * pra estimativa amostral estável. Beta com retornos mensais (n=23 em janela de 24m)
+ * subestimava sistematicamente o coeficiente por causa do erro amostral grande.
+ */
+const MIN_DAILY_OBS_FOR_BETA = 30;
+
 /** Chave "YYYY-MM" para indexar meses — UTC para evitar drift de fuso. */
 export const monthKey = (date: Date | number): string => {
   const d = date instanceof Date ? date : new Date(date);
@@ -136,21 +143,49 @@ export function annualizedVolatility(monthlyReturns: number[]): number {
 }
 
 /**
+ * Retornos diários a partir de um histórico `{date, value}`, indexados por dia normalizado
+ * (UTC midnight). Quando há múltiplos pontos no mesmo dia, mantém o último (intraday update).
+ */
+function dailyReturnsByDay(daily: Array<{ date: number; value: number }>): Map<number, number> {
+  const byDay = new Map<number, number>();
+  for (const { date, value } of daily) {
+    if (!Number.isFinite(value) || value <= 0) continue;
+    const d = new Date(date);
+    const key = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    byDay.set(key, value);
+  }
+  const sortedKeys = Array.from(byDay.keys()).sort((a, b) => a - b);
+  const returns = new Map<number, number>();
+  for (let i = 1; i < sortedKeys.length; i++) {
+    const prev = byDay.get(sortedKeys[i - 1])!;
+    const curr = byDay.get(sortedKeys[i])!;
+    if (prev > 0) returns.set(sortedKeys[i], curr / prev - 1);
+  }
+  return returns;
+}
+
+/**
  * Beta clássico: β = cov(R_ativo, R_mercado) / var(R_mercado).
- * Recebe históricos diários do ativo e do índice de mercado (ex.: ^BVSP).
- * Retorna `null` se não houver pelo menos 12 meses em comum ou se var_m == 0.
+ * Usa retornos DIÁRIOS alinhados por data — convenção de mercado. Beta com retornos
+ * mensais (~23 obs em janela de 24m) subestimava sistematicamente o coeficiente por
+ * baixa potência amostral e ruído alto. Retorna `null` se houver < 30 dias em comum
+ * ou se a variância do mercado for zero.
  */
 export function computeBeta(
   assetDaily: Array<{ date: number; value: number }>,
   marketDaily: Array<{ date: number; value: number }>,
 ): number | null {
-  const assetReturns = monthlyReturnsFromCloses(extractMonthlyCloses(assetDaily));
-  const marketReturns = monthlyReturnsFromCloses(extractMonthlyCloses(marketDaily));
-  const aligned = alignSeries(assetReturns, marketReturns);
-  if (aligned.keys.length < MIN_MONTHS_FOR_CORRELATION) return null;
-  const varM = variance(aligned.b);
+  const assetReturns = dailyReturnsByDay(assetDaily);
+  const marketReturns = dailyReturnsByDay(marketDaily);
+  const commonDays = Array.from(assetReturns.keys())
+    .filter((k) => marketReturns.has(k))
+    .sort((a, b) => a - b);
+  if (commonDays.length < MIN_DAILY_OBS_FOR_BETA) return null;
+  const a = commonDays.map((k) => assetReturns.get(k)!);
+  const m = commonDays.map((k) => marketReturns.get(k)!);
+  const varM = variance(m);
   if (varM === 0) return null;
-  return covariance(aligned.a, aligned.b) / varM;
+  return covariance(a, m) / varM;
 }
 
 /** Classificação por correlação (faixas inspiradas na UI do Kinvo). */
@@ -194,6 +229,11 @@ export function buildSensibilidadeCarteira(
   }> = [];
   const excluidos: SensibilidadeCarteiraExcluido[] = [];
 
+  // Correlação e contribuição de risco usam retornos mensais propositalmente, mesmo
+  // depois de `computeBeta` ter migrado para diário: em janelas curtas (24m), retornos
+  // diários carregam autocorrelação e ruído idiossincrático que distorcem Pearson e
+  // a decomposição de risco. Mensal estabiliza. Beta é exceção porque é uma medida
+  // de comovimento de curto prazo onde o erro amostral mensal era alto demais.
   for (const asset of assets) {
     const closes = extractMonthlyCloses(asset.dailyPrices);
     const assetReturns = monthlyReturnsFromCloses(closes);
