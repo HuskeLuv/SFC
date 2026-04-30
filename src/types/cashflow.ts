@@ -19,6 +19,9 @@ export interface CashflowItem {
   significado: string | null;
   rank: string | null;
   values: CashflowValue[]; // era valores
+  templateId?: string | null;
+  hidden?: boolean;
+  isTemplate?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -32,6 +35,9 @@ export interface CashflowGroup {
   orderIndex: number; // era order
   items: CashflowItem[];
   children: CashflowGroup[];
+  templateId?: string | null;
+  hidden?: boolean;
+  isTemplate?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

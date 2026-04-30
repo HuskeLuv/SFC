@@ -6,131 +6,172 @@ import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
- * Combina templates padrão com personalizações do usuário
- * Personalizações têm prioridade sobre templates
+ * Combina templates padrão com personalizações do usuário (override layer).
+ *
+ * Estratégia de merge:
+ * - Prioridade 1: match por `templateId` (override explícito do refactor novo).
+ * - Prioridade 2 (back-compat): match por nome+path para clones físicos antigos
+ *   sem `templateId` setado.
+ * - Tombstone: override com `hidden=true` é omitido do resultado.
+ * - Custom puro: linha do usuário com `templateId=null` e sem matching de nome
+ *   é anexada como nó adicional (preserva itens/grupos criados pelo usuário).
  */
 function mergeTemplatesWithCustomizations(
   templates: CashflowGroup[],
   customizations: CashflowGroup[],
 ): CashflowGroup[] {
-  // Criar mapas hierárquicos de personalizações
-  const customGroupMap = new Map<string, CashflowGroup>();
-  const customItemMap = new Map<string, CashflowItem>(); // chave: "groupId|itemName"
+  // Fast path: usuário sem nenhuma personalização — devolve templates sem alteração.
+  if (customizations.length === 0) {
+    return templates.map((t) => markTemplate(t));
+  }
 
-  const buildMaps = (groups: CashflowGroup[], parentPath: string = '') => {
-    for (const group of groups) {
-      const groupKey = parentPath ? `${parentPath}|${group.name}` : group.name;
-      customGroupMap.set(groupKey, group);
+  const userByTemplateId = new Map<string, CashflowGroup>();
+  const userByPathName = new Map<string, CashflowGroup>();
+  const userItemByTemplateId = new Map<string, CashflowItem>();
+  const userItemByGroupAndName = new Map<string, CashflowItem>();
+  const consumedGroupIds = new Set<string>();
+  const consumedItemIds = new Set<string>();
 
-      // Mapear itens do grupo
-      if (group.items?.length) {
-        for (const item of group.items) {
-          customItemMap.set(`${group.id}|${item.name}`, item);
+  const indexUser = (groups: CashflowGroup[], parentKey: string) => {
+    for (const g of groups) {
+      if (g.templateId) userByTemplateId.set(g.templateId, g);
+      userByPathName.set(`${parentKey}|${g.name}`, g);
+      for (const it of g.items ?? []) {
+        if (it.templateId) userItemByTemplateId.set(it.templateId, it);
+        userItemByGroupAndName.set(`${g.id}|${it.name}`, it);
+      }
+      indexUser(g.children ?? [], `${parentKey}|${g.name}`);
+    }
+  };
+  indexUser(customizations, '');
+
+  const findOverrideGroup = (template: CashflowGroup, pathKey: string) => {
+    const byId = userByTemplateId.get(template.id);
+    if (byId) return byId;
+    const byPath = userByPathName.get(pathKey);
+    return byPath && !byPath.templateId ? byPath : undefined;
+  };
+
+  const findOverrideItem = (
+    templateItem: CashflowItem,
+    overrideGroup: CashflowGroup | undefined,
+  ) => {
+    const byId = userItemByTemplateId.get(templateItem.id);
+    if (byId) return byId;
+    if (!overrideGroup) return undefined;
+    const byName = userItemByGroupAndName.get(`${overrideGroup.id}|${templateItem.name}`);
+    return byName && !byName.templateId ? byName : undefined;
+  };
+
+  const mergeGroup = (template: CashflowGroup, parentKey: string): CashflowGroup | null => {
+    const pathKey = `${parentKey}|${template.name}`;
+    const override = findOverrideGroup(template, pathKey);
+    if (override?.hidden) return null;
+    if (override) consumedGroupIds.add(override.id);
+
+    const mergedItems: CashflowItem[] = [];
+    for (const tplItem of template.items ?? []) {
+      const userItem = findOverrideItem(tplItem, override);
+      if (userItem?.hidden) continue;
+      if (userItem) {
+        consumedItemIds.add(userItem.id);
+        mergedItems.push({
+          ...tplItem,
+          id: userItem.id,
+          userId: userItem.userId,
+          name: userItem.name,
+          significado: userItem.significado,
+          rank: userItem.rank,
+          values: userItem.values ?? [],
+          templateId: userItem.templateId ?? tplItem.id,
+          hidden: false,
+          isTemplate: false,
+        });
+      } else {
+        mergedItems.push({ ...tplItem, isTemplate: true });
+      }
+    }
+
+    if (override) {
+      for (const userItem of override.items ?? []) {
+        if (consumedItemIds.has(userItem.id)) continue;
+        if (userItem.hidden) continue;
+        if (userItem.templateId) continue;
+        consumedItemIds.add(userItem.id);
+        mergedItems.push({ ...userItem, isTemplate: false });
+      }
+    }
+
+    const mergedChildren: CashflowGroup[] = [];
+    for (const tplChild of template.children ?? []) {
+      const merged = mergeGroup(tplChild, pathKey);
+      if (merged) mergedChildren.push(merged);
+    }
+
+    if (override) {
+      for (const userChild of override.children ?? []) {
+        if (consumedGroupIds.has(userChild.id)) continue;
+        if (userChild.hidden) continue;
+        if (userChild.templateId) continue;
+        consumedGroupIds.add(userChild.id);
+        mergedChildren.push(buildPureCustomTree(userChild));
+      }
+    }
+
+    mergedChildren.sort((a, b) => a.orderIndex - b.orderIndex);
+    mergedItems.sort((a, b) => a.name.localeCompare(b.name));
+
+    const base: CashflowGroup = override
+      ? {
+          ...template,
+          id: override.id,
+          userId: override.userId,
+          name: override.name,
+          type: override.type,
+          orderIndex: override.orderIndex,
+          templateId: override.templateId ?? template.id,
+          hidden: false,
+          isTemplate: false,
         }
-      }
+      : { ...template, isTemplate: true };
 
-      // Recursão para filhos
-      if (group.children?.length) {
-        buildMaps(group.children, groupKey);
-      }
-    }
+    return { ...base, items: mergedItems, children: mergedChildren };
   };
 
-  buildMaps(customizations);
+  const result: CashflowGroup[] = [];
+  for (const template of templates) {
+    const merged = mergeGroup(template, '');
+    if (merged) result.push(merged);
+  }
 
-  // Mesclar grupos recursivamente
-  const mergeGroup = (template: CashflowGroup, parentPath: string = ''): CashflowGroup => {
-    const groupKey = parentPath ? `${parentPath}|${template.name}` : template.name;
-    const custom = customGroupMap.get(groupKey);
+  for (const userGroup of customizations) {
+    if (consumedGroupIds.has(userGroup.id)) continue;
+    if (userGroup.hidden) continue;
+    if (userGroup.templateId) continue;
+    if (userGroup.parentId) continue;
+    result.push(buildPureCustomTree(userGroup));
+  }
 
-    if (custom) {
-      // Personalização encontrada - usar ela e mesclar itens e filhos
-      const mergedGroup: CashflowGroup = {
-        ...custom,
-        items: mergeItems(template.items || [], custom.items || [], custom.id),
-        children: mergeChildren(template.children || [], custom.children || [], groupKey),
-      };
-      return mergedGroup;
-    }
+  result.sort((a, b) => a.orderIndex - b.orderIndex);
+  return result;
+}
 
-    // Usar template, mas verificar se há itens personalizados que correspondem
-    // Buscar grupo personalizado com mesmo nome no mesmo nível hierárquico
-    // (groupKey já foi definido acima)
-    const customGroupMatch = customGroupMap.get(groupKey);
-
-    // Se encontrou grupo personalizado correspondente, mesclar seus itens
-    const customItemsForThisGroup = customGroupMatch?.items || [];
-
-    // Mesclar itens do template com itens personalizados encontrados
-    const mergedItems = mergeItems(template.items || [], customItemsForThisGroup, template.id);
-
-    const mergedGroup: CashflowGroup = {
-      ...template,
-      items: mergedItems,
-      children: (template.children || []).map((child: CashflowGroup) =>
-        mergeGroup(child, groupKey),
-      ),
-    };
-
-    return mergedGroup;
+function markTemplate(group: CashflowGroup): CashflowGroup {
+  return {
+    ...group,
+    isTemplate: true,
+    items: (group.items ?? []).map((i) => ({ ...i, isTemplate: true })),
+    children: (group.children ?? []).map((c) => markTemplate(c)),
   };
+}
 
-  // Mesclar filhos de grupos
-  const mergeChildren = (
-    templateChildren: CashflowGroup[],
-    customChildren: CashflowGroup[],
-    parentPath: string,
-  ): CashflowGroup[] => {
-    const result: CashflowGroup[] = [];
-    const templateMap = new Map(templateChildren.map((c: CashflowGroup) => [c.name, c]));
-    const customMap = new Map(customChildren.map((c: CashflowGroup) => [c.name, c]));
-    const allNames = new Set([...templateMap.keys(), ...customMap.keys()]);
-
-    for (const name of allNames) {
-      const template = templateMap.get(name);
-      const custom = customMap.get(name);
-
-      if (custom) {
-        // Personalização existe - usar ela
-        result.push(mergeGroup(custom, parentPath));
-      } else if (template) {
-        // Apenas template - usar ele
-        result.push(mergeGroup(template, parentPath));
-      }
-    }
-
-    return result.sort((a, b) => a.orderIndex - b.orderIndex);
+function buildPureCustomTree(g: CashflowGroup): CashflowGroup {
+  return {
+    ...g,
+    isTemplate: false,
+    items: (g.items ?? []).filter((i) => !i.hidden).map((i) => ({ ...i, isTemplate: false })),
+    children: (g.children ?? []).filter((c) => !c.hidden).map((c) => buildPureCustomTree(c)),
   };
-
-  // Mesclar itens: personalizados substituem templates com mesmo nome
-  const mergeItems = (
-    templateItems: CashflowItem[],
-    customItems: CashflowItem[],
-    _groupId: string,
-  ): CashflowItem[] => {
-    const result: CashflowItem[] = [];
-    const templateMap = new Map(templateItems.map((i: CashflowItem) => [i.name, i]));
-    const customMap = new Map(customItems.map((i: CashflowItem) => [i.name, i]));
-    const allNames = new Set([...templateMap.keys(), ...customMap.keys()]);
-
-    for (const name of allNames) {
-      const template = templateMap.get(name);
-      const custom = customMap.get(name);
-
-      if (custom) {
-        // Personalização existe - usar ela (prioridade)
-        result.push(custom);
-      } else if (template) {
-        // Apenas template - usar ele
-        result.push(template);
-      }
-    }
-
-    // Ordenar por nome já que rank não é mais numérico
-    return result.sort((a, b) => a.name.localeCompare(b.name));
-  };
-
-  return templates.map((template) => mergeGroup(template));
 }
 
 /**
