@@ -3,10 +3,28 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
-import { getDividends, getCorporateActions } from '@/services/pricing/dividendService';
+import {
+  getDividends,
+  getCorporateActions,
+  type DividendEntry,
+} from '@/services/pricing/dividendService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
+import { getTtlCache } from '@/lib/simpleTtlCache';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+
+// Dividendos mudam raramente (anúncios, ex-date) — TTL de 7 dias evita refazer
+// chamadas BRAPI/DB a cada hit do dashboard de proventos.
+const DIVIDENDS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const dividendsBySymbolCache = getTtlCache<DividendEntry[]>('dividendsBySymbol');
+
+const getDividendsCached = async (symbol: string): Promise<DividendEntry[]> => {
+  const cached = dividendsBySymbolCache.get(symbol);
+  if (cached) return cached;
+  const fresh = await getDividends(symbol, { useBrapiFallback: true });
+  dividendsBySymbolCache.set(symbol, fresh, DIVIDENDS_CACHE_TTL_MS);
+  return fresh;
+};
 interface ProventoData {
   id: string;
   data: string;
@@ -287,7 +305,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const hojeMs = Date.now();
   const allDividends = await Promise.all(
     portfolioAssets.map(async (asset) => {
-      const dividends = await getDividends(asset.symbol, { useBrapiFallback: true });
+      const dividends = await getDividendsCached(asset.symbol);
       return { asset, dividends };
     }),
   );

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
@@ -54,6 +55,9 @@ const createRequest = (params: Record<string, string> = {}) => {
 describe('GET /api/analises/proventos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Cache em memória persiste entre testes; limpar evita vazar resultados de
+    // dividendos entre cenários (ex.: PETR4 mockado de formas diferentes).
+    deleteTtlCacheKeyPrefix('dividendsBySymbol', '');
     mockRequireAuthWithActing.mockResolvedValue({
       payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
       targetUserId: 'user-123',
