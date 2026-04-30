@@ -39,7 +39,7 @@ describe('GET /api/analises/ir-mensal', () => {
     const data = await response.json();
     expect(response.status).toBe(200);
     expect(data.meses).toEqual([]);
-    expect(data.saldosPrejuizoAtual).toEqual({ acao_br: 0, fii: 0, etf_br: 0 });
+    expect(data.saldosPrejuizoAtual).toEqual({ rvComum: 0, fii: 0 });
   });
 
   it('categoriza ticker terminado em 11 como FII e calcula 20%', async () => {
