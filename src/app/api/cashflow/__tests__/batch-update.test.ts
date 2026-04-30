@@ -16,6 +16,7 @@ const mockPrisma = vi.hoisted(() => ({
     findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    upsert: vi.fn().mockResolvedValue({}),
     deleteMany: vi.fn(),
   },
   user: {
@@ -107,8 +108,7 @@ describe('PUT /api/cashflow/batch-update', () => {
       .mockResolvedValueOnce({ itemId: 'item-2', item: userItem2 });
 
     mockPrisma.cashflowItem.update.mockResolvedValue({});
-    mockPrisma.cashflowValue.findFirst.mockResolvedValue(null);
-    mockPrisma.cashflowValue.create.mockResolvedValue({});
+    mockPrisma.cashflowValue.upsert.mockResolvedValue({});
 
     const response = await PUT(
       createRequest({
@@ -210,6 +210,32 @@ describe('PUT /api/cashflow/batch-update', () => {
       success: false,
       error: 'Item não encontrado',
     });
+  });
+
+  it('upsert é idempotente para mesma (itemId, ano, mês)', async () => {
+    const userItem = { id: 'item-1', name: 'Salario', userId: 'user-123', groupId: 'g1' };
+    mockEnsurePersonalizedItem.mockResolvedValue({ itemId: 'item-1', item: userItem });
+    mockPrisma.cashflowItem.update.mockResolvedValue({});
+    mockPrisma.cashflowValue.upsert.mockResolvedValue({});
+
+    const response = await PUT(
+      createRequest({
+        groupId: 'g1',
+        updates: [
+          {
+            itemId: 'item-1',
+            values: [
+              { month: 0, value: 5000 },
+              { month: 0, value: 5500 }, // mesmo mês, valor diferente
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    // Cada valor vira 1 chamada upsert; Prisma garante 1 row final na composite key.
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledTimes(2);
   });
 
   it('personaliza item template antes de atualizar', async () => {

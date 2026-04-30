@@ -118,49 +118,36 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           });
         }
 
-        // Atualizar valores mensais
+        // Atualizar valores mensais — upsert na chave composta `(itemId, userId,
+        // year, month)`, paralelizado por mês. Antes era findFirst + update/create
+        // sequencial (até 24 RTTs por item × 12 meses).
         if (values && Array.isArray(values) && values.length > 0) {
+          const validValues: Array<{
+            month: number;
+            numericValue: number;
+            color?: string | null;
+          }> = [];
           for (const { month, value, color } of values) {
-            if (typeof month !== 'number' || month < 0 || month > 11) {
-              continue; // Ignorar meses inválidos
-            }
-
-            const existingValue = await prisma.cashflowValue.findFirst({
-              where: {
-                itemId: finalItemId,
-                userId: targetUserId,
-                year: currentYear,
-                month,
-              },
-            });
-
+            if (typeof month !== 'number' || month < 0 || month > 11) continue;
             const numericValue = parseFloat(value.toString());
-            if (!Number.isFinite(numericValue)) {
-              continue; // Ignorar valores inválidos
-            }
+            if (!Number.isFinite(numericValue)) continue;
+            validValues.push({ month, numericValue, color });
+          }
 
-            const updateData: {
-              value: number;
-              color?: string | null;
-            } = {
-              value: numericValue,
-            };
-
-            // Incluir cor se fornecida
-            if (color !== undefined) {
-              updateData.color = color;
-            }
-
-            if (existingValue) {
-              // Atualizar valor existente
-              await prisma.cashflowValue.update({
-                where: { id: existingValue.id },
-                data: updateData,
-              });
-            } else {
-              // Criar novo valor
-              await prisma.cashflowValue.create({
-                data: {
+          await Promise.all(
+            validValues.map(({ month, numericValue, color }) => {
+              const colorOverride = color !== undefined ? { color } : {};
+              return prisma.cashflowValue.upsert({
+                where: {
+                  itemId_userId_year_month: {
+                    itemId: finalItemId,
+                    userId: targetUserId,
+                    year: currentYear,
+                    month,
+                  },
+                },
+                update: { value: numericValue, ...colorOverride },
+                create: {
                   itemId: finalItemId,
                   userId: targetUserId,
                   year: currentYear,
@@ -169,8 +156,8 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
                   color: color !== undefined ? color : null,
                 },
               });
-            }
-          }
+            }),
+          );
         }
 
         results.push({ itemId, success: true });
