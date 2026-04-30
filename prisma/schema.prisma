@@ -391,6 +391,7 @@ model StockTransaction {
   createdAt DateTime @default(now())
 
   @@index([userId, date])
+  @@index([userId, assetId, date])
   @@map("stock_transactions")
 }
 
