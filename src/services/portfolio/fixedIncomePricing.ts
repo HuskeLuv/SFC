@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { getTtlCache } from '@/lib/simpleTtlCache';
 import {
   buildDailyTimeline,
   buildFixedIncomeFactorSeries,
@@ -10,6 +11,28 @@ import {
   type PortfolioWithRelations,
   type TesouroPU,
 } from './patrimonioHistoricoBuilder';
+
+// Caches globais para as séries de taxa/PU. Não dependem de userId — todos os
+// usuários veem os mesmos dados, e o cron de ingestão (BACEN/Tesouro) atualiza
+// no máximo 1×/dia, então TTL de 1h é folgado. Hit rate atravessa rotas e
+// usuários, multiplicando o ganho a cada rota que precificar renda fixa.
+const RATE_SERIES_TTL_MS = 60 * 60 * 1000; // 1h
+
+type EconomicIndexRow = { date: Date; value: unknown };
+type TesouroPriceRow = {
+  bondType: string;
+  maturityDate: Date;
+  baseDate: Date;
+  basePU: unknown;
+  sellPU: unknown;
+  buyPU: unknown;
+};
+
+const cdiCache = getTtlCache<EconomicIndexRow[]>('fiPricer:cdi');
+const ipcaCache = getTtlCache<EconomicIndexRow[]>('fiPricer:ipca');
+const tesouroCache = getTtlCache<TesouroPriceRow[]>('fiPricer:tesouro');
+
+const dayKey = (d: Date): string => d.toISOString().slice(0, 10);
 
 /**
  * Anexa `qty` (do Portfolio) a cada FixedIncomeAsset por assetId. Permite ao
@@ -174,47 +197,81 @@ export const createFixedIncomePricer = async (
     }
   };
 
+  // Helpers que consultam cache global antes de bater no DB. Chave inclui o intervalo
+  // de datas (start..end) em granularidade de dia — duas requisições no mesmo dia com
+  // o mesmo earliestStart compartilham o resultado. Tesouro também inclui os bondType
+  // pedidos para que carteiras com bonds diferentes não polluam umas às outras.
+  const fetchCdiRows = async (start: Date, end: Date): Promise<EconomicIndexRow[]> => {
+    const key = `${dayKey(start)}|${dayKey(end)}`;
+    const cached = cdiCache.get(key);
+    if (cached) return cached;
+    const rows = await safeFindMany(() =>
+      prisma.economicIndex.findMany({
+        where: { indexType: 'CDI', date: { gte: start, lte: end } },
+        orderBy: { date: 'asc' },
+      }),
+    );
+    cdiCache.set(key, rows, RATE_SERIES_TTL_MS);
+    return rows;
+  };
+
+  const fetchIpcaRows = async (start: Date, end: Date): Promise<EconomicIndexRow[]> => {
+    const key = `${dayKey(start)}|${dayKey(end)}`;
+    const cached = ipcaCache.get(key);
+    if (cached) return cached;
+    const rows = await safeFindMany(() =>
+      prisma.economicIndex.findMany({
+        where: { indexType: 'IPCA', date: { gte: start, lte: end } },
+        orderBy: { date: 'asc' },
+      }),
+    );
+    ipcaCache.set(key, rows, RATE_SERIES_TTL_MS);
+    return rows;
+  };
+
+  const fetchTesouroRows = async (
+    bonds: Array<{ bondType: string; maturity: Date }>,
+    start: Date,
+    end: Date,
+  ): Promise<TesouroPriceRow[]> => {
+    const bondsKey = bonds
+      .map((b) => `${b.bondType}@${b.maturity.toISOString()}`)
+      .sort()
+      .join(',');
+    const key = `${bondsKey}|${dayKey(start)}|${dayKey(end)}`;
+    const cached = tesouroCache.get(key);
+    if (cached) return cached;
+    const rows = await safeFindMany(() =>
+      prisma.tesouroDiretoPrice.findMany({
+        where: {
+          OR: bonds.map((b) => ({ bondType: b.bondType, maturityDate: b.maturity })),
+          baseDate: { gte: start, lte: end },
+        },
+        orderBy: { baseDate: 'asc' },
+      }),
+    );
+    tesouroCache.set(key, rows, RATE_SERIES_TTL_MS);
+    return rows;
+  };
+
   const [cdiRows, ipcaRows, tesouroRows] = earliestStart
     ? await Promise.all([
         hasCdiLinked
-          ? safeFindMany(() =>
-              prisma.economicIndex.findMany({
-                where: { indexType: 'CDI', date: { gte: earliestStart, lte: today } },
-                orderBy: { date: 'asc' },
-              }),
-            )
-          : Promise.resolve([] as Array<{ date: Date; value: unknown }>),
+          ? fetchCdiRows(earliestStart, today)
+          : Promise.resolve([] as EconomicIndexRow[]),
         hasIpcaLinked
-          ? safeFindMany(() =>
-              prisma.economicIndex.findMany({
-                where: { indexType: 'IPCA', date: { gte: earliestStart, lte: today } },
-                orderBy: { date: 'asc' },
-              }),
-            )
-          : Promise.resolve([] as Array<{ date: Date; value: unknown }>),
+          ? fetchIpcaRows(earliestStart, today)
+          : Promise.resolve([] as EconomicIndexRow[]),
         tesouroAssets.length > 0
-          ? safeFindMany(() =>
-              prisma.tesouroDiretoPrice.findMany({
-                where: {
-                  OR: tesouroAssets.map((fi) => ({
-                    bondType: fi.tesouroBondType!,
-                    maturityDate: fi.tesouroMaturity!,
-                  })),
-                  baseDate: { gte: earliestStart, lte: today },
-                },
-                orderBy: { baseDate: 'asc' },
-              }),
+          ? fetchTesouroRows(
+              tesouroAssets.map((fi) => ({
+                bondType: fi.tesouroBondType!,
+                maturity: fi.tesouroMaturity!,
+              })),
+              earliestStart,
+              today,
             )
-          : Promise.resolve(
-              [] as Array<{
-                bondType: string;
-                maturityDate: Date;
-                baseDate: Date;
-                basePU: unknown;
-                sellPU: unknown;
-                buyPU: unknown;
-              }>,
-            ),
+          : Promise.resolve([] as TesouroPriceRow[]),
       ])
     : [[], [], []];
 
