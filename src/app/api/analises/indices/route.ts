@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
+import { getTtlCache } from '@/lib/simpleTtlCache';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+
+// CDI/IBOV/IPCA/POUPANCA mudam no máximo 1×/dia (BACEN/BRAPI publicam diariamente).
+// Cache por 24h reduz drasticamente DB+BRAPI hits sem perda de frescor relevante.
+const INDICES_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const indicesCache = getTtlCache<{ indices: unknown[] }>('analisesIndices');
 // Tipos de índices disponíveis - todos buscados da brapi
 // Nota: CDI não está disponível na brapi, então foi removido
 const INDICES = {
@@ -495,6 +501,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const range = searchParams.get('range') || '1y';
   const startDateParam = searchParams.get('startDate');
 
+  // Chave do cache: apenas params do request (índices são globais, não por usuário).
+  const cacheKey = `range=${range}:startDate=${startDateParam ?? ''}`;
+  const cached = indicesCache.get(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached);
+  }
+
   let startDate: Date | undefined;
   if (startDateParam) {
     startDate = new Date(parseInt(startDateParam, 10));
@@ -546,7 +559,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         r.data.length > 0 &&
         r.data.every((item) => Number.isFinite(item.date) && Number.isFinite(item.value)),
     );
-    return NextResponse.json({ indices: validResults });
+    const payload = { indices: validResults };
+    indicesCache.set(cacheKey, payload, INDICES_CACHE_TTL_MS);
+    return NextResponse.json(payload);
   }
 
   // Prioridade 2: Fallback para fontes originais (apenas para os que faltam)
@@ -701,5 +716,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
-  return NextResponse.json({ indices: validResults });
+  const payload = { indices: validResults };
+  indicesCache.set(cacheKey, payload, INDICES_CACHE_TTL_MS);
+  return NextResponse.json(payload);
 });
