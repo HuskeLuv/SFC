@@ -32,11 +32,16 @@ vi.mock('@/utils/auth', () => ({
     actingClient: null,
   }),
 }));
+const mockHideTemplateGroup = vi.hoisted(() => vi.fn());
+const mockHideTemplateItem = vi.hoisted(() => vi.fn());
+
 vi.mock('@/utils/cashflowPersonalization', () => ({
   personalizeGroup: vi.fn(),
   personalizeItem: vi.fn(),
   getItemForUser: vi.fn(),
   getGroupForUser: vi.fn(),
+  hideTemplateGroup: mockHideTemplateGroup,
+  hideTemplateItem: mockHideTemplateItem,
 }));
 vi.mock('@/services/impersonationLogger', () => ({
   logDataUpdate: vi.fn(),
@@ -84,11 +89,10 @@ describe('PATCH /api/cashflow/update — validation', () => {
   });
 
   it('retorna erro ao deletar grupo com filhos', async () => {
-    mockPrisma.cashflowGroup.findFirst.mockResolvedValue({
+    mockPrisma.cashflowGroup.findUnique.mockResolvedValue({
       id: 'g1',
       userId: 'user-123',
-      items: [],
-      children: [],
+      templateId: null,
     });
     // First call returns children, subsequent calls for those children return empty
     mockPrisma.cashflowGroup.findMany
@@ -102,11 +106,31 @@ describe('PATCH /api/cashflow/update — validation', () => {
     expect(data.error).toContain('subgrupos');
   });
 
-  it('retorna 404 ao deletar template diretamente', async () => {
-    mockPrisma.cashflowGroup.findFirst.mockResolvedValue(null);
+  it('delete em template → cria tombstone (override layer)', async () => {
+    mockPrisma.cashflowGroup.findUnique.mockResolvedValue({
+      id: 'tpl-1',
+      userId: null,
+      name: 'Receitas',
+      type: 'entrada',
+    });
+    mockHideTemplateGroup.mockResolvedValue('tombstone-1');
 
     const response = await PATCH(
       createRequest({ operation: 'delete', type: 'group', id: 'tpl-1' }),
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.hidden).toBe(true);
+    expect(mockHideTemplateGroup).toHaveBeenCalledWith('tpl-1', 'user-123');
+  });
+
+  it('retorna 404 quando id de grupo nao existe', async () => {
+    mockPrisma.cashflowGroup.findUnique.mockResolvedValue(null);
+
+    const response = await PATCH(
+      createRequest({ operation: 'delete', type: 'group', id: 'inexistente' }),
     );
     expect(response.status).toBe(404);
   });

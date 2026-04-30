@@ -2,7 +2,16 @@ import prisma from '@/lib/prisma';
 import { CashflowGroup, CashflowItem } from '@prisma/client';
 
 /**
- * Utilitários para gerenciar personalização do fluxo de caixa
+ * Utilitários para gerenciar personalização do fluxo de caixa.
+ *
+ * Override Layer: a partir desta versão, cada override aponta para o template
+ * via `templateId` (com `@@unique([userId, templateId])`). Isso elimina a
+ * necessidade de matching por nome — embora a busca por nome continue como
+ * fallback de back-compat para overrides legados criados antes da migração.
+ *
+ * Tombstone: para "remover" um item/grupo template, criamos um override com
+ * `hidden=true` em vez de tentar deletar a linha do template (compartilhada
+ * entre todos os usuários).
  */
 
 /**
@@ -13,7 +22,11 @@ export function isTemplate<T extends { userId: string | null }>(entity: T): bool
 }
 
 /**
- * Cria cópia personalizada de um grupo template
+ * Cria cópia personalizada de um grupo template.
+ *
+ * Idempotente: se já existe override para `(userId, templateId)` retorna o id
+ * existente. Mantém compatibilidade com overrides legados (sem templateId)
+ * via lookup por nome+parentId.
  */
 export async function personalizeGroup(
   templateGroupId: string,
@@ -47,6 +60,28 @@ export async function personalizeGroup(
     throw new Error('Grupo não é um template');
   }
 
+  // 1) Lookup primário: override já existente vinculado por templateId
+  const existingByTemplate = await prisma.cashflowGroup.findFirst({
+    where: { userId, templateId: templateGroup.id },
+  });
+
+  if (existingByTemplate) {
+    // Se foi marcado como tombstone e estamos personalizando de novo, "ressuscitar"
+    if (existingByTemplate.hidden) {
+      await prisma.cashflowGroup.update({
+        where: { id: existingByTemplate.id },
+        data: { hidden: false },
+      });
+    }
+    if (newParentId !== undefined && existingByTemplate.parentId !== (newParentId || null)) {
+      await prisma.cashflowGroup.update({
+        where: { id: existingByTemplate.id },
+        data: { parentId: newParentId || null },
+      });
+    }
+    return existingByTemplate.id;
+  }
+
   // Determinar parentId correto
   let finalParentId: string | null = newParentId !== undefined ? newParentId || null : null;
 
@@ -58,7 +93,6 @@ export async function personalizeGroup(
 
     if (templateParent && templateParent.userId === null) {
       // Parent também é template - personalizar parent primeiro
-      // Não precisamos verificar o usuário novamente aqui pois já verificamos no início
       const personalizedParentId = await personalizeGroup(templateParent.id, userId);
       finalParentId = personalizedParentId;
     } else if (templateParent && templateParent.userId !== null) {
@@ -67,34 +101,56 @@ export async function personalizeGroup(
     }
   }
 
-  // Verificar se já existe personalização com base no nome e contexto hierárquico
-  const existingCustom = await prisma.cashflowGroup.findFirst({
+  // 2) Lookup back-compat: override legado criado por nome (sem templateId).
+  //    Quando encontrado, atualizamos para apontar para o template, evitando
+  //    duplicatas e migrando suavemente para a nova estrutura.
+  const existingByName = await prisma.cashflowGroup.findFirst({
     where: {
       userId,
+      templateId: null,
       name: templateGroup.name,
       parentId: finalParentId,
     },
   });
 
-  if (existingCustom) {
-    // Se já existe mas precisa atualizar parentId, fazer isso
-    if (newParentId !== undefined && existingCustom.parentId !== newParentId) {
+  if (existingByName) {
+    try {
       await prisma.cashflowGroup.update({
-        where: { id: existingCustom.id },
+        where: { id: existingByName.id },
+        data: { templateId: templateGroup.id },
+      });
+    } catch {
+      // Se atualização falhar (e.g. unique violation por concorrência), usar a row como está
+    }
+    if (newParentId !== undefined && existingByName.parentId !== (newParentId || null)) {
+      await prisma.cashflowGroup.update({
+        where: { id: existingByName.id },
         data: { parentId: newParentId || null },
       });
     }
-    return existingCustom.id; // Já existe personalização
+    return existingByName.id;
   }
 
-  // Criar cópia do grupo dentro de uma transação para evitar race conditions
+  // 3) Criar override novo dentro de uma transação para evitar race conditions
+  let resultId: string;
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      // Double-check dentro da transação
-      const existing = await tx.cashflowGroup.findFirst({
-        where: { userId, name: templateGroup.name, parentId: finalParentId },
+    resultId = await prisma.$transaction(async (tx) => {
+      // Double-check dentro da transação (ambos os lookups)
+      const existingTpl = await tx.cashflowGroup.findFirst({
+        where: { userId, templateId: templateGroup.id },
       });
-      if (existing) return existing.id;
+      if (existingTpl) return existingTpl.id;
+
+      const existingNm = await tx.cashflowGroup.findFirst({
+        where: { userId, templateId: null, name: templateGroup.name, parentId: finalParentId },
+      });
+      if (existingNm) {
+        await tx.cashflowGroup.update({
+          where: { id: existingNm.id },
+          data: { templateId: templateGroup.id },
+        });
+        return existingNm.id;
+      }
 
       const customGroup = await tx.cashflowGroup.create({
         data: {
@@ -103,6 +159,7 @@ export async function personalizeGroup(
           type: templateGroup.type,
           orderIndex: templateGroup.orderIndex,
           parentId: finalParentId,
+          templateId: templateGroup.id,
         },
       });
 
@@ -115,31 +172,39 @@ export async function personalizeGroup(
             name: templateItem.name,
             significado: templateItem.significado,
             rank: templateItem.rank,
+            templateId: templateItem.id,
           },
         });
       }
 
       return customGroup.id;
     });
-
-    // Copiar filhos FORA da transação (chamam personalizeGroup recursivamente com suas próprias transações)
-    for (const child of templateGroup.children) {
-      await personalizeGroup(child.id, userId, result);
-    }
-
-    return result;
   } catch (error) {
-    // Se criação falhou por race condition, tentar encontrar o existente
-    const existing = await prisma.cashflowGroup.findFirst({
-      where: { userId, name: templateGroup.name, parentId: finalParentId },
-    });
+    // Race-condition: outra requisição criou o override no meio. Buscar e devolver.
+    const existing =
+      (await prisma.cashflowGroup.findFirst({
+        where: { userId, templateId: templateGroup.id },
+      })) ||
+      (await prisma.cashflowGroup.findFirst({
+        where: { userId, name: templateGroup.name, parentId: finalParentId },
+      }));
     if (existing) return existing.id;
     throw error;
   }
+
+  // Copiar filhos FORA da transação (chamam personalizeGroup recursivamente com suas próprias transações)
+  for (const child of templateGroup.children) {
+    await personalizeGroup(child.id, userId, resultId);
+  }
+
+  return resultId;
 }
 
 /**
- * Cria cópia personalizada de um item template
+ * Cria cópia personalizada de um item template.
+ *
+ * Idempotente via `(userId, templateId)`. Back-compat: detecta overrides
+ * legados criados via match por nome+groupId.
  */
 export async function personalizeItem(
   templateItemId: string,
@@ -168,17 +233,19 @@ export async function personalizeItem(
     throw new Error('Item não é um template');
   }
 
-  // Verificar se já existe personalização deste item no mesmo grupo
-  const existingCustom = await prisma.cashflowItem.findFirst({
-    where: {
-      userId,
-      name: templateItem.name,
-      groupId: targetGroupId || templateItem.groupId,
-    },
+  // 1) Lookup primário por templateId
+  const existingByTemplate = await prisma.cashflowItem.findFirst({
+    where: { userId, templateId: templateItem.id },
   });
 
-  if (existingCustom) {
-    return existingCustom.id;
+  if (existingByTemplate) {
+    if (existingByTemplate.hidden) {
+      await prisma.cashflowItem.update({
+        where: { id: existingByTemplate.id },
+        data: { hidden: false },
+      });
+    }
+    return existingByTemplate.id;
   }
 
   // Determinar grupo de destino
@@ -190,19 +257,50 @@ export async function personalizeItem(
   });
 
   if (targetGroup && targetGroup.userId === null) {
-    // Personalizar o grupo primeiro
     const personalizedGroupId = await personalizeGroup(finalGroupId, userId);
     finalGroupId = personalizedGroupId;
   }
 
-  // Criar cópia do item dentro de uma transação para evitar race conditions
+  // 2) Lookup back-compat por nome+groupId
+  const existingByName = await prisma.cashflowItem.findFirst({
+    where: {
+      userId,
+      templateId: null,
+      name: templateItem.name,
+      groupId: finalGroupId,
+    },
+  });
+
+  if (existingByName) {
+    try {
+      await prisma.cashflowItem.update({
+        where: { id: existingByName.id },
+        data: { templateId: templateItem.id },
+      });
+    } catch {
+      // Race / unique violation — manter como está
+    }
+    return existingByName.id;
+  }
+
+  // 3) Criar override novo
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // Double-check dentro da transação
-      const existing = await tx.cashflowItem.findFirst({
-        where: { userId, name: templateItem.name, groupId: finalGroupId },
+      const existingTpl = await tx.cashflowItem.findFirst({
+        where: { userId, templateId: templateItem.id },
       });
-      if (existing) return existing.id;
+      if (existingTpl) return existingTpl.id;
+
+      const existingNm = await tx.cashflowItem.findFirst({
+        where: { userId, templateId: null, name: templateItem.name, groupId: finalGroupId },
+      });
+      if (existingNm) {
+        await tx.cashflowItem.update({
+          where: { id: existingNm.id },
+          data: { templateId: templateItem.id },
+        });
+        return existingNm.id;
+      }
 
       const customItem = await tx.cashflowItem.create({
         data: {
@@ -211,6 +309,7 @@ export async function personalizeItem(
           name: templateItem.name,
           significado: templateItem.significado,
           rank: templateItem.rank,
+          templateId: templateItem.id,
         },
       });
 
@@ -219,37 +318,189 @@ export async function personalizeItem(
 
     return result;
   } catch (error) {
-    // Se criação falhou por race condition, tentar encontrar o existente
-    const existing = await prisma.cashflowItem.findFirst({
-      where: { userId, name: templateItem.name, groupId: finalGroupId },
-    });
+    const existing =
+      (await prisma.cashflowItem.findFirst({
+        where: { userId, templateId: templateItem.id },
+      })) ||
+      (await prisma.cashflowItem.findFirst({
+        where: { userId, name: templateItem.name, groupId: finalGroupId },
+      }));
     if (existing) return existing.id;
     throw error;
   }
 }
 
 /**
- * Obtém item personalizado ou template para um usuário
- * Se não existe personalização, retorna template
+ * Cria/atualiza um override marcado como tombstone (`hidden=true`) para o
+ * grupo template informado. Idempotente.
+ *
+ * Caso já exista um override (com ou sem templateId), apenas marca `hidden=true`
+ * e (quando aplicável) atualiza o `templateId` para fechar o link.
  */
-export async function getItemForUser(itemId: string, userId: string): Promise<CashflowItem | null> {
-  // Primeiro tentar buscar item personalizado
-  const customItem = await prisma.cashflowItem.findFirst({
-    where: {
-      id: itemId,
-      userId,
-    },
-  });
-
-  if (customItem) {
-    return customItem;
+export async function hideTemplateGroup(templateGroupId: string, userId: string): Promise<string> {
+  const userExists = await prisma.user.findUnique({ where: { id: userId } });
+  if (!userExists) {
+    throw new Error('Usuário não encontrado. Faça logout e login novamente.');
   }
 
-  // Se não encontrou personalizado, buscar template original
+  const templateGroup = await prisma.cashflowGroup.findUnique({
+    where: { id: templateGroupId },
+  });
+  if (!templateGroup) {
+    throw new Error('Grupo template não encontrado');
+  }
+  if (templateGroup.userId !== null) {
+    throw new Error('Grupo não é um template');
+  }
+
+  // 1) Override já vinculado por templateId
+  const existingByTemplate = await prisma.cashflowGroup.findFirst({
+    where: { userId, templateId: templateGroup.id },
+  });
+  if (existingByTemplate) {
+    if (!existingByTemplate.hidden) {
+      await prisma.cashflowGroup.update({
+        where: { id: existingByTemplate.id },
+        data: { hidden: true },
+      });
+    }
+    return existingByTemplate.id;
+  }
+
+  // 2) Override legado (sem templateId) com mesmo nome+parentId
+  const existingByName = await prisma.cashflowGroup.findFirst({
+    where: {
+      userId,
+      templateId: null,
+      name: templateGroup.name,
+      parentId: templateGroup.parentId,
+    },
+  });
+  if (existingByName) {
+    await prisma.cashflowGroup.update({
+      where: { id: existingByName.id },
+      data: { hidden: true, templateId: templateGroup.id },
+    });
+    return existingByName.id;
+  }
+
+  // 3) Criar tombstone novo
+  const tombstone = await prisma.cashflowGroup.create({
+    data: {
+      userId,
+      name: templateGroup.name,
+      type: templateGroup.type,
+      orderIndex: templateGroup.orderIndex,
+      parentId: templateGroup.parentId,
+      templateId: templateGroup.id,
+      hidden: true,
+    },
+  });
+  return tombstone.id;
+}
+
+/**
+ * Cria/atualiza um override marcado como tombstone para o item template.
+ * Idempotente.
+ */
+export async function hideTemplateItem(templateItemId: string, userId: string): Promise<string> {
+  const userExists = await prisma.user.findUnique({ where: { id: userId } });
+  if (!userExists) {
+    throw new Error('Usuário não encontrado. Faça logout e login novamente.');
+  }
+
+  const templateItem = await prisma.cashflowItem.findUnique({
+    where: { id: templateItemId },
+  });
+  if (!templateItem) {
+    throw new Error('Item template não encontrado');
+  }
+  if (templateItem.userId !== null) {
+    throw new Error('Item não é um template');
+  }
+
+  // 1) Override já vinculado por templateId
+  const existingByTemplate = await prisma.cashflowItem.findFirst({
+    where: { userId, templateId: templateItem.id },
+  });
+  if (existingByTemplate) {
+    if (!existingByTemplate.hidden) {
+      await prisma.cashflowItem.update({
+        where: { id: existingByTemplate.id },
+        data: { hidden: true },
+      });
+    }
+    return existingByTemplate.id;
+  }
+
+  // 2) Resolver groupId em que o tombstone deve viver. Se o grupo do template
+  //    é template, usamos o override do grupo (criando-o se necessário) — o
+  //    tombstone do item precisa morar no grupo personalizado do usuário.
+  let groupIdForTombstone = templateItem.groupId;
+  const itemGroup = await prisma.cashflowGroup.findUnique({
+    where: { id: templateItem.groupId },
+  });
+  if (itemGroup && itemGroup.userId === null) {
+    groupIdForTombstone = await personalizeGroup(itemGroup.id, userId);
+  }
+
+  // 3) Override legado (sem templateId) com mesmo nome no mesmo grupo
+  const existingByName = await prisma.cashflowItem.findFirst({
+    where: {
+      userId,
+      templateId: null,
+      name: templateItem.name,
+      groupId: groupIdForTombstone,
+    },
+  });
+  if (existingByName) {
+    await prisma.cashflowItem.update({
+      where: { id: existingByName.id },
+      data: { hidden: true, templateId: templateItem.id },
+    });
+    return existingByName.id;
+  }
+
+  // 4) Criar tombstone novo
+  const tombstone = await prisma.cashflowItem.create({
+    data: {
+      userId,
+      groupId: groupIdForTombstone,
+      name: templateItem.name,
+      significado: templateItem.significado,
+      rank: templateItem.rank,
+      templateId: templateItem.id,
+      hidden: true,
+    },
+  });
+  return tombstone.id;
+}
+
+/**
+ * Obtém item personalizado ou template para um usuário.
+ *
+ * Ordem de resolução:
+ *  1. Override do usuário cujo `id` bate com o argumento (item próprio do usuário).
+ *  2. Override do usuário cujo `templateId` aponta para o argumento (override por link).
+ *  3. Template original com aquele id.
+ */
+export async function getItemForUser(itemId: string, userId: string): Promise<CashflowItem | null> {
+  // 1) item próprio do usuário (custom puro ou override)
+  const ownItem = await prisma.cashflowItem.findFirst({
+    where: { id: itemId, userId },
+  });
+  if (ownItem) return ownItem;
+
+  // 2) override apontando para itemId (caso itemId seja um template)
+  const overrideByTemplate = await prisma.cashflowItem.findFirst({
+    where: { userId, templateId: itemId },
+  });
+  if (overrideByTemplate) return overrideByTemplate;
+
+  // 3) template original
   const templateItem = await prisma.cashflowItem.findUnique({
     where: { id: itemId },
   });
-
   return templateItem;
 }
 
@@ -273,29 +524,28 @@ export async function ensurePersonalizedItem(
 }
 
 /**
- * Obtém grupo personalizado ou template para um usuário
+ * Obtém grupo personalizado ou template para um usuário.
  */
 export async function getGroupForUser(
   groupId: string,
   userId: string,
 ): Promise<CashflowGroup | null> {
-  // Primeiro tentar buscar grupo personalizado
-  const customGroup = await prisma.cashflowGroup.findFirst({
-    where: {
-      id: groupId,
-      userId,
-    },
+  // 1) grupo próprio do usuário
+  const ownGroup = await prisma.cashflowGroup.findFirst({
+    where: { id: groupId, userId },
   });
+  if (ownGroup) return ownGroup;
 
-  if (customGroup) {
-    return customGroup;
-  }
+  // 2) override apontando para groupId (caso groupId seja um template)
+  const overrideByTemplate = await prisma.cashflowGroup.findFirst({
+    where: { userId, templateId: groupId },
+  });
+  if (overrideByTemplate) return overrideByTemplate;
 
-  // Se não encontrou personalizado, buscar template original
+  // 3) template original
   const templateGroup = await prisma.cashflowGroup.findUnique({
     where: { id: groupId },
   });
-
   return templateGroup;
 }
 
@@ -313,13 +563,19 @@ export async function hasPersonalization(
     });
     if (!template) return false;
 
-    const custom = await prisma.cashflowGroup.findFirst({
+    // Check both linkage paths: by templateId and by name (legacy)
+    const byTemplate = await prisma.cashflowGroup.findFirst({
+      where: { userId, templateId: template.id },
+    });
+    if (byTemplate) return true;
+
+    const byName = await prisma.cashflowGroup.findFirst({
       where: {
         userId,
         name: template.name,
       },
     });
-    return !!custom;
+    return !!byName;
   } else {
     const template = await prisma.cashflowItem.findUnique({
       where: { id: templateId },
@@ -327,7 +583,12 @@ export async function hasPersonalization(
     });
     if (!template) return false;
 
-    const custom = await prisma.cashflowItem.findFirst({
+    const byTemplate = await prisma.cashflowItem.findFirst({
+      where: { userId, templateId: template.id },
+    });
+    if (byTemplate) return true;
+
+    const byName = await prisma.cashflowItem.findFirst({
       where: {
         userId,
         name: template.name,
@@ -336,6 +597,6 @@ export async function hasPersonalization(
         },
       },
     });
-    return !!custom;
+    return !!byName;
   }
 }

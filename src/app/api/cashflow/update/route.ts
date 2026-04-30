@@ -8,6 +8,8 @@ import {
   personalizeItem,
   getItemForUser,
   getGroupForUser,
+  hideTemplateGroup,
+  hideTemplateItem,
 } from '@/utils/cashflowPersonalization';
 import { cashflowUpdateSchema, validationError } from '@/utils/validation-schemas';
 
@@ -17,8 +19,14 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  *
  * Recebe alterações de grupos, subgrupos ou itens.
  *
- * Se o item/grupo for padrão (template), cria uma cópia personalizada.
- * Atualiza ou remove apenas itens/grupos pertencentes ao usuário.
+ * Override Layer:
+ *  - update em template → cria override (linha vinculada via templateId) e
+ *    aplica o update sobre ele atomicamente.
+ *  - delete em template → cria tombstone (override com hidden=true). O template
+ *    permanece intacto, apenas some do tree do usuário.
+ *  - delete em override (linha do usuário com templateId) → DELETE simples,
+ *    efetivamente "revertendo para o template".
+ *  - delete em row puramente do usuário (sem templateId) → DELETE simples.
  *
  * Body:
  * {
@@ -109,7 +117,7 @@ async function handleGroupOperation(
   userId: string,
 ) {
   if (operation === 'create') {
-    // Criar novo grupo personalizado
+    // Criar novo grupo personalizado puro (sem templateId)
     if (!data.name || !data.type) {
       return NextResponse.json(
         { error: 'name e type são obrigatórios para criar grupo' },
@@ -145,19 +153,21 @@ async function handleGroupOperation(
       return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
     }
 
-    // Se é template, criar cópia personalizada
+    // Se é template, criar override (vinculado por templateId) e atualizar de forma atômica.
     let finalGroupId = group.id;
     if (group.userId === null) {
       finalGroupId = await personalizeGroup(group.id, userId);
     }
 
-    // Atualizar apenas grupos personalizados do usuário
     const updateData: Prisma.CashflowGroupUncheckedUpdateInput = {};
     if (data.name) updateData.name = data.name;
     if (data.type) updateData.type = data.type;
     if (data.orderIndex !== undefined && data.orderIndex !== null)
       updateData.orderIndex = data.orderIndex;
     if (data.parentId !== undefined) updateData.parentId = data.parentId;
+    // Update implícito desfaz tombstone: editar uma linha oculta significa que
+    // o usuário a quer de volta.
+    updateData.hidden = false;
 
     const updatedGroup = await prisma.cashflowGroup.update({
       where: {
@@ -179,27 +189,35 @@ async function handleGroupOperation(
       return NextResponse.json({ error: 'id é obrigatório para deletar' }, { status: 400 });
     }
 
-    // Verificar se grupo existe e pertence ao usuário
-    const group = await prisma.cashflowGroup.findFirst({
-      where: {
-        id,
-        userId, // Só pode deletar grupos personalizados
-      },
-      include: {
-        items: true,
-        children: true,
-      },
+    // Resolver linha alvo: pode ser template, override ou custom puro do usuário.
+    const target = await prisma.cashflowGroup.findUnique({
+      where: { id },
     });
 
-    if (!group) {
+    if (!target) {
+      return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
+    }
+
+    // Caso A: id aponta para um template (userId=null) → criar tombstone.
+    if (target.userId === null) {
+      const tombstoneId = await hideTemplateGroup(target.id, userId);
+      return NextResponse.json({
+        success: true,
+        message: 'Grupo template ocultado para o usuário',
+        tombstoneId,
+        hidden: true,
+      });
+    }
+
+    // Caso B/C: id é uma linha do usuário (override ou custom puro).
+    if (target.userId !== userId) {
       return NextResponse.json(
         { error: 'Grupo não encontrado ou não pertence ao usuário' },
         { status: 404 },
       );
     }
 
-    // Verificar se tem filhos ou itens
-    // Buscar filhos e itens recursivamente
+    // Verificar se tem filhos ou itens (recursivo)
     const getAllChildren = async (groupId: string): Promise<string[]> => {
       const children = await prisma.cashflowGroup.findMany({
         where: { parentId: groupId, userId },
@@ -232,7 +250,8 @@ async function handleGroupOperation(
       );
     }
 
-    // Deletar grupo
+    // DELETE simples — independentemente de ser custom puro ou override
+    // (override: usuário "reverte para template").
     await prisma.cashflowGroup.delete({
       where: { id },
     });
@@ -253,7 +272,7 @@ async function handleItemOperation(
   userId: string,
 ) {
   if (operation === 'create') {
-    // Criar novo item personalizado
+    // Criar novo item personalizado puro (sem templateId)
     if (!data.groupId || !data.name) {
       return NextResponse.json(
         { error: 'groupId e name são obrigatórios para criar item' },
@@ -306,23 +325,25 @@ async function handleItemOperation(
       return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
     }
 
-    // Se é template, criar cópia personalizada
+    // Se é template, criar override (vinculado por templateId) e atualizar.
     let finalItemId = item.id;
     if (item.userId === null) {
       finalItemId = await personalizeItem(item.id, userId);
     }
 
-    // Atualizar apenas itens personalizados do usuário
+    // Atualizar apenas itens personalizados do usuário. Update implícito
+    // desfaz tombstone (editar uma linha oculta a "ressuscita").
     const updatedItem = await prisma.cashflowItem.update({
       where: {
         id: finalItemId,
-        userId, // Garantir que só atualiza itens do usuário
+        userId,
       },
       data: {
         ...(data.name && { name: data.name }),
         ...(data.significado !== undefined && { significado: data.significado }),
         ...(data.rank !== undefined && { rank: data.rank }),
         ...(data.groupId && { groupId: data.groupId }),
+        hidden: false,
       },
       include: {
         values: {
@@ -339,18 +360,28 @@ async function handleItemOperation(
       return NextResponse.json({ error: 'id é obrigatório para deletar' }, { status: 400 });
     }
 
-    // Verificar se item existe e pertence ao usuário
-    const item = await prisma.cashflowItem.findFirst({
-      where: {
-        id,
-        userId, // Só pode deletar itens personalizados
-      },
-      include: {
-        values: true,
-      },
+    // Resolver linha alvo
+    const target = await prisma.cashflowItem.findUnique({
+      where: { id },
     });
 
-    if (!item) {
+    if (!target) {
+      return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
+    }
+
+    // Caso A: id aponta para um item-template → tombstone.
+    if (target.userId === null) {
+      const tombstoneId = await hideTemplateItem(target.id, userId);
+      return NextResponse.json({
+        success: true,
+        message: 'Item template ocultado para o usuário',
+        tombstoneId,
+        hidden: true,
+      });
+    }
+
+    // Caso B/C: linha do usuário (override ou custom puro).
+    if (target.userId !== userId) {
       return NextResponse.json(
         { error: 'Item não encontrado ou não pertence ao usuário' },
         { status: 404 },
