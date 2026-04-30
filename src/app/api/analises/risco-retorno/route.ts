@@ -24,6 +24,14 @@ const IBOV_SYMBOL = '^BVSP';
 /** TTL do cache — carteira estável serve do cache por até 24h. */
 const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Versão do algoritmo de cálculo. Bumpar invalida todo o cache existente sem precisar
+ * mexer no DB: o hash entra como prefixo nas chaves, então linhas antigas viram órfãs
+ * e qualquer request recomputa do zero. Bump quando a fórmula de beta/risco mudar de
+ * forma observável aos usuários (ex.: 1 → 2 quando beta migrou de mensal para diário).
+ */
+const ALGORITHM_VERSION = 2;
+
 /** Hash estável da composição: invalida o cache quando posição/preço médio muda. */
 function computePortfolioHash(
   items: Array<{ symbol: string; quantity: number; avgPrice: number }>,
@@ -33,7 +41,8 @@ function computePortfolioHash(
     .map((i) => `${i.symbol}:${i.quantity}:${i.avgPrice}`)
     .sort()
     .join('|');
-  return createHash('sha256').update(normalized).digest('hex');
+  const payload = `v${ALGORITHM_VERSION}|${normalized}`;
+  return createHash('sha256').update(payload).digest('hex');
 }
 
 interface RiscoRetornoMetrics {
