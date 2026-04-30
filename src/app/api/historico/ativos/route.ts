@@ -43,12 +43,28 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     orderBy: { date: 'desc' },
   });
 
+  // Index transactions by assetId and stockId so the per-portfolio lookup
+  // below is O(1) instead of O(transactions). Since `transactions` is sorted
+  // by date desc, the FIRST occurrence per key is the most recent — preserve
+  // that semantic by only setting the map entry when it's still empty.
+  const lastTxByAssetId = new Map<string, Date>();
+  const lastTxByStockId = new Map<string, Date>();
+  for (const tx of transactions) {
+    if (tx.assetId && !lastTxByAssetId.has(tx.assetId)) {
+      lastTxByAssetId.set(tx.assetId, tx.date);
+    }
+    if (tx.stockId && !lastTxByStockId.has(tx.stockId)) {
+      lastTxByStockId.set(tx.stockId, tx.date);
+    }
+  }
+
   portfolio.forEach((p) => {
-    const lastTx = transactions.find(
-      (t) => (p.assetId && t.assetId === p.assetId) || (p.stockId && t.stockId === p.stockId),
-    );
-    if (lastTx) {
-      lastTransactionByPortfolio.set(p.id, lastTx.date);
+    // Match the original `find` order: assetId match wins over stockId match.
+    const lastTxDate =
+      (p.assetId ? lastTxByAssetId.get(p.assetId) : undefined) ??
+      (p.stockId ? lastTxByStockId.get(p.stockId) : undefined);
+    if (lastTxDate) {
+      lastTransactionByPortfolio.set(p.id, lastTxDate);
     }
   });
 
