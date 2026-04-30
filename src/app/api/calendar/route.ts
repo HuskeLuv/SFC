@@ -10,7 +10,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
     const userId = payload.id;
-    const events = await prisma.event.findMany({ where: { userId } });
+    // Defensive ceiling: a single user is unlikely to need >500 calendar
+    // events in one payload; cap to keep responses bounded.
+    const events = await prisma.event.findMany({ where: { userId }, take: 500 });
     return NextResponse.json(events);
   } catch {
     return NextResponse.json({ error: 'Token inválido' }, { status: 401 });

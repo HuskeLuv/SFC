@@ -13,7 +13,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
     }
     const userId = payload.id;
-    const data = await prisma.dashboardData.findMany({ where: { userId } });
+    // Defensive ceiling: dashboard payload should stay small; cap to
+    // protect against unbounded growth if the data model evolves.
+    const data = await prisma.dashboardData.findMany({ where: { userId }, take: 1000 });
     return NextResponse.json(data);
   } catch {
     return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
