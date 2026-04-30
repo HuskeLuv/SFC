@@ -138,6 +138,102 @@ describe('GET /api/analises/proventos', () => {
     expect(data.yearly).toBeDefined();
   });
 
+  it('isola falha por símbolo em getDividends (partial failure)', async () => {
+    const now = new Date();
+    const lastMonth = new Date(now.getTime() - 30 * 86400000);
+    const dividendDate = new Date(now.getTime() - 10 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: lastMonth,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+      {
+        id: 'p2',
+        userId: 'user-123',
+        quantity: 50,
+        totalInvested: 2500,
+        avgPrice: 50,
+        lastUpdate: lastMonth,
+        stockId: 'stock-2',
+        assetId: null,
+        stock: { id: 'stock-2', ticker: 'VALE3', companyName: 'Vale' },
+        asset: null,
+      },
+    ]);
+
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: lastMonth,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { ticker: 'PETR4' },
+        asset: null,
+      },
+      {
+        id: 'tx-2',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 50,
+        price: 50,
+        total: 2500,
+        date: lastMonth,
+        stockId: 'stock-2',
+        assetId: null,
+        stock: { ticker: 'VALE3' },
+        asset: null,
+      },
+    ]);
+
+    mockGetAssetPrices.mockResolvedValue(
+      new Map([
+        ['PETR4', 35],
+        ['VALE3', 55],
+      ]),
+    );
+
+    // PETR4 falha (BRAPI 5xx); VALE3 retorna normalmente.
+    mockGetDividends.mockImplementation(async (symbol: string) => {
+      if (symbol === 'PETR4') {
+        throw new Error('BRAPI 503 indisponivel');
+      }
+      return [{ date: dividendDate, tipo: 'dividendo', valorUnitario: 1.0 }];
+    });
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const response = await GET(createRequest());
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      // VALE3 deve aparecer mesmo PETR4 tendo falhado
+      expect(data.proventos.length).toBeGreaterThan(0);
+      expect(data.proventos.some((p: { symbol: string }) => p.symbol === 'VALE3')).toBe(true);
+      expect(data.proventos.some((p: { symbol: string }) => p.symbol === 'PETR4')).toBe(false);
+      // Warn (não error) emitido para o símbolo que falhou
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[proventos] getDividends falhou para PETR4'),
+        expect.any(Error),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it('aceita parametros startDate e endDate', async () => {
     const startDate = new Date('2025-01-01').toISOString();
     const endDate = new Date('2025-12-31').toISOString();

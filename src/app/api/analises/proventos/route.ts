@@ -305,8 +305,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const hojeMs = Date.now();
   const allDividends = await Promise.all(
     portfolioAssets.map(async (asset) => {
-      const dividends = await getDividendsCached(asset.symbol);
-      return { asset, dividends };
+      try {
+        const dividends = await getDividendsCached(asset.symbol);
+        return { asset, dividends };
+      } catch (err) {
+        // Falha em 1 ativo (BRAPI 5xx, etc.) não deve derrubar a rota inteira;
+        // devolve dividends=[] e segue. console.warn (não error) — degradação
+        // tolerada, não erro real para Sentry/logs.
+        console.warn(`[proventos] getDividends falhou para ${asset.symbol}`, err);
+        return { asset, dividends: [] as DividendEntry[] };
+      }
     }),
   );
   for (const { asset, dividends } of allDividends) {
