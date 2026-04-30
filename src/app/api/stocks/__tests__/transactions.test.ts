@@ -2,12 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '../transactions/route';
 
-const mockPrisma = vi.hoisted(() => ({
-  user: { findUnique: vi.fn() },
-  stock: { findUnique: vi.fn() },
-  stockTransaction: { findMany: vi.fn(), create: vi.fn(), count: vi.fn() },
-  portfolio: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-}));
+const mockPrisma = vi.hoisted(() => {
+  const obj = {
+    user: { findUnique: vi.fn() },
+    stock: { findUnique: vi.fn() },
+    stockTransaction: { findMany: vi.fn(), create: vi.fn(), count: vi.fn() },
+    portfolio: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    $transaction: vi.fn(),
+  };
+  obj.$transaction.mockImplementation(async (arg: unknown) =>
+    typeof arg === 'function' ? (arg as (tx: typeof obj) => Promise<unknown>)(obj) : arg,
+  );
+  return obj;
+});
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
@@ -212,6 +219,40 @@ describe('/api/stocks/transactions', () => {
 
       expect(response.status).toBe(404);
       expect(data.error).toContain('Ativo não encontrado');
+    });
+
+    it('venda sem posição rola transação inteira para trás', async () => {
+      // updatePortfolio lança "Portfolio não encontrado para venda" quando o user
+      // não tem posição. Como tudo roda dentro de $transaction, a stockTransaction
+      // recém-criada também precisa ser rolledback (Prisma faz isso ao re-throw).
+      mockPrisma.portfolio.findUnique.mockResolvedValue(null);
+      mockPrisma.stockTransaction.create.mockResolvedValue({
+        id: 'tx-rollback',
+        userId: 'user-123',
+        stockId: 'stock-1',
+        type: 'venda',
+        quantity: 50,
+        price: 40,
+        total: 2000,
+        date: new Date(),
+        fees: 0,
+        notes: null,
+      });
+
+      const response = await POST(
+        createPostRequest({
+          stockId: 'stock-1',
+          type: 'venda',
+          quantity: 50,
+          price: 40.0,
+          date: '2024-07-15',
+        }),
+      );
+
+      expect(response.status).toBe(500);
+      // O callback de $transaction foi invocado uma única vez (a transação inteira),
+      // não criamos transactions fora dela.
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
     });
   });
 

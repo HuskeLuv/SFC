@@ -52,14 +52,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
 
-  const user = await prisma.user.findUnique({
-    where: { id: targetUserId },
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
-  }
-
   const body = await request.json();
   const parsed = stockTransactionSchema.safeParse(body);
   if (!parsed.success) {
@@ -67,11 +59,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
   const { stockId, type, quantity, price, date, fees, notes } = parsed.data;
 
-  // Verificar se o ativo existe
-  const stock = await prisma.stock.findUnique({
-    where: { id: stockId },
-  });
+  // Lookups independentes — paralelizados.
+  const [user, stock] = await Promise.all([
+    prisma.user.findUnique({ where: { id: targetUserId } }),
+    prisma.stock.findUnique({ where: { id: stockId } }),
+  ]);
 
+  if (!user) {
+    return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+  }
   if (!stock) {
     return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
   }
@@ -79,32 +75,45 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const total = quantity * price;
   const transactionDate = new Date(date);
 
-  // Criar transação
-  const transaction = await prisma.stockTransaction.create({
-    data: {
-      userId: user.id,
-      stockId: stockId,
-      type,
-      quantity,
-      price,
-      total,
-      date: transactionDate,
-      fees: fees || 0,
-      notes: notes || null,
-    },
-    include: {
-      stock: true,
-    },
-  });
+  // Cria a transação e ajusta o Portfolio na mesma transação atômica — sem isso,
+  // uma falha em updatePortfolio (ex: venda sem posição) deixava a stockTransaction
+  // gravada órfã e divergente do estado da carteira.
+  const transaction = await prisma.$transaction(async (tx) => {
+    const created = await tx.stockTransaction.create({
+      data: {
+        userId: user.id,
+        stockId,
+        type,
+        quantity,
+        price,
+        total,
+        date: transactionDate,
+        fees: fees || 0,
+        notes: notes || null,
+      },
+      include: { stock: true },
+    });
 
-  // Atualizar portfolio
-  await updatePortfolio(user.id, stockId, type, quantity, price, total);
+    await updatePortfolio(tx, user.id, stockId, type, quantity, price, total);
+    return created;
+  });
 
   return NextResponse.json(transaction, { status: 201 });
 });
 
-// Função para atualizar o portfolio
+// Função para atualizar o portfolio. Recebe o client da transação ativa para
+// que tudo rode no mesmo BEGIN/COMMIT do POST.
+type PortfolioClient = {
+  portfolio: {
+    findUnique: typeof prisma.portfolio.findUnique;
+    create: typeof prisma.portfolio.create;
+    update: typeof prisma.portfolio.update;
+    delete: typeof prisma.portfolio.delete;
+  };
+};
+
 async function updatePortfolio(
+  client: PortfolioClient,
   userId: string,
   stockId: string,
   type: string,
@@ -113,7 +122,7 @@ async function updatePortfolio(
   total: number,
 ) {
   try {
-    const existingPortfolio = await prisma.portfolio.findUnique({
+    const existingPortfolio = await client.portfolio.findUnique({
       where: {
         userId_stockId: {
           userId,
@@ -129,7 +138,7 @@ async function updatePortfolio(
         const newTotalInvested = existingPortfolio.totalInvested + total;
         const newAvgPrice = newTotalInvested / newQuantity;
 
-        await prisma.portfolio.update({
+        await client.portfolio.update({
           where: {
             userId_stockId: {
               userId,
@@ -145,7 +154,7 @@ async function updatePortfolio(
         });
       } else {
         // Criar novo portfolio
-        await prisma.portfolio.create({
+        await client.portfolio.create({
           data: {
             userId,
             stockId,
@@ -168,7 +177,7 @@ async function updatePortfolio(
 
         if (newQuantity === 0) {
           // Remover portfolio se quantidade for zero
-          await prisma.portfolio.delete({
+          await client.portfolio.delete({
             where: {
               userId_stockId: {
                 userId,
@@ -178,7 +187,7 @@ async function updatePortfolio(
           });
         } else {
           // Atualizar portfolio
-          await prisma.portfolio.update({
+          await client.portfolio.update({
             where: {
               userId_stockId: {
                 userId,
