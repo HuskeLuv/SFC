@@ -133,6 +133,126 @@ describe('/api/carteira/renda-fixa', () => {
       expect(ativo.valorAtualizado).toBeLessThan(1150);
     });
 
+    it('expoe MTM negativo no Tesouro Direto via FixedIncomeAsset quando o PU caiu', async () => {
+      // Cliente comprou Tesouro IPCA+ 2050 por R$ 1000 (1 cota a PU 1000).
+      // Hoje, com juros futuros em alta, o PU caiu pra 800. O sistema deve
+      // mostrar 800, NÃO 1000 (não pode esconder a perda do cliente).
+      const tesouroAssetId = 'asset-td-ipca-2050';
+      const startDate = new Date(Date.UTC(2025, 0, 1)); // qua 01/jan/2025 (dia útil)
+      const maturityDate = new Date(Date.UTC(2050, 0, 1));
+      // PU recente: 30 dias atrás. shiftToBusinessDay garante que cai em dia útil.
+      const recentPuDate = new Date();
+      recentPuDate.setUTCHours(0, 0, 0, 0);
+      recentPuDate.setUTCDate(recentPuDate.getUTCDate() - 30);
+      // Garante dia útil (UTC): se sáb/dom, recua até sexta.
+      while (recentPuDate.getUTCDay() === 0 || recentPuDate.getUTCDay() === 6) {
+        recentPuDate.setUTCDate(recentPuDate.getUTCDate() - 1);
+      }
+
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'pf-tdi',
+          assetId: tesouroAssetId,
+          quantity: 1,
+          avgPrice: 1000,
+          totalInvested: 1000,
+          asset: {
+            id: tesouroAssetId,
+            type: 'tesouro-direto',
+            name: 'Tesouro IPCA+ 2050',
+            currentPrice: null, // sem catálogo → cai pra curva via PU
+          },
+        },
+      ]);
+      mockPrisma.fixedIncomeAsset.findMany.mockResolvedValue([
+        {
+          id: 'fi-tdi',
+          assetId: tesouroAssetId,
+          type: 'CDB_PRE',
+          description: 'Tesouro IPCA+ 2050',
+          startDate,
+          maturityDate,
+          investedAmount: 1000,
+          qty: 1, // 1 cota → tesouroPUAtStart = investedAmount/qty = 1000
+          annualRate: 6,
+          indexer: 'IPCA',
+          indexerPercent: null,
+          liquidityType: null,
+          taxExempt: false,
+          tesouroBondType: 'Tesouro IPCA+',
+          tesouroMaturity: maturityDate,
+        },
+      ]);
+      mockPrisma.tesouroDiretoPrice.findMany.mockResolvedValue([
+        { basePU: 1000, baseDate: startDate, bondType: 'Tesouro IPCA+', maturityDate },
+        { basePU: 800, baseDate: recentPuDate, bondType: 'Tesouro IPCA+', maturityDate },
+      ]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      expect(res.status).toBe(200);
+      const ativo = data.secoes.flatMap((s: { ativos: unknown[] }) => s.ativos)[0] as {
+        valorAtualizado: number;
+        isAutoUpdated: boolean;
+      };
+      // PU caiu 20% → valor atual deve ser ~800, NÃO o investedAmount 1000.
+      expect(ativo.valorAtualizado).toBeCloseTo(800, 0);
+      expect(ativo.valorAtualizado).toBeLessThan(1000);
+      expect(ativo.isAutoUpdated).toBe(true);
+    });
+
+    it('mantem floor na curva pra CDB (emissao bancaria nao tem MTM negativo)', async () => {
+      // CDB com indexer CDI mas sem série de taxa disponível (cold-start) — o
+      // valorCalculado fica em ≈ investedAmount. Como NÃO é Tesouro, o sistema
+      // deve cair pra avgPrice*quantity (sanity check), não exibir o cálculo
+      // degenerado da curva.
+      const startDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+      const maturityDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'pf-cdb-noseries',
+          assetId: 'asset-cdb-noseries',
+          quantity: 1,
+          avgPrice: 1050, // valor "editado" pelo cliente
+          totalInvested: 1000,
+          asset: {
+            id: 'asset-cdb-noseries',
+            type: 'bond',
+            name: 'CDB 100% CDI',
+            currentPrice: null,
+          },
+        },
+      ]);
+      mockPrisma.fixedIncomeAsset.findMany.mockResolvedValue([
+        {
+          id: 'fi-cdb-noseries',
+          assetId: 'asset-cdb-noseries',
+          type: 'CDB_POS',
+          description: 'CDB 100% CDI',
+          startDate,
+          maturityDate,
+          investedAmount: 1000,
+          annualRate: 0,
+          indexer: 'CDI',
+          indexerPercent: 100,
+          liquidityType: null,
+          taxExempt: false,
+          tesouroBondType: null, // emissão bancária — floor permanece
+          tesouroMaturity: null,
+        },
+      ]);
+      // Sem cdi rows nem tesouro rows → curva fica em fator 1 (degenerada).
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      expect(res.status).toBe(200);
+      const ativo = data.secoes.flatMap((s: { ativos: unknown[] }) => s.ativos)[0] as {
+        valorAtualizado: number;
+      };
+      // Cai pra avgPrice*quantity = 1050, não pra curva degenerada (= 1000).
+      expect(ativo.valorAtualizado).toBe(1050);
+    });
+
     it('uses Asset.currentPrice * quantity for catalog tesouro valuation', async () => {
       const tesouroAssetId = 'asset-td-1';
       mockPrisma.portfolio.findMany.mockResolvedValue([

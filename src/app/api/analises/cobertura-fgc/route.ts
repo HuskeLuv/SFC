@@ -98,12 +98,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // produz valor > investido (rendimento acumulado), caso contrário avgPrice*quantity
   // (edição manual ou valor inicial). Não usar `avgPrice > 0` como gatilho único: na
   // criação avgPrice = valorAplicado, e a curva nunca seria preferida.
+  // Tesouro Direto (tesouroBondType setado) é exceção: valorCalculado é PU/PU0 e pode
+  // ficar abaixo do investido em janelas de alta de juros — usamos sempre que > 0
+  // para refletir a marcação a mercado real.
   const calculateCurrentValue = (
     fi: (typeof fixedIncomeAssets)[number],
     portfolioItem: (typeof portfolio)[number],
   ) => {
     const valorCalculado = pricer.getCurrentValue(fi);
-    if (valorCalculado > fi.investedAmount) return valorCalculado;
+    const isFiTesouro = Boolean(fi.tesouroBondType);
+    if (isFiTesouro && valorCalculado > 0) return valorCalculado;
+    if (!isFiTesouro && valorCalculado > fi.investedAmount) return valorCalculado;
     if (portfolioItem.avgPrice > 0 && portfolioItem.quantity > 0) {
       return portfolioItem.avgPrice * portfolioItem.quantity;
     }

@@ -198,12 +198,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const resgate = totalResgates;
     // Usar avgPrice * quantity se disponível (valor editado manualmente), senão calcular
     const valorAtualizadoCalculado = valorInicial + aporte - resgate;
-    // Renda fixa (CDB/LCI/LCA/Tesouro): se há fixedIncomeAsset, prefere marcação na curva
-    // quando ela acumulou rendimento (calc > investido). Caso contrário cai pra avgPrice
-    // editado ou pro valorCalculado, na mesma ordem de prioridade da aba Renda Fixa.
+    // Renda fixa: para CDB/LCI/LCA na curva, exige rendimento acumulado (calc > investido)
+    // como sanity check — emissão bancária na curva nunca decresce, então abaixo do
+    // investido = série de taxas ainda não disponível. Para Tesouro Direto via
+    // FixedIncomeAsset, o valor calculado é PU/PU0 e PODE ficar abaixo do investido
+    // (alta de juros), então usamos sempre que > 0.
     const fixedIncome = item.assetId ? pricer.fixedIncomeByAssetId.get(item.assetId) : undefined;
     const fiCurveValue = fixedIncome ? pricer.getCurrentValue(fixedIncome) : 0;
-    const fiHasCurve = fixedIncome ? fiCurveValue > fixedIncome.investedAmount : false;
+    const isFiTesouro = Boolean(fixedIncome?.tesouroBondType);
+    const fiHasCurve = fixedIncome
+      ? isFiTesouro
+        ? fiCurveValue > 0
+        : fiCurveValue > fixedIncome.investedAmount
+      : false;
     // Para Tesouro Direto do catálogo, usar currentPrice * quantity para refletir
     // variação de mercado (quantity foi derivada do PU do dia da compra em operacao/route.ts).
     const currentPrice = item.asset?.currentPrice ? Number(item.asset.currentPrice) : 0;

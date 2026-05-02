@@ -110,12 +110,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const aporte = totalAportes;
     const resgate = totalResgates;
     const valorCalculado = valorInicial + aporte - resgate;
-    // Renda fixa (CDB/LCI/LCA/Tesouro): se há fixedIncomeAsset, prefere marcação na curva
-    // quando produz valor > investido (rendimento acumulado). Caso contrário cai pros
-    // demais critérios (CVM/manual) — mesma prioridade da aba Renda Fixa.
+    // Renda fixa: para CDB/LCI/LCA na curva, exige rendimento acumulado (calc > investido)
+    // como sanity check — emissão bancária na curva nunca decresce, então abaixo do
+    // investido = série de taxas ainda não disponível. Para Tesouro Direto via
+    // FixedIncomeAsset, o valor é PU/PU0 e PODE ficar abaixo do investido (alta de
+    // juros), então usamos sempre que > 0.
     const fixedIncome = item.assetId ? pricer.fixedIncomeByAssetId.get(item.assetId) : undefined;
     const fiCurveValue = fixedIncome ? pricer.getCurrentValue(fixedIncome) : 0;
-    const fiHasCurve = fixedIncome ? fiCurveValue > fixedIncome.investedAmount : false;
+    const isFiTesouro = Boolean(fixedIncome?.tesouroBondType);
+    const fiHasCurve = fixedIncome
+      ? isFiTesouro
+        ? fiCurveValue > 0
+        : fiCurveValue > fixedIncome.investedAmount
+      : false;
     // Cota CVM sincronizada (bridgeCvmToAssetPrices) tem prioridade sobre edição manual.
     const cvmCurrentPrice = item.asset?.currentPrice?.toNumber() ?? null;
     const isAutoUpdated = Boolean(

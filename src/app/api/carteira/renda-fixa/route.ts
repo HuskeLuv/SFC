@@ -139,10 +139,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         fixedIncome.indexer === 'CDI' ||
         fixedIncome.indexer === 'IPCA' ||
         fixedIncome.annualRate > 0;
+      // Para Tesouro Direto via FixedIncomeAsset (com tesouroBondType), o
+      // valorCalculado é PU/PU0 — pode ficar abaixo do investido em janelas de
+      // alta de juros. CDB/LCI/LCA na curva (CDI/IPCA/PRE) só compõem juros, então
+      // a comparação > investedAmount continua sendo um sanity check válido para
+      // emissão bancária (evita exibir valor degenerado quando a série de taxa
+      // ainda não rodou).
+      const isFiTesouro = Boolean(fixedIncome.tesouroBondType);
       const isCurveAutoPriced =
         !isTesouroAutoPriced &&
         hasIndexerOrRate &&
-        valorAtualizadoCalculado > fixedIncome.investedAmount;
+        (isFiTesouro
+          ? valorAtualizadoCalculado > 0
+          : valorAtualizadoCalculado > fixedIncome.investedAmount);
       const isAutoUpdated = isTesouroAutoPriced || isCurveAutoPriced;
       const valorAtualizado = isTesouroAutoPriced
         ? tesouroCurrentPrice! * item.quantity
