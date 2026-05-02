@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>My Finance — Justificativa dos Valores Apresentados</title>
+<style>
+:root {
+  color-scheme: light;
+  --fg: #1c2530;
+  --fg-soft: #4a5564;
+  --muted: #6b7785;
+  --accent: #1f6feb;
+  --accent-soft: #e6f0ff;
+  --rule: #e2e6ec;
+  --code-bg: #f4f6f8;
+  --warn-bg: #fff4e5;
+  --warn-border: #ffb84d;
+  --tip-bg: #e8f5ee;
+  --tip-border: #2ea44f;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 11pt;
+  line-height: 1.55;
+  color: var(--fg);
+  background: #fff;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 36px 60px;
+}
+h1, h2, h3, h4, h5, h6 { color: #0f1722; line-height: 1.25; margin: 1.6em 0 0.5em; font-weight: 650; }
+h1 { font-size: 24pt; margin-top: 0; border-bottom: 2px solid var(--accent); padding-bottom: 0.2em; }
+h2 { font-size: 17pt; border-bottom: 1px solid var(--rule); padding-bottom: 0.15em; page-break-before: always; }
+h2:first-of-type { page-break-before: avoid; }
+h3 { font-size: 13pt; color: #1f3047; }
+h4 { font-size: 11.5pt; color: #2a3a52; }
+p { margin: 0.5em 0 0.7em; }
+strong { color: #0f1722; }
+em { color: #2a3a52; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  font-family: "JetBrains Mono", "Menlo", "Consolas", monospace;
+  font-size: 9.5pt;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #2a3a52;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  font-size: 9.5pt;
+  line-height: 1.45;
+  page-break-inside: avoid;
+}
+pre code { background: transparent; padding: 0; color: #1c2530; }
+blockquote {
+  border-left: 3px solid var(--warn-border);
+  background: var(--warn-bg);
+  padding: 8px 14px;
+  margin: 1em 0;
+  border-radius: 0 4px 4px 0;
+  page-break-inside: avoid;
+}
+blockquote:has(strong:first-child) { border-left-color: var(--tip-border); background: var(--tip-bg); }
+ul, ol { margin: 0.4em 0 0.9em; padding-left: 1.4em; }
+li { margin: 0.2em 0; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 1.8em 0; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.8em 0 1.1em;
+  font-size: 10pt;
+  page-break-inside: avoid;
+}
+th, td {
+  border: 1px solid var(--rule);
+  padding: 6px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+th { background: var(--accent-soft); color: #0f1722; font-weight: 600; }
+tbody tr:nth-child(even) td { background: #fafbfc; }
+
+.cover {
+  page-break-after: always;
+  text-align: center;
+  padding-top: 90px;
+  border: none;
+}
+.cover .brand {
+  font-size: 11pt;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+.cover h1 {
+  font-size: 30pt;
+  border: none;
+  margin: 16px 0 8px;
+  line-height: 1.15;
+}
+.cover .subtitle {
+  font-size: 14pt;
+  color: var(--fg-soft);
+  margin-bottom: 60px;
+}
+.cover .meta {
+  margin-top: 80px;
+  color: var(--muted);
+  font-size: 10pt;
+  letter-spacing: 1px;
+}
+.cover .seal {
+  margin: 50px auto 0;
+  display: inline-block;
+  border: 1px solid var(--rule);
+  padding: 18px 28px;
+  border-radius: 6px;
+  text-align: left;
+  background: #fafbfc;
+  font-size: 10pt;
+  color: var(--fg-soft);
+  max-width: 480px;
+}
+.cover .seal strong { color: var(--fg); }
+
+@page {
+  size: A4;
+  margin: 18mm 16mm 22mm;
+}
+@media print {
+  body { max-width: none; padding: 0; }
+  a { color: inherit; text-decoration: none; }
+  pre, blockquote, table { page-break-inside: avoid; }
+  h1, h2, h3 { page-break-after: avoid; }
+}
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="brand">My Finance</div>
+  <h1>Justificativa dos Valores Apresentados</h1>
+  <div class="subtitle">Documento técnico para a equipe de consultoria financeira</div>
+  <div class="seal">
+    <div><strong>Escopo:</strong> Fórmulas, fontes de dados e metodologia por trás dos números exibidos no produto.</div>
+    <div style="margin-top:10px"><strong>Pública-alvo:</strong> Consultores financeiros — referência de apoio em conversas com clientes.</div>
+    <div style="margin-top:10px"><strong>Última revisão:</strong> 2026-04-30</div>
+  </div>
+  <div class="meta">My Finance · Documento Interno</div>
+</section>
+
+<h1 id="my-finance--justificativa-dos-valores-apresentados">My Finance — Justificativa dos Valores Apresentados</h1>
+<p><strong>Documento técnico para a equipe de consultoria financeira</strong> Última revisão: 2026-04-30</p>
+<hr/>
+<h2 id="sumário">Sumário</h2>
+<ol><li><a href="#1-como-ler-este-documento">Como ler este documento</a></li><li><a href="#2-fontes-de-dados-externas">Fontes de dados externas</a></li><li><a href="#3-carteira--visão-geral">Carteira — visão geral</a></li><li><a href="#4-cálculos-por-classe-de-ativo">Cálculos por classe de ativo</a></li><li><a href="#5-análises">Análises</a></li><li><a href="#6-imposto-de-renda">Imposto de Renda</a></li><li><a href="#7-fluxo-de-caixa">Fluxo de caixa</a></li><li><a href="#8-glossário">Glossário</a></li><li><a href="#9-referências">Referências</a></li><li><a href="#10-limitações-conhecidas">Limitações conhecidas</a></li></ol>
+<hr/>
+<h2 id="1-como-ler-este-documento">1. Como ler este documento</h2>
+<p>O My Finance apresenta dezenas de números: patrimônio atual, rentabilidade do mês, Sharpe, dividendos projetados, IR a pagar, etc. Quando um cliente pergunta <strong>"de onde veio esse número?"</strong>, você precisa de uma resposta firme. Este documento mapeia, seção por seção, <strong>a fórmula usada, os dados de entrada, a fonte externa, e onde a metodologia segue (ou se afasta) do padrão de mercado</strong>.</p>
+<p>Convenções:</p>
+<ul><li><strong>Itálico</strong> = nome técnico em inglês ou no idioma original.</li><li><code>código</code> = nome de campo no banco ou tabela.</li><li>Os exemplos numéricos usam a carteira de teste <strong>kinvo@test.com</strong>, com 13 operações (PETR4, ITUB4 em 3 aportes DCA, HGLG11, BOVA11, VOO, Tesouro IPCA+ 2029, CDB BMG 110% CDI, LCI Inter 95% CDI, BTC, fundo Trend DI, Brasilprev RT FIX). Esses inputs estão em <code>scripts/kinvo-test-portfolio.csv</code>.</li></ul>
+<hr/>
+<h2 id="2-fontes-de-dados-externas">2. Fontes de dados externas</h2>
+<p>Todo cálculo do My Finance se apoia em dados de mercado. Não inventamos preço, taxa ou dividendo — sempre puxamos de fontes públicas, oficiais e auditáveis. Quatro provedores cobrem 100% das necessidades.</p>
+<h3 id="21-brapi-brapidev--renda-variável-e-câmbio">2.1 BRAPI (<code>brapi.dev</code>) — Renda variável e câmbio</h3>
+<ul><li><strong>O que fornece:</strong> cotações de ações, FIIs, ETFs e BDRs da B3, criptomoedas (BTC, ETH, etc.), pares de câmbio (USD-BRL, EUR-BRL).</li><li><strong>Atualização:</strong> cron diário às 07:00, 07:05 e 07:10 UTC (catálogo, preços de FX/cripto, preços de B3, respectivamente). Em produção, equivale a 04:00–04:10 horário de Brasília.</li><li><strong>Onde armazenamos:</strong> tabela <code>Asset</code> (preço atual + timestamp) e <code>AssetPriceHistory</code> (série diária até 5 anos).</li><li><strong>Comportamento em falha:</strong> se a BRAPI não responde em 10 segundos, o sistema usa o último preço conhecido em vez de quebrar a tela. Para o cliente, a única consequência é o preço estar desatualizado por algumas horas — a posição quantitativa nunca se perde.</li></ul>
+<h3 id="22-bacen-sgs-apibcbgovbr--indicadores-macroeconômicos">2.2 BACEN SGS (<code>api.bcb.gov.br</code>) — Indicadores macroeconômicos</h3>
+<p>O Sistema Gerador de Séries Temporais do Banco Central é o fornecedor oficial de <strong>15 séries</strong> que sustentam todos os cálculos de renda fixa, inflação e benchmarking:</p>
+<table><thead><tr><th>Série</th><th>Código SGS</th><th>Uso no My Finance</th></tr></thead><tbody><tr><td>CDI diário</td><td>12</td><td>Marcação de pós-fixados, taxa livre de risco no Sharpe</td></tr><tr><td>SELIC diária</td><td>11</td><td>Comparação com CDI</td></tr><tr><td>SELIC meta</td><td>432</td><td>Sinalização de política monetária</td></tr><tr><td>CDI anualizado</td><td>4389</td><td>Apresentação amigável</td></tr><tr><td>IPCA mensal</td><td>433</td><td>Marcação de Tesouro IPCA+, benchmark de inflação</td></tr><tr><td>IPCA-15</td><td>7478</td><td>IPCA prévio (acompanhamento)</td></tr><tr><td>IGP-M</td><td>189</td><td>Reajuste de aluguéis e contratos</td></tr><tr><td>IGP-DI</td><td>190</td><td>Indicador de preços corporativos</td></tr><tr><td>INPC</td><td>188</td><td>Indicador de preços ao consumidor</td></tr><tr><td>TR</td><td>226</td><td>Atualização da poupança</td></tr><tr><td>Poupança</td><td>25</td><td>Benchmark de comparação</td></tr><tr><td>TJLP</td><td>256</td><td>Empréstimos longos</td></tr><tr><td>IMA-B</td><td>12466</td><td>Benchmark de Tesouro IPCA+ médio</td></tr><tr><td>IMA-B 5</td><td>12467</td><td>Benchmark de IPCA+ curto prazo</td></tr><tr><td>IMA-B 5+</td><td>12468</td><td>Benchmark de IPCA+ longo prazo</td></tr></tbody></table>
+<ul><li><strong>Atualização:</strong> cron diário 06:00 UTC, <em>lookback</em> de 60 dias (preenche atrasos de publicação).</li><li><strong>Onde armazenamos:</strong> tabela <code>EconomicIndex</code> (chave: tipo de índice + data).</li></ul>
+<h3 id="23-tesouro-transparente-tesourotransparentegovbr--títulos-públicos">2.3 Tesouro Transparente (<code>tesourotransparente.gov.br</code>) — Títulos públicos</h3>
+<ul><li><strong>O que fornece:</strong> preço unitário (PU) de compra, PU de venda e taxa de cada título do Tesouro Direto, atualizado diariamente. Histórico desde 2002.</li><li><strong>Formato:</strong> CSV de ~13 MB com 500 mil linhas (todos os títulos × todas as datas).</li><li><strong>Atualização:</strong> cron diário 06:15 UTC, ingesta dos últimos 3 dias para se manter em sincronia.</li><li><strong>Onde armazenamos:</strong> tabela <code>TesouroDiretoPrice</code> (chave: tipo do título + vencimento + data base).</li><li><strong>Importância:</strong> é o que permite <strong>marcar a mercado</strong> (<em>mark-to-market</em>) Tesouro IPCA+ 2029, Tesouro Prefixado 2031, etc., com o mesmo preço que o investidor veria comprando hoje no Tesouro Direto.</li></ul>
+<h3 id="24-cvm-dados-abertos-dadoscvmgovbr--fundos">2.4 CVM Dados Abertos (<code>dados.cvm.gov.br</code>) — Fundos</h3>
+<ul><li><strong>O que fornece:</strong> cadastro de todos os ~30 mil fundos de investimento ativos no Brasil (CNPJ, classe, gestora) e a cota diária de cada um.</li><li><strong>Atualização:</strong> catálogo completo aos domingos 05:00 UTC; cotas diárias 06:30 UTC.</li><li><strong>Onde armazenamos:</strong> <code>Asset</code> (entrada do fundo no catálogo) e <code>CvmFundQuota</code> (cota diária com 8 casas decimais de precisão).</li><li><strong>Otimização:</strong> o sync diário só baixa cotas dos fundos que algum cliente da base efetivamente possui. Para uma base de 1.000 clientes com fundos em ~50 CNPJs distintos, isso reduz o volume de download de 30.000 para 50 fundos.</li></ul>
+<hr/>
+<h2 id="3-carteira--visão-geral">3. Carteira — visão geral</h2>
+<h3 id="31-patrimônio-atual">3.1 Patrimônio atual</h3>
+<p>O número grande exibido em <code>Carteira → Resumo</code> (chamamos de <em>saldo bruto</em>) é simplesmente:</p>
+<pre><code>Saldo Bruto = Σ (valor atual de cada ativo)</code></pre>
+<p>O <strong>valor atual</strong> de cada posição segue uma cascata de prioridades, decidida no momento de renderização:</p>
+<pre><code>Se ativo é Renda Fixa marcada na curva (CDB/LCI/Tesouro):
+    valor = montante_aplicado × fator_acumulado_até_hoje
+
+Senão se há cotação de mercado disponível (ações, FII, ETF, cripto):
+    valor = quantidade × preço_atual_em_BRL
+
+Senão se posição manual sem cotação (reserva, imóvel):
+    valor = total_investido
+
+Senão (fallback):
+    valor = quantidade × preço_médio_de_compra</code></pre>
+<p>A <strong>conversão para BRL</strong> dos ativos em moeda estrangeira (Stock US, BDR em USD) usa a cotação do dia da BRAPI:</p>
+<pre><code>valor_BRL = quantidade × preço_USD × cotação_USD-BRL</code></pre>
+<p>Para o <strong>VOO</strong> da carteira de teste (ETF S&amp;P 500): se o cliente tem 5 cotas a USD 530 e o dólar do dia está em R$ 5,02, o saldo aparece como <code>5 × 530 × 5,02 = R$ 13.303</code>.</p>
+<h3 id="32-aportes-resgates-e-dividendos">3.2 Aportes, resgates e dividendos</h3>
+<p>O sistema diferencia três conceitos que <strong>não devem ser confundidos</strong>:</p>
+<ul><li><strong>Valor aplicado</strong> (<code>totalInvested</code>): soma de todos os aportes em valor de aquisição, líquido de resgates. Não muda com o preço de mercado.</li><li><strong>Saldo bruto</strong> (<code>totalValue</code>): valor a preço de hoje. Sobe e desce com o mercado.</li><li><strong>Rendimento</strong> (<code>totalEarnings</code>): saldo bruto − valor aplicado. Pode ser negativo.</li></ul>
+<p>A rentabilidade exibida no card principal da carteira é a <strong>rentabilidade simples</strong>:</p>
+<pre><code>Rentabilidade % = (Saldo Bruto − Valor Aplicado) / Valor Aplicado × 100</code></pre>
+<blockquote>⚠️ Esta é uma medida de bolso, não substitui a rentabilidade <em>time-weighted</em> (TWR) usada nas análises (ver §5.1). Para um cliente que aportou R$ 1.000 dez vezes e tem hoje R$ 12.000, a rentabilidade simples é 20% — mas isso ignora <em>quando</em> cada aporte foi feito.</blockquote>
+<h3 id="33-patrimônio-histórico">3.3 Patrimônio histórico</h3>
+<p>O gráfico de evolução patrimonial (12, 24 ou 36 meses) é construído de duas formas, com uma escolha automática de qual usar:</p>
+<p><strong>Caminho rápido (snapshot-driven):</strong> lê uma tabela <code>PortfolioDailySnapshot</code> que armazena, para cada cliente em cada dia, <code>totalValue</code> e <code>totalInvested</code> já calculados. O cron diário (<code>portfolio-snapshots</code>, 08:00 UTC) atualiza essa tabela. Quando o cliente abre o resumo, lemos diretamente — milissegundos.</p>
+<p><strong>Caminho lento (live builder):</strong> quando o cliente tem menos de 24 meses de snapshots ou pediu uma janela específica, o sistema reconstrói dia a dia:</p>
+<ol><li>Constrói uma timeline de dias úteis no período (excluindo finais de semana).</li><li>Para cada dia: - Aplica os deltas de transação (compras/vendas) acumulados. - Para ações/FIIs/ETFs/cripto: busca o preço daquele dia em <code>AssetPriceHistory</code>. - Para renda fixa pós-fixada: aplica o fator do CDI daquele dia. - Para Tesouro: busca o PU daquele dia em <code>TesouroDiretoPrice</code>.</li><li>Soma tudo: saldo bruto do dia.</li></ol>
+<p><strong>Por que dois caminhos?</strong> Recalcular 36 meses para cada <em>page load</em> é caro (segundos por cliente). O snapshot pré-calculado serve &gt;95% dos pedidos em milissegundos; o builder ao vivo é o <em>fallback</em> preciso para casos que ainda não têm cobertura.</p>
+<hr/>
+<h2 id="4-cálculos-por-classe-de-ativo">4. Cálculos por classe de ativo</h2>
+<h3 id="41-ações-brasileiras-fiis-etfs-bdr">4.1 Ações brasileiras, FIIs, ETFs, BDR</h3>
+<p><strong>Preço:</strong> <code>Asset.currentPrice</code> atualizado pelo cron BRAPI (07:10 UTC). Se mais antigo que 7 dias, o sistema busca live na BRAPI no momento da abertura da página.</p>
+<p><strong>Posição:</strong> <code>quantidade × preço_atual − taxas</code>. As taxas (corretagem, ISS, emolumentos) são deduzidas em cada operação no momento do registro.</p>
+<p><strong>Preço médio:</strong> o sistema mantém <em>preço médio ponderado</em> por símbolo, recalculado a cada compra ou venda:</p>
+<pre><code>Após nova compra:
+    preço_médio_novo = (preço_médio_antigo × qty_antiga + preço_compra × qty_nova) / qty_total
+
+Após venda:
+    preço_médio fica inalterado (apenas a quantidade reduz)
+    Lucro/prejuízo realizado = (preço_venda − preço_médio) × qty_vendida − taxas</code></pre>
+<p><strong>Exemplo do cliente kinvo:</strong> três compras de ITUB4 no fevereiro/março/abril de 2026. Suponha:</p>
+<table><thead><tr><th>Data</th><th>Quantidade</th><th>Preço unitário</th><th>Acumulado</th></tr></thead><tbody><tr><td>2026-02-28</td><td>50</td><td>R$ 33,00</td><td>qty=50, PM=33,00</td></tr><tr><td>2026-03-28</td><td>50</td><td>R$ 35,00</td><td>qty=100, PM=34,00</td></tr><tr><td>2026-04-28</td><td>50</td><td>R$ 32,00</td><td>qty=150, PM=33,33</td></tr></tbody></table>
+<p>O preço médio final de R$ 33,33 é o que serve de base para calcular ganho de capital, IR e <em>yield on cost</em>.</p>
+<h3 id="42-renda-fixa-prefixada-cdb-pré-lci-pré-lca-pré-debênture-pré">4.2 Renda fixa prefixada (CDB pré, LCI pré, LCA pré, debênture pré)</h3>
+<p><strong>Fórmula de capitalização composta (juros compostos diários, em base 252):</strong></p>
+<pre><code>Valor atual = Valor aplicado × (1 + taxa_anual)^(dias_úteis_decorridos / 252)</code></pre>
+<p>A base 252 (dias úteis no ano) é a convenção do mercado brasileiro de renda fixa, fixada pela ANBIMA para títulos privados (Resolução ANBIMA — Manual de Apreçamento, item 3.4.1).</p>
+<p><strong>Exemplo CDB BMG 110% CDI a 110% a.a. prefixado, R$ 5.000 aplicados em 28/04/2026, vencimento 15/10/2028 (915 dias corridos ≈ 627 dias úteis):</strong></p>
+<pre><code>VF = 5.000 × (1 + 1,10)^(627/252)</code></pre>
+<p>(Note: este exemplo é ilustrativo; o produto real do cliente é pós-fixado em 110% do CDI — vide §4.3.)</p>
+<h3 id="43-renda-fixa-pós-fixada-em--do-cdi-cdb-pós-lci-pós-lca-pós">4.3 Renda fixa pós-fixada em % do CDI (CDB pós, LCI pós, LCA pós)</h3>
+<p><strong>Fórmula:</strong> acumulação diária do CDI, ponderada pelo percentual contratado.</p>
+<p>Em cada dia útil em que o BACEN publica o CDI:</p>
+<pre><code>fator_dia = 1 + CDI_decimal_dia × (percentual_contratado / 100)
+fator_acumulado = fator_acumulado_anterior × fator_dia
+
+Valor atual = Valor aplicado × fator_acumulado</code></pre>
+<p><strong>Exemplo LCI Inter 95% CDI:</strong> se em determinado dia o CDI publicado for 0,054% (≈ equivalente a 14,15% a.a.), o fator do dia será:</p>
+<pre><code>fator = 1 + 0,000540 × 0,95 = 1,000513</code></pre>
+<p>Para R$ 5.000 aplicados há 100 dias úteis, com CDI médio de 0,054% e percentual de 95%:</p>
+<pre><code>fator_acumulado = 1,000513^100 ≈ 1,0526
+Valor atual ≈ R$ 5.263</code></pre>
+<p>A LCI tem ainda <strong>isenção de IR</strong> para pessoa física (Lei 11.033/2004, art. 3º, II) — o sistema marca o ativo com <code>rendaFixaTaxExempt: true</code> e não desconta IR no cálculo de rendimento líquido.</p>
+<h3 id="44-tesouro-direto--marcação-a-mercado">4.4 Tesouro Direto — marcação a mercado</h3>
+<p>Aqui o cálculo é diferente: não acumulamos um fator, <strong>lemos o preço unitário (PU) do dia</strong> diretamente da tabela <code>TesouroDiretoPrice</code>, que reflete o que o Tesouro Nacional publica em <code>tesourotransparente.gov.br</code>.</p>
+<pre><code>fator = PU_hoje / PU_data_da_compra
+
+Valor atual = Valor aplicado × fator</code></pre>
+<p><strong>Por que marcação a mercado e não pela curva?</strong> Porque é o que o investidor receberia se vendesse hoje. É a metodologia exigida pela <strong>Resolução CMN 2.829/2001</strong> e pela ANBIMA para fundos abertos com cotas diárias, e foi adotada como padrão de transparência no Tesouro Direto a partir de 2017.</p>
+<blockquote>⚠️ <strong>Sobe e desce.</strong> O valor exibido <strong>pode ficar abaixo do que o cliente pagou</strong> — não é bug, é a curva de juros futuros se mexendo. Tesouro IPCA+ 2050 e EDUCA+ 2085 (duration longa) podem ter rentabilidade negativa por meses ou anos em ciclos de aperto monetário, com volatilidade comparável à de uma ação. O sistema mostra o PU oficial publicado pelo Tesouro, sem floor — porque esconder a perda é pior do que mostrá-la (o cliente que não sabe que pode perder no Tesouro acaba vendendo no susto na primeira queda).</blockquote>
+<p><strong>Comportamento do Tesouro IPCA+:</strong> o preço varia por dois motivos simultâneos: (1) o cupom de juros real (taxa contratada na compra) corre todo dia útil; (2) a inflação acumulada (IPCA do mês anterior) é incorporada no fechamento de cada mês. Se o IPCA dispara, o preço sobe; se a curva de juros dispara, o preço cai (efeito conhecido como <em>marcação a mercado dolorosa</em> em ambientes de alta de juros).</p>
+<p><strong>Tesouro IPCA+ 2029 do cliente kinvo:</strong> R$ 5.000 aplicados em 28/04/2026 com taxa de juros real contratada de 6% a.a. + IPCA. Se o PU subiu de R$ 3.500 (data da compra) para R$ 3.580 hoje, o fator é 1,0229 e o valor atual é R$ 5.114. Ganho marcado a mercado de R$ 114, mesmo com apenas 2 dias úteis transcorridos — porque a curva de juros real fechou.</p>
+<h3 id="45-cripto">4.5 Cripto</h3>
+<p>Mesmo modelo das ações: <code>quantidade × preço_BRL_atual</code>. A BRAPI (<code>/v2/crypto</code>) cobre BTC, ETH, ADA, SOL, BNB, XRP, DOT, DOGE, AVAX, MATIC e retorna preço em BRL diretamente (já considerando a cotação do dólar). Para o BTC do cliente kinvo, o número exibido vem desse endpoint, atualizado a cada 24h pelo cron <code>brapi-sync/prices-other</code>.</p>
+<h3 id="46-fundos-renda-fixa-multimercado-ações">4.6 Fundos (renda fixa, multimercado, ações)</h3>
+<p><strong>Cota:</strong> <code>CvmFundQuota.quotaValue</code> (8 casas decimais), atualizada diariamente pelo cron CVM 06:30 UTC.</p>
+<p><strong>Posição:</strong> <code>quantidade_de_cotas × cota_atual</code>.</p>
+<p><strong>Exemplo Trend DI Simples FIRF do cliente kinvo:</strong> se o cliente comprou 100 cotas a R$ 1,42 e hoje a cota está em R$ 1,46:</p>
+<pre><code>Valor = 100 × 1,46 = R$ 146,00
+Rentabilidade = (1,46 − 1,42) / 1,42 = 2,82%</code></pre>
+<p>A cota da CVM <strong>já é líquida de taxa de administração</strong> (a taxa é debitada diariamente da própria cota), então o número apresentado é o que o cliente efetivamente tem. Imposto de renda (come-cotas semestral) é tratado separadamente na seção de IR.</p>
+<h3 id="47-previdência">4.7 Previdência</h3>
+<p>Tratada como ativo manual: <code>quantidade × cota_informada</code>. O sistema não puxa cotas da SUSEP automaticamente porque o catálogo público é inconsistente; o cliente atualiza manualmente.</p>
+<hr/>
+<h2 id="5-análises">5. Análises</h2>
+<h3 id="51-rentabilidade-da-carteira--mwr-padrão-e-twr-alternativa">5.1 Rentabilidade da carteira — MWR (padrão) e TWR (alternativa)</h3>
+<p>A tela <code>Análises → Rentabilidade</code> exibe <strong>gráficos de rentabilidade cumulativa</strong> e oferece um <strong>toggle MWR ↔ TWR</strong> no canto superior. <strong>MWR é o padrão</strong>, porque responde a pergunta que mais interessa ao cliente: <em>"o que meu dinheiro rendeu de fato?"</em></p>
+<ul><li><strong>MWR (Money-Weighted Return)</strong> — TIR (XIRR) dos fluxos de caixa da carteira. Pondera por <em>quanto tempo cada real ficou exposto</em>. Captura o timing dos aportes do investidor — aportar tarde em mercado em alta puxa o número pra baixo, mesmo se o ativo subiu.</li><li><strong>TWR (Time-Weighted Return)</strong> — padrão CFA/GIPS para comparação com gestor. Neutraliza o timing dos aportes. É o número certo para <strong>comparação com benchmark</strong> (CDI, IBOV, IPCA), porque benchmarks não têm fluxo de caixa.</li></ul>
+<p>Quando os dois divergem, há informação útil pro consultor: TWR alto + MWR baixo significa "o mercado subiu, mas o cliente aportou tarde demais". MWR &gt; TWR significa "o cliente acertou os pontos de entrada". Apertar o toggle permite enxergar ambos sem sair da tela.</p>
+<h4 id="twr--fórmula">TWR — fórmula</h4>
+<p>Calculado a cada dia útil:</p>
+<pre><code>Se i = 0 (primeiro dia da série):
+    retorno_dia = (valor_final − aporte) / aporte
+
+Se i &gt; 0:
+    retorno_dia = (valor_final − valor_inicial − fluxo_dia) / valor_inicial
+
+Acumulado:
+    cumulativo = ∏ (1 + retorno_dia_k)  para k de 0 até hoje
+
+TWR = (cumulativo − 1) × 100</code></pre>
+<p>A construção dia-a-dia neutraliza os fluxos de caixa: cada subperíodo é avaliado pelo retorno do <em>valor presente</em> sem o aporte do dia, e os subperíodos são compostos geometricamente. Um cliente que aporta R$ 100 em janeiro e vê o ativo subir 50% até dezembro tem o mesmo TWR de outro que aporta R$ 100 em julho e vê o ativo subir 50% até dezembro — embora a rentabilidade simples do segundo seja muito maior.</p>
+<h4 id="mwr--fórmula">MWR — fórmula</h4>
+<p>Resolve a TIR (no estilo XIRR do Excel) sobre os fluxos da carteira:</p>
+<pre><code>Σ  cf_k / (1 + r)^((t_k − t_0) / 365)  =  0</code></pre>
+<p>Onde:</p>
+<ul><li><code>cf_k</code> é cada fluxo (aportes negativos, resgates e valor terminal positivos — convenção do investidor).</li><li><code>t_k − t_0</code> é o número de dias entre o fluxo e o início da janela.</li><li><code>r</code> é a taxa anualizada (effective annual rate) que zera a equação.</li></ul>
+<p>Resolvido em <code>src/services/portfolio/mwrCalculator.ts</code> por Newton-Raphson, com bisseção como fallback. Saldo bruto inicial entra como aporte virtual em <code>t_0</code> e saldo bruto final entra como resgate virtual em <code>t_N</code>.</p>
+<h4 id="quando-usar-qual">Quando usar qual</h4>
+<ul><li><strong>Comparar com benchmark (CDI/IBOV/IPCA)</strong> → use TWR. Apples-to-apples.</li><li><strong>"Quanto meu dinheiro rendeu de fato?"</strong> → use MWR. Reflete a experiência do investidor.</li><li><strong>Avaliar timing de aportes</strong> → divergência TWR/MWR é o sinal.</li><li><strong>Janelas curtas (&lt;12 meses)</strong> → MWR oscila bastante; um aporte grande perto do fim distorce. Para "no mês", apresentamos o MWR do período (não anualizado), nunca a forma anualizada.</li></ul>
+<h4 id="janelas-7-cortes-simultâneos">Janelas (7 cortes simultâneos)</h4>
+<table><thead><tr><th>Card</th><th>Janela</th></tr></thead><tbody><tr><td>Hoje</td><td>D-1 vs. D-2</td></tr><tr><td>No mês</td><td>1º dia do mês corrente até hoje</td></tr><tr><td>No ano</td><td>1º de janeiro até hoje (YTD)</td></tr><tr><td>12 meses</td><td>Últimos 12 meses</td></tr><tr><td>24 meses</td><td>Últimos 24 meses</td></tr><tr><td>36 meses</td><td>Últimos 36 meses</td></tr><tr><td>Desde o início</td><td>Primeira transação até hoje</td></tr></tbody></table>
+<p><strong>Comparação com benchmarks:</strong> ao lado de cada janela, exibimos a mesma rentabilidade do CDI, IPCA e IBOV no período. Os números do CDI e IPCA vêm de <code>EconomicIndex</code> (capitalização composta de fatores diários/mensais). O IBOV vem do histórico do <code>^BVSP</code> na BRAPI.</p>
+<blockquote>⚠️ Quando o gráfico estiver no modo MWR, a linha da carteira é o número-cliente (com timing dos aportes), enquanto CDI/IBOV/IPCA continuam sendo TWR — porque benchmarks não têm aporte. Em janelas onde o cliente aportou desigualmente, MWR e TWR podem divergir e a comparação com benchmark fica menos direta. Para a comparação justa com benchmark, alterne o gráfico para TWR.</blockquote>
+<blockquote>✅ <strong>Para o cliente:</strong> "no ano, sua carteira rendeu 4,2% (TWR) — acima do CDI (3,8%) e do IBOV (1,1%). Sua TIR efetiva (MWR) foi 3,1%, abaixo do TWR — sinal de que aportes mais recentes ainda não foram totalmente capturados pela alta. Não é sinal de problema; só significa que parte do retorno ainda está pela frente."</blockquote>
+<p><strong>Anualização:</strong> para janelas ≥ 12 meses, o TWR é apresentado também em forma anualizada via composição geométrica:</p>
+<pre><code>Anualizado = (1 + retorno_total)^(12 / meses) − 1</code></pre>
+<p>O MWR já é nativamente anualizado (effective annual rate) — para janelas &lt; 12 meses, exibimos a forma de período (<code>(1 + r)^anos − 1</code>) para evitar a mesma armadilha estatística do TWR.</p>
+<h3 id="52-risco-retorno">5.2 Risco-retorno</h3>
+<h4 id="volatilidade-anualizada">Volatilidade anualizada</h4>
+<pre><code>σ_diário = desvio_padrão_amostral(retornos_diários_24m)
+σ_anualizada = σ_diário × √252</code></pre>
+<p>A multiplicação por √252 é a convenção universal para anualizar volatilidade diária (252 = dias úteis no ano), originalmente formalizada em Hull, <em>Options, Futures, and Other Derivatives</em>, 9ª ed., Cap. 14, e adotada pela CFA Institute. Para retornos mensais, o multiplicador seria √12.</p>
+<h4 id="índice-sharpe">Índice Sharpe</h4>
+<pre><code>Sharpe = (Retorno_carteira − CDI) / σ</code></pre>
+<ul><li>Retorno e CDI ambos no mesmo período da volatilidade.</li><li>Para janelas ≥ 12 meses, ambos são <strong>anualizados</strong> antes da divisão.</li><li>Usamos o CDI como <em>risk-free rate</em> (e não a SELIC), porque é o que o investidor brasileiro efetivamente capta ao alocar em pós-fixados sem risco de crédito (CDB de banco grande, fundo DI). É a mesma escolha defendida pelo Banco Central no Relatório de Estabilidade Financeira (jun/2023).</li></ul>
+<p><strong>Interpretação para o consultor:</strong></p>
+<ul><li>Sharpe &lt; 0: a carteira ganhou menos que o CDI. Sinal vermelho.</li><li>Sharpe entre 0 e 0,5: carteira venceu o CDI por margem pequena, possivelmente não justificada pelo risco.</li><li>Sharpe entre 0,5 e 1,0: bom.</li><li>Sharpe &gt; 1,0: excelente. Comum em janelas de bull market.</li></ul>
+<p>Fonte original: William F. Sharpe, "Mutual Fund Performance", <em>Journal of Business</em>, 1966, refinada em "The Sharpe Ratio", <em>Journal of Portfolio Management</em>, 1994.</p>
+<h4 id="beta-vs-ibov">Beta vs. IBOV</h4>
+<pre><code>β = Cov(retornos_ativo, retornos_IBOV) / Var(retornos_IBOV)</code></pre>
+<p>Calculado com retornos diários dos últimos 24 meses. Mínimo de 30 observações comuns. É a definição clássica de Sharpe-Lintner do <em>Capital Asset Pricing Model</em> (Sharpe 1964, Lintner 1965).</p>
+<p><strong>Interpretação:</strong></p>
+<ul><li>β = 1: ativo se move em linha com o IBOV.</li><li>β &gt; 1: ativo é mais volátil que o IBOV (PETR4 historicamente roda β ≈ 1,3).</li><li>β &lt; 1: ativo é menos volátil (utilities, bancos).</li><li>β próximo de 0: ativo descorrelacionado (renda fixa, ouro).</li></ul>
+<h3 id="53-sensibilidade">5.3 Sensibilidade</h3>
+<p>Aqui o nome pode confundir consultores acostumados com <em>stress tests</em>. <strong>Sensibilidade no My Finance é análise de contribuição de cada ativo ao risco da carteira</strong>, não simulação de cenários.</p>
+<p><strong>Componentes:</strong></p>
+<pre><code>Correlação de Pearson (mensal, ativo vs. carteira):
+    ρ = Cov(R_ativo, R_carteira) / (σ_ativo × σ_carteira)
+
+Contribuição Marginal ao Risco (MRC):
+    MRC_i = peso_i × Cov(R_ativo, R_carteira) / Var(R_carteira)</code></pre>
+<p>A soma das MRCs sobre todos os ativos é igual a 1 (decomposição de Euler da variância). Isso permite afirmar coisas como <strong>"PETR4 representa 8% do meu patrimônio mas contribui com 18% do risco da carteira"</strong> — uma afirmação valiosa que a alocação simples não revela.</p>
+<p><strong>Classificação de correlação:</strong></p>
+<table><thead><tr><th>Faixa</th><th>Classificação</th></tr></thead><tbody><tr><td>ρ &gt; 0,7</td><td>Alta</td></tr><tr><td>0,3 &lt; ρ ≤ 0,7</td><td>Média</td></tr><tr><td>−0,3 &lt; ρ ≤ 0,3</td><td>Baixa</td></tr><tr><td>ρ ≤ −0,3</td><td>Negativa</td></tr></tbody></table>
+<p>Mínimo de 12 meses de histórico em comum para o ativo ser incluído (referência teórica para significância estatística de coeficiente Pearson amostral, conforme Cohen 1988).</p>
+<h3 id="54-dividendos-e-proventos">5.4 Dividendos e proventos</h3>
+<h4 id="yield-on-cost-yoc--últimos-12-meses">Yield on Cost (YoC) — últimos 12 meses</h4>
+<pre><code>YoC_12m = Σ (proventos pagos nos últimos 12 meses) / Custo médio investido × 100</code></pre>
+<h4 id="yield-on-cost-lifetime">Yield on Cost lifetime</h4>
+<pre><code>YoC_lifetime = Σ (todos proventos desde a primeira compra) / Custo médio investido × 100</code></pre>
+<p>A diferença entre YoC e <em>Dividend Yield</em> (DY) é central para o consultor explicar:</p>
+<ul><li><strong>DY</strong> (= proventos / preço atual): mede o que o ativo paga <em>agora</em>, no preço <em>atual</em>. Um cliente que comprou ITUB4 a R$ 20 e hoje está R$ 35 vê DY de ~5%.</li><li><strong>YoC</strong> (= proventos / preço médio de compra): mede o que o ativo paga <em>para esse cliente específico</em>, no custo de aquisição dele. O mesmo cliente vê YoC de ~8,75% — porque o ITUB4 valorizou e ele pagou caro mais barato.</li></ul>
+<p>YoC só faz sentido para o investidor de longo prazo; DY é o número universal para comparação entre ativos. A metodologia é a apresentada em B3, <em>Manual de Procedimentos do Mercado de Capitais</em>, item 4.7.</p>
+<h4 id="quantidade-na-data-ex-dividendo">Quantidade na data ex-dividendo</h4>
+<p>Para calcular YoC corretamente, o sistema busca a <strong>quantidade que o cliente possuía na data do ex-dividendo</strong>, não a quantidade atual. Ex-dividendos pagos sobre posições já vendidas não contam. A timeline é construída por busca binária na sequência de transações.</p>
+<h4 id="proventos-futuros-1m--3m--12m">Proventos futuros (1m / 3m / 12m)</h4>
+<p>Não há previsão estatística aqui. O sistema mostra <strong>apenas dividendos já anunciados pelas empresas</strong>, com data ex declarada. A janela:</p>
+<pre><code>Próximos 1 mês: ex-date entre hoje e hoje + 30 dias
+Próximos 3 meses: hoje a hoje + 90 dias
+Próximos 12 meses: hoje a hoje + 365 dias</code></pre>
+<p>Para cada anúncio, o valor projetado é <code>quantidade_atual × valor_anunciado_por_ação</code>.</p>
+<blockquote>⚠️ <strong>Esse número é piso, não previsão.</strong> Empresas anunciam dividendos com 30–60 dias de antecedência tipicamente; o número de "próximos 12 meses" tende a estar subestimado em mercados normais (mais dividendos serão anunciados no caminho).</blockquote>
+<h4 id="magic-number-fiis">Magic Number (FIIs)</h4>
+<p>Métrica popularizada pela comunidade de FII brasileira:</p>
+<pre><code>Magic Number = teto(cotação_atual / dividendo_mensal_médio_por_cota)</code></pre>
+<p>Indica quantas cotas adicionais um cliente precisaria comprar para que <strong>o dividendo mensal de uma cota nova pague a cota seguinte</strong>, ou seja, para o FII se autofinanciar. Quanto menor, mais "rápido" o FII se paga via dividendos.</p>
+<h3 id="55-alocação">5.5 Alocação</h3>
+<p>A alocação é calculada por <strong>classe de ativo</strong> (Ações BR, FIIs, ETFs, Stocks US, Cripto, Renda Fixa, Tesouro, Fundos, Previdência, Imóveis), comparada com a <strong>alocação-alvo</strong> definida pelo cliente em <code>AlocacaoConfig</code>. O desvio é a base da recomendação de rebalanceamento:</p>
+<pre><code>Desvio_classe = Peso_atual − Peso_alvo
+
+Se |Desvio_classe| &gt; tolerância (5% padrão):
+    Sinaliza necessidade de rebalanceamento</code></pre>
+<p>A ferramenta segue a lógica de <em>threshold rebalancing</em> descrita em Bernstein, <em>The Intelligent Asset Allocator</em> (2000), capítulo 9, e validada por estudo do Vanguard Research, "Best Practices for Portfolio Rebalancing" (2010).</p>
+<h3 id="56-metas">5.6 Metas</h3>
+<pre><code>Progresso% = Patrimônio atual / Patrimônio-alvo × 100
+
+Meses restantes = (ano-alvo − ano-atual) × 12 + (12 − mês-atual)
+
+Aporte mensal necessário = max(0, meta − patrimônio_atual) / meses_restantes</code></pre>
+<blockquote>⚠️ Cálculo <strong>linear, não composto</strong> — não considera valorização do capital nem juros. É deliberado, para apresentar ao cliente um piso conservador. Um cliente que precisa juntar R$ 100k em 5 anos vê "R$ 1.667/mês necessários", não os ~R$ 1.180 que seriam suficientes assumindo 8% a.a. de retorno. A interpretação correta é: "esse é o aporte necessário <strong>se o mercado não ajudar nada</strong>".</blockquote>
+<hr/>
+<h2 id="6-imposto-de-renda">6. Imposto de Renda</h2>
+<p>O My Finance tem um motor completo de IR para renda variável e renda fixa. O backend está em <code>src/services/ir/<em></code> e os endpoints em <code>/api/analises/ir-mensal/</em></code>. Atualmente é uma ferramenta de <strong>acompanhamento</strong> (não substitui a DAA — Declaração de Ajuste Anual — formal).</p>
+<h3 id="61-renda-variável--ações-brasileiras-e-etfs-br">6.1 Renda variável — ações brasileiras e ETFs BR</h3>
+<p><strong>Alíquota:</strong> 15% sobre o ganho de capital (Lei 11.033/2004, art. 3º).</p>
+<p><strong>Isenção de R$ 20.000:</strong> vendas de <strong>ações ordinárias</strong> (não vale para FIIs ou ETFs) abaixo de R$ 20.000 no mês são isentas. Importante: o saldo de prejuízo <strong>não é consumido</strong> quando há isenção (IN RFB 1585/2015, art. 56).</p>
+<p><strong>Cálculo mensal:</strong></p>
+<pre><code>Para cada venda no mês:
+    Lucro_operação = (preço_venda − preço_médio) × quantidade − taxas
+
+Lucro_bruto_mês = Σ Lucro_operação positivos
+Vendas_total_mês = Σ (preço_venda × quantidade − taxas)
+
+Se categoria = ações ordinárias E Vendas_total_mês ≤ R$ 20.000 E Lucro_bruto &gt; 0:
+    Status = isento
+    IR_devido = 0
+    Saldo_prejuízo permanece intacto
+
+Senão:
+    Prejuízo_compensado = min(saldo_prejuízo_acumulado, Lucro_bruto)
+    Lucro_tributável = max(0, Lucro_bruto − Prejuízo_compensado)
+    IR_devido = Lucro_tributável × 0,15
+    Saldo_prejuízo = saldo_prejuízo − Prejuízo_compensado</code></pre>
+<h3 id="62-fiis">6.2 FIIs</h3>
+<p><strong>Alíquota:</strong> 20% sobre ganho de capital. <strong>Não há isenção de R$ 20.000.</strong> Dividendos de FIIs são isentos (Lei 11.196/2005, art. 3º) — o sistema ignora dividendos no cálculo de IR.</p>
+<p><strong>Pool de prejuízo separado:</strong> prejuízos com FII só compensam ganhos com FII (não cruzam com ações).</p>
+<h3 id="63-renda-fixa-cdb-debêntures-fundos-di">6.3 Renda fixa (CDB, debêntures, fundos DI)</h3>
+<p><strong>Tabela regressiva (Lei 11.033/2004):</strong></p>
+<table><thead><tr><th>Prazo de aplicação</th><th>Alíquota</th></tr></thead><tbody><tr><td>Até 180 dias</td><td>22,5%</td></tr><tr><td>181 a 360 dias</td><td>20,0%</td></tr><tr><td>361 a 720 dias</td><td>17,5%</td></tr><tr><td>Acima de 720 dias</td><td>15,0%</td></tr></tbody></table>
+<p>O sistema aplica essa tabela com base na data da aplicação vs. data da venda/vencimento.</p>
+<h3 id="64-lci--lca--debêntures-incentivadas">6.4 LCI / LCA / Debêntures incentivadas</h3>
+<p>Isentas para pessoa física (Lei 11.033/2004, art. 3º). Marcadas com <code>rendaFixaTaxExempt: true</code> no banco.</p>
+<h3 id="65-stocks-e-etfs-estrangeiros">6.5 Stocks e ETFs estrangeiros</h3>
+<p>Alíquota de 15% sobre ganho de capital, com isenção de R$ 35.000 mensais para vendas (apenas para ações em geral, não específico de US). Conversão para BRL pela cotação Ptax do dia da venda. Suporte está implementado mas <strong>a interface de apresentação ao usuário ainda não foi liberada</strong>.</p>
+<h3 id="66-cripto">6.6 Cripto</h3>
+<p>Alíquota progressiva (15%/17,5%/20%/22,5% conforme ganho), isenção de R$ 35.000 em vendas (IN RFB 1888/2019).</p>
+<h3 id="67-aproximações-declaradas">6.7 Aproximações declaradas</h3>
+<p>O motor de IR apresenta <strong>acompanhamento</strong>, não cálculo definitivo. Limitações conhecidas:</p>
+<ul><li><strong>IRRF retido na fonte</strong> (0,005% sobre venda) <strong>não é deduzido</strong> do DARF projetado. Para o cliente, isso significa que o valor real a pagar é ligeiramente menor do que o sistema mostra.</li><li><strong>Day trade</strong> está fora do escopo. O sistema assume swing trade / longo prazo.</li><li><strong>Ordem de compensação de prejuízos</strong> segue cronologia simples; otimização por símbolo (decidir qual prejuízo usar primeiro) não é feita.</li></ul>
+<p>Para a DAA formal, o cliente ainda precisa de software dedicado ou contador.</p>
+<hr/>
+<h2 id="7-fluxo-de-caixa">7. Fluxo de caixa</h2>
+<p>O módulo <code>Cashflow</code> é estruturalmente diferente da carteira: não trata de mercado, e sim do <strong>planejamento mensal de receitas e despesas</strong> do cliente, com lançamentos manuais.</p>
+<h3 id="71-estrutura-hierárquica">7.1 Estrutura hierárquica</h3>
+<pre><code>CashflowGroup ("Receitas")
+├── CashflowItem ("Salário") → CashflowValue (jan/2026 = R$ 8.000)
+│                              CashflowValue (fev/2026 = R$ 8.000)
+├── CashflowItem ("Dividendos") → CashflowValue (jan/2026 = R$ 350)
+└── CashflowGroup ("Renda extra")
+    └── CashflowItem ("Aluguel") → CashflowValue (jan/2026 = R$ 1.200)</code></pre>
+<p>Três tipos de grupo:</p>
+<ul><li><strong>Entrada:</strong> receitas (salário, dividendos, aluguel recebido).</li><li><strong>Despesa:</strong> custos (moradia, transporte, lazer).</li><li><strong>Investimento:</strong> aportes planejados para a carteira.</li></ul>
+<h3 id="72-templates--personalização">7.2 Templates + personalização</h3>
+<p>O sistema tem <strong>templates padrão</strong> (cadastro centralizado, sem <code>userId</code>) que cobrem categorias comuns. Cada cliente recebe uma cópia desses templates ao se cadastrar. Daí em diante:</p>
+<ul><li>O cliente pode <strong>editar</strong> valores, comentários, cores → vira override pessoal.</li><li>O cliente pode <strong>ocultar</strong> um template (<code>hidden = true</code>) → o item desaparece da view dele, mas o template original permanece para outros clientes.</li><li>O cliente pode <strong>adicionar</strong> itens próprios (sem <code>templateId</code>) → fica anexado.</li></ul>
+<p>A combinação template + override evita o problema clássico de "cada cliente recebe uma planilha em branco" e dá à equipe de produto um ponto único para atualizar nomenclatura ou adicionar categorias novas.</p>
+<h3 id="73-cálculos-derivados">7.3 Cálculos derivados</h3>
+<pre><code>Saldo_mês = Σ Entrada_mês − Σ Despesa_mês
+
+Taxa_de_poupança_mês = (Σ Investimento_mês) / (Σ Entrada_mês) × 100
+
+Acumulado_anual = Σ (Saldo_mês para mês de 1 a 12)</code></pre>
+<p>Estes números são exibidos em cards no topo da tela <code>Cashflow</code> e cruzados com a evolução patrimonial em <code>Análises</code>.</p>
+<hr/>
+<h2 id="8-glossário">8. Glossário</h2>
+<table><thead><tr><th>Termo</th><th>Definição</th></tr></thead><tbody><tr><td><strong>Saldo bruto</strong></td><td>Valor de mercado da carteira hoje. Soma de todos os ativos a preço atual.</td></tr><tr><td><strong>Valor aplicado</strong></td><td>Soma dos aportes em valor de aquisição, líquido de resgates. Não muda com o mercado.</td></tr><tr><td><strong>TWR</strong> <em>(Time-Weighted Return)</em></td><td>Rentabilidade desconsiderando aportes — padrão GIPS para comparar gestores.</td></tr><tr><td><strong>MWR</strong> <em>(Money-Weighted Return)</em></td><td>TIR (XIRR) dos fluxos da carteira — mede a experiência <em>do investidor</em>, sensível ao timing dos aportes. Exibida em <code>Análises → Resumo de Rentabilidade</code>.</td></tr><tr><td><strong>Marcação a mercado</strong></td><td>Avaliar um ativo pelo preço que ele teria se vendido hoje. Padrão de transparência.</td></tr><tr><td><strong>Marcação na curva</strong></td><td>Avaliar um ativo pela taxa contratada, ignorando flutuação de preço. Comum em renda fixa "para levar até o vencimento".</td></tr><tr><td><strong>YoC</strong> <em>(Yield on Cost)</em></td><td>Dividendo dividido pelo preço médio de compra. Métrica do investidor de longo prazo.</td></tr><tr><td><strong>DY</strong> <em>(Dividend Yield)</em></td><td>Dividendo dividido pelo preço atual. Métrica universal de comparação.</td></tr><tr><td><strong>Sharpe</strong></td><td>Retorno excedente sobre o ativo sem risco, dividido pela volatilidade. Quanto maior, melhor.</td></tr><tr><td><strong>Beta (β)</strong></td><td>Sensibilidade do ativo ao mercado (IBOV). β = 1 anda junto, β &gt; 1 amplifica, β &lt; 1 amortece.</td></tr><tr><td><strong>PU</strong> <em>(Preço Unitário)</em></td><td>Preço de uma única unidade de título do Tesouro. Publicado diariamente em <code>tesourotransparente.gov.br</code>.</td></tr><tr><td><strong>Magic Number</strong></td><td>Quantas cotas de um FII bastam para que os dividendos paguem a próxima cota.</td></tr><tr><td><strong>Come-cotas</strong></td><td>IR semestral antecipado em fundos de investimento — 15% (longo prazo) ou 20% (curto). Não exibido individualmente no My Finance.</td></tr><tr><td><strong>CDI</strong></td><td>Taxa média dos depósitos interfinanceiros. Proxy do <em>risk-free rate</em> brasileiro.</td></tr></tbody></table>
+<hr/>
+<h2 id="9-referências">9. Referências</h2>
+<h3 id="padrões-e-regulamentação">Padrões e regulamentação</h3>
+<ul><li><strong>GIPS</strong> <em>(Global Investment Performance Standards)</em> — CFA Institute, 2020. Define TWR como padrão para apresentação de performance.</li><li><strong>Lei 11.033/2004</strong> — Tributação de aplicações financeiras (alíquotas, isenções, tabela regressiva de RF).</li><li><strong>IN RFB 1585/2015</strong> — Disciplina de IR sobre rendimentos de capital.</li><li><strong>IN RFB 1888/2019</strong> — Tributação de criptomoedas.</li><li><strong>Lei 11.196/2005</strong> — Isenção de IR sobre dividendos de FIIs.</li><li><strong>Resolução CMN 2.829/2001</strong> — Marcação a mercado obrigatória para fundos.</li><li><strong>ANBIMA — Manual de Apreçamento</strong> — Convenção de base 252 dias úteis para títulos privados.</li></ul>
+<h3 id="bibliografia">Bibliografia</h3>
+<ul><li>Bernstein, William J. <em>The Intelligent Asset Allocator</em>. McGraw-Hill, 2000.</li><li>Brealey, Myers &amp; Allen. <em>Principles of Corporate Finance</em>. 13ª ed., McGraw-Hill, 2020. Cap. 8 (CAPM), Cap. 9 (Risco e Retorno).</li><li>CFA Institute Curriculum — Level II, <em>Portfolio Management</em>. 2024.</li><li>Cohen, Jacob. <em>Statistical Power Analysis for the Behavioral Sciences</em>. 2ª ed., Lawrence Erlbaum, 1988.</li><li>Damodaran, Aswath. <em>Investment Valuation</em>. 3ª ed., Wiley, 2012.</li><li>Fama, Eugene F. e French, Kenneth R. "Common risk factors in the returns on stocks and bonds". <em>Journal of Financial Economics</em>, 1993.</li><li>Hull, John C. <em>Options, Futures, and Other Derivatives</em>. 9ª ed., Pearson, 2014.</li><li>Lintner, John. "The Valuation of Risk Assets and the Selection of Risky Investments in Stock Portfolios". <em>Review of Economics and Statistics</em>, 1965.</li><li>Sharpe, William F. "Mutual Fund Performance". <em>Journal of Business</em>, 1966.</li><li>Sharpe, William F. "The Sharpe Ratio". <em>Journal of Portfolio Management</em>, 1994.</li><li>Vanguard Research. <em>Best Practices for Portfolio Rebalancing</em>. 2010.</li></ul>
+<h3 id="fontes-de-dados">Fontes de dados</h3>
+<ul><li>BRAPI — <code>brapi.dev</code></li><li>BACEN SGS — <code>api.bcb.gov.br</code></li><li>Tesouro Transparente — <code>tesourotransparente.gov.br</code></li><li>CVM Dados Abertos — <code>dados.cvm.gov.br</code></li><li>B3 — <code>b3.com.br</code></li></ul>
+<hr/>
+<h2 id="10-limitações-conhecidas">10. Limitações conhecidas</h2>
+<p>A transparência aqui é estratégica: o consultor que fala da limitação antes do cliente perguntar transmite competência.</p>
+<h3 id="cálculos">Cálculos</h3>
+<ul><li><strong>Marcação a mercado em Tesouro Direto:</strong> o valor exibido reflete o PU oficial do dia, <strong>mesmo quando o PU caiu abaixo do que foi pago</strong> — alta de juros futuros derruba o preço de Tesouro IPCA+ e Prefixado de duration longa, e o cliente precisa enxergar isso para tomar decisão informada. Vide §4.4. Se a posição for marcada na curva (não MTM), é só porque a série de PU não chegou ainda.</li><li><strong>Marcação na curva em emissão bancária (CDB/LCI/LCA):</strong> seguimos a convenção do mercado para não-mercáveis: o valor compõe pela taxa contratada, sem flutuação por curva de juros futura. Esses títulos só viram MTM se o investidor for tentar revender antes do vencimento via mercado secundário (raro no varejo).</li><li><strong>Crédito privado (CRI/CRA/debêntures):</strong> <strong>ainda não temos integração</strong> com fonte de PU secundário (ANBIMA Data ou B3). Esses ativos são exibidos com marcação na curva pela taxa contratada — aproximação que pode divergir do preço real de venda em janelas de stress de mercado. Roadmap aberto.</li><li><strong>Final de semana:</strong> o cálculo de patrimônio histórico considera apenas dias úteis. Sábados e domingos congelam o último valor. Isso afeta a apresentação visual (gráfico tem "platôs" no fim de semana) mas não a precisão.</li><li><strong>Anualização de janelas curtas:</strong> janelas &lt; 12 meses não são anualizadas. Não exibimos "rentabilidade equivalente anual" para 1 mês — seria estatisticamente irresponsável.</li></ul>
+<h3 id="cobertura">Cobertura</h3>
+<ul><li><strong>Histórico de 24+ meses</strong> é necessário para exibir Sharpe, Beta e correlação confiavelmente. Clientes recentes verão estes campos vazios ou marcados como "histórico insuficiente" até atingir o limite mínimo.</li><li><strong>Fundos novos</strong> podem aparecer no catálogo CVM sem cota imediata (sync semanal pode atrasar 1–7 dias). O sistema mostra a cota mais recente disponível.</li><li><strong>Empresas em recuperação judicial</strong> ou <em>delisted</em>: o BRAPI continua publicando o último preço conhecido. O cliente vê a posição "congelada" e o sistema sinaliza com <code>priceUpdatedAt</code> antigo.</li></ul>
+<h3 id="imposto-de-renda">Imposto de Renda</h3>
+<ul><li>Ferramenta de <strong>acompanhamento</strong>, não geradora de DAA.</li><li><strong>IRRF retido na fonte</strong> não é deduzido — DARF projetado é ligeiramente sobre-estimado.</li><li><strong>Day trade</strong> fora do escopo.</li></ul>
+<h3 id="atualização-de-dados">Atualização de dados</h3>
+<ul><li>BRAPI: 1 vez ao dia (07:10 UTC). Cliente que abre o app no fim do dia útil pode ver preços de ~12 horas atrás. Em casos críticos (cliente quer saber preço <em>agora</em>), o sistema busca live na BRAPI com timeout de 10s.</li><li>BACEN: 1 vez ao dia (06:00 UTC). IPCA é divulgado pelo IBGE com ~10 dias de defasagem em relação ao mês de referência.</li></ul>
+<hr/>
+<p><em>Documento mantido em <code>docs/justificativa-valores-consultores.md</code>. Sugestões e correções são bem-vindas.</em></p>
+</body>
+</html>
