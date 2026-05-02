@@ -236,6 +236,34 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     expect(j.excessOverIbov).toBeCloseTo(j.portfolioReturn - j.ibovReturn, 1);
   });
 
+  it('expõe portfolioMwr e portfolioMwrAnnualized quando há fluxo de caixa', async () => {
+    // Carteira: aporte 10.000 em t0, valor terminal 11.000 em t0+365d ⇒ MWR ≈ 10% a.a.
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const um_ano_atras = now.getTime() - 365 * 86400000;
+    mockBuildPatrimonio.mockResolvedValue({
+      historicoPatrimonio: [
+        { data: um_ano_atras, valorAplicado: 10000, saldoBruto: 10000 },
+        { data: now.getTime(), valorAplicado: 10000, saldoBruto: 11000 },
+      ],
+      historicoTWR: [
+        { data: um_ano_atras, value: 0 },
+        { data: now.getTime(), value: 10 },
+      ],
+      historicoTWRPeriodo: [],
+      cashFlowsByDay: new Map([[um_ano_atras, 10000]]),
+    });
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+    const j = data.janelas.in12Months;
+
+    expect(j.portfolioMwrAnnualized).toBeCloseTo(10, 0);
+    expect(j.portfolioMwr).toBeCloseTo(10, 0);
+    // Pra essa janela onde o aporte é "lump sum" no início, MWR ≈ TWR.
+    expect(j.portfolioMwrAnnualized).toBeCloseTo(j.portfolioReturn, 0);
+  });
+
   it('zera ibov/ipca quando histórico do benchmark está vazio (não quebra)', async () => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);

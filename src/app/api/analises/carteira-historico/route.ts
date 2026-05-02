@@ -333,5 +333,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   const twrSeries = calculateTwrSeries(portfolioValues, cashFlowsByDay);
-  return NextResponse.json({ data: twrSeries });
+
+  // Série MWR cumulativa em paralelo ao TWR. portfolioValues tem
+  // {date, value=saldoBruto}; reconstruímos valorAplicado acumulando os
+  // cashflows pra alimentar o builder de MWR (que usa o saldo bruto direto).
+  const { buildMwrSeries } = await import('@/services/portfolio/mwrSeriesBuilder');
+  let aplicadoAcum = 0;
+  const historicoForMwr = portfolioValues.map((p) => {
+    aplicadoAcum += cashFlowsByDay.get(p.date) ?? 0;
+    return { data: p.date, valorAplicado: aplicadoAcum, saldoBruto: p.value };
+  });
+  const mwrSeries = buildMwrSeries({
+    historicoPatrimonio: historicoForMwr,
+    cashFlowsByDay,
+  }).map((m) => ({ date: m.data, value: m.value }));
+
+  return NextResponse.json({ data: twrSeries, mwr: mwrSeries });
 });

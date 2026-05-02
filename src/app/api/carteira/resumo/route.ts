@@ -440,6 +440,24 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
+  // Série de MWR cumulativo derivada do histórico de patrimônio. Para chart,
+  // usamos a versão JÁ AGREGADA (mesmo formato e dates do historicoTWR), então
+  // derivamos cashflows do delta de valorAplicado entre pontos consecutivos.
+  // Tradeoff: em janelas mensais/anuais isso pode mascarar timing intra-mês,
+  // mas a granularidade do chart é a mesma — não há perda visual.
+  const historicoMWR: Array<{ data: number; value: number }> = [];
+  let historicoMWRPeriodo: Array<{ data: number; value: number }> = [];
+  if (historicoPatrimonio.length > 0) {
+    const { buildMwrSeries } = await import('@/services/portfolio/mwrSeriesBuilder');
+    historicoMWR.push(...buildMwrSeries({ historicoPatrimonio }));
+    if (typeof twrStartDate === 'number' && Number.isFinite(twrStartDate)) {
+      historicoMWRPeriodo = buildMwrSeries({
+        historicoPatrimonio,
+        startMs: twrStartDate,
+      });
+    }
+  }
+
   // Placeholder quando não há dados ou includeHistorico=false (carregamento rápido)
   if (historicoPatrimonio.length === 0) {
     const hoje = new Date();
@@ -796,6 +814,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     caixaParaInvestir: caixaParaInvestir || 0,
     historicoPatrimonio,
     historicoTWR,
+    historicoMWR,
     distribuicao,
     portfolioDetalhes: {
       totalAcoes: portfolio.length,
@@ -809,6 +828,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   if (historicoTWRPeriodo.length > 0) {
     resumo.historicoTWRPeriodo = historicoTWRPeriodo;
+  }
+  if (historicoMWRPeriodo.length > 0) {
+    resumo.historicoMWRPeriodo = historicoMWRPeriodo;
   }
 
   if (usePortfolioSnapshots) {

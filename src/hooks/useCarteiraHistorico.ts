@@ -3,7 +3,10 @@ import { IndexData } from './useIndices';
 import { queryKeys } from '@/lib/queryKeys';
 
 interface UseCarteiraHistoricoResult {
+  /** Série TWR diária. Compatível com consumers existentes. */
   data: IndexData[];
+  /** Série MWR diária (mesma escala do TWR). */
+  mwr: IndexData[];
   loading: boolean;
   error: string | null;
 }
@@ -15,10 +18,10 @@ export const useCarteiraHistorico = (
   const enabled = options?.enabled !== false;
 
   const {
-    data = [],
+    data,
     isLoading: loading,
     error: queryError,
-  } = useQuery<IndexData[]>({
+  } = useQuery<{ twr: IndexData[]; mwr: IndexData[] }>({
     queryKey: queryKeys.carteira.historico(),
     queryFn: async ({ signal }) => {
       let url = '/api/analises/carteira-historico';
@@ -33,10 +36,18 @@ export const useCarteiraHistorico = (
       }
 
       const result = await response.json();
-      return result.data || [];
+      return {
+        twr: Array.isArray(result.data) ? result.data : [],
+        mwr: Array.isArray(result.mwr) ? result.mwr : [],
+      };
     },
     enabled,
   });
 
-  return { data, loading, error: queryError ? (queryError as Error).message : null };
+  return {
+    data: data?.twr ?? [],
+    mwr: data?.mwr ?? [],
+    loading,
+    error: queryError ? (queryError as Error).message : null,
+  };
 };

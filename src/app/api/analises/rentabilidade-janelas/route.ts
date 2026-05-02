@@ -8,6 +8,7 @@ import {
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTotals';
+import { computeMwr, saldoBrutoAt, type CashFlow } from '@/services/portfolio/mwrCalculator';
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -32,6 +33,10 @@ type WindowKey =
 
 interface WindowMetric {
   portfolioReturn: number;
+  /** TIR efetiva no período (não anualizada). Reflete o timing dos aportes. */
+  portfolioMwr: number;
+  /** TIR efetiva anualizada (effective annual rate). Só é confiável p/ janelas ≥ 12m. */
+  portfolioMwrAnnualized: number;
   cdiReturn: number;
   ibovReturn: number;
   ipcaReturn: number;
@@ -172,6 +177,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   if (serie.length === 0) {
     const empty: WindowMetric = {
       portfolioReturn: 0,
+      portfolioMwr: 0,
+      portfolioMwrAnnualized: 0,
       cdiReturn: 0,
       ibovReturn: 0,
       ipcaReturn: 0,
@@ -227,6 +234,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return d.getTime();
   };
 
+  // cashFlowsByDay vem do builder com convenção: amount > 0 = aporte, < 0 = resgate.
+  // É o input direto pro computeMwr.
+  const cashFlows: CashFlow[] = Array.from(built.cashFlowsByDay.entries()).map(
+    ([date, amount]) => ({
+      date,
+      amount,
+    }),
+  );
+
   const round = (n: number) => Math.round(n * 100) / 100;
   const buildWindow = (fromMs: number, toMs: number): WindowMetric => {
     // Clamp aos limites da série (só importa se a janela exceder o histórico disponível).
@@ -235,6 +251,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (clampedTo <= clampedFrom) {
       return {
         portfolioReturn: 0,
+        portfolioMwr: 0,
+        portfolioMwrAnnualized: 0,
         cdiReturn: 0,
         ibovReturn: 0,
         ipcaReturn: 0,
@@ -248,8 +266,28 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const cdiR = compoundReturnPct(cdiRecords, clampedFrom, clampedTo);
     const ipcaR = compoundReturnPct(ipcaRecords, clampedFrom, clampedTo);
     const ibovR = priceSeriesReturnPct(ibovHistory, clampedFrom, clampedTo);
+
+    // saldoBrutoAt devolve o saldo END-OF-DAY (já com o aporte do dia incorporado).
+    // Pra MWR precisamos do saldo PRÉ-janela: subtraímos o fluxo do próprio
+    // clampedFrom pra deixar o aporte daquele dia ser contado dentro de cashFlows
+    // (sem duplicar). Quando a janela começa no primeiro ponto da série e o saldo
+    // pré-janela é zero, isso devolve 0 e o cashflow do dia 0 funda a carteira.
+    const initialSaldoEnd = saldoBrutoAt(built.historicoPatrimonio, clampedFrom) ?? 0;
+    const flowOnStart = built.cashFlowsByDay.get(clampedFrom) ?? 0;
+    const initialSaldoPre = Math.max(0, initialSaldoEnd - Math.max(0, flowOnStart));
+    const terminalSaldo = saldoBrutoAt(built.historicoPatrimonio, clampedTo) ?? 0;
+    const mwr = computeMwr({
+      initialValue: initialSaldoPre,
+      initialDate: clampedFrom,
+      terminalValue: terminalSaldo,
+      terminalDate: clampedTo,
+      cashFlows,
+    });
+
     return {
       portfolioReturn: round(portfolioReturn),
+      portfolioMwr: round(mwr.mwrPeriod * 100),
+      portfolioMwrAnnualized: round(mwr.mwrAnnualized * 100),
       cdiReturn: round(cdiR),
       ibovReturn: round(ibovR),
       ipcaReturn: round(ipcaR),
