@@ -10,6 +10,7 @@ import RentabilidadeChart from './RentabilidadeChart';
 import RentabilidadeResumo from './RentabilidadeResumo';
 
 type RentabilidadeRangeValue = 'inicio' | 'ano' | '12m' | '2y' | '3y' | '5y' | '10y';
+type RentabilidadeMetric = 'mwr' | 'twr';
 
 const RENTABILIDADE_RANGE_OPTIONS: Array<{ value: RentabilidadeRangeValue; label: string }> = [
   { value: 'inicio', label: 'Do início' },
@@ -75,6 +76,7 @@ const getRangeStartDate = (range: RentabilidadeRangeValue, firstDate?: number) =
 
 export default function RentabilidadeGeral() {
   const [selectedRange, setSelectedRange] = useState<RentabilidadeRangeValue>('inicio');
+  const [metric, setMetric] = useState<RentabilidadeMetric>('mwr');
   const { resumo, loading: carteiraLoading } = useCarteiraResumoContext();
 
   // Calcular data do primeiro investimento (primeira data com valor não-zero do histórico)
@@ -107,11 +109,13 @@ export default function RentabilidadeGeral() {
   const isPeriodoInicio = selectedRange === 'inicio';
   const {
     data: carteiraHistoricoDiario,
+    mwr: carteiraHistoricoDiarioMwr,
     loading: loadingCarteiraHistorico,
     error: errorCarteiraHistorico,
   } = useCarteiraHistorico(selectedRangeStart, { enabled: !hasHistoricoTWR });
   const {
     data: rentabilidadePeriodo,
+    mwr: rentabilidadePeriodoMwr,
     loading: loadingRentabilidadePeriodo,
     error: errorRentabilidadePeriodo,
   } = useRentabilidadePeriodo(isPeriodoInicio ? undefined : selectedRangeStart, {
@@ -162,28 +166,36 @@ export default function RentabilidadeGeral() {
   };
 
   /**
-   * Dados TWR para o gráfico - SEMPRE recalculados por período (nunca filtro visual).
-   * - "inicio": historicoTWR completo ou carteira-historico desde primeira transação
+   * Dados de rentabilidade pro gráfico — TWR ou MWR conforme o toggle.
+   * SEMPRE recalculados por período (nunca filtro visual):
+   * - "inicio": série cumulativa desde a primeira transação (resumo ou carteira-historico)
    * - 12m, 2y, etc: API recalcula desde o início do período (primeiro ponto = 0%)
    */
-  const carteiraTWRParaChart = useMemo((): IndexData[] => {
-    if (hasHistoricoTWR && !isPeriodoInicio && rentabilidadePeriodo.length > 0) {
-      return rentabilidadePeriodo;
+  const carteiraParaChart = useMemo((): IndexData[] => {
+    const useMwr = metric === 'mwr';
+    if (hasHistoricoTWR && !isPeriodoInicio) {
+      const periodo = useMwr ? rentabilidadePeriodoMwr : rentabilidadePeriodo;
+      if (periodo.length > 0) return periodo;
     }
     if (hasHistoricoTWR && isPeriodoInicio) {
-      const twr = resumo?.historicoTWR ?? [];
-      return twr.map((item) => ({ date: item.data, value: item.value }));
+      const serie = useMwr ? (resumo?.historicoMWR ?? []) : (resumo?.historicoTWR ?? []);
+      return serie.map((item) => ({ date: item.data, value: item.value }));
     }
-    if (carteiraHistoricoDiario && carteiraHistoricoDiario.length > 0) {
-      return carteiraHistoricoDiario.map((item) => ({ date: item.date, value: item.value }));
+    const fallback = useMwr ? carteiraHistoricoDiarioMwr : carteiraHistoricoDiario;
+    if (fallback && fallback.length > 0) {
+      return fallback.map((item) => ({ date: item.date, value: item.value }));
     }
     return [];
   }, [
+    metric,
     hasHistoricoTWR,
     isPeriodoInicio,
     rentabilidadePeriodo,
+    rentabilidadePeriodoMwr,
     resumo?.historicoTWR,
+    resumo?.historicoMWR,
     carteiraHistoricoDiario,
+    carteiraHistoricoDiarioMwr,
   ]);
 
   const filteredIndices1d = useMemo(
@@ -261,7 +273,42 @@ export default function RentabilidadeGeral() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <div
+          role="group"
+          aria-label="Métrica de rentabilidade"
+          className="inline-flex h-11 overflow-hidden rounded-lg border border-gray-300 dark:border-gray-700"
+          title={
+            metric === 'mwr'
+              ? 'MWR (Money-Weighted Return / TIR): pondera o timing dos aportes — o que seu dinheiro rendeu de fato.'
+              : 'TWR (Time-Weighted Return): isola o desempenho do mercado — comparável com benchmark (CDI, IBOV).'
+          }
+        >
+          <button
+            type="button"
+            aria-pressed={metric === 'mwr'}
+            onClick={() => setMetric('mwr')}
+            className={`px-4 text-sm font-medium transition-colors ${
+              metric === 'mwr'
+                ? 'bg-brand-500 text-white'
+                : 'bg-transparent text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+            }`}
+          >
+            MWR
+          </button>
+          <button
+            type="button"
+            aria-pressed={metric === 'twr'}
+            onClick={() => setMetric('twr')}
+            className={`px-4 text-sm font-medium transition-colors ${
+              metric === 'twr'
+                ? 'bg-brand-500 text-white'
+                : 'bg-transparent text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+            }`}
+          >
+            TWR
+          </button>
+        </div>
         <div className="w-full max-w-[220px]">
           <label htmlFor="rentabilidade-range" className="sr-only">
             Filtro de período
@@ -286,30 +333,27 @@ export default function RentabilidadeGeral() {
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Gráficos à esquerda */}
+        {/* Gráficos à esquerda — métrica controlada pelo toggle (MWR padrão / TWR comparativo) */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Gráfico Por Dia - TWR acumulado (padrão mercado) */}
-          <ComponentCard title="Rentabilidade Por Dia">
+          <ComponentCard title={`Rentabilidade Por Dia · ${metric.toUpperCase()}`}>
             <RentabilidadeChart
-              carteiraData={carteiraTWRParaChart}
+              carteiraData={carteiraParaChart}
               indicesData={filteredIndices1d}
               period="1d"
             />
           </ComponentCard>
 
-          {/* Gráfico Por Mês - TWR acumulado agrupado por mês */}
-          <ComponentCard title="Rentabilidade Por Mês">
+          <ComponentCard title={`Rentabilidade Por Mês · ${metric.toUpperCase()}`}>
             <RentabilidadeChart
-              carteiraData={carteiraTWRParaChart}
+              carteiraData={carteiraParaChart}
               indicesData={filteredIndices1mo}
               period="1mo"
             />
           </ComponentCard>
 
-          {/* Gráfico Por Ano - TWR acumulado agrupado por ano */}
-          <ComponentCard title="Rentabilidade Por Ano">
+          <ComponentCard title={`Rentabilidade Por Ano · ${metric.toUpperCase()}`}>
             <RentabilidadeChart
-              carteiraData={carteiraTWRParaChart}
+              carteiraData={carteiraParaChart}
               indicesData={filteredIndices1y}
               period="1y"
             />
