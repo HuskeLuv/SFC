@@ -25,7 +25,11 @@ const inline = (text) => {
   let t = escapeHtml(text);
   t = t.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
   t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // Italic: prettier defaults to `_x_` for emphasis, but writers also use `*x*`.
+  // For `_`, require non-word boundary on each side to avoid matching inside
+  // identifiers like `foo_bar` or `valorAplicado_atual`.
   t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  t = t.replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
   t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
     const safe = href.replace(/"/g, '&quot;');
     return `<a href="${safe}">${label}</a>`;
