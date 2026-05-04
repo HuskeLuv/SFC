@@ -65,6 +65,34 @@ describe('buildMwrSeries', () => {
     expect(series[1].value).toBeCloseTo(9.09, 1);
   });
 
+  it('último ponto com salto em valorAplicado SEM saldoBruto proporcional: derivação cria fluxo fantasma e MWR despenca; cashFlowsByDay autoritativo evita queda (regressão drop no último dia)', () => {
+    // Cenário do bug: último ponto é patched com totais ao vivo (incluindo a soma
+    // de investimentos do cashflow planner), mas o ponto anterior vem do snapshot
+    // (que só inclui o mês mais recente via replacement). valorAplicado pula 6k,
+    // saldoBruto só sobe 3k (a parte cumulativa que faltava).
+    const historicoPatrimonio = [
+      { data: day(2025, 1, 1), valorAplicado: 100_000, saldoBruto: 100_000 },
+      { data: day(2026, 1, 1), valorAplicado: 100_000, saldoBruto: 110_000 },
+      { data: day(2026, 1, 2), valorAplicado: 106_000, saldoBruto: 113_000 },
+    ];
+
+    // Sem cashFlowsByDay: derivação infere +6k de aporte fantasma no último dia,
+    // então o solver desconta esse fluxo do terminal → MWR despenca de ~10% pra ~7%.
+    const buggy = buildMwrSeries({ historicoPatrimonio });
+    expect(buggy[1].value).toBeCloseTo(10, 0);
+    expect(buggy[2].value).toBeLessThan(buggy[1].value - 2);
+
+    // Com cashFlowsByDay autoritativo (só o seed inicial, sem aporte fantasma no
+    // último dia), MWR sobe levemente entre os dois últimos pontos — refletindo o
+    // crescimento real do saldo bruto.
+    const fixed = buildMwrSeries({
+      historicoPatrimonio,
+      cashFlowsByDay: new Map([[day(2025, 1, 1), 100_000]]),
+    });
+    expect(fixed[2].value).toBeGreaterThan(fixed[1].value);
+    expect(fixed[2].value).toBeGreaterThan(buggy[2].value);
+  });
+
   it('DCA: MWR cresce monotonicamente com retorno positivo', () => {
     const flows = new Map<number, number>();
     const historicoPatrimonio = [];

@@ -440,19 +440,36 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  // Série de MWR cumulativo derivada do histórico de patrimônio. Para chart,
-  // usamos a versão JÁ AGREGADA (mesmo formato e dates do historicoTWR), então
-  // derivamos cashflows do delta de valorAplicado entre pontos consecutivos.
-  // Tradeoff: em janelas mensais/anuais isso pode mascarar timing intra-mês,
-  // mas a granularidade do chart é a mesma — não há perda visual.
+  // Série de MWR cumulativo derivada do histórico de patrimônio. CashFlows
+  // autoritativos (transações + valores manuais do cashflow planner) são montados
+  // sobre uma timeline DIÁRIA — independente da granularidade agregada do gráfico —
+  // e passados explicitamente pra buildMwrSeries.
+  //
+  // Sem isso, deriveCashFlowsFromValorAplicado interpretaria o salto entre o último
+  // ponto (patched com totais ao vivo, que somam investimentos do cashflow planner
+  // em valorAplicado) e o anterior (sem essa soma) como aporte fantasma — derrubando
+  // o MWR no último dia de forma artificial.
   const historicoMWR: Array<{ data: number; value: number }> = [];
   let historicoMWRPeriodo: Array<{ data: number; value: number }> = [];
   if (historicoPatrimonio.length > 0) {
+    const { buildDailyTimeline, buildPatrimonioCashFlowsByDayOnly } =
+      await import('@/services/portfolio/patrimonioHistoricoBuilder');
     const { buildMwrSeries } = await import('@/services/portfolio/mwrSeriesBuilder');
-    historicoMWR.push(...buildMwrSeries({ historicoPatrimonio }));
+    const startMs = historicoPatrimonio[0].data;
+    const endMs = historicoPatrimonio[historicoPatrimonio.length - 1].data;
+    const dailyTimeline = buildDailyTimeline(new Date(startMs), new Date(endMs));
+    const cashFlowsByDay = buildPatrimonioCashFlowsByDayOnly(
+      portfolio,
+      fixedIncomeAssets,
+      stockTransactions,
+      cashflowInvestments,
+      dailyTimeline,
+    );
+    historicoMWR.push(...buildMwrSeries({ historicoPatrimonio, cashFlowsByDay }));
     if (typeof twrStartDate === 'number' && Number.isFinite(twrStartDate)) {
       historicoMWRPeriodo = buildMwrSeries({
         historicoPatrimonio,
+        cashFlowsByDay,
         startMs: twrStartDate,
       });
     }
