@@ -1,7 +1,5 @@
 export const CHART_MAX_POINTS = 500;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 export type PatrimonioPoint = { data: number; valorAplicado: number; saldoBruto: number };
 export type TwrPoint = { data: number; value: number };
 
@@ -76,17 +74,19 @@ export const downsampleUniform = <T>(arr: T[], maxPoints: number): T[] => {
 export type ChartGranularity = 'day' | 'month' | 'year';
 
 /**
- * Escolhe granularidade: >5 anos → anual; >1 ano ou muitos pontos → mensal; senão diário.
- * Garante no máximo ~CHART_MAX_POINTS após agregação + downsample.
+ * Sempre 'day' — agregação mensal/anual da série da carteira criava linha em
+ * escada quando comparada com benchmarks (CDI/IBOV/IPCA) que sempre vêm em
+ * resolução diária. Excesso de pontos é resolvido por `downsampleUniform`
+ * abaixo, que preserva a forma da curva sem clusterizar em fim de mês.
+ *
+ * (Antes: >5 anos → 'year'; >1 ano OU pontCount > MAX → 'month'; senão 'day'.
+ * Isso fazia "Do início" de >12 meses cair no mensal e ficar em degrau.)
  */
 export const chooseChartGranularity = (
-  startMs: number,
-  endMs: number,
-  dailyPointCount: number,
+  _startMs: number,
+  _endMs: number,
+  _dailyPointCount: number,
 ): ChartGranularity => {
-  const spanDays = Math.max(0, (endMs - startMs) / DAY_MS);
-  if (spanDays > 365 * 5) return 'year';
-  if (spanDays > 365 || dailyPointCount > CHART_MAX_POINTS) return 'month';
   return 'day';
 };
 
