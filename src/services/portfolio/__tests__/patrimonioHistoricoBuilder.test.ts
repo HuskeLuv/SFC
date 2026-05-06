@@ -91,12 +91,12 @@ describe('buildDailyTimeline', () => {
     expect(timeline[0]).toBe(normalizeDateStart(d).getTime());
   });
 
-  it('retorna dias consecutivos para intervalo multi-dia (sem fins de semana)', () => {
-    // Jan 1 (Wed UTC) through Jan 5 (Sun UTC) 2025 → Wed, Thu, Fri = 3 weekdays
+  it('retorna dias consecutivos para intervalo multi-dia (sem fins de semana nem feriados)', () => {
+    // Jan 1 (feriado: Confraternização) → excluído. Jan 2 (Thu), Jan 3 (Fri) = 2 BD.
     const start = new Date(Date.UTC(2025, 0, 1));
     const end = new Date(Date.UTC(2025, 0, 5));
     const timeline = buildDailyTimeline(start, end);
-    expect(timeline).toHaveLength(3);
+    expect(timeline).toHaveLength(2);
     expect(timeline[1] - timeline[0]).toBe(DAY_MS);
   });
 
@@ -111,7 +111,8 @@ describe('buildDailyTimeline', () => {
     const start = new Date(Date.UTC(2025, 0, 1, 15, 30));
     const end = new Date(Date.UTC(2025, 0, 3, 8, 0));
     const timeline = buildDailyTimeline(start, end);
-    expect(timeline).toHaveLength(3);
+    // Jan 1 (feriado) excluído; Jan 2 (Thu), Jan 3 (Fri) = 2 BD
+    expect(timeline).toHaveLength(2);
     // All should be at UTC midnight
     timeline.forEach((t) => {
       const d = new Date(t);
@@ -119,12 +120,12 @@ describe('buildDailyTimeline', () => {
     });
   });
 
-  it('funciona com intervalo de 30 dias (exclui fins de semana)', () => {
-    // Jan 2025 has 23 weekdays (31 days - 4 Sat - 4 Sun)
+  it('funciona com intervalo de 30 dias (exclui fins de semana e feriados)', () => {
+    // Jan 2025: 31 days - 4 Sat - 4 Sun - 1 feriado (01/01) = 22 BD
     const start = new Date(Date.UTC(2025, 0, 1));
     const end = new Date(Date.UTC(2025, 0, 31));
     const timeline = buildDailyTimeline(start, end);
-    expect(timeline).toHaveLength(23);
+    expect(timeline).toHaveLength(22);
     // Verify no weekends (UTC weekday)
     timeline.forEach((t) => {
       const d = new Date(t);
@@ -443,13 +444,14 @@ describe('filterInvestmentsExclReservas', () => {
 
 describe('buildPatrimonioCashFlowsByDayOnly', () => {
   it('retorna mapa com entradas para cada dia da timeline', () => {
-    const day1 = normalizeDateStart(new Date(2025, 0, 1)).getTime();
-    const day2 = normalizeDateStart(new Date(2025, 0, 2)).getTime();
+    // Jan 2 (Thu, BD), Jan 3 (Fri, BD). Jan 1 (Confraternização) seria filtrado.
+    const day1 = normalizeDateStart(new Date(Date.UTC(2025, 0, 2))).getTime();
+    const day2 = normalizeDateStart(new Date(Date.UTC(2025, 0, 3))).getTime();
     const timeline = [day1, day2];
 
     const tx = {
       id: 'tx-1',
-      date: new Date(2025, 0, 1),
+      date: new Date(Date.UTC(2025, 0, 2)),
       type: 'compra',
       quantity: 10,
       price: 50,
@@ -466,7 +468,7 @@ describe('buildPatrimonioCashFlowsByDayOnly', () => {
   });
 
   it('retorna mapa zerado para inputs vazios', () => {
-    const day1 = normalizeDateStart(new Date(2025, 0, 1)).getTime();
+    const day1 = normalizeDateStart(new Date(Date.UTC(2025, 0, 2))).getTime();
     const timeline = [day1];
     const result = buildPatrimonioCashFlowsByDayOnly([], [], [], [], timeline);
     expect(result.size).toBe(1);

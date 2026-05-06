@@ -1,4 +1,5 @@
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
+import { isHolidayB3, nextBusinessDayB3 } from '@/utils/feriadosB3';
 import type { Prisma } from '@prisma/client';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -53,20 +54,14 @@ export const normalizeDateStart = (date: Date) => {
 
 /**
  * Mapeia uma data de transação para o dia útil em que ela passa a "valer" no
- * timeline. Transações em fim de semana (B3 fechada) são empurradas para a
- * próxima segunda-feira; do contrário ficariam órfãs — `buildDailyTimeline`
- * filtra fins de semana, então `appliedDeltasByDay.get(day)` para um sábado
- * nunca é consultado e o aporte some silenciosamente da série.
+ * timeline. Transações em fim de semana ou feriado nacional (B3 fechada) são
+ * empurradas para o próximo dia útil; do contrário ficariam órfãs —
+ * `buildDailyTimeline` filtra ambos, então `appliedDeltasByDay.get(day)` para
+ * um sábado/feriado nunca é consultado e o aporte some silenciosamente da série.
+ *
+ * Convenção D+next ANBIMA: cashflows em D não-útil contam em D+next BD.
  */
-export const shiftToBusinessDay = (ts: number): number => {
-  let day = ts;
-  for (let i = 0; i < 7; i++) {
-    const dow = new Date(day).getUTCDay();
-    if (dow !== 0 && dow !== 6) return day;
-    day += DAY_MS;
-  }
-  return ts;
-};
+export const shiftToBusinessDay = (ts: number): number => nextBusinessDayB3(ts);
 
 export const buildDailyTimeline = (startDate: Date, endDate: Date) => {
   const start = normalizeDateStart(startDate).getTime();
@@ -76,10 +71,12 @@ export const buildDailyTimeline = (startDate: Date, endDate: Date) => {
   for (let day = start; day <= end; day += DAY_MS) {
     const d = new Date(day);
     const dow = d.getUTCDay();
-    // Skip weekends — B3 and most markets are closed Sat/Sun.
-    // Holidays are not filtered (prices just carry forward), which is fine
-    // since no trades happen and portfolio value stays flat.
+    // Pula fim-de-semana E feriados nacionais B3/BACEN. Feriados são críticos pra
+    // FI pré-fixada/IPCA-híbrida: sem o filtro, `dailyPreFactor` compõe ~10-13×/ano
+    // a mais, inflando saldo bruto em ~3% em 6 anos vs Kinvo/ANBIMA. Para CDI puro
+    // o filtro é redundante (BACEN não publica em feriado, get(day) já é undefined).
     if (dow === 0 || dow === 6) continue;
+    if (isHolidayB3(d)) continue;
     timeline.push(day);
   }
 
@@ -148,9 +145,12 @@ export const calculateFixedIncomeValue = (
 };
 
 export const getDayKey = (ts: number): number => {
+  // Mesmo invariante de normalizeDateStart: ancorar em UTC. setHours local em
+  // BRT (UTC-3) shifta UTC-midnight pro dia anterior, desalinhando dayKey
+  // entre tx.date (UTC) e timeline iterator. Foi a causa do "ativo cai no
+  // dia anterior" em séries de patrimônio/MWR no fuso brasileiro.
   const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 };
 
 /** Taxa diária do CDI (fração decimal, ex.: 0.000521 para ~13.65% a.a.) indexada por dayKey. */
@@ -175,6 +175,13 @@ const BUSINESS_DAYS_PER_YEAR = 252;
 const monthKeyOf = (ts: number): string => {
   const d = new Date(ts);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+};
+
+/** Distância em meses entre 'YYYY-MM' a (mais antigo) e b (mais recente). >= 0. */
+const monthDistance = (a: string, b: string): number => {
+  const [ay, am] = a.split('-').map(Number);
+  const [by, bm] = b.split('-').map(Number);
+  return (by - ay) * 12 + (bm - am);
 };
 
 /**
@@ -256,6 +263,37 @@ export const buildFixedIncomeFactorSeries = (
   // Inicia no mês da aplicação para que o IPCA do mês em curso não seja aplicado
   // quando cruzarmos para o próximo mês (seria cobrar IPCA retroativo da fração pré-aplicação).
   let lastMonthApplied = monthKeyOf(startTs);
+  // Fila de meses esperando IPCA: cobre 2 cenários:
+  //  (a) BACEN publica IPCA ~10 dias após fechar o mês — durante a janela
+  //      de espera, mês fica pendente e é aplicado retroativamente quando taxa chega.
+  //  (b) Mês permanentemente sem IPCA (gap histórico no economic_index) — fica
+  //      pendente até `IPCA_MAX_PENDING_MONTHS`, depois é descartado pra não
+  //      bloquear meses subsequentes (bug histórico: lastMonthApplied travava em "2020-05"
+  //      e nenhum IPCA pós-2021 era aplicado).
+  const pendingIpcaMonths: string[] = [];
+  const IPCA_MAX_PENDING_MONTHS = 3; // descarta após 3 meses sem publicação
+
+  const tryApplyPendingIpca = (currentMonth: string): number => {
+    if (!ctx.ipca || pendingIpcaMonths.length === 0) return 1;
+    let mult = 1;
+    const remaining: string[] = [];
+    for (const month of pendingIpcaMonths) {
+      const rate = ctx.ipca.get(month);
+      if (rate != null && Number.isFinite(rate)) {
+        mult *= 1 + rate;
+      } else {
+        // Não publicou ainda — calcula idade do pendente vs currentMonth.
+        // Se exceder janela, descarta (sem multiplicar). Senão mantém pra retry.
+        const ageMonths = monthDistance(month, currentMonth);
+        if (ageMonths < IPCA_MAX_PENDING_MONTHS) {
+          remaining.push(month);
+        }
+      }
+    }
+    pendingIpcaMonths.length = 0;
+    pendingIpcaMonths.push(...remaining);
+    return mult;
+  };
 
   for (const day of fullTimeline) {
     if (day < startTs) {
@@ -296,19 +334,19 @@ export const buildFixedIncomeFactorSeries = (
         }
       }
     } else if (day > startTs) {
-      // IPCA: aplica a taxa do mês anterior ao cruzar para um novo mês.
-      // IPCA é publicado ~10 dias após o fechamento do mês — só avança lastMonthApplied
-      // quando a taxa estiver disponível, senão aplicamos retroativamente nos dias seguintes.
+      // IPCA: ao cruzar pra novo mês, enfileira o mês recém-fechado pra aplicação.
+      // Tenta drenar a fila imediatamente (BACEN pode ter publicado a taxa via cron).
+      // `lastMonthApplied` AGORA SEMPRE avança — meses sem IPCA ficam na fila
+      // (até IPCA_MAX_PENDING_MONTHS) e depois são descartados, evitando bloqueio
+      // permanente quando há gap histórico no economic_index (bug pré-fix).
       if (indexer === 'IPCA') {
         const currentMonth = monthKeyOf(day);
         if (currentMonth !== lastMonthApplied) {
-          const ipcaRate = ctx.ipca?.get(lastMonthApplied);
-          if (ipcaRate != null && Number.isFinite(ipcaRate)) {
-            factor *= 1 + ipcaRate;
-            lastMonthApplied = currentMonth;
-          }
+          pendingIpcaMonths.push(lastMonthApplied);
+          lastMonthApplied = currentMonth;
         }
-        // Para híbrido (IPCA + X%), o spread (annualRate) é aplicado diariamente.
+        factor *= tryApplyPendingIpca(currentMonth);
+        // Spread do híbrido (IPCA + X%) compõe diariamente.
         factor *= dailyPreFactor;
       } else {
         // PRE (default) — segue D+1 (rendimento começa no dia útil seguinte).

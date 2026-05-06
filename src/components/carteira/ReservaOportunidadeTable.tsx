@@ -105,7 +105,7 @@ const ReservaOportunidadeTableRow: React.FC<ReservaOportunidadeTableRowProps> = 
       <StandardTableBodyCell align="center">{ativo.cotizacaoResgate}</StandardTableBodyCell>
       <StandardTableBodyCell align="center">{ativo.liquidacaoResgate}</StandardTableBodyCell>
       <StandardTableBodyCell align="center">
-        {ativo.vencimento.toLocaleDateString('pt-BR')}
+        {ativo.vencimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
       </StandardTableBodyCell>
       <StandardTableBodyCell align="center">{ativo.benchmark}</StandardTableBodyCell>
       <StandardTableBodyCell align="right">

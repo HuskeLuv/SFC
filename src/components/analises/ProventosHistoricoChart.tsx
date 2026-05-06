@@ -110,7 +110,8 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
       if (Number.isNaN(date.getTime())) {
         return;
       }
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      // UTC keys: provento.data é UTC midnight; local em BRT shifta pro mês anterior se cair em dia 1.
+      const monthKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
       if (!monthlyMap.has(monthKey)) {
         monthlyMap.set(monthKey, new Map());
       }
@@ -238,7 +239,7 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
               'Nov',
               'Dez',
             ];
-            return `${months[date.getMonth()]} ${date.getFullYear()}`;
+            return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
           },
         },
       },
@@ -283,7 +284,7 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
             'Novembro',
             'Dezembro',
           ];
-          const title = date ? `${months[date.getMonth()]} ${date.getFullYear()}` : '';
+          const title = date ? `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}` : '';
 
           type TooltipEntry = {
             name: string;

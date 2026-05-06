@@ -170,6 +170,77 @@ describe('buildFixedIncomeFactorSeries', () => {
     expect(factors.get(timeline[lastIdx])).toBeCloseTo(expected, 8);
   });
 
+  // ──────────────────────────────────────────────────────────────────────
+  // Regressão: bug do "lastMonthApplied travado".
+  //
+  // Antes do fix: se um mês intermediário não tinha IPCA no DB, lastMonthApplied
+  // ficava preso nesse mês e nenhum IPCA subsequente era aplicado por toda a
+  // timeline. Bug crítico em ativos antigos com gap histórico no economic_index.
+  // ──────────────────────────────────────────────────────────────────────
+  it('IPCA: mês intermediário ausente NÃO bloqueia aplicação dos meses seguintes', () => {
+    // Cenário: ativo desde 02/01/2025, timeline indo até 02/04/2025.
+    // IPCA disponível: 2025-02 (0.5%), 2025-03 (0.6%). Faltando: 2025-01.
+    // Esperado: o mês de janeiro é descartado após max-pending (3 meses),
+    // mas fevereiro e março são aplicados normalmente.
+    const start = new Date(Date.UTC(2025, 0, 2));
+    const fi = makeFi({ startDate: start, annualRate: 5, indexer: 'IPCA' });
+    const timeline = buildDailyTimeline(start, new Date(Date.UTC(2025, 3, 2)));
+
+    const ipca: IpcaMonthly = new Map([
+      ['2025-02', 0.005],
+      ['2025-03', 0.006],
+      // 2025-01 ausente!
+    ]);
+    const factors = buildFixedIncomeFactorSeries(fi, timeline, { ipca });
+
+    const lastDay = timeline[timeline.length - 1];
+    const finalFactor = factors.get(lastDay)!;
+
+    // Spread continuou compondo todos os dias úteis. IPCA de fev e mar devem
+    // ter sido aplicados (jan descartado por max-pending).
+    const dailyPreFactor = Math.pow(1.05, 1 / 252);
+    const totalDays = timeline.length;
+    const expectedSpread = Math.pow(dailyPreFactor, totalDays - 1); // -1 pq day 0 = startDate
+    // O fator deve ser MAIOR que só spread (porque fev e mar IPCA foram aplicados)
+    expect(finalFactor).toBeGreaterThan(expectedSpread * 1.005); // pelo menos +0.5% de IPCA
+    expect(finalFactor).toBeLessThan(expectedSpread * 1.012); // não mais que ~1.2% de IPCA combinado
+  });
+
+  it('IPCA: publicação atrasada é aplicada retroativamente quando taxa chega', () => {
+    // Cenário: cron BACEN publica IPCA de janeiro só no dia 10 de fevereiro.
+    // Durante os primeiros dias úteis de fevereiro, IPCA de jan ainda não está
+    // no map; depois ele aparece e deve ser aplicado retroativamente.
+    const start = new Date(Date.UTC(2025, 0, 2));
+    const fi = makeFi({ startDate: start, annualRate: 5, indexer: 'IPCA' });
+    const timeline = buildDailyTimeline(start, new Date(Date.UTC(2025, 1, 28)));
+
+    // Simula o map "completo" — a fila pendente garante aplicação ao cruzar mês.
+    const ipca: IpcaMonthly = new Map([['2025-01', 0.005]]);
+    const factors = buildFixedIncomeFactorSeries(fi, timeline, { ipca });
+
+    const lastDay = timeline[timeline.length - 1];
+    const finalFactor = factors.get(lastDay)!;
+    // Esperado: IPCA jan (0.5%) aplicado + spread acumulado em todos os BD
+    const dailyPreFactor = Math.pow(1.05, 1 / 252);
+    const spreadOnly = Math.pow(dailyPreFactor, timeline.length - 1);
+    expect(finalFactor).toBeCloseTo(1.005 * spreadOnly, 6);
+  });
+
+  it('IPCA totalmente ausente — gracefully aplica só spread, sem travar', () => {
+    // Cenário extremo: nenhum IPCA disponível em economic_index.
+    // Antes: bug travava lastMonthApplied. Depois: nada é aplicado de IPCA, só spread.
+    const start = new Date(Date.UTC(2025, 0, 2));
+    const fi = makeFi({ startDate: start, annualRate: 5, indexer: 'IPCA' });
+    const timeline = buildDailyTimeline(start, new Date(Date.UTC(2025, 5, 30))); // 6 meses
+
+    const factors = buildFixedIncomeFactorSeries(fi, timeline, { ipca: new Map() });
+    const lastDay = timeline[timeline.length - 1];
+    const finalFactor = factors.get(lastDay)!;
+    // Sem IPCA, factor deve ser só (1+annualRate)^(N/252)
+    const dailyPreFactor = Math.pow(1.05, 1 / 252);
+    expect(finalFactor).toBeCloseTo(Math.pow(dailyPreFactor, timeline.length - 1), 6);
+  });
+
   it('Tesouro com PU — usa razão pu_dia / pu_start', () => {
     const start = new Date(2025, 0, 2);
     const fi = makeFi({
@@ -303,6 +374,58 @@ describe('buildFixedIncomeFactorSeries', () => {
 
     // Resultado contém apenas dias do timeline solicitado, não os dias intermediários.
     expect(factors.size).toBe(timeline.length);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Regressão: feriado nacional NÃO deve compor pra PRE-fixada (LCA-style)
+  // ──────────────────────────────────────────────────────────────────────
+  it('PRE: feriado entre 2 BDs não compõe (Tiradentes 2025)', () => {
+    // Cenário: LCA PRE 12% a.a., timeline 17/04 (Thu) → 22/04 (Tue 2025).
+    // 18/04 = Sexta-feira Santa (feriado), 21/04 = Tiradentes (feriado).
+    // Sem filtro de feriado o factor componderia 4×; com filtro só nos 2 BD reais.
+    const fi = makeFi({
+      startDate: new Date(Date.UTC(2025, 3, 17)), // Thu Apr 17 2025
+      annualRate: 12,
+      indexer: 'PRE',
+    });
+    const start = new Date(Date.UTC(2025, 3, 17));
+    const end = new Date(Date.UTC(2025, 3, 22));
+    const timeline = buildDailyTimeline(start, end);
+
+    // Esperado: 17 (Thu), 22 (Tue) — Sexta Santa, sábado, domingo, Tiradentes filtrados.
+    expect(timeline).toHaveLength(2);
+
+    const factors = buildFixedIncomeFactorSeries(fi, timeline);
+    // 1 compounding (D+0 inclusive em Apr 17 = startDate, depois Apr 22 acumula 1 dailyPreFactor).
+    const dailyPreFactor = Math.pow(1.12, 1 / 252);
+    expect(factors.get(timeline[0])).toBeCloseTo(1, 8); // startDate, factor=1
+    expect(factors.get(timeline[1])).toBeCloseTo(dailyPreFactor, 8);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Regressão: CDI puro permanece inalterado (filtro implícito por data)
+  // ──────────────────────────────────────────────────────────────────────
+  it('CDI puro: comportamento idêntico antes/depois do filtro de feriado', () => {
+    // CDI já era gateado por `cdi.get(day) == undefined` — o filtro de feriado
+    // na timeline não muda o resultado quando indexer=CDI sem spread.
+    const fi = makeFi({
+      type: 'CDB_PRE',
+      indexer: 'CDI',
+      indexerPercent: 100,
+      annualRate: 0,
+      startDate: new Date(Date.UTC(2025, 3, 17)),
+    });
+    const start = new Date(Date.UTC(2025, 3, 17));
+    const end = new Date(Date.UTC(2025, 3, 22));
+    const timeline = buildDailyTimeline(start, end);
+    const cdi: CdiDaily = new Map();
+    // CDI publicado nos 2 BD reais (BACEN não publica em feriado, naturalmente)
+    timeline.forEach((day) => cdi.set(day, 0.0005));
+
+    const factors = buildFixedIncomeFactorSeries(fi, timeline, { cdi });
+    // 1 compounding em Apr 22 (D+0 da inception em Apr 17 não conta porque não há cdi pré-publicado pra ele).
+    expect(factors.get(timeline[0])).toBeCloseTo(1.0005, 8);
+    expect(factors.get(timeline[1])).toBeCloseTo(Math.pow(1.0005, 2), 8);
   });
 });
 

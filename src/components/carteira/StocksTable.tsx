@@ -11,6 +11,7 @@ import {
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
+import { formatWallClockDate } from '@/utils/formatDate';
 import PieChartStocksAtivo from '@/components/charts/pie/PieChartStocksAtivo';
 
 const SECTION_ORDER = ['value', 'growth', 'risk'] as const;
@@ -60,7 +61,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
           <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} />
           {a.dataCompra && (
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              {new Date(a.dataCompra).toLocaleDateString('pt-BR')}
+              {formatWallClockDate(a.dataCompra)}
             </div>
           )}
         </div>
@@ -310,9 +311,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                     >
                       <td className="px-2 py-2 text-xs text-black">{item.nome}</td>
                       <td className="px-2 py-2 text-xs text-black">
-                        {item.dataCompra
-                          ? new Date(item.dataCompra).toLocaleDateString('pt-BR')
-                          : '-'}
+                        {item.dataCompra ? formatWallClockDate(item.dataCompra) : '-'}
                       </td>
                       <td className="px-2 py-2 text-xs text-right text-black">
                         {formatCurrency(item.cotacaoAtual)}

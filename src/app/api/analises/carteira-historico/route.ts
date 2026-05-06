@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
+import {
+  buildDailyTimeline,
+  normalizeDateStart,
+} from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 interface IndexData {
@@ -10,27 +15,6 @@ interface IndexData {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-const normalizeDateStart = (date: Date) => {
-  const normalized = new Date(date);
-  normalized.setHours(0, 0, 0, 0);
-  return normalized;
-};
-
-const buildDailyTimeline = (startDate: Date, endDate: Date) => {
-  const start = normalizeDateStart(startDate).getTime();
-  const end = normalizeDateStart(endDate).getTime();
-  const timeline: number[] = [];
-
-  for (let day = start; day <= end; day += DAY_MS) {
-    const d = new Date(day);
-    const dow = d.getDay();
-    if (dow === 0 || dow === 6) continue; // Skip weekends
-    timeline.push(day);
-  }
-
-  return timeline;
-};
 
 const buildDailyPriceMap = (history: IndexData[], timeline: number[], initialPrice?: number) => {
   const sorted = [...history]
@@ -80,11 +64,15 @@ const getTransactionValue = (transaction: { total: number; quantity: number; pri
   return Number.isFinite(fallback) ? fallback : 0;
 };
 
-/** Retorna chave do dia (meia-noite local) para lookup consistente */
+/**
+ * Retorna chave do dia (UTC midnight) para lookup consistente. Ancorar em UTC
+ * (não local) porque tx.date é gravado como UTC midnight. Em fusos negativos
+ * (BRT), setHours local shifta a key pro dia anterior, fazendo cashFlowsByDay
+ * desalinhar com o timeline e a série TWR perder o aporte do dia 0.
+ */
 const getDayKey = (ts: number): number => {
   const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 };
 
 const calculateTwrSeries = (portfolioValues: IndexData[], cashFlowsByDay: Map<number, number>) => {
@@ -250,7 +238,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const symbol = trans.stock?.ticker || trans.asset?.symbol;
     if (!symbol) return;
 
-    const dayKey = getDayKey(new Date(trans.date).getTime());
+    // Quando tx cai em fim-de-semana/feriado, ancora no próximo dia útil B3 —
+    // convenção D+next ANBIMA. Sem isso, o cashflow desse tx some no TWR
+    // porque a timeline filtrada (sem feriados) não tem essa key.
+    const rawDayKey = getDayKey(new Date(trans.date).getTime());
+    const dayKey = nextBusinessDayB3(rawDayKey);
     const value = getTransactionValue(trans);
     const qtyDelta = trans.type === 'compra' ? trans.quantity : -trans.quantity;
 

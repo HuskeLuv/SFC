@@ -18,6 +18,7 @@ import {
   type TesouroPU,
   type FixedIncomeAssetWithAsset,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -71,10 +72,11 @@ const getTransactionValue = (transaction: { total: number; quantity: number; pri
   return Number.isFinite(fallback) ? fallback : 0;
 };
 
+// UTC midnight pra alinhar com tx.date (UTC). setHours local em BRT shifta
+// pro dia anterior, fazendo cashFlowsByDay/TWR perder o ponto inicial do ativo.
 const getDayKey = (ts: number): number => {
   const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 };
 
 const calculateHistoricoTWR = (
@@ -251,9 +253,12 @@ const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedInco
     saldoBruto: round2(fi.investedAmount * (factorByDay.get(day) ?? 1)),
   }));
 
-  // Fluxo único na inception (quando dentro da janela de exibição)
+  // Fluxo único na inception (quando dentro da janela de exibição). Se a
+  // inception caiu em fim-de-semana/feriado, ancora no próximo dia útil pra
+  // alinhar com a timeline filtrada (senão o TWR perde esse cashflow).
   const cashFlowsByDay = new Map<number, number>();
-  const startTs = normalizeDateStartShared(startDate).getTime();
+  const startTsRaw = normalizeDateStartShared(startDate).getTime();
+  const startTs = nextBusinessDayB3(startTsRaw);
   if (startTs >= displayStartTs) {
     cashFlowsByDay.set(startTs, fi.investedAmount);
   }
@@ -546,7 +551,10 @@ export const GET = withErrorHandler(
       const pricePointsBySymbol: Array<{ date: number; value: number }> = [];
 
       transactions.forEach((tx) => {
-        const day = normalizeDateStart(tx.date).getTime();
+        // tx em weekend/feriado é ancorado no próximo BD pra alinhar com timeline filtrada.
+        // normalizeDateStartShared (UTC) em vez do local pra evitar shift de dia em BRT.
+        const dayRaw = normalizeDateStartShared(tx.date).getTime();
+        const day = nextBusinessDayB3(dayRaw);
         const qtyDelta = tx.type === 'compra' ? tx.quantity : -tx.quantity;
         quantityDeltasByDay.set(day, (quantityDeltasByDay.get(day) || 0) + qtyDelta);
         const totalValue = getTransactionValue(tx);
@@ -558,7 +566,9 @@ export const GET = withErrorHandler(
       });
 
       if (transactions.length === 0 && portfolio.quantity > 0) {
-        const day = normalizeDateStart(portfolio.lastUpdate || new Date()).getTime();
+        const day = nextBusinessDayB3(
+          normalizeDateStartShared(portfolio.lastUpdate || new Date()).getTime(),
+        );
         const investedValue =
           portfolio.totalInvested > 0
             ? portfolio.totalInvested

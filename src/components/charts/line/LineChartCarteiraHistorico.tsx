@@ -237,10 +237,11 @@ export default function LineChartCarteiraHistorico({
               'Nov',
               'Dez',
             ];
+            // UTC accessors: timestamps são UTC midnight; local em BRT mostra dia anterior.
             if (isShortPeriod) {
-              return `${String(date.getDate()).padStart(2, '0')} ${months[date.getMonth()]}`;
+              return `${String(date.getUTCDate()).padStart(2, '0')} ${months[date.getUTCMonth()]}`;
             }
-            return `${months[date.getMonth()]} ${date.getFullYear()}`;
+            return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
           },
         },
       },
@@ -285,7 +286,7 @@ export default function LineChartCarteiraHistorico({
               'Novembro',
               'Dezembro',
             ];
-            return `${months[date.getMonth()]} ${date.getFullYear()}`;
+            return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
           },
         },
         y: {

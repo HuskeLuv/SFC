@@ -164,11 +164,15 @@ interface RentabilidadeChartProps {
   legendPosition?: 'top' | 'bottom';
 }
 
-/** Normaliza timestamp para meia-noite local (alinhar datas de timezones diferentes) */
+/**
+ * Normaliza timestamp para UTC midnight para alinhar séries entre si.
+ * Anchorar em UTC (não local) é crítico em fusos negativos como BRT: timestamps
+ * vindos do backend são UTC midnight ("2026-05-06T00:00:00Z"); setHours local
+ * shifta pro dia anterior e o ponto do gráfico cai um dia antes do real.
+ */
 const toDayKey = (ts: number): number => {
   const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 };
 
 // Cores para cada série
@@ -619,9 +623,11 @@ export default function RentabilidadeChart({
           },
           showDuplicates: false,
           formatter: (val: string) => {
+            // Usar UTC accessors: o dayKey é UTC midnight (Date.UTC), local
+            // accessors em BRT mostrariam o dia anterior no eixo.
             const date = new Date(Number(val));
             if (period === '1d') {
-              return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+              return `${date.getUTCDate().toString().padStart(2, '0')}/${(date.getUTCMonth() + 1).toString().padStart(2, '0')}`;
             }
             if (period === '1mo') {
               const monthsFull = [
@@ -638,10 +644,10 @@ export default function RentabilidadeChart({
                 'Nov',
                 'Dez',
               ];
-              return `${monthsFull[date.getMonth()]} ${date.getFullYear()}`;
+              return `${monthsFull[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
             }
             if (period === '1y') {
-              return date.getFullYear().toString();
+              return date.getUTCFullYear().toString();
             }
             const months = [
               'Jan',
@@ -657,7 +663,7 @@ export default function RentabilidadeChart({
               'Nov',
               'Dez',
             ];
-            return `${months[date.getMonth()]} ${date.getFullYear()}`;
+            return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
           },
         },
       },
@@ -693,10 +699,10 @@ export default function RentabilidadeChart({
           formatter: (val: number) => {
             const date = new Date(val);
             if (period === '1d') {
-              return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+              return `${date.getUTCDate().toString().padStart(2, '0')}/${(date.getUTCMonth() + 1).toString().padStart(2, '0')}/${date.getUTCFullYear()}`;
             }
             if (period === '1y') {
-              return date.getFullYear().toString();
+              return date.getUTCFullYear().toString();
             }
             const months = [
               'Janeiro',
@@ -712,7 +718,7 @@ export default function RentabilidadeChart({
               'Novembro',
               'Dezembro',
             ];
-            return `${months[date.getMonth()]} ${date.getFullYear()}`;
+            return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
           },
         },
         y: {

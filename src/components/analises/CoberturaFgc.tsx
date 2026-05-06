@@ -348,7 +348,9 @@ export default function CoberturaFgc() {
                             </td>
                             <td className="whitespace-nowrap px-5 py-3 text-gray-700 dark:text-gray-300">
                               {ativo.vencimento
-                                ? new Date(ativo.vencimento).toLocaleDateString('pt-BR')
+                                ? new Date(ativo.vencimento).toLocaleDateString('pt-BR', {
+                                    timeZone: 'UTC',
+                                  })
                                 : '—'}
                             </td>
                             <td className="whitespace-nowrap px-5 py-3 text-center">

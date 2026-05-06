@@ -286,7 +286,10 @@ export const createFixedIncomePricer = async (
     const val = Number(row.value);
     if (!Number.isFinite(val)) return;
     const d = new Date(row.date);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    // UTC para casar com `monthKeyOf` no patrimonioHistoricoBuilder. Em host BRT,
+    // local accessors mapeavam IPCA do dia "2021-05-01T00:00:00Z" para "2021-04",
+    // desalinhando do consumidor (que monta key UTC).
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
     ipcaGlobal.set(key, val);
   });
 

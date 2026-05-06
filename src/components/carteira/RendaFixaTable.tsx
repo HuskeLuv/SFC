@@ -159,7 +159,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
         )}
       </td>
       <td className="px-2 py-2 text-xs text-center text-black">
-        {ativo.vencimento.toLocaleDateString('pt-BR')}
+        {ativo.vencimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
       </td>
       <td className="px-2 py-2 text-xs text-center text-black">
         {isEditingBenchmark ? (

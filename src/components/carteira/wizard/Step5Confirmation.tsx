@@ -57,8 +57,9 @@ export default function Step5Confirmation({
 
   const formatDate = (dateString: string | number | Date | null | undefined) => {
     if (!dateString) return '-';
-    if (dateString instanceof Date) return dateString.toLocaleDateString('pt-BR');
-    return new Date(dateString).toLocaleDateString('pt-BR');
+    if (dateString instanceof Date)
+      return dateString.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+    return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
   };
 
   const renderFieldValue = (
@@ -75,7 +76,7 @@ export default function Step5Confirmation({
           {formatter
             ? formatter(value)
             : value instanceof Date
-              ? value.toLocaleDateString('pt-BR')
+              ? value.toLocaleDateString('pt-BR', { timeZone: 'UTC' })
               : value}
         </span>
       </div>

@@ -143,12 +143,16 @@ export default function Step4TesouroDiretoFields({
             {tesouroDetails.asset?.maturityDate && (
               <div>
                 <span className="font-medium">Vencimento:</span>{' '}
-                {new Date(tesouroDetails.asset.maturityDate).toLocaleDateString('pt-BR')}
+                {new Date(tesouroDetails.asset.maturityDate).toLocaleDateString('pt-BR', {
+                  timeZone: 'UTC',
+                })}
               </div>
             )}
             <div>
               <span className="font-medium">Data base:</span>{' '}
-              {new Date(tesouroDetails.price.baseDate).toLocaleDateString('pt-BR')}
+              {new Date(tesouroDetails.price.baseDate).toLocaleDateString('pt-BR', {
+                timeZone: 'UTC',
+              })}
             </div>
           </div>
         </div>

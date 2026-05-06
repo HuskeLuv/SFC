@@ -22,6 +22,7 @@ const formatVencimento = (vencimento: string) => {
     day: '2-digit',
     month: '2-digit',
     year: '2-digit',
+    timeZone: 'UTC',
   });
 };
 
