@@ -10,7 +10,6 @@ interface UseMoedasCriptosReturn {
   formatPercentage: (value: number) => string;
   formatNumber: (value: number) => string;
   updateObjetivo: (ativoId: string, novoObjetivo: number) => Promise<void>;
-  updateCotacao: (ativoId: string, novaCotacao: number) => Promise<void>;
   updateCaixaParaInvestir: (novoCaixa: number) => Promise<boolean>;
   refetch: () => void;
 }
@@ -19,7 +18,6 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
   const assetData = useAssetData<MoedaCriptoData>({
     apiPath: '/api/carteira/moedas-criptos',
     objetivoPath: '/api/carteira/moedas-criptos/objetivo',
-    cotacaoPath: '/api/carteira/moedas-criptos/cotacao',
     label: 'moedas e criptomoedas',
     throwOnError: true,
   });
@@ -34,10 +32,6 @@ export const useMoedasCriptos = (): UseMoedasCriptosReturn => {
     updateObjetivo: assetData.updateObjetivo as (
       ativoId: string,
       novoObjetivo: number,
-    ) => Promise<void>,
-    updateCotacao: assetData.updateCotacao as (
-      ativoId: string,
-      novaCotacao: number,
     ) => Promise<void>,
     updateCaixaParaInvestir: assetData.updateCaixaParaInvestir,
     refetch: assetData.refetch,

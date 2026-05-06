@@ -10,7 +10,6 @@ interface UsePrevidenciaSegurosReturn {
   formatPercentage: (value: number) => string;
   formatNumber: (value: number) => string;
   updateObjetivo: (ativoId: string, novoObjetivo: number) => Promise<void>;
-  updateCotacao: (ativoId: string, novaCotacao: number) => Promise<void>;
   updateCaixaParaInvestir: (novoCaixa: number) => Promise<boolean>;
   refetch: () => void;
 }
@@ -19,7 +18,6 @@ export const usePrevidenciaSeguros = (): UsePrevidenciaSegurosReturn => {
   const assetData = useAssetData<PrevidenciaSegurosData>({
     apiPath: '/api/carteira/previdencia-seguros',
     objetivoPath: '/api/carteira/previdencia-seguros/objetivo',
-    cotacaoPath: '/api/carteira/previdencia-seguros/cotacao',
     label: 'previdência e seguros',
     throwOnError: true,
   });
@@ -34,10 +32,6 @@ export const usePrevidenciaSeguros = (): UsePrevidenciaSegurosReturn => {
     updateObjetivo: assetData.updateObjetivo as (
       ativoId: string,
       novoObjetivo: number,
-    ) => Promise<void>,
-    updateCotacao: assetData.updateCotacao as (
-      ativoId: string,
-      novaCotacao: number,
     ) => Promise<void>,
     updateCaixaParaInvestir: assetData.updateCaixaParaInvestir,
     refetch: assetData.refetch,

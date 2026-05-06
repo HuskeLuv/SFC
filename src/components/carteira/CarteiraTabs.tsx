@@ -6,7 +6,7 @@ import { useCarteira } from '@/hooks/useCarteira';
 import { useAlocacaoConfig } from '@/hooks/useAlocacaoConfig';
 import { CarteiraResumoProvider } from '@/context/CarteiraResumoContext';
 import type { NecessidadeAporteMap } from '@/context/CarteiraResumoContext';
-import { queryKeys } from '@/lib/queryKeys';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 
 // Lazy loading dos componentes de conteúdo
 const CarteiraResumo = lazy(() => import('./CarteiraResumo'));
@@ -66,9 +66,7 @@ export default function CarteiraTabs() {
   const alocacaoConfig = useAlocacaoConfig();
 
   const invalidateAssets = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.reserva.emergencia() });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.reserva.oportunidade() });
+    invalidatePortfolioDerivedQueries(queryClient);
   }, [queryClient]);
 
   const necessidadeAporteMap = useMemo<NecessidadeAporteMap>(() => {

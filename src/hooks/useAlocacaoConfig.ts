@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 
 export interface AlocacaoConfig {
   categoria: string;
@@ -92,6 +93,9 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
       // Sync cache with saved data and clear local edits
       queryClient.setQueryData<AlocacaoConfig[]>(queryKey, configuracoes);
       setLocalEdits(null);
+      // Alocação afeta necessidadeAporte/quantoFalta agregados em CarteiraTabs +
+      // qualquer view derivada da target alocação.
+      invalidatePortfolioDerivedQueries(queryClient);
       return true;
     } catch (err) {
       console.error('Erro ao salvar configurações:', err);

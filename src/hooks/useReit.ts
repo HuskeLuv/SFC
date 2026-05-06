@@ -5,7 +5,6 @@ export const useReit = () => {
   const assetData = useAssetData<ReitData>({
     apiPath: '/api/carteira/reit',
     objetivoPath: '/api/carteira/reit/objetivo',
-    cotacaoPath: '/api/carteira/reit/cotacao',
     valorAtualizadoPath: '/api/carteira/reit',
     label: 'REIT',
     currency: 'USD',
@@ -103,10 +102,6 @@ export const useReit = () => {
     updateValorAtualizado: assetData.updateValorAtualizado as (
       ativoId: string,
       novoValor: number,
-    ) => Promise<boolean>,
-    updateCotacao: assetData.updateCotacao as (
-      ativoId: string,
-      novaCotacao: number,
     ) => Promise<boolean>,
     calculateAtivoValues,
     calculateSecaoValues,

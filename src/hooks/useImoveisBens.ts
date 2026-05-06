@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImovelBemData } from '@/types/imoveis-bens';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 
 interface UseImoveisBensReturn {
   data: ImovelBemData | null;
@@ -73,6 +74,7 @@ export const useImoveisBens = (): UseImoveisBensReturn => {
       }
 
       await queryClient.invalidateQueries({ queryKey });
+      invalidatePortfolioDerivedQueries(queryClient);
     } catch (err) {
       console.error('Erro ao atualizar valor atualizado:', err);
       throw err;

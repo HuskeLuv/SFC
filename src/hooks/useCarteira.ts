@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 
 export interface CarteiraResumo {
   saldoBruto: number;
@@ -99,6 +100,7 @@ export const useCarteira = () => {
         if (!response.ok) throw new Error('Erro ao atualizar meta de patrimônio');
 
         await queryClient.invalidateQueries({ queryKey });
+        invalidatePortfolioDerivedQueries(queryClient);
         return true;
       } catch (err) {
         console.error('Erro ao atualizar meta:', err);

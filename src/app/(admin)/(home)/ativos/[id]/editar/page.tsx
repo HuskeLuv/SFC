@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -11,6 +12,8 @@ import { Dropdown } from '@/components/ui/dropdown/Dropdown';
 import { useCsrf } from '@/hooks/useCsrf';
 import { DropdownItem } from '@/components/ui/dropdown/DropdownItem';
 import EditableField from '@/components/carteira/shared/EditableField';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { formatWallClockDate, toDateInputValue } from '@/utils/formatDate';
 import { ArrowRightIcon, ChevronDownIcon, ChevronLeftIcon, PlusIcon, TrashBinIcon } from '@/icons';
 
 const MO_PAGE_SIZE = 6;
@@ -23,19 +26,9 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value);
 
-const formatDate = (dateStr: string) => {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-};
-
-const toDateInputValue = (dateStr: string) => {
-  const d = new Date(dateStr);
-  return d.toISOString().slice(0, 10);
-};
+// Datas de transação são armazenadas como UTC midnight (00:00:00Z do dia escolhido).
+// Sem timeZone:'UTC', viewer em BRT vê o dia anterior — usar formatWallClockDate.
+const formatDate = formatWallClockDate;
 
 const parseDecimalInput = (raw: string): number => {
   const t = raw.trim();
@@ -165,6 +158,7 @@ const AtivoEditarContent = () => {
   const params = useParams();
   const router = useRouter();
   const { csrfFetch } = useCsrf();
+  const queryClient = useQueryClient();
   const id = params?.id as string;
   const [data, setData] = useState<EditarPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -212,6 +206,7 @@ const AtivoEditarContent = () => {
           body: JSON.stringify(body),
         });
         if (res.ok) {
+          invalidatePortfolioDerivedQueries(queryClient);
           await loadData();
         } else {
           const errBody = await res.json().catch(() => ({}));
@@ -224,7 +219,7 @@ const AtivoEditarContent = () => {
         setError('Erro de rede ao salvar alteração');
       }
     },
-    [loadData, csrfFetch],
+    [loadData, csrfFetch, queryClient],
   );
 
   const handleConfirmDeleteTx = useCallback(async () => {
@@ -234,6 +229,7 @@ const AtivoEditarContent = () => {
         method: 'DELETE',
       });
       if (res.ok) {
+        invalidatePortfolioDerivedQueries(queryClient);
         await loadData();
       }
     } catch (err) {
@@ -241,7 +237,7 @@ const AtivoEditarContent = () => {
     } finally {
       setTransacaoIdToDelete(null);
     }
-  }, [transacaoIdToDelete, loadData, csrfFetch]);
+  }, [transacaoIdToDelete, loadData, csrfFetch, queryClient]);
 
   const handleDeletePortfolio = useCallback(async () => {
     if (!id) return;
@@ -250,6 +246,7 @@ const AtivoEditarContent = () => {
         method: 'DELETE',
       });
       if (res.ok) {
+        invalidatePortfolioDerivedQueries(queryClient);
         router.push('/carteira');
         return;
       }
@@ -258,7 +255,7 @@ const AtivoEditarContent = () => {
     } finally {
       setConfirmDeletePortfolio(false);
     }
-  }, [id, router, csrfFetch]);
+  }, [id, router, csrfFetch, queryClient]);
 
   const handleStartEditProvento = useCallback((p: ProventoRow) => {
     setProventoEditingId(p.id);
@@ -319,6 +316,7 @@ const AtivoEditarContent = () => {
           body: JSON.stringify(body),
         });
         if (res.ok) {
+          invalidatePortfolioDerivedQueries(queryClient);
           handleCancelProvento();
           await loadData();
         }
@@ -329,6 +327,7 @@ const AtivoEditarContent = () => {
           body: JSON.stringify(body),
         });
         if (res.ok) {
+          invalidatePortfolioDerivedQueries(queryClient);
           handleCancelProvento();
           await loadData();
         }
@@ -338,7 +337,15 @@ const AtivoEditarContent = () => {
     } finally {
       setProventoSaving(false);
     }
-  }, [proventoDraft, proventoEditingId, id, loadData, handleCancelProvento, csrfFetch]);
+  }, [
+    proventoDraft,
+    proventoEditingId,
+    id,
+    loadData,
+    handleCancelProvento,
+    csrfFetch,
+    queryClient,
+  ]);
 
   const handleConfirmDeleteProvento = useCallback(async () => {
     if (!proventoDeleteId || !id) return;
@@ -347,6 +354,7 @@ const AtivoEditarContent = () => {
         method: 'DELETE',
       });
       if (res.ok) {
+        invalidatePortfolioDerivedQueries(queryClient);
         handleCancelProvento();
         await loadData();
       }
@@ -355,7 +363,7 @@ const AtivoEditarContent = () => {
     } finally {
       setProventoDeleteId(null);
     }
-  }, [proventoDeleteId, id, loadData, handleCancelProvento, csrfFetch]);
+  }, [proventoDeleteId, id, loadData, handleCancelProvento, csrfFetch, queryClient]);
 
   const operacoesPaginadas = useMemo(() => {
     if (!data?.operacoes) return [];

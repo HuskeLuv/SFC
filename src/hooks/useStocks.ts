@@ -84,7 +84,6 @@ export const useCarteiraStocks = () => {
   const assetData = useAssetData<CarteiraStockData>({
     apiPath: '/api/carteira/stocks',
     objetivoPath: '/api/carteira/stocks/objetivo',
-    cotacaoPath: '/api/carteira/stocks/cotacao',
     label: 'Stocks',
     currency: 'USD',
   });
@@ -178,10 +177,6 @@ export const useCarteiraStocks = () => {
     updateObjetivo: assetData.updateObjetivo as (
       ativoId: string,
       novoObjetivo: number,
-    ) => Promise<boolean>,
-    updateCotacao: assetData.updateCotacao as (
-      ativoId: string,
-      novaCotacao: number,
     ) => Promise<boolean>,
     calculateAtivoValues,
     calculateSecaoValues,

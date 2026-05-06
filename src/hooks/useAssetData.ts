@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 
 /**
  * Minimal shape that all asset data types share.
@@ -33,7 +34,6 @@ export interface UseAssetDataConfig {
   // API paths
   apiPath: string;
   objetivoPath: string;
-  cotacaoPath?: string;
   valorAtualizadoPath?: string;
 
   // Display
@@ -44,8 +44,8 @@ export interface UseAssetDataConfig {
   locale?: string;
 
   /**
-   * When true, updateObjetivo / updateCotacao return Promise<void> and throw on error.
-   * When false (default), they return Promise<boolean> and catch errors internally.
+   * When true, updateObjetivo returns Promise<void> and throws on error.
+   * When false (default), it returns Promise<boolean> and catches errors internally.
    */
   throwOnError?: boolean;
 }
@@ -60,7 +60,6 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
   const {
     apiPath,
     objetivoPath,
-    cotacaoPath,
     valorAtualizadoPath,
     label,
     currency = 'BRL',
@@ -230,6 +229,10 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
         queryClient.setQueryData<TData>(queryKey, context.previousData);
       }
     },
+    // NOTA: objetivo é um target per-asset (não cost basis nem valor atual). Cards
+    // de resumo usam alocacao.config (target por categoria), não o objetivo do ativo.
+    // Por isso NÃO disparamos invalidatePortfolioDerivedQueries aqui — manter o
+    // optimistic update local intacto sem broad refetch.
   });
 
   const updateObjetivo = async (ativoId: string, novoObjetivo: number): Promise<boolean | void> => {
@@ -245,27 +248,6 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
     }
   };
 
-  const updateCotacao = cotacaoPath
-    ? async (ativoId: string, novaCotacao: number): Promise<boolean | void> => {
-        try {
-          const response = await csrfFetch(cotacaoPath, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ativoId, cotacao: novaCotacao }),
-          });
-
-          if (!response.ok) throw new Error('Erro ao atualizar cotacao');
-
-          await queryClient.invalidateQueries({ queryKey });
-          if (!throwOnError) return true;
-        } catch (err) {
-          console.error('Erro ao atualizar cotacao:', err);
-          if (throwOnError) throw err;
-          return false;
-        }
-      }
-    : undefined;
-
   const updateValorAtualizado = valorAtualizadoPath
     ? async (ativoId: string, novoValor: number) => {
         try {
@@ -277,6 +259,7 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
           if (!response.ok) throw new Error('Erro ao atualizar valor');
 
           await queryClient.invalidateQueries({ queryKey });
+          invalidatePortfolioDerivedQueries(queryClient);
           return true;
         } catch (err) {
           console.error('Erro ao atualizar valor:', err);
@@ -297,6 +280,7 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
         if (!response.ok) throw new Error('Erro ao atualizar caixa para investir');
 
         await queryClient.invalidateQueries({ queryKey });
+        invalidatePortfolioDerivedQueries(queryClient);
         return true;
       } catch (err) {
         console.error('Erro ao atualizar caixa para investir:', err);
@@ -334,7 +318,6 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
     fetchData,
     csrfFetch,
     updateObjetivo,
-    updateCotacao,
     updateValorAtualizado,
     updateCaixaParaInvestir,
     formatCurrency,

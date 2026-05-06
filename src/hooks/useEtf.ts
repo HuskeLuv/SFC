@@ -5,7 +5,6 @@ export const useEtf = () => {
   const assetData = useAssetData<EtfData>({
     apiPath: '/api/carteira/etf',
     objetivoPath: '/api/carteira/etf/objetivo',
-    cotacaoPath: '/api/carteira/etf/cotacao',
     label: 'ETF',
   });
 
@@ -97,10 +96,6 @@ export const useEtf = () => {
     updateObjetivo: assetData.updateObjetivo as (
       ativoId: string,
       novoObjetivo: number,
-    ) => Promise<boolean>,
-    updateCotacao: assetData.updateCotacao as (
-      ativoId: string,
-      novaCotacao: number,
     ) => Promise<boolean>,
     calculateAtivoValues,
     calculateSecaoValues,

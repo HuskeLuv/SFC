@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RendaFixaData, RendaFixaSecao, RendaFixaAtivo } from '@/types/rendaFixa';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 
 export const useRendaFixa = () => {
   const { csrfFetch } = useCsrf();
@@ -74,6 +75,7 @@ export const useRendaFixa = () => {
         }
 
         await queryClient.invalidateQueries({ queryKey });
+        invalidatePortfolioDerivedQueries(queryClient);
         return true;
       } catch (err) {
         console.error('Erro ao atualizar caixa para investir:', err);
@@ -106,6 +108,7 @@ export const useRendaFixa = () => {
         }
 
         await queryClient.invalidateQueries({ queryKey });
+        invalidatePortfolioDerivedQueries(queryClient);
         return true;
       } catch (err) {
         console.error('Erro ao atualizar campo:', err);

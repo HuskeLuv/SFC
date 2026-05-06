@@ -5,7 +5,6 @@ export const useFii = () => {
   const assetData = useAssetData<FiiData>({
     apiPath: '/api/carteira/fii',
     objetivoPath: '/api/carteira/fii/objetivo',
-    cotacaoPath: '/api/carteira/fii/cotacao',
     label: 'FIIs',
   });
 
@@ -98,10 +97,6 @@ export const useFii = () => {
     updateObjetivo: assetData.updateObjetivo as (
       ativoId: string,
       novoObjetivo: number,
-    ) => Promise<boolean>,
-    updateCotacao: assetData.updateCotacao as (
-      ativoId: string,
-      novaCotacao: number,
     ) => Promise<boolean>,
     calculateAtivoValues,
     calculateSecaoValues,

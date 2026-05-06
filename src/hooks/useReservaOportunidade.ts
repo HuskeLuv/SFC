@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 
 export interface ReservaOportunidadeAtivo {
   id: string;
@@ -90,6 +91,7 @@ export const useReservaOportunidade = () => {
         }
 
         await queryClient.invalidateQueries({ queryKey });
+        invalidatePortfolioDerivedQueries(queryClient);
       } catch (err) {
         console.error('Erro ao atualizar valor atualizado:', err);
         throw err;

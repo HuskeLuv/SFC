@@ -10,7 +10,6 @@ interface UseOpcoesReturn {
   formatPercentage: (value: number) => string;
   formatNumber: (value: number) => string;
   updateObjetivo: (ativoId: string, novoObjetivo: number) => Promise<void>;
-  updateCotacao: (ativoId: string, novaCotacao: number) => Promise<void>;
   updateCaixaParaInvestir: (novoCaixa: number) => Promise<boolean>;
   refetch: () => void;
 }
@@ -19,7 +18,6 @@ export const useOpcoes = (): UseOpcoesReturn => {
   const assetData = useAssetData<OpcaoData>({
     apiPath: '/api/carteira/opcoes',
     objetivoPath: '/api/carteira/opcoes/objetivo',
-    cotacaoPath: '/api/carteira/opcoes/cotacao',
     label: 'opções',
     throwOnError: true,
   });
@@ -34,10 +32,6 @@ export const useOpcoes = (): UseOpcoesReturn => {
     updateObjetivo: assetData.updateObjetivo as (
       ativoId: string,
       novoObjetivo: number,
-    ) => Promise<void>,
-    updateCotacao: assetData.updateCotacao as (
-      ativoId: string,
-      novaCotacao: number,
     ) => Promise<void>,
     updateCaixaParaInvestir: assetData.updateCaixaParaInvestir,
     refetch: assetData.refetch,

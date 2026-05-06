@@ -19,7 +19,6 @@ vi.mock('@/hooks/useCsrf', () => ({
 const config = {
   apiPath: '/api/carteira/acoes',
   objetivoPath: '/api/carteira/acoes/objetivo',
-  cotacaoPath: '/api/carteira/acoes/cotacao',
   label: 'Ações',
 };
 
@@ -226,54 +225,6 @@ describe('useAssetData', () => {
       await waitFor(() => expect(result.current.data).toEqual(mockAssetData));
 
       await expect(result.current.updateObjetivo('ativo-1', 25)).rejects.toThrow('Server error');
-    });
-  });
-
-  // ── updateCotacao ────────────────────────────────────────────────────────
-
-  describe('updateCotacao', () => {
-    it('calls csrfFetch with cotacaoPath and correct body', async () => {
-      stubGlobalFetch(mockAssetData);
-      mockCsrfFetch.mockResolvedValue(mockFetchResponse({}, 200));
-
-      const { result } = renderUseAssetData();
-      await waitFor(() => expect(result.current.data).toEqual(mockAssetData));
-
-      await result.current.updateCotacao!('ativo-1', 42.5);
-
-      expect(mockCsrfFetch).toHaveBeenCalledWith('/api/carteira/acoes/cotacao', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ativoId: 'ativo-1', cotacao: 42.5 }),
-      });
-    });
-
-    it('invalidates query on success', async () => {
-      const fetchMock = stubGlobalFetch(mockAssetData);
-      mockCsrfFetch.mockResolvedValue(mockFetchResponse({}, 200));
-
-      const { result } = renderUseAssetData();
-      await waitFor(() => expect(result.current.data).toEqual(mockAssetData));
-
-      const callsBefore = fetchMock.mock.calls.length;
-      const returnValue = await result.current.updateCotacao!('ativo-1', 42.5);
-
-      expect(returnValue).toBe(true);
-      // After invalidation, a new fetch should have been triggered
-      await waitFor(() => {
-        expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBefore);
-      });
-    });
-
-    it('returns false on error', async () => {
-      stubGlobalFetch(mockAssetData);
-      mockCsrfFetch.mockRejectedValueOnce(new Error('fail'));
-
-      const { result } = renderUseAssetData();
-      await waitFor(() => expect(result.current.data).toEqual(mockAssetData));
-
-      const returnValue = await result.current.updateCotacao!('ativo-1', 42.5);
-      expect(returnValue).toBe(false);
     });
   });
 
