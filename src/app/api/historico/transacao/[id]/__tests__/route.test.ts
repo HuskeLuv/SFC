@@ -9,6 +9,7 @@ const mockPrisma = vi.hoisted(() => ({
     delete: vi.fn(),
   },
   portfolio: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  fixedIncomeAsset: { updateMany: vi.fn(), deleteMany: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>

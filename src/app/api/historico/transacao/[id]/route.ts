@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { transactionPatchSchema, validationError } from '@/utils/validation-schemas';
+import { recalculatePortfolioFromTransactions } from '@/services/portfolio/portfolioRecalculation';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const EDITABLE_FIELDS = ['quantity', 'price', 'total', 'date', 'fees', 'notes'] as const;
@@ -99,79 +100,18 @@ export const PATCH = withErrorHandler(
       const portfolio = await prisma.portfolio.findFirst({ where: portfolioWhere });
 
       if (portfolio) {
-        await recalculatePortfolioFromTransactions(
+        await recalculatePortfolioFromTransactions({
           targetUserId,
-          transaction.assetId,
-          transaction.stockId,
-          portfolio.id,
-        );
+          assetId: transaction.assetId,
+          stockId: transaction.stockId,
+          portfolioId: portfolio.id,
+        });
       }
     }
 
     return NextResponse.json({ success: true });
   },
 );
-
-async function recalculatePortfolioFromTransactions(
-  targetUserId: string,
-  assetId: string | null,
-  stockId: string | null,
-  portfolioId: string,
-) {
-  const txWhere: { userId: string; assetId?: string; stockId?: string } = {
-    userId: targetUserId,
-  };
-  if (assetId) txWhere.assetId = assetId;
-  else if (stockId) txWhere.stockId = stockId;
-
-  const allTransactions = await prisma.stockTransaction.findMany({
-    where: txWhere,
-    orderBy: { date: 'asc' },
-  });
-
-  if (allTransactions.length === 0) {
-    await prisma.portfolio.delete({
-      where: { id: portfolioId },
-    });
-    return;
-  }
-
-  // Custo médio ponderado (moving-average cost basis):
-  // - compra acumula qty + custo total
-  // - venda remove qty E o CUSTO PROPORCIONAL (qty * avg_at_sale), não o valor da venda.
-  // Subtrair a receita da venda como fazia antes distorce o avgPrice toda vez que existe
-  // qualquer venda no histórico — o que mascarava edições posteriores em compras.
-  let runningQty = 0;
-  let runningCost = 0;
-  for (const tx of allTransactions) {
-    const qty = Number(tx.quantity);
-    const price = Number(tx.price);
-    const total = Number(tx.total);
-    const txValue = total > 0 ? total : qty * price;
-
-    if (tx.type === 'compra') {
-      runningQty += qty;
-      runningCost += txValue;
-    } else if (runningQty > 0) {
-      const avgAtSale = runningCost / runningQty;
-      const sellQty = Math.min(qty, runningQty);
-      runningCost -= avgAtSale * sellQty;
-      runningQty -= sellQty;
-    }
-  }
-
-  const avgPrice = runningQty > 0 ? runningCost / runningQty : 0;
-
-  await prisma.portfolio.update({
-    where: { id: portfolioId },
-    data: {
-      quantity: runningQty,
-      avgPrice,
-      totalInvested: runningCost,
-      lastUpdate: new Date(),
-    },
-  });
-}
 
 export const DELETE = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -205,12 +145,12 @@ export const DELETE = withErrorHandler(
     });
 
     if (portfolio) {
-      await recalculatePortfolioFromTransactions(
+      await recalculatePortfolioFromTransactions({
         targetUserId,
-        transaction.assetId,
-        transaction.stockId,
-        portfolio.id,
-      );
+        assetId: transaction.assetId,
+        stockId: transaction.stockId,
+        portfolioId: portfolio.id,
+      });
     }
 
     return NextResponse.json({ success: true });
