@@ -9,7 +9,18 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 // CDI/IBOV/IPCA/POUPANCA mudam no máximo 1×/dia (BACEN/BRAPI publicam diariamente).
 // Cache por 24h reduz drasticamente DB+BRAPI hits sem perda de frescor relevante.
 const INDICES_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const indicesCache = getTtlCache<{ indices: unknown[] }>('analisesIndices');
+// TTL curto pra payload incompleto: força nova tentativa em 1h em vez de envenenar o cache
+// por 24h quando alguma fonte (BACEN/BRAPI/DB) ficou indisponível na hora do compute.
+const INDICES_PARTIAL_TTL_MS = 60 * 60 * 1000;
+// "Best-known" cache (7 dias): preserva o último payload completo pra servir como fallback
+// quando uma recomputação retorna menos indicadores que o último sucesso.
+const INDICES_STALE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const EXPECTED_BENCHMARKS = ['CDI', 'IBOV', 'IPCA', 'POUPANCA'] as const;
+const indicesCache = getTtlCache<{ indices: IndexResponse[] }>('analisesIndices');
+const indicesStaleCache = getTtlCache<{ indices: IndexResponse[] }>('analisesIndicesStale');
+
+const countExpectedBenchmarks = (indices: IndexResponse[]): number =>
+  EXPECTED_BENCHMARKS.filter((b) => indices.some((r) => r.symbol === b || r.name === b)).length;
 // Tipos de índices disponíveis - todos buscados da brapi
 // Nota: CDI não está disponível na brapi, então foi removido
 const INDICES = {
@@ -559,9 +570,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         r.data.length > 0 &&
         r.data.every((item) => Number.isFinite(item.date) && Number.isFinite(item.value)),
     );
-    const payload = { indices: validResults };
-    indicesCache.set(cacheKey, payload, INDICES_CACHE_TTL_MS);
-    return NextResponse.json(payload);
+    return finalizeAndCache(cacheKey, validResults);
   }
 
   // Prioridade 2: Fallback para fontes originais (apenas para os que faltam)
@@ -716,7 +725,36 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
-  const payload = { indices: validResults };
-  indicesCache.set(cacheKey, payload, INDICES_CACHE_TTL_MS);
-  return NextResponse.json(payload);
+  return finalizeAndCache(cacheKey, validResults);
 });
+
+/**
+ * Devolve a melhor resposta possível pra um cacheKey:
+ *   - se a recomputação atual tem todos os benchmarks esperados, cacheia 24h e usa
+ *   - se veio incompleta mas existe um payload "best-known" mais completo no stale-cache,
+ *     devolve o stale (e cacheia ele por 1h pra reentry mais cedo)
+ *   - se nem isso existe, devolve o que temos (parcial) com TTL curto pra não envenenar
+ *     o cache de 24h com dados pobres
+ */
+function finalizeAndCache(cacheKey: string, validResults: IndexResponse[]): NextResponse {
+  const haveAllExpected = countExpectedBenchmarks(validResults) >= EXPECTED_BENCHMARKS.length;
+  const payload = { indices: validResults };
+
+  if (haveAllExpected) {
+    indicesCache.set(cacheKey, payload, INDICES_CACHE_TTL_MS);
+    indicesStaleCache.set(cacheKey, payload, INDICES_STALE_TTL_MS);
+    return NextResponse.json(payload);
+  }
+
+  const stale = indicesStaleCache.get(cacheKey);
+  if (stale && countExpectedBenchmarks(stale.indices) > countExpectedBenchmarks(validResults)) {
+    console.warn(
+      `⚠️  Recomputação parcial (${countExpectedBenchmarks(validResults)}/${EXPECTED_BENCHMARKS.length}) — devolvendo stale (${countExpectedBenchmarks(stale.indices)}/${EXPECTED_BENCHMARKS.length}) pra ${cacheKey}`,
+    );
+    indicesCache.set(cacheKey, stale, INDICES_PARTIAL_TTL_MS);
+    return NextResponse.json(stale);
+  }
+
+  indicesCache.set(cacheKey, payload, INDICES_PARTIAL_TTL_MS);
+  return NextResponse.json(payload);
+}

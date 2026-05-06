@@ -251,21 +251,32 @@ export default function RentabilidadeGeral() {
     carteiraLoading ||
     loadingCarteiraHistorico ||
     loadingRentabilidadePeriodo;
-  const error =
-    error1d || error1mo || error1y || errorCarteiraHistorico || errorRentabilidadePeriodo;
+
+  // Tolera falhas parciais: enquanto pelo menos UMA fonte retornou dados, renderiza o gráfico
+  // (mesmo que CDI ou IBOV venham faltando). Antes, qualquer error1d/error1mo/error1y
+  // bloqueava o painel inteiro e o usuário via "Erro ao carregar dados" sem nada plotado.
+  const allErrored =
+    !!error1d && !!error1mo && !!error1y && !!errorCarteiraHistorico && !!errorRentabilidadePeriodo;
+  const noDataAtAll =
+    filteredIndices1d.length === 0 &&
+    filteredIndices1mo.length === 0 &&
+    filteredIndices1y.length === 0 &&
+    carteiraParaChart.length === 0;
 
   if (loading) {
     return <LoadingSpinner text="Carregando dados de rentabilidade..." />;
   }
 
-  if (error) {
+  if (allErrored && noDataAtAll) {
     return (
       <div className="flex flex-col items-center justify-center py-16 space-y-4">
         <div className="text-center">
           <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
             Erro ao carregar dados
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {error1d || error1mo || error1y || errorCarteiraHistorico || errorRentabilidadePeriodo}
+          </p>
         </div>
       </div>
     );

@@ -9,7 +9,14 @@ function makeQueryClient() {
         staleTime: 60 * 1000,
         gcTime: 5 * 60 * 1000,
         refetchOnWindowFocus: true,
-        retry: 1,
+        // Retry 3× para tolerar blips transientes (BACEN/BRAPI/DB) — antes era 1, suficiente
+        // pra um único erro de rede derrubar séries de indicadores na Análise.
+        // Pula 4xx pra não martelar inutilmente em auth/validação.
+        retry: (failureCount, error) => {
+          if (error instanceof Error && /\b4\d\d\b/.test(error.message)) return false;
+          return failureCount < 3;
+        },
+        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 8000),
       },
     },
   });
