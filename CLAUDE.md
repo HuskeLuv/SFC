@@ -27,7 +27,7 @@ npx prisma generate      # Regenerate Prisma client
 
 **Next.js 15 App Router** with server components by default. Client components use `"use client"` directive.
 
-- `src/app/` — Pages and 81 API routes organized by feature
+- `src/app/` — Pages and ~73 API routes organized by feature
 - `src/components/<feature>/` — UI components grouped by domain
 - `src/hooks/use<Name>.ts` — 24 custom hooks wrapping fetch with dedup guards
 - `src/services/` — Business logic (BRAPI market data, portfolio snapshots, dividends)
@@ -42,6 +42,11 @@ npx prisma generate      # Regenerate Prisma client
 **Data fetching in hooks:** Hooks use `useRef` guards (`isFetchingRef`, `hasFetchedRef`) to prevent duplicate fetches. Always include `credentials: 'include'` for cookie auth.
 
 **Database:** 40+ Prisma models. Portfolio supports stocks, ETFs, FIIs, crypto, fixed income, real estate all consolidated in a single Asset table. Cashflow uses hierarchical groups with templates + personalization.
+
+**Edit/mutation flow:** Two layers must stay in sync:
+
+1. _Backend recalc_ — `src/services/portfolio/portfolioRecalculation.ts` exports `recalculatePortfolioFromTransactions()`. Single source of truth that recomputes `Portfolio.{quantity,avgPrice,totalInvested}` from `StockTransaction` history AND syncs `FixedIncomeAsset.investedAmount` for renda-fixa. Call after any transaction mutation (PATCH/DELETE on `/api/historico/transacao/[id]`, novo aporte/resgate, etc.).
+2. _Frontend invalidation_ — `src/lib/invalidatePortfolio.ts` exports `invalidatePortfolioDerivedQueries(queryClient)` that wipes carteira/assets/proventos/instituicao/sensibilidade/coberturaFgc/riscoRetorno/ir/alocacao/reserva caches. Call after any successful mutation in hooks (`useAssetData`, `useRendaFixa`, `useImoveisBens`, `useReserva*`, `useCarteira`, `useAlocacaoConfig`) or pages (`/ativos/[id]/editar`).
 
 ## Code Conventions
 
@@ -59,7 +64,7 @@ Both `ignoreBuildErrors` and `ignoreDuringBuilds` are `false` — lint and type 
 
 ## Testing
 
-Vitest 1.6 with v8 coverage (88 test files, 701 unit/integration tests). Tests live in `__tests__/` directories next to the module they test. Coverage threshold: 50% statements on `src/app/api/carteira/{operacao,aporte,resgate}/**/*.ts` plus `src/services/**/*.ts` and `src/hooks/**/*.ts`.
+Vitest 1.6 with v8 coverage (102 test files, ~959 unit/integration tests). Tests live in `__tests__/` directories next to the module they test. Coverage threshold: 50% statements on `src/app/api/carteira/{operacao,aporte,resgate}/**/*.ts` plus `src/services/**/*.ts` and `src/hooks/**/*.ts`.
 
 Playwright E2E tests (13 tests, 3 spec files in `e2e/`). Run with `npm run test:e2e`. Auth setup uses seed user `usuario.demo@finapp.local` / `123456`. Requires dev server running.
 
