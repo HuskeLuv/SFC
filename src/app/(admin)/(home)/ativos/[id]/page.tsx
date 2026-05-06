@@ -36,24 +36,30 @@ const formatPercentage = (value: number) =>
 const formatNumber = (value: number) =>
   value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
+// Datas wall-clock (UTC midnight) precisam de timeZone:'UTC' senão BRT mostra dia anterior.
 const formatDate = (dateStr: string) =>
   new Date(dateStr).toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'UTC',
   });
 
 const formatMonthYear = (timestamp: number) =>
   new Date(timestamp).toLocaleDateString('pt-BR', {
     month: 'short',
     year: '2-digit',
+    timeZone: 'UTC',
   });
 
 const formatDateProventos = (dateStr: string) => {
   const d = new Date(dateStr);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = d.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase().replace('.', '');
-  const year = d.getFullYear();
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = d
+    .toLocaleDateString('pt-BR', { month: 'short', timeZone: 'UTC' })
+    .toUpperCase()
+    .replace('.', '');
+  const year = d.getUTCFullYear();
   return `${day} ${month} ${year}`;
 };
 
@@ -257,25 +263,24 @@ function AtivoDetalheContent() {
       if (entry) entry.proventos += p.valorTotal;
     });
 
-    const ibovData =
-      indicesForMonthly.find((i) => i.symbol === 'IBOV' || i.name?.toUpperCase().includes('IBOV'))
+    // Comparativo mensal contra CDI (benchmark padrão de RF e proxy do "custo de
+    // oportunidade" mais relevante para a maioria dos ativos da carteira).
+    const cdiData =
+      indicesForMonthly.find((i) => i.symbol === 'CDI' || i.name?.toUpperCase().includes('CDI'))
         ?.data ?? [];
-    const ibovSorted = [...ibovData].sort((a, b) => a.date - b.date);
-    const ibovByMonth = new Map<string, { start: number; end: number }>();
-    ibovSorted.forEach((point) => {
+    const cdiSorted = [...cdiData].sort((a, b) => a.date - b.date);
+    const cdiByMonth = new Map<string, { start: number; end: number }>();
+    cdiSorted.forEach((point) => {
       const d = new Date(point.date);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).getTime();
-      if (point.date <= lastDay + 86400000) {
-        const existing = ibovByMonth.get(monthKey);
-        if (!existing) ibovByMonth.set(monthKey, { start: 0, end: point.value });
-        else existing.end = point.value;
-      }
+      const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      const existing = cdiByMonth.get(monthKey);
+      if (!existing) cdiByMonth.set(monthKey, { start: 0, end: point.value });
+      else existing.end = point.value;
     });
-    const ibovMonthKeys = Array.from(ibovByMonth.keys()).sort();
-    ibovMonthKeys.forEach((monthKey, idx) => {
-      const entry = ibovByMonth.get(monthKey)!;
-      if (idx > 0) entry.start = ibovByMonth.get(ibovMonthKeys[idx - 1])!.end;
+    const cdiMonthKeys = Array.from(cdiByMonth.keys()).sort();
+    cdiMonthKeys.forEach((monthKey, idx) => {
+      const entry = cdiByMonth.get(monthKey)!;
+      if (idx > 0) entry.start = cdiByMonth.get(cdiMonthKeys[idx - 1])!.end;
     });
 
     return Array.from(monthMap.entries())
@@ -284,10 +289,10 @@ function AtivoDetalheContent() {
           v.rentInicio !== undefined && v.rentFim !== undefined
             ? ((1 + v.rentFim / 100) / (1 + v.rentInicio / 100) - 1) * 100
             : 0;
-        const ibov = ibovByMonth.get(v.monthKey);
-        const ibovMensal =
-          ibov && ibov.start !== undefined && ibov.end !== undefined
-            ? ((1 + ibov.end / 100) / (1 + ibov.start / 100) - 1) * 100
+        const cdi = cdiByMonth.get(v.monthKey);
+        const cdiMensal =
+          cdi && cdi.start !== undefined && cdi.end !== undefined
+            ? ((1 + cdi.end / 100) / (1 + cdi.start / 100) - 1) * 100
             : null;
         return {
           monthKey: v.monthKey,
@@ -295,8 +300,10 @@ function AtivoDetalheContent() {
           saldoBruto: v.saldoBruto,
           quantidade: v.quantidade,
           rentabilidade: rentMensal,
-          carteira: rentMensal,
-          ibov: ibovMensal,
+          // Coluna "Acum. %": rentabilidade acumulada do produto até o fim do mês
+          // (TWR cumulativo). Antes era cópia de rentMensal, dando colunas idênticas.
+          acumulada: v.rentFim ?? 0,
+          cdi: cdiMensal,
           proventos: v.proventos,
         };
       })
@@ -434,9 +441,9 @@ function AtivoDetalheContent() {
                       <StandardTableHeaderCell align="left"> </StandardTableHeaderCell>
                       <StandardTableHeaderCell align="right">Saldo atual</StandardTableHeaderCell>
                       <StandardTableHeaderCell align="right">Qtde</StandardTableHeaderCell>
-                      <StandardTableHeaderCell align="right">Rent. %</StandardTableHeaderCell>
-                      <StandardTableHeaderCell align="right">Carteira. %</StandardTableHeaderCell>
-                      <StandardTableHeaderCell align="right">IBOV</StandardTableHeaderCell>
+                      <StandardTableHeaderCell align="right">Rent. mês %</StandardTableHeaderCell>
+                      <StandardTableHeaderCell align="right">Rent. acum. %</StandardTableHeaderCell>
+                      <StandardTableHeaderCell align="right">CDI</StandardTableHeaderCell>
                       <StandardTableHeaderCell align="right">Proventos</StandardTableHeaderCell>
                     </StandardTableHeaderRow>
                   </StandardTableHeader>
@@ -456,10 +463,10 @@ function AtivoDetalheContent() {
                           {formatPercentage(row.rentabilidade)}
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
-                          {formatPercentage(row.carteira)}
+                          {formatPercentage(row.acumulada)}
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
-                          {row.ibov !== null ? formatPercentage(row.ibov) : '—'}
+                          {row.cdi !== null ? formatPercentage(row.cdi) : '—'}
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
                           {formatCurrency(row.proventos)}
