@@ -403,7 +403,40 @@ describe('calculateHistoricoTWR', () => {
     const result = calculateHistoricoTWR(series, cashFlows);
     expect(result[1].value).toBe(0);
   });
+
+  // Regressão: clamp inclusivo em -1 no primeiro ponto.
+  it('clampa ganho instantâneo = -1 exato (saldo zerado vs fluxo positivo)', () => {
+    // Caso real: usuário com transaction em 2017 mas FixedIncomeAsset.startDate
+    // em 2020. Em 2017, saldoBruto=0 e fluxo=50.000 → retornoDia = -1.0 exato.
+    // Sem o clamp inclusivo, `cumulative *= 0` zerava toda a série em diante,
+    // exibindo gráficos com -100% permanente (TWR) e valor 0 (MWR).
+    const day = normalizeDateStart(new Date(2017, 4, 19)).getTime();
+    const series = [
+      { data: day, saldoBruto: 0 },
+      { data: day + DAY, saldoBruto: 1000 },
+      { data: day + 2 * DAY, saldoBruto: 1100 },
+    ];
+    const cashFlows = new Map([[day, 50000]]);
+    const result = calculateHistoricoTWR(series, cashFlows);
+    // Primeiro ponto: retornoDia=-1 deve ser clampado para 0; cumulative=1.
+    expect(result[0].value).toBe(0);
+    // Cumulative permanece > 0 para os pontos seguintes (não contamina a série).
+    expect(result[1].value).not.toBe(-100);
+    expect(result[2].value).not.toBe(-100);
+  });
+
+  it('clampa ganho instantâneo = +1 exato (preço pago zero, mercado positivo)', () => {
+    // Caso de borda complementar: preço pago=0 (doação/herança) e mercado >0.
+    // Limite >= 1 também deve clampar (não só >).
+    const day = 1;
+    const series = [{ data: day, saldoBruto: 2000 }];
+    const cashFlows = new Map([[day, 1000]]); // (2000-1000)/1000 = 1.0
+    const result = calculateHistoricoTWR(series, cashFlows);
+    expect(result[0].value).toBe(0);
+  });
 });
+
+const DAY = 24 * 60 * 60 * 1000;
 
 /* ================================================================== */
 /* filterInvestmentsExclReservas                                      */

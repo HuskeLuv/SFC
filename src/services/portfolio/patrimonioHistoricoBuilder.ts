@@ -387,7 +387,15 @@ export const calculateHistoricoTWR = (
         // Clamp mais largo no primeiro ponto: ganho instantâneo de até ±100%
         // pode acontecer quando o preço pago foge muito do preço de mercado
         // (CSVs de teste, doações, herança, retomada de posição antiga sem PU).
-        if (!Number.isFinite(retornoDia) || retornoDia > 1 || retornoDia < -1) {
+        //
+        // ⚠️ Limite inclusivo em -1: retornoDia = -1 exato (cenário "comprou
+        // mas saldo zero no dia") zera `cumulative` PARA SEMPRE — qualquer
+        // multiplicação subsequente continua dando 0. Caso real observado em
+        // usuário com transaction 2017 e FixedIncomeAsset.startDate 2020:
+        // saldoBruto=0 e fluxo=50k geravam retornoDia=-1, contaminando toda
+        // a série posterior com -100%. O limite anterior era `< -1`
+        // (estritamente menor), deixando -1 passar.
+        if (!Number.isFinite(retornoDia) || retornoDia >= 1 || retornoDia <= -1) {
           retornoDia = 0;
         }
       }
