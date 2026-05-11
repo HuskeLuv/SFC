@@ -1,12 +1,12 @@
 'use client';
 import React from 'react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import PlanejamentoFinanceiroTabs from '@/components/planejamento/PlanejamentoFinanceiroTabs';
+import PlanejamentoFinanceiro from '@/components/planejamento/PlanejamentoFinanceiro';
 
-export default function PlanejamentoFinanceiro() {
+export default function PlanejamentoFinanceiroPage() {
   return (
     <ProtectedRoute>
-      <PlanejamentoFinanceiroTabs />
+      <PlanejamentoFinanceiro />
     </ProtectedRoute>
   );
 }

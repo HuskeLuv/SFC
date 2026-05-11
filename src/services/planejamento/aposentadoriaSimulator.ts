@@ -30,6 +30,18 @@ export const PERFIL_LABELS: Record<PerfilInvestidor, string> = {
   personalizado: 'Personalizado (carteira)',
 };
 
+export type EventoPontualTipo = 'aporte' | 'saque';
+
+export interface EventoPontual {
+  /** Idade em que ocorre o evento. */
+  idade: number;
+  /** Valor em reais (sempre positivo, em valor de hoje). */
+  valor: number;
+  tipo: EventoPontualTipo;
+  /** Descrição opcional ("Compra do carro", "Herança"). */
+  descricao?: string;
+}
+
 export interface AposentadoriaInputs {
   idadeAtual: number;
   idadeAposentadoria: number;
@@ -44,6 +56,8 @@ export interface AposentadoriaInputs {
   /** Override de retornos (em %, a.a., nominal). Obrigatório se perfil = 'personalizado'. */
   retornoCustomAcumulacao?: number;
   retornoCustomRetirada?: number;
+  /** Aportes/saques pontuais aplicados ao saldo no fim do respectivo ano (em valor de hoje). */
+  eventosPontuais?: EventoPontual[];
 }
 
 export type FaseAno = 'acumulacao' | 'retirada';
@@ -57,6 +71,10 @@ export interface AnoSimulado {
   aportes: number;
   juros: number;
   saques: number;
+  /** Aportes pontuais (extras) aplicados nesse ano. */
+  aportesPontuais: number;
+  /** Saques pontuais (extras) aplicados nesse ano. */
+  saquesPontuais: number;
   patrimonioFim: number;
 }
 
@@ -141,6 +159,15 @@ export const simulateAposentadoria = (inputs: AposentadoriaInputs): Aposentadori
   const aporteAnual = inputs.aporteMensal * 12;
   const saqueAnual = inputs.rendaDesejadaMensal * 12;
 
+  const eventosPorIdade = new Map<number, { aporte: number; saque: number }>();
+  for (const ev of inputs.eventosPontuais ?? []) {
+    if (!Number.isFinite(ev.idade) || !Number.isFinite(ev.valor) || ev.valor <= 0) continue;
+    const slot = eventosPorIdade.get(ev.idade) ?? { aporte: 0, saque: 0 };
+    if (ev.tipo === 'aporte') slot.aporte += ev.valor;
+    else slot.saque += ev.valor;
+    eventosPorIdade.set(ev.idade, slot);
+  }
+
   const anos: AnoSimulado[] = [];
   let patrimonio = inputs.patrimonioInicial;
   let patrimonioMaximo = patrimonio;
@@ -155,22 +182,30 @@ export const simulateAposentadoria = (inputs: AposentadoriaInputs): Aposentadori
     const taxa = fase === 'acumulacao' ? realAcum : realRet;
     const patrimonioInicio = patrimonio;
     const juros = patrimonioInicio * taxa;
+    const pontual = eventosPorIdade.get(idade) ?? { aporte: 0, saque: 0 };
     let aportes = 0;
     let saques = 0;
+    const aportesPontuais = pontual.aporte;
+    let saquesPontuais = pontual.saque;
     let patrimonioFim: number;
 
     if (fase === 'acumulacao') {
       aportes = aporteAnual;
-      patrimonioFim = patrimonioInicio + juros + aportes;
+      patrimonioFim = patrimonioInicio + juros + aportes + aportesPontuais - saquesPontuais;
     } else {
       saques = saqueAnual;
-      patrimonioFim = patrimonioInicio + juros - saques;
-      if (patrimonioFim < 0) {
-        // Saque parcial no último ano: só consome o que tem
-        saques = patrimonioInicio + juros;
-        patrimonioFim = 0;
-      }
+      patrimonioFim = patrimonioInicio + juros - saques + aportesPontuais - saquesPontuais;
       anosDeRenda += 1;
+    }
+
+    if (patrimonioFim < 0) {
+      // Saldo zera no ano de esgotamento (saque/saque pontual parcial). Ajustamos do menor para o maior pra refletir realismo.
+      const totalSaida = saques + saquesPontuais;
+      const disponivel = patrimonioInicio + juros + aportes + aportesPontuais;
+      const ratio = totalSaida > 0 ? Math.max(disponivel, 0) / totalSaida : 0;
+      saques = saques * ratio;
+      saquesPontuais = saquesPontuais * ratio;
+      patrimonioFim = 0;
     }
 
     anos.push({
@@ -181,12 +216,14 @@ export const simulateAposentadoria = (inputs: AposentadoriaInputs): Aposentadori
       aportes,
       juros,
       saques,
+      aportesPontuais,
+      saquesPontuais,
       patrimonioFim,
     });
 
     if (patrimonioFim > patrimonioMaximo) patrimonioMaximo = patrimonioFim;
     if (idade + 1 === inputs.idadeAposentadoria) patrimonioNaAposentadoria = patrimonioFim;
-    if (fase === 'retirada' && patrimonioFim === 0 && idadeEsgotamento === null) {
+    if (patrimonioFim === 0 && idadeEsgotamento === null && fase === 'retirada') {
       idadeEsgotamento = idade + 1;
       patrimonio = 0;
       break;
