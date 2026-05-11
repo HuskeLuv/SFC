@@ -130,6 +130,7 @@ interface EditarPayload {
   ticker: string;
   nome: string;
   instituicaoNome: string | null;
+  instituicaoId: string | null;
   movimentacaoInicial: {
     id: string;
     date: string;
@@ -153,6 +154,102 @@ const defaultProventoDraft = (): ProventoDraft => {
     quantidadeBase: '0',
     impostoRenda: '',
   };
+};
+
+/**
+ * Bug #11: select editável de instituição. Carrega o catálogo via /api/institutions
+ * sob demanda (no primeiro foco), mostra um botão estilizado enquanto o usuário não
+ * abriu o select — assim a busca não dispara para cada ativo carregado na tela.
+ */
+interface InstitutionOption {
+  id: string;
+  nome: string;
+}
+
+const InstitutionSelect: React.FC<{
+  currentId: string | null;
+  currentNome: string | null;
+  onChange: (id: string) => void | Promise<void>;
+}> = ({ currentId, currentNome, onChange }) => {
+  const [options, setOptions] = useState<InstitutionOption[] | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const fetchOptions = useCallback(async () => {
+    if (options !== null) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/institutions?limit=500', { credentials: 'include' });
+      if (res.ok) {
+        const json = (await res.json()) as { institutions?: InstitutionOption[] };
+        setOptions(json.institutions ?? []);
+      } else {
+        setOptions([]);
+      }
+    } catch {
+      setOptions([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [options]);
+
+  const handleEdit = async () => {
+    await fetchOptions();
+    setIsEditing(true);
+  };
+
+  const handleSelect = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newId = e.target.value;
+    if (!newId || newId === currentId) {
+      setIsEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await onChange(newId);
+    } finally {
+      setSaving(false);
+      setIsEditing(false);
+    }
+  };
+
+  if (!isEditing) {
+    return (
+      <button
+        type="button"
+        onClick={handleEdit}
+        className="flex items-center gap-2 rounded-md px-1 py-0.5 text-sm font-normal text-gray-800 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+        title="Alterar instituição"
+      >
+        <span>{currentNome ?? '—'}</span>
+        <span className="text-xs text-brand-500">Editar</span>
+      </button>
+    );
+  }
+
+  return (
+    <select
+      autoFocus
+      value={currentId ?? ''}
+      onChange={handleSelect}
+      onBlur={() => setIsEditing(false)}
+      disabled={loading || saving}
+      className="w-full max-w-md rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-800 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+    >
+      {loading && <option>Carregando...</option>}
+      {!loading && options && (
+        <>
+          {!currentId && <option value="">Selecione uma instituição</option>}
+          {options.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.nome}
+            </option>
+          ))}
+        </>
+      )}
+    </select>
+  );
 };
 
 const AtivoEditarContent = () => {
@@ -221,6 +318,38 @@ const AtivoEditarContent = () => {
       }
     },
     [loadData, csrfFetch, queryClient],
+  );
+
+  /**
+   * Bug #11: atualizar a instituição financeira do ativo. O PATCH em
+   * /api/ativos/[id] reescreve `instituicaoId` no JSON de `notes` de
+   * todas as transações do portfólio, preservando o histórico.
+   */
+  const handleUpdateInstituicao = useCallback(
+    async (novoInstituicaoId: string) => {
+      if (!id) return;
+      try {
+        const res = await csrfFetch(`/api/ativos/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instituicaoId: novoInstituicaoId }),
+        });
+        if (res.ok) {
+          invalidatePortfolioDerivedQueries(queryClient);
+          await loadData();
+        } else {
+          const errBody = await res.json().catch(() => ({}));
+          console.error('Erro ao salvar instituição:', res.status, errBody);
+          setError(
+            `Erro ao salvar instituição: ${(errBody as { error?: string }).error || res.statusText}`,
+          );
+        }
+      } catch (err) {
+        console.error('Erro de rede ao atualizar instituição:', err);
+        setError('Erro de rede ao salvar instituição');
+      }
+    },
+    [id, loadData, csrfFetch, queryClient],
   );
 
   const handleConfirmDeleteTx = useCallback(async () => {
@@ -616,9 +745,11 @@ const AtivoEditarContent = () => {
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                   Instituição financeira
                 </p>
-                <p className="text-sm font-normal text-gray-800 dark:text-gray-200">
-                  {instituicao}
-                </p>
+                <InstitutionSelect
+                  currentId={data.instituicaoId}
+                  currentNome={data.instituicaoNome}
+                  onChange={handleUpdateInstituicao}
+                />
               </div>
 
               <div className="mt-6 border-t border-gray-200 pt-5 dark:border-gray-700">

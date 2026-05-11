@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
+import { validationError } from '@/utils/validation-schemas';
 import { getAssetPrices, getAssetHistory } from '@/services/pricing/assetPriceService';
 import { getDividends } from '@/services/pricing/dividendService';
 import { getFundamentals } from '@/services/pricing/fundamentalsService';
@@ -37,6 +39,50 @@ const buildDailyTimeline = (startDate: Date, endDate: Date) => {
     timeline.push(day);
   }
   return timeline;
+};
+
+/**
+ * Bug #11: a `instituicaoId` viaja embutida em `StockTransaction.notes`
+ * (JSON serializado em `operation.instituicaoId`) em vez de ser FK no Portfolio.
+ * Lê a primeira transação válida do ativo e devolve o id da instituição —
+ * ou null quando o campo nunca foi populado. Mesma lógica usada em
+ * src/app/api/analises/cobertura-fgc/route.ts:73-85.
+ */
+const extractInstitutionIdFromNotes = (notes: string | null | undefined): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes) as { operation?: { instituicaoId?: string } };
+    return parsed.operation?.instituicaoId ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const resolveInstituicaoForPortfolio = async (
+  userId: string,
+  assetId: string | null,
+  stockId: string | null,
+): Promise<{ id: string | null; nome: string | null }> => {
+  const txWhere: { userId: string; assetId?: string; stockId?: string } = { userId };
+  if (assetId) txWhere.assetId = assetId;
+  else if (stockId) txWhere.stockId = stockId;
+  else return { id: null, nome: null };
+
+  // Percorre transações até achar uma com instituicaoId em notes (mais antiga primeiro
+  // — operação inicial costuma ter o campo populado; edits subsequentes podem omitir).
+  const transactions = await prisma.stockTransaction.findMany({
+    where: txWhere,
+    orderBy: { date: 'asc' },
+    select: { notes: true },
+  });
+  for (const tx of transactions) {
+    const id = extractInstitutionIdFromNotes(tx.notes);
+    if (id) {
+      const inst = await prisma.institution.findUnique({ where: { id }, select: { nome: true } });
+      return { id, nome: inst?.nome ?? null };
+    }
+  }
+  return { id: null, nome: null };
 };
 
 const buildDailyPriceMap = (
@@ -120,7 +166,9 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 
 type PortfolioForFI = {
   id: string;
+  userId: string;
   assetId: string | null;
+  stockId: string | null;
   asset: { symbol: string; name: string; type?: string | null } | null;
 };
 
@@ -305,11 +353,17 @@ const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedInco
     saldoBruto,
   });
 
+  const instituicao = await resolveInstituicaoForPortfolio(
+    portfolio.userId,
+    portfolio.assetId ?? null,
+    portfolio.stockId ?? null,
+  );
+
   return NextResponse.json({
     ativo: {
       nome: portfolio.asset?.name || fi.description,
       ticker: portfolio.asset?.symbol || '',
-      instituicao: null,
+      instituicao,
     },
     posicao: {
       quantidade: 1,
@@ -672,11 +726,17 @@ export const GET = withErrorHandler(
       }
     }
 
+    const instituicao = await resolveInstituicaoForPortfolio(
+      targetUserId,
+      portfolio.assetId ?? null,
+      portfolio.stockId ?? null,
+    );
+
     return NextResponse.json({
       ativo: {
         nome,
         ticker,
-        instituicao: null,
+        instituicao,
       },
       posicao: {
         quantidade: portfolio.quantity,
@@ -698,6 +758,87 @@ export const GET = withErrorHandler(
           fundamentals.dividendYield !== null ? `${fundamentals.dividendYield.toFixed(2)}%` : '—',
       },
       riskAndReturn,
+    });
+  },
+);
+
+/**
+ * Bug #11: corrigir a instituição financeira de um ativo já lançado, sem precisar
+ * deletar e recriar (perdendo histórico). Atualiza `instituicaoId` em todas as
+ * transações do portfolio. Como o campo vive dentro de `notes` (JSON serializado
+ * em `operation.instituicaoId`), preservamos o resto do objeto original.
+ */
+const patchSchema = z.object({
+  instituicaoId: z.string().min(1).max(255),
+});
+
+export const PATCH = withErrorHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const { targetUserId } = await requireAuthWithActing(request);
+    const { id: portfolioId } = await params;
+
+    const body = await request.json();
+    const parsed = patchSchema.safeParse(body);
+    if (!parsed.success) return validationError(parsed);
+
+    const portfolio = await prisma.portfolio.findFirst({
+      where: { id: portfolioId, userId: targetUserId },
+      select: { id: true, assetId: true, stockId: true },
+    });
+    if (!portfolio) {
+      return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
+    }
+
+    const institution = await prisma.institution.findUnique({
+      where: { id: parsed.data.instituicaoId },
+      select: { id: true, nome: true },
+    });
+    if (!institution) {
+      return NextResponse.json({ error: 'Instituição não encontrada' }, { status: 404 });
+    }
+
+    const txWhere: { userId: string; assetId?: string; stockId?: string } = {
+      userId: targetUserId,
+    };
+    if (portfolio.assetId) txWhere.assetId = portfolio.assetId;
+    else if (portfolio.stockId) txWhere.stockId = portfolio.stockId;
+    else {
+      return NextResponse.json({ error: 'Portfólio sem ativo vinculado' }, { status: 400 });
+    }
+
+    const transactions = await prisma.stockTransaction.findMany({
+      where: txWhere,
+      select: { id: true, notes: true },
+    });
+
+    // Atualiza notes preservando o objeto original; cria operation={} se ausente.
+    const updates = transactions.map((tx) => {
+      let parsedNotes: Record<string, unknown> = {};
+      if (tx.notes) {
+        try {
+          const obj = JSON.parse(tx.notes);
+          if (obj && typeof obj === 'object') parsedNotes = obj as Record<string, unknown>;
+        } catch {
+          // notes não-JSON: preservamos no campo `raw` pra não perder o conteúdo original.
+          parsedNotes = { raw: tx.notes };
+        }
+      }
+      const operation = (parsedNotes.operation as Record<string, unknown> | undefined) ?? {};
+      parsedNotes.operation = {
+        ...operation,
+        instituicaoId: institution.id,
+      };
+      return prisma.stockTransaction.update({
+        where: { id: tx.id },
+        data: { notes: JSON.stringify(parsedNotes) },
+      });
+    });
+
+    await prisma.$transaction(updates);
+
+    return NextResponse.json({
+      success: true,
+      instituicao: { id: institution.id, nome: institution.nome },
     });
   },
 );

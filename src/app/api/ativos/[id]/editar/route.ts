@@ -51,12 +51,14 @@ export const GET = withErrorHandler(
       orderBy: { date: 'desc' },
     });
 
+    let instituicaoId: string | null = null;
     let instituicaoNome: string | null = null;
     for (const tx of transactions) {
       const instId = parseInstituicaoIdFromNotes(tx.notes);
       if (instId) {
         const inst = await prisma.institution.findUnique({ where: { id: instId } });
         if (inst) {
+          instituicaoId = inst.id;
           instituicaoNome = inst.nome;
           break;
         }
@@ -125,6 +127,7 @@ export const GET = withErrorHandler(
       ticker,
       nome,
       instituicaoNome,
+      instituicaoId,
       movimentacaoInicial,
       operacoes,
       proventos,
