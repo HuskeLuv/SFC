@@ -105,4 +105,124 @@ describe('/api/carteira/fii', () => {
       expect(data.success).toBe(true);
     });
   });
+
+  // ─── Regressão dos bugs do relatório Maio/2026 ───
+  describe('Bug #06 — float exposto no donut', () => {
+    it('arredonda valor da alocação para 2 casas (200 × 156,05 deveria ser 31210, não 31210.000000000004)', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(new Map([['HGLG11', 156.05]]));
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          userId: 'user-1',
+          quantity: 200,
+          totalInvested: 30000,
+          avgPrice: 150,
+          objetivo: 100,
+          tipoFii: 'tijolo',
+          stockId: 's1',
+          stock: { ticker: 'HGLG11', companyName: 'CSHG Logística' },
+          asset: null,
+          lastUpdate: new Date(),
+        },
+      ]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      // valor cru de 200*156.05 daria 31210.000000000004 — round2 → 31210
+      expect(data.alocacaoSegmento[0].valor).toBe(31210);
+      expect(data.alocacaoAtivo[0].valor).toBe(31210);
+      expect(String(data.alocacaoSegmento[0].valor)).not.toMatch(/0000000\d+$/);
+      expect(String(data.alocacaoAtivo[0].valor)).not.toMatch(/0000000\d+$/);
+    });
+  });
+
+  describe('Bug #14 — soma dos % de alocação fecha 100', () => {
+    it('alocacaoSegmento.percentual soma 100 com FIIs em segmentos distintos', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(
+        new Map([
+          ['HGLG11', 150],
+          ['KFOF11', 50],
+        ]),
+      );
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          userId: 'user-1',
+          quantity: 100,
+          totalInvested: 10000,
+          avgPrice: 100,
+          objetivo: 50,
+          tipoFii: 'tijolo',
+          stockId: 's1',
+          stock: { ticker: 'HGLG11', companyName: 'CSHG' },
+          asset: null,
+          lastUpdate: new Date(),
+        },
+        {
+          id: 'p2',
+          userId: 'user-1',
+          quantity: 100,
+          totalInvested: 10000,
+          avgPrice: 100,
+          objetivo: 50,
+          tipoFii: 'fofi',
+          stockId: 's2',
+          stock: { ticker: 'KFOF11', companyName: 'Kinea FOF' },
+          asset: null,
+          lastUpdate: new Date(),
+        },
+      ]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+
+      const sum = data.alocacaoSegmento.reduce(
+        (acc: number, item: { percentual: number }) => acc + item.percentual,
+        0,
+      );
+      expect(sum).toBeCloseTo(100, 1);
+    });
+
+    it('alocacaoAtivo.percentual soma 100 com FIIs no mesmo segmento', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(
+        new Map([
+          ['HGLG11', 200],
+          ['MXRF11', 100],
+          ['XPLG11', 100],
+        ]),
+      );
+      mockPrisma.portfolio.findMany.mockResolvedValue(
+        ['HGLG11', 'MXRF11', 'XPLG11'].map((ticker, i) => ({
+          id: `p${i}`,
+          userId: 'user-1',
+          quantity: 100,
+          totalInvested: 10000,
+          avgPrice: 100,
+          objetivo: 33.33,
+          tipoFii: 'tijolo',
+          stockId: `s${i}`,
+          stock: { ticker, companyName: ticker },
+          asset: null,
+          lastUpdate: new Date(),
+        })),
+      );
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+
+      const sum = data.alocacaoAtivo.reduce(
+        (acc: number, item: { percentual: number }) => acc + item.percentual,
+        0,
+      );
+      expect(sum).toBeCloseTo(100, 1);
+      for (const item of data.alocacaoAtivo) {
+        expect(String(item.percentual)).not.toMatch(/0000000\d+$/);
+      }
+    });
+  });
 });
