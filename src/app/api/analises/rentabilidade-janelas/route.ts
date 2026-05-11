@@ -129,11 +129,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const [portfolio, stockTransactions, investmentGroups, fixedIncomeAssets] = await Promise.all([
     prisma.portfolio.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
     }),
     prisma.stockTransaction.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
       orderBy: { date: 'asc' },
     }),
     prisma.cashflowGroup.findMany({

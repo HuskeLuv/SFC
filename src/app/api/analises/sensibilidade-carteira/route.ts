@@ -72,11 +72,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const [portfolio, stockTransactions, investmentGroups, fixedIncomeAssets] = await Promise.all([
     prisma.portfolio.findMany({
       where: { userId: targetUserId },
-      include: { asset: true, stock: true },
+      include: { asset: true },
     }),
     prisma.stockTransaction.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
       orderBy: { date: 'asc' },
     }),
     prisma.cashflowGroup.findMany({
@@ -92,13 +92,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Seleciona posições de mercado (exclui reservas/renda-fixa/TD/FX e afins)
   const positions: MarketPosition[] = [];
   for (const p of portfolio) {
-    const symbol = (p.asset?.symbol ?? p.stock?.ticker ?? '').toUpperCase();
+    const symbol = (p.asset?.symbol ?? '').toUpperCase();
     if (!symbol || isNonMarketSymbol(symbol)) continue;
     const currentPrice = p.asset?.currentPrice ? Number(p.asset.currentPrice) : p.avgPrice;
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) continue;
     positions.push({
       symbol,
-      nome: p.asset?.name ?? p.stock?.companyName ?? symbol,
+      nome: p.asset?.name ?? symbol,
       quantity: p.quantity,
       price: currentPrice,
       rawWeight: p.quantity * currentPrice,

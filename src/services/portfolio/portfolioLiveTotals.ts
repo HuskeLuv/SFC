@@ -97,7 +97,7 @@ export const computePortfolioLiveTotals = async ({
     if (isReservaItem(item)) continue;
     if (isImovelOrPersonalizado(item)) continue;
     if (isFixedIncomeBacked(item, fixedIncomeByAssetId)) continue;
-    const symbol = item.asset?.symbol || item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     if (isQuotableSymbol(symbol)) symbolsToQuote.add(symbol);
   }
 
@@ -143,7 +143,7 @@ export const computePortfolioLiveTotals = async ({
       continue;
     }
 
-    const symbol = item.asset?.symbol || item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     if (symbol && isQuotableSymbol(symbol)) {
       const quote = quotes.get(symbol);
       const currency = item.asset?.currency ?? 'BRL';

@@ -64,8 +64,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         quantity: 1000,
         price: 30,
         fees: 0,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
       {
         type: 'venda',
@@ -73,8 +72,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         quantity: 1000,
         price: 38,
         fees: 0,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
     const response = await GET(createRequest('2025'));
@@ -93,8 +91,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         avgPrice: 30,
         lastUpdate: new Date('2025-01-15'),
         stockId: 's1',
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
     mockGetDividends.mockResolvedValue([
@@ -118,8 +115,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         avgPrice: 30,
         lastUpdate: new Date('2025-01-15'),
         stockId: 's1',
-        stock: { ticker: 'ITUB4' },
-        asset: null,
+        asset: { symbol: 'ITUB4', name: 'ITUB4', type: 'stock' },
       },
     ]);
     mockGetDividends.mockResolvedValue([
@@ -141,8 +137,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         avgPrice: 100,
         lastUpdate: new Date('2025-01-15'),
         stockId: 's1',
-        stock: { ticker: 'HGLG11' },
-        asset: null,
+        asset: { symbol: 'HGLG11', name: 'HGLG11', type: 'fii' },
       },
     ]);
     mockGetDividends.mockResolvedValue([
@@ -164,8 +159,7 @@ describe('GET /api/analises/ir-resumo-anual', () => {
         avgPrice: 30,
         lastUpdate: new Date('2024-01-15'),
         stockId: 's1',
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
     mockGetDividends.mockResolvedValue([

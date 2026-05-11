@@ -71,8 +71,7 @@ describe('GET /api/analises/carteira-historico', () => {
         price: 30,
         total: 3000,
         date: thirtyDaysAgo,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
       {
         type: 'compra',
@@ -80,8 +79,7 @@ describe('GET /api/analises/carteira-historico', () => {
         price: 32,
         total: 1600,
         date: fifteenDaysAgo,
-        stock: { ticker: 'VALE3' },
-        asset: null,
+        asset: { symbol: 'VALE3', name: 'VALE3', type: 'stock' },
       },
     ]);
 

@@ -43,7 +43,7 @@ async function computeCurrentEquity(targetUserId: string): Promise<number> {
   const [portfolio, investmentGroups, fixedIncomeAssets] = await Promise.all([
     prisma.portfolio.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
     }),
     prisma.cashflowGroup.findMany({
       where: { userId: targetUserId, type: 'investimento' },

@@ -154,7 +154,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   // Filtrar transações que têm símbolo/ticker e podem ter histórico na brapi
   const transactionsFiltradas = transactions.filter((trans) => {
-    const symbol = trans.stock?.ticker || trans.asset?.symbol;
+    const symbol = trans.asset?.symbol;
     if (!symbol) return false;
 
     // Excluir reservas, renda fixa, personalizados, imóveis (sem histórico na brapi)
@@ -189,7 +189,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Agrupar transações por símbolo
   const transactionsPorSimbolo = new Map<string, typeof transactionsFiltradas>();
   for (const trans of transactionsFiltradas) {
-    const symbol = trans.stock?.ticker || trans.asset?.symbol;
+    const symbol = trans.asset?.symbol;
     if (!symbol) continue;
 
     if (!transactionsPorSimbolo.has(symbol)) {
@@ -235,7 +235,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const pricePointsBySymbol = new Map<string, IndexData[]>();
 
   transactionsFiltradas.forEach((trans) => {
-    const symbol = trans.stock?.ticker || trans.asset?.symbol;
+    const symbol = trans.asset?.symbol;
     if (!symbol) return;
 
     // Quando tx cai em fim-de-semana/feriado, ancora no próximo dia útil B3 —

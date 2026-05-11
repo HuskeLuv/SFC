@@ -95,8 +95,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: lastMonth,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
 
@@ -111,8 +110,7 @@ describe('GET /api/analises/proventos', () => {
         date: lastMonth,
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
 
@@ -153,8 +151,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: lastMonth,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
       {
         id: 'p2',
@@ -165,8 +162,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: lastMonth,
         stockId: 'stock-2',
         assetId: null,
-        stock: { id: 'stock-2', ticker: 'VALE3', companyName: 'Vale' },
-        asset: null,
+        asset: { id: 'asset-2', symbol: 'VALE3', name: 'Vale', type: 'stock' },
       },
     ]);
 
@@ -181,8 +177,7 @@ describe('GET /api/analises/proventos', () => {
         date: lastMonth,
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
       {
         id: 'tx-2',
@@ -194,8 +189,7 @@ describe('GET /api/analises/proventos', () => {
         date: lastMonth,
         stockId: 'stock-2',
         assetId: null,
-        stock: { ticker: 'VALE3' },
-        asset: null,
+        asset: { symbol: 'VALE3', name: 'VALE3', type: 'stock' },
       },
     ]);
 
@@ -268,8 +262,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: lastMonth,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
 
@@ -321,8 +314,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: lastMonth,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
@@ -336,8 +328,7 @@ describe('GET /api/analises/proventos', () => {
         date: lastMonth,
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
     mockGetDividends.mockResolvedValue([
@@ -383,8 +374,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: new Date(now.getTime() - 600 * 86400000),
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
@@ -398,8 +388,7 @@ describe('GET /api/analises/proventos', () => {
         date: new Date(now.getTime() - 600 * 86400000),
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
     mockGetDividends.mockResolvedValue([
@@ -448,8 +437,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: new Date(now.getTime() - 600 * 86400000),
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
@@ -463,8 +451,7 @@ describe('GET /api/analises/proventos', () => {
         date: new Date(now.getTime() - 600 * 86400000),
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
     mockGetDividends.mockResolvedValue([
@@ -506,8 +493,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: txDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
       {
         id: 'p2',
@@ -518,8 +504,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: txDate,
         stockId: 'stock-2',
         assetId: null,
-        stock: { id: 'stock-2', ticker: 'ITUB4', companyName: 'Itau' },
-        asset: null,
+        asset: { id: 'asset-2', symbol: 'ITUB4', name: 'Itau', type: 'stock' },
       },
     ]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
@@ -533,8 +518,7 @@ describe('GET /api/analises/proventos', () => {
         date: txDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
       {
         id: 'tx-2',
@@ -546,8 +530,7 @@ describe('GET /api/analises/proventos', () => {
         date: txDate,
         stockId: 'stock-2',
         assetId: null,
-        stock: { ticker: 'ITUB4' },
-        asset: null,
+        asset: { symbol: 'ITUB4', name: 'ITUB4', type: 'stock' },
       },
     ]);
     // Futuros: PETR4 paga R$200 em 10d (no 1m); ITUB4 paga R$50 em 60d (no 3m mas fora de 1m);
@@ -601,8 +584,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: txDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
       {
         id: 'p2',
@@ -613,8 +595,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: txDate,
         stockId: 'stock-2',
         assetId: null,
-        stock: { id: 'stock-2', ticker: 'ITUB4', companyName: 'Itau' },
-        asset: null,
+        asset: { id: 'asset-2', symbol: 'ITUB4', name: 'Itau', type: 'stock' },
       },
     ]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
@@ -628,8 +609,7 @@ describe('GET /api/analises/proventos', () => {
         date: txDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
       {
         id: 'tx-2',
@@ -641,8 +621,7 @@ describe('GET /api/analises/proventos', () => {
         date: txDate,
         stockId: 'stock-2',
         assetId: null,
-        stock: { ticker: 'ITUB4' },
-        asset: null,
+        asset: { symbol: 'ITUB4', name: 'ITUB4', type: 'stock' },
       },
     ]);
     // PETR4: 100 cotas × 0.75 = 75; ITUB4: 50 cotas × 0.5 = 25 → total 100
@@ -692,8 +671,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: purchaseDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
@@ -707,8 +685,7 @@ describe('GET /api/analises/proventos', () => {
         date: purchaseDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
     mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 35]]));
@@ -745,8 +722,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: purchaseDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
@@ -760,8 +736,7 @@ describe('GET /api/analises/proventos', () => {
         date: purchaseDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
     mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 35]]));
@@ -800,8 +775,7 @@ describe('GET /api/analises/proventos', () => {
         lastUpdate: purchaseDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
@@ -815,8 +789,7 @@ describe('GET /api/analises/proventos', () => {
         date: purchaseDate,
         stockId: 'stock-1',
         assetId: null,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
     ]);
     mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 35]]));

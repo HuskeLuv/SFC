@@ -54,14 +54,17 @@ interface AnualResumo {
   observacoes: string[];
 }
 
+// Padrão B3 (PETR4, ITUB4, BBAS3) — distinguir de stocks US (AAPL, MSFT).
+const isB3StockTicker = (ticker: string): boolean => /^[A-Z]{4}[0-9]$/.test(ticker.toUpperCase());
+
 function categorizeBR(
-  fromStockTable: boolean,
   ticker: string | null,
   assetType: string | null,
 ): RendaVariavelCategory | null {
   if (!ticker) return null;
   const upper = ticker.toUpperCase();
-  if (fromStockTable) return upper.endsWith('11') ? 'fii' : 'acao_br';
+  if (assetType === 'fii') return 'fii';
+  if (assetType === 'stock' && isB3StockTicker(upper)) return 'acao_br';
   if (assetType === 'etf' && upper.endsWith('11')) return 'etf_br';
   return null;
 }
@@ -100,12 +103,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const [transactions, portfolio, manualProventos] = await Promise.all([
     prisma.stockTransaction.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
       orderBy: { date: 'asc' },
     }),
     prisma.portfolio.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
     }),
     prisma.portfolioProvento.findMany({
       where: { userId: targetUserId },
@@ -116,10 +119,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const rvTxs: RvTransaction[] = [];
   for (const tx of transactions) {
     if (tx.type !== 'compra' && tx.type !== 'venda') continue;
-    const ticker = tx.stock?.ticker || tx.asset?.symbol || null;
-    const fromStockTable = Boolean(tx.stock);
+    const ticker = tx.asset?.symbol || null;
     const assetType = tx.asset?.type ?? null;
-    const cat = categorizeBR(fromStockTable, ticker, assetType);
+    const cat = categorizeBR(ticker, assetType);
     if (!cat) continue;
     rvTxs.push({
       date: tx.date,
@@ -216,11 +218,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // BRAPI dividends por símbolo de ação/FII presente no portfolio
   type ProventoSlot = { dividendoAcao: number; rendimentoFii: number; jcp: number };
   const slots: ProventoSlot = { dividendoAcao: 0, rendimentoFii: 0, jcp: 0 };
-  const portfolioStocks = portfolio.filter((p) => p.stock && !isBlocked(p.stock.ticker));
+  // Após consolidação Stock → Asset: ações e FIIs são Asset com type='stock'/'fii'.
+  const portfolioStocks = portfolio.filter(
+    (p) =>
+      (p.asset?.type === 'stock' || p.asset?.type === 'fii') &&
+      p.asset.symbol &&
+      !isBlocked(p.asset.symbol),
+  );
   await Promise.all(
     portfolioStocks.map(async (p) => {
-      const symbol = p.stock!.ticker;
-      const isFii = symbol.endsWith('11');
+      const symbol = p.asset!.symbol;
+      const isFii = p.asset!.type === 'fii';
       const dividends = await getDividends(symbol, { useBrapiFallback: true });
       for (const d of dividends) {
         const ts = d.date.getTime();

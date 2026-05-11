@@ -117,8 +117,7 @@ describe('GET /api/analises/risco-retorno — métricas por ativo', () => {
         lastUpdate: start,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
 
@@ -164,8 +163,7 @@ describe('GET /api/analises/risco-retorno — métricas por ativo', () => {
         lastUpdate: start,
         stockId: 'stock-1',
         assetId: null,
-        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
-        asset: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
       },
     ]);
 

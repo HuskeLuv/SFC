@@ -50,8 +50,7 @@ describe('GET /api/analises/ir-mensal', () => {
         quantity: 10,
         price: 100,
         fees: 0,
-        stock: { ticker: 'HGLG11' },
-        asset: null,
+        asset: { symbol: 'HGLG11', name: 'HGLG11', type: 'fii' },
       },
       {
         type: 'venda',
@@ -59,8 +58,7 @@ describe('GET /api/analises/ir-mensal', () => {
         quantity: 10,
         price: 150,
         fees: 0,
-        stock: { ticker: 'HGLG11' },
-        asset: null,
+        asset: { symbol: 'HGLG11', name: 'HGLG11', type: 'fii' },
       },
     ]);
 

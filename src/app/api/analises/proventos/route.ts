@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import {
   getDividends,
@@ -46,7 +45,6 @@ interface PortfolioAssetEntry {
   totalInvested: number;
   avgPrice: number;
   lastUpdate: Date;
-  stockId?: string | null;
   assetId?: string | null;
 }
 
@@ -177,7 +175,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const portfolio = await prisma.portfolio.findMany({
     where: { userId: targetUserId },
-    include: { stock: true, asset: true },
+    include: { asset: true },
   });
 
   // Proventos cadastrados manualmente (inclui JCP com IRRF separado).
@@ -192,20 +190,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const portfolioAssets: PortfolioAssetEntry[] = portfolio
     .map((item) => {
-      const symbol = item.stock?.ticker || item.asset?.symbol;
+      const symbol = item.asset?.symbol;
       if (!symbol || isBlockedSymbol(symbol)) {
         return null;
       }
 
       return {
         symbol,
-        name: item.stock?.companyName || item.asset?.name || symbol,
-        assetType: item.stock ? 'stock' : item.asset?.type || 'outros',
+        name: item.asset?.name || symbol,
+        assetType: item.asset?.type || 'outros',
         quantity: item.quantity || 0,
         totalInvested: item.totalInvested || 0,
         avgPrice: item.avgPrice || 0,
         lastUpdate: item.lastUpdate,
-        stockId: item.stockId,
         assetId: item.assetId,
       };
     })
@@ -222,28 +219,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     });
   }
 
-  const stockIds = portfolioAssets.map((item) => item.stockId).filter(Boolean) as string[];
   const assetIds = portfolioAssets.map((item) => item.assetId).filter(Boolean) as string[];
 
   const transactions = await prisma.stockTransaction.findMany({
     where: {
       userId: targetUserId,
-      OR: [
-        stockIds.length ? { stockId: { in: stockIds } } : undefined,
-        assetIds.length ? { assetId: { in: assetIds } } : undefined,
-      ].filter(Boolean) as Prisma.StockTransactionWhereInput[],
+      assetId: { in: assetIds },
     },
-    include: {
-      stock: true,
-      asset: true,
-    },
+    include: { asset: true },
     orderBy: { date: 'asc' },
   });
 
   const transactionsBySymbol = new Map<string, TransactionPoint[]>();
   const purchaseDateBySymbol = new Map<string, number>();
   transactions.forEach((transaction) => {
-    const symbol = transaction.stock?.ticker || transaction.asset?.symbol;
+    const symbol = transaction.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) {
       return;
     }
@@ -360,7 +350,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Anexa proventos manuais (PortfolioProvento) — bruto via valorTotal.
   manualProventos.forEach((mp) => {
     const pf = portfolioById.get(mp.portfolioId);
-    const symbol = pf?.stock?.ticker || pf?.asset?.symbol;
+    const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
     const asset = portfolioAssets.find((a) => a.symbol === symbol);
     if (!asset) return;
@@ -425,7 +415,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
   manualProventos.forEach((mp) => {
     const pf = portfolioById.get(mp.portfolioId);
-    const symbol = pf?.stock?.ticker || pf?.asset?.symbol;
+    const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime > hojeMs) return;
@@ -668,11 +658,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Proventos manuais a receber (já vêm com valorTotal pronto)
   manualProventos.forEach((mp) => {
     const pf = portfolioById.get(mp.portfolioId);
-    const symbol = pf?.stock?.ticker || pf?.asset?.symbol;
+    const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime <= hojeKpiMs) return;
-    const name = pf?.stock?.companyName || pf?.asset?.name || symbol;
+    const name = pf?.asset?.name || symbol;
     accumulateFuture(symbol, name, dateTime, mp.valorTotal);
   });
 
@@ -712,7 +702,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Proventos manuais (PortfolioProvento) entram no histórico realizado
   manualProventos.forEach((mp) => {
     const pf = portfolioById.get(mp.portfolioId);
-    const symbol = pf?.stock?.ticker || pf?.asset?.symbol;
+    const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime > hojeKpiMs) return;

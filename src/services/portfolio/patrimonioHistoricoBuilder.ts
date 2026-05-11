@@ -34,12 +34,14 @@ export type InvestmentCashflowItem = {
   values?: Array<{ year: number; month: number; value: number }>;
 };
 
+// Consolidação Stock → Asset (Sprint 5): include só `asset`. A relação `stock`
+// foi removida do schema na migration 20260512000000_drop_stock_table.
 export type PortfolioWithRelations = Prisma.PortfolioGetPayload<{
-  include: { stock: true; asset: true };
+  include: { asset: true };
 }>;
 
 export type StockTransactionWithRelations = Prisma.StockTransactionGetPayload<{
-  include: { stock: true; asset: true };
+  include: { asset: true };
 }>;
 
 export const normalizeDateStart = (date: Date) => {
@@ -515,7 +517,7 @@ export const buildPatrimonioHistorico = async (
     { quantity: number; avgPrice: number; isManual: boolean }
   >();
   portfolio.forEach((item) => {
-    const symbol = item.asset?.symbol || item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     if (!symbol) return;
 
     const isFixedIncome = item.assetId ? fixedIncomeByAssetId.has(item.assetId) : false;
@@ -554,7 +556,7 @@ export const buildPatrimonioHistorico = async (
   const firstTransactionBySymbol = new Map<string, number>();
 
   stockTransactions.forEach((transaction) => {
-    const symbol = transaction.stock?.ticker || transaction.asset?.symbol;
+    const symbol = transaction.asset?.symbol;
     if (!symbol) return;
 
     const day = shiftToBusinessDay(normalizeDateStart(transaction.date).getTime());
@@ -594,7 +596,7 @@ export const buildPatrimonioHistorico = async (
   });
 
   portfolio.forEach((item) => {
-    const symbol = item.asset?.symbol || item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     if (!symbol) return;
     if (transactionsBySymbol.has(symbol)) return;
 
@@ -696,7 +698,7 @@ export const buildPatrimonioHistorico = async (
   // Default 100% do CDI até cadastro explícito do indexador no asset.
   if (implicitCdiValueSeriesBuilder) {
     portfolio.forEach((item) => {
-      const symbol = item.asset?.symbol || item.stock?.ticker;
+      const symbol = item.asset?.symbol;
       if (!symbol) return;
       // Skip se já temos curva FI explícita (ex.: reserva alocada num CDB cadastrado).
       if (fixedIncomeValuesBySymbol.has(symbol)) return;
@@ -966,7 +968,7 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   const cashDeltasByDay = new Map<number, number>();
 
   stockTransactions.forEach((transaction) => {
-    const symbol = transaction.stock?.ticker || transaction.asset?.symbol;
+    const symbol = transaction.asset?.symbol;
     if (!symbol) return;
 
     const day = shiftToBusinessDay(normalizeDateStart(transaction.date).getTime());
@@ -976,10 +978,10 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   });
 
   portfolio.forEach((item) => {
-    const symbol = item.asset?.symbol || item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     if (!symbol) return;
 
-    const hasTx = stockTransactions.some((t) => (t.stock?.ticker || t.asset?.symbol) === symbol);
+    const hasTx = stockTransactions.some((t) => t.asset?.symbol === symbol);
     if (hasTx) return;
 
     const day = shiftToBusinessDay(normalizeDateStart(item.lastUpdate || new Date()).getTime());

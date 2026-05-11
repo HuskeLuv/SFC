@@ -19,22 +19,28 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * um tem regras próprias (Fases 3, 4 e 5).
  */
 
+/**
+ * Padrão de ticker B3 para ações: 4 letras + 1 dígito (3, 4, 5, 6, 8) — ex.: PETR4, ITUB4, BBAS3.
+ * Stocks US (AAPL, MSFT, NVDA) não casam — vão para a fase 3 (IR de stocks US).
+ */
+const isB3StockTicker = (ticker: string): boolean => /^[A-Z]{4}[0-9]$/.test(ticker.toUpperCase());
+
 function categorizeTransaction(
-  fromStockTable: boolean,
   ticker: string | null,
   assetType: string | null,
 ): RendaVariavelCategory | null {
   if (!ticker) return null;
   const upper = ticker.toUpperCase();
 
-  // Stock table só guarda ações da B3 — sempre BR (acao ou FII).
-  if (fromStockTable) return upper.endsWith('11') ? 'fii' : 'acao_br';
-
-  // Asset.type='etf' com ticker terminando em '11' = ETF BR (BOVA11, IVVB11 etc.).
-  // ETFs US (VOO, SPY) vão pra apuração de stocks US (Fase 3) — fora do escopo.
+  // Após a consolidação Stock → Asset, o discriminador é Asset.type + padrão do ticker:
+  //   - type='fii' (regra FII — 20% sem isenção 20k)
+  //   - type='stock' + ticker no padrão B3 (4 letras + 1 dígito) = ação BR
+  //   - type='etf' + ticker B3 (final 11) = ETF BR
+  if (assetType === 'fii') return 'fii';
+  if (assetType === 'stock' && isB3StockTicker(upper)) return 'acao_br';
   if (assetType === 'etf' && upper.endsWith('11')) return 'etf_br';
 
-  // Stocks US, BDR, crypto, fundos, previdência, REIT — outras fases.
+  // Stocks US, BDR, crypto, fundos, previdência, REIT — outras fases do IR.
   return null;
 }
 
@@ -43,17 +49,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const transactions = await prisma.stockTransaction.findMany({
     where: { userId: targetUserId },
-    include: { stock: true, asset: true },
+    include: { asset: true },
     orderBy: { date: 'asc' },
   });
 
   const rvTransactions: RvTransaction[] = [];
   for (const tx of transactions) {
     if (tx.type !== 'compra' && tx.type !== 'venda') continue;
-    const ticker = tx.stock?.ticker || tx.asset?.symbol || null;
-    const fromStockTable = Boolean(tx.stock);
+    const ticker = tx.asset?.symbol || null;
     const assetType = tx.asset?.type ?? null;
-    const category = categorizeTransaction(fromStockTable, ticker, assetType);
+    const category = categorizeTransaction(ticker, assetType);
     if (!category) continue;
 
     rvTransactions.push({

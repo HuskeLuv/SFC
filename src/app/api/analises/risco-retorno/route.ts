@@ -240,11 +240,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const [portfolio, stockTransactions, investmentGroups, fixedIncomeAssets] = await Promise.all([
     prisma.portfolio.findMany({
       where: { userId: targetUserId },
-      include: { asset: true, stock: true },
+      include: { asset: true },
     }),
     prisma.stockTransaction.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
       orderBy: { date: 'asc' },
     }),
     prisma.cashflowGroup.findMany({
@@ -260,7 +260,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Cache hit: hash da composição igual + idade < TTL → serve payload cru.
   const portfolioHash = computePortfolioHash(
     portfolio.map((p) => ({
-      symbol: (p.asset?.symbol || p.stock?.ticker || '').toUpperCase(),
+      symbol: (p.asset?.symbol || '').toUpperCase(),
       quantity: p.quantity,
       avgPrice: p.avgPrice,
     })),
@@ -372,7 +372,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const marketSymbols = [
     ...new Set(
       portfolio
-        .map((item) => (item.asset?.symbol || item.stock?.ticker || '').toUpperCase())
+        .map((item) => (item.asset?.symbol || '').toUpperCase())
         .filter((s) => s && !isNonMarketSymbol(s)),
     ),
   ];
@@ -444,13 +444,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const sensibilidade: SensibilidadeItem[] = portfolio
     .map((item) => {
-      const ticker = (item.asset?.symbol || item.stock?.ticker || '').toUpperCase();
+      const ticker = (item.asset?.symbol || '').toUpperCase();
       if (!ticker) return null;
       const beta = betaBySymbol.get(ticker);
       if (beta === undefined) return null;
       return {
         ticker,
-        nome: item.asset?.name || item.stock?.companyName || ticker,
+        nome: item.asset?.name || ticker,
         beta,
         ...metricsBySymbol.get(ticker),
       };
