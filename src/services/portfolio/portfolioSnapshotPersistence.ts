@@ -100,6 +100,16 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
             dailyReturn = fCur / fPrev - 1;
           }
         }
+        // Bug #02: retorno diário > 5% é fisicamente improvável em carteira normal
+        // (mesmo IBOV raramente passa de 3% num dia). Quando isso aparece, é
+        // sinal de que a série foi contaminada por um cashflow contabilizado
+        // como valorização (ex.: aporte editado sem reprocesso). Log para
+        // detectar regressões do fix.
+        if (dailyReturn != null && Math.abs(dailyReturn) > 0.05) {
+          console.warn(
+            `[portfolioSnapshots] daily TWR fora do esperado userId=${userId} date=${row.data} dailyReturn=${(dailyReturn * 100).toFixed(2)}% — possível série contaminada`,
+          );
+        }
         const day = toDayDate(row.data);
         return prisma.portfolioPerformance.upsert({
           where: {

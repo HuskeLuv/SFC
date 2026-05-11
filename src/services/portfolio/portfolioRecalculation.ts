@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma';
+import { normalizeDateStart } from './patrimonioHistoricoBuilder';
+import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 
 /**
  * Source of truth para os totais do Portfolio: lê todas as StockTransactions do
@@ -18,14 +20,22 @@ import { prisma } from '@/lib/prisma';
  *   - compra acumula qty + custo total
  *   - venda remove qty E o CUSTO PROPORCIONAL (qty * avg_at_sale), não o valor
  *     da venda — subtrair receita distorce o avgPrice quando há vendas no histórico.
+ *
+ * `recomputeSnapshotsFrom` (Bug #02): quando uma data é passada, os snapshots
+ * diários (portfolio_daily_snapshots / portfolio_performance) a partir daquele
+ * dia são removidos e o cache em memória do /carteira/resumo é invalidado. Sem
+ * isso, a série histórica de MWR/TWR mantém o cashflow antigo e produz saltos
+ * verticais ou retornos impossíveis (ex.: 163% num mês). O loader cai no fallback
+ * de cálculo ao vivo até o cron diário repovoar a tabela.
  */
 export async function recalculatePortfolioFromTransactions(params: {
   targetUserId: string;
   assetId: string | null;
   stockId: string | null;
   portfolioId: string;
+  recomputeSnapshotsFrom?: Date;
 }): Promise<void> {
-  const { targetUserId, assetId, stockId, portfolioId } = params;
+  const { targetUserId, assetId, stockId, portfolioId, recomputeSnapshotsFrom } = params;
 
   const txWhere: { userId: string; assetId?: string; stockId?: string } = {
     userId: targetUserId,
@@ -45,6 +55,9 @@ export async function recalculatePortfolioFromTransactions(params: {
     await prisma.portfolio.delete({
       where: { id: portfolioId },
     });
+    if (recomputeSnapshotsFrom) {
+      await invalidatePortfolioSnapshots(targetUserId, recomputeSnapshotsFrom);
+    }
     return;
   }
 
@@ -90,4 +103,27 @@ export async function recalculatePortfolioFromTransactions(params: {
       data: { investedAmount: runningCost },
     });
   }
+
+  if (recomputeSnapshotsFrom) {
+    await invalidatePortfolioSnapshots(targetUserId, recomputeSnapshotsFrom);
+  }
+}
+
+/**
+ * Apaga snapshots diários e performance TWR a partir do dia da edição.
+ * Também invalida o cache TTL em memória do /carteira/resumo do usuário.
+ * O loader detecta a quebra de cobertura (`coverageOk=false`) e cai no
+ * builder ao vivo até o cron diário repopular o snapshot.
+ */
+async function invalidatePortfolioSnapshots(userId: string, fromDate: Date): Promise<void> {
+  const cutoff = normalizeDateStart(fromDate);
+  await Promise.all([
+    prisma.portfolioDailySnapshot.deleteMany({
+      where: { userId, date: { gte: cutoff } },
+    }),
+    prisma.portfolioPerformance.deleteMany({
+      where: { userId, date: { gte: cutoff } },
+    }),
+  ]);
+  deleteTtlCacheKeyPrefix('carteiraResumo', `${userId}:`);
 }

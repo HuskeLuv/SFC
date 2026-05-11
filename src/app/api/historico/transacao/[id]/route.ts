@@ -82,6 +82,12 @@ export const PATCH = withErrorHandler(
       }
     }
 
+    // Bug #02: cutoff para invalidar série MWR/TWR é o min(data antiga, data nova).
+    // Se a edição só muda valor (sem mexer em date), basta cobrir a data da transação.
+    const oldDate = transaction.date;
+    const newDate = updates.date ?? oldDate;
+    const snapshotCutoff = oldDate.getTime() <= newDate.getTime() ? oldDate : newDate;
+
     await prisma.stockTransaction.update({
       where: { id },
       data: updates,
@@ -105,6 +111,7 @@ export const PATCH = withErrorHandler(
           assetId: transaction.assetId,
           stockId: transaction.stockId,
           portfolioId: portfolio.id,
+          recomputeSnapshotsFrom: snapshotCutoff,
         });
       }
     }
@@ -140,6 +147,8 @@ export const DELETE = withErrorHandler(
         ? await prisma.portfolio.findFirst({ where: portfolioWhere })
         : null;
 
+    const snapshotCutoff = transaction.date;
+
     await prisma.stockTransaction.delete({
       where: { id },
     });
@@ -150,6 +159,7 @@ export const DELETE = withErrorHandler(
         assetId: transaction.assetId,
         stockId: transaction.stockId,
         portfolioId: portfolio.id,
+        recomputeSnapshotsFrom: snapshotCutoff,
       });
     }
 
