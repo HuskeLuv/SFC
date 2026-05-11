@@ -43,9 +43,7 @@ Todo cálculo do My Finance se apoia em dados de mercado. Não inventamos preço
 - **Onde armazenamos:** tabela `Asset` (preço atual + timestamp) e `AssetPriceHistory` (série diária até 5 anos).
 - **Comportamento em falha:** se a BRAPI não responde em 10 segundos, o sistema usa o último preço conhecido em vez de quebrar a tela. Para o cliente, a única consequência é o preço estar desatualizado por algumas horas — a posição quantitativa nunca se perde.
 
-> ℹ️ **Consolidação Stock → Asset (Bug #16 — Maio/2026):** o catálogo agora é **uma única tabela** (`Asset`). A tabela `Stock` (legacy, populada só por seed manual) foi consolidada na migration `20260511150000_consolidate_stock_into_asset` — todos os tickers de B3 que estavam em `stocks` foram migrados pra `assets` (com `type='stock'` ou `type='fii'`), e as referências em `portfolios`/`stock_transactions`/`watchlists` foram re-vinculadas via `stockId → assetId`. O wizard de adição de ativos passa a ler de `Asset`, então **qualquer ticker que o cron BRAPI sincronize aparece automaticamente no autocomplete** — sem dependência de seed manual.
->
-> A tabela `Stock` continua existindo no schema por um ciclo (compat com rotas de análise que ainda usam `include: { stock: true, asset: true }`); o drop final está como follow-up em Sprint separada para minimizar risco de deploy.
+> ℹ️ **Consolidação Stock → Asset (Bug #16 — Maio/2026, finalizada Sprint 5):** o catálogo é **uma única tabela** (`Asset`). A tabela `Stock` legacy foi unificada via migration `20260511150000_consolidate_stock_into_asset` (re-link de FKs) e dropada totalmente em `20260512000000_drop_stock_table`. Todos os consumers — rotas de análise, carteira, resgate, aporte, histórico, consultoria, scripts — passam a usar `assetId`/`Asset.type` exclusivamente. Ações brasileiras são identificadas pelo padrão de ticker B3 (`/^[A-Z]{4}[0-9]$/` para ações; ticker terminando em `11` para FIIs/ETFs/units), o que diferencia tributariamente de stocks US sem precisar de uma tabela separada. O cron BRAPI agora alimenta o autocomplete do wizard automaticamente.
 
 ### 2.2 BACEN SGS (`api.bcb.gov.br`) — Indicadores macroeconômicos
 
