@@ -463,6 +463,17 @@ O dado vem da BRAPI (campos `exDate` / `exDividendDate` / `recordDate`) e é per
 
 > ⚠️ **Exemplo real:** PETR4 anunciou dividendo com data-com 02/06/2025 e pagamento 20/08/2025. Um investidor que comprou a ação em 18/06/2025 não tem direito — apesar de o pagamento cair semanas depois da compra. Antes do fix do bug #01, o sistema atribuía o provento erroneamente.
 
+**Protocolo de validação pós-fix (carteiras já existentes):** os registros de `AssetDividendHistory` criados antes da migration `20260511_add_data_com_to_dividend_history` ficam com `dataCom = NULL` e o sistema cai no fallback que usa `paymentDate` como aproximação. Para repopular `dataCom` num símbolo específico, basta forçar uma sincronização da BRAPI (ex.: chamar `getDividends('PETR4')` quando a função detecta DB vazio para aquele símbolo — ou apagar manualmente os registros de `asset_dividend_history` daquele símbolo, o próximo acesso refaz o fetch). Depois disso, recarregue Análises → Proventos: os lançamentos com `dataCom < primeira compra` somem automaticamente.
+
+**Investigando divergências residuais com Kinvo/outros:** quando após o fix de #01 ainda houver diferença entre o total de proventos do My Finance e a referência externa, as causas mais comuns são:
+
+| Causa                                                          | Como verificar                                                                                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| BRAPI tem provento que Kinvo não tem (ou vice-versa)           | Comparar `AssetDividendHistory.findMany({symbol, orderBy: date})` com a lista do Kinvo via HAR (em `scripts/kinvo-captures/`)   |
+| JCP exibido bruto no My Finance, líquido no Kinvo              | JCP tem IRRF de 15% retido na fonte. My Finance exibe **bruto** (valor anunciado); Kinvo pode exibir líquido.                   |
+| Diferença de quantidade na data-com (split/inplit/bonificação) | Verificar `AssetCorporateAction` daquele símbolo — eventos não reconhecidos distorcem a quantidade base usada no cálculo.       |
+| Provento de FII de uma posição já vendida                      | A timeline binary-search exclui automaticamente, mas se o histórico de transações estiver incompleto, a quantidade fica errada. |
+
 #### Proventos futuros (1m / 3m / 12m)
 
 Não há previsão estatística aqui. O sistema mostra **apenas dividendos já anunciados pelas empresas**, com data-com declarada e cuja data-com seja posterior à primeira compra do investidor. A janela:
