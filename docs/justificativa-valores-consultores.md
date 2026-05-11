@@ -43,6 +43,8 @@ Todo cálculo do My Finance se apoia em dados de mercado. Não inventamos preço
 - **Onde armazenamos:** tabela `Asset` (preço atual + timestamp) e `AssetPriceHistory` (série diária até 5 anos).
 - **Comportamento em falha:** se a BRAPI não responde em 10 segundos, o sistema usa o último preço conhecido em vez de quebrar a tela. Para o cliente, a única consequência é o preço estar desatualizado por algumas horas — a posição quantitativa nunca se perde.
 
+> ℹ️ **Catálogo de ações/FIIs (Stock — Bug #16/#07 — Maio/2026):** o autocomplete do wizard de adição de ativos consulta a tabela `Stock`, **separada** da `Asset`. Ela é populada por seed manual (`scripts/seed-additional-stocks.ts`) e não pelo cron BRAPI atual. Quando um cliente tenta adicionar um ticker fora dos ~60 atualmente seedados (todos os IBOV de alta liquidez + 10 FOFs principais), o autocomplete devolve vazio. O follow-up técnico recomendado é estender o cron BRAPI para fazer upsert em `Stock` (similar ao já existente em `Asset`) — eliminando a necessidade de seed manual para cada novo IPO ou FII listado.
+
 ### 2.2 BACEN SGS (`api.bcb.gov.br`) — Indicadores macroeconômicos
 
 O Sistema Gerador de Séries Temporais do Banco Central é o fornecedor oficial de **15 séries** que sustentam todos os cálculos de renda fixa, inflação e benchmarking:
