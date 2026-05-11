@@ -7,32 +7,65 @@ const prisma = new PrismaClient();
 // ===== SEED INSTITUTIONS =====
 
 async function seedInstitutions() {
+  // Bugs #10 + #16 (relatório Maio/2026): catálogo expandido para incluir as
+  // principais corretoras e plataformas onde clientes mantêm posições.
+  // Códigos seguem COMPE oficial quando o ente é regulado como instituição
+  // financeira; CNPJ deixado em null quando a entidade legal varia/foi
+  // incorporada (Easynvest → NuInvest é rebranding sob mesma raiz XP).
   const institutions = [
+    // ─── Bancos comerciais ───
     { code: '001', name: 'Banco do Brasil S.A.', cnpj: '00000000000191', status: 'ATIVO' },
     { code: '104', name: 'Caixa Econômica Federal', cnpj: '00360305000104', status: 'ATIVO' },
     { code: '237', name: 'Banco Bradesco S.A.', cnpj: '60746948000112', status: 'ATIVO' },
     { code: '341', name: 'Itaú Unibanco S.A.', cnpj: '60701190000104', status: 'ATIVO' },
     { code: '033', name: 'Banco Santander (Brasil) S.A.', cnpj: '90400888000142', status: 'ATIVO' },
-    { code: '208', name: 'Banco BTG Pactual S.A.', cnpj: '30306294000145', status: 'ATIVO' },
     { code: '422', name: 'Banco Safra S.A.', cnpj: '58160789000128', status: 'ATIVO' },
     { code: '077', name: 'Banco Inter S.A.', cnpj: '00416968000101', status: 'ATIVO' },
     { code: '336', name: 'Banco C6 S.A.', cnpj: '31872495000172', status: 'ATIVO' },
     { code: '212', name: 'Banco Original S.A.', cnpj: '92894922000185', status: 'ATIVO' },
     { code: '623', name: 'Banco Pan S.A.', cnpj: '59285411000113', status: 'ATIVO' },
-    { code: '746', name: 'Banco Modal S.A.', cnpj: '30723886000130', status: 'ATIVO' },
     { code: '707', name: 'Banco Daycoval S.A.', cnpj: '62232889000190', status: 'ATIVO' },
     { code: '246', name: 'Banco ABC Brasil S.A.', cnpj: '28195667000106', status: 'ATIVO' },
     { code: '655', name: 'Banco Votorantim S.A.', cnpj: '59588111000103', status: 'ATIVO' },
     { code: '318', name: 'Banco BMG S.A.', cnpj: '61186680000174', status: 'ATIVO' },
-    { code: '756', name: 'Banco Cooperativo do Brasil S.A. (Sicoob)', cnpj: '02038232000164', status: 'ATIVO' },
-    { code: '748', name: 'Banco Cooperativo Sicredi S.A.', cnpj: '01181521000155', status: 'ATIVO' },
+    {
+      code: '756',
+      name: 'Banco Cooperativo do Brasil S.A. (Sicoob)',
+      cnpj: '02038232000164',
+      status: 'ATIVO',
+    },
+    {
+      code: '748',
+      name: 'Banco Cooperativo Sicredi S.A.',
+      cnpj: '01181521000155',
+      status: 'ATIVO',
+    },
+
+    // ─── Corretoras / DTVMs / Plataformas (Sprint 4) ───
+    { code: '102', name: 'XP Investimentos CCTVM', cnpj: '02332886000104', status: 'ATIVO' },
+    { code: '380', name: 'Rico Investimentos', cnpj: '02332886000104', status: 'ATIVO' },
+    { code: '208', name: 'BTG Pactual (Digital/CTVM)', cnpj: '30306294000145', status: 'ATIVO' },
+    { code: '746', name: 'Banco Modal / Modalmais', cnpj: '30723886000130', status: 'ATIVO' },
+    { code: '278', name: 'Genial Investimentos CTVM', cnpj: '27652684000162', status: 'ATIVO' },
+    { code: '107', name: 'Terra Investimentos DTVM', cnpj: '03751794000113', status: 'ATIVO' },
+    { code: '325', name: 'Órama DTVM', cnpj: '13293225000125', status: 'ATIVO' },
+    { code: '508', name: 'Avenue Securities DTVM', cnpj: '24933830000130', status: 'ATIVO' },
+    {
+      code: '260',
+      name: 'NuInvest (ex-Easynvest)',
+      cnpj: '62169875000179',
+      status: 'ATIVO',
+    },
+    { code: '477', name: 'Citibank N.A. Brasil', cnpj: null, status: 'ATIVO' },
+    { code: '655-IC', name: 'BV Investimentos (Banco Votorantim)', cnpj: null, status: 'ATIVO' },
+    { code: '102-CL', name: 'Clear Corretora (Grupo XP)', cnpj: '02332886000104', status: 'ATIVO' },
   ];
 
   console.log('🏦 Cadastrando instituições bancárias...\n');
 
   for (const institution of institutions) {
     const statusEnum = institution.status === 'ATIVO' ? 'ATIVA' : 'INATIVA';
-    
+
     await prisma.institution.upsert({
       where: { codigo: institution.code },
       update: {
@@ -53,7 +86,6 @@ async function seedInstitutions() {
 
   console.log(`\n✅ ${institutions.length} instituições bancárias cadastradas!\n`);
 }
-
 
 // ===== CLONE TEMPLATES FOR USER =====
 
@@ -93,7 +125,7 @@ async function cloneTemplatesForUser(userId: string) {
           name: group.name,
           type: group.type,
           orderIndex: group.orderIndex,
-          parentId: group.parentId ? createdIdMap.get(group.parentId) ?? null : null,
+          parentId: group.parentId ? (createdIdMap.get(group.parentId) ?? null) : null,
         },
       });
 
@@ -120,11 +152,7 @@ async function cloneTemplatesForUser(userId: string) {
 
 // ===== SEED CASHFLOW VALUES =====
 
-async function seedCashflowValues(
-  userId: string,
-  entries: Record<string, number[]>,
-  year: number,
-) {
+async function seedCashflowValues(userId: string, entries: Record<string, number[]>, year: number) {
   for (const [itemName, values] of Object.entries(entries)) {
     const item = await prisma.cashflowItem.findFirst({
       where: { userId, name: itemName },
@@ -161,18 +189,18 @@ async function seedCashflowMovements(
   await prisma.cashflow.deleteMany({ where: { userId } });
 
   const monthLabels = [
-    "Jan",
-    "Fev",
-    "Mar",
-    "Abr",
-    "Mai",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Set",
-    "Out",
-    "Nov",
-    "Dez",
+    'Jan',
+    'Fev',
+    'Mar',
+    'Abr',
+    'Mai',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Set',
+    'Out',
+    'Nov',
+    'Dez',
   ];
 
   const entries: Array<{
@@ -188,7 +216,7 @@ async function seedCashflowMovements(
 
   const appendEntries = (
     registry: Record<string, number[]>,
-    tipo: "receita" | "despesa",
+    tipo: 'receita' | 'despesa',
     paymentMethod: string,
   ) => {
     for (const [category, values] of Object.entries(registry)) {
@@ -196,7 +224,7 @@ async function seedCashflowMovements(
         if (!value || Math.abs(value) < 0.01) {
           return;
         }
-        const referenceDay = tipo === "receita" ? 1 : 5;
+        const referenceDay = tipo === 'receita' ? 1 : 5;
         entries.push({
           userId,
           data: new Date(year, monthIndex, referenceDay),
@@ -211,11 +239,11 @@ async function seedCashflowMovements(
     }
   };
 
-  appendEntries(incomes, "receita", "transferencia");
-  appendEntries(expenses, "despesa", "cartao_credito");
+  appendEntries(incomes, 'receita', 'transferencia');
+  appendEntries(expenses, 'despesa', 'cartao_credito');
 
   if (entries.length === 0) {
-    console.warn("⚠️  Nenhum lançamento de fluxo de caixa foi gerado.");
+    console.warn('⚠️  Nenhum lançamento de fluxo de caixa foi gerado.');
     return;
   }
 
@@ -256,22 +284,22 @@ async function seedDemoUsers() {
   await cloneTemplatesForUser(demoUser.id);
 
   const incomes: Record<string, number[]> = {
-    'Salário': Array(12).fill(9000),
+    Salário: Array(12).fill(9000),
     "Receita Proventos FII's": [420, 430, 440, 450, 460, 470, 480, 490, 500, 510, 520, 530],
-    'Aluguéis': Array(12).fill(1200),
+    Aluguéis: Array(12).fill(1200),
   };
 
   const expenses: Record<string, number[]> = {
     'Aluguel / Prestação': Array(12).fill(2500),
-    'Supermercado': [900, 920, 940, 950, 960, 980, 1000, 1010, 1020, 1030, 1040, 1050],
+    Supermercado: [900, 920, 940, 950, 960, 980, 1000, 1010, 1020, 1030, 1040, 1050],
     'Conta de energia': [180, 175, 190, 185, 200, 195, 210, 205, 195, 190, 185, 180],
-    'Internet': Array(12).fill(120),
+    Internet: Array(12).fill(120),
     'Plano de Saúde': Array(12).fill(680),
-    'Restaurantes': [400, 420, 380, 450, 470, 430, 460, 480, 420, 410, 430, 440],
-    'Uber': [100, 120, 110, 130, 125, 140, 135, 145, 120, 110, 115, 130],
+    Restaurantes: [400, 420, 380, 450, 470, 430, 460, 480, 420, 410, 430, 440],
+    Uber: [100, 120, 110, 130, 125, 140, 135, 145, 120, 110, 115, 130],
     'Escola/Faculdade': Array(12).fill(1500),
-    'Cinema': [80, 60, 70, 90, 85, 75, 95, 80, 70, 65, 60, 75],
-    'Roupas': [250, 0, 180, 0, 220, 0, 210, 0, 230, 0, 190, 0],
+    Cinema: [80, 60, 70, 90, 85, 75, 95, 80, 70, 65, 60, 75],
+    Roupas: [250, 0, 180, 0, 220, 0, 210, 0, 230, 0, 190, 0],
     'Reserva Emergência': Array(12).fill(500),
   };
 
@@ -390,7 +418,6 @@ async function main() {
     // Nota: Ações (stocks) e moedas são adicionadas pelo cron de sincronização (brapiSync)
 
     console.log('\n🎉 Seed concluído com sucesso!');
-    
   } catch (error) {
     console.error('❌ Erro durante o seed:', error);
     throw error;
@@ -399,8 +426,7 @@ async function main() {
   }
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
