@@ -308,6 +308,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     fromBegin: buildWindow(firstPoint.data, lastPoint.data),
   };
 
+  // Bug #03: YTD = 0% enquanto CDI positivo é sinal claro de série contaminada
+  // (ver Bug #02 — snapshots stale após edição). Após o fix de #02, isso virou
+  // sentinela: se ainda aparecer, há um caso não coberto pela invalidação.
+  if (
+    janelas.inTheYear.portfolioReturn === 0 &&
+    Math.abs(janelas.inTheYear.cdiReturn) > 0.1 &&
+    lastPoint.data > startOfYear + 7 * DAY_MS
+  ) {
+    console.warn(
+      `[rentabilidade] YTD=0 com CDI=${janelas.inTheYear.cdiReturn}% para userId=${targetUserId} — provável série contaminada`,
+    );
+  }
+
   return NextResponse.json({
     asOf: new Date().toISOString(),
     janelas,

@@ -264,6 +264,116 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     expect(j.portfolioMwrAnnualized).toBeCloseTo(j.portfolioReturn, 0);
   });
 
+  // Bug #03: YTD = 0% — sintoma da série contaminada por #02
+  describe('Bug #03 — YTD da carteira', () => {
+    it('YTD computa retorno corretamente para série saudável que cruza 01/01', async () => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
+      const before = startOfYear - 60 * 86400000;
+
+      // Série atravessa 01/01: TWR vai 0% → 8% (em 01/01) → 12% (hoje).
+      // YTD esperado: (1.12 / 1.08 - 1) * 100 ≈ 3.7%
+      mockBuildPatrimonio.mockResolvedValue({
+        historicoPatrimonio: [],
+        historicoTWR: [
+          { data: before, value: 0 },
+          { data: startOfYear, value: 8 },
+          { data: now.getTime(), value: 12 },
+        ],
+        historicoTWRPeriodo: [],
+        cashFlowsByDay: new Map(),
+      });
+
+      const response = await GET(createRequest());
+      const data = await response.json();
+
+      expect(data.janelas.inTheYear.portfolioReturn).toBeCloseTo(3.7, 1);
+      expect(data.janelas.inTheYear.portfolioReturn).not.toBe(0);
+    });
+
+    it('YTD positivo quando série começa após 01/01 (clampada para firstPoint)', async () => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      // Série começa em meados de janeiro, depois de 01/01.
+      const midJan = new Date(now.getFullYear(), 0, 15).getTime();
+
+      mockBuildPatrimonio.mockResolvedValue({
+        historicoPatrimonio: [],
+        historicoTWR: [
+          { data: midJan, value: 0 },
+          { data: now.getTime(), value: 4.5 },
+        ],
+        historicoTWRPeriodo: [],
+        cashFlowsByDay: new Map(),
+      });
+
+      const response = await GET(createRequest());
+      const data = await response.json();
+
+      expect(data.janelas.inTheYear.portfolioReturn).toBeCloseTo(4.5, 1);
+    });
+
+    it('emite warning quando YTD=0 com CDI positivo (sentinela contra regressão #02)', async () => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
+      const before = startOfYear - 60 * 86400000;
+      // Série contaminada: TWR flat em 0 apesar do tempo passar
+      mockBuildPatrimonio.mockResolvedValue({
+        historicoPatrimonio: [],
+        historicoTWR: [
+          { data: before, value: 0 },
+          { data: now.getTime(), value: 0 },
+        ],
+        historicoTWRPeriodo: [],
+        cashFlowsByDay: new Map(),
+      });
+      // CDI > 0 no período
+      const days = Math.floor((now.getTime() - startOfYear) / 86400000);
+      const cdiDaily = Array.from({ length: Math.max(days, 30) }, (_, i) => ({
+        date: new Date(startOfYear + i * 86400000),
+        value: 0.0003,
+      }));
+      mockPrisma.economicIndex.findMany.mockResolvedValue(cdiDaily);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const response = await GET(createRequest());
+      const data = await response.json();
+
+      expect(data.janelas.inTheYear.portfolioReturn).toBe(0);
+      expect(data.janelas.inTheYear.cdiReturn).toBeGreaterThan(0);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('YTD=0 com CDI='));
+
+      warnSpy.mockRestore();
+    });
+
+    it('não emite warning quando YTD=0 mas CDI também é 0 (carteira nova)', async () => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
+
+      mockBuildPatrimonio.mockResolvedValue({
+        historicoPatrimonio: [],
+        historicoTWR: [
+          { data: startOfYear, value: 0 },
+          { data: now.getTime(), value: 0 },
+        ],
+        historicoTWRPeriodo: [],
+        cashFlowsByDay: new Map(),
+      });
+      mockPrisma.economicIndex.findMany.mockResolvedValue([]);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      await GET(createRequest());
+
+      expect(warnSpy).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+  });
+
   it('zera ibov/ipca quando histórico do benchmark está vazio (não quebra)', async () => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
