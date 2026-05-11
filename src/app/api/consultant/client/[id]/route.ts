@@ -64,7 +64,6 @@ const getClientPortfolio = async (clientId: string) => {
     where: { userId: clientId },
     include: {
       asset: true,
-      stock: true,
     },
   });
 
@@ -77,7 +76,7 @@ const getClientPortfolio = async (clientId: string) => {
   }
 
   const symbols = portfolio
-    .map((item) => item.asset?.symbol ?? item.stock?.ticker ?? null)
+    .map((item) => item.asset?.symbol ?? null)
     .filter((symbol): symbol is string => Boolean(symbol));
 
   const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
@@ -86,11 +85,11 @@ const getClientPortfolio = async (clientId: string) => {
   let totalInvested = 0;
 
   const assets = portfolio.map((item) => {
-    const inferredType = item.asset?.type ?? (item.stock ? 'stock' : 'other');
+    const inferredType = item.asset?.type ?? 'other';
     const invested = item.totalInvested ?? item.avgPrice * item.quantity;
     totalInvested += invested;
 
-    const symbol = item.asset?.symbol ?? item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     const currentPrice = symbol ? (quotes.get(symbol) ?? item.avgPrice) : item.avgPrice;
     const assetCurrentValue = currentPrice * item.quantity;
     currentValue += assetCurrentValue;
@@ -98,7 +97,7 @@ const getClientPortfolio = async (clientId: string) => {
     return {
       id: item.id,
       symbol,
-      name: item.asset?.name ?? item.stock?.companyName ?? symbol ?? '',
+      name: item.asset?.name ?? symbol ?? '',
       type: inferredType,
       quantity: item.quantity,
       avgPrice: item.avgPrice,

@@ -5,16 +5,11 @@ import { logDataUpdate } from '@/services/impersonationLogger';
 import { resgateSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
-const mapPortfolioToTipo = (item: {
-  stock?: { ticker: string } | null;
-  asset?: { type?: string | null } | null;
-}) => {
-  if (item.stock?.ticker) {
-    const ticker = item.stock.ticker.toUpperCase();
-    return ticker.endsWith('11') ? 'fii' : 'acao';
-  }
-
+const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
   const assetType = item.asset?.type || '';
+  // Pós-consolidação: ações B3 e FIIs também viram Asset (type='stock' / 'fii').
+  if (assetType === 'stock') return 'acao';
+  if (assetType === 'fii') return 'fii';
   switch (assetType) {
     case 'emergency':
       return 'reserva-emergencia';
@@ -68,7 +63,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const portfolio = await prisma.portfolio.findFirst({
     where: { id: portfolioId, userId: targetUserId },
-    include: { stock: true, asset: true },
+    include: { asset: true },
   });
 
   if (!portfolio) {
@@ -94,7 +89,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       where: {
         userId: targetUserId,
         type: 'compra',
-        ...(portfolio.stockId ? { stockId: portfolio.stockId } : { assetId: portfolio.assetId! }),
+        assetId: portfolio.assetId!,
       },
       orderBy: { date: 'desc' },
     });
@@ -162,10 +157,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       portfolioId,
       tipoAtivo,
       instituicaoId: instituicaoId || null,
-      stockId: portfolio.stockId,
       assetId: portfolio.assetId,
-      symbol: portfolio.stock?.ticker || portfolio.asset?.symbol || '',
-      name: portfolio.stock?.companyName || portfolio.asset?.name || '',
+      symbol: portfolio.asset?.symbol || '',
+      name: portfolio.asset?.name || '',
       metodoResgate,
       quantity: quantityResgate,
       price: priceResgate,
@@ -181,7 +175,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const transacao = await prisma.stockTransaction.create({
     data: {
       userId: targetUserId,
-      ...(portfolio.stockId ? { stockId: portfolio.stockId } : { assetId: portfolio.assetId! }),
+      assetId: portfolio.assetId!,
       type: 'venda',
       quantity: quantityResgate,
       price: priceResgate,

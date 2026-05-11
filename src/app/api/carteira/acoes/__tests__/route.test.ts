@@ -71,8 +71,7 @@ describe('/api/carteira/acoes', () => {
           objetivo: 20,
           estrategia: 'value',
           stockId: 's1',
-          stock: { ticker: 'PETR4', companyName: 'Petrobras', sector: 'energia', subsector: '' },
-          asset: null,
+          asset: { symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
           lastUpdate: new Date(),
         },
       ]);
@@ -114,10 +113,7 @@ describe('/api/carteira/acoes', () => {
       expect(mockPrisma.portfolio.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            OR: expect.arrayContaining([
-              { stockId: { not: null } },
-              { asset: { type: { in: ['bdr', 'brd'] } } },
-            ]),
+            asset: { type: { in: ['stock', 'bdr', 'brd'] } },
           }),
         }),
       );
@@ -134,8 +130,7 @@ describe('/api/carteira/acoes', () => {
           objetivo: 15,
           estrategia: 'value',
           stockId: 's-fii',
-          stock: { ticker: 'KNRI11', companyName: 'Kinea', sector: null, subsector: null },
-          asset: null,
+          asset: { symbol: 'KNRI11', name: 'Kinea', type: 'fii' },
           lastUpdate: new Date(),
         },
         {
@@ -147,8 +142,7 @@ describe('/api/carteira/acoes', () => {
           objetivo: 15,
           estrategia: 'value',
           stockId: 's-acao',
-          stock: { ticker: 'VALE3', companyName: 'Vale', sector: 'materiais', subsector: '' },
-          asset: null,
+          asset: { symbol: 'VALE3', name: 'Vale', type: 'stock' },
           lastUpdate: new Date(),
         },
       ]);

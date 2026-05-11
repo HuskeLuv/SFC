@@ -86,7 +86,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Buscar resumo da carteira para calcular percentuais
   const allPortfolio = await prisma.portfolio.findMany({
     where: { userId: targetUserId },
-    include: { asset: true, stock: true },
+    include: { asset: true },
   });
 
   // Calcular saldo bruto total da carteira

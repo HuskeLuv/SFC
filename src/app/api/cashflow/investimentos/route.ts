@@ -5,15 +5,11 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const mapTransactionToTipo = (transaction: {
-  stock?: { ticker: string } | null;
-  asset?: { type?: string | null } | null;
+  asset?: { type?: string | null; symbol?: string | null } | null;
 }) => {
-  if (transaction.stock?.ticker) {
-    const ticker = transaction.stock.ticker.toUpperCase();
-    return ticker.endsWith('11') ? 'fii' : 'stock';
-  }
-
   const assetType = transaction.asset?.type || '';
+  if (assetType === 'stock') return 'stock';
+  if (assetType === 'fii') return 'fii';
   switch (assetType) {
     case 'emergency':
       return 'emergency';
@@ -79,7 +75,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     },
     include: {
       asset: true,
-      stock: true,
     },
     orderBy: {
       date: 'asc',
@@ -107,7 +102,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   // Processar cada transação
   for (const transacao of transacoes) {
-    if (!transacao.asset && !transacao.stock) continue;
+    if (!transacao.asset) continue;
 
     const transactionYear = transacao.date.getFullYear();
     const mes = transacao.date.getMonth(); // 0 = Janeiro, 11 = Dezembro

@@ -53,7 +53,7 @@ export const PATCH = withErrorHandler(
 
     const transaction = await prisma.stockTransaction.findFirst({
       where: { id, userId: targetUserId },
-      include: { asset: true, stock: true },
+      include: { asset: true },
     });
 
     if (!transaction) {
@@ -93,23 +93,15 @@ export const PATCH = withErrorHandler(
       data: updates,
     });
 
-    if (transaction.assetId || transaction.stockId) {
-      const portfolioWhere: { userId: string; assetId?: string; stockId?: string } = {
-        userId: targetUserId,
-      };
-      if (transaction.assetId) {
-        portfolioWhere.assetId = transaction.assetId;
-      } else if (transaction.stockId) {
-        portfolioWhere.stockId = transaction.stockId;
-      }
-
-      const portfolio = await prisma.portfolio.findFirst({ where: portfolioWhere });
+    if (transaction.assetId) {
+      const portfolio = await prisma.portfolio.findFirst({
+        where: { userId: targetUserId, assetId: transaction.assetId },
+      });
 
       if (portfolio) {
         await recalculatePortfolioFromTransactions({
           targetUserId,
           assetId: transaction.assetId,
-          stockId: transaction.stockId,
           portfolioId: portfolio.id,
           recomputeSnapshotsFrom: snapshotCutoff,
         });
@@ -133,19 +125,11 @@ export const DELETE = withErrorHandler(
       return NextResponse.json({ error: 'Transação não encontrada' }, { status: 404 });
     }
 
-    const portfolioWhere: { userId: string; assetId?: string; stockId?: string } = {
-      userId: targetUserId,
-    };
-    if (transaction.assetId) {
-      portfolioWhere.assetId = transaction.assetId;
-    } else if (transaction.stockId) {
-      portfolioWhere.stockId = transaction.stockId;
-    }
-
-    const portfolio =
-      portfolioWhere.assetId || portfolioWhere.stockId
-        ? await prisma.portfolio.findFirst({ where: portfolioWhere })
-        : null;
+    const portfolio = transaction.assetId
+      ? await prisma.portfolio.findFirst({
+          where: { userId: targetUserId, assetId: transaction.assetId },
+        })
+      : null;
 
     const snapshotCutoff = transaction.date;
 
@@ -157,7 +141,6 @@ export const DELETE = withErrorHandler(
       await recalculatePortfolioFromTransactions({
         targetUserId,
         assetId: transaction.assetId,
-        stockId: transaction.stockId,
         portfolioId: portfolio.id,
         recomputeSnapshotsFrom: snapshotCutoff,
       });

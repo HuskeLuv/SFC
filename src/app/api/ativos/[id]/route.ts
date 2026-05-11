@@ -58,12 +58,9 @@ const extractInstitutionIdFromNotes = (notes: string | null | undefined): string
 const resolveInstituicaoForPortfolio = async (
   userId: string,
   assetId: string | null,
-  stockId: string | null,
 ): Promise<{ id: string | null; nome: string | null }> => {
-  const txWhere: { userId: string; assetId?: string; stockId?: string } = { userId };
-  if (assetId) txWhere.assetId = assetId;
-  else if (stockId) txWhere.stockId = stockId;
-  else return { id: null, nome: null };
+  if (!assetId) return { id: null, nome: null };
+  const txWhere = { userId, assetId };
 
   // Percorre transações até achar uma com instituicaoId em notes (mais antiga primeiro
   // — operação inicial costuma ter o campo populado; edits subsequentes podem omitir).
@@ -165,7 +162,6 @@ type PortfolioForFI = {
   id: string;
   userId: string;
   assetId: string | null;
-  stockId: string | null;
   asset: { symbol: string; name: string; type?: string | null } | null;
 };
 
@@ -305,7 +301,6 @@ const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedInco
   const instituicao = await resolveInstituicaoForPortfolio(
     portfolio.userId,
     portfolio.assetId ?? null,
-    portfolio.stockId ?? null,
   );
 
   return NextResponse.json({
@@ -369,7 +364,7 @@ export const GET = withErrorHandler(
 
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
     });
 
     if (!portfolio) {
@@ -384,24 +379,20 @@ export const GET = withErrorHandler(
       return await buildFixedIncomeResponse(portfolio, fixedIncome);
     }
 
-    const symbol = portfolio.asset?.symbol || portfolio.stock?.ticker;
-    const nome = portfolio.asset?.name || portfolio.stock?.companyName || symbol;
+    const symbol = portfolio.asset?.symbol;
+    const nome = portfolio.asset?.name || symbol;
     const ticker = symbol || '';
 
     if (!ticker) {
       return NextResponse.json({ error: 'Ativo sem ticker identificado' }, { status: 400 });
     }
 
-    const txWhere: { userId: string; assetId?: string; stockId?: string } = {
-      userId: targetUserId,
-    };
-    if (portfolio.assetId) txWhere.assetId = portfolio.assetId;
-    else if (portfolio.stockId) txWhere.stockId = portfolio.stockId;
-
-    const transactions = await prisma.stockTransaction.findMany({
-      where: txWhere,
-      orderBy: { date: 'desc' },
-    });
+    const transactions = portfolio.assetId
+      ? await prisma.stockTransaction.findMany({
+          where: { userId: targetUserId, assetId: portfolio.assetId },
+          orderBy: { date: 'desc' },
+        })
+      : [];
 
     const quotes = await getAssetPrices([ticker], { useBrapiFallback: true });
     const cotacaoAtual = quotes.get(ticker) ?? portfolio.avgPrice;
@@ -678,7 +669,6 @@ export const GET = withErrorHandler(
     const instituicao = await resolveInstituicaoForPortfolio(
       targetUserId,
       portfolio.assetId ?? null,
-      portfolio.stockId ?? null,
     );
 
     return NextResponse.json({
@@ -732,7 +722,7 @@ export const PATCH = withErrorHandler(
 
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId: targetUserId },
-      select: { id: true, assetId: true, stockId: true },
+      select: { id: true, assetId: true },
     });
     if (!portfolio) {
       return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
@@ -746,17 +736,12 @@ export const PATCH = withErrorHandler(
       return NextResponse.json({ error: 'Instituição não encontrada' }, { status: 404 });
     }
 
-    const txWhere: { userId: string; assetId?: string; stockId?: string } = {
-      userId: targetUserId,
-    };
-    if (portfolio.assetId) txWhere.assetId = portfolio.assetId;
-    else if (portfolio.stockId) txWhere.stockId = portfolio.stockId;
-    else {
+    if (!portfolio.assetId) {
       return NextResponse.json({ error: 'Portfólio sem ativo vinculado' }, { status: 400 });
     }
 
     const transactions = await prisma.stockTransaction.findMany({
-      where: txWhere,
+      where: { userId: targetUserId, assetId: portfolio.assetId },
       select: { id: true, notes: true },
     });
 

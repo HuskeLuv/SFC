@@ -3,16 +3,11 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-const mapPortfolioToTipo = (item: {
-  stock?: { ticker: string } | null;
-  asset?: { type?: string | null } | null;
-}) => {
-  if (item.stock?.ticker) {
-    const ticker = item.stock.ticker.toUpperCase();
-    return ticker.endsWith('11') ? 'fii' : 'acao';
-  }
-
+const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
   const assetType = item.asset?.type || '';
+  // Pós-consolidação Stock → Asset: tipo vem de Asset.type direto.
+  if (assetType === 'stock') return 'acao';
+  if (assetType === 'fii') return 'fii';
   switch (assetType) {
     case 'emergency':
       return 'reserva-emergencia';
@@ -69,25 +64,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const portfolio = await prisma.portfolio.findMany({
     where: { userId: targetUserId },
-    include: { stock: true, asset: true },
+    include: { asset: true },
   });
 
   const filtered = portfolio.filter((item) => mapPortfolioToTipo(item) === tipo);
 
-  const stockIds = filtered.map((item) => item.stockId).filter(Boolean) as string[];
   const assetIds = filtered.map((item) => item.assetId).filter(Boolean) as string[];
 
-  const orConditions: Array<{ stockId?: { in: string[] }; assetId?: { in: string[] } }> = [];
-  if (stockIds.length > 0) orConditions.push({ stockId: { in: stockIds } });
-  if (assetIds.length > 0) orConditions.push({ assetId: { in: assetIds } });
-
   const transactions =
-    orConditions.length > 0
+    assetIds.length > 0
       ? await prisma.stockTransaction.findMany({
           where: {
             userId: targetUserId,
             type: 'compra',
-            OR: orConditions,
+            assetId: { in: assetIds },
           },
           orderBy: { date: 'desc' },
         })
@@ -95,7 +85,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const institutionByKey = new Map<string, string | null>();
   transactions.forEach((transaction) => {
-    const key = transaction.stockId || transaction.assetId;
+    const key = transaction.assetId;
     if (!key || institutionByKey.has(key)) return;
     institutionByKey.set(key, extractInstitutionId(transaction.notes));
   });
@@ -103,7 +93,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const institutionIds = new Set<string>();
   let hasUnknown = false;
   filtered.forEach((item) => {
-    const key = item.stockId || item.assetId;
+    const key = item.assetId;
     const instId = key ? institutionByKey.get(key) : null;
     if (instId) {
       institutionIds.add(instId);

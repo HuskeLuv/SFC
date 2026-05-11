@@ -144,7 +144,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       price: true,
       total: true,
       date: true,
-      stock: { select: { ticker: true } },
       asset: { select: { symbol: true, type: true } },
     },
     orderBy: {

@@ -24,15 +24,11 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 const mapPortfolioToTipo = (item: {
-  stock?: { ticker: string } | null;
-  asset?: { type?: string | null } | null;
+  asset?: { type?: string | null; symbol?: string | null } | null;
 }) => {
-  if (item.stock?.ticker) {
-    const ticker = item.stock.ticker.toUpperCase();
-    return ticker.endsWith('11') ? 'fii' : 'acao';
-  }
-
   const assetType = item.asset?.type || '';
+  if (assetType === 'stock') return 'acao';
+  if (assetType === 'fii') return 'fii';
   switch (assetType) {
     case 'emergency':
       return 'reserva-emergencia';
@@ -70,7 +66,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const portfolio = await prisma.portfolio.findMany({
     where: { userId: targetUserId },
-    include: { stock: true, asset: true },
+    include: { asset: true },
   });
 
   const tiposSet = new Set<string>();

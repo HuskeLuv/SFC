@@ -44,36 +44,20 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   });
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
-  // Buscar portfolio do usuário com FIIs.
-  // FIIs brasileiros vivem na tabela Stock com ticker terminando em '11'
-  // (ou nome contendo "fii"/"fundo imobiliário" — o fallback abaixo cobre
-  // esse caso em memória). FIIs salvos na tabela Asset (path alternativo)
-  // também são aceitos.
+  // Pós-consolidação Stock → Asset: FIIs vivem na tabela Asset com type='fii'.
   const portfolio = await prisma.portfolio.findMany({
     where: {
       userId,
-      OR: [{ stock: { ticker: { endsWith: '11' } } }, { asset: { type: 'fii' } }],
+      asset: { type: 'fii' },
     },
-    include: {
-      stock: true,
-      asset: true,
-    },
+    include: { asset: true },
   });
 
-  // Sanity-check em memória: o filtro SQL já restringe, mas mantemos a
-  // checagem para preservar o comportamento caso algum registro tenha
-  // ticker em caixa mista (Prisma `endsWith` é case-sensitive por padrão).
-  const fiiPortfolio = portfolio.filter((item) => {
-    if (item.stock && item.stock.ticker && item.stock.ticker.toUpperCase().endsWith('11')) {
-      return true;
-    }
-    if (item.asset && item.asset.type === 'fii') return true;
-    return false;
-  });
+  const fiiPortfolio = portfolio.filter((item) => item.asset?.type === 'fii');
 
   // Buscar cotações atuais dos FIIs (banco primeiro, fallback BRAPI quando necessário)
   const symbols = fiiPortfolio
-    .map((item) => item.stock?.ticker || item.asset?.symbol || '')
+    .map((item) => item.asset?.symbol || '')
     .filter((ticker) => ticker && ticker.trim());
   const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
@@ -82,8 +66,8 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     const valorTotal = item.totalInvested;
 
     // Determinar ticker e nome baseado na origem (Stock ou Asset)
-    const ticker = item.stock?.ticker || item.asset?.symbol || '';
-    const nome = item.stock?.companyName || item.asset?.name || '';
+    const ticker = item.asset?.symbol || '';
+    const nome = item.asset?.name || '';
 
     // Buscar cotação atual da brapi
     let cotacaoAtual = quotes.get(ticker);

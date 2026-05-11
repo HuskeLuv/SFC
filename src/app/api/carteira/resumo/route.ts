@@ -106,7 +106,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     prisma.user.findUnique({ where: { id: targetUserId } }),
     prisma.portfolio.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
     }),
     (async (): Promise<FixedIncomeAssetWithAsset[]> => {
       try {
@@ -167,7 +167,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }),
     prisma.stockTransaction.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
       orderBy: { date: 'asc' },
     }),
   ]);
@@ -216,8 +216,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       }
       if (item.asset) {
         return item.asset.symbol;
-      } else if (item.stock) {
-        return item.stock.ticker;
       }
       return null;
     })
@@ -271,7 +269,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Calcular valor atual usando cotações da brapi.dev
   let stocksCurrentValue = 0;
   for (const item of portfolio) {
-    const symbol = item.asset?.symbol || item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
     const isReserva =
       item.asset?.type === 'emergency' ||
@@ -299,7 +297,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       categorias.imoveisBens += valorImovel;
     } else if (symbol) {
       const currentPrice = quotes.get(symbol);
-      const currency = item.asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
+      const currency = item.asset?.currency ?? 'BRL';
       const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
       let valorItem: number;
       if (currentPrice != null) {
@@ -495,29 +493,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   // categorias já foi inicializado antes do loop do portfolio
 
-  // Batch lookup de assets para itens sem item.asset (evita N+1)
-  const symbolsNeedingAsset = [
-    ...new Set(
-      portfolio
-        .filter((item) => !item.asset && item.stock?.ticker)
-        .map((item) => (item.stock?.ticker ?? '').trim().toUpperCase())
-        .filter(Boolean),
-    ),
-  ];
-  const assetsBySymbol =
-    symbolsNeedingAsset.length > 0
-      ? new Map(
-          (
-            await prisma.asset.findMany({
-              where: { symbol: { in: symbolsNeedingAsset } },
-              select: { symbol: true, type: true, currency: true, name: true },
-            })
-          ).map((a) => [a.symbol.toUpperCase(), a]),
-        )
-      : new Map<
-          string,
-          { symbol: string; type: string | null; currency: string | null; name: string | null }
-        >();
+  // Após consolidação Stock → Asset, todo portfolio.asset está populado.
+  // O batch lookup legado deixou de ser necessário.
 
   // Catalog Tesouro Direto compartilha asset.type='tesouro-direto' entre usuários;
   // a intenção de colocá-lo numa reserva fica registrada em transaction.notes.tesouroDestino.
@@ -539,10 +516,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   // Categorizar portfolio baseado no tipo do ativo
   for (const item of portfolio) {
-    const symbol = item.asset?.symbol || item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     if (!symbol) continue;
 
-    const asset = item.asset ?? assetsBySymbol.get(symbol.trim().toUpperCase()) ?? null;
+    const asset = item.asset ?? null;
     const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
     const tesouroReservaDestino = item.assetId
       ? tesouroReservaDestinoByAssetId.get(item.assetId)
@@ -571,7 +548,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     // Quando cai no fallback (sem currentPrice ou FI ou reserva), valorAtual
     // já está em BRL — avgPrice/totalInvested são gravados em BRL pela
     // /api/carteira/operacao. Só converte quando veio de currentPrice (USD).
-    const currency = asset?.currency ?? (item.stock ? 'BRL' : 'BRL');
+    const currency = asset?.currency ?? 'BRL';
     const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
     const usouCurrentPriceUSD =
       currentPrice != null &&
@@ -595,9 +572,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           categorias.reservaEmergencia += valorAtualBRL;
         }
       } else {
-        // Só incluir em acoes itens que aparecem na aba Ações (stockId + ticker não 11)
-        const isAcaoTabItem =
-          item.stockId && item.stock && !item.stock.ticker.toUpperCase().endsWith('11');
+        // Após consolidação Stock → Asset: aba Ações filtra por Asset.type='stock'
+        // e ticker no padrão B3 (4 letras + 1 dígito, ex.: PETR4). Ações US também
+        // são type='stock' mas têm currency='USD' e ticker fora do padrão B3.
+        const isB3StockTicker = /^[A-Z]{4}[0-9]$/.test(symbol.toUpperCase());
+        const isAcaoTabItem = asset.type === 'stock' && isB3StockTicker;
         switch (tipo) {
           case 'ação':
           case 'acao':
@@ -606,7 +585,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
               if (isAcaoTabItem) {
                 categorias.acoes += valorAtualBRL;
               } else {
-                categorias.rendaFixaFundos += valorAtualBRL; // asset acao sem stockId: evita valor fantasma
+                categorias.rendaFixaFundos += valorAtualBRL; // ação BRL fora do padrão B3: evita valor fantasma
               }
             } else {
               categorias.stocks += valorAtualBRL;
@@ -699,17 +678,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         }
       }
     } else {
-      // Portfolio com stockId (Stock table) sem Asset correspondente - alinhado com tabs Ações/FII
-      // Ações: stockId + ticker NÃO termina em 11 | FIIs: stockId + ticker termina em 11
+      // Defensive fallback: portfolios sem asset populado (não deveria ocorrer
+      // pós-consolidação Stock → Asset). Categoriza pelo padrão do ticker.
       const tickerUpper = symbol?.toUpperCase() ?? '';
       if (symbol?.startsWith('RESERVA-OPORT')) {
         categorias.reservaOportunidade += valorAtualBRL;
       } else if (symbol?.startsWith('RESERVA-EMERG')) {
         categorias.reservaEmergencia += valorAtualBRL;
       } else if (tickerUpper.endsWith('11')) {
-        categorias.fiis += valorAtualBRL; // FIIs terminam em 11 (ex: HGLG11)
+        categorias.fiis += valorAtualBRL;
       } else {
-        categorias.acoes += valorAtualBRL; // Ações brasileiras (ex: PETR4, VALE3)
+        categorias.acoes += valorAtualBRL;
       }
     }
   }

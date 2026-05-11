@@ -21,7 +21,7 @@ export const loadCarteiraHistoricoData = async (targetUserId: string) => {
   ] = await Promise.all([
     prisma.portfolio.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
     }) as Promise<PortfolioWithRelations[]>,
     (async (): Promise<FixedIncomeAssetWithAsset[]> => {
       try {
@@ -61,7 +61,7 @@ export const loadCarteiraHistoricoData = async (targetUserId: string) => {
     }),
     prisma.stockTransaction.findMany({
       where: { userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
       orderBy: { date: 'asc' },
     }) as Promise<StockTransactionWithRelations[]>,
   ]);

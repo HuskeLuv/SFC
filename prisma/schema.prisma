@@ -285,52 +285,30 @@ model CashflowValue {
   @@index([userId])
 }
 
-// ===== STOCKS MODULE =====
-
-// Ativo/Stock disponível na B3
-model Stock {
-  id          String   @id @default(uuid())
-  ticker      String   @unique // Código do ativo (ex: PETR4, VALE3)
-  companyName String // Nome da empresa
-  sector      String? // Setor da empresa
-  subsector   String? // Subsetor
-  segment     String? // Segmento
-  isActive    Boolean  @default(true)
-  lastUpdate  DateTime @default(now())
-
-  // Relacionamentos
-  watchlists   Watchlist[]
-  portfolios   Portfolio[]
-  transactions StockTransaction[]
-
-  @@map("stocks")
-}
+// ===== PORTFOLIO MODULE =====
+// Pós-consolidação Stock → Asset (Sprint 5): `Stock` removido, ações/FIIs
+// também vivem em `Asset` (type='stock' / 'fii'). FK única: assetId.
 
 // Lista de observação do usuário
 model Watchlist {
   id      String   @id @default(uuid())
   userId  String
   user    User     @relation(fields: [userId], references: [id])
-  stockId String? // Pode ser null para compatibilidade
-  stock   Stock?   @relation(fields: [stockId], references: [id])
-  assetId String? // Nova referência para Asset
+  assetId String?
   asset   Asset?   @relation(fields: [assetId], references: [id])
   addedAt DateTime @default(now())
   notes   String? // Observações do usuário
 
-  @@unique([userId, stockId])
   @@index([userId])
   @@map("watchlists")
 }
 
-// Portfolio do usuário (ações que possui)
+// Portfolio do usuário
 model Portfolio {
   id            String              @id @default(uuid())
   userId        String
   user          User                @relation(fields: [userId], references: [id])
-  stockId       String? // Pode ser null para compatibilidade
-  stock         Stock?              @relation(fields: [stockId], references: [id])
-  assetId       String? // Nova referência para Asset
+  assetId       String?
   asset         Asset?              @relation(fields: [assetId], references: [id])
   quantity      Float // Quantidade (Float para suportar criptomoedas com frações, ex: 0.000001 BTC)
   avgPrice      Float // Preço médio de compra
@@ -342,11 +320,9 @@ model Portfolio {
   lastUpdate    DateTime            @default(now())
   proventos     PortfolioProvento[]
 
-  @@unique([userId, stockId])
   @@unique([userId, assetId])
   @@index([userId])
   @@index([userId, assetId])
-  @@index([userId, stockId])
   @@map("portfolios")
 }
 
@@ -377,9 +353,7 @@ model StockTransaction {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  stockId   String? // Pode ser null para compatibilidade
-  stock     Stock?   @relation(fields: [stockId], references: [id])
-  assetId   String? // Nova referência para Asset
+  assetId   String?
   asset     Asset?   @relation(fields: [assetId], references: [id])
   type      String // "compra" ou "venda"
   quantity  Float // Quantidade (Float para suportar criptomoedas com frações)

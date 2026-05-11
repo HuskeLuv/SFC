@@ -56,7 +56,6 @@ const calculatePortfolioSnapshot = async (clientId: string) => {
     where: { userId: clientId },
     include: {
       asset: true,
-      stock: true,
     },
   });
 
@@ -69,7 +68,7 @@ const calculatePortfolioSnapshot = async (clientId: string) => {
   }
 
   const symbols = portfolio
-    .map((item) => item.asset?.symbol ?? item.stock?.ticker ?? null)
+    .map((item) => item.asset?.symbol ?? null)
     .filter((symbol): symbol is string => Boolean(symbol));
 
   let quotes = new Map<string, number>();
@@ -90,7 +89,7 @@ const calculatePortfolioSnapshot = async (clientId: string) => {
     const invested = item.totalInvested ?? item.avgPrice * item.quantity;
     totalInvested += invested;
 
-    const symbol = item.asset?.symbol ?? item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     if (!symbol) {
       currentValue += invested;
       continue;
@@ -476,7 +475,6 @@ const getClientPortfolioConcentration = async (clientId: string): Promise<number
     where: { userId: clientId },
     include: {
       asset: true,
-      stock: true,
     },
   });
 
@@ -485,7 +483,7 @@ const getClientPortfolioConcentration = async (clientId: string): Promise<number
   }
 
   const symbols = portfolio
-    .map((item) => item.asset?.symbol ?? item.stock?.ticker ?? null)
+    .map((item) => item.asset?.symbol ?? null)
     .filter((symbol): symbol is string => Boolean(symbol));
 
   let quotes = new Map<string, number>();
@@ -501,7 +499,7 @@ const getClientPortfolioConcentration = async (clientId: string): Promise<number
 
   const assetValues: number[] = [];
   portfolio.forEach((item) => {
-    const symbol = item.asset?.symbol ?? item.stock?.ticker;
+    const symbol = item.asset?.symbol;
     const currentPrice = symbol ? (quotes.get(symbol) ?? item.avgPrice) : item.avgPrice;
     assetValues.push(currentPrice * item.quantity);
   });
@@ -870,12 +868,11 @@ export const getConsolidatedAssetDistribution = async (
       where: { userId: assignment.clientId },
       include: {
         asset: true,
-        stock: true,
       },
     });
 
     const symbols = portfolio
-      .map((item) => item.asset?.symbol ?? item.stock?.ticker ?? null)
+      .map((item) => item.asset?.symbol ?? null)
       .filter((symbol): symbol is string => Boolean(symbol));
 
     let quotes = new Map<string, number>();
@@ -890,8 +887,8 @@ export const getConsolidatedAssetDistribution = async (
     }
 
     portfolio.forEach((item) => {
-      const assetType = (item.asset?.type || (item.stock ? 'stock' : 'other'))?.toLowerCase() || '';
-      const symbol = item.asset?.symbol ?? item.stock?.ticker;
+      const assetType = (item.asset?.type ?? 'other').toLowerCase();
+      const symbol = item.asset?.symbol;
       const currentPrice = symbol ? (quotes.get(symbol) ?? item.avgPrice) : item.avgPrice;
       const value = currentPrice * item.quantity;
 

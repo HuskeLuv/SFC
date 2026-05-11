@@ -17,11 +17,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const portfolio = await prisma.portfolio.findMany({
     where: { userId: targetUserId },
-    include: { stock: true, asset: true },
+    include: { asset: true },
   });
 
   const symbols = portfolio
-    .map((item) => item.asset?.symbol || item.stock?.ticker)
+    .map((item) => item.asset?.symbol)
     .filter(
       (s): s is string =>
         typeof s === 'string' &&
@@ -39,30 +39,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const lastTransactionByPortfolio = new Map<string, Date>();
   const transactions = await prisma.stockTransaction.findMany({
     where: { userId: targetUserId },
-    select: { assetId: true, stockId: true, date: true },
+    select: { assetId: true, date: true },
     orderBy: { date: 'desc' },
   });
 
-  // Index transactions by assetId and stockId so the per-portfolio lookup
-  // below is O(1) instead of O(transactions). Since `transactions` is sorted
-  // by date desc, the FIRST occurrence per key is the most recent — preserve
-  // that semantic by only setting the map entry when it's still empty.
+  // Index por assetId — primeira ocorrência é a mais recente (orderBy desc).
   const lastTxByAssetId = new Map<string, Date>();
-  const lastTxByStockId = new Map<string, Date>();
   for (const tx of transactions) {
     if (tx.assetId && !lastTxByAssetId.has(tx.assetId)) {
       lastTxByAssetId.set(tx.assetId, tx.date);
     }
-    if (tx.stockId && !lastTxByStockId.has(tx.stockId)) {
-      lastTxByStockId.set(tx.stockId, tx.date);
-    }
   }
 
   portfolio.forEach((p) => {
-    // Match the original `find` order: assetId match wins over stockId match.
-    const lastTxDate =
-      (p.assetId ? lastTxByAssetId.get(p.assetId) : undefined) ??
-      (p.stockId ? lastTxByStockId.get(p.stockId) : undefined);
+    const lastTxDate = p.assetId ? lastTxByAssetId.get(p.assetId) : undefined;
     if (lastTxDate) {
       lastTransactionByPortfolio.set(p.id, lastTxDate);
     }
@@ -85,8 +75,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const categoria = getCategoriaFromPortfolio(item, fixedIncomeAssetIds);
     if (!categoria) continue;
 
-    const symbol = item.asset?.symbol || item.stock?.ticker || '';
-    const nome = item.asset?.name || item.stock?.companyName || symbol;
+    const symbol = item.asset?.symbol || '';
+    const nome = item.asset?.name || symbol;
 
     let valorAtual = 0;
     const isFixedIncome = item.assetId ? fixedIncomeAssetIds.has(item.assetId) : false;
@@ -122,7 +112,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
     const dataUltimaModificacao = lastTransactionByPortfolio.get(item.id) ?? item.lastUpdate;
 
-    const assetId = item.assetId || `stock-${item.stockId}`;
+    const assetId = item.assetId ?? '';
 
     if (!ativosPorCategoria[categoria]) {
       ativosPorCategoria[categoria] = [];

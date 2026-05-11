@@ -34,36 +34,27 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   });
   const caixaParaInvestir = caixaParaInvestirData?.value || 0;
 
-  // Buscar portfolio do usuário com ações brasileiras e BDRs.
-  // Ações brasileiras vivem na tabela Stock (join via stockId).
-  // BDRs vivem na tabela Asset com type='bdr'|'brd' (join via assetId) — o
-  // wizard grava BDRs pelo fallback genérico da rota operacao e sem este
-  // branch os BDRs ficariam invisíveis em todas as abas.
+  // Pós-consolidação Stock → Asset: ações brasileiras (type='stock' com ticker
+  // no padrão B3) e BDRs (type='bdr'|'brd') vivem ambos na tabela Asset.
+  // FIIs (type='fii') aparecem na aba FIIs e ficam fora dessa busca.
   const portfolio = await prisma.portfolio.findMany({
     where: {
       userId,
-      OR: [{ stockId: { not: null } }, { asset: { type: { in: ['bdr', 'brd'] } } }],
+      asset: { type: { in: ['stock', 'bdr', 'brd'] } },
     },
-    include: {
-      stock: true,
-      asset: true,
-    },
+    include: { asset: true },
   });
 
-  // Separar em dois grupos: ações (Stock, ticker não terminando em '11') e
-  // BDRs (Asset com type bdr/brd). FIIs (ticker terminando em '11') são
-  // excluídos — aparecem na aba FIIs.
-  const acoesStockPortfolio = portfolio.filter((item) => {
-    if (!item.stock) return false;
-    const ticker = item.stock.ticker.toUpperCase();
-    return !ticker.endsWith('11');
-  });
+  const isB3StockTicker = (ticker: string) => /^[A-Z]{4}[0-9]$/.test(ticker.toUpperCase());
+  const acoesStockPortfolio = portfolio.filter(
+    (item) => item.asset?.type === 'stock' && isB3StockTicker(item.asset.symbol),
+  );
   const bdrPortfolio = portfolio.filter(
     (item) => item.asset && (item.asset.type === 'bdr' || item.asset.type === 'brd'),
   );
 
   // Buscar cotações atuais (banco primeiro, fallback BRAPI quando necessário)
-  const stockSymbols = acoesStockPortfolio.map((item) => item.stock!.ticker);
+  const stockSymbols = acoesStockPortfolio.map((item) => item.asset!.symbol);
   const bdrSymbols = bdrPortfolio.map((item) => item.asset!.symbol);
   const quotes = await getAssetPrices([...stockSymbols, ...bdrSymbols], {
     useBrapiFallback: true,
@@ -71,7 +62,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
 
   const mapStockPortfolioItem = (item: (typeof acoesStockPortfolio)[number]): AcaoAtivo => {
     const valorTotal = item.totalInvested;
-    const ticker = item.stock!.ticker;
+    const ticker = item.asset!.symbol;
 
     let cotacaoAtual = quotes.get(ticker);
     if (!cotacaoAtual) {
@@ -93,9 +84,11 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     return {
       id: item.id,
       ticker,
-      nome: item.stock!.companyName,
-      setor: parseSetorAcao(item.stock!.sector),
-      subsetor: item.stock!.subsector || '',
+      nome: item.asset!.name,
+      // setor/subsetor não estão no Asset (eram do Stock). Mantidos vazios
+      // até o cron BRAPI popular um campo análogo em Asset.
+      setor: parseSetorAcao(''),
+      subsetor: '',
       quantidade: item.quantity,
       precoAquisicao: item.avgPrice,
       valorTotal,

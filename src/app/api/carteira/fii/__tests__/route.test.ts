@@ -71,8 +71,7 @@ describe('/api/carteira/fii', () => {
           objetivo: 15,
           tipoFii: 'tijolo',
           stockId: 's1',
-          stock: { ticker: 'HGLG11', companyName: 'CGHG Logística', sector: null, subsector: null },
-          asset: null,
+          asset: { symbol: 'HGLG11', name: 'CGHG Logística', type: 'fii' },
           lastUpdate: new Date(),
         },
       ]);
@@ -83,12 +82,12 @@ describe('/api/carteira/fii', () => {
       expect(data.secoes[0].ativos[0].ticker).toBe('HGLG11');
     });
 
-    it('phase C: filtro SQL usa endsWith 11 ou asset.type=fii (não faz over-fetch)', async () => {
+    it('phase C: filtro SQL usa asset.type=fii (não faz over-fetch)', async () => {
       await GET(createGetRequest());
       expect(mockPrisma.portfolio.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            OR: [{ stock: { ticker: { endsWith: '11' } } }, { asset: { type: 'fii' } }],
+            asset: { type: 'fii' },
           }),
         }),
       );
@@ -121,8 +120,7 @@ describe('/api/carteira/fii', () => {
           objetivo: 100,
           tipoFii: 'tijolo',
           stockId: 's1',
-          stock: { ticker: 'HGLG11', companyName: 'CSHG Logística' },
-          asset: null,
+          asset: { symbol: 'HGLG11', name: 'CSHG Logística', type: 'fii' },
           lastUpdate: new Date(),
         },
       ]);
@@ -158,8 +156,7 @@ describe('/api/carteira/fii', () => {
           objetivo: 50,
           tipoFii: 'tijolo',
           stockId: 's1',
-          stock: { ticker: 'HGLG11', companyName: 'CSHG' },
-          asset: null,
+          asset: { symbol: 'HGLG11', name: 'CSHG', type: 'fii' },
           lastUpdate: new Date(),
         },
         {
@@ -171,8 +168,7 @@ describe('/api/carteira/fii', () => {
           objetivo: 50,
           tipoFii: 'fofi',
           stockId: 's2',
-          stock: { ticker: 'KFOF11', companyName: 'Kinea FOF' },
-          asset: null,
+          asset: { symbol: 'KFOF11', name: 'Kinea FOF', type: 'fii' },
           lastUpdate: new Date(),
         },
       ]);
@@ -205,9 +201,8 @@ describe('/api/carteira/fii', () => {
           avgPrice: 100,
           objetivo: 33.33,
           tipoFii: 'tijolo',
-          stockId: `s${i}`,
-          stock: { ticker, companyName: ticker },
-          asset: null,
+          assetId: `asset-${i}`,
+          asset: { symbol: ticker, name: ticker, type: 'fii' },
           lastUpdate: new Date(),
         })),
       );

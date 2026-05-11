@@ -16,18 +16,13 @@ export const DELETE = withErrorHandler(
       return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
     }
 
-    const txWhere: { userId: string; assetId?: string; stockId?: string } = {
-      userId: targetUserId,
-    };
-    if (portfolio.assetId) {
-      txWhere.assetId = portfolio.assetId;
-    } else if (portfolio.stockId) {
-      txWhere.stockId = portfolio.stockId;
-    } else {
+    if (!portfolio.assetId) {
       return NextResponse.json({ error: 'Investimento sem vínculo de ativo' }, { status: 400 });
     }
 
-    await prisma.stockTransaction.deleteMany({ where: txWhere });
+    await prisma.stockTransaction.deleteMany({
+      where: { userId: targetUserId, assetId: portfolio.assetId },
+    });
     await prisma.portfolio.delete({ where: { id: portfolioId } });
 
     return NextResponse.json({ success: true });

@@ -27,29 +27,22 @@ export const GET = withErrorHandler(
 
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId: targetUserId },
-      include: { stock: true, asset: true },
+      include: { asset: true },
     });
 
     if (!portfolio) {
       return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
     }
 
-    const ticker = portfolio.asset?.symbol || portfolio.stock?.ticker || '';
-    const nome = portfolio.asset?.name || portfolio.stock?.companyName || ticker;
+    const ticker = portfolio.asset?.symbol || '';
+    const nome = portfolio.asset?.name || ticker;
 
-    const txWhere: { userId: string; assetId?: string; stockId?: string } = {
-      userId: targetUserId,
-    };
-    if (portfolio.assetId) {
-      txWhere.assetId = portfolio.assetId;
-    } else if (portfolio.stockId) {
-      txWhere.stockId = portfolio.stockId;
-    }
-
-    const transactions = await prisma.stockTransaction.findMany({
-      where: txWhere,
-      orderBy: { date: 'desc' },
-    });
+    const transactions = portfolio.assetId
+      ? await prisma.stockTransaction.findMany({
+          where: { userId: targetUserId, assetId: portfolio.assetId },
+          orderBy: { date: 'desc' },
+        })
+      : [];
 
     let instituicaoId: string | null = null;
     let instituicaoNome: string | null = null;

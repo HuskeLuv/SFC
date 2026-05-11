@@ -121,17 +121,9 @@ export const cashflowBatchUpdateSchema = z.object({
   deletes: z.array(z.string()).optional(),
 });
 
-// ── Stock transactions (POST) schema ──────────────────────────────────
-
-export const stockTransactionSchema = z.object({
-  stockId: zString(255),
-  type: z.enum(['compra', 'venda']),
-  quantity: zPositiveNumber,
-  price: zPositiveNumber,
-  date: zDateString,
-  fees: z.number().finite().nonnegative().optional(),
-  notes: z.string().max(1000).nullable().optional(),
-});
+// stockTransactionSchema / watchlistAddSchema removidos na Sprint 5B
+// (consolidação Stock → Asset). Substitutos: /api/carteira/operacao
+// (Zod inline) e /api/carteira/watchlist (TBD).
 
 // ── Consultant acting schema ──────────────────────────────────────────
 
@@ -232,13 +224,6 @@ export const alocacaoConfigSchema = z.object({
       descricao: z.string().max(1000).optional(),
     }),
   ),
-});
-
-// ── Stocks watchlist (POST) schema ────────────────────────────────────
-
-export const watchlistAddSchema = z.object({
-  stockId: zString(255),
-  notes: z.string().max(1000).nullable().optional(),
 });
 
 // ── Proventos (POST) schema ───────────────────────────────────────────

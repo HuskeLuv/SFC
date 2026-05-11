@@ -56,8 +56,7 @@ describe('GET /api/cashflow/investimentos', () => {
         date: new Date('2026-03-15'),
         total: 1000,
         fees: 10,
-        stock: { ticker: 'PETR4' },
-        asset: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
       },
       {
         id: 'tx-2',
@@ -92,8 +91,7 @@ describe('GET /api/cashflow/investimentos', () => {
         date: new Date('2025-06-01'),
         total: 2000,
         fees: 0,
-        stock: { ticker: 'VALE3' },
-        asset: null,
+        asset: { symbol: 'VALE3', name: 'VALE3', type: 'stock' },
       },
     ]);
 

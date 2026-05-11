@@ -31,17 +31,20 @@ import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 export async function recalculatePortfolioFromTransactions(params: {
   targetUserId: string;
   assetId: string | null;
-  stockId: string | null;
   portfolioId: string;
   recomputeSnapshotsFrom?: Date;
 }): Promise<void> {
-  const { targetUserId, assetId, stockId, portfolioId, recomputeSnapshotsFrom } = params;
+  const { targetUserId, assetId, portfolioId, recomputeSnapshotsFrom } = params;
 
-  const txWhere: { userId: string; assetId?: string; stockId?: string } = {
+  if (!assetId) {
+    // Sem assetId não há como localizar as transações; nada a recalcular.
+    return;
+  }
+
+  const txWhere: { userId: string; assetId: string } = {
     userId: targetUserId,
+    assetId,
   };
-  if (assetId) txWhere.assetId = assetId;
-  else if (stockId) txWhere.stockId = stockId;
 
   const allTransactions = await prisma.stockTransaction.findMany({
     where: txWhere,

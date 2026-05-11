@@ -17,7 +17,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const portfolio = await prisma.portfolio.findFirst({
     where: { id: portfolioId, userId: targetUserId },
-    include: { stock: true, asset: true },
+    include: { asset: true },
   });
 
   if (!portfolio) {
@@ -41,10 +41,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       portfolioId,
       tipoAtivo,
       instituicaoId,
-      stockId: portfolio.stockId,
       assetId: portfolio.assetId,
-      symbol: portfolio.stock?.ticker || portfolio.asset?.symbol || null,
-      name: portfolio.stock?.companyName || portfolio.asset?.name || null,
+      symbol: portfolio.asset?.symbol || null,
+      name: portfolio.asset?.name || null,
       quantity,
       price,
       total,
@@ -55,7 +54,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const transacao = await prisma.stockTransaction.create({
     data: {
       userId: targetUserId,
-      ...(portfolio.stockId ? { stockId: portfolio.stockId } : { assetId: portfolio.assetId! }),
+      assetId: portfolio.assetId!,
       type: 'compra',
       quantity,
       price,
