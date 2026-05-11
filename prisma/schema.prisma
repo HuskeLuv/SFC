@@ -446,17 +446,19 @@ model AssetPriceHistory {
 
 // Histórico de proventos/dividendos (banco primeiro, fallback BRAPI com persistência)
 model AssetDividendHistory {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   symbol        String
-  date          DateTime // Data do provento (pagamento/ex)
+  date          DateTime // Data de pagamento do provento (paymentDate na BRAPI)
+  dataCom       DateTime? // Data-com / ex-dividend date — elegibilidade do investidor
   tipo          String // "Dividendo", "JCP", etc.
   valorUnitario Float // Valor por cota/ação
-  source        String   @default("BRAPI")
-  createdAt     DateTime @default(now())
+  source        String    @default("BRAPI")
+  createdAt     DateTime  @default(now())
 
   @@unique([symbol, date, tipo])
   @@index([symbol])
   @@index([symbol, date])
+  @@index([symbol, dataCom])
   @@map("asset_dividend_history")
 }
 

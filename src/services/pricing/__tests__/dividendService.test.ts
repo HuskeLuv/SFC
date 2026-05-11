@@ -29,8 +29,14 @@ const makeBrapiResponse = (dividends: Record<string, unknown>[]) => ({
     }),
 });
 
-const makeDbRow = (date: Date, tipo: string, valorUnitario: number) => ({
+const makeDbRow = (
+  date: Date,
+  tipo: string,
+  valorUnitario: number,
+  dataCom: Date | null = null,
+) => ({
   date,
+  dataCom,
   tipo,
   valorUnitario,
 });
@@ -263,6 +269,113 @@ describe('getDividends', () => {
       const result = await getDividends('BBDC4');
 
       expect(result).toHaveLength(2);
+    });
+  });
+
+  // ── Bug #01: data-com / ex-date ──
+
+  describe('Bug #01 — data-com (ex-date) tracking', () => {
+    beforeEach(() => {
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([]);
+      mockPrisma.assetDividendHistory.upsert.mockResolvedValue({});
+    });
+
+    it('captures exDate as dataCom when present', async () => {
+      const exDateUtc = Date.UTC(2025, 5, 2); // 2025-06-02 UTC, tz-independent
+      const payDateUtc = Date.UTC(2025, 7, 20);
+      mockFetch.mockResolvedValue(
+        makeBrapiResponse([
+          {
+            paymentDate: payDateUtc,
+            exDate: exDateUtc,
+            cashAmount: 0.5,
+            type: 'Dividendo',
+          },
+        ]),
+      );
+
+      const result = await getDividends('PETR4');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].dataCom).toBeInstanceOf(Date);
+      expect(result[0].dataCom?.getTime()).toBe(exDateUtc);
+      expect(result[0].date.getTime()).toBe(payDateUtc);
+    });
+
+    it('persists dataCom alongside paymentDate', async () => {
+      const exDateUtc = Date.UTC(2025, 5, 2);
+      mockFetch.mockResolvedValue(
+        makeBrapiResponse([
+          {
+            paymentDate: Date.UTC(2025, 7, 20),
+            exDividendDate: exDateUtc,
+            cashAmount: 0.5,
+            type: 'Dividendo',
+          },
+        ]),
+      );
+
+      await getDividends('PETR4');
+
+      expect(mockPrisma.assetDividendHistory.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            symbol: 'PETR4',
+            dataCom: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it('falls back to recordDate when exDate/exDividendDate absent', async () => {
+      const recordDateUtc = Date.UTC(2025, 5, 5);
+      mockFetch.mockResolvedValue(
+        makeBrapiResponse([
+          {
+            paymentDate: Date.UTC(2025, 7, 20),
+            recordDate: recordDateUtc,
+            cashAmount: 0.5,
+            type: 'Dividendo',
+          },
+        ]),
+      );
+
+      const result = await getDividends('PETR4');
+
+      expect(result[0].dataCom?.getTime()).toBe(recordDateUtc);
+    });
+
+    it('returns dataCom=null when no ex-date field present', async () => {
+      mockFetch.mockResolvedValue(
+        makeBrapiResponse([{ paymentDate: '2024-06-01', cashAmount: 0.5, type: 'Dividendo' }]),
+      );
+
+      const result = await getDividends('VALE3');
+
+      expect(result[0].dataCom).toBeNull();
+    });
+
+    it('DB rows expose dataCom when populated', async () => {
+      const dataCom = new Date('2025-06-02');
+      const paymentDate = new Date('2025-08-20');
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([
+        makeDbRow(paymentDate, 'Dividendo', 0.5, dataCom),
+      ]);
+
+      const result = await getDividends('PETR4');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].dataCom?.getTime()).toBe(dataCom.getTime());
+    });
+
+    it('legacy DB rows (dataCom=null) keep DividendEntry.dataCom=null', async () => {
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([
+        makeDbRow(new Date('2024-01-15'), 'Dividendo', 0.5),
+      ]);
+
+      const result = await getDividends('PETR4');
+
+      expect(result[0].dataCom).toBeNull();
     });
   });
 });

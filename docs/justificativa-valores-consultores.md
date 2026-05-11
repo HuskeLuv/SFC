@@ -1,7 +1,7 @@
 # My Finance — Justificativa dos Valores Apresentados
 
 **Documento técnico para a equipe de consultoria financeira**
-Última revisão: 2026-04-30
+Última revisão: 2026-05-11
 
 ---
 
@@ -445,13 +445,23 @@ A diferença entre YoC e _Dividend Yield_ (DY) é central para o consultor expli
 
 YoC só faz sentido para o investidor de longo prazo; DY é o número universal para comparação entre ativos. A metodologia é a apresentada em B3, _Manual de Procedimentos do Mercado de Capitais_, item 4.7.
 
-#### Quantidade na data ex-dividendo
+#### Elegibilidade pela data-com (ex-dividend date)
 
-Para calcular YoC corretamente, o sistema busca a **quantidade que o cliente possuía na data do ex-dividendo**, não a quantidade atual. Ex-dividendos pagos sobre posições já vendidas não contam. A timeline é construída por busca binária na sequência de transações.
+O direito ao provento é definido pela **data-com** (também chamada de _ex-dividend date_ ou _record date_), **não** pela data de pagamento. Quem compra a ação a partir da data-com (inclusive) já compra **sem** o direito ao próximo provento — mesmo que o pagamento aconteça semanas depois. Quem vendeu antes da data-com perde o direito mesmo que ainda apareça como titular no dia do pagamento.
+
+O My Finance respeita essa regra em três pontos do fluxo:
+
+- **Renda acumulada (histórico):** um provento só entra na soma se `data_com >= data da primeira compra do investidor`.
+- **Proventos a receber (futuros):** mesma regra — anúncios futuros só aparecem se a posição existia antes do ex-date.
+- **YoC e timeline:** a quantidade considerada é a que o investidor possuía na data-com, não na data de pagamento. A timeline é reconstruída por busca binária sobre `StockTransaction`.
+
+O dado vem da BRAPI (campos `exDate` / `exDividendDate` / `recordDate`) e é persistido na coluna `AssetDividendHistory.dataCom`. Para entradas legadas anteriores à migration `20260511_add_data_com_to_dividend_history` (em que apenas `paymentDate` foi armazenada), o sistema cai num fallback que usa a data de pagamento como aproximação — para corrigir o histórico, re-sincronize os dividendos do ativo (a sincronização BRAPI repopulará `dataCom`).
+
+> ⚠️ **Exemplo real:** PETR4 anunciou dividendo com data-com 02/06/2025 e pagamento 20/08/2025. Um investidor que comprou a ação em 18/06/2025 não tem direito — apesar de o pagamento cair semanas depois da compra. Antes do fix do bug #01, o sistema atribuía o provento erroneamente.
 
 #### Proventos futuros (1m / 3m / 12m)
 
-Não há previsão estatística aqui. O sistema mostra **apenas dividendos já anunciados pelas empresas**, com data ex declarada. A janela:
+Não há previsão estatística aqui. O sistema mostra **apenas dividendos já anunciados pelas empresas**, com data-com declarada e cuja data-com seja posterior à primeira compra do investidor. A janela:
 
 ```
 Próximos 1 mês: ex-date entre hoje e hoje + 30 dias

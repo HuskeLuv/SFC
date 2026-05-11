@@ -30,23 +30,37 @@ const getDbSymbolVariants = (symbol: string): string[] => {
   return [...new Set([s, ...getBrapiSymbolsToTry(symbol).map((x) => x.toUpperCase())])];
 };
 
-const extractDividendDate = (dividend: Record<string, unknown>): Date | null => {
-  const rawDate =
-    (dividend.paymentDate as number | string) ??
-    (dividend.payDate as number | string) ??
-    (dividend.date as number | string) ??
-    (dividend.exDate as number | string) ??
-    (dividend.exDividendDate as number | string) ??
-    (dividend.recordDate as number | string);
-  if (!rawDate) return null;
-  const numericDate = typeof rawDate === 'number' ? rawDate : Number(rawDate);
+const parseDateValue = (raw: unknown): Date | null => {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const numericDate = typeof raw === 'number' ? raw : Number(raw);
   if (Number.isFinite(numericDate)) {
     const timestamp = numericDate < 1e12 ? numericDate * 1000 : numericDate;
     const parsed = new Date(timestamp);
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
-  const parsed = new Date(rawDate as string);
+  if (typeof raw !== 'string') return null;
+  const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const extractPaymentDate = (dividend: Record<string, unknown>): Date | null => {
+  return (
+    parseDateValue(dividend.paymentDate) ??
+    parseDateValue(dividend.payDate) ??
+    parseDateValue(dividend.date) ??
+    parseDateValue(dividend.exDate) ??
+    parseDateValue(dividend.exDividendDate) ??
+    parseDateValue(dividend.recordDate)
+  );
+};
+
+const extractExDate = (dividend: Record<string, unknown>): Date | null => {
+  return (
+    parseDateValue(dividend.exDate) ??
+    parseDateValue(dividend.exDividendDate) ??
+    parseDateValue(dividend.recordDate) ??
+    parseDateValue(dividend.lastDatePrior)
+  );
 };
 
 const parseNumericValue = (value: unknown): number | null => {
@@ -132,7 +146,10 @@ const extractStockDividends = (result: Record<string, unknown>): Array<Record<st
 // ================== TYPES ==================
 
 export interface DividendEntry {
+  /** Data de pagamento do provento. */
   date: Date;
+  /** Data-com (ex-dividend date). Define a elegibilidade do investidor. */
+  dataCom: Date | null;
   tipo: string;
   valorUnitario: number;
 }
@@ -155,13 +172,18 @@ const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
   const rows = await prisma.assetDividendHistory.findMany({
     where: { symbol: { in: variants } },
     orderBy: { date: 'asc' },
-    select: { date: true, tipo: true, valorUnitario: true },
+    select: { date: true, dataCom: true, tipo: true, valorUnitario: true },
   });
   const byKey = new Map<string, DividendEntry>();
   for (const r of rows) {
     const key = `${r.date.getTime()}\0${r.tipo}`;
     if (!byKey.has(key)) {
-      byKey.set(key, { date: r.date, tipo: r.tipo, valorUnitario: r.valorUnitario });
+      byKey.set(key, {
+        date: r.date,
+        dataCom: r.dataCom ?? null,
+        tipo: r.tipo,
+        valorUnitario: r.valorUnitario,
+      });
     }
   }
   return [...byKey.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -196,14 +218,18 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
 
     // Persist cash dividends
     for (const d of normalized) {
-      const date = extractDividendDate(d);
+      const date = extractPaymentDate(d);
       const valorUnitario = extractDividendAmount(d);
       if (!date || !valorUnitario || valorUnitario <= 0) continue;
 
+      const exDate = extractExDate(d);
       const tipo = extractDividendType(d);
-      entries.push({ date, tipo, valorUnitario });
+      entries.push({ date, dataCom: exDate, tipo, valorUnitario });
 
       const dateNorm = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const dataComNorm = exDate
+        ? new Date(exDate.getFullYear(), exDate.getMonth(), exDate.getDate())
+        : null;
       await prisma.assetDividendHistory.upsert({
         where: {
           symbol_date_tipo: {
@@ -212,10 +238,11 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
             tipo,
           },
         },
-        update: { valorUnitario },
+        update: { valorUnitario, dataCom: dataComNorm },
         create: {
           symbol: dbSymbol,
           date: dateNorm,
+          dataCom: dataComNorm,
           tipo,
           valorUnitario,
           source: 'BRAPI',

@@ -671,4 +671,165 @@ describe('GET /api/analises/proventos', () => {
     expect(data.grouped.Petrobras?.proceedsPercentage).toBeCloseTo(75, 1);
     expect(data.grouped.Itau?.proceedsPercentage).toBeCloseTo(25, 1);
   });
+
+  // Bug #01: dividendo com data-com anterior à compra do investidor não deve contar.
+  // Cenário: PETR4 comprado em 18/06/2025; dividendo com dataCom=02/06/2025 e
+  // paymentDate=20/08/2025. O investidor NÃO tem direito (comprou depois do ex-date),
+  // mesmo que o pagamento seja após a compra.
+  it('exclui dividendo com dataCom anterior à compra (Bug #01)', async () => {
+    const now = new Date();
+    const purchaseDate = new Date(now.getTime() - 60 * 86400000);
+    const exDate = new Date(purchaseDate.getTime() - 16 * 86400000);
+    const paymentDate = new Date(purchaseDate.getTime() + 63 * 86400000); // pago depois da compra
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: purchaseDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: purchaseDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { ticker: 'PETR4' },
+        asset: null,
+      },
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 35]]));
+    mockGetDividends.mockResolvedValue([
+      {
+        date: paymentDate,
+        dataCom: exDate,
+        tipo: 'Dividendo',
+        valorUnitario: 0.5,
+      },
+    ]);
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.proventos).toEqual([]);
+    expect(data.total).toBe(0);
+  });
+
+  it('inclui dividendo com dataCom posterior à compra', async () => {
+    const now = new Date();
+    const purchaseDate = new Date(now.getTime() - 60 * 86400000);
+    const exDate = new Date(purchaseDate.getTime() + 10 * 86400000);
+    const paymentDate = new Date(purchaseDate.getTime() + 40 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: purchaseDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: purchaseDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { ticker: 'PETR4' },
+        asset: null,
+      },
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 35]]));
+    mockGetDividends.mockResolvedValue([
+      {
+        date: paymentDate,
+        dataCom: exDate,
+        tipo: 'Dividendo',
+        valorUnitario: 0.5,
+      },
+    ]);
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.proventos.length).toBe(1);
+    expect(data.total).toBe(50); // 100 cotas × 0.5
+  });
+
+  // Fallback: entradas legadas pré-migration (dataCom=null) usam paymentDate como
+  // referência de elegibilidade. Mantém compat sem precisar de re-sync forçado.
+  it('legado sem dataCom usa paymentDate como elegibilidade', async () => {
+    const now = new Date();
+    const purchaseDate = new Date(now.getTime() - 60 * 86400000);
+    const paymentDateAntes = new Date(purchaseDate.getTime() - 10 * 86400000);
+    const paymentDateDepois = new Date(purchaseDate.getTime() + 10 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: purchaseDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { id: 'stock-1', ticker: 'PETR4', companyName: 'Petrobras' },
+        asset: null,
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: purchaseDate,
+        stockId: 'stock-1',
+        assetId: null,
+        stock: { ticker: 'PETR4' },
+        asset: null,
+      },
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 35]]));
+    mockGetDividends.mockResolvedValue([
+      { date: paymentDateAntes, dataCom: null, tipo: 'Dividendo', valorUnitario: 0.5 },
+      { date: paymentDateDepois, dataCom: null, tipo: 'Dividendo', valorUnitario: 0.5 },
+    ]);
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.proventos.length).toBe(1);
+    expect(data.total).toBe(50);
+  });
 });

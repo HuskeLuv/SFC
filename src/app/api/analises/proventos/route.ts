@@ -326,7 +326,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
     dividends.forEach((d, index) => {
       const dateTime = d.date.getTime();
-      if (purchaseDateTime && dateTime < purchaseDateTime) return;
+      // Elegibilidade pela data-com (ex-date): investidor só recebe se possuía a posição
+      // ANTES da data-com. Fallback para paymentDate quando data-com não está disponível
+      // (entradas legadas pré-migration 20260511).
+      const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
+      if (purchaseDateTime && eligibilityDate < purchaseDateTime) return;
       if (startDateTime && dateTime < startDateTime) return;
       if (endDateTime && dateTime > endDateTime) return;
       if (dateTime > hojeMs) return; // Apenas histórico (exclui a_receber)
@@ -409,7 +413,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     for (const d of dividends) {
       const dateTime = d.date.getTime();
       if (dateTime > hojeMs) continue;
-      if (purchaseDateTime && dateTime < purchaseDateTime) continue;
+      const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
+      if (purchaseDateTime && eligibilityDate < purchaseDateTime) continue;
       const qtdHist = getQuantityAtDate(timeline, dateTime);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
@@ -646,9 +651,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   };
   for (const { asset, dividends } of allDividends) {
+    const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
     for (const d of dividends) {
       const dateTime = d.date.getTime();
       if (dateTime <= hojeKpiMs) continue;
+      // Mesma elegibilidade do histórico: o investidor só recebe se possuía a posição
+      // antes da data-com (fallback paymentDate para entradas legadas sem dataCom).
+      const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
+      if (purchaseDateTime && eligibilityDate < purchaseDateTime) continue;
       const quantidade = asset.quantity;
       if (quantidade <= 0) continue;
       const valor = quantidade * d.valorUnitario;
@@ -690,7 +700,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     for (const d of dividends) {
       const dateTime = d.date.getTime();
       if (dateTime > hojeKpiMs) continue;
-      if (purchaseDateTime && dateTime < purchaseDateTime) continue;
+      const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
+      if (purchaseDateTime && eligibilityDate < purchaseDateTime) continue;
       const qtdHist = getQuantityAtDate(timeline, dateTime);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
