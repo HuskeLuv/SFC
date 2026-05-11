@@ -502,6 +502,8 @@ Indica quantas cotas adicionais um cliente precisaria comprar para que **o divid
 
 A alocação é calculada por **classe de ativo** (Ações BR, FIIs, ETFs, Stocks US, Cripto, Renda Fixa, Tesouro, Fundos, Previdência, Imóveis), comparada com a **alocação-alvo** definida pelo cliente em `AlocacaoConfig`. O desvio é a base da recomendação de rebalanceamento:
 
+> ℹ️ **Convenção de denominador (Bug #14 — Maio/2026):** dentro da visão "Carteira → FIIs", os percentuais por ativo e por segmento usam o **subtotal de FIIs** como denominador (Σ % = 100%, fechando dentro da aba). Isso é diferente do "Carteira → Alocação" (próxima seção), que usa o patrimônio total. Antes do fix, a tabela e o donut de FIIs misturavam os dois denominadores e a soma das seções não fechava em 100%.
+
 ```
 Desvio_classe = Peso_atual − Peso_alvo
 

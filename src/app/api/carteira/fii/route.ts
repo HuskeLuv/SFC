@@ -212,19 +212,28 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
         : 0,
   };
 
-  // Calcular alocação por segmento
+  // Bug #06: arredondar valores antes de enviar ao chart impede que aritmética
+  // JS em ponto flutuante (ex.: 200 × 156,05 = 31210.000000000004) vaze pro
+  // label central do donut como "31210.000000000004".
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  // Calcular alocação por segmento (% sobre total da carteira de FIIs — soma=100)
   const alocacaoSegmento = secoes.map((secao) => ({
     segmento: secao.nome,
-    valor: secao.totalValorAtualizado,
-    percentual: (secao.totalValorAtualizado / totalValorAtualizado) * 100,
+    valor: round2(secao.totalValorAtualizado),
+    percentual: round2(
+      totalValorAtualizado > 0 ? (secao.totalValorAtualizado / totalValorAtualizado) * 100 : 0,
+    ),
     cor: getSegmentColor(secao.tipo),
   }));
 
-  // Calcular alocação por ativo
+  // Calcular alocação por ativo (% sobre total da carteira de FIIs — soma=100)
   const alocacaoAtivo = fiiAtivos.map((ativo) => ({
     ticker: ativo.ticker,
-    valor: ativo.valorAtualizado,
-    percentual: (ativo.valorAtualizado / totalValorAtualizado) * 100,
+    valor: round2(ativo.valorAtualizado),
+    percentual: round2(
+      totalValorAtualizado > 0 ? (ativo.valorAtualizado / totalValorAtualizado) * 100 : 0,
+    ),
     cor: getAtivoColor(ativo.ticker),
   }));
 

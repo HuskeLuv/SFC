@@ -56,7 +56,7 @@ export const useFii = () => {
   const calculateSecaoValues = (
     secao: FiiSecao,
     totalCarteiraFii: number,
-    totalCarteiraGeral: number,
+    _totalCarteiraGeral: number,
   ): FiiSecao => {
     const totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     const totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
@@ -64,8 +64,12 @@ export const useFii = () => {
       (sum, ativo) => sum + ativo.valorAtualizado,
       0,
     );
+    // Bug #14: percentualCarteira por ativo (linha 25) usa totalCarteiraFii como base;
+    // o agregado por seção precisa do MESMO denominador pra que Σ (% por seção) = 100%.
+    // Antes do fix usava totalCarteiraGeral, deixando a soma das seções abaixo de 100%
+    // e inconsistente com a soma dos ativos dentro de cada seção.
     const totalPercentualCarteira =
-      totalCarteiraGeral > 0 ? (totalValorAtualizado / totalCarteiraGeral) * 100 : 0;
+      totalCarteiraFii > 0 ? (totalValorAtualizado / totalCarteiraFii) * 100 : 0;
     const totalRisco = secao.ativos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
     const totalObjetivo = secao.ativos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
     const totalQuantoFalta = secao.ativos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);

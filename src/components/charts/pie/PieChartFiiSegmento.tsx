@@ -1,11 +1,11 @@
-"use client";
-import React, { useMemo } from "react";
-import { ApexOptions } from "apexcharts";
-import { FiiAlocacaoSegmento } from "@/types/fii";
+'use client';
+import React, { useMemo } from 'react';
+import { ApexOptions } from 'apexcharts';
+import { FiiAlocacaoSegmento } from '@/types/fii';
 
-import dynamic from "next/dynamic";
+import dynamic from 'next/dynamic';
 // Dynamically import the ReactApexChart component
-const ReactApexChart = dynamic(() => import("react-apexcharts"), {
+const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
 });
 
@@ -14,53 +14,58 @@ interface PieChartFiiSegmentoProps {
   isDarkMode?: boolean;
 }
 
-const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({ 
-  data, 
-  isDarkMode = false 
-}) => {
+const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({ data, isDarkMode = false }) => {
   const options: ApexOptions = useMemo(
     () => ({
-      colors: data.map(item => item.cor),
-      labels: data.map(item => item.segmento),
+      colors: data.map((item) => item.cor),
+      labels: data.map((item) => item.segmento),
       chart: {
-        fontFamily: "Outfit, sans-serif",
-        type: "donut",
-        width: "100%",
+        fontFamily: 'Outfit, sans-serif',
+        type: 'donut',
+        width: '100%',
         height: 300,
       },
       stroke: {
         show: false,
         width: 4,
-        colors: ["transparent"],
+        colors: ['transparent'],
       },
       plotOptions: {
         pie: {
           donut: {
-            size: "65%",
-            background: "transparent",
+            size: '65%',
+            background: 'transparent',
             labels: {
               show: true,
               name: {
                 show: true,
                 offsetY: -10,
-                color: isDarkMode ? "#ffffff" : "#1D2939",
-                fontSize: "14px",
-                fontWeight: "500",
+                color: isDarkMode ? '#ffffff' : '#1D2939',
+                fontSize: '14px',
+                fontWeight: '500',
               },
               value: {
                 show: true,
                 offsetY: 10,
-                color: isDarkMode ? "#D1D5DB" : "#667085",
-                fontSize: "12px",
-                fontWeight: "400",
-                formatter: (val: string) => `${val}%`,
+                color: isDarkMode ? '#D1D5DB' : '#667085',
+                fontSize: '12px',
+                fontWeight: '400',
+                // Bug #06: ApexCharts entrega o número cru (sujeito a float).
+                // formatCurrency normaliza pra "R$ 1.234,56" sem expor o ruído.
+                formatter: (val: string) =>
+                  `R$ ${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
               },
               total: {
                 show: true,
-                label: "Total FIIs",
-                color: isDarkMode ? "#ffffff" : "#000000",
-                fontSize: "16px",
-                fontWeight: "bold",
+                label: 'Total FIIs',
+                color: isDarkMode ? '#ffffff' : '#000000',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                // total.formatter recebe o objeto `w`; somamos a série e formatamos.
+                formatter: (w: { globals: { seriesTotals: number[] } }) => {
+                  const total = w.globals.seriesTotals.reduce((a, b) => a + b, 0);
+                  return `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                },
               },
             },
           },
@@ -73,19 +78,20 @@ const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({
       tooltip: {
         enabled: true,
         y: {
-          formatter: (val: number) => `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          formatter: (val: number) =>
+            `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         },
       },
       legend: {
         show: true,
-        position: "bottom",
-        horizontalAlign: "center",
-        fontFamily: "Outfit",
-        fontSize: "12px",
+        position: 'bottom',
+        horizontalAlign: 'center',
+        fontFamily: 'Outfit',
+        fontSize: '12px',
         fontWeight: 400,
         markers: {
           size: 4,
-          shape: "circle",
+          shape: 'circle',
           strokeWidth: 0,
         },
         itemMargin: {
@@ -93,19 +99,19 @@ const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({
           vertical: 0,
         },
         labels: {
-          colors: isDarkMode ? "#D1D5DB" : "#667085",
+          colors: isDarkMode ? '#D1D5DB' : '#667085',
         },
       },
       states: {
         hover: {
           filter: {
-            type: "none",
+            type: 'none',
           },
         },
         active: {
           allowMultipleDataPointsSelection: false,
           filter: {
-            type: "darken",
+            type: 'darken',
           },
         },
       },
@@ -114,20 +120,20 @@ const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({
           breakpoint: 640,
           options: {
             chart: {
-              width: "100%",
+              width: '100%',
               height: 250,
             },
             legend: {
-              fontSize: "10px",
+              fontSize: '10px',
             },
           },
         },
       ],
     }),
-    [data, isDarkMode]
+    [data, isDarkMode],
   );
 
-  const series = data.map(item => item.valor);
+  const series = data.map((item) => item.valor);
 
   if (data.length === 0) {
     return (
@@ -145,12 +151,7 @@ const PieChartFiiSegmento: React.FC<PieChartFiiSegmentoProps> = ({
   return (
     <div className="flex justify-center">
       <div id="chartFiiSegmento" className="w-full">
-        <ReactApexChart
-          options={options}
-          series={series}
-          type="donut"
-          height={300}
-        />
+        <ReactApexChart options={options} series={series} type="donut" height={300} />
       </div>
     </div>
   );
