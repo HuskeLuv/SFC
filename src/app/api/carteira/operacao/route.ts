@@ -910,9 +910,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  // Verificar se o ativo existe ou criar para reservas, conta corrente e personalizados
+  // Verificar se o ativo existe ou criar para reservas, conta corrente e personalizados.
+  // Consolidação Stock → Asset (Sprint 4): ações/FIIs também são Asset agora,
+  // então a variável `stock` foi removida.
   let asset = null;
-  let stock = null;
 
   if (tipoAtivo === 'conta-corrente') {
     const contaCorrenteDestino = requestBody.contaCorrenteDestino as string;
@@ -1433,12 +1434,25 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         { status: 400 },
       );
     }
-    stock = await prisma.stock.findUnique({
-      where: { id: assetId },
-    });
-    if (!stock) {
-      console.error(`Stock não encontrado para assetId: ${assetId}, tipoAtivo: ${tipoAtivo}`);
+    // Consolidação Stock → Asset (Sprint 4): ações/FIIs viram rows da tabela
+    // Asset (type='stock' ou type='fii'). A variável `stock` fica nula nos fluxos
+    // novos — toda a lógica posterior usa `asset`.
+    asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    if (!asset) {
+      console.error(`Asset não encontrado para assetId: ${assetId}, tipoAtivo: ${tipoAtivo}`);
       return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
+    }
+    if (tipoAtivo === 'acao' && asset.type !== 'stock') {
+      return NextResponse.json(
+        { error: `Tipo do ativo incompatível (esperado stock, encontrado ${asset.type}).` },
+        { status: 400 },
+      );
+    }
+    if (tipoAtivo === 'fii' && asset.type !== 'fii') {
+      return NextResponse.json(
+        { error: `Tipo do ativo incompatível (esperado fii, encontrado ${asset.type}).` },
+        { status: 400 },
+      );
     }
   } else {
     asset = await prisma.asset.findUnique({
@@ -1689,9 +1703,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       tipoAtivo,
       instituicaoId,
       assetId: asset?.id || null,
-      stockId: stock?.id || null,
-      symbol: stock?.ticker || asset?.symbol || null,
-      name: stock?.companyName || asset?.name || null,
+      symbol: asset?.symbol || null,
+      name: asset?.name || null,
       quantity: quantidadeFinal,
       price: precoFinal,
       total: valorFinal,
@@ -1706,18 +1719,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
-  // Verificar se asset ou stock foi criado/encontrado
-  if (!isReserva && !isPersonalizado && (tipoAtivo === 'acao' || tipoAtivo === 'fii') && !stock) {
-    return NextResponse.json({ error: 'Stock não encontrado' }, { status: 404 });
-  }
-  if (
-    !isReserva &&
-    !isPersonalizado &&
-    !isRendaFixa &&
-    tipoAtivo !== 'acao' &&
-    tipoAtivo !== 'fii' &&
-    !asset
-  ) {
+  // Verificar se asset foi criado/encontrado (consolidação Stock → Asset:
+  // ações/FIIs agora também passam pela tabela Asset).
+  if (!isReserva && !isPersonalizado && !isRendaFixa && !asset) {
     return NextResponse.json({ error: 'Asset não encontrado' }, { status: 404 });
   }
   if (
@@ -1747,9 +1751,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const transacao = await prisma.stockTransaction.create({
     data: {
       userId: targetUserId,
-      ...(tipoAtivo === 'acao' || tipoAtivo === 'fii'
-        ? { stockId: stock!.id }
-        : { assetId: asset!.id }),
+      assetId: asset!.id,
       type: 'compra',
       quantity: quantidadeFinal,
       price: precoFinal,
@@ -1942,9 +1944,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const portfolioExistente = await prisma.portfolio.findFirst({
       where: {
         userId: targetUserId,
-        ...(tipoAtivo === 'acao' || tipoAtivo === 'fii'
-          ? { stockId: stock!.id }
-          : { assetId: asset!.id }),
+        assetId: asset!.id,
       },
     });
 
@@ -1972,9 +1972,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       await prisma.portfolio.create({
         data: {
           userId: targetUserId,
-          ...(tipoAtivo === 'acao' || tipoAtivo === 'fii'
-            ? { stockId: stock!.id }
-            : { assetId: asset!.id }),
+          assetId: asset!.id,
           quantity: quantidadeFinal,
           avgPrice: precoFinal,
           totalInvested: valorFinal,

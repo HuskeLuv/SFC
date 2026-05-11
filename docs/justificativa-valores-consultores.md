@@ -43,7 +43,9 @@ Todo cálculo do My Finance se apoia em dados de mercado. Não inventamos preço
 - **Onde armazenamos:** tabela `Asset` (preço atual + timestamp) e `AssetPriceHistory` (série diária até 5 anos).
 - **Comportamento em falha:** se a BRAPI não responde em 10 segundos, o sistema usa o último preço conhecido em vez de quebrar a tela. Para o cliente, a única consequência é o preço estar desatualizado por algumas horas — a posição quantitativa nunca se perde.
 
-> ℹ️ **Catálogo de ações/FIIs (Stock — Bug #16/#07 — Maio/2026):** o autocomplete do wizard de adição de ativos consulta a tabela `Stock`, **separada** da `Asset`. Ela é populada por seed manual (`scripts/seed-additional-stocks.ts`) e não pelo cron BRAPI atual. Quando um cliente tenta adicionar um ticker fora dos ~60 atualmente seedados (todos os IBOV de alta liquidez + 10 FOFs principais), o autocomplete devolve vazio. O follow-up técnico recomendado é estender o cron BRAPI para fazer upsert em `Stock` (similar ao já existente em `Asset`) — eliminando a necessidade de seed manual para cada novo IPO ou FII listado.
+> ℹ️ **Consolidação Stock → Asset (Bug #16 — Maio/2026):** o catálogo agora é **uma única tabela** (`Asset`). A tabela `Stock` (legacy, populada só por seed manual) foi consolidada na migration `20260511150000_consolidate_stock_into_asset` — todos os tickers de B3 que estavam em `stocks` foram migrados pra `assets` (com `type='stock'` ou `type='fii'`), e as referências em `portfolios`/`stock_transactions`/`watchlists` foram re-vinculadas via `stockId → assetId`. O wizard de adição de ativos passa a ler de `Asset`, então **qualquer ticker que o cron BRAPI sincronize aparece automaticamente no autocomplete** — sem dependência de seed manual.
+>
+> A tabela `Stock` continua existindo no schema por um ciclo (compat com rotas de análise que ainda usam `include: { stock: true, asset: true }`); o drop final está como follow-up em Sprint separada para minimizar risco de deploy.
 
 ### 2.2 BACEN SGS (`api.bcb.gov.br`) — Indicadores macroeconômicos
 

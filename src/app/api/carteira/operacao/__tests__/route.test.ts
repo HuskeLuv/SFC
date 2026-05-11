@@ -293,11 +293,19 @@ describe('POST /api/carteira/operacao', () => {
 
   describe('Ações', () => {
     it('adiciona ação com sucesso', async () => {
+      // Consolidação Stock → Asset: o resolver passou a buscar Asset
+      // (type='stock'). Antes da migration, esse teste mockava prisma.stock.
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-petr4',
+        symbol: 'PETR4',
+        name: 'Petrobras PN',
+        type: 'stock',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'acao',
           instituicaoId: 'inst-1',
-          assetId: 'stock-1',
+          assetId: 'asset-petr4',
           dataCompra: '2024-01-15',
           quantidade: 100,
           cotacaoUnitaria: 10,
@@ -307,7 +315,7 @@ describe('POST /api/carteira/operacao', () => {
       const data = await response.json();
       expect(response.status).toBe(201);
       expect(data.success).toBe(true);
-      expect(mockPrisma.stock.findUnique).toHaveBeenCalledWith({ where: { id: 'stock-1' } });
+      expect(mockPrisma.asset.findUnique).toHaveBeenCalledWith({ where: { id: 'asset-petr4' } });
       expect(mockPrisma.stockTransaction.create).toHaveBeenCalled();
       expect(mockPrisma.portfolio.create).toHaveBeenCalled();
     });
@@ -345,13 +353,14 @@ describe('POST /api/carteira/operacao', () => {
       expect(data.error).toContain('Estratégia');
     });
 
-    it('retorna 404 quando stock não encontrado', async () => {
-      mockPrisma.stock.findUnique.mockResolvedValue(null);
+    it('retorna 404 quando asset não encontrado', async () => {
+      // Consolidação Stock → Asset: o resolver agora consulta Asset, não Stock.
+      mockPrisma.asset.findUnique.mockResolvedValueOnce(null);
       const response = await POST(
         createRequest({
           tipoAtivo: 'acao',
           instituicaoId: 'inst-1',
-          assetId: 'stock-inexistente',
+          assetId: 'asset-inexistente',
           dataCompra: '2024-01-15',
           quantidade: 100,
           cotacaoUnitaria: 10,
@@ -384,11 +393,17 @@ describe('POST /api/carteira/operacao', () => {
 
   describe('FII', () => {
     it('adiciona FII com sucesso', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-hglg11',
+        symbol: 'HGLG11',
+        name: 'CSHG Logística',
+        type: 'fii',
+      });
       const response = await POST(
         createRequest({
           tipoAtivo: 'fii',
           instituicaoId: 'inst-1',
-          assetId: 'stock-1',
+          assetId: 'asset-hglg11',
           dataCompra: '2024-01-15',
           quantidade: 50,
           cotacaoUnitaria: 20,
@@ -398,7 +413,7 @@ describe('POST /api/carteira/operacao', () => {
       const data = await response.json();
       expect(response.status).toBe(201);
       expect(data.success).toBe(true);
-      expect(mockPrisma.stock.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.asset.findUnique).toHaveBeenCalledWith({ where: { id: 'asset-hglg11' } });
       expect(mockPrisma.portfolio.create).toHaveBeenCalled();
     });
 
@@ -1252,6 +1267,12 @@ describe('POST /api/carteira/operacao', () => {
 
   describe('Atualização de portfolio existente', () => {
     it('atualiza portfolio existente ao adicionar mais ação', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-petr4',
+        symbol: 'PETR4',
+        name: 'Petrobras PN',
+        type: 'stock',
+      });
       mockPrisma.portfolio.findFirst.mockResolvedValue({
         id: 'port-1',
         quantity: 50,
@@ -1262,7 +1283,7 @@ describe('POST /api/carteira/operacao', () => {
         createRequest({
           tipoAtivo: 'acao',
           instituicaoId: 'inst-1',
-          assetId: 'stock-1',
+          assetId: 'asset-petr4',
           dataCompra: '2024-01-15',
           quantidade: 50,
           cotacaoUnitaria: 12,
