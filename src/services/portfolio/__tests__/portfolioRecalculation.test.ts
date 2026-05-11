@@ -6,6 +6,7 @@ const mockPrisma = vi.hoisted(() => ({
   portfolio: { update: vi.fn(), delete: vi.fn() },
   portfolioDailySnapshot: { deleteMany: vi.fn() },
   portfolioPerformance: { deleteMany: vi.fn() },
+  asset: { findUnique: vi.fn(), update: vi.fn() },
 }));
 
 const mockDeleteTtlCache = vi.hoisted(() => vi.fn());
@@ -19,12 +20,19 @@ const userId = 'user-1';
 const portfolioId = 'pf-1';
 
 const tx = (
-  overrides: Partial<{ type: string; quantity: number; price: number; total: number }> = {},
+  overrides: Partial<{
+    type: string;
+    quantity: number;
+    price: number;
+    total: number;
+    date: Date;
+  }> = {},
 ) => ({
   type: 'compra',
   quantity: 10,
   price: 30,
   total: 300,
+  date: new Date('2024-01-15'),
   ...overrides,
 });
 
@@ -37,6 +45,8 @@ beforeEach(() => {
   mockPrisma.portfolio.delete.mockResolvedValue({});
   mockPrisma.portfolioDailySnapshot.deleteMany.mockResolvedValue({ count: 0 });
   mockPrisma.portfolioPerformance.deleteMany.mockResolvedValue({ count: 0 });
+  mockPrisma.asset.findUnique.mockResolvedValue(null);
+  mockPrisma.asset.update.mockResolvedValue({});
 });
 
 describe('recalculatePortfolioFromTransactions', () => {
@@ -163,6 +173,108 @@ describe('recalculatePortfolioFromTransactions', () => {
 
       expect(mockPrisma.portfolioDailySnapshot.deleteMany).toHaveBeenCalled();
       expect(mockDeleteTtlCache).toHaveBeenCalledWith('carteiraResumo', `${userId}:`);
+    });
+  });
+
+  // Bug #04: sincronia de FixedIncomeAsset.startDate e Asset.name com a primeira compra
+  describe('Bug #04 — sincronia de RF startDate e Asset.name', () => {
+    it('atualiza FixedIncomeAsset.startDate com a data da primeira compra', async () => {
+      const novaData = new Date('2022-05-02');
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ date: novaData, quantity: 1, price: 5000, total: 5000 }),
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        stockId: null,
+        portfolioId,
+      });
+
+      expect(mockPrisma.fixedIncomeAsset.updateMany).toHaveBeenCalledWith({
+        where: { userId, assetId: 'asset-1' },
+        data: expect.objectContaining({ startDate: novaData, investedAmount: 5000 }),
+      });
+    });
+
+    it('regenera Asset.name quando casa o template "X - R$ Y - dd/mm/aaaa"', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ date: new Date('2022-05-02'), quantity: 1, price: 5000, total: 5000 }),
+      ]);
+      mockPrisma.asset.findUnique.mockResolvedValue({
+        name: 'CDB Reserva de Emergência - R$ 1.000 - 01/05/2019',
+      });
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        stockId: null,
+        portfolioId,
+      });
+
+      expect(mockPrisma.asset.update).toHaveBeenCalledWith({
+        where: { id: 'asset-1' },
+        data: { name: expect.stringContaining('CDB Reserva de Emergência') },
+      });
+      const updateCall = mockPrisma.asset.update.mock.calls[0]?.[0];
+      const novoNome = updateCall?.data?.name as string;
+      expect(novoNome).toMatch(/02\/05\/2022/);
+      // Intl.NumberFormat usa NBSP ( ) entre "R$" e o valor
+      expect(novoNome).toMatch(/R\$\s5\.000/);
+      expect(novoNome).not.toMatch(/01\/05\/2019/);
+    });
+
+    it('NÃO modifica Asset.name customizado (fora do padrão template)', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ date: new Date('2022-05-02'), quantity: 1, price: 5000, total: 5000 }),
+      ]);
+      mockPrisma.asset.findUnique.mockResolvedValue({
+        name: 'Meu CDB favorito',
+      });
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        stockId: null,
+        portfolioId,
+      });
+
+      expect(mockPrisma.asset.update).not.toHaveBeenCalled();
+    });
+
+    it('não toca em Asset.name quando não há ativo (asset.findUnique=null)', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ date: new Date('2022-05-02') }),
+      ]);
+      mockPrisma.asset.findUnique.mockResolvedValue(null);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        stockId: null,
+        portfolioId,
+      });
+
+      expect(mockPrisma.asset.update).not.toHaveBeenCalled();
+    });
+
+    it('quando só há vendas (sem compra), não tenta sincronizar startDate', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ type: 'venda', date: new Date('2022-05-02') }),
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        stockId: null,
+        portfolioId,
+      });
+
+      // Deve usar fallback que NÃO inclui startDate (só investedAmount)
+      expect(mockPrisma.fixedIncomeAsset.updateMany).toHaveBeenCalledWith({
+        where: { userId, assetId: 'asset-1' },
+        data: { investedAmount: 0 },
+      });
     });
   });
 });

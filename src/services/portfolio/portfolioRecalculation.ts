@@ -98,15 +98,73 @@ export async function recalculatePortfolioFromTransactions(params: {
   // e a tabela continua mostrando o valor antigo. Para tickers sem renda-fixa
   // associada, updateMany é no-op.
   if (assetId) {
-    await prisma.fixedIncomeAsset.updateMany({
-      where: { userId: targetUserId, assetId },
-      data: { investedAmount: runningCost },
-    });
+    // Bug #04: além de investedAmount, sincronizar startDate com a data da
+    // primeira compra. Sem isso, editar a data inicial da movimentação não
+    // propaga para a tela de detalhes (título e marcação na curva continuam
+    // usando a data antiga). E regenerar Asset.name pra atualizar o template
+    // "Renda Fixa - R$ X - data" quando a data muda.
+    const firstBuy = allTransactions.find((tx) => tx.type === 'compra');
+    if (firstBuy) {
+      await prisma.fixedIncomeAsset.updateMany({
+        where: { userId: targetUserId, assetId },
+        data: { investedAmount: runningCost, startDate: firstBuy.date },
+      });
+      await syncFixedIncomeAssetNameDate(assetId, firstBuy.date, runningCost);
+    } else {
+      await prisma.fixedIncomeAsset.updateMany({
+        where: { userId: targetUserId, assetId },
+        data: { investedAmount: runningCost },
+      });
+    }
   }
 
   if (recomputeSnapshotsFrom) {
     await invalidatePortfolioSnapshots(targetUserId, recomputeSnapshotsFrom);
   }
+}
+
+/**
+ * Bug #04: regenera o nome do Asset de renda fixa quando a primeira transação
+ * é editada. O nome é um template estático ("Renda Fixa - R$ X - dd/mm/aaaa")
+ * gerado em /api/carteira/operacao:1049; editar a data inicial deixava o
+ * cabeçalho da tela de detalhes preso na data antiga.
+ *
+ * Estratégia conservadora: só atualiza o sufixo " - R$ X - data" — preserva
+ * qualquer descrição customizada antes desse separador. Quando o nome não
+ * casa com o template esperado (Asset foi renomeado manualmente), não toca.
+ */
+async function syncFixedIncomeAssetNameDate(
+  assetId: string,
+  newStartDate: Date,
+  newInvestedAmount: number,
+): Promise<void> {
+  const asset = await prisma.asset.findUnique({ where: { id: assetId }, select: { name: true } });
+  if (!asset?.name) return;
+
+  // Usa UTC para formatação porque transactions.date é armazenado como UTC
+  // midnight; toLocaleDateString sem timeZone shifta um dia pra trás em BRT.
+  const dataFormatada = newStartDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  const valorFormatado = newInvestedAmount
+    ? new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(newInvestedAmount)
+    : '';
+
+  // Regex casa o template fixo do gerador: "{prefixo} - R$ X - dd/mm/aaaa".
+  // Captura prefixo até o primeiro " - R$" — preserva descrições editadas
+  // pelo usuário ("CDB Reserva de Emergência - R$ 5.000 - 01/05/2019" → prefixo
+  // "CDB Reserva de Emergência").
+  const match = asset.name.match(/^(.*?) - R\$.*? - \d{2}\/\d{2}\/\d{4}\s*$/);
+  if (!match) return; // Nome customizado fora do padrão: não mexer.
+
+  const prefixo = match[1];
+  const novoNome = `${prefixo}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+  if (novoNome === asset.name) return;
+
+  await prisma.asset.update({ where: { id: assetId }, data: { name: novoNome } });
 }
 
 /**
