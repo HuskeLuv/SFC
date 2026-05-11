@@ -525,6 +525,28 @@ Aporte mensal necessário = max(0, meta − patrimônio_atual) / meses_restantes
 
 > ⚠️ Cálculo **linear, não composto** — não considera valorização do capital nem juros. É deliberado, para apresentar ao cliente um piso conservador. Um cliente que precisa juntar R$ 100k em 5 anos vê "R$ 1.667/mês necessários", não os ~R$ 1.180 que seriam suficientes assumindo 8% a.a. de retorno. A interpretação correta é: "esse é o aporte necessário **se o mercado não ajudar nada**".
 
+### 5.7 Cobertura FGC
+
+A aba `Análises → Cobertura FGC` quebra a renda fixa do cliente **por instituição financeira** e cruza com os limites do Fundo Garantidor de Créditos:
+
+```
+Limite por instituição (CPF × CNPJ): R$ 250.000
+Teto global (renovado a cada 4 anos):  R$ 1.000.000
+```
+
+Cobrem-se **CDB, LC, LCI, LCA, RDB, DPGE, LIG e Poupança**. Ficam **fora**: CRI, CRA, debêntures não-incentivadas, LF, Tesouro Direto e fundos de investimento. Cada ativo recebe o flag `coberto` no banco (`fgc_coverage.service.ts`), e o card por instituição soma `totalCoberto` × `totalNaoCoberto` separadamente.
+
+**Status badge (Bug #12 — Maio/2026):** o cabeçalho de cada instituição mostra um dos seguintes:
+
+| Condição                                    | Badge                 | Cor                            |
+| ------------------------------------------- | --------------------- | ------------------------------ |
+| `totalCoberto == 0` e `totalNaoCoberto > 0` | **Sem cobertura FGC** | vermelho + tooltip explicativo |
+| `percentualUtilizado >= 100%`               | **Limite excedido**   | vermelho                       |
+| `percentualUtilizado >= 80%`                | **Atenção**           | âmbar                          |
+| caso contrário                              | **Dentro do limite**  | verde                          |
+
+Antes do fix, o primeiro caso caía no fallback verde "Dentro do limite", o que era enganoso para o cliente com CRI/CRA no C6 (ou qualquer banco que só hospede produtos fora do FGC). O badge novo é acompanhado de tooltip listando os produtos excluídos do fundo.
+
 ---
 
 ## 6. Imposto de Renda

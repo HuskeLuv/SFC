@@ -33,7 +33,29 @@ function getBarColor(percent: number): string {
   return '#10B981'; // green — safe
 }
 
-function getStatusLabel(percent: number): { text: string; className: string } {
+export interface StatusLabel {
+  text: string;
+  className: string;
+  tooltip?: string;
+}
+
+export function getStatusLabel(
+  percent: number,
+  totalCoberto: number,
+  totalNaoCoberto: number,
+): StatusLabel {
+  // Bug #12: quando a instituição só tem produtos fora do FGC (CRI/CRA/debêntures
+  // não-incentivadas/LF), totalCoberto=0 e percentualUtilizado=0. A função
+  // antiga caía no fallback "Dentro do limite" (verde), passando a falsa
+  // impressão de proteção. Detectar esse caso e mostrar "Sem cobertura FGC".
+  if (totalCoberto === 0 && totalNaoCoberto > 0) {
+    return {
+      text: 'Sem cobertura FGC',
+      className: 'text-red-600 dark:text-red-400',
+      tooltip:
+        'Esta instituição possui apenas produtos que não são protegidos pelo FGC (CRI, CRA, debêntures não-incentivadas, LF). Em caso de inadimplência do emissor, o investidor não recupera o capital via FGC.',
+    };
+  }
   if (percent >= 100)
     return { text: 'Limite excedido', className: 'text-red-600 dark:text-red-400' };
   if (percent >= 80) return { text: 'Atenção', className: 'text-amber-600 dark:text-amber-400' };
@@ -196,7 +218,11 @@ export default function CoberturaFgc() {
         {instituicoes.map((inst) => {
           const key = inst.cnpj || inst.instituicaoId;
           const isExpanded = expandedInstitutions.has(key);
-          const status = getStatusLabel(inst.percentualUtilizado);
+          const status = getStatusLabel(
+            inst.percentualUtilizado,
+            inst.totalCoberto,
+            inst.totalNaoCoberto,
+          );
           const barColor = getBarColor(inst.percentualUtilizado);
 
           return (
@@ -243,8 +269,16 @@ export default function CoberturaFgc() {
                             CNPJ: {inst.cnpj}
                           </span>
                         )}
-                        <span className={`text-xs font-medium ${status.className}`}>
+                        <span
+                          className={`text-xs font-medium ${status.className}`}
+                          title={status.tooltip}
+                        >
                           {status.text}
+                          {status.tooltip && (
+                            <span className="ml-1 cursor-help opacity-60" aria-hidden>
+                              ⓘ
+                            </span>
+                          )}
                         </span>
                       </div>
                     </div>
