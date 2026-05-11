@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { WizardFormData, WizardErrors, AutocompleteOption, Asset } from '@/types/wizard';
 import AutocompleteInput from '@/components/form/AutocompleteInput';
 import {
@@ -27,6 +27,12 @@ export default function Step3Asset({
 }: Step3AssetProps) {
   const [assetOptions, setAssetOptions] = useState<AutocompleteOption[]>([]);
   const [loading, setLoading] = useState(false);
+  // Bug #05: respostas fora de ordem podem sobrescrever uma busca recente
+  // bem-sucedida com o resultado vazio de uma busca anterior. Ex.: usuário
+  // digita "C", "CS", "CSM" (0 resultados), "CSMG3" (com resultado), e a
+  // resposta de "CSM" chega depois de "CSMG3" — sem o counter, o estado
+  // termina com options=[] e error="Nenhum encontrado".
+  const searchSeqRef = useRef(0);
 
   // Buscar ativos
   const fetchAssets = async (search: string) => {
@@ -62,15 +68,23 @@ export default function Step3Asset({
     }
 
     setLoading(true);
+    const mySeq = ++searchSeqRef.current;
     try {
       const url = `/api/assets?search=${encodeURIComponent(search)}&tipo=${formData.tipoAtivo}&limit=20`;
 
       const response = await fetch(url, { credentials: 'include' });
 
+      // Resposta de busca obsoleta: ignora pra não sobrescrever resultados
+      // mais recentes (vide comentário em searchSeqRef).
+      if (mySeq !== searchSeqRef.current) return;
+
       if (response.ok) {
         const data = await response.json();
         const options: AutocompleteOption[] = (data.assets || []).map(
           (asset: Asset & { type?: string }) => ({
+            // Para acoes-brasil a API já retorna asset.id pré-fixado com
+            // "acao:" ou "bdr:" (src/app/api/assets/route.ts:44-59); pra
+            // outros tipos vem UUID puro.
             value: asset.id,
             label: `${asset.symbol} - ${asset.name}`,
             subtitle:
@@ -82,9 +96,16 @@ export default function Step3Asset({
           }),
         );
         setAssetOptions(options);
-        if (options.length === 0 && search.length >= 2) {
+        // Bug #05: antes só limpávamos o erro quando options vinha vazio E
+        // search < 2; quando a busca subsequente trazia resultados, o erro
+        // "Nenhum encontrado" de uma busca anterior persistia → campo em
+        // borda vermelha mesmo com dropdown populado. Agora sempre que há
+        // opções, limpa o erro explicitamente.
+        if (options.length > 0) {
+          onErrorsChange({ ativo: undefined });
+        } else if (search.length >= 2) {
           onErrorsChange({ ativo: 'Nenhum ativo encontrado para o tipo selecionado.' });
-        } else if (options.length === 0) {
+        } else {
           onErrorsChange({ ativo: undefined });
         }
       } else {
@@ -95,10 +116,11 @@ export default function Step3Asset({
         });
       }
     } catch (error) {
+      if (mySeq !== searchSeqRef.current) return;
       console.error('Erro ao buscar ativos:', error);
       onErrorsChange({ ativo: 'Não foi possível carregar os ativos. Tente novamente.' });
     } finally {
-      setLoading(false);
+      if (mySeq === searchSeqRef.current) setLoading(false);
     }
   };
 
