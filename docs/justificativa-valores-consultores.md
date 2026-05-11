@@ -184,6 +184,8 @@ Após venda:
 
 O preço médio final de R$ 33,33 é o que serve de base para calcular ganho de capital, IR e _yield on cost_.
 
+> ℹ️ **Engine única (Bug #15 — Maio/2026):** todas as telas que exibem valor de renda fixa — `Carteira → Renda Fixa`, `Análises → Cobertura FGC`, detalhe `/ativos/[id]` — passam pelo mesmo serviço `createFixedIncomePricer()`. Antes do fix, a tela de detalhe rodava queries CDI/IPCA/Tesouro próprias e podia divergir até 0,1% (~R$143 em LCAs prefixadas) do valor consolidado da aba Renda Fixa. Agora ambos caminhos usam `pricer.getCurrentValue(fi)` — divergência impossível.
+
 ### 4.2 Renda fixa prefixada (CDB pré, LCI pré, LCA pré, debênture pré)
 
 **Fórmula de capitalização composta (juros compostos diários, em base 252):**

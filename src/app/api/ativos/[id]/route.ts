@@ -13,13 +13,10 @@ import {
 import { calcularIRRendaFixa } from '@/services/ir/fixedIncomeIR';
 import {
   buildDailyTimeline as buildBusinessDayTimeline,
-  buildFixedIncomeFactorSeries,
   normalizeDateStart as normalizeDateStartShared,
-  type CdiDaily,
-  type IpcaMonthly,
-  type TesouroPU,
   type FixedIncomeAssetWithAsset,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -205,67 +202,12 @@ const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedInco
 
   const fullTimeline = buildBusinessDayTimeline(startDate, hoje);
 
-  // Queries bounded pelo range do ativo
-  const [cdiRows, ipcaRows, tesouroRows] = await Promise.all([
-    fi.indexer === 'CDI' || fi.tesouroBondType
-      ? prisma.economicIndex.findMany({
-          where: { indexType: 'CDI', date: { gte: startDate, lte: hoje } },
-          orderBy: { date: 'asc' },
-        })
-      : Promise.resolve([] as Array<{ date: Date; value: unknown }>),
-    fi.indexer === 'IPCA' || fi.tesouroBondType
-      ? prisma.economicIndex.findMany({
-          where: { indexType: 'IPCA', date: { gte: startDate, lte: hoje } },
-          orderBy: { date: 'asc' },
-        })
-      : Promise.resolve([] as Array<{ date: Date; value: unknown }>),
-    fi.tesouroBondType && fi.tesouroMaturity
-      ? prisma.tesouroDiretoPrice.findMany({
-          where: {
-            bondType: fi.tesouroBondType,
-            maturityDate: fi.tesouroMaturity,
-            baseDate: { gte: startDate, lte: hoje },
-          },
-          orderBy: { baseDate: 'asc' },
-        })
-      : Promise.resolve(
-          [] as Array<{ baseDate: Date; basePU: unknown; sellPU: unknown; buyPU: unknown }>,
-        ),
-  ]);
-
-  const cdi: CdiDaily = new Map();
-  cdiRows.forEach((row) => {
-    const val = Number(row.value);
-    if (Number.isFinite(val)) cdi.set(normalizeDateStartShared(row.date).getTime(), val);
-  });
-
-  const ipca: IpcaMonthly = new Map();
-  ipcaRows.forEach((row) => {
-    const val = Number(row.value);
-    if (!Number.isFinite(val)) return;
-    const d = new Date(row.date);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    ipca.set(key, val);
-  });
-
-  const tesouroPU: TesouroPU = new Map();
-  let tesouroPUAtStart = 0;
-  if (tesouroRows.length > 0) {
-    tesouroRows.forEach((row) => {
-      const pu = Number(row.basePU ?? 0) || Number(row.sellPU ?? 0) || Number(row.buyPU ?? 0);
-      if (Number.isFinite(pu) && pu > 0) {
-        tesouroPU.set(normalizeDateStartShared(row.baseDate).getTime(), pu);
-      }
-    });
-    // PU em (ou o primeiro após) a data de aplicação
-    const startKey = startDate.getTime();
-    const sortedKeys = Array.from(tesouroPU.keys()).sort((a, b) => a - b);
-    const candidateAtOrBefore = [...sortedKeys].reverse().find((k) => k <= startKey);
-    const firstAfter = sortedKeys.find((k) => k >= startKey);
-    const chosen = candidateAtOrBefore ?? firstAfter;
-    if (chosen !== undefined) tesouroPUAtStart = tesouroPU.get(chosen) ?? 0;
-  }
-
+  // Bug #15: usar o mesmo pricer da aba "Carteira → Renda Fixa" garante que o
+  // saldoBruto exibido em /ativos/[id] bata exatamente com o valor mostrado na
+  // tabela consolidada. Antes esta rota carregava CDI/IPCA/Tesouro com queries
+  // próprias (range específico do ativo) — diferenças sutis de boundary date e
+  // tratamento de PU divergiam ~0,1% do pricer compartilhado (ex.: LCA
+  // prefixada R$120.890,65 aqui vs R$121.033,14 na carteira).
   const fiWithAsset: FixedIncomeAssetWithAsset = {
     id: fi.id,
     userId: fi.userId,
@@ -285,20 +227,27 @@ const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedInco
     asset: portfolio.asset ?? null,
   };
 
-  const factorByDay = buildFixedIncomeFactorSeries(fiWithAsset, fullTimeline, {
-    cdi,
-    ipca,
-    tesouroPU,
-    tesouroPUAtStart,
+  const pricer = await createFixedIncomePricer(fi.userId, {
+    asOfDate: hoje,
+    preloadedAssets: [fiWithAsset],
+    portfolioStartDate: startDate,
   });
+
+  // O FI carregado isolado pelo pricer não tem qty populado; o getCurrentValue
+  // cai no caminho de PU oficial para Tesouro. Usar o asset retornado pelo
+  // pricer (que pode ter sido enriquecido) garante consistência.
+  const fiResolved = pricer.fixedIncomeByAssetId.get(fi.assetId) ?? fiWithAsset;
 
   const displayStartTs = displayStart.getTime();
   const displayTimeline = fullTimeline.filter((d) => d >= displayStartTs);
 
+  const valueSeries = pricer.buildValueSeriesForAsset(fiResolved, fullTimeline);
+  const valueByDay = new Map(valueSeries.map((v) => [v.date, v.value]));
+
   const historicoPatrimonio = displayTimeline.map((day) => ({
     data: day,
     valorAplicado: round2(fi.investedAmount),
-    saldoBruto: round2(fi.investedAmount * (factorByDay.get(day) ?? 1)),
+    saldoBruto: round2(valueByDay.get(day) ?? fi.investedAmount),
   }));
 
   // Fluxo único na inception (quando dentro da janela de exibição). Se a
@@ -338,8 +287,8 @@ const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedInco
     return out;
   })();
 
-  const finalFactor = factorByDay.get(fullTimeline[fullTimeline.length - 1]) ?? 1;
-  const saldoBruto = round2(fi.investedAmount * finalFactor);
+  // Saldo final via pricer compartilhado — mesmo número que /api/carteira/renda-fixa.
+  const saldoBruto = pricer.getCurrentValue(fiResolved);
   const valorAplicado = round2(fi.investedAmount);
   const resultado = round2(saldoBruto - valorAplicado);
   const rentabilidade = valorAplicado > 0 ? (resultado / valorAplicado) * 100 : 0;
