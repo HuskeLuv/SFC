@@ -1002,11 +1002,27 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       baseName = (ativoNome || '').trim() || 'Reserva de Oportunidade';
       baseSymbol = 'RESERVA-OPORT';
     } else if (tipoAtivo === 'personalizado') {
-      baseName = nomePersonalizado || 'Personalizado';
+      baseName = (nomePersonalizado || '').trim() || 'Personalizado';
       baseSymbol = 'PERSONALIZADO';
-    } else if (tipoAtivo === 'renda-fixa' || tipoAtivo === 'renda-fixa-posfixada') {
-      baseName = descricao || 'Renda Fixa';
+    } else if (
+      tipoAtivo === 'renda-fixa' ||
+      tipoAtivo === 'renda-fixa-posfixada' ||
+      tipoAtivo === 'renda-fixa-hibrida'
+    ) {
+      // Bug #08: renda-fixa-hibrida não tinha branch dedicado e caía com
+      // baseName='' e baseSymbol='', produzindo asset.symbol como
+      // "-{timestamp}-{uuid}" e asset.name começando com " - R$ X - data".
+      baseName = (descricao || '').trim() || 'Renda Fixa';
       baseSymbol = 'RENDA-FIXA';
+    }
+
+    // Sentinela: nunca permitir baseSymbol vazio (gera asset.symbol corrompido
+    // "-{timestamp}-{uuid}" e quebra todos os filtros que usam startsWith).
+    if (!baseSymbol) {
+      return NextResponse.json(
+        { error: `tipoAtivo '${tipoAtivo}' não suporta criação manual de asset` },
+        { status: 400 },
+      );
     }
 
     // Criar um asset único para cada investimento usando timestamp e UUID

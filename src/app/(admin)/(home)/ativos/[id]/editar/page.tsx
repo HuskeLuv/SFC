@@ -14,6 +14,7 @@ import { DropdownItem } from '@/components/ui/dropdown/DropdownItem';
 import EditableField from '@/components/carteira/shared/EditableField';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 import { formatWallClockDate, toDateInputValue } from '@/utils/formatDate';
+import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
 import { ArrowRightIcon, ChevronDownIcon, ChevronLeftIcon, PlusIcon, TrashBinIcon } from '@/icons';
 
 const MO_PAGE_SIZE = 6;
@@ -557,8 +558,7 @@ const AtivoEditarContent = () => {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {data.ticker}
-            {data.nome && data.nome !== data.ticker ? ` — ${data.nome}` : ''}
+            {formatAssetDisplayTitle({ ticker: data.ticker, nome: data.nome }).full}
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{instituicao}</p>
           <Link
