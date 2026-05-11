@@ -10,6 +10,11 @@ const mockPrisma = vi.hoisted(() => ({
   },
   portfolio: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
   fixedIncomeAsset: { updateMany: vi.fn(), deleteMany: vi.fn() },
+  // Bug #04: recalc consulta Asset pra eventualmente regenerar o name de RF.
+  asset: { findUnique: vi.fn().mockResolvedValue(null), update: vi.fn().mockResolvedValue({}) },
+  // Bug #02: recalc apaga snapshots/performance quando recomputeSnapshotsFrom é passado.
+  portfolioDailySnapshot: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  portfolioPerformance: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -20,8 +25,11 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
   }),
 );
 
+const mockDeleteTtlCache = vi.hoisted(() => vi.fn());
+
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
+vi.mock('@/lib/simpleTtlCache', () => ({ deleteTtlCacheKeyPrefix: mockDeleteTtlCache }));
 
 import { PATCH, DELETE } from '../route';
 
@@ -57,6 +65,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
       userId: 'user-1',
       assetId: 'asset-1',
       stockId: null,
+      date: new Date('2024-01-15'),
       type: 'compra',
       quantity: 10,
       price: 25,
@@ -67,7 +76,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
     mockPrisma.stockTransaction.update.mockResolvedValue({});
     mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
-      { type: 'compra', quantity: 20, price: 25, total: 500 },
+      { type: 'compra', quantity: 20, price: 25, total: 500, date: new Date('2024-01-15') },
     ]);
     mockPrisma.portfolio.update.mockResolvedValue({});
 
@@ -112,6 +121,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
       userId: 'user-1',
       assetId: 'asset-1',
       stockId: null,
+      date: new Date('2024-01-15'),
       type: 'compra',
       quantity: 100,
       price: 10,
@@ -122,7 +132,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
     mockPrisma.stockTransaction.update.mockResolvedValue({});
     mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
-      { type: 'compra', quantity: 50, price: 10, total: 500 },
+      { type: 'compra', quantity: 50, price: 10, total: 500, date: new Date('2024-01-15') },
     ]);
     mockPrisma.portfolio.update.mockResolvedValue({});
 
@@ -150,6 +160,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
       userId: 'user-1',
       assetId: 'asset-1',
       stockId: null,
+      date: new Date('2024-01-15'),
       type: 'compra',
       quantity: 100,
       price: 10,
@@ -160,7 +171,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
     mockPrisma.stockTransaction.update.mockResolvedValue({});
     mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
-      { type: 'compra', quantity: 100, price: 8, total: 800 },
+      { type: 'compra', quantity: 100, price: 8, total: 800, date: new Date('2024-01-15') },
     ]);
     mockPrisma.portfolio.update.mockResolvedValue({});
 
@@ -179,6 +190,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
       userId: 'user-1',
       assetId: 'asset-1',
       stockId: null,
+      date: new Date('2024-01-15'),
       type: 'compra',
       quantity: 100,
       price: 10,
@@ -189,7 +201,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
     mockPrisma.stockTransaction.update.mockResolvedValue({});
     mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
-      { type: 'compra', quantity: 100, price: 7.5, total: 750 },
+      { type: 'compra', quantity: 100, price: 7.5, total: 750, date: new Date('2024-01-15') },
     ]);
     mockPrisma.portfolio.update.mockResolvedValue({});
 
@@ -209,6 +221,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
       userId: 'user-1',
       assetId: 'asset-1',
       stockId: null,
+      date: new Date('2024-01-15'),
       type: 'compra',
       quantity: 100,
       price: 10,
@@ -247,6 +260,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
       userId: 'user-1',
       assetId: 'asset-1',
       stockId: null,
+      date: new Date('2024-01-15'),
       type: 'compra',
       quantity: 100,
       price: 10,
@@ -281,6 +295,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
       userId: 'user-1',
       assetId: 'asset-1',
       stockId: null,
+      date: new Date('2024-01-15'),
       type: 'compra',
       quantity: 100,
       price: 10,
@@ -291,7 +306,7 @@ describe('PATCH /api/historico/transacao/[id]', () => {
     mockPrisma.stockTransaction.update.mockResolvedValue({});
     mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
-      { type: 'compra', quantity: 100, price: 10, total: 1000 },
+      { type: 'compra', quantity: 100, price: 10, total: 1000, date: new Date('2024-01-15') },
     ]);
     mockPrisma.portfolio.update.mockResolvedValue({});
 
@@ -322,11 +337,12 @@ describe('DELETE /api/historico/transacao/[id]', () => {
       userId: 'user-1',
       assetId: 'asset-1',
       stockId: null,
+      date: new Date('2024-01-15'),
     });
     mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
     mockPrisma.stockTransaction.delete.mockResolvedValue({});
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
-      { type: 'compra', quantity: 10, price: 25, total: 250 },
+      { type: 'compra', quantity: 10, price: 25, total: 250, date: new Date('2024-01-15') },
     ]);
     mockPrisma.portfolio.update.mockResolvedValue({});
 
