@@ -414,7 +414,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         valorAplicadoAtual: valorAplicado,
         twrStartDate,
         maxHistoricoMonths: 24,
-        patchLastDayWithLiveTotals: true,
+        // Patch desligado: sobrescrever último dia com totais live (BRAPI atual +
+        // FI pricer live) divergia da engine que precifica os dias anteriores
+        // (assetPriceHistory + curva diária), produzindo um drop artificial em
+        // TWR/MWR no último ponto do gráfico de rentabilidade. Chart termina no
+        // último close do cron; cards de Saldo Bruto/Rentabilidade no topo
+        // continuam live por virem de um caminho independente.
+        patchLastDayWithLiveTotals: false,
         fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
         implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
       });

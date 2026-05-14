@@ -16,7 +16,15 @@ export type SnapshotHistoricoBundle = {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Lê snapshots + performance entre datas; opcionalmente injeta ponto "hoje" com totais ao vivo.
+ * Lê snapshots + performance entre datas. O ponto "hoje" com totais ao vivo
+ * NÃO é mais injetado: a precificação live divergia da engine usada nos dias
+ * anteriores (assetPriceHistory) e produzia drop artificial em TWR/MWR no
+ * último ponto do gráfico de rentabilidade. O chart termina no último snapshot
+ * do cron; cards de Saldo Bruto/Rentabilidade no topo do dashboard continuam
+ * live por virem de um caminho independente.
+ *
+ * `liveSaldoBruto`/`liveValorAplicado` continuam no shape pra compatibilidade
+ * com os callers existentes — apenas são ignorados.
  */
 export const loadHistoricoFromSnapshots = async (
   userId: string,
@@ -63,27 +71,6 @@ export const loadHistoricoFromSnapshots = async (
   const lastSnap =
     rows.length > 0 ? normalizeDateStart(rows[rows.length - 1].date).getTime() : null;
   const gapDays = lastSnap != null ? (end.getTime() - lastSnap) / MS_PER_DAY : 999;
-
-  if (
-    options?.liveSaldoBruto != null &&
-    options?.liveValorAplicado != null &&
-    end.getTime() >= normalizeDateStart(new Date()).getTime()
-  ) {
-    const todayKey = normalizeDateStart(new Date()).getTime();
-    const last = historicoPatrimonio[historicoPatrimonio.length - 1];
-    if (!last || last.data !== todayKey) {
-      historicoPatrimonio.push({
-        data: todayKey,
-        valorAplicado: options.liveValorAplicado,
-        saldoBruto: options.liveSaldoBruto,
-      });
-      const prevVal = historicoTWR.length > 0 ? historicoTWR[historicoTWR.length - 1]!.value : 0;
-      historicoTWR.push({ data: todayKey, value: prevVal });
-    } else {
-      last.saldoBruto = options.liveSaldoBruto;
-      last.valorAplicado = options.liveValorAplicado;
-    }
-  }
 
   let historicoTWRPeriodo: Array<{ data: number; value: number }> = [];
   const twrStart = options?.twrStartDate;
