@@ -417,6 +417,51 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
 };
 
 /**
+ * Busca dados históricos da POUPANCA do banco (tabela economic_indexes).
+ *
+ * BACEN publica diariamente, mas o valor é a TAXA DO MÊS em decimal
+ * (ex.: 0.005 = 0,5%/mês, equivalente a TR + 6,17% a.a.). Tratamos como
+ * série mensal — `normalizeMonthlySeries` reduz para 1º dia do mês e o
+ * pipeline IPCA-like (buildMonthlyIndex + interpolateDailyIndex) constrói
+ * o índice base 100 acumulado.
+ */
+const fetchPoupancaHistory = async (startDate?: Date): Promise<IndexData[]> => {
+  try {
+    const where: { indexType: string; date?: { gte: Date } } = {
+      indexType: 'POUPANCA',
+    };
+    if (startDate) {
+      where.date = { gte: startDate };
+    }
+
+    const records = await prisma.economicIndex.findMany({
+      where,
+      orderBy: { date: 'asc' },
+    });
+
+    if (records.length === 0) {
+      console.warn('⚠️ POUPANCA: Nenhum dado encontrado no banco de dados');
+      return [];
+    }
+
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+    const hojeTimestamp = hoje.getTime();
+
+    return records
+      .filter((record) => new Date(record.date).getTime() <= hojeTimestamp)
+      .map((record) => ({
+        date: new Date(record.date).getTime(),
+        // Decimal mensal → percentual mensal (0.005 → 0.5)
+        value: Number(record.value) * 100,
+      }));
+  } catch (error) {
+    console.error('Erro ao buscar histórico de POUPANCA do banco de dados:', error);
+    return [];
+  }
+};
+
+/**
  * Calcula startDate e endDate com base no range.
  * Usa getAssetHistory (DB-first) com fallback BRAPI.
  */
@@ -677,6 +722,40 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       }
     } catch (error) {
       console.error(`❌ Erro ao buscar IPCA:`, error);
+    }
+  }
+
+  // Buscar POUPANCA do banco (se não veio em benchmark_cumulative_returns).
+  // Mesma engine do IPCA: taxa mensal em decimal → índice mensal base 100 →
+  // interpolação diária. Antes não havia fallback, então quando a tabela de
+  // cumulative_returns estava vazia a série ficava ausente sem aviso.
+  if (!hasBenchmark('POUPANCA') && !hasBenchmark('Poupança')) {
+    try {
+      const poupancaData = await fetchPoupancaHistory(startDate);
+      if (Array.isArray(poupancaData) && poupancaData.length > 0) {
+        const monthlyIndex = isMonthlyRateSeries(poupancaData)
+          ? buildMonthlyIndex(poupancaData)
+          : normalizeMonthlySeries(poupancaData);
+        const dailyIndex = interpolateDailyIndex(monthlyIndex);
+        if (!validateIndexSeries(dailyIndex, 'Poupança')) {
+          console.error('[Poupança] Série ignorada por validação.');
+        } else {
+          logSeriesStats(dailyIndex, 'Poupança');
+          const poupancaReturns = normalizeToStartZero(dailyIndex, startDate);
+          if (Array.isArray(poupancaReturns) && poupancaReturns.length > 0) {
+            results.push({
+              symbol: 'POUPANCA',
+              name: 'Poupança',
+              data: poupancaReturns,
+            });
+          }
+        }
+        console.log(`✅ Poupança: ${poupancaData.length} pontos de dados`);
+      } else {
+        console.warn(`⚠️ Poupança: Nenhum dado retornado`);
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao buscar Poupança:`, error);
     }
   }
 
