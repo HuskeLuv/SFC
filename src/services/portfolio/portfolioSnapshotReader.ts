@@ -6,14 +6,22 @@ import {
 } from './patrimonioHistoricoBuilder';
 import { loadCarteiraHistoricoData } from './carteiraHistoricoDataLoader';
 
+export type SnapshotCoverageReason = 'ok' | 'no-rows' | 'tail-gap' | 'history-gap';
+
 export type SnapshotHistoricoBundle = {
   historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }>;
   historicoTWR: Array<{ data: number; value: number }>;
   historicoTWRPeriodo: Array<{ data: number; value: number }>;
   coverageOk: boolean;
+  coverageReason: SnapshotCoverageReason;
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+// Gap tolerado entre a primeira atividade real do usuário (transação/FI/cashflow)
+// e o snapshot mais antigo. Acima disso assumimos que o backfill histórico nunca
+// rodou para essa conta (ex.: usuário criado com histórico antigo) e devolvemos
+// coverageOk=false para que o caller possa cair no rebuild + disparar backfill.
+const HISTORY_GAP_TOLERANCE_DAYS = 7;
 
 /**
  * Lê snapshots + performance entre datas. O ponto "hoje" com totais ao vivo
@@ -34,6 +42,11 @@ export const loadHistoricoFromSnapshots = async (
     liveSaldoBruto?: number;
     liveValorAplicado?: number;
     twrStartDate?: number;
+    // Data da primeira atividade real do usuário (mais antiga entre stock txs,
+    // FI startDates e cashflow investments). Quando informada, o reader checa
+    // se o snapshot mais antigo cobre esse início — gap > HISTORY_GAP_TOLERANCE_DAYS
+    // sinaliza que o backfill nunca rodou pra essa conta.
+    firstActivityDate?: Date;
   },
 ): Promise<SnapshotHistoricoBundle> => {
   const start = normalizeDateStart(rangeStart);
@@ -70,7 +83,12 @@ export const loadHistoricoFromSnapshots = async (
 
   const lastSnap =
     rows.length > 0 ? normalizeDateStart(rows[rows.length - 1].date).getTime() : null;
+  const firstSnap = rows.length > 0 ? normalizeDateStart(rows[0].date).getTime() : null;
   const gapDays = lastSnap != null ? (end.getTime() - lastSnap) / MS_PER_DAY : 999;
+  const historyGapDays =
+    firstSnap != null && options?.firstActivityDate
+      ? (firstSnap - normalizeDateStart(options.firstActivityDate).getTime()) / MS_PER_DAY
+      : 0;
 
   let historicoTWRPeriodo: Array<{ data: number; value: number }> = [];
   const twrStart = options?.twrStartDate;
@@ -115,12 +133,28 @@ export const loadHistoricoFromSnapshots = async (
     }
   }
 
-  const coverageOk = rows.length > 0 && gapDays <= 4;
+  let coverageReason: SnapshotCoverageReason = 'ok';
+  if (rows.length === 0) {
+    coverageReason = 'no-rows';
+  } else if (gapDays > 4) {
+    coverageReason = 'tail-gap';
+  } else if (historyGapDays > HISTORY_GAP_TOLERANCE_DAYS) {
+    // Snapshot mais antigo está bem depois da primeira atividade — backfill faltando.
+    coverageReason = 'history-gap';
+  }
+  const coverageOk = coverageReason === 'ok';
+
+  if (!coverageOk) {
+    console.warn(
+      `[portfolioSnapshotReader] coverageOk=false userId=${userId} reason=${coverageReason} rows=${rows.length} tailGapDays=${gapDays.toFixed(1)} historyGapDays=${historyGapDays.toFixed(1)}`,
+    );
+  }
 
   return {
     historicoPatrimonio,
     historicoTWR,
     historicoTWRPeriodo,
     coverageOk,
+    coverageReason,
   };
 };

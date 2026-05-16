@@ -135,6 +135,130 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
 };
 
 /**
+ * Backfill em massa: persiste TODA a série diária (sem o slice PERSIST_TAIL_DAYS
+ * usado pelo cron). Usado pelo auto-heal disparado em /carteira/resumo quando o
+ * reader detecta gap histórico (snapshot mais antigo bem depois da 1ª atividade).
+ *
+ * Idempotente via upsert. Pode demorar segundos para contas com muito histórico —
+ * deve ser chamado em fire-and-forget pelo caller HTTP.
+ */
+export const persistFullHistoryForUser = async (userId: string, timelineEndDate: Date) => {
+  const { portfolio, fixedIncomeAssets, stockTransactions, investmentsExclReservas } =
+    await loadCarteiraHistoricoData(userId);
+
+  const fiPricer = await createFixedIncomePricer(userId, {
+    asOfDate: timelineEndDate,
+  });
+
+  const { historicoPatrimonio, historicoTWR } = await buildPatrimonioHistorico({
+    portfolio,
+    fixedIncomeAssets,
+    stockTransactions,
+    investmentsExclReservas,
+    saldoBrutoAtual: 0,
+    valorAplicadoAtual: 0,
+    maxHistoricoMonths: null,
+    patchLastDayWithLiveTotals: false,
+    timelineEndDate,
+    fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
+    implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
+  });
+
+  if (historicoPatrimonio.length === 0) {
+    return { snapshotsWritten: 0, performancesWritten: 0 };
+  }
+
+  let snapshotsWritten = 0;
+  let performancesWritten = 0;
+
+  for (let i = 0; i < historicoPatrimonio.length; i += batchSize) {
+    const slice = historicoPatrimonio.slice(i, i + batchSize);
+    await prisma.$transaction(
+      slice.map((row) => {
+        const day = toDayDate(row.data);
+        return prisma.portfolioDailySnapshot.upsert({
+          where: { userId_date: { userId, date: day } },
+          create: {
+            userId,
+            date: day,
+            totalValue: row.saldoBruto,
+            totalInvested: row.valorAplicado,
+            totalEarnings: 0,
+          },
+          update: {
+            totalValue: row.saldoBruto,
+            totalInvested: row.valorAplicado,
+            totalEarnings: 0,
+          },
+        });
+      }),
+    );
+    snapshotsWritten += slice.length;
+  }
+
+  for (let i = 0; i < historicoTWR.length; i += batchSize) {
+    const slice = historicoTWR.slice(i, i + batchSize);
+    await prisma.$transaction(
+      slice.map((row, j) => {
+        const absIdx = i + j;
+        const prevTwr = absIdx > 0 ? historicoTWR[absIdx - 1] : null;
+        let dailyReturn: number | null = null;
+        if (prevTwr) {
+          const fPrev = 1 + (prevTwr.value ?? 0) / 100;
+          const fCur = 1 + (row.value ?? 0) / 100;
+          if (fPrev > 0) {
+            dailyReturn = fCur / fPrev - 1;
+          }
+        }
+        const day = toDayDate(row.data);
+        return prisma.portfolioPerformance.upsert({
+          where: { userId_date: { userId, date: day } },
+          create: { userId, date: day, dailyReturn, cumulativeReturn: row.value },
+          update: { dailyReturn, cumulativeReturn: row.value },
+        });
+      }),
+    );
+    performancesWritten += slice.length;
+  }
+
+  return { snapshotsWritten, performancesWritten };
+};
+
+// Deduplica backfills concorrentes — mesmo user disparando 2 requests em
+// paralelo (ex.: dashboard + análise) não roda o builder pesado duas vezes.
+// O Map é process-local; em ambiente serverless cada instância tem o seu, o
+// que é aceitável: upserts são idempotentes e o pior caso é trabalho duplicado
+// raro entre lambdas frias diferentes.
+const inflightBackfills = new Map<string, Promise<void>>();
+
+/**
+ * Versão fire-and-forget do persistFullHistoryForUser. Loga erro mas nunca
+ * lança — o caller é a request do usuário, que não deve falhar se o backfill
+ * de background dá problema (o fallback de live rebuild já cobriu a leitura).
+ */
+export const triggerLazyBackfill = (userId: string, timelineEndDate: Date): Promise<void> => {
+  const existing = inflightBackfills.get(userId);
+  if (existing) return existing;
+
+  const promise = persistFullHistoryForUser(userId, timelineEndDate)
+    .then((result) => {
+      console.log(
+        `[portfolioSnapshots] lazy backfill done userId=${userId} snapshots=${result.snapshotsWritten} perfs=${result.performancesWritten}`,
+      );
+    })
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[portfolioSnapshots] lazy backfill FAILED userId=${userId}: ${message}`);
+    })
+    .finally(() => {
+      inflightBackfills.delete(userId);
+    });
+
+  inflightBackfills.set(userId, promise);
+  return promise;
+};
+
+/**
  * Executa snapshot para todos os usuários com atividade em carteira/transações.
  */
 export const runPortfolioSnapshotsJob = async (options?: { timelineEndDate?: Date }) => {

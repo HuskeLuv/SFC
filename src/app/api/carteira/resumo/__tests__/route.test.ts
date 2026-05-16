@@ -57,7 +57,12 @@ vi.mock('@/services/portfolio/portfolioSnapshotReader', () => ({
     historicoTWR: [],
     historicoTWRPeriodo: [],
     coverageOk: false,
+    coverageReason: 'no-rows',
   }),
+}));
+
+vi.mock('@/services/portfolio/portfolioSnapshotPersistence', () => ({
+  triggerLazyBackfill: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/services/portfolio/patrimonioHistoricoBuilder', () => ({

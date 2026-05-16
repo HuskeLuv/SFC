@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { deleteTtlCacheKeyPrefix, getTtlCache } from '@/lib/simpleTtlCache';
 import { applyChartAggregation } from '@/services/portfolio/portfolioSeriesAggregation';
 import { loadHistoricoFromSnapshots } from '@/services/portfolio/portfolioSnapshotReader';
+import { triggerLazyBackfill } from '@/services/portfolio/portfolioSnapshotPersistence';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { filterInvestmentsExclReservas } from '@/utils/cashflowFilters';
 
@@ -380,13 +381,40 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1),
     );
 
+    // firstActivityDate = primeira atividade REAL (sem o fallback de -11 meses
+    // do rawTimelineStart). Permite ao reader detectar quando o snapshot mais
+    // antigo está bem depois disso (sintoma clássico de backfill nunca rodado
+    // pra essa conta).
+    const activityCandidates: number[] = [];
+    if (stockTransactions.length > 0) {
+      activityCandidates.push(new Date(stockTransactions[0].date).getTime());
+    }
+    if (fixedIncomeAssets.length > 0) {
+      const minFi = Math.min(
+        ...fixedIncomeAssets
+          .map((a) => new Date(a.startDate).getTime())
+          .filter((v) => Number.isFinite(v)),
+      );
+      if (Number.isFinite(minFi)) activityCandidates.push(minFi);
+    }
+    cashflowInvestments.forEach((inv) => {
+      (inv.values || []).forEach((v) => {
+        activityCandidates.push(new Date(v.year, v.month, 1).getTime());
+      });
+    });
+    const firstActivityDate =
+      activityCandidates.length > 0 ? new Date(Math.min(...activityCandidates)) : undefined;
+
     let usedSnapshots = false;
+    let snapCoverageReason: 'ok' | 'no-rows' | 'tail-gap' | 'history-gap' | null = null;
     if (usePortfolioSnapshots) {
       const snap = await loadHistoricoFromSnapshots(targetUserId, rawTimelineStart, hoje, {
         liveSaldoBruto: saldoBrutoAtual,
         liveValorAplicado: valorAplicadoAtual,
         twrStartDate,
+        firstActivityDate,
       });
+      snapCoverageReason = snap.coverageReason;
       if (snap.coverageOk && snap.historicoPatrimonio.length > 0) {
         const startMs = snap.historicoPatrimonio[0]?.data ?? rawTimelineStart.getTime();
         const endMs =
@@ -441,6 +469,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         historicoTWR.push(...built.historicoTWR);
       }
       historicoTWRPeriodo = built.historicoTWRPeriodo;
+
+      // Lazy backfill: quando a falta de cobertura foi por gap histórico (snapshots
+      // recentes mas nada cobrindo as transações antigas), dispara em background a
+      // persistência da série completa pra próxima leitura ser servida pelo path
+      // rápido. Não bloqueia a request — o usuário já recebeu o resultado via
+      // buildPatrimonioHistorico aqui em cima.
+      if (usePortfolioSnapshots && snapCoverageReason === 'history-gap') {
+        void triggerLazyBackfill(targetUserId, hoje);
+      }
     }
   }
 
