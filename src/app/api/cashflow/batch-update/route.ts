@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuthWithActing } from '@/utils/auth';
@@ -73,7 +74,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         }
       }
     } catch (error) {
-      console.error('Erro ao deletar items:', error);
+      logger.error('Erro ao deletar items:', error);
       for (const itemId of deletes) {
         results.push({ itemId, success: false, error: 'Erro ao deletar' });
       }
@@ -162,7 +163,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
 
         results.push({ itemId, success: true });
       } catch (error) {
-        console.error(`Erro ao atualizar item ${update.itemId}:`, error);
+        logger.error(`Erro ao atualizar item ${update.itemId}:`, error);
         results.push({
           itemId: update.itemId || '',
           success: false,

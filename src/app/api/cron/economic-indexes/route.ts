@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { runEconomicIndexesIngestion } from '@/services/market/economicIndexesIngestion';
@@ -26,7 +27,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const result = await runEconomicIndexesIngestion();
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[cron/economic-indexes]', error);
+    logger.error('[cron/economic-indexes]', error);
     return NextResponse.json(
       { error: 'Falha ao executar ingestão de índices econômicos' },
       { status: 500 },

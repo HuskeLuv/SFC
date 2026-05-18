@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
@@ -1439,7 +1440,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     // novos — toda a lógica posterior usa `asset`.
     asset = await prisma.asset.findUnique({ where: { id: assetId } });
     if (!asset) {
-      console.error(`Asset não encontrado para assetId: ${assetId}, tipoAtivo: ${tipoAtivo}`);
+      logger.error(`Asset não encontrado para assetId: ${assetId}, tipoAtivo: ${tipoAtivo}`);
       return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
     }
     if (tipoAtivo === 'acao' && asset.type !== 'stock') {
@@ -1467,7 +1468,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     // row would be created successfully but invisible in the user's table.
     const expectedTypes = expectedAssetTypeByTipoAtivo[tipoAtivo];
     if (expectedTypes && !expectedTypes.includes(asset.type)) {
-      console.error(
+      logger.error(
         `Type mismatch for tipoAtivo="${tipoAtivo}" assetId="${assetId}": ` +
           `asset has type="${asset.type}", expected one of [${expectedTypes.join(', ')}]`,
       );

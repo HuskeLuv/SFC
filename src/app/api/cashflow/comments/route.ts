@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuthWithActing } from '@/utils/auth';
@@ -115,7 +116,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   try {
     ({ itemId: finalItemId } = await ensurePersonalizedItem(itemId, targetUserId));
   } catch (error: unknown) {
-    console.error('Erro ao personalizar item:', error);
+    logger.error('Erro ao personalizar item:', error);
     if (error instanceof Error && error.message.includes('Usuário não encontrado')) {
       return NextResponse.json(
         { error: 'Sessão inválida. Por favor, faça login novamente.' },

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { syncAssets } from '@/services/pricing/brapiSync';
 
@@ -27,7 +28,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const result = await syncAssets();
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[cron/brapi-sync]', error);
+    logger.error('[cron/brapi-sync]', error);
     return NextResponse.json({ error: 'Falha ao executar sincronização' }, { status: 500 });
   }
 });

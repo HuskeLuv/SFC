@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/lib/logger';
+
 import React, { useEffect } from 'react';
 
 export default function Error({
@@ -10,7 +12,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Root error boundary caught:', error);
+    logger.error('Root error boundary caught:', error);
   }, [error]);
 
   return (

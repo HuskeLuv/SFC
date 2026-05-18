@@ -1,11 +1,13 @@
-"use client";
-import React from "react";
-import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
-import Button from "../ui/button/Button";
-import Input from "../form/input/InputField";
-import Label from "../form/Label";
-import Avatar from "../ui/avatar/Avatar";
+'use client';
+
+import { logger } from '@/lib/logger';
+import React from 'react';
+import { useModal } from '../../hooks/useModal';
+import { Modal } from '../ui/modal';
+import Button from '../ui/button/Button';
+import Input from '../form/input/InputField';
+import Label from '../form/Label';
+import Avatar from '../ui/avatar/Avatar';
 
 interface UserMetaCardProps {
   user?: {
@@ -19,7 +21,7 @@ export default function UserMetaCard({ user }: UserMetaCardProps) {
   const { isOpen, openModal, closeModal } = useModal();
   const handleSave = () => {
     // Handle save logic here
-    console.log("Saving changes...");
+    logger.info('Saving changes...');
     closeModal();
   };
 
@@ -66,7 +68,7 @@ export default function UserMetaCard({ user }: UserMetaCardProps) {
               Atualize seus detalhes para manter seu perfil atualizado.
             </p>
           </div>
-          
+
           <div className="space-y-6">
             <div>
               <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
@@ -75,18 +77,12 @@ export default function UserMetaCard({ user }: UserMetaCardProps) {
               <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
                 <div>
                   <Label>LinkedIn</Label>
-                  <Input
-                    type="text"
-                    defaultValue="https://www.linkedin.com/company/"
-                  />
+                  <Input type="text" defaultValue="https://www.linkedin.com/company/" />
                 </div>
 
                 <div>
                   <Label>Instagram</Label>
-                  <Input
-                    type="text"
-                    defaultValue="https://instagram.com/"
-                  />
+                  <Input type="text" defaultValue="https://instagram.com/" />
                 </div>
               </div>
             </div>
@@ -108,7 +104,7 @@ export default function UserMetaCard({ user }: UserMetaCardProps) {
 
                 <div className="col-span-2 lg:col-span-1">
                   <Label>Endereço de Email</Label>
-                  <Input type="text" defaultValue={user?.email || ""} />
+                  <Input type="text" defaultValue={user?.email || ''} />
                 </div>
 
                 <div className="col-span-2 lg:col-span-1">
@@ -123,7 +119,7 @@ export default function UserMetaCard({ user }: UserMetaCardProps) {
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
             <Button size="sm" variant="outline" onClick={closeModal}>
               Cancelar

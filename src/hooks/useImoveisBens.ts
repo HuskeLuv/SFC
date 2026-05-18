@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImovelBemData } from '@/types/imoveis-bens';
@@ -76,7 +78,7 @@ export const useImoveisBens = (): UseImoveisBensReturn => {
       await queryClient.invalidateQueries({ queryKey });
       invalidatePortfolioDerivedQueries(queryClient);
     } catch (err) {
-      console.error('Erro ao atualizar valor atualizado:', err);
+      logger.error('Erro ao atualizar valor atualizado:', err);
       throw err;
     }
   };

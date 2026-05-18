@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import axios from 'axios';
 import prisma from '@/lib/prisma';
 
@@ -126,7 +127,7 @@ const ingestIndex = async (
 ): Promise<{ inserted: number; updated: number; errors: number }> => {
   const { seriesId, indexType, divideBy100 } = series;
 
-  console.log(`📊 Iniciando ingestão de ${indexType} (série ${seriesId})...`);
+  logger.info(`📊 Iniciando ingestão de ${indexType} (série ${seriesId})...`);
 
   let inserted = 0;
   let updated = 0;
@@ -135,7 +136,7 @@ const ingestIndex = async (
   try {
     const data = await fetchBacenSeries(seriesId, startDate, endDate);
 
-    console.log(`📥 Recebidos ${data.length} registros de ${indexType}`);
+    logger.info(`📥 Recebidos ${data.length} registros de ${indexType}`);
 
     for (const item of data) {
       try {
@@ -170,14 +171,14 @@ const ingestIndex = async (
           inserted++;
         }
       } catch (error) {
-        console.error(`❌ Erro ao processar registro ${item.data} de ${indexType}:`, error);
+        logger.error(`❌ Erro ao processar registro ${item.data} de ${indexType}:`, error);
         errors++;
       }
     }
 
-    console.log(`✅ ${indexType}: ${inserted} inseridos, ${updated} atualizados, ${errors} erros`);
+    logger.info(`✅ ${indexType}: ${inserted} inseridos, ${updated} atualizados, ${errors} erros`);
   } catch (error) {
-    console.error(`💥 Erro ao buscar dados de ${indexType} (série ${seriesId}):`, error);
+    logger.error(`💥 Erro ao buscar dados de ${indexType} (série ${seriesId}):`, error);
     throw error;
   }
 
@@ -198,9 +199,9 @@ export const runEconomicIndexesIngestion = async (
 ): Promise<IngestionResult> => {
   const startTime = Date.now();
 
-  console.log('🕐 Iniciando ingestão de índices econômicos...');
-  console.log(`📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}`);
-  console.log(`📋 Séries configuradas: ${BACEN_SERIES.length}`);
+  logger.info('🕐 Iniciando ingestão de índices econômicos...');
+  logger.info(`📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}`);
+  logger.info(`📋 Séries configuradas: ${BACEN_SERIES.length}`);
 
   // Determinar data inicial
   let finalStartDate = startDate;
@@ -213,11 +214,11 @@ export const runEconomicIndexesIngestion = async (
     }
     finalStartDate = formatDateBR(defaultDate);
     const period = backfill ? `${BACKFILL_LOOKBACK_YEARS} anos` : `${DEFAULT_LOOKBACK_DAYS} dias`;
-    console.log(`📆 Usando período padrão: ${finalStartDate} até hoje (${period})`);
+    logger.info(`📆 Usando período padrão: ${finalStartDate} até hoje (${period})`);
   } else if (endDate) {
-    console.log(`📆 Período: ${finalStartDate} a ${endDate}`);
+    logger.info(`📆 Período: ${finalStartDate} a ${endDate}`);
   } else {
-    console.log(`📆 A partir de: ${finalStartDate}`);
+    logger.info(`📆 A partir de: ${finalStartDate}`);
   }
 
   let totalInserted = 0;
@@ -243,7 +244,7 @@ export const runEconomicIndexesIngestion = async (
         totalUpdated += result.value.updated;
         totalErrors += result.value.errors;
       } else {
-        console.warn(
+        logger.warn(
           `⚠️  Falha ao ingerir ${series.indexType} (série ${series.seriesId}):`,
           result.reason,
         );
@@ -268,16 +269,16 @@ export const runEconomicIndexesIngestion = async (
     details,
   };
 
-  console.log('📊 Resultado da ingestão:');
+  logger.info('📊 Resultado da ingestão:');
   for (const [indexType, detail] of Object.entries(details)) {
-    console.log(
+    logger.info(
       `   • ${indexType}: ${detail.inserted} inseridos, ${detail.updated} atualizados, ${detail.errors} erros`,
     );
   }
-  console.log(
+  logger.info(
     `   • Total: ${totalInserted} inseridos, ${totalUpdated} atualizados, ${totalErrors} erros`,
   );
-  console.log(`   • Duração: ${duration.toFixed(2)}s`);
+  logger.info(`   • Duração: ${duration.toFixed(2)}s`);
 
   return ingestionResult;
 };
@@ -286,7 +287,7 @@ export const runEconomicIndexesIngestion = async (
  * Testa a conexão com a API do BACEN
  */
 export const testBacenConnection = async (): Promise<boolean> => {
-  console.log('🧪 Testando conexão com API do BACEN...');
+  logger.info('🧪 Testando conexão com API do BACEN...');
 
   try {
     const testDate = new Date();
@@ -297,14 +298,14 @@ export const testBacenConnection = async (): Promise<boolean> => {
     const isWorking = Array.isArray(data) && data.length > 0;
 
     if (isWorking) {
-      console.log(`✅ Teste de conexão com BACEN passou! Recebidos ${data.length} registros.`);
+      logger.info(`✅ Teste de conexão com BACEN passou! Recebidos ${data.length} registros.`);
     } else {
-      console.log('❌ Teste de conexão com BACEN falhou!');
+      logger.info('❌ Teste de conexão com BACEN falhou!');
     }
 
     return isWorking;
   } catch (error) {
-    console.error('❌ Erro no teste de conexão com BACEN:', error);
+    logger.error('❌ Erro no teste de conexão com BACEN:', error);
     return false;
   }
 };

@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 
@@ -65,7 +67,7 @@ const ApexChartWrapper = React.memo(
           const ReactApexChart = (await import('react-apexcharts')).default;
           setChart(() => ReactApexChart);
         } catch (error) {
-          console.error('Erro ao carregar ApexCharts:', error);
+          logger.error('Erro ao carregar ApexCharts:', error);
         }
       };
 

@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RendaFixaData, RendaFixaSecao, RendaFixaAtivo } from '@/types/rendaFixa';
@@ -78,7 +80,7 @@ export const useRendaFixa = () => {
         invalidatePortfolioDerivedQueries(queryClient);
         return true;
       } catch (err) {
-        console.error('Erro ao atualizar caixa para investir:', err);
+        logger.error('Erro ao atualizar caixa para investir:', err);
         return false;
       }
     },
@@ -111,7 +113,7 @@ export const useRendaFixa = () => {
         invalidatePortfolioDerivedQueries(queryClient);
         return true;
       } catch (err) {
-        console.error('Erro ao atualizar campo:', err);
+        logger.error('Erro ao atualizar campo:', err);
         return false;
       }
     },

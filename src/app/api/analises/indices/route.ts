@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
@@ -68,7 +69,7 @@ const normalizeToStartZero = (data: IndexData[], startDate?: Date): IndexData[] 
 
   const maxValue = values.length > 0 ? Math.max(...values) : baseValue;
   if (Math.abs(baseValue) < 1 && maxValue <= 300) {
-    console.error(
+    logger.error(
       '[normalizeToStartZero] Série já parece estar em % acumulado. Normalização abortada.',
     );
     return [];
@@ -100,7 +101,7 @@ const validateIndexSeries = (data: IndexData[], name: string) => {
 
   const values = data.map((item) => Number(item.value)).filter((val) => Number.isFinite(val));
   if (values.length === 0) {
-    console.error(`[${name}] Série inválida: valores não numéricos.`);
+    logger.error(`[${name}] Série inválida: valores não numéricos.`);
     return false;
   }
 
@@ -108,17 +109,17 @@ const validateIndexSeries = (data: IndexData[], name: string) => {
   const maxValue = Math.max(...values);
 
   if (minValue <= 0) {
-    console.error(`[${name}] Série inválida: índice não pode ser <= 0.`);
+    logger.error(`[${name}] Série inválida: índice não pode ser <= 0.`);
     return false;
   }
 
   if (maxValue < 20) {
-    console.error(`[${name}] Série inválida: parece taxa/percentual, não índice base 100.`);
+    logger.error(`[${name}] Série inválida: parece taxa/percentual, não índice base 100.`);
     return false;
   }
 
   if (maxValue > 1_000_000 || maxValue / Math.max(minValue, 1e-6) > 1000) {
-    console.error(`[${name}] Série inválida: crescimento exponencial detectado.`);
+    logger.error(`[${name}] Série inválida: crescimento exponencial detectado.`);
     return false;
   }
 
@@ -132,7 +133,7 @@ const logSeriesStats = (data: IndexData[], name: string) => {
   const last = sorted[sorted.length - 1];
   const years = Math.max(1 / 365, (last.date - first.date) / (365 * DAY_MS));
   const cagr = Math.pow(last.value / first.value, 1 / years) - 1;
-  console.log(
+  logger.info(
     `[${name}] inicial=${first.value.toFixed(2)} final=${last.value.toFixed(2)} CAGR=${(cagr * 100).toFixed(2)}%`,
   );
 };
@@ -320,7 +321,7 @@ const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
     });
 
     if (cdiRecords.length === 0) {
-      console.warn('⚠️ CDI: Nenhum dado encontrado no banco de dados');
+      logger.warn('⚠️ CDI: Nenhum dado encontrado no banco de dados');
       return [];
     }
 
@@ -348,7 +349,7 @@ const fetchCDIHistory = async (startDate?: Date): Promise<IndexData[]> => {
 
     return indexData;
   } catch (error) {
-    console.error('Erro ao buscar histórico de CDI do banco de dados:', error);
+    logger.error('Erro ao buscar histórico de CDI do banco de dados:', error);
     return [];
   }
 };
@@ -378,7 +379,7 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
     });
 
     if (ipcaRecords.length === 0) {
-      console.warn('⚠️ IPCA: Nenhum dado encontrado no banco de dados');
+      logger.warn('⚠️ IPCA: Nenhum dado encontrado no banco de dados');
       return [];
     }
 
@@ -408,9 +409,9 @@ const fetchIPCAHistory = async (startDate?: Date): Promise<IndexData[]> => {
 
     return indexData;
   } catch (error) {
-    console.error('Erro ao buscar histórico de IPCA do banco de dados:', error);
+    logger.error('Erro ao buscar histórico de IPCA do banco de dados:', error);
     if (error instanceof Error) {
-      console.error('Detalhes do erro:', error.message, error.stack);
+      logger.error('Detalhes do erro:', error.message, error.stack);
     }
     return [];
   }
@@ -440,7 +441,7 @@ const fetchPoupancaHistory = async (startDate?: Date): Promise<IndexData[]> => {
     });
 
     if (records.length === 0) {
-      console.warn('⚠️ POUPANCA: Nenhum dado encontrado no banco de dados');
+      logger.warn('⚠️ POUPANCA: Nenhum dado encontrado no banco de dados');
       return [];
     }
 
@@ -456,7 +457,7 @@ const fetchPoupancaHistory = async (startDate?: Date): Promise<IndexData[]> => {
         value: Number(record.value) * 100,
       }));
   } catch (error) {
-    console.error('Erro ao buscar histórico de POUPANCA do banco de dados:', error);
+    logger.error('Erro ao buscar histórico de POUPANCA do banco de dados:', error);
     return [];
   }
 };
@@ -543,7 +544,7 @@ const validateIbovGaps = (data: IndexData[]) => {
     const current = normalizeDateStart(new Date(sorted[i].date)).getTime();
     const businessDays = countBusinessDaysBetween(prev + DAY_MS, current);
     if (businessDays > 5) {
-      console.error(`[IBOV] Buraco de ${businessDays} dias úteis sem dados.`);
+      logger.error(`[IBOV] Buraco de ${businessDays} dias úteis sem dados.`);
       return false;
     }
   }
@@ -588,7 +589,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           hoje.setHours(23, 59, 59, 999);
           filtered = filtered.filter((item) => item.date <= hoje.getTime());
           if (filtered.length > 0) {
-            console.log(
+            logger.info(
               `✅ ${benchmarkType}: ${filtered.length} pontos (benchmark_cumulative_returns)`,
             );
             return {
@@ -599,7 +600,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           }
         }
       } catch (err) {
-        console.warn(`⚠️ ${benchmarkType} em benchmark_cumulative_returns:`, err);
+        logger.warn(`⚠️ ${benchmarkType} em benchmark_cumulative_returns:`, err);
       }
       return null;
     }),
@@ -641,11 +642,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         data = data.filter((item) => item.date <= hojeTimestamp);
         if (data.length > 0) {
           if (!validateIbovGaps(data)) {
-            console.error(`[${name}] Série ignorada por buracos excessivos.`);
+            logger.error(`[${name}] Série ignorada por buracos excessivos.`);
           } else {
             const filled = fillMissingDaily(data, new Date());
             if (!validateIndexSeries(filled, name)) {
-              console.error(`[${name}] Série ignorada por validação.`);
+              logger.error(`[${name}] Série ignorada por validação.`);
             } else {
               logSeriesStats(filled, name);
               const returns = normalizeToStartZero(filled, startDate);
@@ -656,12 +657,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
               });
             }
           }
-          console.log(`✅ ${name} (${symbol}): ${data.length} pontos de dados`);
+          logger.info(`✅ ${name} (${symbol}): ${data.length} pontos de dados`);
         } else {
-          console.warn(`⚠️ ${name} (${symbol}): Nenhum dado retornado`);
+          logger.warn(`⚠️ ${name} (${symbol}): Nenhum dado retornado`);
         }
       } catch (error) {
-        console.error(`❌ Erro ao buscar ${name} (${symbol}):`, error);
+        logger.error(`❌ Erro ao buscar ${name} (${symbol}):`, error);
       }
     }
   }
@@ -673,7 +674,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (Array.isArray(cdiData) && cdiData.length > 0) {
         const dailyIndex = buildCDIIndexFromDailyRates(cdiData);
         if (!validateIndexSeries(dailyIndex, 'CDI')) {
-          console.error('[CDI] Série ignorada por validação.');
+          logger.error('[CDI] Série ignorada por validação.');
         } else {
           logSeriesStats(dailyIndex, 'CDI');
           const cdiReturns = normalizeToStartZero(dailyIndex, startDate);
@@ -685,12 +686,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
             });
           }
         }
-        console.log(`✅ CDI: ${cdiData.length} pontos de dados`);
+        logger.info(`✅ CDI: ${cdiData.length} pontos de dados`);
       } else {
-        console.warn(`⚠️ CDI: Nenhum dado retornado`);
+        logger.warn(`⚠️ CDI: Nenhum dado retornado`);
       }
     } catch (error) {
-      console.error(`❌ Erro ao buscar CDI:`, error);
+      logger.error(`❌ Erro ao buscar CDI:`, error);
     }
   }
 
@@ -704,7 +705,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           : normalizeMonthlySeries(ipcaData);
         const dailyIndex = interpolateDailyIndex(monthlyIndex);
         if (!validateIndexSeries(dailyIndex, 'IPCA')) {
-          console.error('[IPCA] Série ignorada por validação.');
+          logger.error('[IPCA] Série ignorada por validação.');
         } else {
           logSeriesStats(dailyIndex, 'IPCA');
           const ipcaReturns = normalizeToStartZero(dailyIndex, startDate);
@@ -716,12 +717,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
             });
           }
         }
-        console.log(`✅ IPCA: ${ipcaData.length} pontos de dados`);
+        logger.info(`✅ IPCA: ${ipcaData.length} pontos de dados`);
       } else {
-        console.warn(`⚠️ IPCA: Nenhum dado retornado`);
+        logger.warn(`⚠️ IPCA: Nenhum dado retornado`);
       }
     } catch (error) {
-      console.error(`❌ Erro ao buscar IPCA:`, error);
+      logger.error(`❌ Erro ao buscar IPCA:`, error);
     }
   }
 
@@ -738,7 +739,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           : normalizeMonthlySeries(poupancaData);
         const dailyIndex = interpolateDailyIndex(monthlyIndex);
         if (!validateIndexSeries(dailyIndex, 'Poupança')) {
-          console.error('[Poupança] Série ignorada por validação.');
+          logger.error('[Poupança] Série ignorada por validação.');
         } else {
           logSeriesStats(dailyIndex, 'Poupança');
           const poupancaReturns = normalizeToStartZero(dailyIndex, startDate);
@@ -750,12 +751,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
             });
           }
         }
-        console.log(`✅ Poupança: ${poupancaData.length} pontos de dados`);
+        logger.info(`✅ Poupança: ${poupancaData.length} pontos de dados`);
       } else {
-        console.warn(`⚠️ Poupança: Nenhum dado retornado`);
+        logger.warn(`⚠️ Poupança: Nenhum dado retornado`);
       }
     } catch (error) {
-      console.error(`❌ Erro ao buscar Poupança:`, error);
+      logger.error(`❌ Erro ao buscar Poupança:`, error);
     }
   }
 
@@ -777,7 +778,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       ),
   );
 
-  console.log(
+  logger.info(
     `📊 Total de índices retornados: ${validResults.length} (${results.length} processados)`,
   );
 
@@ -788,7 +789,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const ipcaYears = getSeriesRangeYears(ipcaSeries);
   const ipcaLast = getLastValue(ipcaSeries);
   if (ipcaYears >= 8 && typeof ipcaLast === 'number' && ipcaLast > 200) {
-    console.error(
+    logger.error(
       `[IPCA] Acumulado em ${ipcaYears.toFixed(1)} anos > 200% (valor=${ipcaLast.toFixed(2)}%).`,
     );
   }
@@ -800,7 +801,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   validResults.forEach((series) => {
     const lastValue = getLastValue(series.data);
     if (typeof lastValue === 'number' && lastValue > 300) {
-      console.error(`[${series.name}] Acumulado acima de 300% (valor=${lastValue.toFixed(2)}%).`);
+      logger.error(`[${series.name}] Acumulado acima de 300% (valor=${lastValue.toFixed(2)}%).`);
     }
   });
 
@@ -827,7 +828,7 @@ function finalizeAndCache(cacheKey: string, validResults: IndexResponse[]): Next
 
   const stale = indicesStaleCache.get(cacheKey);
   if (stale && countExpectedBenchmarks(stale.indices) > countExpectedBenchmarks(validResults)) {
-    console.warn(
+    logger.warn(
       `⚠️  Recomputação parcial (${countExpectedBenchmarks(validResults)}/${EXPECTED_BENCHMARKS.length}) — devolvendo stale (${countExpectedBenchmarks(stale.indices)}/${EXPECTED_BENCHMARKS.length}) pra ${cacheKey}`,
     );
     indicesCache.set(cacheKey, stale, INDICES_PARTIAL_TTL_MS);

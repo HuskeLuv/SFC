@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { runPortfolioSnapshotsJob } from '@/services/portfolio/portfolioSnapshotPersistence';
 
@@ -20,7 +21,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const result = await runPortfolioSnapshotsJob();
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[cron/portfolio-snapshots]', error);
+    logger.error('[cron/portfolio-snapshots]', error);
     return NextResponse.json({ error: 'Falha ao executar job' }, { status: 500 });
   }
 });

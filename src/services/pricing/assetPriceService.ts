@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Serviço centralizado para leitura de preços de ativos.
  * Regra: banco primeiro, fallback BRAPI apenas quando necessário.
@@ -535,7 +536,7 @@ const tryFetchHistoryFromBrapi = async (
 
     return data.sort((a, b) => a.date - b.date);
   } catch (err) {
-    console.error(`[getAssetHistory] Erro ao buscar histórico de ${brapiSymbol}:`, err);
+    logger.error(`[getAssetHistory] Erro ao buscar histórico de ${brapiSymbol}:`, err);
     return [];
   }
 };

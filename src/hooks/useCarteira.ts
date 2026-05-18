@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -103,7 +104,7 @@ export const useCarteira = () => {
         invalidatePortfolioDerivedQueries(queryClient);
         return true;
       } catch (err) {
-        console.error('Erro ao atualizar meta:', err);
+        logger.error('Erro ao atualizar meta:', err);
         return false;
       }
     },
@@ -135,7 +136,7 @@ export const useCarteira = () => {
       } catch (err) {
         // Rollback
         queryClient.setQueryData<CarteiraResumo>(queryKey, previousResumo);
-        console.error('Erro ao atualizar caixa para investir:', err);
+        logger.error('Erro ao atualizar caixa para investir:', err);
         return false;
       }
     },

@@ -1,5 +1,7 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+
+import { logger } from '@/lib/logger';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Sidebar from '@/components/ui/sidebar/Sidebar';
 import Button from '@/components/ui/button/Button';
 import { RedeemWizardFormData, RedeemWizardErrors, RedeemWizardStep } from '@/types/redeemWizard';
@@ -70,6 +72,14 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
   const [errors, setErrors] = useState<RedeemWizardErrors>({});
   const [loading, setLoading] = useState(false);
   const [steps, setSteps] = useState<RedeemWizardStep[]>(STEPS);
+  const isSubmittingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     const validateStep4 = (): boolean => {
@@ -130,21 +140,27 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
     onClose();
   };
 
-  const handleFormDataChange = (newData: Partial<RedeemWizardFormData>) => {
+  const handleFormDataChange = useCallback((newData: Partial<RedeemWizardFormData>) => {
     setFormData((prev) => ({ ...prev, ...newData }));
-  };
+  }, []);
 
-  const handleErrorsChange = (newErrors: Partial<RedeemWizardErrors>) => {
+  const handleErrorsChange = useCallback((newErrors: Partial<RedeemWizardErrors>) => {
     setErrors((prev) => ({ ...prev, ...newErrors }));
-  };
+  }, []);
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setLoading(true);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const response = await csrfFetch('/api/carteira/resgate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
+        signal: controller.signal,
       });
 
       if (response.ok) {
@@ -152,12 +168,14 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
         handleCancel();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Erro ao resgatar investimento:', errorData);
+        logger.error('Erro ao resgatar investimento:', errorData);
       }
     } catch (error) {
-      console.error('Erro ao resgatar investimento:', error);
+      if ((error as Error)?.name === 'AbortError') return;
+      logger.error('Erro ao resgatar investimento:', error);
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

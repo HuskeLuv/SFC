@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Standard error response shape
@@ -46,7 +47,7 @@ export function withErrorHandler(handler: RouteHandler): RouteHandler {
         return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
       }
 
-      console.error('Unhandled API error:', error);
+      logger.error('Unhandled API error:', error);
       return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
     }
   };

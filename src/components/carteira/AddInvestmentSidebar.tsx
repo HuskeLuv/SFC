@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/ui/sidebar/Sidebar';
 import Label from '@/components/form/Label';
@@ -94,7 +96,7 @@ export default function AddInvestmentSidebar({
         setInstitutionOptions(data.institutions);
       }
     } catch (error) {
-      console.error('Erro ao buscar instituições:', error);
+      logger.error('Erro ao buscar instituições:', error);
     } finally {
       setInstitutionLoading(false);
     }
@@ -125,7 +127,7 @@ export default function AddInvestmentSidebar({
         }
       }
     } catch (error) {
-      console.error('Erro ao buscar ativos:', error);
+      logger.error('Erro ao buscar ativos:', error);
       setErrors((prev) => ({
         ...prev,
         ativo: 'Não foi possível carregar os ativos. Tente novamente.',
@@ -231,11 +233,11 @@ export default function AddInvestmentSidebar({
         setErrors({});
       } else {
         const errorData = await response.json();
-        console.error('Erro ao adicionar investimento:', errorData.error);
+        logger.error('Erro ao adicionar investimento:', errorData.error);
         // Aqui você pode mostrar uma notificação de erro
       }
     } catch (error) {
-      console.error('Erro ao adicionar investimento:', error);
+      logger.error('Erro ao adicionar investimento:', error);
     } finally {
       setLoading(false);
     }

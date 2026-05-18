@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/lib/logger';
+
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -291,7 +293,7 @@ const ConsultantDashboardPage = () => {
       setDashboardData(payload);
       setOverview(payload.overview);
     } catch (requestError) {
-      console.error('[ConsultantDashboard] dashboard load error', requestError);
+      logger.error('[ConsultantDashboard] dashboard load error', requestError);
     } finally {
       setIsLoadingDashboard(false);
     }
@@ -331,7 +333,7 @@ const ConsultantDashboardPage = () => {
 
       setClients(clientsWithDetail);
     } catch (requestError) {
-      console.error('[ConsultantDashboard] load error', requestError);
+      logger.error('[ConsultantDashboard] load error', requestError);
       setError('Não foi possível carregar os dados do consultor. Tente novamente em instantes.');
     } finally {
       setIsLoading(false);
@@ -346,7 +348,7 @@ const ConsultantDashboardPage = () => {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        console.warn('[ConsultantDashboard] invitations request failed', {
+        logger.warn('[ConsultantDashboard] invitations request failed', {
           status: response.status,
           body: payload,
         });
@@ -360,7 +362,7 @@ const ConsultantDashboardPage = () => {
 
       setInvitationStatuses(payload.invitations.slice(0, 5));
     } catch (inviteError) {
-      console.error('[ConsultantDashboard] invitations load error', inviteError);
+      logger.error('[ConsultantDashboard] invitations load error', inviteError);
       setInvitationStatuses([]);
     }
   }, []);
@@ -386,7 +388,7 @@ const ConsultantDashboardPage = () => {
               detail: detailPayload,
             };
           } catch (detailError) {
-            console.error(
+            logger.error(
               `[ConsultantDashboard] client ${client.clientId} detail error`,
               detailError,
             );
@@ -589,7 +591,7 @@ const ConsultantDashboardPage = () => {
       // Redirecionar para a carteira
       router.push('/carteira');
     } catch (actionError) {
-      console.error('[ConsultantDashboard] acting error', actionError);
+      logger.error('[ConsultantDashboard] acting error', actionError);
       setPersonifyingClientId(null);
     }
   };
@@ -641,7 +643,7 @@ const ConsultantDashboardPage = () => {
       setInvitationEmail('');
       await fetchInvitations();
     } catch (inviteError) {
-      console.error('[ConsultantDashboard] invite error', inviteError);
+      logger.error('[ConsultantDashboard] invite error', inviteError);
       setInvitationError(
         inviteError instanceof Error
           ? inviteError.message

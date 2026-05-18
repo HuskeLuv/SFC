@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { IndexData, IndexResponse } from '@/hooks/useIndices';
@@ -29,7 +31,7 @@ class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    logger.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
   render() {
@@ -77,7 +79,7 @@ const ApexChartWrapper = React.memo(
           const ReactApexChart = (await import('react-apexcharts')).default;
           setChart(() => ReactApexChart);
         } catch (error) {
-          console.error('Erro ao carregar ApexCharts:', error);
+          logger.error('Erro ao carregar ApexCharts:', error);
         }
       };
 
@@ -324,7 +326,7 @@ export default function RentabilidadeChart({
           processedIndexData = index.data;
         }
       } catch (error) {
-        console.warn(`Erro ao processar dados do índice ${index.name}:`, error);
+        logger.warn(`Erro ao processar dados do índice ${index.name}:`, error);
         return;
       }
 

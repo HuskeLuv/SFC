@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import React from 'react';
 import Alert from '@/components/ui/alert/Alert';
@@ -300,7 +302,7 @@ export default function DataTableTwo() {
         updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
       };
     } catch (error: unknown) {
-      console.error(
+      logger.error(
         `Erro ao buscar comentário (item=${itemId}, month=${month}, year=${year}):`,
         error,
       );
@@ -322,7 +324,7 @@ export default function DataTableTwo() {
       try {
         const item = findItemById(processedData.groups, itemId);
         if (!item) {
-          console.warn(`Item não encontrado: ${itemId}`);
+          logger.warn(`Item não encontrado: ${itemId}`);
           showAlert(
             'error',
             'Item não encontrado',
@@ -345,7 +347,7 @@ export default function DataTableTwo() {
 
         setIsCommentModeActive(false);
       } catch (error: unknown) {
-        console.error('Erro ao buscar comentário:', error);
+        logger.error('Erro ao buscar comentário:', error);
         if (error instanceof Error && error.message.includes('Sessão inválida')) {
           showAlert(
             'error',
@@ -408,7 +410,7 @@ export default function DataTableTwo() {
         await refetch();
         showAlert('success', 'Comentário salvo', 'O comentário foi salvo com sucesso.');
       } catch (error: unknown) {
-        console.error('Erro ao salvar comentário:', error);
+        logger.error('Erro ao salvar comentário:', error);
 
         if (error instanceof Error && error.message === 'Sessão inválida') {
           throw error;
@@ -453,7 +455,7 @@ export default function DataTableTwo() {
     try {
       await refetch();
     } catch (error) {
-      console.error('Erro ao atualizar item:', error);
+      logger.error('Erro ao atualizar item:', error);
       showAlert('error', 'Erro ao atualizar', 'Erro ao atualizar o item.');
     }
   }, [refetch, showAlert]);
@@ -504,7 +506,7 @@ export default function DataTableTwo() {
         stopGroupEditing(group.id, allItems);
         showAlert('success', 'Alterações salvas', 'As alterações foram salvas com sucesso.');
       } catch (error) {
-        console.error('Erro ao salvar alterações:', error);
+        logger.error('Erro ao salvar alterações:', error);
         showAlert('error', 'Erro ao salvar', 'Erro ao salvar as alterações. Tente novamente.');
       } finally {
         setSavingGroups((prev) => {

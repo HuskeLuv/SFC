@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import React, { useState, useMemo } from 'react';
 import { useImoveisBens } from '@/hooks/useImoveisBens';
 import { ImovelBemAtivo } from '@/types/imoveis-bens';
@@ -68,7 +70,7 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
         await onUpdateValorAtualizado(ativo.id, novoValor);
         setIsEditingValor(false);
       } catch (error) {
-        console.error('Erro ao atualizar valor:', error);
+        logger.error('Erro ao atualizar valor:', error);
         setValorValue(ativo.valorAtualizado.toString()); // Reverter se houver erro
         setIsEditingValor(false);
       }

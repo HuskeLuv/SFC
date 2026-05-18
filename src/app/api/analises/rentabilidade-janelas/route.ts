@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
@@ -316,7 +317,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     Math.abs(janelas.inTheYear.cdiReturn) > 0.1 &&
     lastPoint.data > startOfYear + 7 * DAY_MS
   ) {
-    console.warn(
+    logger.warn(
       `[rentabilidade] YTD=0 com CDI=${janelas.inTheYear.cdiReturn}% para userId=${targetUserId} — provável série contaminada`,
     );
   }

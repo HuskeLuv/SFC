@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import React, { useState, useCallback } from 'react';
 import { WizardFormData, WizardErrors, AutocompleteOption, Asset } from '@/types/wizard';
 import AutocompleteInput from '@/components/form/AutocompleteInput';
@@ -64,7 +66,7 @@ export default function Step3SearchWithManualFallback({
           }
         }
       } catch (error) {
-        console.error('Erro ao buscar ativos:', error);
+        logger.error('Erro ao buscar ativos:', error);
         onErrorsChange({ ativo: 'Não foi possível carregar os ativos. Tente novamente.' });
       } finally {
         setLoading(false);

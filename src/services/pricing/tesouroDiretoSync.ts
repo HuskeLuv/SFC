@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import axios from 'axios';
 import { Decimal } from '@prisma/client/runtime/library';
 import prisma from '@/lib/prisma';
@@ -111,9 +112,9 @@ export async function runTesouroDiretoSync(
 ): Promise<TesouroDiretoSyncResult> {
   const startTime = Date.now();
 
-  console.log('🏛️  Iniciando sincronização Tesouro Direto...');
-  console.log(`📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}`);
-  console.log(`📆 Lookback: ${lookbackDays} dias`);
+  logger.info('🏛️  Iniciando sincronização Tesouro Direto...');
+  logger.info(`📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}`);
+  logger.info(`📆 Lookback: ${lookbackDays} dias`);
 
   let inserted = 0;
   let updated = 0;
@@ -123,14 +124,14 @@ export async function runTesouroDiretoSync(
 
   try {
     // 1. Download CSV
-    console.log('📥 Baixando CSV do Tesouro Transparente...');
+    logger.info('📥 Baixando CSV do Tesouro Transparente...');
     const { data: csvText } = await axios.get<string>(TESOURO_CSV_URL, {
       responseType: 'text',
       timeout: 20000, // 20s download — leaves 40s for parsing + DB writes within Vercel's 60s limit
     });
 
     const lines = csvText.split('\n');
-    console.log(`📄 CSV: ${lines.length} linhas, ~${(csvText.length / 1024 / 1024).toFixed(1)} MB`);
+    logger.info(`📄 CSV: ${lines.length} linhas, ~${(csvText.length / 1024 / 1024).toFixed(1)} MB`);
 
     // 2. Parse all lines, collecting rows within the lookback window.
     //    The CSV is NOT sorted by date, so we must scan all lines.
@@ -153,10 +154,10 @@ export async function runTesouroDiretoSync(
       }
     }
 
-    console.log(`📊 ${rowsParsed} linhas dentro do período de ${lookbackDays} dias`);
+    logger.info(`📊 ${rowsParsed} linhas dentro do período de ${lookbackDays} dias`);
 
     if (rows.length === 0) {
-      console.log('⚠️  Nenhuma linha encontrada no período. CSV pode estar desatualizado.');
+      logger.info('⚠️  Nenhuma linha encontrada no período. CSV pode estar desatualizado.');
       const duration = (Date.now() - startTime) / 1000;
       return { inserted, updated, errors, duration, latestDate, rowsParsed };
     }
@@ -232,7 +233,7 @@ export async function runTesouroDiretoSync(
           }
         }
       } catch (batchErr) {
-        console.error(`❌ Erro no batch ${i}-${i + batch.length}:`, batchErr);
+        logger.error(`❌ Erro no batch ${i}-${i + batch.length}:`, batchErr);
         errors += batch.length;
       }
     }
@@ -243,16 +244,16 @@ export async function runTesouroDiretoSync(
     // 5. Bridge: update Asset.currentPrice for user-held Tesouro assets
     await bridgeTesouroToAssetPrices(latestBaseDate);
   } catch (error) {
-    console.error('💥 Erro na sincronização Tesouro Direto:', error);
+    logger.error('💥 Erro na sincronização Tesouro Direto:', error);
     throw error;
   }
 
   const duration = (Date.now() - startTime) / 1000;
 
-  console.log('📊 Resultado Tesouro Direto:');
-  console.log(`   • ${inserted} inseridos, ${updated} atualizados, ${errors} erros`);
-  console.log(`   • Data mais recente: ${latestDate}`);
-  console.log(`   • Duração: ${duration.toFixed(2)}s`);
+  logger.info('📊 Resultado Tesouro Direto:');
+  logger.info(`   • ${inserted} inseridos, ${updated} atualizados, ${errors} erros`);
+  logger.info(`   • Data mais recente: ${latestDate}`);
+  logger.info(`   • Duração: ${duration.toFixed(2)}s`);
 
   return { inserted, updated, errors, duration, latestDate, rowsParsed };
 }
@@ -280,7 +281,7 @@ function slugifyBondType(bondType: string): string {
  * Source: 'tesouro_gov'
  */
 async function syncTesouroAssetCatalog(): Promise<void> {
-  console.log('📚 Sincronizando catálogo de títulos Tesouro...');
+  logger.info('📚 Sincronizando catálogo de títulos Tesouro...');
 
   // Get distinct active bonds (with price data from the last 30 days)
   const cutoff = new Date();
@@ -294,7 +295,7 @@ async function syncTesouroAssetCatalog(): Promise<void> {
   });
 
   if (latestPrices.length === 0) {
-    console.log('   ⚠️  Nenhum título com preço recente');
+    logger.info('   ⚠️  Nenhum título com preço recente');
     return;
   }
 
@@ -324,11 +325,11 @@ async function syncTesouroAssetCatalog(): Promise<void> {
       });
       synced++;
     } catch (err) {
-      console.error(`   ❌ Erro ao sincronizar ${symbol}:`, err);
+      logger.error(`   ❌ Erro ao sincronizar ${symbol}:`, err);
     }
   }
 
-  console.log(`   ✅ ${synced} títulos no catálogo`);
+  logger.info(`   ✅ ${synced} títulos no catálogo`);
 }
 
 /**
@@ -336,7 +337,7 @@ async function syncTesouroAssetCatalog(): Promise<void> {
  * look up the latest sellPU from TesouroDiretoPrice and update Asset.currentPrice.
  */
 async function bridgeTesouroToAssetPrices(latestBaseDate: Date): Promise<void> {
-  console.log('🔗 Atualizando preços de ativos Tesouro vinculados...');
+  logger.info('🔗 Atualizando preços de ativos Tesouro vinculados...');
 
   const tesourAssets = await prisma.fixedIncomeAsset.findMany({
     where: {
@@ -347,7 +348,7 @@ async function bridgeTesouroToAssetPrices(latestBaseDate: Date): Promise<void> {
   });
 
   if (tesourAssets.length === 0) {
-    console.log('   ℹ️  Nenhum ativo Tesouro vinculado encontrado');
+    logger.info('   ℹ️  Nenhum ativo Tesouro vinculado encontrado');
     return;
   }
 
@@ -398,5 +399,5 @@ async function bridgeTesouroToAssetPrices(latestBaseDate: Date): Promise<void> {
     bridged++;
   }
 
-  console.log(`   ✅ ${bridged} ativos Tesouro atualizados com PU de venda`);
+  logger.info(`   ✅ ${bridged} ativos Tesouro atualizados com PU de venda`);
 }

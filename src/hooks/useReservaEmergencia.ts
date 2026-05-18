@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -92,7 +94,7 @@ export const useReservaEmergencia = () => {
         await queryClient.invalidateQueries({ queryKey });
         invalidatePortfolioDerivedQueries(queryClient);
       } catch (err) {
-        console.error('Erro ao atualizar valor atualizado:', err);
+        logger.error('Erro ao atualizar valor atualizado:', err);
         throw err;
       }
     },

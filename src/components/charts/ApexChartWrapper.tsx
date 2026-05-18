@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 
@@ -76,7 +78,7 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
 
       return deepClonePreservingFunctions(options) as ApexOptions;
     } catch (error) {
-      console.warn('Erro ao sanitizar opções do gráfico:', error);
+      logger.warn('Erro ao sanitizar opções do gráfico:', error);
       return options;
     }
   }, [options]);
@@ -88,7 +90,7 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
         const ReactApexChart = (await import('react-apexcharts')).default;
         setChart(() => ReactApexChart);
       } catch (error) {
-        console.error('Erro ao carregar ApexCharts:', error);
+        logger.error('Erro ao carregar ApexCharts:', error);
       }
     };
 

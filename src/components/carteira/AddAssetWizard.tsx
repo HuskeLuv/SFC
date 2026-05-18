@@ -1,5 +1,7 @@
 'use client';
-import React, { useEffect, useRef, useState } from 'react';
+
+import { logger } from '@/lib/logger';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Sidebar from '@/components/ui/sidebar/Sidebar';
 import Button from '@/components/ui/button/Button';
 import { WizardFormData, WizardErrors, WizardStep } from '@/types/wizard';
@@ -484,13 +486,13 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     onClose();
   };
 
-  const handleFormDataChange = (newData: Partial<WizardFormData>) => {
+  const handleFormDataChange = useCallback((newData: Partial<WizardFormData>) => {
     setFormData((prev) => ({ ...prev, ...newData }));
-  };
+  }, []);
 
-  const handleErrorsChange = (newErrors: Partial<WizardErrors>) => {
+  const handleErrorsChange = useCallback((newErrors: Partial<WizardErrors>) => {
     setErrors((prev) => ({ ...prev, ...newErrors }));
-  };
+  }, []);
 
   const handleSubmit = async () => {
     if (isSubmittingRef.current) {
@@ -520,7 +522,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         } else {
           const errorData = await response.json();
           const errorMessage = errorData.error || errorData.message || 'Erro desconhecido';
-          console.error('Erro ao realizar aporte:', errorMessage);
+          logger.error('Erro ao realizar aporte:', errorMessage);
         }
         return;
       }
@@ -578,14 +580,14 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       } else {
         const errorData = await response.json();
         const errorMessage = errorData.error || errorData.message || 'Erro desconhecido';
-        console.error('Erro ao adicionar investimento:', errorMessage);
+        logger.error('Erro ao adicionar investimento:', errorMessage);
         if (errorData.details) {
-          console.error('Detalhes do erro:', errorData.details);
+          logger.error('Detalhes do erro:', errorData.details);
         }
         // Aqui você pode mostrar uma notificação de erro
       }
     } catch (error) {
-      console.error('Erro ao adicionar investimento:', error);
+      logger.error('Erro ao adicionar investimento:', error);
     } finally {
       setLoading(false);
       isSubmittingRef.current = false;

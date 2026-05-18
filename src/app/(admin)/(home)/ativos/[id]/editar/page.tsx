@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/lib/logger';
+
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -308,12 +310,12 @@ const AtivoEditarContent = () => {
           await loadData();
         } else {
           const errBody = await res.json().catch(() => ({}));
-          console.error(`Erro ao salvar ${field}:`, res.status, errBody);
+          logger.error(`Erro ao salvar ${field}:`, res.status, errBody);
           setError(`Erro ao salvar: ${(errBody as { error?: string }).error || res.statusText}`);
           await loadData();
         }
       } catch (err) {
-        console.error('Erro ao atualizar transação:', err);
+        logger.error('Erro ao atualizar transação:', err);
         setError('Erro de rede ao salvar alteração');
       }
     },
@@ -339,13 +341,13 @@ const AtivoEditarContent = () => {
           await loadData();
         } else {
           const errBody = await res.json().catch(() => ({}));
-          console.error('Erro ao salvar instituição:', res.status, errBody);
+          logger.error('Erro ao salvar instituição:', res.status, errBody);
           setError(
             `Erro ao salvar instituição: ${(errBody as { error?: string }).error || res.statusText}`,
           );
         }
       } catch (err) {
-        console.error('Erro de rede ao atualizar instituição:', err);
+        logger.error('Erro de rede ao atualizar instituição:', err);
         setError('Erro de rede ao salvar instituição');
       }
     },
@@ -363,7 +365,7 @@ const AtivoEditarContent = () => {
         await loadData();
       }
     } catch (err) {
-      console.error('Erro ao excluir transação:', err);
+      logger.error('Erro ao excluir transação:', err);
     } finally {
       setTransacaoIdToDelete(null);
     }
@@ -381,7 +383,7 @@ const AtivoEditarContent = () => {
         return;
       }
     } catch (err) {
-      console.error('Erro ao excluir investimento:', err);
+      logger.error('Erro ao excluir investimento:', err);
     } finally {
       setConfirmDeletePortfolio(false);
     }
@@ -463,7 +465,7 @@ const AtivoEditarContent = () => {
         }
       }
     } catch (e) {
-      console.error('Erro ao salvar provento:', e);
+      logger.error('Erro ao salvar provento:', e);
     } finally {
       setProventoSaving(false);
     }
@@ -489,7 +491,7 @@ const AtivoEditarContent = () => {
         await loadData();
       }
     } catch (e) {
-      console.error('Erro ao excluir provento:', e);
+      logger.error('Erro ao excluir provento:', e);
     } finally {
       setProventoDeleteId(null);
     }

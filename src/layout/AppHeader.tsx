@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import { ThemeToggleButton } from '@/components/common/ThemeToggleButton';
 import NotificationDropdown from '@/components/header/NotificationDropdown';
 import UserDropdown from '@/components/header/UserDropdown';
@@ -60,7 +62,7 @@ const AppHeader: React.FC = () => {
         router.push('/dashboard/consultor');
       }
     } catch (error) {
-      console.error('Erro ao sair da visão do cliente:', error);
+      logger.error('Erro ao sair da visão do cliente:', error);
     } finally {
       setLeavingActing(false);
     }

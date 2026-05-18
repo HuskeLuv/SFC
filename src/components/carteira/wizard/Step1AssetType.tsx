@@ -1,8 +1,10 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { WizardFormData, WizardErrors, TIPOS_ATIVO } from "@/types/wizard";
-import Label from "@/components/form/Label";
-import Select from "@/components/form/Select";
+'use client';
+
+import { logger } from '@/lib/logger';
+import React, { useEffect, useState } from 'react';
+import { WizardFormData, WizardErrors, TIPOS_ATIVO } from '@/types/wizard';
+import Label from '@/components/form/Label';
+import Select from '@/components/form/Select';
 
 interface Step1AssetTypeProps {
   formData: WizardFormData;
@@ -19,25 +21,33 @@ export default function Step1AssetType({
 }: Step1AssetTypeProps) {
   const [aporteTipos, setAporteTipos] = useState<{ value: string; label: string }[]>([]);
   const [loadingTipos, setLoadingTipos] = useState(false);
+  const [aporteTiposError, setAporteTiposError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (formData.operacao === "aporte") {
+    if (formData.operacao === 'aporte') {
       fetchTiposAporte();
     }
   }, [formData.operacao]);
 
   const fetchTiposAporte = async () => {
     setLoadingTipos(true);
+    setAporteTiposError(null);
     try {
-      const response = await fetch("/api/carteira/resgate/tipos", {
-        credentials: "include",
+      const response = await fetch('/api/carteira/resgate/tipos', {
+        credentials: 'include',
       });
-      if (response.ok) {
-        const data = await response.json();
-        setAporteTipos(data.tipos || []);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
+      const data = await response.json().catch(() => null);
+      if (!data || !Array.isArray(data.tipos)) {
+        throw new Error('Resposta inválida do servidor');
+      }
+      setAporteTipos(data.tipos);
     } catch (error) {
-      console.error("Erro ao buscar tipos para aporte:", error);
+      logger.error('Erro ao buscar tipos para aporte:', error);
+      setAporteTipos([]);
+      setAporteTiposError('Não foi possível carregar os tipos disponíveis. Tente novamente.');
     } finally {
       setLoadingTipos(false);
     }
@@ -45,15 +55,15 @@ export default function Step1AssetType({
 
   const handleOperacaoChange = (value: string) => {
     onFormDataChange({
-      operacao: value as WizardFormData["operacao"],
-      tipoAtivo: "",
-      ativo: "",
-      assetId: "",
-      portfolioId: "",
+      operacao: value as WizardFormData['operacao'],
+      tipoAtivo: '',
+      ativo: '',
+      assetId: '',
+      portfolioId: '',
       availableQuantity: 0,
       availableTotal: 0,
-      instituicaoId: "",
-      instituicao: "",
+      instituicaoId: '',
+      instituicao: '',
     });
     if (errors.operacao) {
       onErrorsChange({ operacao: undefined });
@@ -61,20 +71,20 @@ export default function Step1AssetType({
   };
 
   const handleTipoAtivoChange = (value: string) => {
-    onFormDataChange({ 
-      tipoAtivo: value, 
-      ativo: "", 
-      assetId: "",
-      rendaFixaTipo: "",
-      rendaFixaVariante: "",
-      rendaFixaIndexer: "",
+    onFormDataChange({
+      tipoAtivo: value,
+      ativo: '',
+      assetId: '',
+      rendaFixaTipo: '',
+      rendaFixaVariante: '',
+      rendaFixaIndexer: '',
       rendaFixaIndexerPercent: 0,
-      rendaFixaLiquidity: "",
+      rendaFixaLiquidity: '',
       rendaFixaTaxExempt: false,
       taxaFixaAnual: 0,
       tesouroDestino: undefined,
     });
-    
+
     // Limpar erro quando usuário selecionar
     if (errors.tipoAtivo) {
       onErrorsChange({ tipoAtivo: undefined });
@@ -87,37 +97,42 @@ export default function Step1AssetType({
         <Label htmlFor="operacao">Operação *</Label>
         <Select
           options={[
-            { value: "compra", label: "Adicionar investimento" },
-            { value: "aporte", label: "Aporte" },
+            { value: 'compra', label: 'Adicionar investimento' },
+            { value: 'aporte', label: 'Aporte' },
           ]}
           placeholder="Selecione a operação"
           defaultValue={formData.operacao}
           onChange={handleOperacaoChange}
           className={errors.operacao ? 'border-red-500' : ''}
         />
-        {errors.operacao && (
-          <p className="mt-1 text-sm text-red-500">{errors.operacao}</p>
-        )}
+        {errors.operacao && <p className="mt-1 text-sm text-red-500">{errors.operacao}</p>}
       </div>
       <div>
         <Label htmlFor="tipoAtivo">Tipo de Ativo *</Label>
         <Select
-          options={formData.operacao === "aporte" ? aporteTipos : TIPOS_ATIVO}
-          placeholder={formData.operacao === "aporte" ? (loadingTipos ? "Carregando tipos..." : "Selecione o tipo para aporte") : "Selecione o tipo de ativo que deseja adicionar"}
+          options={formData.operacao === 'aporte' ? aporteTipos : TIPOS_ATIVO}
+          placeholder={
+            formData.operacao === 'aporte'
+              ? loadingTipos
+                ? 'Carregando tipos...'
+                : 'Selecione o tipo para aporte'
+              : 'Selecione o tipo de ativo que deseja adicionar'
+          }
           defaultValue={formData.tipoAtivo}
           onChange={handleTipoAtivoChange}
           className={errors.tipoAtivo ? 'border-red-500' : ''}
         />
-        {errors.tipoAtivo && (
-          <p className="mt-1 text-sm text-red-500">{errors.tipoAtivo}</p>
+        {errors.tipoAtivo && <p className="mt-1 text-sm text-red-500">{errors.tipoAtivo}</p>}
+        {aporteTiposError && formData.operacao === 'aporte' && (
+          <p className="mt-1 text-sm text-red-500">{aporteTiposError}</p>
         )}
       </div>
 
       {/* Informações sobre o tipo selecionado */}
-      {formData.tipoAtivo && formData.operacao !== "aporte" && (
+      {formData.tipoAtivo && formData.operacao !== 'aporte' && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            Informações sobre {TIPOS_ATIVO.find(t => t.value === formData.tipoAtivo)?.label}
+            Informações sobre {TIPOS_ATIVO.find((t) => t.value === formData.tipoAtivo)?.label}
           </h4>
           <p className="text-sm text-blue-700 dark:text-blue-300">
             {getAssetTypeDescription(formData.tipoAtivo)}
@@ -130,23 +145,32 @@ export default function Step1AssetType({
 
 function getAssetTypeDescription(tipoAtivo: string): string {
   const descriptions: Record<string, string> = {
-    "reserva-emergencia": "Reserva de emergência é um valor guardado para cobrir imprevistos e situações de necessidade. Idealmente deve corresponder a 6 meses das suas despesas mensais.",
-    "reserva-oportunidade": "Reserva de oportunidade é um valor mantido disponível para aproveitar oportunidades de investimento que possam surgir no mercado, com boa liquidez para movimentação rápida.",
-    "acoes-brasil": "Ações Brasil inclui ações brasileiras (PETR4, VALE3) e BDRs (AAPL34, MSFT34) negociados na B3. Ações representam participação no capital de empresas; BDRs são certificados de ações estrangeiras.",
-    "conta-corrente": "Conta corrente é uma conta bancária tradicional para movimentação de dinheiro e pagamentos.",
-    "criptoativo": "Criptoativos são moedas digitais como Bitcoin, Ethereum e outras criptomoedas.",
-    "debenture": "Debêntures são títulos de dívida emitidos por empresas para captar recursos no mercado.",
-    "fundo": "Fundos de investimento são veículos que reúnem recursos de vários investidores para aplicar em diferentes ativos.",
-    "fii": "Fundos Imobiliários (FII's) investem em imóveis no Brasil e distribuem renda através de aluguéis e valorização.",
-    "reit": "REITs são fundos imobiliários estrangeiros que investem em imóveis e distribuem renda ao investidor.",
-    "stock": "Stocks são ações internacionais negociadas em bolsas estrangeiras.",
-    "moeda": "Moedas estrangeiras como dólar, euro e outras moedas internacionais.",
-    "personalizado": "Ativos personalizados permitem criar investimentos customizados com suas próprias regras.",
-    "poupanca": "Poupança é uma aplicação de renda fixa com liquidez diária e rendimento baseado na poupança.",
-    "previdencia": "Previdência privada e seguros para aposentadoria e proteção financeira.",
-    "renda-fixa": "Renda fixa inclui títulos pré-fixados (taxa definida na aplicação), pós-fixados (atrelados a CDI ou IPCA) ou híbridos (parte fixa + indexador). No próximo passo você escolherá o tipo de rentabilidade.",
-    "tesouro-direto": "Títulos públicos federais negociados diretamente com o Tesouro Nacional.",
+    'reserva-emergencia':
+      'Reserva de emergência é um valor guardado para cobrir imprevistos e situações de necessidade. Idealmente deve corresponder a 6 meses das suas despesas mensais.',
+    'reserva-oportunidade':
+      'Reserva de oportunidade é um valor mantido disponível para aproveitar oportunidades de investimento que possam surgir no mercado, com boa liquidez para movimentação rápida.',
+    'acoes-brasil':
+      'Ações Brasil inclui ações brasileiras (PETR4, VALE3) e BDRs (AAPL34, MSFT34) negociados na B3. Ações representam participação no capital de empresas; BDRs são certificados de ações estrangeiras.',
+    'conta-corrente':
+      'Conta corrente é uma conta bancária tradicional para movimentação de dinheiro e pagamentos.',
+    criptoativo: 'Criptoativos são moedas digitais como Bitcoin, Ethereum e outras criptomoedas.',
+    debenture:
+      'Debêntures são títulos de dívida emitidos por empresas para captar recursos no mercado.',
+    fundo:
+      'Fundos de investimento são veículos que reúnem recursos de vários investidores para aplicar em diferentes ativos.',
+    fii: "Fundos Imobiliários (FII's) investem em imóveis no Brasil e distribuem renda através de aluguéis e valorização.",
+    reit: 'REITs são fundos imobiliários estrangeiros que investem em imóveis e distribuem renda ao investidor.',
+    stock: 'Stocks são ações internacionais negociadas em bolsas estrangeiras.',
+    moeda: 'Moedas estrangeiras como dólar, euro e outras moedas internacionais.',
+    personalizado:
+      'Ativos personalizados permitem criar investimentos customizados com suas próprias regras.',
+    poupanca:
+      'Poupança é uma aplicação de renda fixa com liquidez diária e rendimento baseado na poupança.',
+    previdencia: 'Previdência privada e seguros para aposentadoria e proteção financeira.',
+    'renda-fixa':
+      'Renda fixa inclui títulos pré-fixados (taxa definida na aplicação), pós-fixados (atrelados a CDI ou IPCA) ou híbridos (parte fixa + indexador). No próximo passo você escolherá o tipo de rentabilidade.',
+    'tesouro-direto': 'Títulos públicos federais negociados diretamente com o Tesouro Nacional.',
   };
-  
-  return descriptions[tipoAtivo] || "Selecione um tipo de ativo para ver mais informações.";
+
+  return descriptions[tipoAtivo] || 'Selecione um tipo de ativo para ver mais informações.';
 }

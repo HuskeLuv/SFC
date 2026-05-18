@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import axios from 'axios';
 import { Decimal } from '@prisma/client/runtime/library';
 import AdmZip from 'adm-zip';
@@ -109,8 +110,8 @@ const parseNum = (val: unknown): number | null => {
 export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
   const startTime = Date.now();
 
-  console.log('📋 Iniciando sincronização CVM Fundos...');
-  console.log(`📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}`);
+  logger.info('📋 Iniciando sincronização CVM Fundos...');
+  logger.info(`📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}`);
 
   let inserted = 0;
   let updated = 0;
@@ -131,12 +132,12 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
   const targetCnpjs = new Set(fundAssets.filter((a) => a.cnpj).map((a) => normalizeCnpj(a.cnpj!)));
 
   if (targetCnpjs.size === 0) {
-    console.log('ℹ️  Nenhum fundo com CNPJ cadastrado. Pulando sincronização CVM.');
+    logger.info('ℹ️  Nenhum fundo com CNPJ cadastrado. Pulando sincronização CVM.');
     const duration = (Date.now() - startTime) / 1000;
     return { inserted, updated, errors, duration, fundsProcessed, targetCnpjs: 0 };
   }
 
-  console.log(`🎯 ${targetCnpjs.size} CNPJs alvo encontrados`);
+  logger.info(`🎯 ${targetCnpjs.size} CNPJs alvo encontrados`);
 
   // 2. Download ZIP (try current month, fall back to previous)
   const now = new Date();
@@ -150,18 +151,18 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
   for (const month of [currentMonth, prevMonth]) {
     const url = CVM_DAILY_URL(month);
     try {
-      console.log(`📥 Tentando baixar: ${url}`);
+      logger.info(`📥 Tentando baixar: ${url}`);
       const response = await axios.get(url, {
         responseType: 'arraybuffer',
         timeout: 20000, // 20s — leave headroom for parsing + DB writes within Vercel's 60s limit
       });
       zipBuffer = response.data;
       usedMonth = month;
-      console.log(`✅ ZIP baixado: ${(zipBuffer!.byteLength / 1024 / 1024).toFixed(1)} MB`);
+      logger.info(`✅ ZIP baixado: ${(zipBuffer!.byteLength / 1024 / 1024).toFixed(1)} MB`);
       break;
     } catch (err) {
       const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
-      console.warn(`⚠️  Falha ao baixar mês ${month} (status: ${status})`);
+      logger.warn(`⚠️  Falha ao baixar mês ${month} (status: ${status})`);
     }
   }
 
@@ -170,9 +171,9 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
   }
 
   // 3. Extract and parse CSV from ZIP
-  console.log(`📄 Extraindo CSV do ZIP (mês: ${usedMonth})...`);
+  logger.info(`📄 Extraindo CSV do ZIP (mês: ${usedMonth})...`);
   const csvRows = extractCsvFromZip(Buffer.from(zipBuffer));
-  console.log(`📊 ${csvRows.length} linhas totais no CSV`);
+  logger.info(`📊 ${csvRows.length} linhas totais no CSV`);
 
   // 4. Filter by target CNPJs and parse
   const filteredRows: CvmDailyRow[] = [];
@@ -205,7 +206,7 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
     });
   }
 
-  console.log(`🎯 ${filteredRows.length} linhas correspondentes aos CNPJs alvo`);
+  logger.info(`🎯 ${filteredRows.length} linhas correspondentes aos CNPJs alvo`);
 
   // 5. Upsert in batches
   for (let i = 0; i < filteredRows.length; i += BATCH_SIZE) {
@@ -260,7 +261,7 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
         }
       }
     } catch (batchErr) {
-      console.error(`❌ Erro no batch ${i}-${i + batch.length}:`, batchErr);
+      logger.error(`❌ Erro no batch ${i}-${i + batch.length}:`, batchErr);
       errors += batch.length;
     }
   }
@@ -270,10 +271,10 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
 
   const duration = (Date.now() - startTime) / 1000;
 
-  console.log('📊 Resultado CVM Fundos:');
-  console.log(`   • ${inserted} inseridos, ${updated} atualizados, ${errors} erros`);
-  console.log(`   • ${fundsProcessed} ativos atualizados com cota CVM`);
-  console.log(`   • Duração: ${duration.toFixed(2)}s`);
+  logger.info('📊 Resultado CVM Fundos:');
+  logger.info(`   • ${inserted} inseridos, ${updated} atualizados, ${errors} erros`);
+  logger.info(`   • ${fundsProcessed} ativos atualizados com cota CVM`);
+  logger.info(`   • Duração: ${duration.toFixed(2)}s`);
 
   return {
     inserted,
@@ -291,7 +292,7 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
 async function bridgeCvmToAssetPrices(
   fundAssets: { id: string; symbol: string; cnpj: string | null }[],
 ): Promise<number> {
-  console.log('🔗 Atualizando preços de fundos com cotas CVM...');
+  logger.info('🔗 Atualizando preços de fundos com cotas CVM...');
   let bridged = 0;
 
   for (const asset of fundAssets) {
@@ -338,7 +339,7 @@ async function bridgeCvmToAssetPrices(
     bridged++;
   }
 
-  console.log(`   ✅ ${bridged} fundos atualizados com cota CVM`);
+  logger.info(`   ✅ ${bridged} fundos atualizados com cota CVM`);
   return bridged;
 }
 
@@ -368,8 +369,8 @@ export interface CvmCatalogSyncResult {
 export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
   const startTime = Date.now();
 
-  console.log('📚 Iniciando sincronização do catálogo CVM de fundos...');
-  console.log(`📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}`);
+  logger.info('📚 Iniciando sincronização do catálogo CVM de fundos...');
+  logger.info(`📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}`);
 
   let inserted = 0;
   let updated = 0;
@@ -386,14 +387,14 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
   for (const month of [currentMonth, prevMonth]) {
     const url = CVM_DAILY_URL(month);
     try {
-      console.log(`📥 Tentando baixar: ${url}`);
+      logger.info(`📥 Tentando baixar: ${url}`);
       const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 60000 });
       zipBuffer = response.data;
-      console.log(`✅ ZIP baixado: ${(zipBuffer!.byteLength / 1024 / 1024).toFixed(1)} MB`);
+      logger.info(`✅ ZIP baixado: ${(zipBuffer!.byteLength / 1024 / 1024).toFixed(1)} MB`);
       break;
     } catch (err) {
       const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
-      console.warn(`⚠️  Falha ao baixar mês ${month} (status: ${status})`);
+      logger.warn(`⚠️  Falha ao baixar mês ${month} (status: ${status})`);
     }
   }
 
@@ -403,7 +404,7 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
 
   // 2. Extract and parse
   const csvRows = extractCsvFromZip(Buffer.from(zipBuffer));
-  console.log(`📊 ${csvRows.length} linhas totais no CSV`);
+  logger.info(`📊 ${csvRows.length} linhas totais no CSV`);
 
   // 3. Extract distinct CNPJs with latest quota
   const fundMap = new Map<string, { cnpj: string; latestQuota: number; latestDate: string }>();
@@ -424,12 +425,12 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
   }
 
   const activeCnpjs = Array.from(fundMap.values());
-  console.log(`🎯 ${activeCnpjs.length} fundos distintos com cotas no mês`);
+  logger.info(`🎯 ${activeCnpjs.length} fundos distintos com cotas no mês`);
 
   // 4. Cross-reference with cad_fi.csv for fund names (best-effort)
   const nameMap = new Map<string, { name: string; classe: string }>();
   try {
-    console.log('📥 Baixando cad_fi.csv para nomes dos fundos...');
+    logger.info('📥 Baixando cad_fi.csv para nomes dos fundos...');
     const { data: regCsv } = await axios.get<string>(CVM_FUND_REGISTRY_URL, {
       responseType: 'text',
       timeout: 30000,
@@ -451,10 +452,10 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
           nameMap.set(cnpj, { name: nome, classe });
         }
       }
-      console.log(`📝 ${nameMap.size} nomes carregados do registro`);
+      logger.info(`📝 ${nameMap.size} nomes carregados do registro`);
     }
   } catch {
-    console.warn('⚠️  Não foi possível carregar nomes do registro. Usando CNPJ como nome.');
+    logger.warn('⚠️  Não foi possível carregar nomes do registro. Usando CNPJ como nome.');
   }
 
   // 5. Upsert Asset records
@@ -505,16 +506,16 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
         }
       }
     } catch (batchErr) {
-      console.error(`❌ Erro no batch de catálogo ${i}-${i + batch.length}:`, batchErr);
+      logger.error(`❌ Erro no batch de catálogo ${i}-${i + batch.length}:`, batchErr);
       errors += batch.length;
     }
   }
 
   const duration = (Date.now() - startTime) / 1000;
 
-  console.log('📊 Resultado catálogo CVM:');
-  console.log(`   • ${inserted} inseridos, ${updated} atualizados, ${errors} erros`);
-  console.log(`   • Duração: ${duration.toFixed(2)}s`);
+  logger.info('📊 Resultado catálogo CVM:');
+  logger.info(`   • ${inserted} inseridos, ${updated} atualizados, ${errors} erros`);
+  logger.info(`   • Duração: ${duration.toFixed(2)}s`);
 
   return {
     inserted,

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { runCvmCatalogSync } from '@/services/pricing/cvmFundSync';
@@ -27,7 +28,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const result = await runCvmCatalogSync();
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[cron/cvm-catalog-sync]', error);
+    logger.error('[cron/cvm-catalog-sync]', error);
     return NextResponse.json(
       { error: 'Falha ao sincronizar catálogo CVM de fundos' },
       { status: 500 },

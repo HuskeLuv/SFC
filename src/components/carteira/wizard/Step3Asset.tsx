@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import React, { useEffect, useRef, useState } from 'react';
 import { WizardFormData, WizardErrors, AutocompleteOption, Asset } from '@/types/wizard';
 import AutocompleteInput from '@/components/form/AutocompleteInput';
@@ -33,6 +35,7 @@ export default function Step3Asset({
   // resposta de "CSM" chega depois de "CSMG3" — sem o counter, o estado
   // termina com options=[] e error="Nenhum encontrado".
   const searchSeqRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Buscar ativos
   const fetchAssets = async (search: string) => {
@@ -69,10 +72,13 @@ export default function Step3Asset({
 
     setLoading(true);
     const mySeq = ++searchSeqRef.current;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const url = `/api/assets?search=${encodeURIComponent(search)}&tipo=${formData.tipoAtivo}&limit=20`;
 
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetch(url, { credentials: 'include', signal: controller.signal });
 
       // Resposta de busca obsoleta: ignora pra não sobrescrever resultados
       // mais recentes (vide comentário em searchSeqRef).
@@ -110,14 +116,15 @@ export default function Step3Asset({
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Erro ao buscar ativos:', errorData);
+        logger.error('Erro ao buscar ativos:', errorData);
         onErrorsChange({
           ativo: errorData.message || 'Não foi possível carregar os ativos. Tente novamente.',
         });
       }
     } catch (error) {
+      if ((error as Error)?.name === 'AbortError') return;
       if (mySeq !== searchSeqRef.current) return;
-      console.error('Erro ao buscar ativos:', error);
+      logger.error('Erro ao buscar ativos:', error);
       onErrorsChange({ ativo: 'Não foi possível carregar os ativos. Tente novamente.' });
     } finally {
       if (mySeq === searchSeqRef.current) setLoading(false);
@@ -196,6 +203,12 @@ export default function Step3Asset({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.tipoAtivo]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const stepProps = { formData, errors, onFormDataChange, onErrorsChange };
 

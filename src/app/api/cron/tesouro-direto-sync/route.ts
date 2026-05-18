@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { runTesouroDiretoSync } from '@/services/pricing/tesouroDiretoSync';
@@ -27,7 +28,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const result = await runTesouroDiretoSync();
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[cron/tesouro-direto-sync]', error);
+    logger.error('[cron/tesouro-direto-sync]', error);
     return NextResponse.json(
       { error: 'Falha ao sincronizar dados do Tesouro Direto' },
       { status: 500 },

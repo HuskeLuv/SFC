@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Serviço para ingerir dados de rentabilidade de benchmarks (CDI, IBOV, IPCA, Poupança)
  * a partir do formato dailyProfitabilityToChart.
@@ -117,7 +118,7 @@ export const ingestBenchmarkProfitability = async (
           result.byBenchmark[benchmarkType].inserted++;
         }
       } catch (err) {
-        console.error(`Erro ao salvar ${benchmarkType} ${dateStr}:`, err);
+        logger.error(`Erro ao salvar ${benchmarkType} ${dateStr}:`, err);
         result.errors++;
       }
     }

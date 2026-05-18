@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
-import MetricCard from "./shared/MetricCard";
+import { logger } from '@/lib/logger';
+import React, { useEffect, useMemo, useState } from 'react';
+import MetricCard from './shared/MetricCard';
 
 type IndicatorValue = {
   price: number | null;
@@ -17,29 +18,29 @@ type IndicatorsResponse = {
 
 const formatCurrency = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) {
-    return "--";
+    return '--';
   }
-  return value.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
     minimumFractionDigits: 2,
   });
 };
 
 const formatIbov = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) {
-    return "--";
+    return '--';
   }
-  return value.toLocaleString("pt-BR", {
+  return value.toLocaleString('pt-BR', {
     maximumFractionDigits: 0,
   });
 };
 
 const formatChange = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) {
-    return "--";
+    return '--';
   }
-  const sign = value > 0 ? "+" : "";
+  const sign = value > 0 ? '+' : '';
   return `${sign}${value.toFixed(2)}%`;
 };
 
@@ -56,16 +57,16 @@ export default function MarketIndicatorsCards({ extraCards }: MarketIndicatorsCa
     const fetchIndicators = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/analises/indicadores");
+        const response = await fetch('/api/analises/indicadores');
         if (!response.ok) {
-          throw new Error("Erro ao buscar indicadores");
+          throw new Error('Erro ao buscar indicadores');
         }
         const result = (await response.json()) as IndicatorsResponse;
         if (isMounted) {
           setData(result);
         }
       } catch (error) {
-        console.error(error);
+        logger.error(error);
         if (isMounted) {
           setData(null);
         }
@@ -82,55 +83,52 @@ export default function MarketIndicatorsCards({ extraCards }: MarketIndicatorsCa
     };
   }, []);
 
-  const cards = useMemo(
-    () => {
+  const cards = useMemo(() => {
     const indicators = data?.indicators;
     const ibovChange = indicators?.ibov.changePercent ?? null;
     const dolarChange = indicators?.dolar.changePercent ?? null;
     const bitcoinChange = indicators?.bitcoin.changePercent ?? null;
     const ethereumChange = indicators?.ethereum.changePercent ?? null;
-      return [
+    return [
       {
-        title: "IBOV",
-        value: loading ? "--" : formatIbov(indicators?.ibov.price ?? null),
-        change: loading ? "--" : formatChange(ibovChange),
-        changeDirection: (ibovChange ?? 0) < 0 ? "down" : "up",
-        color: "primary" as const,
+        title: 'IBOV',
+        value: loading ? '--' : formatIbov(indicators?.ibov.price ?? null),
+        change: loading ? '--' : formatChange(ibovChange),
+        changeDirection: (ibovChange ?? 0) < 0 ? 'down' : 'up',
+        color: 'primary' as const,
       },
       {
-        title: "Dólar Comercial",
-        value: loading ? "--" : formatCurrency(indicators?.dolar.price ?? null),
-        change: loading ? "--" : formatChange(dolarChange),
-        changeDirection: (dolarChange ?? 0) < 0 ? "down" : "up",
-        color: "warning" as const,
+        title: 'Dólar Comercial',
+        value: loading ? '--' : formatCurrency(indicators?.dolar.price ?? null),
+        change: loading ? '--' : formatChange(dolarChange),
+        changeDirection: (dolarChange ?? 0) < 0 ? 'down' : 'up',
+        color: 'warning' as const,
       },
       {
-        title: "Bitcoin",
-        value: loading ? "--" : formatCurrency(indicators?.bitcoin.price ?? null),
-        change: loading ? "--" : formatChange(bitcoinChange),
-        changeDirection: (bitcoinChange ?? 0) < 0 ? "down" : "up",
-        color: "success" as const,
+        title: 'Bitcoin',
+        value: loading ? '--' : formatCurrency(indicators?.bitcoin.price ?? null),
+        change: loading ? '--' : formatChange(bitcoinChange),
+        changeDirection: (bitcoinChange ?? 0) < 0 ? 'down' : 'up',
+        color: 'success' as const,
       },
       {
-        title: "Ethereum",
-        value: loading ? "--" : formatCurrency(indicators?.ethereum.price ?? null),
-        change: loading ? "--" : formatChange(ethereumChange),
-        changeDirection: (ethereumChange ?? 0) < 0 ? "down" : "up",
-        color: "primary" as const,
+        title: 'Ethereum',
+        value: loading ? '--' : formatCurrency(indicators?.ethereum.price ?? null),
+        change: loading ? '--' : formatChange(ethereumChange),
+        changeDirection: (ethereumChange ?? 0) < 0 ? 'down' : 'up',
+        color: 'primary' as const,
       },
-      ] as Array<{
-        title: string;
-        value: string;
-        change: string;
-        changeDirection: "up" | "down";
-        color: "primary" | "success" | "warning" | "error";
-      }>;
-    },
-    [data, loading]
-  );
+    ] as Array<{
+      title: string;
+      value: string;
+      change: string;
+      changeDirection: 'up' | 'down';
+      color: 'primary' | 'success' | 'warning' | 'error';
+    }>;
+  }, [data, loading]);
 
   const totalCards = cards.length + (extraCards ? React.Children.count(extraCards) : 0);
-  const gridColsClass = totalCards > 4 ? "md:grid-cols-5" : "md:grid-cols-4";
+  const gridColsClass = totalCards > 4 ? 'md:grid-cols-5' : 'md:grid-cols-4';
 
   return (
     <div className={`grid grid-cols-2 gap-4 ${gridColsClass}`}>

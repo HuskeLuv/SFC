@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
@@ -300,9 +301,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         return { asset, dividends };
       } catch (err) {
         // Falha em 1 ativo (BRAPI 5xx, etc.) não deve derrubar a rota inteira;
-        // devolve dividends=[] e segue. console.warn (não error) — degradação
+        // devolve dividends=[] e segue. logger.warn (não error) — degradação
         // tolerada, não erro real para Sentry/logs.
-        console.warn(`[proventos] getDividends falhou para ${asset.symbol}`, err);
+        logger.warn(`[proventos] getDividends falhou para ${asset.symbol}`, err);
         return { asset, dividends: [] as DividendEntry[] };
       }
     }),

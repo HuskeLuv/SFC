@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -98,7 +99,7 @@ export const useAlocacaoConfig = (): UseAlocacaoConfigReturn => {
       invalidatePortfolioDerivedQueries(queryClient);
       return true;
     } catch (err) {
-      console.error('Erro ao salvar configurações:', err);
+      logger.error('Erro ao salvar configurações:', err);
       return false;
     }
   }, [configuracoes, csrfFetch, queryClient, queryKey]);

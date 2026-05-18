@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -242,7 +243,7 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
       await objetivoMutation.mutateAsync({ ativoId, novoObjetivo });
       if (!throwOnError) return true;
     } catch (err) {
-      console.error('Erro ao atualizar objetivo:', err);
+      logger.error('Erro ao atualizar objetivo:', err);
       if (throwOnError) throw err;
       return false;
     }
@@ -262,7 +263,7 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
           invalidatePortfolioDerivedQueries(queryClient);
           return true;
         } catch (err) {
-          console.error('Erro ao atualizar valor:', err);
+          logger.error('Erro ao atualizar valor:', err);
           return false;
         }
       }
@@ -283,7 +284,7 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
         invalidatePortfolioDerivedQueries(queryClient);
         return true;
       } catch (err) {
-        console.error('Erro ao atualizar caixa para investir:', err);
+        logger.error('Erro ao atualizar caixa para investir:', err);
         return false;
       }
     },

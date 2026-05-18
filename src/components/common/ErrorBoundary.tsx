@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/lib/logger';
+
 import React from 'react';
 
 interface DefaultErrorFallbackProps {
@@ -67,7 +69,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught:', error, errorInfo);
+    logger.error('ErrorBoundary caught:', error, errorInfo);
   }
 
   render() {

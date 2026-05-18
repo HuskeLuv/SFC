@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import { fetchDetailedQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from './brapiQuote';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -61,7 +62,7 @@ interface SyncPriceResult {
  * Busca lista de ativos da B3 via API brapi.dev
  */
 const fetchStocks = async (): Promise<BrapiStock[]> => {
-  console.log('🔍 Buscando dados de ativos da B3...');
+  logger.info('🔍 Buscando dados de ativos da B3...');
 
   try {
     const apiKey = process.env.BRAPI_API_KEY;
@@ -87,10 +88,10 @@ const fetchStocks = async (): Promise<BrapiStock[]> => {
       throw new Error('Formato de resposta inesperado da API brapi.dev');
     }
 
-    console.log(`✅ ${data.stocks.length} ativos encontrados na API`);
+    logger.info(`✅ ${data.stocks.length} ativos encontrados na API`);
     return data.stocks;
   } catch (error) {
-    console.error('❌ Erro ao buscar dados da API brapi.dev:', error);
+    logger.error('❌ Erro ao buscar dados da API brapi.dev:', error);
     throw error;
   }
 };
@@ -99,13 +100,13 @@ const fetchStocks = async (): Promise<BrapiStock[]> => {
  * Busca lista de criptoativos via API brapi.dev
  */
 const fetchCrypto = async (): Promise<BrapiCrypto[]> => {
-  console.log('🔍 Buscando dados de criptoativos...');
+  logger.info('🔍 Buscando dados de criptoativos...');
 
   try {
     const apiKey = process.env.BRAPI_API_KEY;
 
     if (!apiKey) {
-      console.log('⚠️  Chave de API da Brapi não encontrada, pulando criptoativos');
+      logger.info('⚠️  Chave de API da Brapi não encontrada, pulando criptoativos');
       return [];
     }
 
@@ -115,7 +116,7 @@ const fetchCrypto = async (): Promise<BrapiCrypto[]> => {
 
     const url = `https://brapi.dev/api/v2/crypto?coin=${coinList}&currency=USD&token=${apiKey}`;
 
-    console.log(`🔍 Fazendo requisição para: ${url.replace(apiKey, '***')}`);
+    logger.info(`🔍 Fazendo requisição para: ${url.replace(apiKey, '***')}`);
 
     const response = await fetch(url);
 
@@ -149,10 +150,10 @@ const fetchCrypto = async (): Promise<BrapiCrypto[]> => {
       })
       .filter((c) => c.symbol.length > 0);
 
-    console.log(`✅ ${normalized.length} criptoativos encontrados na API`);
+    logger.info(`✅ ${normalized.length} criptoativos encontrados na API`);
     return normalized;
   } catch (error) {
-    console.error('❌ Erro ao buscar dados de criptos da API brapi.dev:', error);
+    logger.error('❌ Erro ao buscar dados de criptos da API brapi.dev:', error);
     // Retornar lista vazia em caso de erro para não quebrar a sincronização
     return [];
   }
@@ -218,7 +219,7 @@ const MOEDAS_BRAPI = [
  * As cotações são atualizadas em syncAssetPrices.
  */
 const syncMoedas = async (): Promise<SyncResult> => {
-  console.log('💱 Sincronizando moedas disponíveis na Brapi...');
+  logger.info('💱 Sincronizando moedas disponíveis na Brapi...');
 
   let inserted = 0;
   let updated = 0;
@@ -256,17 +257,17 @@ const syncMoedas = async (): Promise<SyncResult> => {
           inserted++;
         }
       } catch (error) {
-        console.error(`❌ Erro ao sincronizar moeda ${moeda.symbol}:`, error);
+        logger.error(`❌ Erro ao sincronizar moeda ${moeda.symbol}:`, error);
         errors++;
       }
     }
 
-    console.log(
+    logger.info(
       `✅ Moedas sincronizadas: ${inserted} inseridas, ${updated} atualizadas, ${errors} erros`,
     );
     return { inserted, updated, errors };
   } catch (error) {
-    console.error('❌ Erro geral ao sincronizar moedas:', error);
+    logger.error('❌ Erro geral ao sincronizar moedas:', error);
     throw error;
   }
 };
@@ -277,7 +278,7 @@ const syncMoedas = async (): Promise<SyncResult> => {
  * Sincroniza ativos da B3 no banco de dados
  */
 const syncStocks = async (stocks: BrapiStock[]): Promise<SyncResult> => {
-  console.log('💾 Sincronizando ativos da B3 no banco de dados...');
+  logger.info('💾 Sincronizando ativos da B3 no banco de dados...');
 
   let inserted = 0;
   let updated = 0;
@@ -286,7 +287,7 @@ const syncStocks = async (stocks: BrapiStock[]): Promise<SyncResult> => {
   try {
     for (const stock of stocks) {
       if (!stock.stock) {
-        console.warn('⚠️  Ativo sem symbol, pulando:', stock);
+        logger.warn('⚠️  Ativo sem symbol, pulando:', stock);
         errors++;
         continue;
       }
@@ -331,17 +332,17 @@ const syncStocks = async (stocks: BrapiStock[]): Promise<SyncResult> => {
           inserted++;
         }
       } catch (error) {
-        console.error(`❌ Erro ao sincronizar ativo ${stock.stock}:`, error);
+        logger.error(`❌ Erro ao sincronizar ativo ${stock.stock}:`, error);
         errors++;
       }
     }
 
-    console.log(
+    logger.info(
       `✅ Ativos da B3 sincronizados: ${inserted} inseridos, ${updated} atualizados, ${errors} erros`,
     );
     return { inserted, updated, errors };
   } catch (error) {
-    console.error('❌ Erro geral ao sincronizar ativos da B3:', error);
+    logger.error('❌ Erro geral ao sincronizar ativos da B3:', error);
     throw error;
   }
 };
@@ -350,7 +351,7 @@ const syncStocks = async (stocks: BrapiStock[]): Promise<SyncResult> => {
  * Sincroniza criptoativos no banco de dados
  */
 const syncCrypto = async (cryptos: BrapiCrypto[]): Promise<SyncResult> => {
-  console.log('💾 Sincronizando criptoativos no banco de dados...');
+  logger.info('💾 Sincronizando criptoativos no banco de dados...');
 
   let inserted = 0;
   let updated = 0;
@@ -359,7 +360,7 @@ const syncCrypto = async (cryptos: BrapiCrypto[]): Promise<SyncResult> => {
   try {
     for (const crypto of cryptos) {
       if (!crypto.symbol) {
-        console.warn('⚠️  Cripto sem symbol, pulando:', crypto);
+        logger.warn('⚠️  Cripto sem symbol, pulando:', crypto);
         errors++;
         continue;
       }
@@ -401,17 +402,17 @@ const syncCrypto = async (cryptos: BrapiCrypto[]): Promise<SyncResult> => {
           inserted++;
         }
       } catch (error) {
-        console.error(`❌ Erro ao sincronizar cripto ${crypto.symbol}:`, error);
+        logger.error(`❌ Erro ao sincronizar cripto ${crypto.symbol}:`, error);
         errors++;
       }
     }
 
-    console.log(
+    logger.info(
       `✅ Criptoativos sincronizados: ${inserted} inseridos, ${updated} atualizados, ${errors} erros`,
     );
     return { inserted, updated, errors };
   } catch (error) {
-    console.error('❌ Erro geral ao sincronizar criptoativos:', error);
+    logger.error('❌ Erro geral ao sincronizar criptoativos:', error);
     throw error;
   }
 };
@@ -431,7 +432,7 @@ const parseMarketDate = (regularMarketTime: string | undefined): Date => {
  * Busca cotações na BRAPI em batches e persiste.
  */
 export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
-  console.log('💰 Sincronizando preços dos ativos...');
+  logger.info('💰 Sincronizando preços dos ativos...');
 
   const startTime = Date.now();
   let totalInserted = 0;
@@ -468,7 +469,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
   );
 
   if (assets.length === 0) {
-    console.log('   Nenhum ativo para sincronizar preços');
+    logger.info('   Nenhum ativo para sincronizar preços');
     return {
       totalInserted: 0,
       totalUpdated: 0,
@@ -534,7 +535,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
         if (existing) totalUpdated++;
         else totalInserted++;
       } catch (persistErr) {
-        console.warn(`   Erro ao persistir preço de ${r.symbol}:`, persistErr);
+        logger.warn(`   Erro ao persistir preço de ${r.symbol}:`, persistErr);
         errors++;
       }
     }
@@ -569,7 +570,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
     } catch (batchErr) {
-      console.error('   Erro no batch de moedas:', batchErr);
+      logger.error('   Erro no batch de moedas:', batchErr);
       errors += batch.length;
     }
   }
@@ -602,7 +603,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
     } catch (batchErr) {
-      console.error(`   Erro no batch de cripto:`, batchErr);
+      logger.error(`   Erro no batch de cripto:`, batchErr);
       errors += batch.length;
     }
   }
@@ -624,7 +625,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
     } catch (batchErr) {
-      console.error(`   Erro no batch de preços:`, batchErr);
+      logger.error(`   Erro no batch de preços:`, batchErr);
       errors += batch.length;
     }
   }
@@ -640,7 +641,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
     },
   });
 
-  console.log(
+  logger.info(
     `   Preços: ${totalInserted} inseridos, ${totalUpdated} atualizados, ${errors} erros (${duration.toFixed(1)}s)`,
   );
   return { totalInserted, totalUpdated, errors, duration };
@@ -659,16 +660,16 @@ export const syncAssets = async (): Promise<{
   total: SyncResult;
   duration: number;
 }> => {
-  console.log('🚀 Iniciando sincronização de ativos com Brapi...\n');
+  logger.info('🚀 Iniciando sincronização de ativos com Brapi...\n');
 
   const startTime = Date.now();
 
   try {
     // Buscar dados das APIs em paralelo
-    console.log('📡 Buscando dados das APIs...');
+    logger.info('📡 Buscando dados das APIs...');
     const [stocks, cryptos] = await Promise.all([fetchStocks(), fetchCrypto()]);
 
-    console.log('\n💾 Sincronizando dados no banco...');
+    logger.info('\n💾 Sincronizando dados no banco...');
 
     // Sincronizar moedas (lista fixa Brapi) + metadados em paralelo
     const [stocksResult, cryptoResult, moedasResult] = await Promise.all([
@@ -691,24 +692,24 @@ export const syncAssets = async (): Promise<{
     const duration = (endTime - startTime) / 1000;
 
     // Exibir resumo final
-    console.log('\n🎉 Sincronização concluída com sucesso!');
-    console.log('📊 RESUMO:');
-    console.log(
+    logger.info('\n🎉 Sincronização concluída com sucesso!');
+    logger.info('📊 RESUMO:');
+    logger.info(
       `   • Ativos B3: ${stocksResult.inserted} inseridos, ${stocksResult.updated} atualizados, ${stocksResult.errors} erros`,
     );
-    console.log(
+    logger.info(
       `   • Criptoativos: ${cryptoResult.inserted} inseridos, ${cryptoResult.updated} atualizados, ${cryptoResult.errors} erros`,
     );
-    console.log(
+    logger.info(
       `   • Moedas: ${moedasResult.inserted} inseridas, ${moedasResult.updated} atualizadas, ${moedasResult.errors} erros`,
     );
-    console.log(
+    logger.info(
       `   • Preços: ${pricesResult.totalInserted} inseridos, ${pricesResult.totalUpdated} atualizados, ${pricesResult.errors} erros`,
     );
-    console.log(
+    logger.info(
       `   • Total: ${total.inserted} inseridos, ${total.updated} atualizados, ${total.errors} erros`,
     );
-    console.log(`   • Tempo total: ${duration.toFixed(2)}s`);
+    logger.info(`   • Tempo total: ${duration.toFixed(2)}s`);
 
     return {
       stocks: stocksResult,
@@ -719,7 +720,7 @@ export const syncAssets = async (): Promise<{
       duration,
     };
   } catch (error) {
-    console.error('\n💥 Erro durante a sincronização:', error);
+    logger.error('\n💥 Erro durante a sincronização:', error);
     throw error;
   }
 };
@@ -765,7 +766,7 @@ export const syncCatalog = async (): Promise<{
 export const syncPricesByScope = async (
   scope: 'stocks' | 'crypto-currencies',
 ): Promise<SyncPriceResult> => {
-  console.log(`💰 Sincronizando preços (${scope})...`);
+  logger.info(`💰 Sincronizando preços (${scope})...`);
 
   const startTime = Date.now();
   let totalInserted = 0;
@@ -786,10 +787,16 @@ export const syncPricesByScope = async (
       ? { notIn: [...excludedTypes, 'crypto', 'currency'] }
       : { in: ['crypto', 'currency'] };
 
+  // No scope 'stocks' filtramos por source='brapi' explicitamente: CVM funds (source='cvm')
+  // e Tesouro Direto bonds (source='tesouro_gov') têm seus próprios sincronizadores
+  // (cvmFundSync, tesouroDiretoSync) e seus símbolos não existem no BRAPI — mandar pra cá
+  // só gera N batches de 20 retornando 404.
+  const sourceFilter = scope === 'stocks' ? { equals: 'brapi' } : { not: 'manual' };
+
   const assets = await prisma.asset.findMany({
     where: {
       type: typeFilter,
-      source: { not: 'manual' },
+      source: sourceFilter,
       AND: [
         { symbol: { not: { startsWith: 'RESERVA-' } } },
         { symbol: { not: { startsWith: 'RENDA-FIXA' } } },
@@ -864,7 +871,7 @@ export const syncPricesByScope = async (
         if (existing) totalUpdated++;
         else totalInserted++;
       } catch (persistErr) {
-        console.warn(`   Erro ao persistir preço de ${r.symbol}:`, persistErr);
+        logger.warn(`   Erro ao persistir preço de ${r.symbol}:`, persistErr);
         errors++;
       }
     }
@@ -895,7 +902,7 @@ export const syncPricesByScope = async (
         if (i + BATCH_SIZE < currencyAssets.length)
           await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       } catch (batchErr) {
-        console.error('   Erro no batch de moedas:', batchErr);
+        logger.error('   Erro no batch de moedas:', batchErr);
         errors += batch.length;
       }
     }
@@ -921,7 +928,7 @@ export const syncPricesByScope = async (
         if (i + BATCH_SIZE < cryptoAssets.length)
           await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       } catch (batchErr) {
-        console.error('   Erro no batch de cripto:', batchErr);
+        logger.error('   Erro no batch de cripto:', batchErr);
         errors += batch.length;
       }
     }
@@ -943,7 +950,7 @@ export const syncPricesByScope = async (
         if (i + BATCH_SIZE < symbols.length)
           await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       } catch (batchErr) {
-        console.error('   Erro no batch de preços:', batchErr);
+        logger.error('   Erro no batch de preços:', batchErr);
         errors += batch.length;
       }
     }
@@ -955,7 +962,7 @@ export const syncPricesByScope = async (
     data: { totalInserted, totalUpdated, errors, duration: Math.round(duration) },
   });
 
-  console.log(
+  logger.info(
     `   Preços (${scope}): ${totalInserted} ins, ${totalUpdated} upd, ${errors} err (${duration.toFixed(1)}s)`,
   );
   return { totalInserted, totalUpdated, errors, duration };
@@ -968,7 +975,7 @@ export const syncPricesByScope = async (
  */
 export const testSync = async (): Promise<boolean> => {
   try {
-    console.log('🧪 Testando sincronização...');
+    logger.info('🧪 Testando sincronização...');
 
     // Testar busca de ativos
     const stocks = await fetchStocks();
@@ -978,12 +985,12 @@ export const testSync = async (): Promise<boolean> => {
 
     // Testar busca de criptos (opcional)
     const cryptos = await fetchCrypto();
-    console.log(`📊 Criptoativos encontrados: ${cryptos.length}`);
+    logger.info(`📊 Criptoativos encontrados: ${cryptos.length}`);
 
-    console.log('✅ Teste de sincronização passou!');
+    logger.info('✅ Teste de sincronização passou!');
     return true;
   } catch (error) {
-    console.error('❌ Teste de sincronização falhou:', error);
+    logger.error('❌ Teste de sincronização falhou:', error);
     return false;
   }
 };
@@ -1007,7 +1014,7 @@ export const getAssetStats = async () => {
       total,
     };
   } catch (error) {
-    console.error('❌ Erro ao obter estatísticas:', error);
+    logger.error('❌ Erro ao obter estatísticas:', error);
     throw error;
   }
 };

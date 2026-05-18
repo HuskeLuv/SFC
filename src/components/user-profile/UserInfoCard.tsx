@@ -1,10 +1,12 @@
-"use client";
-import React from "react";
-import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
-import Button from "../ui/button/Button";
-import Input from "../form/input/InputField";
-import Label from "../form/Label";
+'use client';
+
+import { logger } from '@/lib/logger';
+import React from 'react';
+import { useModal } from '../../hooks/useModal';
+import { Modal } from '../ui/modal';
+import Button from '../ui/button/Button';
+import Input from '../form/input/InputField';
+import Label from '../form/Label';
 
 interface UserInfoCardProps {
   user?: {
@@ -17,7 +19,7 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
   const { isOpen, openModal, closeModal } = useModal();
   const handleSave = () => {
     // Handle save logic here
-    console.log("Saving changes...");
+    logger.info('Saving changes...');
     closeModal();
   };
 
@@ -36,21 +38,15 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
             <div>
-              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Nome
-              </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {firstName}
-              </p>
+              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Nome</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{firstName}</p>
             </div>
 
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
                 Sobrenome
               </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {lastName}
-              </p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{lastName}</p>
             </div>
 
             <div>
@@ -66,9 +62,7 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
                 Telefone
               </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                +85 99999-9999
-              </p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">+85 99999-9999</p>
             </div>
 
             <div>
@@ -125,10 +119,7 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
                 <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
                   <div>
                     <Label>Facebook</Label>
-                    <Input
-                      type="text"
-                      defaultValue="https://www.facebook.com/"
-                    />
+                    <Input type="text" defaultValue="https://www.facebook.com/" />
                   </div>
 
                   <div>
@@ -138,18 +129,12 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
 
                   <div>
                     <Label>Linkedin</Label>
-                    <Input
-                      type="text"
-                      defaultValue="https://www.linkedin.com/company/"
-                    />
+                    <Input type="text" defaultValue="https://www.linkedin.com/company/" />
                   </div>
 
                   <div>
                     <Label>Instagram</Label>
-                    <Input
-                      type="text"
-                      defaultValue="https://instagram.com/"
-                    />
+                    <Input type="text" defaultValue="https://instagram.com/" />
                   </div>
                 </div>
               </div>
@@ -171,7 +156,7 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
 
                   <div className="col-span-2 lg:col-span-1">
                     <Label>Endereço de Email</Label>
-                    <Input type="text" defaultValue={user?.email || ""} />
+                    <Input type="text" defaultValue={user?.email || ''} />
                   </div>
 
                   <div className="col-span-2 lg:col-span-1">

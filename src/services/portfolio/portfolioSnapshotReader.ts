@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import {
   buildPatrimonioCashFlowsByDayOnly,
@@ -145,7 +146,7 @@ export const loadHistoricoFromSnapshots = async (
   const coverageOk = coverageReason === 'ok';
 
   if (!coverageOk) {
-    console.warn(
+    logger.warn(
       `[portfolioSnapshotReader] coverageOk=false userId=${userId} reason=${coverageReason} rows=${rows.length} tailGapDays=${gapDays.toFixed(1)} historyGapDays=${historyGapDays.toFixed(1)}`,
     );
   }

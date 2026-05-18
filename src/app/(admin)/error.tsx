@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/lib/logger';
+
 import React, { useEffect } from 'react';
 
 export default function AdminError({
@@ -10,7 +12,7 @@ export default function AdminError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Admin error boundary caught:', error);
+    logger.error('Admin error boundary caught:', error);
   }, [error]);
 
   return (

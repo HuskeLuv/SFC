@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Cenário de validação rodado em DEV a cada GET /api/carteira/resumo. Não roda em
  * produção. Vive num arquivo separado pra que o cold-start de produção não pague o
@@ -106,13 +107,13 @@ export const runPatrimonioScenarioTest = (): void => {
     aplicadoFinal === totalCompras &&
     appliedNeverDecreases;
   if (!valid) {
-    console.warn('[Patrimonio] cenário de teste inválido', {
+    logger.warn('[Patrimonio] cenário de teste inválido', {
       minPatrimonio,
       aplicadoFinal,
       totalCompras,
       appliedNeverDecreases,
     });
   } else {
-    console.info('[Patrimonio] cenário OK', { minPatrimonio, aplicadoFinal });
+    logger.info('[Patrimonio] cenário OK', { minPatrimonio, aplicadoFinal });
   }
 };

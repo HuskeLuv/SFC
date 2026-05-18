@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import type { NextApiRequest } from 'next';
 import type { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
@@ -95,7 +96,7 @@ export const logConsultantAction = async ({
     });
   } catch (error) {
     // Nunca interromper operações por falha de log
-    console.error('[ImpersonationLogger] Erro ao registrar log:', error);
+    logger.error('[ImpersonationLogger] Erro ao registrar log:', error);
   }
 };
 
@@ -165,7 +166,7 @@ export const isConsultantImpersonating = async (
       clientId: actingClientId,
     };
   } catch (error) {
-    console.error('[ImpersonationLogger] Erro ao verificar personificação:', error);
+    logger.error('[ImpersonationLogger] Erro ao verificar personificação:', error);
     return null;
   }
 };

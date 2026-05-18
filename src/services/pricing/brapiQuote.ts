@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Serviço para buscar cotações atuais de ativos via brapi.dev
  * Usa o SDK oficial da brapi: https://brapi.dev/docs/sdks/typescript
@@ -81,7 +82,7 @@ export const fetchCryptoQuotes = async (
 
   const apiKey = process.env.BRAPI_API_KEY;
   if (!apiKey) {
-    console.warn('⚠️  BRAPI_API_KEY não configurada, não é possível buscar cotações de cripto');
+    logger.warn('⚠️  BRAPI_API_KEY não configurada, não é possível buscar cotações de cripto');
     return result;
   }
 
@@ -94,7 +95,7 @@ export const fetchCryptoQuotes = async (
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
-      console.warn(`⚠️  Brapi v2/crypto retornou ${response.status} para ${coinList}`);
+      logger.warn(`⚠️  Brapi v2/crypto retornou ${response.status} para ${coinList}`);
       return result;
     }
 
@@ -107,14 +108,14 @@ export const fetchCryptoQuotes = async (
       const price = c.regularMarketPrice ?? c.price;
       if (symbol && typeof price === 'number' && price > 0) {
         result.set(symbol, price);
-        console.log(`✅ ${symbol} (crypto): ${currency} ${price.toFixed(2)}`);
+        logger.info(`✅ ${symbol} (crypto): ${currency} ${price.toFixed(2)}`);
       }
     }
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') {
-      console.warn('[fetchCryptoQuotes] timeout 10s — degradando para vazio');
+      logger.warn('[fetchCryptoQuotes] timeout 10s — degradando para vazio');
     } else {
-      console.error('[fetchCryptoQuotes] Erro ao buscar cotações de cripto:', err);
+      logger.error('[fetchCryptoQuotes] Erro ao buscar cotações de cripto:', err);
     }
   }
 
@@ -160,13 +161,13 @@ export const fetchCurrencyQuotes = async (symbols: string[]): Promise<Map<string
 
       if (price !== null && price > 0) {
         result.set(symbol, price);
-        console.log(`✅ ${symbol} (currency): R$ ${price.toFixed(2)}`);
+        logger.info(`✅ ${symbol} (currency): R$ ${price.toFixed(2)}`);
       }
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
-        console.warn(`[fetchCurrencyQuotes] timeout 10s para ${symbol}`);
+        logger.warn(`[fetchCurrencyQuotes] timeout 10s para ${symbol}`);
       } else {
-        console.error(`[fetchCurrencyQuotes] Erro ao buscar ${symbol}:`, err);
+        logger.error(`[fetchCurrencyQuotes] Erro ao buscar ${symbol}:`, err);
       }
     }
   }
@@ -198,7 +199,7 @@ const fetchSingleQuote = async (
     const response = await client.quote.retrieve(symbol);
 
     if (!response.results || !Array.isArray(response.results) || response.results.length === 0) {
-      console.error(`Formato de resposta inesperado para ${symbol}`);
+      logger.error(`Formato de resposta inesperado para ${symbol}`);
       return null;
     }
 
@@ -208,7 +209,7 @@ const fetchSingleQuote = async (
       result.regularMarketPrice !== undefined &&
       result.regularMarketPrice !== null
     ) {
-      console.log(
+      logger.info(
         `✅ ${symbol}: R$ ${result.regularMarketPrice.toFixed(2)} (${forceRefresh ? 'forçado' : 'SDK'})`,
       );
       return result.regularMarketPrice;
@@ -219,14 +220,14 @@ const fetchSingleQuote = async (
     // SDK já trata erros tipados (APIError, RateLimitError, etc.)
     if (error instanceof Brapi.APIError) {
       if (error.status === 429) {
-        console.warn(`Rate limit atingido para ${symbol}, SDK fará retry automático`);
+        logger.warn(`Rate limit atingido para ${symbol}, SDK fará retry automático`);
       } else if (error.status === 404 || error.message.includes('Não encontramos a ação')) {
-        console.warn(`⚠️  Ação não encontrada na API para ${symbol}`);
+        logger.warn(`⚠️  Ação não encontrada na API para ${symbol}`);
       } else {
-        console.error(`Erro ao buscar cotação de ${symbol}: ${error.status} - ${error.message}`);
+        logger.error(`Erro ao buscar cotação de ${symbol}: ${error.status} - ${error.message}`);
       }
     } else {
-      console.error(`Erro ao buscar cotação de ${symbol}:`, error);
+      logger.error(`Erro ao buscar cotação de ${symbol}:`, error);
     }
     return null;
   }
@@ -285,7 +286,7 @@ export const fetchQuotes = async (
     if (forceRefresh) {
       // Forçar busca de todos os símbolos
       symbolsToFetch.push(...uniqueSymbols);
-      console.log(
+      logger.info(
         `🔄 Buscando cotações frescas de ${uniqueSymbols.length} ativos usando SDK (forçado)`,
       );
     } else {
@@ -301,11 +302,11 @@ export const fetchQuotes = async (
 
       // Se todos estão em cache, retornar
       if (symbolsToFetch.length === 0) {
-        console.log(`✅ Todas as ${uniqueSymbols.length} cotações vieram do cache`);
+        logger.info(`✅ Todas as ${uniqueSymbols.length} cotações vieram do cache`);
         return quotes;
       }
 
-      console.log(
+      logger.info(
         `🔍 Buscando cotações de ${symbolsToFetch.length} ativos usando SDK (${uniqueSymbols.length - symbolsToFetch.length} em cache)`,
       );
     }
@@ -348,7 +349,7 @@ export const fetchQuotes = async (
                 timestamp: now,
               };
 
-              console.log(`✅ ${result.symbol}: R$ ${price.toFixed(2)}`);
+              logger.info(`✅ ${result.symbol}: R$ ${price.toFixed(2)}`);
             }
           }
         }
@@ -363,7 +364,7 @@ export const fetchQuotes = async (
         });
 
         for (const symbol of missingSymbols) {
-          console.warn(
+          logger.warn(
             `⚠️  Não foi possível obter cotação de ${symbol} - tentando busca individual...`,
           );
 
@@ -373,11 +374,11 @@ export const fetchQuotes = async (
             if (price !== null) {
               quotes.set(symbol, price);
               quoteCache[symbol] = { price, timestamp: now };
-              console.log(`✅ ${symbol}: R$ ${price.toFixed(2)} (busca individual)`);
+              logger.info(`✅ ${symbol}: R$ ${price.toFixed(2)} (busca individual)`);
               continue; // Símbolo encontrado, não precisa usar cache
             }
           } catch (singleError) {
-            console.warn(`⚠️  Erro ao buscar cotação individual de ${symbol}:`, singleError);
+            logger.warn(`⚠️  Erro ao buscar cotação individual de ${symbol}:`, singleError);
           }
 
           // Se falhou mas temos cache antigo, usar cache como fallback apenas se não for forceRefresh
@@ -385,12 +386,12 @@ export const fetchQuotes = async (
             const cached = quoteCache[symbol];
             if (cached) {
               quotes.set(symbol, cached.price);
-              console.log(`📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`);
+              logger.info(`📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`);
             } else {
-              console.warn(`❌ ${symbol} não encontrado na API e não há cache disponível`);
+              logger.warn(`❌ ${symbol} não encontrado na API e não há cache disponível`);
             }
           } else {
-            console.warn(`❌ ${symbol} não encontrado na API (forceRefresh=true, sem cache)`);
+            logger.warn(`❌ ${symbol} não encontrado na API (forceRefresh=true, sem cache)`);
           }
         }
 
@@ -433,7 +434,7 @@ export const fetchQuotes = async (
         }
         // 404 "Nenhum resultado encontrado" = batch inteiro inválido; tratar todos como não encontrados
         if (errorStatus === 404 && !invalidSymbolFromMessage) {
-          console.warn(
+          logger.warn(
             `⚠️  API brapi retornou 404 para batch. Símbolos podem ser inválidos (reserva, renda fixa, etc).`,
           );
           for (const sym of normalizedBatch) {
@@ -443,7 +444,7 @@ export const fetchQuotes = async (
         }
 
         if (errorStatus === 404 && invalidSymbolFromMessage) {
-          console.warn(
+          logger.warn(
             `⚠️  Símbolo inválido na API: ${invalidSymbolFromMessage}. Reprocessando batch sem ele.`,
           );
           const retryBatch = normalizedBatch.filter(
@@ -467,7 +468,7 @@ export const fetchQuotes = async (
                   const price = result.regularMarketPrice;
                   quotes.set(result.symbol, price);
                   quoteCache[result.symbol] = { price, timestamp: now };
-                  console.log(`✅ ${result.symbol}: R$ ${price.toFixed(2)}`);
+                  logger.info(`✅ ${result.symbol}: R$ ${price.toFixed(2)}`);
                 }
               }
             }
@@ -478,7 +479,7 @@ export const fetchQuotes = async (
             );
             const missingSymbols = retryBatch.filter((s) => !returnedSymbols.has(s.toUpperCase()));
             for (const symbol of missingSymbols) {
-              console.warn(
+              logger.warn(
                 `⚠️  Não foi possível obter cotação de ${symbol} - tentando busca individual...`,
               );
               try {
@@ -486,25 +487,25 @@ export const fetchQuotes = async (
                 if (price !== null) {
                   quotes.set(symbol, price);
                   quoteCache[symbol] = { price, timestamp: now };
-                  console.log(`✅ ${symbol}: R$ ${price.toFixed(2)} (busca individual)`);
+                  logger.info(`✅ ${symbol}: R$ ${price.toFixed(2)} (busca individual)`);
                   continue;
                 }
               } catch (singleError) {
-                console.warn(`⚠️  Erro ao buscar cotação individual de ${symbol}:`, singleError);
+                logger.warn(`⚠️  Erro ao buscar cotação individual de ${symbol}:`, singleError);
               }
 
               if (!forceRefresh) {
                 const cached = quoteCache[symbol];
                 if (cached) {
                   quotes.set(symbol, cached.price);
-                  console.log(
+                  logger.info(
                     `📦 Usando cache antigo para ${symbol}: R$ ${cached.price.toFixed(2)}`,
                   );
                 } else {
-                  console.warn(`❌ ${symbol} não encontrado na API e não há cache disponível`);
+                  logger.warn(`❌ ${symbol} não encontrado na API e não há cache disponível`);
                 }
               } else {
-                console.warn(`❌ ${symbol} não encontrado na API (forceRefresh=true, sem cache)`);
+                logger.warn(`❌ ${symbol} não encontrado na API (forceRefresh=true, sem cache)`);
               }
             }
 
@@ -512,7 +513,7 @@ export const fetchQuotes = async (
               await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY));
             }
           } catch (retryError) {
-            console.error(
+            logger.error(
               `❌ Erro ao reprocessar batch sem ${invalidSymbolFromMessage}:`,
               retryError,
             );
@@ -532,11 +533,11 @@ export const fetchQuotes = async (
             (error as { status?: number }).status === 500);
 
         if (is500Error) {
-          console.warn(
+          logger.warn(
             `⚠️  API brapi.dev retornou erro 500 para batch. Usando cache ou preços médios como fallback.`,
           );
         } else {
-          console.error(`❌ Erro ao buscar cotações do batch:`, error);
+          logger.error(`❌ Erro ao buscar cotações do batch:`, error);
         }
 
         // Para qualquer erro, tentar usar cache primeiro (não fazer requisições adicionais se for 500)
@@ -545,7 +546,7 @@ export const fetchQuotes = async (
             const cached = quoteCache[symbol];
             if (cached) {
               quotes.set(symbol, cached.price);
-              console.log(
+              logger.info(
                 `📦 Usando cache após erro para ${symbol}: R$ ${cached.price.toFixed(2)}`,
               );
             }
@@ -564,7 +565,7 @@ export const fetchQuotes = async (
                 quoteCache[symbol] = { price, timestamp: now };
               }
             } catch (singleError) {
-              console.error(`❌ Erro ao buscar cotação individual de ${symbol}:`, singleError);
+              logger.error(`❌ Erro ao buscar cotação individual de ${symbol}:`, singleError);
               // Já tentamos cache acima, então não há mais o que fazer
             }
           }
@@ -575,7 +576,7 @@ export const fetchQuotes = async (
     return quotes;
   } catch (error) {
     // Garantir que sempre retornamos um Map, mesmo em caso de erro fatal
-    console.error('[fetchQuotes] Erro fatal ao buscar cotações:', error);
+    logger.error('[fetchQuotes] Erro fatal ao buscar cotações:', error);
     return new Map();
   }
 };
@@ -638,7 +639,7 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
   const results: BrapiQuoteResult[] = [];
   const client = getBrapiClient();
 
-  console.log(`🔍 Buscando cotações detalhadas de ${uniqueSymbols.length} ativos usando SDK`);
+  logger.info(`🔍 Buscando cotações detalhadas de ${uniqueSymbols.length} ativos usando SDK`);
 
   // SDK permite buscar múltiplas de uma vez, processar em batches de 20
   const BATCH_SIZE = 20;
@@ -679,11 +680,11 @@ export const fetchDetailedQuotes = async (symbols: string[]): Promise<BrapiQuote
       }
     } catch (error) {
       if (error instanceof Brapi.APIError) {
-        console.error(
+        logger.error(
           `Erro ao buscar cotações detalhadas do batch: ${error.status} - ${error.message}`,
         );
       } else {
-        console.error(`Erro ao buscar cotações detalhadas do batch:`, error);
+        logger.error(`Erro ao buscar cotações detalhadas do batch:`, error);
       }
     }
   }

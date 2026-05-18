@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import React, { useCallback, useEffect, useState } from 'react';
 import AutocompleteInput from '@/components/form/AutocompleteInput';
 import { AutocompleteOption } from '@/types/wizard';
@@ -55,7 +57,7 @@ export default function Step3RedeemAsset({
           });
         }
       } catch (error) {
-        console.error('Erro ao buscar investimentos:', error);
+        logger.error('Erro ao buscar investimentos:', error);
         onErrorsChange({ ativo: 'Não foi possível carregar os investimentos.' });
       } finally {
         setLoading(false);

@@ -1,16 +1,18 @@
-"use client";
-import React from "react";
-import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
-import Button from "../ui/button/Button";
-import Input from "../form/input/InputField";
-import Label from "../form/Label";
+'use client';
+
+import { logger } from '@/lib/logger';
+import React from 'react';
+import { useModal } from '../../hooks/useModal';
+import { Modal } from '../ui/modal';
+import Button from '../ui/button/Button';
+import Input from '../form/input/InputField';
+import Label from '../form/Label';
 
 export default function UserAddressCard() {
   const { isOpen, openModal, closeModal } = useModal();
   const handleSave = () => {
     // Handle save logic here
-    console.log("Saving changes...");
+    logger.info('Saving changes...');
     closeModal();
   };
   return (
@@ -24,12 +26,8 @@ export default function UserAddressCard() {
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
               <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                  País
-                </p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  Brasil
-                </p>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">País</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">Brasil</p>
               </div>
 
               <div>
@@ -42,21 +40,13 @@ export default function UserAddressCard() {
               </div>
 
               <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                  CEP
-                </p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  ERT 2489
-                </p>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">CEP</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">ERT 2489</p>
               </div>
 
               <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                  CPF
-                </p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  AS4568384
-                </p>
+                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">CPF</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">AS4568384</p>
               </div>
             </div>
           </div>

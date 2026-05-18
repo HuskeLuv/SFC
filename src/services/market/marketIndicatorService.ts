@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Serviço para indicadores de mercado (IBOV, Dólar, BTC, ETH).
  * Regra: banco primeiro, fallback BRAPI quando cache expirado (> 15 min).
@@ -80,7 +81,7 @@ const fetchBrapiQuote = async (symbol: string): Promise<IndicatorValue> => {
     const price = Number.isFinite(lastClose) ? lastClose : null;
     return { price, changePercent };
   } catch (error) {
-    console.error('[marketIndicatorService] Erro ao buscar cotação:', symbol, error);
+    logger.error('[marketIndicatorService] Erro ao buscar cotação:', symbol, error);
     return { price: null, changePercent: null };
   }
 };
@@ -123,7 +124,7 @@ const fetchCurrencyQuote = async (currency: string): Promise<IndicatorValue> => 
 
     return { price, changePercent };
   } catch (error) {
-    console.error('[marketIndicatorService] Erro ao buscar moeda:', currency, error);
+    logger.error('[marketIndicatorService] Erro ao buscar moeda:', currency, error);
     return { price: null, changePercent: null };
   }
 };
@@ -172,7 +173,7 @@ const fetchCryptoQuotes = async (): Promise<Record<string, IndicatorValue>> => {
 
     return result;
   } catch (error) {
-    console.error('[marketIndicatorService] Erro ao buscar criptos:', error);
+    logger.error('[marketIndicatorService] Erro ao buscar criptos:', error);
     return {};
   }
 };

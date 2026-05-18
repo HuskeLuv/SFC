@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
@@ -27,7 +28,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const result = await runCvmFundSync();
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[cron/cvm-fund-sync]', error);
+    logger.error('[cron/cvm-fund-sync]', error);
     return NextResponse.json(
       { error: 'Falha ao sincronizar dados CVM de fundos' },
       { status: 500 },

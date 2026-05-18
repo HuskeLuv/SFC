@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/lib/logger';
+
 import React, {
   createContext,
   useContext,
@@ -132,7 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Redirecionar para a tela de login
       router.push('/signin');
     } catch (err) {
-      console.error('Erro ao fazer logout:', err);
+      logger.error('Erro ao fazer logout:', err);
       // Mesmo em caso de erro, limpar o estado local e redirecionar
       setUser(null);
       setActingClient(null);

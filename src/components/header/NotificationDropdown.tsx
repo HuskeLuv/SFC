@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/lib/logger';
+
 import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Dropdown } from '../ui/dropdown/Dropdown';
@@ -90,7 +92,7 @@ const NotificationDropdown: React.FC = () => {
       } | null;
 
       if (!response.ok) {
-        console.warn('[NotificationDropdown] request failed', {
+        logger.warn('[NotificationDropdown] request failed', {
           status: response.status,
           body,
         });
@@ -101,7 +103,7 @@ const NotificationDropdown: React.FC = () => {
 
       setNotifications(body?.notifications ?? []);
     } catch (fetchError) {
-      console.error('[NotificationDropdown] load error', fetchError);
+      logger.error('[NotificationDropdown] load error', fetchError);
       setError(
         fetchError instanceof Error
           ? fetchError.message
@@ -143,7 +145,7 @@ const NotificationDropdown: React.FC = () => {
           ),
         );
       } catch (markError) {
-        console.error('[NotificationDropdown] mark read error', markError);
+        logger.error('[NotificationDropdown] mark read error', markError);
       }
     },
     [authLoading, user, csrfFetch],
@@ -233,7 +235,7 @@ const NotificationDropdown: React.FC = () => {
           ),
         );
       } catch (inviteError) {
-        console.error('[NotificationDropdown] respond error', inviteError);
+        logger.error('[NotificationDropdown] respond error', inviteError);
         setError(
           inviteError instanceof Error ? inviteError.message : 'Não foi possível concluir a ação.',
         );

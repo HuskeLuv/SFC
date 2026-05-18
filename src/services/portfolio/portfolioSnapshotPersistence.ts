@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { normalizeDateStart } from './patrimonioHistoricoBuilder';
 import { buildPatrimonioHistorico } from './patrimonioHistoricoBuilder';
@@ -106,7 +107,7 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
         // como valorização (ex.: aporte editado sem reprocesso). Log para
         // detectar regressões do fix.
         if (dailyReturn != null && Math.abs(dailyReturn) > 0.05) {
-          console.warn(
+          logger.warn(
             `[portfolioSnapshots] daily TWR fora do esperado userId=${userId} date=${row.data} dailyReturn=${(dailyReturn * 100).toFixed(2)}% — possível série contaminada`,
           );
         }
@@ -242,13 +243,13 @@ export const triggerLazyBackfill = (userId: string, timelineEndDate: Date): Prom
 
   const promise = persistFullHistoryForUser(userId, timelineEndDate)
     .then((result) => {
-      console.log(
+      logger.info(
         `[portfolioSnapshots] lazy backfill done userId=${userId} snapshots=${result.snapshotsWritten} perfs=${result.performancesWritten}`,
       );
     })
     .catch((err) => {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`[portfolioSnapshots] lazy backfill FAILED userId=${userId}: ${message}`);
+      logger.error(`[portfolioSnapshots] lazy backfill FAILED userId=${userId}: ${message}`);
     })
     .finally(() => {
       inflightBackfills.delete(userId);
@@ -284,7 +285,7 @@ export const runPortfolioSnapshotsJob = async (options?: { timelineEndDate?: Dat
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       errors.push({ userId: u.id, message });
-      console.error('[portfolioSnapshots] user failed', u.id, message);
+      logger.error('[portfolioSnapshots] user failed', u.id, message);
     }
   }
 

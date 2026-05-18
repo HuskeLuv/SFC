@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { ConsultantClientStatus, UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
@@ -75,7 +76,7 @@ const calculatePortfolioSnapshot = async (clientId: string) => {
   try {
     quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
   } catch (error) {
-    console.warn(
+    logger.warn(
       '[calculatePortfolioSnapshot] Erro ao buscar cotações, usando preços médios como fallback:',
       error,
     );
@@ -490,7 +491,7 @@ const getClientPortfolioConcentration = async (clientId: string): Promise<number
   try {
     quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
   } catch (error) {
-    console.warn(
+    logger.warn(
       '[getClientPortfolioConcentration] Erro ao buscar cotações, usando preços médios como fallback:',
       error,
     );
@@ -879,7 +880,7 @@ export const getConsolidatedAssetDistribution = async (
     try {
       quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
     } catch (error) {
-      console.warn(
+      logger.warn(
         '[getConsolidatedAssetDistribution] Erro ao buscar cotações, usando preços médios como fallback:',
         error,
       );

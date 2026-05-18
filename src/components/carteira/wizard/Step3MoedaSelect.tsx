@@ -1,4 +1,6 @@
 'use client';
+
+import { logger } from '@/lib/logger';
 import React, { useEffect, useState } from 'react';
 import { WizardFormData, WizardErrors } from '@/types/wizard';
 import Label from '@/components/form/Label';
@@ -36,7 +38,7 @@ export default function Step3MoedaSelect({
           setMoedaOptions(data.moedas || []);
         }
       } catch (err) {
-        console.error('Erro ao buscar moedas:', err);
+        logger.error('Erro ao buscar moedas:', err);
         onErrorsChange({ ativo: 'Não foi possível carregar as moedas.' });
       } finally {
         setLoading(false);

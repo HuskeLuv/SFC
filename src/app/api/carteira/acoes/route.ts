@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
@@ -66,7 +67,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
 
     let cotacaoAtual = quotes.get(ticker);
     if (!cotacaoAtual) {
-      console.warn(
+      logger.warn(
         `⚠️  Não foi possível obter cotação de ${ticker}, usando preço médio como fallback`,
       );
       cotacaoAtual = item.avgPrice;
@@ -326,14 +327,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     if (objetivo < 0 || objetivo > 100) {
       return NextResponse.json({ error: 'Objetivo deve estar entre 0 e 100%' }, { status: 400 });
     }
-    console.log(`Atualizando objetivo da ação ${ativoId} para ${objetivo}%`);
+    logger.info(`Atualizando objetivo da ação ${ativoId} para ${objetivo}%`);
   }
 
   if (cotacao !== undefined) {
     if (cotacao <= 0) {
       return NextResponse.json({ error: 'Cotação deve ser maior que zero' }, { status: 400 });
     }
-    console.log(`Atualizando cotação da ação ${ativoId} para R$ ${cotacao}`);
+    logger.info(`Atualizando cotação da ação ${ativoId} para R$ ${cotacao}`);
   }
 
   // Simular delay de rede

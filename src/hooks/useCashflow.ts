@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CashflowGroup, CashflowValue, AlertState, NewRowData } from '@/types/cashflow';
@@ -156,7 +157,7 @@ export const useCashflowData = (year?: number) => {
           return gruposComInvestimentos;
         }
       } catch (invError) {
-        console.warn('Erro ao buscar investimentos calculados:', invError);
+        logger.warn('Erro ao buscar investimentos calculados:', invError);
       }
 
       return groups;

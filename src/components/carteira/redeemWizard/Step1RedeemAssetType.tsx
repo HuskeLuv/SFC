@@ -1,8 +1,14 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import Label from "@/components/form/Label";
-import Select from "@/components/form/Select";
-import { RedeemAssetTypeOption, RedeemWizardErrors, RedeemWizardFormData } from "@/types/redeemWizard";
+'use client';
+
+import { logger } from '@/lib/logger';
+import React, { useEffect, useState } from 'react';
+import Label from '@/components/form/Label';
+import Select from '@/components/form/Select';
+import {
+  RedeemAssetTypeOption,
+  RedeemWizardErrors,
+  RedeemWizardFormData,
+} from '@/types/redeemWizard';
 
 interface Step1RedeemAssetTypeProps {
   formData: RedeemWizardFormData;
@@ -24,15 +30,15 @@ export default function Step1RedeemAssetType({
     const fetchTipos = async () => {
       setLoading(true);
       try {
-        const response = await fetch("/api/carteira/resgate/tipos", {
-          credentials: "include",
+        const response = await fetch('/api/carteira/resgate/tipos', {
+          credentials: 'include',
         });
         if (response.ok) {
           const data = await response.json();
           setOptions(data.tipos || []);
         }
       } catch (error) {
-        console.error("Erro ao buscar tipos para resgate:", error);
+        logger.error('Erro ao buscar tipos para resgate:', error);
       } finally {
         setLoading(false);
       }
@@ -44,13 +50,13 @@ export default function Step1RedeemAssetType({
   const handleTipoAtivoChange = (value: string) => {
     onFormDataChange({
       tipoAtivo: value,
-      ativo: "",
-      portfolioId: "",
-      assetId: "",
-      stockId: "",
+      ativo: '',
+      portfolioId: '',
+      assetId: '',
+      stockId: '',
       availableQuantity: 0,
       availableTotal: 0,
-      moeda: "",
+      moeda: '',
     });
 
     if (errors.tipoAtivo) {
@@ -64,14 +70,12 @@ export default function Step1RedeemAssetType({
         <Label htmlFor="tipoAtivo">Tipo de Investimento *</Label>
         <Select
           options={options}
-          placeholder={loading ? "Carregando tipos..." : "Selecione o tipo para resgate"}
+          placeholder={loading ? 'Carregando tipos...' : 'Selecione o tipo para resgate'}
           defaultValue={formData.tipoAtivo}
           onChange={handleTipoAtivoChange}
-          className={errors.tipoAtivo ? "border-red-500" : ""}
+          className={errors.tipoAtivo ? 'border-red-500' : ''}
         />
-        {errors.tipoAtivo && (
-          <p className="mt-1 text-sm text-red-500">{errors.tipoAtivo}</p>
-        )}
+        {errors.tipoAtivo && <p className="mt-1 text-sm text-red-500">{errors.tipoAtivo}</p>}
       </div>
       {!loading && options.length === 0 && (
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900/50 dark:bg-yellow-900/20 dark:text-yellow-100">

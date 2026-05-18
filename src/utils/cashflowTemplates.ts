@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 
 // ===== CASHFLOW TEMPLATES STRUCTURE =====
@@ -221,14 +222,14 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
 // ===== SEED TEMPLATES =====
 
 export async function seedTemplates() {
-  console.log('🌱 Criando templates padrão (userId = null)...\n');
+  logger.info('🌱 Criando templates padrão (userId = null)...\n');
 
   const existingTemplates = await prisma.cashflowGroup.count({
     where: { userId: null, parentId: null },
   });
 
   if (existingTemplates >= 3) {
-    console.log('✅ Templates já existem no banco. Pulando criação.\n');
+    logger.info('✅ Templates já existem no banco. Pulando criação.\n');
     return;
   }
 
@@ -246,16 +247,16 @@ export async function seedTemplates() {
 
     const group = await prisma.cashflowGroup.create({ data: groupData });
     createdGroups[grupo.name] = { id: group.id, name: group.name };
-    console.log(`   ✅ ${grupo.name} criado como template`);
+    logger.info(`   ✅ ${grupo.name} criado como template`);
   }
 
-  console.log('\n📝 Criando itens padrão (templates)...\n');
+  logger.info('\n📝 Criando itens padrão (templates)...\n');
   let itemsCount = 0;
 
   for (const [groupName, items] of Object.entries(CASHFLOW_TEMPLATE_STRUCTURE.itensPorGrupo)) {
     const group = createdGroups[groupName];
     if (!group) {
-      console.log(`   ⚠️  Grupo não encontrado: ${groupName}`);
+      logger.info(`   ⚠️  Grupo não encontrado: ${groupName}`);
       continue;
     }
 
@@ -271,10 +272,10 @@ export async function seedTemplates() {
       })),
     });
     itemsCount += items.length;
-    console.log(`   ✅ ${items.length} itens criados para ${groupName}`);
+    logger.info(`   ✅ ${items.length} itens criados para ${groupName}`);
   }
 
-  console.log(
+  logger.info(
     `\n✅ Estrutura padrão criada: ${Object.keys(createdGroups).length} grupos, ${itemsCount} itens\n`,
   );
 }

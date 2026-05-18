@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 
 // Buscar estrutura do cashflow do usuário aplicando override layer.
@@ -57,7 +58,7 @@ export async function getUserCashflowStructure(userId: string) {
 
     return mergeStructure(templates as GroupRow[], userRows as GroupRow[]);
   } catch (error) {
-    console.error('Erro ao buscar estrutura do usuário:', error);
+    logger.error('Erro ao buscar estrutura do usuário:', error);
     throw error;
   }
 }

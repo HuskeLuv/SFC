@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
@@ -49,7 +50,7 @@ const logSeriesStats = (data: IndexData[], name: string) => {
   const last = sorted[sorted.length - 1];
   const years = Math.max(1 / 365, (last.date - first.date) / (365 * DAY_MS));
   const cagr = Math.pow(last.value / first.value, 1 / years) - 1;
-  console.log(
+  logger.info(
     `[${name}] inicial=${first.value.toFixed(2)} final=${last.value.toFixed(2)} CAGR=${(cagr * 100).toFixed(2)}%`,
   );
 };

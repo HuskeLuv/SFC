@@ -1,22 +1,18 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import Button from "@/components/ui/button/Button";
-import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import Badge from "@/components/ui/badge/Badge";
-import dynamic from "next/dynamic";
-import type { ApexOptions } from "apexcharts";
-import { useAuth } from "@/hooks/useAuth";
+import { logger } from '@/lib/logger';
+
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import Button from '@/components/ui/button/Button';
+import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import Badge from '@/components/ui/badge/Badge';
+import dynamic from 'next/dynamic';
+import type { ApexOptions } from 'apexcharts';
+import { useAuth } from '@/hooks/useAuth';
 
 type ClientSummary = {
   currentBalance: number;
@@ -86,24 +82,24 @@ type PerformancePoint = {
   value: number;
 };
 
-const ReactApexChart = dynamic(() => import("react-apexcharts"), {
+const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
 });
 
 const wealthChartOptions: ApexOptions = {
   chart: {
-    type: "area",
+    type: 'area',
     height: 320,
     toolbar: { show: false },
-    fontFamily: "Outfit, sans-serif",
+    fontFamily: 'Outfit, sans-serif',
   },
   stroke: {
     width: 3,
-    curve: "smooth",
+    curve: 'smooth',
   },
-  colors: ["#0EA5E9"],
+  colors: ['#0EA5E9'],
   fill: {
-    type: "gradient",
+    type: 'gradient',
     gradient: {
       opacityFrom: 0.35,
       opacityTo: 0.05,
@@ -119,52 +115,51 @@ const wealthChartOptions: ApexOptions = {
     },
   },
   grid: {
-    borderColor: "rgba(148, 163, 184, 0.18)",
+    borderColor: 'rgba(148, 163, 184, 0.18)',
     strokeDashArray: 4,
   },
   yaxis: {
     labels: {
       formatter: (value) =>
-        value.toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
+        value.toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
           maximumFractionDigits: 0,
         }),
     },
   },
   xaxis: {
-    type: "category",
+    type: 'category',
     axisBorder: { show: false },
     axisTicks: { show: false },
     labels: {
       style: {
-        colors: "#64748B",
+        colors: '#64748B',
       },
     },
   },
   tooltip: {
     y: {
       formatter: (value) =>
-        value.toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
+        value.toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
         }),
     },
   },
 };
 
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
 });
 
-const percentageFormatter = new Intl.NumberFormat("pt-BR", {
+const percentageFormatter = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
 
-const capitalizeFirst = (value: string) =>
-  value.charAt(0).toUpperCase() + value.slice(1);
+const capitalizeFirst = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
 const MONTHS_LIMIT = 6;
 
@@ -173,24 +168,19 @@ const monthKeyFromDate = (input: string) => {
   if (Number.isNaN(parsed.getTime())) {
     return null;
   }
-  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(
-    2,
-    "0",
-  )}`;
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
 };
 
 const inferSignedValue = (movement: { type: string; value: number }) => {
-  const normalizedType = movement.type?.toLowerCase?.() ?? "";
+  const normalizedType = movement.type?.toLowerCase?.() ?? '';
   const isExpense =
-    normalizedType.includes("desp") ||
-    normalizedType.includes("saida") ||
-    normalizedType.includes("pag");
+    normalizedType.includes('desp') ||
+    normalizedType.includes('saida') ||
+    normalizedType.includes('pag');
   return isExpense ? -Math.abs(movement.value) : Math.abs(movement.value);
 };
 
-const buildWealthSeries = (
-  detail: ClientDetailResponse | null,
-): PerformancePoint[] => {
+const buildWealthSeries = (detail: ClientDetailResponse | null): PerformancePoint[] => {
   if (detail?.monthlyNetHistory?.length) {
     const ordered = detail.monthlyNetHistory
       .map((entry) => {
@@ -198,9 +188,9 @@ const buildWealthSeries = (
         return {
           timestamp: date.getTime(),
           label: capitalizeFirst(
-            date.toLocaleDateString("pt-BR", {
-              month: "short",
-              year: "numeric",
+            date.toLocaleDateString('pt-BR', {
+              month: 'short',
+              year: 'numeric',
             }),
           ),
           value: entry.cumulative,
@@ -219,20 +209,13 @@ const buildWealthSeries = (
   }
 
   const now = new Date();
-  const monthKeys = Array.from({ length: MONTHS_LIMIT })
-    .map((_, index) => {
-      const reference = new Date(
-        now.getFullYear(),
-        now.getMonth() - (MONTHS_LIMIT - 1 - index),
-        1,
-      );
-      return {
-        key: `${reference.getFullYear()}-${String(
-          reference.getMonth() + 1,
-        ).padStart(2, "0")}`,
-        date: reference,
-      };
-    });
+  const monthKeys = Array.from({ length: MONTHS_LIMIT }).map((_, index) => {
+    const reference = new Date(now.getFullYear(), now.getMonth() - (MONTHS_LIMIT - 1 - index), 1);
+    return {
+      key: `${reference.getFullYear()}-${String(reference.getMonth() + 1).padStart(2, '0')}`,
+      date: reference,
+    };
+  });
 
   const netByMonth = new Map<string, number>();
   detail.recentCashflows.forEach((movement) => {
@@ -252,9 +235,7 @@ const buildWealthSeries = (
   return monthKeys.map(({ key, date }) => {
     const monthlyNet = netByMonth.get(key) ?? 0;
     runningTotal += monthlyNet;
-    const label = capitalizeFirst(
-      date.toLocaleDateString("pt-BR", { month: "short" }),
-    );
+    const label = capitalizeFirst(date.toLocaleDateString('pt-BR', { month: 'short' }));
     return {
       label,
       value: Number(runningTotal.toFixed(2)),
@@ -272,32 +253,32 @@ const savingsIndex = (balances: ClientBalances | undefined | null) => {
 
 const statusBadge = (value: number) => {
   if (value > 0) {
-    return { label: "Entrada", color: "success" as const };
+    return { label: 'Entrada', color: 'success' as const };
   }
   if (value < 0) {
-    return { label: "Saída", color: "error" as const };
+    return { label: 'Saída', color: 'error' as const };
   }
-  return { label: "Neutro", color: "info" as const };
+  return { label: 'Neutro', color: 'info' as const };
 };
 
 const typeLabels: Record<string, string> = {
-  stock: "Ações",
-  fii: "Fundos Imobiliários",
-  etf: "ETFs",
-  bdr: "BDRs",
-  crypto: "Cripto",
-  renda_fixa: "Renda Fixa",
-  fixed_income: "Renda Fixa",
-  fund: "Fundos",
-  other: "Outros",
+  stock: 'Ações',
+  fii: 'Fundos Imobiliários',
+  etf: 'ETFs',
+  bdr: 'BDRs',
+  crypto: 'Cripto',
+  renda_fixa: 'Renda Fixa',
+  fixed_income: 'Renda Fixa',
+  fund: 'Fundos',
+  other: 'Outros',
 };
 
 const normalizeTypeLabel = (rawType?: string | null) => {
   if (!rawType) {
-    return "Outros";
+    return 'Outros';
   }
   const normalized = rawType.toLowerCase();
-  return typeLabels[normalized] ?? "Outros";
+  return typeLabels[normalized] ?? 'Outros';
 };
 
 const ClientConsultantDetailPage = () => {
@@ -311,32 +292,31 @@ const ClientConsultantDetailPage = () => {
   useEffect(() => {
     const loadDetail = async () => {
       if (!params?.clientId) {
-        setError("Cliente não encontrado.");
+        setError('Cliente não encontrado.');
         setLoading(false);
         return;
       }
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(
-          `/api/consultant/client/${params.clientId}`,
-          { credentials: "include" },
-        );
+        const response = await fetch(`/api/consultant/client/${params.clientId}`, {
+          credentials: 'include',
+        });
         if (response.status === 404) {
-          throw new Error("NOT_LINKED");
+          throw new Error('NOT_LINKED');
         }
         if (!response.ok) {
-          throw new Error("FAILED_REQUEST");
+          throw new Error('FAILED_REQUEST');
         }
         const payload = (await response.json()) as ClientDetailResponse;
         setDetail(payload);
       } catch (requestError) {
-        console.error("[ConsultantClientDetail] error", requestError);
-        if (requestError instanceof Error && requestError.message === "NOT_LINKED") {
-          setError("Cliente não vinculado ao consultor.");
+        logger.error('[ConsultantClientDetail] error', requestError);
+        if (requestError instanceof Error && requestError.message === 'NOT_LINKED') {
+          setError('Cliente não vinculado ao consultor.');
         } else {
           setError(
-            "Não foi possível carregar os dados deste cliente. Tente novamente em instantes.",
+            'Não foi possível carregar os dados deste cliente. Tente novamente em instantes.',
           );
         }
         setDetail(null);
@@ -348,7 +328,7 @@ const ClientConsultantDetailPage = () => {
     if (authLoading) {
       return;
     }
-    if (!user || user.role !== "consultant") {
+    if (!user || user.role !== 'consultant') {
       return;
     }
 
@@ -356,11 +336,10 @@ const ClientConsultantDetailPage = () => {
   }, [params?.clientId, authLoading, user]);
 
   useEffect(() => {
-    if (!authLoading && user && user.role !== "consultant") {
-      router.replace("/carteira");
+    if (!authLoading && user && user.role !== 'consultant') {
+      router.replace('/carteira');
     }
   }, [authLoading, user, router]);
-
 
   const wealthSeries = useMemo(() => buildWealthSeries(detail), [detail]);
 
@@ -373,30 +352,30 @@ const ClientConsultantDetailPage = () => {
     const totalInvestido = summary?.investmentsTotal ?? 0;
     const rentabilidadeAcumulada =
       totalInvestido > 0
-        ? ((summary?.currentBalance ?? 0) - totalInvestido) / totalInvestido * 100
+        ? (((summary?.currentBalance ?? 0) - totalInvestido) / totalInvestido) * 100
         : 0;
     const indicePoupanca = savingsIndex(monthlyBalances ?? totalBalances);
 
     return [
       {
-        title: "Saldo atual",
+        title: 'Saldo atual',
         value: currencyFormatter.format(saldoAtual),
-        helper: "Fluxo de caixa consolidado",
+        helper: 'Fluxo de caixa consolidado',
       },
       {
-        title: "Total investido",
+        title: 'Total investido',
         value: currencyFormatter.format(totalInvestido),
-        helper: "Somatório dos ativos em carteira",
+        helper: 'Somatório dos ativos em carteira',
       },
       {
-        title: "Rentabilidade acumulada",
+        title: 'Rentabilidade acumulada',
         value: `${percentageFormatter.format(rentabilidadeAcumulada)}%`,
-        helper: "Com base no saldo atual x investido",
+        helper: 'Com base no saldo atual x investido',
       },
       {
-        title: "Índice de poupança",
+        title: 'Índice de poupança',
         value: `${percentageFormatter.format(indicePoupanca)}%`,
-        helper: "Proporção de renda preservada no mês",
+        helper: 'Proporção de renda preservada no mês',
       },
     ];
   }, [detail, totalBalances, monthlyBalances]);
@@ -433,8 +412,7 @@ const ClientConsultantDetailPage = () => {
     );
     return Array.from(totals.values()).map((item) => ({
       ...item,
-      percentage:
-        totalCurrent > 0 ? (item.current / totalCurrent) * 100 : 0,
+      percentage: totalCurrent > 0 ? (item.current / totalCurrent) * 100 : 0,
     }));
   }, [detail]);
 
@@ -443,19 +421,19 @@ const ClientConsultantDetailPage = () => {
     if (!firstMovement) return null;
     const date = new Date(firstMovement.date);
     if (Number.isNaN(date.getTime())) return null;
-    return date.toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   }, [detail]);
 
   const clientDisplayName =
     detail?.client?.name && detail.client.name.trim().length > 0
       ? detail.client.name
-      : "Cliente consultado";
+      : 'Cliente consultado';
 
   return (
     <ProtectedRoute>
@@ -468,17 +446,13 @@ const ClientConsultantDetailPage = () => {
               </Button>
             </Link>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {loading && !detail ? "Carregando cliente" : clientDisplayName}
+              {loading && !detail ? 'Carregando cliente' : clientDisplayName}
             </h1>
             {detail?.client?.email && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {detail.client.email}
-              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{detail.client.email}</p>
             )}
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {lastAccess
-                ? `Último acesso registrado em ${lastAccess}`
-                : "Sem dados no período"}
+              {lastAccess ? `Último acesso registrado em ${lastAccess}` : 'Sem dados no período'}
             </p>
           </div>
         </div>
@@ -513,9 +487,7 @@ const ClientConsultantDetailPage = () => {
                     <p className="mt-3 text-2xl font-semibold text-gray-900 dark:text-white">
                       {card.value}
                     </p>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {card.helper}
-                    </p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{card.helper}</p>
                   </Card>
                 ))}
               </section>
@@ -543,10 +515,8 @@ const ClientConsultantDetailPage = () => {
                       }}
                       series={[
                         {
-                          name: "Patrimônio",
-                          data: wealthSeries.map((item) =>
-                            Number(item.value.toFixed(2)),
-                          ),
+                          name: 'Patrimônio',
+                          data: wealthSeries.map((item) => Number(item.value.toFixed(2))),
                         },
                       ]}
                       type="area"
@@ -578,12 +548,10 @@ const ClientConsultantDetailPage = () => {
                       detail.recentCashflows.map((movement) => {
                         const signedValue = inferSignedValue(movement);
                         const badge = statusBadge(signedValue);
-                        const formattedDate = new Date(
-                          movement.date,
-                        ).toLocaleDateString("pt-BR", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
+                        const formattedDate = new Date(movement.date).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
                         });
                         return (
                           <div
@@ -592,9 +560,7 @@ const ClientConsultantDetailPage = () => {
                           >
                             <div>
                               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                                {movement.description ??
-                                  movement.category ??
-                                  movement.type}
+                                {movement.description ?? movement.category ?? movement.type}
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {formattedDate}
@@ -603,20 +569,14 @@ const ClientConsultantDetailPage = () => {
                             <div className="text-right">
                               <p
                                 className={`text-sm font-semibold ${
-                                  signedValue >= 0
-                                    ? "text-success-600"
-                                    : "text-error-500"
+                                  signedValue >= 0 ? 'text-success-600' : 'text-error-500'
                                 }`}
                               >
-                                {signedValue >= 0 ? "+" : "−"}
+                                {signedValue >= 0 ? '+' : '−'}
                                 {currencyFormatter.format(Math.abs(signedValue))}
                               </p>
                               <div className="mt-1 flex justify-end">
-                                <Badge
-                                  variant="light"
-                                  color={badge.color}
-                                  size="sm"
-                                >
+                                <Badge variant="light" color={badge.color} size="sm">
                                   {badge.label}
                                 </Badge>
                               </div>
@@ -680,7 +640,8 @@ const ClientConsultantDetailPage = () => {
                       </Table>
                     ) : (
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Sem dados no período. Este cliente ainda não possui ativos cadastrados na carteira.
+                        Sem dados no período. Este cliente ainda não possui ativos cadastrados na
+                        carteira.
                       </p>
                     )}
                   </div>
@@ -695,4 +656,3 @@ const ClientConsultantDetailPage = () => {
 };
 
 export default ClientConsultantDetailPage;
-
