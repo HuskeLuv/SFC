@@ -1,0 +1,14 @@
+id,categoria,produto,nome_completo,tipo_operacao,data,quantidade,preco_unitario,taxas,moeda,cotacao_dolar,corretora,observacoes
+1,Ação BR,PETR4,Petrobras PN,Compra,2026-04-28,100,38.50,0.00,BRL,,XP Investimentos,Compra simples - acompanhar dividendos
+2,Ação BR,ITUB4,Itaú Unibanco PN,Compra,2026-02-28,30,32.00,0.00,BRL,,XP Investimentos,DCA aporte 1 de 3 - preço histórico do dia
+3,Ação BR,ITUB4,Itaú Unibanco PN,Compra,2026-03-28,30,32.50,0.00,BRL,,XP Investimentos,DCA aporte 2 de 3 - preço histórico do dia
+4,Ação BR,ITUB4,Itaú Unibanco PN,Compra,2026-04-28,30,33.00,0.00,BRL,,XP Investimentos,DCA aporte 3 de 3 - data atual
+5,FII,HGLG11,CSHG Logística,Compra,2026-04-28,10,165.00,0.00,BRL,,XP Investimentos,Rendimento mensal isento de IR
+6,ETF BR,BOVA11,iShares Ibovespa ETF,Compra,2026-04-28,10,130.00,0.00,BRL,,XP Investimentos,ETF nacional simples
+7,Stock US,VOO,Vanguard S&P 500 ETF,Compra,2026-04-28,2,480.00,0.00,USD,5.10,Avenue,Testar conversão cambial - verificar PTAX usado
+8,Tesouro Direto,TESOURO IPCA+ 2029,Tesouro IPCA+ 2029 (NTN-B Princ),Compra,2026-04-28,1,3200.00,0.00,BRL,,Tesouro Direto,Marcação na curva vs mercado
+9,CDB,CDB BMG 110% CDI 2028,CDB Banco BMG pós-fixado 110% CDI venc 2028-10-15,Compra,2026-04-28,1,1000.00,0.00,BRL,,Banco BMG,IR regressivo - tabela 22.5% a 15%
+10,LCI,LCI Inter 95% CDI 2027,LCI Banco Inter pós-fixado 95% CDI venc 2027-09-20,Compra,2026-04-28,1,1000.00,0.00,BRL,,Banco Inter,Isenção de IR pessoa física
+11,Cripto,BTC,Bitcoin,Compra,2026-04-28,0.005,350000.00,0.00,BRL,,Mercado Bitcoin,Cotação 24/7 - testar fonte de preço
+12,Fundo CVM,Trend DI Simples FIRF,Trend DI Simples FIRF Simples (CNPJ 27.092.073/0001-89),Compra,2026-04-28,100,12.50,0.00,BRL,,XP Investimentos,Cota diária D+1 - testar come-cotas semestral
+13,Previdência,Brasilprev RT FIX C VI,Brasilprev Renda Total Fix C VI PGBL,Compra,2026-04-28,10,100.00,0.00,BRL,,Brasilprev,PGBL - tributação regressiva
