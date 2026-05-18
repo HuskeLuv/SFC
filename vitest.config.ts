@@ -11,7 +11,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     exclude: ['**/node_modules/**', '**/.claude/**', '**/dist/**', '**/e2e/**'],
     coverage: {
-      enabled: true,
+      enabled: false,
       provider: 'v8',
       reporter: ['text', 'text-summary'],
       include: [
