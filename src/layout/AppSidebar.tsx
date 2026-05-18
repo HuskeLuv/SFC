@@ -28,7 +28,7 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   {
     icon: <GridIcon />,
     name: 'Dashboard',
-    path: '/stocks',
+    path: '/carteira',
   },
   {
     icon: <DollarLineIcon />,
@@ -64,26 +64,7 @@ const MAIN_NAV_ITEMS: NavItem[] = [
 
 const othersItems: NavItem[] = [];
 
-const supportItems: NavItem[] = [
-  /*{
-    icon: <ChatIcon />,
-    name: "Chat",
-    path: "/chat",
-  },
-  {
-    icon: <MailIcon />,
-    name: "Email",
-    subItems: [
-      { name: "Inbox", path: "/inbox" },
-      { name: "Details", path: "/inbox-details" },
-    ],
-  },
-  {
-    icon: <DocsIcon />,
-    name: "Invoice",
-    path: "/invoice",
-  },*/
-];
+const supportItems: NavItem[] = [];
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
@@ -91,7 +72,7 @@ const AppSidebar: React.FC = () => {
   const { user, actingClient } = useAuth();
 
   const dashboardPath =
-    user?.role === 'consultant' && !actingClient ? '/dashboard/consultor' : '/stocks';
+    user?.role === 'consultant' && !actingClient ? '/dashboard/consultor' : '/carteira';
 
   const mainNavItems = useMemo(() => {
     let items = MAIN_NAV_ITEMS.map((item) =>
@@ -246,8 +227,6 @@ const AppSidebar: React.FC = () => {
   } | null>(null);
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  // const isActive = (path: string) => path === pathname;
 
   const isActive = useCallback((path: string) => path === pathname, [pathname]);
 
