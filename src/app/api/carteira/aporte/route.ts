@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
 import { aporteSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
@@ -77,6 +78,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       lastUpdate: new Date(),
     },
   });
+
+  // Item A (auditoria 2026-05-19): #02 só cobriu PATCH/DELETE de
+  // historico/transacao. Aporte em data passada deixava snapshots stale entre
+  // [dataAporte, hoje] → série de MWR/TWR carregava do cache antigo ignorando
+  // o novo fluxo. Invalidar força o reader a cair no live builder até o cron
+  // diário repopular.
+  await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
 
   const result = NextResponse.json({ success: true, transacao }, { status: 201 });
 

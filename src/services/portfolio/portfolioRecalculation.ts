@@ -176,7 +176,7 @@ async function syncFixedIncomeAssetNameDate(
  * O loader detecta a quebra de cobertura (`coverageOk=false`) e cai no
  * builder ao vivo até o cron diário repopular o snapshot.
  */
-async function invalidatePortfolioSnapshots(userId: string, fromDate: Date): Promise<void> {
+export async function invalidatePortfolioSnapshots(userId: string, fromDate: Date): Promise<void> {
   const cutoff = normalizeDateStart(fromDate);
   await Promise.all([
     prisma.portfolioDailySnapshot.deleteMany({

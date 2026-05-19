@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
 import { resgateSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 
 const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
   const assetType = item.asset?.type || '';
@@ -209,6 +210,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       },
     });
   }
+
+  // Item A (auditoria 2026-05-19): resgate em data passada deixava snapshots
+  // stale entre [dataResgate, hoje]. Mesma justificativa do aporte.
+  await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
 
   const result = NextResponse.json(
     { success: true, transacao, message: 'Resgate realizado com sucesso!' },

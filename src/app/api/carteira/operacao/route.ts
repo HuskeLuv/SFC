@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 /** Structural validation for the operacao request body (common fields). */
 const operacaoBaseSchema = z
   .object({
@@ -1986,6 +1987,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       });
     }
   }
+
+  // Item A (auditoria 2026-05-19): mesmo motivo do aporte/resgate. Operação
+  // em data passada (backfill manual de transações antigas) deixava
+  // snapshots stale → MWR/TWR não recompunha. Invalidar força fallback ao
+  // builder ao vivo até o cron diário repopular.
+  await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
 
   const result = NextResponse.json(
     {

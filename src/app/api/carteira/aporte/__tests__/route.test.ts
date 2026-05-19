@@ -7,6 +7,8 @@ const mockPrisma = vi.hoisted(() => ({
   stockTransaction: { create: vi.fn() },
 }));
 
+const mockInvalidateSnapshots = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
 vi.mock('@/utils/auth', () => ({
   requireAuthWithActing: vi.fn().mockResolvedValue({
     payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
@@ -21,6 +23,11 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/services/impersonationLogger', () => ({
   logDataUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
+  invalidatePortfolioSnapshots: mockInvalidateSnapshots,
+  recalculatePortfolioFromTransactions: vi.fn().mockResolvedValue(undefined),
 }));
 
 const createRequest = (body: object) =>
@@ -187,6 +194,26 @@ describe('POST /api/carteira/aporte', () => {
           avgPrice: novoPrecoMedio,
         }),
       });
+    });
+
+    // Item A (auditoria 2026-05-19): aporte deve invalidar snapshots com
+    // cutoff = data da transação. Sem isso, MWR/TWR carregam do cache antigo
+    // ignorando o novo fluxo de caixa entre [dataAporte, hoje].
+    it('invalida snapshots usando dataAporte como cutoff', async () => {
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataAporte: '2024-01-15',
+          valorAporte: 500,
+          tipoAtivo: 'acao',
+          instituicaoId: 'inst-1',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockInvalidateSnapshots).toHaveBeenCalledTimes(1);
+      const [userId, cutoff] = mockInvalidateSnapshots.mock.calls[0];
+      expect(userId).toBe('user-123');
+      expect((cutoff as Date).toISOString().slice(0, 10)).toBe('2024-01-15');
     });
   });
 

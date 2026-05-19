@@ -34,6 +34,11 @@ vi.mock('@/services/impersonationLogger', () => ({
   logDataUpdate: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
+  invalidatePortfolioSnapshots: vi.fn().mockResolvedValue(undefined),
+  recalculatePortfolioFromTransactions: vi.fn().mockResolvedValue(undefined),
+}));
+
 const createRequest = (body: object) =>
   new NextRequest('http://localhost/api/carteira/operacao', {
     method: 'POST',
