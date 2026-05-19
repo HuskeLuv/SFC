@@ -162,34 +162,66 @@ const fetchCrypto = async (): Promise<BrapiCrypto[]> => {
 // ================== HELPER FUNCTIONS ==================
 
 /**
- * Determina o tipo do ativo baseado no nome e características
+ * Determina o tipo do ativo baseado no nome e características.
+ *
+ * A heurística antiga marcava qualquer symbol terminado em '11' como FII,
+ * o que poluía o filtro FII com units (ENGI11, BPAC11, SANB11, ALUP11,
+ * SAPR11 — units de empresas, não fundos imobiliários). A classificação
+ * agora prioriza o nome quando disponível e cai no symbol só como fallback.
+ * O endpoint `/api/quote/list` da BRAPI muitas vezes devolve nome vazio;
+ * nesse caso o ativo entra como 'stock' e é reclassificado depois pelo
+ * `syncAssetPrices` quando `fetchDetailedQuotes` traz o `longName`.
  */
 const determineAssetType = (stock: BrapiStock): string => {
   const name = stock.name?.toLowerCase() || '';
   const symbol = stock.stock?.toLowerCase() || '';
 
-  // FIIs geralmente têm "fundo imobiliário" no nome ou terminam com 11
-  if (name.includes('fundo imobiliário') || name.includes('fii') || symbol.endsWith('11')) {
-    return 'fii';
+  return classifyByName(name, symbol, 'stock');
+};
+
+/**
+ * Reclassifica/classifica o tipo de um ativo a partir de um nome real (longName
+ * do BRAPI detailed quote ou shortName). Usado tanto no insert inicial quanto
+ * no sync de preços para corrigir entries que entraram com nome vazio.
+ *
+ * Retorna `currentType` se o nome não tem sinal claro — evita downgrade
+ * acidental de ativos já bem classificados (ex.: ETF, REIT).
+ */
+export const classifyByName = (
+  name: string,
+  symbol: string,
+  currentType: string = 'stock',
+): string => {
+  const lowerName = name.toLowerCase();
+  const lowerSymbol = symbol.toLowerCase();
+
+  // Sinais fortes de FII no nome: "fundo de investimento imobiliario",
+  // "fundo imobiliário", "fofii" (variação de FII de Fundos), ou "FII"/"FOF"
+  // como palavra. "imobil" cobre acentuado e não-acentuado.
+  const isFiiByName = lowerName.includes('imobil') || /\bfii\b/.test(lowerName);
+  if (isFiiByName) return 'fii';
+
+  // Units (BPAC11, SANB11, ENGI11, ALUP11 etc.) — BRAPI usa "Unit" ou "Units"
+  // no longName. Word-bounded pra evitar matching com "United"/"unity".
+  if (/\bunits?\b/.test(lowerName)) return 'stock';
+
+  // ETF: "ETF", "iShares", "S&P", "Ibovespa Index" etc.
+  if (/\betf\b/.test(lowerName) || lowerName.includes('ishares')) return 'etf';
+
+  // REIT: word-bounded — "direitos creditórios" (FIDCs/infra) NÃO é REIT.
+  if (/\breit\b/.test(lowerName)) return 'reit';
+
+  // BDR: ticker termina em 34
+  if (lowerSymbol.endsWith('34')) return 'bdr';
+
+  // Sem sinal no nome: usa o symbol. endsWith('11') é fraco — só aplica se
+  // não temos nome (criação inicial) e mesmo assim cai em 'stock' por
+  // segurança; o sync de preços corrige depois com o longName.
+  if (!lowerName || lowerName === lowerSymbol) {
+    return currentType;
   }
 
-  // ETFs geralmente terminam com 11 e têm "etf" no nome
-  if (name.includes('etf') || (symbol.endsWith('11') && name.includes('índice'))) {
-    return 'etf';
-  }
-
-  // BDRs geralmente terminam com 34
-  if (symbol.endsWith('34')) {
-    return 'bdr';
-  }
-
-  // REITs podem ter "reit" no nome
-  if (name.includes('reit')) {
-    return 'reit';
-  }
-
-  // Por padrão, considera como ação
-  return 'stock';
+  return currentType;
 };
 
 /**
@@ -484,6 +516,7 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
       regularMarketPrice: number;
       regularMarketTime?: string;
       currency?: string;
+      name?: string;
     }>,
   ) => {
     for (const r of results) {
@@ -493,6 +526,15 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
       if (!asset) continue;
       const marketDate = parseMarketDate(r.regularMarketTime);
       const currency = r.currency || asset.currency;
+
+      const refreshedName =
+        r.name && r.name.trim().length > 0 && r.name.toUpperCase() !== symbolUpper
+          ? r.name.trim()
+          : null;
+      const refreshedType = refreshedName
+        ? classifyByName(refreshedName, r.symbol, asset.type)
+        : null;
+
       try {
         const existing = await prisma.assetPriceHistory.findUnique({
           where: {
@@ -529,6 +571,8 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
             data: {
               currentPrice: new Decimal(r.regularMarketPrice),
               priceUpdatedAt: marketDate,
+              ...(refreshedName ? { name: refreshedName } : {}),
+              ...(refreshedType && refreshedType !== asset.type ? { type: refreshedType } : {}),
             },
           }),
         ]);
@@ -619,7 +663,15 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
     const batch = nonCryptoSymbols.slice(i, i + BATCH_SIZE);
     try {
       const results = await fetchDetailedQuotes(batch);
-      await processResults(results);
+      await processResults(
+        results.map((r) => ({
+          symbol: r.symbol,
+          regularMarketPrice: r.regularMarketPrice,
+          regularMarketTime: r.regularMarketTime,
+          currency: r.currency,
+          name: r.longName || r.shortName || undefined,
+        })),
+      );
 
       if (i + BATCH_SIZE < nonCryptoSymbols.length) {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
@@ -823,6 +875,7 @@ export const syncPricesByScope = async (
       regularMarketPrice: number;
       regularMarketTime?: string;
       currency?: string;
+      name?: string;
     }>,
   ) => {
     for (const r of results) {
@@ -832,6 +885,15 @@ export const syncPricesByScope = async (
       if (!asset) continue;
       const marketDate = parseMarketDate(r.regularMarketTime);
       const currency = r.currency || asset.currency;
+
+      const refreshedName =
+        r.name && r.name.trim().length > 0 && r.name.toUpperCase() !== symbolUpper
+          ? r.name.trim()
+          : null;
+      const refreshedType = refreshedName
+        ? classifyByName(refreshedName, r.symbol, asset.type)
+        : null;
+
       try {
         const existing = await prisma.assetPriceHistory.findUnique({
           where: {
@@ -865,7 +927,12 @@ export const syncPricesByScope = async (
           }),
           prisma.asset.update({
             where: { id: asset.id },
-            data: { currentPrice: new Decimal(r.regularMarketPrice), priceUpdatedAt: marketDate },
+            data: {
+              currentPrice: new Decimal(r.regularMarketPrice),
+              priceUpdatedAt: marketDate,
+              ...(refreshedName ? { name: refreshedName } : {}),
+              ...(refreshedType && refreshedType !== asset.type ? { type: refreshedType } : {}),
+            },
           }),
         ]);
         if (existing) totalUpdated++;
@@ -946,7 +1013,15 @@ export const syncPricesByScope = async (
       const batch = symbols.slice(i, i + BATCH_SIZE);
       try {
         const results = await fetchDetailedQuotes(batch);
-        await processResults(results);
+        await processResults(
+          results.map((r) => ({
+            symbol: r.symbol,
+            regularMarketPrice: r.regularMarketPrice,
+            regularMarketTime: r.regularMarketTime,
+            currency: r.currency,
+            name: r.longName || r.shortName || undefined,
+          })),
+        );
         if (i + BATCH_SIZE < symbols.length)
           await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       } catch (batchErr) {
