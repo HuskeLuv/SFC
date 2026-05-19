@@ -110,7 +110,7 @@ describe('InstitutionPicker', () => {
     const calledUrl = fetchMock.mock.calls[0][0] as string;
     expect(calledUrl).toContain('/api/carteira/resgate/instituicoes?tipo=acoes-brasil');
     expect(calledUrl).toContain('search=');
-    expect(calledUrl).toContain('limit=20');
+    expect(calledUrl).toContain('limit=200');
 
     const input = screen.getByPlaceholderText(/Digite o nome da instituição/i);
     fireEvent.focus(input);
@@ -173,6 +173,75 @@ describe('InstitutionPicker', () => {
 
     expect(onChange).toHaveBeenCalledWith({ id: 'inst-1', nome: 'XP Investimentos' });
     expect(onErrorClear).toHaveBeenCalled();
+  });
+
+  it('refaz busca na API quando o usuário digita no input (debounced)', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const search = new URL(url, 'http://localhost').searchParams.get('search') ?? '';
+      const all = [
+        { id: 'inst-1', nome: 'Banco do Brasil', codigo: '001' },
+        { id: 'inst-2', nome: 'XP Investimentos', codigo: '102' },
+      ];
+      const filtered = search
+        ? all.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase()))
+        : all;
+      return Promise.resolve(mockFetchResponse({ institutions: filtered }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const onChange = vi.fn();
+
+    const { rerender } = render(
+      <InstitutionPicker
+        endpoint="/api/institutions"
+        responseShape="institutions"
+        selectedId=""
+        selectedName=""
+        onChange={onChange}
+      />,
+    );
+
+    // Fetch inicial (search vazio)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const initialUrl = fetchMock.mock.calls[0][0] as string;
+    expect(initialUrl).toContain('search=');
+
+    // Simula o pai propagando o que o usuário digitou
+    rerender(
+      <InstitutionPicker
+        endpoint="/api/institutions"
+        responseShape="institutions"
+        selectedId=""
+        selectedName="XP"
+        onChange={onChange}
+      />,
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const searchUrl = fetchMock.mock.calls[1][0] as string;
+    expect(searchUrl).toContain('search=XP');
+  });
+
+  it('limpa selectedId quando o usuário edita o texto após uma seleção', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockFetchResponse({ institutions: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const onChange = vi.fn();
+
+    render(
+      <InstitutionPicker
+        endpoint="/api/institutions"
+        responseShape="institutions"
+        selectedId="inst-xp"
+        selectedName="XP Investimentos"
+        onChange={onChange}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText(/Digite o nome da instituição/i);
+    fireEvent.change(input, { target: { value: 'XP Investimentos Z' } });
+
+    expect(onChange).toHaveBeenCalledWith({ id: '', nome: 'XP Investimentos Z' });
   });
 
   it('aborta a request anterior quando o endpoint muda', async () => {

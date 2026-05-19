@@ -54,7 +54,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const tipo = searchParams.get('tipo') || '';
   const search = (searchParams.get('search') || '').toLowerCase();
-  const limit = parseInt(searchParams.get('limit') || '20', 10);
+  const limit = parseInt(searchParams.get('limit') || '200', 10);
 
   const { targetUserId } = await requireAuthWithActing(request);
 

@@ -74,7 +74,7 @@ export default function InstitutionPicker({
       setLoading(true);
       try {
         const separator = endpoint.includes('?') ? '&' : '?';
-        const url = `${endpoint}${separator}search=${encodeURIComponent(search)}&limit=20`;
+        const url = `${endpoint}${separator}search=${encodeURIComponent(search)}&limit=200`;
 
         const response = await fetch(url, { credentials: 'include', signal });
         if (!response.ok) return;
@@ -110,15 +110,19 @@ export default function InstitutionPicker({
     const controller = new AbortController();
     abortRef.current = controller;
 
-    fetchInstitutions('', controller.signal);
+    const delay = selectedName ? 250 : 0;
+    const timer = setTimeout(() => {
+      fetchInstitutions(selectedName, controller.signal);
+    }, delay);
 
     return () => {
+      clearTimeout(timer);
       controller.abort();
     };
-  }, [endpoint, fetchInstitutions]);
+  }, [endpoint, fetchInstitutions, selectedName]);
 
   const handleInputChange = (value: string) => {
-    onChange({ id: value ? selectedId : '', nome: value });
+    onChange({ id: value === selectedName ? selectedId : '', nome: value });
     if (error && onErrorClear) onErrorClear();
   };
 

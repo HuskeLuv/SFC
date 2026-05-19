@@ -5,7 +5,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search') || '';
-  const limit = parseInt(searchParams.get('limit') || '20');
+  const limit = parseInt(searchParams.get('limit') || '200');
 
   let institutions;
 
