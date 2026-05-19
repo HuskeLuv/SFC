@@ -19,7 +19,7 @@ beforeEach(() => {
   global.fetch = mockFetch;
 });
 
-import { getDividends } from '../dividendService';
+import { getDividends, isJcpType, JCP_IRRF_RATE } from '../dividendService';
 
 const makeBrapiResponse = (dividends: Record<string, unknown>[]) => ({
   ok: true,
@@ -377,5 +377,84 @@ describe('getDividends', () => {
 
       expect(result[0].dataCom).toBeNull();
     });
+  });
+
+  // ── JCP IRRF (Bug #01, 2º passe) ──
+
+  describe('JCP IRRF — valorUnitarioLiquido', () => {
+    it('aplica 15% IRRF em entries JCP do DB', async () => {
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([
+        makeDbRow(new Date('2024-04-15'), 'JCP', 1.0),
+        makeDbRow(new Date('2024-05-15'), 'JUROS SOBRE CAPITAL PROPRIO', 2.0),
+      ]);
+
+      const result = await getDividends('ITUB4');
+
+      expect(result).toHaveLength(2);
+      // 1.0 bruto → 0.85 líquido
+      expect(result[0].valorUnitario).toBe(1.0);
+      expect(result[0].valorUnitarioLiquido).toBeCloseTo(0.85, 10);
+      // 2.0 bruto → 1.70 líquido
+      expect(result[1].valorUnitario).toBe(2.0);
+      expect(result[1].valorUnitarioLiquido).toBeCloseTo(1.7, 10);
+    });
+
+    it('NÃO aplica IRRF em dividendos comuns (isentos)', async () => {
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([
+        makeDbRow(new Date('2024-01-15'), 'Dividendo', 0.5),
+        makeDbRow(new Date('2024-02-15'), 'Rendimento', 0.8),
+      ]);
+
+      const result = await getDividends('VALE3');
+
+      expect(result[0].valorUnitarioLiquido).toBe(result[0].valorUnitario);
+      expect(result[1].valorUnitarioLiquido).toBe(result[1].valorUnitario);
+    });
+
+    it('aplica IRRF também em entries vindas do BRAPI fallback', async () => {
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([]);
+      mockPrisma.assetDividendHistory.upsert.mockResolvedValue({});
+      mockFetch.mockResolvedValue(
+        makeBrapiResponse([
+          {
+            paymentDate: '2024-06-10',
+            label: 'JUROS SOBRE CAPITAL PRÓPRIO',
+            value: 0.5,
+            lastDatePrior: '2024-06-01',
+          },
+        ]),
+      );
+
+      const result = await getDividends('BBDC4');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].valorUnitario).toBe(0.5);
+      expect(result[0].valorUnitarioLiquido).toBeCloseTo(0.425, 10);
+    });
+  });
+});
+
+describe('isJcpType', () => {
+  it('detecta as variações de label da BRAPI', () => {
+    expect(isJcpType('JCP')).toBe(true);
+    expect(isJcpType('JURO SOBRE CAPITAL')).toBe(true);
+    expect(isJcpType('JUROS SOBRE CAPITAL PROPRIO')).toBe(true);
+    expect(isJcpType('JUROS SOBRE CAPITAL PRÓPRIO')).toBe(true);
+    expect(isJcpType('jcp')).toBe(true); // case-insensitive
+    expect(isJcpType('JSCP')).toBe(true);
+    expect(isJcpType('Juros S/ Capital')).toBe(true);
+  });
+
+  it('NÃO marca dividendos comuns como JCP', () => {
+    expect(isJcpType('Dividendo')).toBe(false);
+    expect(isJcpType('DIVIDEND')).toBe(false);
+    expect(isJcpType('Rendimento')).toBe(false); // FII
+    expect(isJcpType('Bonificação')).toBe(false);
+    expect(isJcpType(null)).toBe(false);
+    expect(isJcpType('')).toBe(false);
+  });
+
+  it('JCP_IRRF_RATE é 15% (convenção brasileira Lei 9.249/95)', () => {
+    expect(JCP_IRRF_RATE).toBe(0.15);
   });
 });

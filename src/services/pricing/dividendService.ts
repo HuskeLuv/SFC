@@ -150,9 +150,47 @@ export interface DividendEntry {
   date: Date;
   /** Data-com (ex-dividend date). Define a elegibilidade do investidor. */
   dataCom: Date | null;
+  /** Tipo do provento (label da BRAPI: "Dividendo", "JCP", "JUROS SOBRE CAPITAL PROPRIO", "Rendimento" etc.). */
   tipo: string;
+  /** Valor bruto por cota/ação (R$). Como a BRAPI retorna. */
   valorUnitario: number;
+  /**
+   * Valor líquido por cota/ação após IRRF (R$). Para JCP é `valorUnitario × 0.85`
+   * (15% retido na fonte — convenção brasileira). Para dividendos comuns e
+   * rendimentos de FII (isentos), iguala `valorUnitario`. Usado pelos KPIs e
+   * totais exibidos ao usuário (equivale ao `equity` do Kinvo statement).
+   *
+   * Opcional para compatibilidade com mocks/seeds legados — consumidores devem
+   * usar `valorUnitarioLiquido ?? valorUnitario`. Construtores em produção
+   * (DB read + BRAPI fetch) sempre preenchem.
+   */
+  valorUnitarioLiquido?: number;
 }
+
+/**
+ * Bug #01 (relatório Maio/2026, 2º passe): identifica entries de JCP a partir
+ * do label retornado pela BRAPI. Variações observadas: "JCP", "JURO SOBRE
+ * CAPITAL", "JUROS SOBRE CAPITAL PROPRIO" (com/sem acentuação), "JRC", "JSCP".
+ * Não considera "rendimentos" (FII) — esses são isentos.
+ */
+export const isJcpType = (tipo: string | null | undefined): boolean => {
+  if (!tipo) return false;
+  const upper = tipo.toUpperCase();
+  return (
+    upper.includes('JCP') ||
+    upper.includes('JSCP') ||
+    upper.includes('JRC') ||
+    upper.includes('JURO SOBRE CAPITAL') ||
+    upper.includes('JUROS SOBRE CAPITAL') ||
+    upper.includes('JUROS S/ CAPITAL')
+  );
+};
+
+/** Alíquota de IRRF padrão sobre JCP no Brasil (Lei 9.249/95). */
+export const JCP_IRRF_RATE = 0.15;
+
+const computeValorUnitarioLiquido = (tipo: string, valorUnitarioBruto: number): number =>
+  isJcpType(tipo) ? valorUnitarioBruto * (1 - JCP_IRRF_RATE) : valorUnitarioBruto;
 
 export interface CorporateActionEntry {
   date: Date;
@@ -183,6 +221,7 @@ const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
         dataCom: r.dataCom ?? null,
         tipo: r.tipo,
         valorUnitario: r.valorUnitario,
+        valorUnitarioLiquido: computeValorUnitarioLiquido(r.tipo, r.valorUnitario),
       });
     }
   }
@@ -224,7 +263,13 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
 
       const exDate = extractExDate(d);
       const tipo = extractDividendType(d);
-      entries.push({ date, dataCom: exDate, tipo, valorUnitario });
+      entries.push({
+        date,
+        dataCom: exDate,
+        tipo,
+        valorUnitario,
+        valorUnitarioLiquido: computeValorUnitarioLiquido(tipo, valorUnitario),
+      });
 
       const dateNorm = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       const dataComNorm = exDate

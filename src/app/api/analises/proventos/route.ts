@@ -122,6 +122,17 @@ const mapAssetTypeToClasse = (entry: PortfolioAssetEntry) => {
   return 'Outros';
 };
 
+// Bug #01 (relatório Maio/2026, 2º passe): proventos manuais armazenam o
+// valor bruto em `valorTotal` e o IRRF retido em `impostoRenda` (R$). O total
+// recebido pelo usuário é líquido (`valorTotal - impostoRenda`), e é isso que
+// precisa entrar nos KPIs/totais — equivalente ao `equity` do statement Kinvo
+// (vide auditoria 2026-05-19). Reportar bruto inflaria o YoC/Renda em ~15% pra
+// quem registra JCP via aporte manual.
+const netValueOfManualProvento = (mp: {
+  valorTotal: number;
+  impostoRenda: number | null;
+}): number => Math.max(0, mp.valorTotal - (mp.impostoRenda ?? 0));
+
 const buildTimeline = (transactions: TransactionPoint[]) => {
   const sorted = [...transactions].sort((a, b) => a.date - b.date);
   const timeline: TransactionPoint[] = [];
@@ -332,7 +343,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         quantidadeHistorica > 0 ? quantidadeHistorica : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) return;
 
-      const valor = Math.round(quantidade * d.valorUnitario * 100) / 100;
+      // Bug #01 (2º passe): exibir LÍQUIDO ao usuário (equivale ao `equity` do
+      // Kinvo statement). Para JCP isto = bruto × 0.85; pra dividendos comuns
+      // e rendimentos isentos, equivale ao bruto. O IR/DAA usa bruto via
+      // d.valorUnitario diretamente (rota separada `ir-resumo-anual`).
+      const valor =
+        Math.round(quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario) * 100) / 100;
       proventos.push({
         id: `${asset.symbol}-${dateTime}-${index}`,
         data: d.date.toISOString(),
@@ -342,7 +358,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         classe,
         valor,
         quantidade,
-        valorUnitario: d.valorUnitario,
+        valorUnitario: d.valorUnitarioLiquido ?? d.valorUnitario,
         status: 'realizado' as const,
       });
     });
@@ -362,7 +378,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (endDateTime && dateTime > endDateTime) return;
 
     const quantidade = mp.quantidadeBase || 0;
-    const valor = Math.round(mp.valorTotal * 100) / 100;
+    const liquido = netValueOfManualProvento(mp);
+    const valor = Math.round(liquido * 100) / 100;
     proventos.push({
       id: `manual-${mp.id}`,
       data: mp.dataPagamento.toISOString(),
@@ -372,7 +389,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       classe: mapAssetTypeToClasse(asset),
       valor,
       quantidade,
-      valorUnitario: quantidade > 0 ? mp.valorTotal / quantidade : 0,
+      valorUnitario: quantidade > 0 ? liquido / quantidade : 0,
       status: 'realizado' as const,
     });
   });
@@ -409,7 +426,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const qtdHist = getQuantityAtDate(timeline, dateTime);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
-      const valor = quantidade * d.valorUnitario;
+      const valor = quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario);
       addLifetime(asset.symbol, valor, dateTime);
       if (dateTime >= doze_m_ms_row) addUlt12m(asset.symbol, valor);
     }
@@ -420,8 +437,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (!symbol || isBlockedSymbol(symbol)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime > hojeMs) return;
-    addLifetime(symbol, mp.valorTotal, dateTime);
-    if (dateTime >= doze_m_ms_row) addUlt12m(symbol, mp.valorTotal);
+    const liquido = netValueOfManualProvento(mp);
+    addLifetime(symbol, liquido, dateTime);
+    if (dateTime >= doze_m_ms_row) addUlt12m(symbol, liquido);
   });
 
   // Agrupar dados conforme solicitado
@@ -652,11 +670,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (purchaseDateTime && eligibilityDate < purchaseDateTime) continue;
       const quantidade = asset.quantity;
       if (quantidade <= 0) continue;
-      const valor = quantidade * d.valorUnitario;
+      const valor = quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario);
       accumulateFuture(asset.symbol, asset.name || asset.symbol, dateTime, valor);
     }
   }
-  // Proventos manuais a receber (já vêm com valorTotal pronto)
+  // Proventos manuais a receber (líquido — bruto menos IRRF, vide helper)
   manualProventos.forEach((mp) => {
     const pf = portfolioById.get(mp.portfolioId);
     const symbol = pf?.asset?.symbol;
@@ -664,7 +682,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime <= hojeKpiMs) return;
     const name = pf?.asset?.name || symbol;
-    accumulateFuture(symbol, name, dateTime, mp.valorTotal);
+    accumulateFuture(symbol, name, dateTime, netValueOfManualProvento(mp));
   });
 
   const topPayer = (
@@ -696,18 +714,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const qtdHist = getQuantityAtDate(timeline, dateTime);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
-      proventosRealizadosTodos.push({ data: dateTime, valor: quantidade * d.valorUnitario });
+      proventosRealizadosTodos.push({
+        data: dateTime,
+        valor: quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario),
+      });
     }
   }
 
-  // Proventos manuais (PortfolioProvento) entram no histórico realizado
+  // Proventos manuais (PortfolioProvento) entram no histórico realizado — líquido
   manualProventos.forEach((mp) => {
     const pf = portfolioById.get(mp.portfolioId);
     const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime > hojeKpiMs) return;
-    proventosRealizadosTodos.push({ data: dateTime, valor: mp.valorTotal });
+    proventosRealizadosTodos.push({ data: dateTime, valor: netValueOfManualProvento(mp) });
   });
 
   const rendaUlt12m = proventosRealizadosTodos

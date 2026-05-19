@@ -291,11 +291,14 @@ describe('GET /api/analises/proventos', () => {
     expect(response.status).toBe(200);
     expect(data.proventos.length).toBe(1);
     expect(data.proventos[0].tipo).toBe('JCP');
-    expect(data.proventos[0].valor).toBe(100);
-    expect(data.kpis.rendaAcumulada.periodo).toBe(100);
-    // YoC = 100 / 3000 (avgPrice * quantidade) = 3.33%
-    expect(data.kpis.yoc.periodo).toBeCloseTo(3.33, 1);
-    expect(data.kpis.yoc.ult12m).toBeCloseTo(3.33, 1);
+    // Bug #01 (2º passe): valor exibido é LÍQUIDO (valorTotal - impostoRenda).
+    // Antes este teste verificava o bruto e mascarava o bug — IRRF retido
+    // (R$ 15) inflava o total recebido em R$ 15.
+    expect(data.proventos[0].valor).toBe(85);
+    expect(data.kpis.rendaAcumulada.periodo).toBe(85);
+    // YoC = 85 / 3000 (avgPrice * quantidade) = 2.83%
+    expect(data.kpis.yoc.periodo).toBeCloseTo(2.83, 1);
+    expect(data.kpis.yoc.ult12m).toBeCloseTo(2.83, 1);
   });
 
   it('soma JCP manual com dividendos BRAPI no YoC', async () => {
@@ -355,8 +358,65 @@ describe('GET /api/analises/proventos', () => {
 
     expect(response.status).toBe(200);
     expect(data.proventos.length).toBe(2);
-    expect(data.kpis.rendaAcumulada.periodo).toBe(130); // 50 + 80
-    expect(data.kpis.yoc.periodo).toBeCloseTo(4.33, 1); // 130 / 3000
+    // Bug #01 (2º passe): JCP=80 bruto - 12 IRRF = 68 líquido. Total = 50 + 68 = 118.
+    expect(data.kpis.rendaAcumulada.periodo).toBe(118);
+    expect(data.kpis.yoc.periodo).toBeCloseTo(3.93, 1); // 118 / 3000
+  });
+
+  it('aplica valorUnitarioLiquido (JCP BRAPI) no total e no YoC', async () => {
+    // Bug #01 (2º passe): quando dividendService retorna `valorUnitarioLiquido`
+    // diferente de `valorUnitario` (JCP com 15% IRRF), a rota usa o líquido.
+    const now = new Date();
+    const lastMonth = new Date(now.getTime() - 30 * 86400000);
+    const jcpDate = new Date(now.getTime() - 10 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: lastMonth,
+        stockId: 'stock-1',
+        assetId: null,
+        asset: { id: 'asset-1', symbol: 'ITUB4', name: 'Itaú', type: 'stock' },
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: lastMonth,
+        stockId: 'stock-1',
+        assetId: null,
+        asset: { symbol: 'ITUB4', name: 'Itaú', type: 'stock' },
+      },
+    ]);
+    // JCP do BRAPI: bruto 1.0/cota, líquido 0.85/cota (15% IRRF aplicado pelo service)
+    mockGetDividends.mockResolvedValue([
+      {
+        date: jcpDate,
+        tipo: 'JCP',
+        valorUnitario: 1.0,
+        valorUnitarioLiquido: 0.85,
+      },
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['ITUB4', 35]]));
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.proventos.length).toBe(1);
+    // Valor = 100 cotas × 0.85 líquido = 85
+    expect(data.proventos[0].valor).toBe(85);
+    expect(data.proventos[0].valorUnitario).toBe(0.85); // exibido = líquido
+    expect(data.kpis.rendaAcumulada.periodo).toBe(85);
   });
 
   it('YoC e DY por ativo usam trailing-12m (ignora filtro de período)', async () => {
