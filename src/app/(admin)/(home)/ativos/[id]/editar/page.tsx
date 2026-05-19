@@ -14,6 +14,7 @@ import { Dropdown } from '@/components/ui/dropdown/Dropdown';
 import { useCsrf } from '@/hooks/useCsrf';
 import { DropdownItem } from '@/components/ui/dropdown/DropdownItem';
 import EditableField from '@/components/carteira/shared/EditableField';
+import InstitutionPicker from '@/components/carteira/wizard/shared/InstitutionPicker';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 import { formatWallClockDate, toDateInputValue } from '@/utils/formatDate';
 import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
@@ -159,57 +160,41 @@ const defaultProventoDraft = (): ProventoDraft => {
 };
 
 /**
- * Bug #11: select editável de instituição. Carrega o catálogo via /api/institutions
- * sob demanda (no primeiro foco), mostra um botão estilizado enquanto o usuário não
- * abriu o select — assim a busca não dispara para cada ativo carregado na tela.
+ * Bug #11 (relatório Maio/2026): select editável de instituição. Botão
+ * estilizado por padrão; ao clicar em "Editar", expande para o
+ * `InstitutionPicker` compartilhado (busca server-side debounced, mesmo
+ * padrão do wizard de adicionar investimento — fix aplicado em 2026-05-19,
+ * commit `788984b`). Antes carregava o catálogo inteiro com limit=500 num
+ * `<select>` nativo: usável mas frágil (não escalava acima do limit, sem
+ * filtro client-side de qualidade).
  */
-interface InstitutionOption {
-  id: string;
-  nome: string;
-}
-
 const InstitutionSelect: React.FC<{
   currentId: string | null;
   currentNome: string | null;
   onChange: (id: string) => void | Promise<void>;
 }> = ({ currentId, currentNome, onChange }) => {
-  const [options, setOptions] = useState<InstitutionOption[] | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Estado local pra controlar o input enquanto o usuário digita.
+  // Quando ele seleciona uma opção, dispara o save via onChange e fecha.
+  const [draftId, setDraftId] = useState<string>(currentId ?? '');
+  const [draftNome, setDraftNome] = useState<string>(currentNome ?? '');
 
-  const fetchOptions = useCallback(async () => {
-    if (options !== null) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/api/institutions?limit=500', { credentials: 'include' });
-      if (res.ok) {
-        const json = (await res.json()) as { institutions?: InstitutionOption[] };
-        setOptions(json.institutions ?? []);
-      } else {
-        setOptions([]);
-      }
-    } catch {
-      setOptions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [options]);
-
-  const handleEdit = async () => {
-    await fetchOptions();
+  const handleEdit = () => {
+    setDraftId(currentId ?? '');
+    setDraftNome(currentNome ?? '');
     setIsEditing(true);
   };
 
-  const handleSelect = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newId = e.target.value;
-    if (!newId || newId === currentId) {
-      setIsEditing(false);
-      return;
-    }
+  const handlePickerChange = async (next: { id: string; nome: string }) => {
+    setDraftId(next.id);
+    setDraftNome(next.nome);
+    // Persiste apenas quando o usuário SELECIONA (id muda e fica não-vazio);
+    // digitação no input apenas atualiza o draft.
+    if (!next.id || next.id === currentId) return;
     setSaving(true);
     try {
-      await onChange(newId);
+      await onChange(next.id);
     } finally {
       setSaving(false);
       setIsEditing(false);
@@ -231,26 +216,25 @@ const InstitutionSelect: React.FC<{
   }
 
   return (
-    <select
-      autoFocus
-      value={currentId ?? ''}
-      onChange={handleSelect}
-      onBlur={() => setIsEditing(false)}
-      disabled={loading || saving}
-      className="w-full max-w-md rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-800 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-    >
-      {loading && <option>Carregando...</option>}
-      {!loading && options && (
-        <>
-          {!currentId && <option value="">Selecione uma instituição</option>}
-          {options.map((opt) => (
-            <option key={opt.id} value={opt.id}>
-              {opt.nome}
-            </option>
-          ))}
-        </>
-      )}
-    </select>
+    <div className="w-full max-w-md">
+      <InstitutionPicker
+        endpoint="/api/institutions"
+        responseShape="institutions"
+        selectedId={draftId}
+        selectedName={draftNome}
+        onChange={handlePickerChange}
+        label=""
+        placeholder="Digite o nome da instituição (ex: Itaú, XP)"
+      />
+      <button
+        type="button"
+        onClick={() => setIsEditing(false)}
+        disabled={saving}
+        className="mt-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400"
+      >
+        Cancelar
+      </button>
+    </div>
   );
 };
 
