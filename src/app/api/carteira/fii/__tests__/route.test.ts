@@ -219,5 +219,81 @@ describe('/api/carteira/fii', () => {
         expect(String(item.percentual)).not.toMatch(/0000000\d+$/);
       }
     });
+
+    // 2º passe (2026-05-19): toBeCloseTo(100, 1) tolerava 99.95–100.05.
+    // Caso clássico: 3 FIIs com valores iguais geram 33.33+33.33+33.33 = 99.99.
+    // Donut/Kinvo precisam de exatamente 100,00 — usuário vê inconsistência.
+    it('alocacaoSegmento.percentual fecha EXATAMENTE 100,00 (largest-remainder)', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(
+        new Map([
+          ['HGLG11', 100],
+          ['MXRF11', 100],
+          ['XPLG11', 100],
+        ]),
+      );
+      mockPrisma.portfolio.findMany.mockResolvedValue(
+        [
+          { ticker: 'HGLG11', tipo: 'tijolo' },
+          { ticker: 'MXRF11', tipo: 'papel' },
+          { ticker: 'XPLG11', tipo: 'logistica' },
+        ].map((cfg, i) => ({
+          id: `p${i}`,
+          userId: 'user-1',
+          quantity: 100,
+          totalInvested: 10000,
+          avgPrice: 100,
+          objetivo: 33.33,
+          tipoFii: cfg.tipo,
+          assetId: `asset-${i}`,
+          asset: { symbol: cfg.ticker, name: cfg.ticker, type: 'fii' },
+          lastUpdate: new Date(),
+        })),
+      );
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+
+      const sum = data.alocacaoSegmento.reduce(
+        (acc: number, item: { percentual: number }) => acc + item.percentual,
+        0,
+      );
+      // Tolerância eps 0.001 — não 0.05 como o teste mais lasso acima.
+      expect(Math.abs(sum - 100)).toBeLessThan(0.001);
+    });
+
+    it('alocacaoAtivo.percentual fecha EXATAMENTE 100,00 (largest-remainder)', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(
+        new Map([
+          ['HGLG11', 100],
+          ['MXRF11', 100],
+          ['XPLG11', 100],
+        ]),
+      );
+      mockPrisma.portfolio.findMany.mockResolvedValue(
+        ['HGLG11', 'MXRF11', 'XPLG11'].map((ticker, i) => ({
+          id: `p${i}`,
+          userId: 'user-1',
+          quantity: 100,
+          totalInvested: 10000,
+          avgPrice: 100,
+          objetivo: 33.33,
+          tipoFii: 'tijolo',
+          assetId: `asset-${i}`,
+          asset: { symbol: ticker, name: ticker, type: 'fii' },
+          lastUpdate: new Date(),
+        })),
+      );
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+
+      const sum = data.alocacaoAtivo.reduce(
+        (acc: number, item: { percentual: number }) => acc + item.percentual,
+        0,
+      );
+      expect(Math.abs(sum - 100)).toBeLessThan(0.001);
+    });
   });
 });

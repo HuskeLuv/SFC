@@ -202,25 +202,52 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   // label central do donut como "31210.000000000004".
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
+  /**
+   * Bug #14 (2º passe): arredondar cada percentual individualmente NÃO garante
+   * soma=100 (3 ativos de mesmo valor: 33.33+33.33+33.33 = 99.99). Distribui
+   * o resto da divisão no item com maior percentual — diferença de R$ 0.01
+   * indistinguível visualmente mas a soma fecha 100,00 exato.
+   */
+  const distributeRoundedPercents = <T extends { percentual: number }>(items: T[]): T[] => {
+    if (items.length === 0) return items;
+    const total = items.reduce((acc, item) => acc + item.percentual, 0);
+    if (total === 0) return items;
+    const diff = round2(100 - total);
+    if (diff === 0) return items;
+    let maxIdx = 0;
+    for (let i = 1; i < items.length; i++) {
+      if (items[i].percentual > items[maxIdx].percentual) maxIdx = i;
+    }
+    items[maxIdx] = {
+      ...items[maxIdx],
+      percentual: round2(items[maxIdx].percentual + diff),
+    };
+    return items;
+  };
+
   // Calcular alocação por segmento (% sobre total da carteira de FIIs — soma=100)
-  const alocacaoSegmento = secoes.map((secao) => ({
-    segmento: secao.nome,
-    valor: round2(secao.totalValorAtualizado),
-    percentual: round2(
-      totalValorAtualizado > 0 ? (secao.totalValorAtualizado / totalValorAtualizado) * 100 : 0,
-    ),
-    cor: getSegmentColor(secao.tipo),
-  }));
+  const alocacaoSegmento = distributeRoundedPercents(
+    secoes.map((secao) => ({
+      segmento: secao.nome,
+      valor: round2(secao.totalValorAtualizado),
+      percentual: round2(
+        totalValorAtualizado > 0 ? (secao.totalValorAtualizado / totalValorAtualizado) * 100 : 0,
+      ),
+      cor: getSegmentColor(secao.tipo),
+    })),
+  );
 
   // Calcular alocação por ativo (% sobre total da carteira de FIIs — soma=100)
-  const alocacaoAtivo = fiiAtivos.map((ativo) => ({
-    ticker: ativo.ticker,
-    valor: round2(ativo.valorAtualizado),
-    percentual: round2(
-      totalValorAtualizado > 0 ? (ativo.valorAtualizado / totalValorAtualizado) * 100 : 0,
-    ),
-    cor: getAtivoColor(ativo.ticker),
-  }));
+  const alocacaoAtivo = distributeRoundedPercents(
+    fiiAtivos.map((ativo) => ({
+      ticker: ativo.ticker,
+      valor: round2(ativo.valorAtualizado),
+      percentual: round2(
+        totalValorAtualizado > 0 ? (ativo.valorAtualizado / totalValorAtualizado) * 100 : 0,
+      ),
+      cor: getAtivoColor(ativo.ticker),
+    })),
+  );
 
   // Tabela auxiliar (dados adicionais)
   const tabelaAuxiliar = fiiAtivos.map((ativo) => ({
