@@ -129,4 +129,34 @@ describe('createFixedIncomePricer — Bug #15 (idempotência entre rotas)', () =
     });
     expect(pricer.getCurrentValue(fi)).toBe(fi.investedAmount);
   });
+
+  // 2º passe (2026-05-19): a rota consolidada `/api/carteira/renda-fixa` chama
+  // `createFixedIncomePricer(userId)` sem options (asOfDate=new Date() bruto,
+  // sem preloadedAssets, sem portfolioStartDate). A rota detalhe `/api/ativos/[id]`
+  // chama com `{ asOfDate: hoje normalizado, preloadedAssets: [fi], portfolioStartDate }`.
+  // Garantir que essa diferença de invocação NÃO produz divergência de centavos.
+  it('mesmo FI dá o mesmo valor por consolidated path vs detail path', async () => {
+    const fi = makeCdiPrefixadoFi();
+    const today = new Date('2025-06-15T14:30:00Z'); // hora qualquer no meio do dia
+    const normalizedToday = new Date(2025, 5, 15); // mesmo dia, 00:00 local
+
+    // Detail path: passa fi via preloadedAssets + asOfDate normalizado + portfolioStartDate
+    const pricerDetail = await createFixedIncomePricer('user-1', {
+      asOfDate: normalizedToday,
+      preloadedAssets: [fi],
+      portfolioStartDate: fi.startDate,
+    });
+
+    // Consolidated path: o fi vem do DB; asOfDate raw (com hora); sem portfolioStartDate
+    mockPrisma.fixedIncomeAsset.findMany.mockResolvedValueOnce([fi]);
+    const pricerConsolidated = await createFixedIncomePricer('user-1', {
+      asOfDate: today, // simula o "new Date()" do consolidated mas determinístico
+    });
+
+    const valorDetail = pricerDetail.getCurrentValue(fi);
+    const valorConsolidated = pricerConsolidated.getCurrentValue(fi);
+
+    // Divergência permitida: zero centavos.
+    expect(valorDetail).toBe(valorConsolidated);
+  });
 });
