@@ -106,6 +106,11 @@ export default function Step5Confirmation({
             {renderFieldValue('Data de Compra', formData.dataCompra, formatDate)}
             {renderFieldValue('Quantidade', formData.quantidade)}
             {renderFieldValue('Cotação de Compra', formData.cotacaoCompra, formatCurrency)}
+            {renderFieldValue(
+              'Total',
+              (formData.quantidade || 0) * (formData.cotacaoCompra || 0),
+              formatCurrency,
+            )}
           </>
         );
 
@@ -358,7 +363,15 @@ export default function Step5Confirmation({
             {renderFieldValue('Quantidade de Cotas', formData.quantidade)}
             {renderFieldValue('Cotação Unitária', formData.cotacaoUnitaria, formatCurrency)}
             {renderFieldValue('Taxa de Corretagem', formData.taxaCorretagem, formatCurrency)}
-            {renderFieldValue('Total Investido', formData.valorInvestido, formatCurrency)}
+            {/* Bug #13 (2º passe): computa qty × cotação + corretagem em vez de
+                ler valorInvestido (que vinha de uma useEffect em Step4 e podia
+                estar stale em edge cases). Mesma fórmula que acao/etf/opcoes. */}
+            {renderFieldValue(
+              'Total Investido',
+              (formData.quantidade || 0) * (formData.cotacaoUnitaria || 0) +
+                (formData.taxaCorretagem || 0),
+              formatCurrency,
+            )}
           </>
         );
 

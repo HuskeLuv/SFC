@@ -60,4 +60,46 @@ describe('Step5Confirmation — Bug #13 (linha Total)', () => {
     // 10 × 200,50 + 5 = R$ 2.010,00
     expect(screen.getByText(/R\$\s*2\.010,00/)).toBeInTheDocument();
   });
+
+  // ── 2º passe (2026-05-19): cases que ficaram de fora do fix de Maio/11 ──
+
+  it('renderiza Total em criptoativo (qty × cotacaoCompra)', () => {
+    const formData = {
+      ...baseFormData(),
+      tipoAtivo: 'criptoativo',
+      ativo: 'Bitcoin',
+      acoesBrasilTipo: undefined,
+      quantidade: 0.5,
+      cotacaoCompra: 300000,
+      cotacaoUnitaria: 0,
+      taxaCorretagem: 0,
+    } as unknown as WizardFormData;
+
+    render(<Step5Confirmation formData={formData} onSubmit={vi.fn()} loading={false} />);
+
+    // Bug #13 (2º passe): criptoativo não exibia linha Total antes do fix.
+    // 0,5 × R$ 300.000 = R$ 150.000,00
+    expect(screen.getByText(/Total:?/)).toBeInTheDocument();
+    expect(screen.getByText(/R\$\s*150\.000,00/)).toBeInTheDocument();
+  });
+
+  it('computa Total Investido em FII com qty × cotação + corretagem (não lê valorInvestido)', () => {
+    const formData = {
+      ...baseFormData(),
+      tipoAtivo: 'fii',
+      ativo: 'HGLG11',
+      acoesBrasilTipo: undefined,
+      quantidade: 100,
+      cotacaoUnitaria: 160,
+      taxaCorretagem: 20,
+      // valorInvestido deliberadamente stale — comprovação que NÃO é lido:
+      valorInvestido: 99999,
+    } as unknown as WizardFormData;
+
+    render(<Step5Confirmation formData={formData} onSubmit={vi.fn()} loading={false} />);
+
+    // 100 × 160 + 20 = R$ 16.020,00 (não R$ 99.999)
+    expect(screen.getByText(/R\$\s*16\.020,00/)).toBeInTheDocument();
+    expect(screen.queryByText(/99\.999/)).not.toBeInTheDocument();
+  });
 });
