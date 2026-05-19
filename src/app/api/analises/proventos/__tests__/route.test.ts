@@ -36,6 +36,12 @@ vi.mock('@/services/pricing/assetPriceService', () => ({
 vi.mock('@/services/pricing/dividendService', () => ({
   getDividends: mockGetDividends,
   getCorporateActions: mockGetCorporateActions,
+  // Exports usados pela rota pro fallback de JCP (Lacuna 1/3 do 2º passe).
+  // Mantemos a lógica real porque os testes verificam o comportamento de
+  // dedup e dedução IRRF — não faz sentido mockar.
+  isJcpType: (tipo: string | null | undefined) =>
+    !!tipo && /JCP|JSCP|JRC|JURO SOBRE CAPITAL|JUROS SOBRE CAPITAL|JUROS S\/ CAPITAL/i.test(tipo),
+  JCP_IRRF_RATE: 0.15,
 }));
 
 vi.mock('@/services/impersonationLogger', () => ({
@@ -416,6 +422,122 @@ describe('GET /api/analises/proventos', () => {
     // Valor = 100 cotas × 0.85 líquido = 85
     expect(data.proventos[0].valor).toBe(85);
     expect(data.proventos[0].valorUnitario).toBe(0.85); // exibido = líquido
+    expect(data.kpis.rendaAcumulada.periodo).toBe(85);
+  });
+
+  // Lacuna 3 (auditoria 2026-05-19): mirror BRAPI→PortfolioProvento duplicava
+  // proventos quando ambos os caminhos eram somados sem dedup.
+  it('dedupa BRAPI dividend quando há PortfolioProvento espelhado pro mesmo evento', async () => {
+    const now = new Date();
+    const lastMonth = new Date(now.getTime() - 30 * 86400000);
+    const dividendDate = new Date(now.getTime() - 10 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: lastMonth,
+        stockId: 's1',
+        assetId: 'asset-1',
+        asset: { id: 'asset-1', symbol: 'ITUB4', name: 'Itaú', type: 'stock' },
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: lastMonth,
+        stockId: 's1',
+        assetId: 'asset-1',
+        asset: { symbol: 'ITUB4', name: 'Itaú', type: 'stock' },
+      },
+    ]);
+    // BRAPI tem o evento
+    mockGetDividends.mockResolvedValue([
+      {
+        date: dividendDate,
+        tipo: 'Dividendo',
+        valorUnitario: 0.5,
+        valorUnitarioLiquido: 0.5,
+      },
+    ]);
+    // E PortfolioProvento espelha o mesmo (típico do auto-mirror)
+    mockPrisma.portfolioProvento.findMany.mockResolvedValue([
+      {
+        id: 'pp-mirror',
+        portfolioId: 'p1',
+        userId: 'user-123',
+        tipo: 'Dividendo',
+        dataCom: dividendDate,
+        dataPagamento: dividendDate,
+        precificarPor: 'valor',
+        valorTotal: 50, // 100 cotas × 0.5
+        quantidadeBase: 100,
+        impostoRenda: null,
+      },
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['ITUB4', 35]]));
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    // Sem dedup: total = 50 (BRAPI) + 50 (PP) = 100. Com dedup: 50 (única fonte).
+    expect(data.proventos.length).toBe(1);
+    expect(data.kpis.rendaAcumulada.periodo).toBe(50);
+  });
+
+  // Lacuna 1 (2º passe): PortfolioProvento JCP com impostoRenda=null (caso do
+  // mirror legacy) deve cair no fallback de 15% para não inflar o total.
+  it('JCP manual com impostoRenda=null usa fallback de 15% IRRF', async () => {
+    const now = new Date();
+    const lastMonth = new Date(now.getTime() - 30 * 86400000);
+    const jcpDate = new Date(now.getTime() - 10 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: lastMonth,
+        stockId: 's1',
+        assetId: 'asset-1',
+        asset: { id: 'asset-1', symbol: 'ITUB4', name: 'Itaú', type: 'stock' },
+      },
+    ]);
+    mockGetDividends.mockResolvedValue([]);
+    mockPrisma.portfolioProvento.findMany.mockResolvedValue([
+      {
+        id: 'pp-jcp-legacy',
+        portfolioId: 'p1',
+        userId: 'user-123',
+        tipo: 'JCP',
+        dataCom: jcpDate,
+        dataPagamento: jcpDate,
+        precificarPor: 'valor',
+        valorTotal: 100, // bruto
+        quantidadeBase: 100,
+        impostoRenda: null, // legacy mirror não populava
+      },
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['ITUB4', 35]]));
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.proventos.length).toBe(1);
+    // 100 bruto × 0.85 = 85 líquido (15% IRRF de JCP padrão)
+    expect(data.proventos[0].valor).toBe(85);
     expect(data.kpis.rendaAcumulada.periodo).toBe(85);
   });
 

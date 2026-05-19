@@ -6,6 +6,8 @@ import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import {
   getDividends,
   getCorporateActions,
+  isJcpType,
+  JCP_IRRF_RATE,
   type DividendEntry,
 } from '@/services/pricing/dividendService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
@@ -128,10 +130,46 @@ const mapAssetTypeToClasse = (entry: PortfolioAssetEntry) => {
 // precisa entrar nos KPIs/totais — equivalente ao `equity` do statement Kinvo
 // (vide auditoria 2026-05-19). Reportar bruto inflaria o YoC/Renda em ~15% pra
 // quem registra JCP via aporte manual.
+//
+// Lacuna 1 (auditoria 2º passe 2026-05-19): `ensurePortfolioProventosFromMarket`
+// cria entries mirrored com `impostoRenda: null` mesmo para JCP. Sem fallback
+// pra JCP-com-IR-15%, o valor reportado seria bruto — divergiria do caminho
+// BRAPI direto (que já aplica via `valorUnitarioLiquido`). Quando o tipo é
+// JCP e o usuário não setou `impostoRenda` explicitamente, aplica os 15%
+// padrão.
 const netValueOfManualProvento = (mp: {
+  tipo: string;
   valorTotal: number;
   impostoRenda: number | null;
-}): number => Math.max(0, mp.valorTotal - (mp.impostoRenda ?? 0));
+}): number => {
+  if (mp.impostoRenda != null) {
+    return Math.max(0, mp.valorTotal - mp.impostoRenda);
+  }
+  if (isJcpType(mp.tipo)) {
+    return Math.max(0, mp.valorTotal * (1 - JCP_IRRF_RATE));
+  }
+  return Math.max(0, mp.valorTotal);
+};
+
+/**
+ * Lacuna 3 (auditoria 2º passe 2026-05-19): a rota proventos itera tanto o
+ * histórico BRAPI (via `getDividends`) quanto `PortfolioProvento` (manual +
+ * mirror do `ensurePortfolioProventosFromMarket`). Sem dedup, todo provento
+ * mirrored era contado 2× — usuário com posição em PETR4/ITUB4/VALE3 via
+ * BRAPI history + `/ativos/[id]/editar` aberto pelo menos uma vez na vida
+ * tinha YoC e renda inflados em ~2×.
+ *
+ * Chave: `${symbol}\0${dayUTC}\0${jcpOuDividendo}` — robusta a variações de
+ * label da BRAPI ("JCP" vs "JUROS SOBRE CAPITAL PROPRIO" vs "JSCP" etc.)
+ * via `isJcpType`. PortfolioProvento prefere sobre BRAPI: respeita edição do
+ * usuário no caso em que ele customizou valor/IR.
+ */
+const DAY_MS = 24 * 60 * 60 * 1000;
+const proventoDedupKey = (symbol: string, date: Date, tipo: string): string => {
+  const dayUtc = Math.floor(date.getTime() / DAY_MS) * DAY_MS;
+  const kind = isJcpType(tipo) ? 'jcp' : 'div';
+  return `${symbol}\0${dayUtc}\0${kind}`;
+};
 
 const buildTimeline = (transactions: TransactionPoint[]) => {
   const sorted = [...transactions].sort((a, b) => a.date - b.date);
@@ -319,6 +357,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       }
     }),
   );
+
+  // Lacuna 3 (2º passe): chaves dos manualProventos pra deduzir BRAPI duplicado.
+  // Mirror do `ensurePortfolioProventosFromMarket` espelha BRAPI→PortfolioProvento
+  // sem trava; iterar os dois sem dedup contava 2× o mesmo evento.
+  const manualProventoKeys = new Set<string>();
+  manualProventos.forEach((mp) => {
+    const symbol = portfolioById.get(mp.portfolioId)?.asset?.symbol;
+    if (!symbol) return;
+    manualProventoKeys.add(proventoDedupKey(symbol, mp.dataPagamento, mp.tipo));
+  });
+
   for (const { asset, dividends } of allDividends) {
     if (dividends.length === 0) continue;
 
@@ -336,6 +385,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (startDateTime && dateTime < startDateTime) return;
       if (endDateTime && dateTime > endDateTime) return;
       if (dateTime > hojeMs) return; // Apenas histórico (exclui a_receber)
+
+      // Dedup com PortfolioProvento (que pode ter sido editado pelo usuário ou
+      // espelhado pelo mirror). Pula essa entrada BRAPI — o equivalente em
+      // manualProventos será processado abaixo (single source of truth).
+      if (manualProventoKeys.has(proventoDedupKey(asset.symbol, d.date, d.tipo))) return;
 
       const quantidadeHistorica = getQuantityAtDate(timeline, dateTime);
       // Usar quantidade histórica; fallback para atual apenas se não há timeline (sem transações)
@@ -423,6 +477,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (dateTime > hojeMs) continue;
       const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
       if (purchaseDateTime && eligibilityDate < purchaseDateTime) continue;
+      // Lacuna 3: dedup com PortfolioProvento (mesma chave do feed principal).
+      if (manualProventoKeys.has(proventoDedupKey(asset.symbol, d.date, d.tipo))) continue;
       const qtdHist = getQuantityAtDate(timeline, dateTime);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
@@ -668,6 +724,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       // antes da data-com (fallback paymentDate para entradas legadas sem dataCom).
       const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
       if (purchaseDateTime && eligibilityDate < purchaseDateTime) continue;
+      // Lacuna 3: dedup com PortfolioProvento (raro pra futuro, mas previne
+      // double-count se o usuário cadastrar manualmente um provento esperado).
+      if (manualProventoKeys.has(proventoDedupKey(asset.symbol, d.date, d.tipo))) continue;
       const quantidade = asset.quantity;
       if (quantidade <= 0) continue;
       const valor = quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario);
@@ -711,6 +770,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (dateTime > hojeKpiMs) continue;
       const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
       if (purchaseDateTime && eligibilityDate < purchaseDateTime) continue;
+      // Lacuna 3: dedup com PortfolioProvento (manualProventos vai pra esse mesmo array abaixo).
+      if (manualProventoKeys.has(proventoDedupKey(asset.symbol, d.date, d.tipo))) continue;
       const qtdHist = getQuantityAtDate(timeline, dateTime);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
