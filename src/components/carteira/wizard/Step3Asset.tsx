@@ -1,9 +1,10 @@
 'use client';
 
 import { logger } from '@/lib/logger';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { WizardFormData, WizardErrors, AutocompleteOption, Asset } from '@/types/wizard';
 import AutocompleteInput from '@/components/form/AutocompleteInput';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import {
   Step3ReservaEmergencia,
   Step3ReservaOportunidade,
@@ -37,99 +38,103 @@ export default function Step3Asset({
   const searchSeqRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Buscar ativos
-  const fetchAssets = async (search: string) => {
-    if (!formData.tipoAtivo) {
-      setAssetOptions([]);
-      onErrorsChange({ ativo: 'Selecione o tipo de ativo antes de buscar.' });
-      return;
-    }
+  // Buscar ativos (Bug #05: debounced em handleAssetChange pra evitar fetch
+  // a cada keystroke — digitar "PETR4" disparava 4 requests).
+  const fetchAssets = useCallback(
+    async (search: string) => {
+      if (!formData.tipoAtivo) {
+        setAssetOptions([]);
+        onErrorsChange({ ativo: 'Selecione o tipo de ativo antes de buscar.' });
+        return;
+      }
 
-    // Stocks, previdência e opções são adicionados manualmente - não buscar na API
-    if (
-      formData.tipoAtivo === 'stock' ||
-      formData.tipoAtivo === 'previdencia' ||
-      formData.tipoAtivo === 'opcoes'
-    ) {
-      setAssetOptions([]);
-      return;
-    }
+      // Stocks, previdência e opções são adicionados manualmente - não buscar na API
+      if (
+        formData.tipoAtivo === 'stock' ||
+        formData.tipoAtivo === 'previdencia' ||
+        formData.tipoAtivo === 'opcoes'
+      ) {
+        setAssetOptions([]);
+        return;
+      }
 
-    // Para personalizado, criar automaticamente sem busca
-    if (formData.tipoAtivo === 'personalizado') {
+      // Para personalizado, criar automaticamente sem busca
       if (formData.tipoAtivo === 'personalizado') {
         onFormDataChange({
           ativo: 'Personalizado',
           assetId: 'PERSONALIZADO',
         });
+        return;
       }
-      return;
-    }
 
-    if (search.length > 0 && search.length < 2) {
-      return;
-    }
+      if (search.length > 0 && search.length < 2) {
+        return;
+      }
 
-    setLoading(true);
-    const mySeq = ++searchSeqRef.current;
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      const url = `/api/assets?search=${encodeURIComponent(search)}&tipo=${formData.tipoAtivo}&limit=20`;
+      setLoading(true);
+      const mySeq = ++searchSeqRef.current;
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      try {
+        const url = `/api/assets?search=${encodeURIComponent(search)}&tipo=${formData.tipoAtivo}&limit=20`;
 
-      const response = await fetch(url, { credentials: 'include', signal: controller.signal });
+        const response = await fetch(url, { credentials: 'include', signal: controller.signal });
 
-      // Resposta de busca obsoleta: ignora pra não sobrescrever resultados
-      // mais recentes (vide comentário em searchSeqRef).
-      if (mySeq !== searchSeqRef.current) return;
+        // Resposta de busca obsoleta: ignora pra não sobrescrever resultados
+        // mais recentes (vide comentário em searchSeqRef).
+        if (mySeq !== searchSeqRef.current) return;
 
-      if (response.ok) {
-        const data = await response.json();
-        const options: AutocompleteOption[] = (data.assets || []).map(
-          (asset: Asset & { type?: string }) => ({
-            // Para acoes-brasil a API já retorna asset.id pré-fixado com
-            // "acao:" ou "bdr:" (src/app/api/assets/route.ts:44-59); pra
-            // outros tipos vem UUID puro.
-            value: asset.id,
-            label: `${asset.symbol} - ${asset.name}`,
-            subtitle:
-              formData.tipoAtivo === 'acoes-brasil'
-                ? asset.type === 'bdr'
-                  ? 'BDR'
-                  : 'Ação'
-                : asset.type,
-          }),
-        );
-        setAssetOptions(options);
-        // Bug #05: antes só limpávamos o erro quando options vinha vazio E
-        // search < 2; quando a busca subsequente trazia resultados, o erro
-        // "Nenhum encontrado" de uma busca anterior persistia → campo em
-        // borda vermelha mesmo com dropdown populado. Agora sempre que há
-        // opções, limpa o erro explicitamente.
-        if (options.length > 0) {
-          onErrorsChange({ ativo: undefined });
-        } else if (search.length >= 2) {
-          onErrorsChange({ ativo: 'Nenhum ativo encontrado para o tipo selecionado.' });
+        if (response.ok) {
+          const data = await response.json();
+          const options: AutocompleteOption[] = (data.assets || []).map(
+            (asset: Asset & { type?: string }) => ({
+              // Para acoes-brasil a API já retorna asset.id pré-fixado com
+              // "acao:" ou "bdr:" (src/app/api/assets/route.ts:44-59); pra
+              // outros tipos vem UUID puro.
+              value: asset.id,
+              label: `${asset.symbol} - ${asset.name}`,
+              subtitle:
+                formData.tipoAtivo === 'acoes-brasil'
+                  ? asset.type === 'bdr'
+                    ? 'BDR'
+                    : 'Ação'
+                  : asset.type,
+            }),
+          );
+          setAssetOptions(options);
+          // Bug #05: antes só limpávamos o erro quando options vinha vazio E
+          // search < 2; quando a busca subsequente trazia resultados, o erro
+          // "Nenhum encontrado" de uma busca anterior persistia → campo em
+          // borda vermelha mesmo com dropdown populado. Agora sempre que há
+          // opções, limpa o erro explicitamente.
+          if (options.length > 0) {
+            onErrorsChange({ ativo: undefined });
+          } else if (search.length >= 2) {
+            onErrorsChange({ ativo: 'Nenhum ativo encontrado para o tipo selecionado.' });
+          } else {
+            onErrorsChange({ ativo: undefined });
+          }
         } else {
-          onErrorsChange({ ativo: undefined });
+          const errorData = await response.json().catch(() => ({}));
+          logger.error('Erro ao buscar ativos:', errorData);
+          onErrorsChange({
+            ativo: errorData.message || 'Não foi possível carregar os ativos. Tente novamente.',
+          });
         }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        logger.error('Erro ao buscar ativos:', errorData);
-        onErrorsChange({
-          ativo: errorData.message || 'Não foi possível carregar os ativos. Tente novamente.',
-        });
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        if (mySeq !== searchSeqRef.current) return;
+        logger.error('Erro ao buscar ativos:', error);
+        onErrorsChange({ ativo: 'Não foi possível carregar os ativos. Tente novamente.' });
+      } finally {
+        if (mySeq === searchSeqRef.current) setLoading(false);
       }
-    } catch (error) {
-      if ((error as Error)?.name === 'AbortError') return;
-      if (mySeq !== searchSeqRef.current) return;
-      logger.error('Erro ao buscar ativos:', error);
-      onErrorsChange({ ativo: 'Não foi possível carregar os ativos. Tente novamente.' });
-    } finally {
-      if (mySeq === searchSeqRef.current) setLoading(false);
-    }
-  };
+    },
+    [formData.tipoAtivo, onErrorsChange, onFormDataChange],
+  );
+
+  const debouncedFetchAssets = useDebouncedCallback(fetchAssets, 250);
 
   const handleAssetChange = (value: string) => {
     onFormDataChange({
@@ -155,7 +160,7 @@ export default function Step3Asset({
     }
 
     if (value.length >= 2) {
-      fetchAssets(value);
+      debouncedFetchAssets(value);
     } else {
       setAssetOptions([]);
     }

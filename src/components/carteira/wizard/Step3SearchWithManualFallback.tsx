@@ -6,6 +6,7 @@ import { WizardFormData, WizardErrors, AutocompleteOption, Asset } from '@/types
 import AutocompleteInput from '@/components/form/AutocompleteInput';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 
 interface Step3SearchWithManualFallbackProps {
   formData: WizardFormData;
@@ -75,12 +76,14 @@ export default function Step3SearchWithManualFallback({
     [tipoAtivo, onErrorsChange],
   );
 
+  const debouncedFetchAssets = useDebouncedCallback(fetchAssets, 250);
+
   const handleSearchChange = (value: string) => {
     onFormDataChange({ ativo: value, assetId: '' });
     setShowManual(false);
 
     if (value.length >= 2) {
-      fetchAssets(value);
+      debouncedFetchAssets(value);
     } else {
       setAssetOptions([]);
       setSearchPerformed(false);

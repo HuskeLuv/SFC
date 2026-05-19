@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import AutocompleteInput from '@/components/form/AutocompleteInput';
 import { AutocompleteOption } from '@/types/wizard';
 import { WizardErrors, WizardFormData } from '@/types/wizard';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 
 interface Step3AporteAssetProps {
   formData: WizardFormData;
@@ -80,6 +81,8 @@ export default function Step3AporteAsset({
     [formData.tipoAtivo, formData.instituicaoId, onErrorsChange],
   );
 
+  const debouncedFetchAssets = useDebouncedCallback(fetchAssets, 250);
+
   const handleAssetChange = (value: string) => {
     onFormDataChange({
       ativo: value,
@@ -95,8 +98,9 @@ export default function Step3AporteAsset({
     }
 
     if (value.length >= 2) {
-      fetchAssets(value);
+      debouncedFetchAssets(value);
     } else if (value.length === 0) {
+      // Reset imediato pra "" — não debouncing pra primeira carga ficar responsiva
       fetchAssets('');
     } else {
       setAssetOptions([]);
