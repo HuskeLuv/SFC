@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { getDividends, isJcpType, JCP_IRRF_RATE } from '@/services/pricing/dividendService';
+import { getDividends, isJcpType, getJcpIrrfRate } from '@/services/pricing/dividendService';
 
 const normalizeDateStart = (date: Date) => {
   const normalized = new Date(date);
@@ -84,13 +84,12 @@ export const ensurePortfolioProventosFromMarket = async (params: {
     const day = normalizeDateStart(d.date);
     const dataComDay = d.dataCom ? normalizeDateStart(d.dataCom) : day;
 
-    // Lacuna 1 (auditoria 2026-05-19): JCP tem 15% IRRF retido na fonte (Lei
-    // 9.249/95). Antes do fix, todo provento mirrored entrava com
-    // `impostoRenda: null`, sem ressincronizar pra JCP. O fallback no
-    // `netValueOfManualProvento` já trata null+JCP como 15% — mas
-    // persistir aqui melhora a qualidade do dado pra DAA/IR no futuro.
+    // Lacuna 1 (auditoria 2026-05-19): JCP tem IRRF retido na fonte. Alíquota
+    // depende da data de pagamento — 15% até 31/12/2025 (Lei 9.249/95) e 17,5%
+    // a partir de 01/01/2026 (LC 224/2025). Persistir aqui melhora a qualidade
+    // do dado pra DAA/IR no futuro.
     const impostoRenda = isJcpType(d.tipo)
-      ? Math.round(valorTotal * JCP_IRRF_RATE * 100) / 100
+      ? Math.round(valorTotal * getJcpIrrfRate(day) * 100) / 100
       : null;
 
     const dup = await prisma.portfolioProvento.findFirst({

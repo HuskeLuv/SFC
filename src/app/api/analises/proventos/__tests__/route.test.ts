@@ -41,7 +41,8 @@ vi.mock('@/services/pricing/dividendService', () => ({
   // dedup e dedução IRRF — não faz sentido mockar.
   isJcpType: (tipo: string | null | undefined) =>
     !!tipo && /JCP|JSCP|JRC|JURO SOBRE CAPITAL|JUROS SOBRE CAPITAL|JUROS S\/ CAPITAL/i.test(tipo),
-  JCP_IRRF_RATE: 0.15,
+  getJcpIrrfRate: (paymentDate: Date) =>
+    paymentDate.getTime() >= Date.UTC(2026, 0, 1) ? 0.175 : 0.15,
 }));
 
 vi.mock('@/services/impersonationLogger', () => ({
@@ -495,8 +496,9 @@ describe('GET /api/analises/proventos', () => {
   });
 
   // Lacuna 1 (2º passe): PortfolioProvento JCP com impostoRenda=null (caso do
-  // mirror legacy) deve cair no fallback de 15% para não inflar o total.
-  it('JCP manual com impostoRenda=null usa fallback de 15% IRRF', async () => {
+  // mirror legacy) deve cair no fallback de IRRF (17,5% pós-LC 224/2025 a
+  // partir de 01/01/2026; 15% antes) para não inflar o total.
+  it('JCP manual com impostoRenda=null usa fallback de IRRF', async () => {
     const now = new Date();
     const lastMonth = new Date(now.getTime() - 30 * 86400000);
     const jcpDate = new Date(now.getTime() - 10 * 86400000);
@@ -536,9 +538,9 @@ describe('GET /api/analises/proventos', () => {
 
     expect(response.status).toBe(200);
     expect(data.proventos.length).toBe(1);
-    // 100 bruto × 0.85 = 85 líquido (15% IRRF de JCP padrão)
-    expect(data.proventos[0].valor).toBe(85);
-    expect(data.kpis.rendaAcumulada.periodo).toBe(85);
+    // 100 bruto × 0.825 = 82,5 líquido (17,5% IRRF, LC 224/2025 vigente em 2026+)
+    expect(data.proventos[0].valor).toBe(82.5);
+    expect(data.kpis.rendaAcumulada.periodo).toBe(82.5);
   });
 
   it('YoC e DY por ativo usam trailing-12m (ignora filtro de período)', async () => {

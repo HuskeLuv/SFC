@@ -7,7 +7,7 @@ import {
   getDividends,
   getCorporateActions,
   isJcpType,
-  JCP_IRRF_RATE,
+  getJcpIrrfRate,
   type DividendEntry,
 } from '@/services/pricing/dividendService';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
@@ -141,12 +141,13 @@ const netValueOfManualProvento = (mp: {
   tipo: string;
   valorTotal: number;
   impostoRenda: number | null;
+  dataPagamento: Date;
 }): number => {
   if (mp.impostoRenda != null) {
     return Math.max(0, mp.valorTotal - mp.impostoRenda);
   }
   if (isJcpType(mp.tipo)) {
-    return Math.max(0, mp.valorTotal * (1 - JCP_IRRF_RATE));
+    return Math.max(0, mp.valorTotal * (1 - getJcpIrrfRate(mp.dataPagamento)));
   }
   return Math.max(0, mp.valorTotal);
 };

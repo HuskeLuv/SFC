@@ -19,7 +19,7 @@ beforeEach(() => {
   global.fetch = mockFetch;
 });
 
-import { getDividends, isJcpType, JCP_IRRF_RATE } from '../dividendService';
+import { getDividends, isJcpType, getJcpIrrfRate } from '../dividendService';
 
 const makeBrapiResponse = (dividends: Record<string, unknown>[]) => ({
   ok: true,
@@ -454,7 +454,13 @@ describe('isJcpType', () => {
     expect(isJcpType('')).toBe(false);
   });
 
-  it('JCP_IRRF_RATE é 15% (convenção brasileira Lei 9.249/95)', () => {
-    expect(JCP_IRRF_RATE).toBe(0.15);
+  it('getJcpIrrfRate retorna 15% até 31/12/2025 (Lei 9.249/95)', () => {
+    expect(getJcpIrrfRate(new Date('2024-04-15'))).toBe(0.15);
+    expect(getJcpIrrfRate(new Date('2025-12-31T23:59:59Z'))).toBe(0.15);
+  });
+
+  it('getJcpIrrfRate retorna 17,5% a partir de 01/01/2026 (LC 224/2025)', () => {
+    expect(getJcpIrrfRate(new Date('2026-01-01T00:00:00Z'))).toBe(0.175);
+    expect(getJcpIrrfRate(new Date('2026-03-11'))).toBe(0.175);
   });
 });

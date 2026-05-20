@@ -186,11 +186,26 @@ export const isJcpType = (tipo: string | null | undefined): boolean => {
   );
 };
 
-/** Alíquota de IRRF padrão sobre JCP no Brasil (Lei 9.249/95). */
-export const JCP_IRRF_RATE = 0.15;
+/**
+ * Marco temporal da Lei Complementar 224/2025 (publicada 26/12/2025):
+ * a partir de 01/01/2026 a alíquota de IRRF sobre JCP foi elevada de 15% para 17,5%.
+ */
+const JCP_IRRF_LC224_EFFECTIVE_DATE = Date.UTC(2026, 0, 1);
 
-const computeValorUnitarioLiquido = (tipo: string, valorUnitarioBruto: number): number =>
-  isJcpType(tipo) ? valorUnitarioBruto * (1 - JCP_IRRF_RATE) : valorUnitarioBruto;
+/**
+ * Alíquota de IRRF sobre JCP em função da data de pagamento (fato gerador):
+ * - Até 31/12/2025: 15% (Lei 9.249/95, art. 9º §2º)
+ * - A partir de 01/01/2026: 17,5% (LC 224/2025)
+ */
+export const getJcpIrrfRate = (paymentDate: Date): number =>
+  paymentDate.getTime() >= JCP_IRRF_LC224_EFFECTIVE_DATE ? 0.175 : 0.15;
+
+const computeValorUnitarioLiquido = (
+  tipo: string,
+  valorUnitarioBruto: number,
+  paymentDate: Date,
+): number =>
+  isJcpType(tipo) ? valorUnitarioBruto * (1 - getJcpIrrfRate(paymentDate)) : valorUnitarioBruto;
 
 export interface CorporateActionEntry {
   date: Date;
@@ -221,7 +236,7 @@ const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
         dataCom: r.dataCom ?? null,
         tipo: r.tipo,
         valorUnitario: r.valorUnitario,
-        valorUnitarioLiquido: computeValorUnitarioLiquido(r.tipo, r.valorUnitario),
+        valorUnitarioLiquido: computeValorUnitarioLiquido(r.tipo, r.valorUnitario, r.date),
       });
     }
   }
@@ -268,7 +283,7 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
         dataCom: exDate,
         tipo,
         valorUnitario,
-        valorUnitarioLiquido: computeValorUnitarioLiquido(tipo, valorUnitario),
+        valorUnitarioLiquido: computeValorUnitarioLiquido(tipo, valorUnitario, date),
       });
 
       const dateNorm = new Date(date.getFullYear(), date.getMonth(), date.getDate());
