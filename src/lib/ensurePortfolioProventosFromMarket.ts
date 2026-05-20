@@ -82,6 +82,7 @@ export const ensurePortfolioProventosFromMarket = async (params: {
 
     const valorTotal = Math.round(quantidade * d.valorUnitario * 1e6) / 1e6;
     const day = normalizeDateStart(d.date);
+    const dataComDay = d.dataCom ? normalizeDateStart(d.dataCom) : day;
 
     // Lacuna 1 (auditoria 2026-05-19): JCP tem 15% IRRF retido na fonte (Lei
     // 9.249/95). Antes do fix, todo provento mirrored entrava com
@@ -108,7 +109,7 @@ export const ensurePortfolioProventosFromMarket = async (params: {
         portfolioId,
         userId,
         tipo: d.tipo,
-        dataCom: day,
+        dataCom: dataComDay,
         dataPagamento: day,
         precificarPor: 'valor',
         valorTotal,
