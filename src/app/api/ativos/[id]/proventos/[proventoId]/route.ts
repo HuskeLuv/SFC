@@ -30,6 +30,7 @@ async function findProventoOwned(portfolioId: string, proventoId: string, userId
       id: proventoId,
       portfolioId,
       userId,
+      dismissed: false,
     },
   });
 }
@@ -90,9 +91,10 @@ export const PATCH = withErrorHandler(
       return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
     }
 
+    // Edição manual transforma a row em "manual": sync não sobrescreve mais.
     const updated = await prisma.portfolioProvento.update({
       where: { id: proventoId },
-      data: updates,
+      data: { ...updates, source: 'manual' },
     });
 
     return NextResponse.json({ provento: serialize(updated) });
@@ -112,7 +114,11 @@ export const DELETE = withErrorHandler(
       return NextResponse.json({ error: 'Provento não encontrado' }, { status: 404 });
     }
 
-    await prisma.portfolioProvento.delete({ where: { id: proventoId } });
+    // Soft delete — sync de proventos respeita `dismissed: true` e não recria.
+    await prisma.portfolioProvento.update({
+      where: { id: proventoId },
+      data: { dismissed: true },
+    });
 
     return NextResponse.json({ success: true });
   },

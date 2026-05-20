@@ -111,7 +111,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       include: { asset: true },
     }),
     prisma.portfolioProvento.findMany({
-      where: { userId: targetUserId },
+      where: { userId: targetUserId, dismissed: false },
     }),
   ]);
 

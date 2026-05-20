@@ -1,11 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { getDividends, isJcpType, getJcpIrrfRate } from '@/services/pricing/dividendService';
 
-const normalizeDateStart = (date: Date) => {
-  const normalized = new Date(date);
-  normalized.setHours(0, 0, 0, 0);
-  return normalized;
-};
+// UTC-safe: setHours(0) é local-TZ e gera offset diferentes entre ambientes
+// (WSL BRT salva T03:00Z, Vercel UTC salva T00:00Z), quebrando dup-check.
+// Date.UTC garante T00:00Z determinístico em qualquer ambiente.
+const normalizeDateStart = (date: Date): Date =>
+  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 
 const buildTimeline = (trans: { date: Date; quantity: number; type: string }[]) => {
   const sorted = [...trans].sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -46,16 +46,28 @@ export const ensurePortfolioProventosFromMarket = async (params: {
   transactions: Array<{ date: Date; quantity: number; type: string }>;
   portfolioQuantity: number;
   portfolioLastUpdate: Date | null;
+  /**
+   * `initial` (default): pula se o portfolio já tem qualquer provento (ativo
+   *   ou dismissed). Usado pela rota `/api/ativos/[id]/editar` — só popula
+   *   no primeiro acesso.
+   * `sync`: pula o guard externo, depende do dup-check abaixo
+   *   (`{dataPagamento, tipo, valorTotal}` — inclui dismissed pra respeitar
+   *   delete do usuário). Usado pelo cron de sync de proventos.
+   */
+  mode?: 'initial' | 'sync';
 }): Promise<void> => {
   const { portfolioId, userId, ticker, transactions, portfolioQuantity, portfolioLastUpdate } =
     params;
+  const mode = params.mode ?? 'initial';
 
   if (!ticker.trim()) return;
 
-  const existing = await prisma.portfolioProvento.count({
-    where: { portfolioId, userId },
-  });
-  if (existing > 0) return;
+  if (mode === 'initial') {
+    const existing = await prisma.portfolioProvento.count({
+      where: { portfolioId, userId },
+    });
+    if (existing > 0) return;
+  }
 
   const dividends = await getDividends(ticker, { useBrapiFallback: true });
   if (dividends.length === 0) return;
@@ -92,16 +104,35 @@ export const ensurePortfolioProventosFromMarket = async (params: {
       ? Math.round(valorTotal * getJcpIrrfRate(day) * 100) / 100
       : null;
 
-    const dup = await prisma.portfolioProvento.findFirst({
+    // Match por (portfolioId, dataPagamento, tipo) — chave natural do evento.
+    // Inclui dismissed pra respeitar deletes do usuário.
+    const existing = await prisma.portfolioProvento.findFirst({
       where: {
         portfolioId,
         userId,
         dataPagamento: day,
         tipo: d.tipo,
-        valorTotal,
       },
     });
-    if (dup) continue;
+
+    if (existing) {
+      // Manual edits ganham preferência: nunca sobrescreve row source='manual'.
+      // Source='brapi' refresca valor/dataCom/IR pra refletir correções da BRAPI
+      // (caso típico: dedup retroativo somando duplicates que antes eram unitários).
+      if (existing.source === 'brapi' && !existing.dismissed) {
+        const needsUpdate =
+          existing.valorTotal !== valorTotal ||
+          existing.dataCom.getTime() !== dataComDay.getTime() ||
+          existing.impostoRenda !== impostoRenda;
+        if (needsUpdate) {
+          await prisma.portfolioProvento.update({
+            where: { id: existing.id },
+            data: { valorTotal, dataCom: dataComDay, impostoRenda, quantidadeBase: quantidade },
+          });
+        }
+      }
+      continue;
+    }
 
     await prisma.portfolioProvento.create({
       data: {
@@ -114,6 +145,7 @@ export const ensurePortfolioProventosFromMarket = async (params: {
         valorTotal,
         quantidadeBase: quantidade,
         impostoRenda,
+        source: 'brapi',
       },
     });
   }

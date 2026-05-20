@@ -464,3 +464,68 @@ describe('isJcpType', () => {
     expect(getJcpIrrfRate(new Date('2026-03-11'))).toBe(0.175);
   });
 });
+
+// Bug BBAS3 JCP 12/06/2025: BRAPI retorna 2 entries com mesma (date, tipo) e
+// rates diferentes. Política decidida (Mai/2026): SOMAR.
+describe('BRAPI dedup pré-upsert', () => {
+  beforeEach(() => {
+    mockPrisma.assetDividendHistory.findMany.mockResolvedValue([]);
+    mockPrisma.assetDividendHistory.upsert.mockResolvedValue({});
+  });
+
+  it('soma rates de entries duplicadas com mesma (paymentDate, tipo)', async () => {
+    mockFetch.mockResolvedValue(
+      makeBrapiResponse([
+        {
+          paymentDate: '2025-06-12T03:00:00Z',
+          lastDatePrior: '2025-06-02T03:00:00Z',
+          label: 'JCP',
+          rate: 0.09044687,
+        },
+        {
+          paymentDate: '2025-06-12T03:00:00Z',
+          lastDatePrior: '2025-06-02T03:00:00Z',
+          label: 'JCP',
+          rate: 0.3342584,
+        },
+      ]),
+    );
+
+    const result = await getDividends('BBAS3');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].tipo).toBe('JCP');
+    expect(result[0].valorUnitario).toBeCloseTo(0.42470527, 8);
+    // Único upsert (não dois) — confirma que dedup aconteceu pré-DB.
+    expect(mockPrisma.assetDividendHistory.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantém entries com tipos diferentes separadas no mesmo dia', async () => {
+    mockFetch.mockResolvedValue(
+      makeBrapiResponse([
+        { paymentDate: '2025-03-20', label: 'JCP', rate: 0.34 },
+        { paymentDate: '2025-03-20', label: 'DIVIDENDO', rate: 0.14 },
+        { paymentDate: '2025-03-20', label: 'RENDIMENTO', rate: 0.01 },
+      ]),
+    );
+
+    const result = await getDividends('BBAS3');
+
+    expect(result).toHaveLength(3);
+    expect(mockPrisma.assetDividendHistory.upsert).toHaveBeenCalledTimes(3);
+  });
+
+  it('preserva primeira exDate não-nula em entries somadas', async () => {
+    mockFetch.mockResolvedValue(
+      makeBrapiResponse([
+        { paymentDate: '2025-06-12', label: 'JCP', rate: 0.1, lastDatePrior: '2025-06-02' },
+        { paymentDate: '2025-06-12', label: 'JCP', rate: 0.2 /* sem exDate */ },
+      ]),
+    );
+
+    const result = await getDividends('BBAS3');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].dataCom).toEqual(new Date('2025-06-02T00:00:00.000Z'));
+  });
+});

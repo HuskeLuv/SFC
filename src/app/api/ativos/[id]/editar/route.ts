@@ -100,7 +100,7 @@ export const GET = withErrorHandler(
     });
 
     const proventosRows = await prisma.portfolioProvento.findMany({
-      where: { portfolioId: portfolio.id, userId: targetUserId },
+      where: { portfolioId: portfolio.id, userId: targetUserId, dismissed: false },
       orderBy: { dataPagamento: 'desc' },
     });
 

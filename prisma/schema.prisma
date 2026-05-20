@@ -340,6 +340,11 @@ model PortfolioProvento {
   valorTotal     Float
   quantidadeBase Float
   impostoRenda   Float?
+  // Soft delete: usuário deletou explicitamente. Sync respeita — não recria.
+  dismissed      Boolean   @default(false)
+  // Origem da entry: "brapi" (criada/atualizada pelo sync) ou "manual"
+  // (criada/editada pelo usuário via UI). Sync atualiza só rows brapi.
+  source         String    @default("manual")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

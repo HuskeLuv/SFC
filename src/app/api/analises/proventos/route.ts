@@ -234,7 +234,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // total real recebido pelo usuário.
   const manualProventos = portfolio.length
     ? await prisma.portfolioProvento.findMany({
-        where: { userId: targetUserId, portfolioId: { in: portfolio.map((p) => p.id) } },
+        where: {
+          userId: targetUserId,
+          portfolioId: { in: portfolio.map((p) => p.id) },
+          dismissed: false,
+        },
       })
     : [];
   const portfolioById = new Map(portfolio.map((p) => [p.id, p]));
