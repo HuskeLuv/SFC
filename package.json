@@ -2,6 +2,7 @@
   "name": "front",
   "version": "2.1.2",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -34,8 +35,6 @@
     "@fullcalendar/timegrid": "^6.1.15",
     "@popperjs/core": "^2.11.8",
     "@prisma/client": "^6.12.0",
-    "@react-jvectormap/core": "^1.0.4",
-    "@react-jvectormap/world": "^1.1.2",
     "@svgr/webpack": "^8.1.0",
     "@tailwindcss/postcss": "^4.1.11",
     "@tanstack/react-query": "^5.95.2",
@@ -98,16 +97,6 @@
     "tsx": "^4.20.3",
     "typescript": "^5",
     "vitest": "^1.6.0"
-  },
-  "overrides": {
-    "@react-jvectormap/core": {
-      "react": "^16.8.0 || ^17 || ^18 || ^19",
-      "react-dom": "^16.8.0 || ^17 || ^18 || ^19"
-    },
-    "@react-jvectormap/world": {
-      "react": "^16.8.0 || ^17 || ^18 || ^19",
-      "react-dom": "^16.8.0 || ^17 || ^18 || ^19"
-    }
   },
   "engines": {
     "node": ">=18.0.0",
