@@ -195,18 +195,30 @@ export const classifyByName = (
   const lowerName = name.toLowerCase();
   const lowerSymbol = symbol.toLowerCase();
 
+  // Normaliza espaços pra tolerar artefatos da BRAPI tipo "Imobi liario"
+  // (HGRE11 vinha com espaço extra dentro da palavra).
+  const nameNoSpaces = lowerName.replace(/\s+/g, '');
+
   // Sinais fortes de FII no nome: "fundo de investimento imobiliario",
   // "fundo imobiliário", "fofii" (variação de FII de Fundos), ou "FII"/"FOF"
   // como palavra. "imobil" cobre acentuado e não-acentuado.
-  const isFiiByName = lowerName.includes('imobil') || /\bfii\b/.test(lowerName);
+  const isFiiByName = nameNoSpaces.includes('imobil') || /\bfii\b/.test(lowerName);
   if (isFiiByName) return 'fii';
 
   // Units (BPAC11, SANB11, ENGI11, ALUP11 etc.) — BRAPI usa "Unit" ou "Units"
   // no longName. Word-bounded pra evitar matching com "United"/"unity".
   if (/\bunits?\b/.test(lowerName)) return 'stock';
 
-  // ETF: "ETF", "iShares", "S&P", "Ibovespa Index" etc.
-  if (/\betf\b/.test(lowerName) || lowerName.includes('ishares')) return 'etf';
+  // ETF: "ETF" word-bounded, "iShares", ou "Fundo de Indice/Índice" (cobre
+  // os ETFs que a BRAPI lista sem a palavra "ETF" no longName — ex: BTG
+  // Pactual Teva, Investo, B Index Morningstar, IT Now etc.).
+  if (
+    /\betf\b/.test(lowerName) ||
+    lowerName.includes('ishares') ||
+    /\bfundo de [ií]ndice\b/.test(lowerName)
+  ) {
+    return 'etf';
+  }
 
   // REIT: word-bounded — "direitos creditórios" (FIDCs/infra) NÃO é REIT.
   if (/\breit\b/.test(lowerName)) return 'reit';

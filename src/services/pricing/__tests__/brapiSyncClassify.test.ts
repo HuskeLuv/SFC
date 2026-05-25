@@ -22,6 +22,17 @@ describe('classifyByName', () => {
     expect(classifyByName('Generic Real Estate FII', 'XXXX11', 'stock')).toBe('fii');
   });
 
+  it('classifica FII mesmo quando a BRAPI quebra "imobiliario" com espaço extra', () => {
+    // Caso real do HGRE11 vindo da BRAPI: "Imobi liario" (espaço dentro da palavra)
+    expect(
+      classifyByName(
+        'Patria Escritorios - Fundo de Investimento Imobi liario - Responsabilidade Limitada',
+        'HGRE11',
+        'stock',
+      ),
+    ).toBe('fii');
+  });
+
   it('reclassifica units como stock mesmo se ticker termina em 11', () => {
     expect(classifyByName('Energisa SA Units Cons of 1 Sh + 4 Pfd Shs', 'ENGI11', 'fii')).toBe(
       'stock',
@@ -52,6 +63,24 @@ describe('classifyByName', () => {
       'etf',
     );
     expect(classifyByName('Trend ETF Ibovespa Fundo de Indice', 'BOVX11', 'fii')).toBe('etf');
+  });
+
+  it('classifica ETF por "Fundo de Indice/Índice" mesmo sem a palavra "ETF" no nome', () => {
+    // Casos reais da BRAPI: gestoras que omitem "ETF" do longName mas a B3
+    // lista como ETF (Investo, BTG Teva, B Index Morningstar, It Now).
+    expect(
+      classifyByName('BTG Pactual Teva ITBR IPCA Rendimento Fundo de Indice', 'AREA11', 'stock'),
+    ).toBe('etf');
+    expect(classifyByName('Investo Argentina Fundo de Indice', 'ARGE11', 'stock')).toBe('etf');
+    expect(
+      classifyByName(
+        'B Index Morningstar Setores Ciclicos Brasil Fundo de Indice',
+        'BCIC11',
+        'stock',
+      ),
+    ).toBe('etf');
+    // Com acento
+    expect(classifyByName('It Now Ibovespa Fundo de Índice', 'BOVA11', 'stock')).toBe('etf');
   });
 
   it('NÃO classifica como REIT quando o nome contém "direitos" (creditórios/infra)', () => {

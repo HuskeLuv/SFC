@@ -14,16 +14,21 @@
 import { fetchDetailedQuotes } from '@/services/pricing/brapiQuote';
 import prisma from '@/lib/prisma';
 
-const isFiiByName = (lowerName: string): boolean =>
-  lowerName.includes('imobil') || /\bfii\b/.test(lowerName);
-
+// Mantém sincronizado com src/services/pricing/brapiSync.ts → classifyByName
 const classifyByName = (name: string, symbol: string, currentType: string): string => {
   const lowerName = name.toLowerCase();
   const lowerSymbol = symbol.toLowerCase();
+  const nameNoSpaces = lowerName.replace(/\s+/g, '');
 
-  if (isFiiByName(lowerName)) return 'fii';
+  if (nameNoSpaces.includes('imobil') || /\bfii\b/.test(lowerName)) return 'fii';
   if (/\bunits?\b/.test(lowerName)) return 'stock';
-  if (/\betf\b/.test(lowerName) || lowerName.includes('ishares')) return 'etf';
+  if (
+    /\betf\b/.test(lowerName) ||
+    lowerName.includes('ishares') ||
+    /\bfundo de [ií]ndice\b/.test(lowerName)
+  ) {
+    return 'etf';
+  }
   if (/\breit\b/.test(lowerName)) return 'reit';
   if (lowerSymbol.endsWith('34')) return 'bdr';
 
