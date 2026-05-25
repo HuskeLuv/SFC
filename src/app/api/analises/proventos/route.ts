@@ -870,19 +870,36 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     },
   };
 
-  // Fetch corporate actions (splits/inplits/bonuses) for all portfolio assets
+  // Fetch corporate actions (splits/inplits/bonuses) for all portfolio assets.
+  // Falha em 1 ativo (BRAPI 5xx, timeout, rate limit) não deve derrubar a rota
+  // inteira; devolve [] pro ativo afetado e segue. Mesmo padrão de degradação
+  // graceful aplicado em allDividends acima. Antes desse fix, a página de
+  // proventos quebrava intermitentemente quando o cron BRAPI estava degradado.
   const allCorporateActions = await Promise.all(
     portfolioAssets.map(async (asset) => {
-      const actions = await getCorporateActions(asset.symbol, { useBrapiFallback: true });
-      return actions.map((a) => ({
-        symbol: asset.symbol,
-        ativo: asset.name || asset.symbol,
-        classe: mapAssetTypeToClasse(asset),
-        data: a.date.toISOString(),
-        type: a.type,
-        factor: a.factor,
-        completeFactor: a.completeFactor,
-      }));
+      try {
+        const actions = await getCorporateActions(asset.symbol, { useBrapiFallback: true });
+        return actions.map((a) => ({
+          symbol: asset.symbol,
+          ativo: asset.name || asset.symbol,
+          classe: mapAssetTypeToClasse(asset),
+          data: a.date.toISOString(),
+          type: a.type,
+          factor: a.factor,
+          completeFactor: a.completeFactor,
+        }));
+      } catch (err) {
+        logger.warn(`[proventos] getCorporateActions falhou para ${asset.symbol}`, err);
+        return [] as Array<{
+          symbol: string;
+          ativo: string;
+          classe: string;
+          data: string;
+          type: string;
+          factor: number;
+          completeFactor: string | null;
+        }>;
+      }
     }),
   );
   const corporateActions = allCorporateActions
