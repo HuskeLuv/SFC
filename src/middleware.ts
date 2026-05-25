@@ -32,6 +32,7 @@ function isPublicRoute(pathname: string): boolean {
     // Vercel Cron requests carry no JWT cookie — the route itself authenticates
     // via Authorization: Bearer CRON_SECRET, so let them pass the JWT gate.
     pathname.startsWith('/api/cron') ||
+    pathname === '/api/health' ||
     pathname === '/signin' ||
     pathname === '/signup' ||
     pathname === '/favicon.ico' ||
