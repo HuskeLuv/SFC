@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table';
 import ComponentCard from '../common/ComponentCard';
 import { UiTablePlaceholderRows } from '@/components/carteira/shared';
@@ -29,7 +29,6 @@ interface ReservaEmergenciaTableProps {
   saldoInicioMes: number;
   rendimento: number;
   rentabilidade: number;
-  onUpdateValorAtualizado?: (portfolioId: string, novoValor: number) => void;
   totalCarteira?: number;
 }
 
@@ -64,7 +63,6 @@ interface ReservaEmergenciaTableRowProps {
   formatCurrency: (value: number) => string;
   formatPercentage: (value: number) => string;
   formatDate: (date: Date) => string;
-  onUpdateValorAtualizado?: (portfolioId: string, novoValor: number) => void;
 }
 
 const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
@@ -72,33 +70,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
   formatCurrency,
   formatPercentage,
   formatDate,
-  onUpdateValorAtualizado,
 }) => {
-  const [isEditingValor, setIsEditingValor] = useState(false);
-  const [valorValue, setValorValue] = useState(ativo.valorAtualizado.toString());
-
-  const handleValorSubmit = () => {
-    if (!onUpdateValorAtualizado) return;
-
-    const novoValor = parseFloat(valorValue);
-    if (!isNaN(novoValor) && novoValor > 0) {
-      onUpdateValorAtualizado(ativo.id, novoValor);
-      setIsEditingValor(false);
-    } else {
-      setValorValue(ativo.valorAtualizado.toString());
-      setIsEditingValor(false);
-    }
-  };
-
-  const handleValorKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleValorSubmit();
-    } else if (e.key === 'Escape') {
-      setValorValue(ativo.valorAtualizado.toString());
-      setIsEditingValor(false);
-    }
-  };
-
   return (
     <TableRow className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.02]">
       <TableCell className="px-2 py-2 text-xs text-black">
@@ -124,36 +96,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
         {formatCurrency(ativo.resgate)}
       </TableCell>
       <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
-        {isEditingValor ? (
-          <div className="flex items-center justify-end space-x-1">
-            <input
-              type="number"
-              step="0.01"
-              value={valorValue}
-              onChange={(e) => setValorValue(e.target.value)}
-              onKeyDown={handleValorKeyPress}
-              onBlur={handleValorSubmit}
-              className="w-24 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-              autoFocus
-            />
-          </div>
-        ) : (
-          <div
-            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded inline-block"
-            onClick={() => onUpdateValorAtualizado && setIsEditingValor(true)}
-            tabIndex={0}
-            role="button"
-            aria-label="Editar valor atual"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (onUpdateValorAtualizado) setIsEditingValor(true);
-              }
-            }}
-          >
-            {formatCurrency(ativo.valorAtualizado)}
-          </div>
-        )}
+        {formatCurrency(ativo.valorAtualizado)}
       </TableCell>
       <TableCell className="px-2 py-2 text-xs text-black text-center">
         {formatPercentage(ativo.percentualCarteira)}
@@ -173,7 +116,6 @@ export default function ReservaEmergenciaTable({
   saldoInicioMes,
   rendimento,
   rentabilidade,
-  onUpdateValorAtualizado,
   totalCarteira = 0,
 }: ReservaEmergenciaTableProps) {
   // Calcular risco (carteira total) e percentual da carteira da aba
@@ -378,7 +320,6 @@ export default function ReservaEmergenciaTable({
                   formatCurrency={formatCurrency}
                   formatPercentage={formatPercentage}
                   formatDate={formatDate}
-                  onUpdateValorAtualizado={onUpdateValorAtualizado}
                 />
               ))}
               <UiTablePlaceholderRows

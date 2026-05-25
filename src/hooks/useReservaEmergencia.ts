@@ -1,11 +1,8 @@
 'use client';
 
-import { logger } from '@/lib/logger';
 import { useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCsrf } from '@/hooks/useCsrf';
+import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 
 export interface ReservaEmergenciaAtivo {
   id: string;
@@ -38,8 +35,6 @@ const emptyData: ReservaEmergenciaData = {
 };
 
 export const useReservaEmergencia = () => {
-  const { csrfFetch } = useCsrf();
-  const queryClient = useQueryClient();
   const queryKey = queryKeys.reserva.emergencia();
 
   const {
@@ -78,34 +73,10 @@ export const useReservaEmergencia = () => {
     return queryRefetch().then(() => undefined);
   }, [queryRefetch]);
 
-  const updateValorAtualizado = useCallback(
-    async (portfolioId: string, novoValor: number): Promise<void> => {
-      try {
-        const response = await csrfFetch('/api/carteira/reserva/valor-atualizado', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ portfolioId, valorAtualizado: novoValor }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Erro ao atualizar valor atualizado');
-        }
-
-        await queryClient.invalidateQueries({ queryKey });
-        invalidatePortfolioDerivedQueries(queryClient);
-      } catch (err) {
-        logger.error('Erro ao atualizar valor atualizado:', err);
-        throw err;
-      }
-    },
-    [csrfFetch, queryClient, queryKey],
-  );
-
   return {
     data,
     loading,
     error: queryError ? (queryError as Error).message : null,
     refetch,
-    updateValorAtualizado,
   };
 };

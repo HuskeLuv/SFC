@@ -205,13 +205,6 @@ export const valorAtualizadoImovelSchema = z.object({
   novoValor: zPositiveNumber,
 });
 
-// ── Carteira reserva valor-atualizado (PATCH) schema ──────────────────
-
-export const valorAtualizadoReservaSchema = z.object({
-  portfolioId: zString(255),
-  valorAtualizado: zPositiveNumber,
-});
-
 // ── Carteira configuracao (PUT) schema ────────────────────────────────
 
 export const alocacaoConfigSchema = z.object({

@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useReservaOportunidade } from '@/hooks/useReservaOportunidade';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
@@ -63,40 +63,13 @@ interface ReservaOportunidadeTableRowProps {
   };
   formatCurrency: (value: number) => string;
   formatPercentage: (value: number) => string;
-  onUpdateValorAtualizado?: (portfolioId: string, novoValor: number) => void;
 }
 
 const ReservaOportunidadeTableRow: React.FC<ReservaOportunidadeTableRowProps> = ({
   ativo,
   formatCurrency,
   formatPercentage,
-  onUpdateValorAtualizado,
 }) => {
-  const [isEditingValor, setIsEditingValor] = useState(false);
-  const [valorValue, setValorValue] = useState(ativo.valorAtualizado.toString());
-
-  const handleValorSubmit = () => {
-    if (!onUpdateValorAtualizado) return;
-
-    const novoValor = parseFloat(valorValue);
-    if (!isNaN(novoValor) && novoValor > 0) {
-      onUpdateValorAtualizado(ativo.id, novoValor);
-      setIsEditingValor(false);
-    } else {
-      setValorValue(ativo.valorAtualizado.toString());
-      setIsEditingValor(false);
-    }
-  };
-
-  const handleValorKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleValorSubmit();
-    } else if (e.key === 'Escape') {
-      setValorValue(ativo.valorAtualizado.toString());
-      setIsEditingValor(false);
-    }
-  };
-
   return (
     <StandardTableRow>
       <StandardTableBodyCell align="left">
@@ -114,36 +87,7 @@ const ReservaOportunidadeTableRow: React.FC<ReservaOportunidadeTableRowProps> = 
       <StandardTableBodyCell align="right">{formatCurrency(ativo.aporte)}</StandardTableBodyCell>
       <StandardTableBodyCell align="right">{formatCurrency(ativo.resgate)}</StandardTableBodyCell>
       <StandardTableBodyCell align="right">
-        {isEditingValor ? (
-          <div className="flex items-center justify-end space-x-1">
-            <input
-              type="number"
-              step="0.01"
-              value={valorValue}
-              onChange={(e) => setValorValue(e.target.value)}
-              onKeyDown={handleValorKeyPress}
-              onBlur={handleValorSubmit}
-              className="w-24 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-              autoFocus
-            />
-          </div>
-        ) : (
-          <div
-            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded inline-block"
-            onClick={() => onUpdateValorAtualizado && setIsEditingValor(true)}
-            tabIndex={0}
-            role="button"
-            aria-label="Editar valor atual"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (onUpdateValorAtualizado) setIsEditingValor(true);
-              }
-            }}
-          >
-            {formatCurrency(ativo.valorAtualizado)}
-          </div>
-        )}
+        {formatCurrency(ativo.valorAtualizado)}
       </StandardTableBodyCell>
       <StandardTableBodyCell align="right">
         {formatPercentage(ativo.percentualCarteira)}
@@ -161,19 +105,12 @@ const ReservaOportunidadeTableRow: React.FC<ReservaOportunidadeTableRowProps> = 
 
 interface ReservaOportunidadeTableProps {
   totalCarteira?: number;
-  onUpdateSuccess?: () => void;
 }
 
 export default function ReservaOportunidadeTable({
   totalCarteira = 0,
-  onUpdateSuccess,
 }: ReservaOportunidadeTableProps) {
-  const { data, loading, error, updateValorAtualizado } = useReservaOportunidade();
-
-  const handleUpdateValorAtualizado = async (portfolioId: string, novoValor: number) => {
-    await updateValorAtualizado(portfolioId, novoValor);
-    onUpdateSuccess?.();
-  };
+  const { data, loading, error } = useReservaOportunidade();
 
   // Calcular risco (carteira total) e percentual da carteira da aba
   const ativosComRisco = useMemo(() => {
@@ -402,7 +339,6 @@ export default function ReservaOportunidadeTable({
                 ativo={ativo}
                 formatCurrency={formatCurrency}
                 formatPercentage={formatPercentage}
-                onUpdateValorAtualizado={handleUpdateValorAtualizado}
               />
             ))}
             <StandardTablePlaceholderRows

@@ -105,11 +105,7 @@ export default function CarteiraResumo() {
   const [_metaInputValue, _setMetaInputValue] = useState('');
   const [_isSavingMeta, _setIsSavingMeta] = useState(false);
   const [_metaErrorMessage, _setMetaErrorMessage] = useState<string | null>(null);
-  const {
-    data: reservaEmergenciaData,
-    refetch: refetchReservaEmergencia,
-    updateValorAtualizado: updateReservaEmergenciaValor,
-  } = useReservaEmergencia();
+  const { data: reservaEmergenciaData, refetch: refetchReservaEmergencia } = useReservaEmergencia();
 
   return (
     <div>
@@ -204,20 +200,13 @@ export default function CarteiraResumo() {
               saldoInicioMes={reservaEmergenciaData.saldoInicioMes}
               rendimento={reservaEmergenciaData.rendimento}
               rentabilidade={reservaEmergenciaData.rentabilidade}
-              onUpdateValorAtualizado={async (portfolioId, novoValor) => {
-                await updateReservaEmergenciaValor(portfolioId, novoValor);
-                refetch();
-              }}
               totalCarteira={resumo?.saldoBruto || 0}
             />
           </TabContent>
 
           {/* Reserva de Oportunidade */}
           <TabContent id="reserva-oportunidade" isActive={activeTab === 'reserva-oportunidade'}>
-            <ReservaOportunidadeTable
-              totalCarteira={resumo?.saldoBruto || 0}
-              onUpdateSuccess={refetch}
-            />
+            <ReservaOportunidadeTable totalCarteira={resumo?.saldoBruto || 0} />
           </TabContent>
 
           {/* Renda Fixa */}
