@@ -1,8 +1,7 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import UserMetaCard from "@/components/user-profile/UserMetaCard";
-import UserInfoCard from "@/components/user-profile/UserInfoCard";
-import UserAddressCard from "@/components/user-profile/UserAddressCard";
+'use client';
+import React, { useEffect, useState } from 'react';
+import UserMetaCard from '@/components/user-profile/UserMetaCard';
+import UserInfoCard from '@/components/user-profile/UserInfoCard';
 
 interface User {
   id: string;
@@ -18,12 +17,12 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/profile", { credentials: "include" })
+    fetch('/api/profile', { credentials: 'include' })
       .then(async (res) => {
-        if (!res.ok) throw new Error("Not authenticated");
+        if (!res.ok) throw new Error('Not authenticated');
         setUser(await res.json());
       })
-      .catch(() => setError("Not authenticated"))
+      .catch(() => setError('Não autenticado'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -39,7 +38,6 @@ export default function ProfilePage() {
         <div className="space-y-6">
           <UserMetaCard user={user || undefined} />
           <UserInfoCard user={user || undefined} />
-          <UserAddressCard />
         </div>
       </div>
     </div>
