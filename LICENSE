@@ -1,0 +1,37 @@
+Proprietary Software License — All Rights Reserved
+
+Copyright (c) 2026 SFC. All rights reserved.
+
+This software and its source code (the "Software") are the exclusive
+property of the copyright holder. No part of this Software may be
+reproduced, distributed, transmitted, modified, displayed, sublicensed,
+or used to create derivative works, in whole or in part, in any form
+or by any means — electronic, mechanical, photocopying, recording, or
+otherwise — without the prior written permission of the copyright holder,
+except as expressly permitted by applicable law.
+
+Unauthorized use, copying, reverse engineering, decompilation, or
+disassembly of this Software is strictly prohibited and may result in
+civil and criminal penalties under applicable law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT
+OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+────────────────────────────────────────────────────────────────────────
+
+Third-party components
+
+This software includes open-source components distributed under their
+own licenses (MIT, Apache 2.0, ISC, BSD, LGPL, MPL, and others), all of
+which permit use in proprietary applications. The list of dependencies
+and their respective licenses can be inspected by running:
+
+    npx license-checker --production --summary
+
+The full text of each third-party license is included in the
+corresponding package within the node_modules directory.
