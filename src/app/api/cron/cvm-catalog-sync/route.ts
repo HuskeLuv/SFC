@@ -7,7 +7,8 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
  * Cron HTTP: GET com Authorization: Bearer CRON_SECRET
  *
- * Baixa o cadastro completo de fundos CVM (cad_fi.csv, ~30k fundos ativos)
+ * Baixa o cadastro completo de fundos CVM (registro_fundo_classe.zip — RCVM 175,
+ * ~33k fundos em funcionamento normal incluindo FIDC/FIP/Fiagro/FIIM fechados)
  * e cria/atualiza registros na tabela Asset para busca no wizard.
  *
  * Agendado em vercel.json (semanalmente, domingo 05:00 UTC).

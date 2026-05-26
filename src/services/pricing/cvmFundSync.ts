@@ -9,7 +9,10 @@ import prisma from '@/lib/prisma';
 const CVM_DAILY_URL = (yyyymm: string) =>
   `https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_${yyyymm}.zip`;
 
-const CVM_FUND_REGISTRY_URL = 'https://dados.cvm.gov.br/dados/FI/CAD/DADOS/cad_fi.csv';
+// RCVM 175 — fonte primária do catálogo. Inclui FIDC, FIP, FII, Fiagro, FIIM
+// que NÃO publicam INF_DIARIO (fundos fechados / com reporte mensal/trimestral).
+// ~88k entries totais, ~33k em funcionamento normal.
+const CVM_REGISTRO_URL = 'https://dados.cvm.gov.br/dados/FI/CAD/DADOS/registro_fundo_classe.zip';
 
 /** Number of rows to upsert per transaction batch */
 const BATCH_SIZE = 50;
@@ -42,34 +45,52 @@ export interface CvmFundSyncResult {
 // ================== HELPERS ==================
 
 /**
- * Extract a CSV from a ZIP buffer and parse into an array of records.
- * CVM ZIP files contain a single semicolon-delimited CSV file.
+ * Parse a semicolon-delimited CSV text into an array of records (header → cell).
+ * CVM CSVs use ISO-8859-1; o caller é responsável por já ter decodificado.
  */
-function extractCsvFromZip(buffer: Buffer): Record<string, unknown>[] {
-  const zip = new AdmZip(buffer);
-  const entries = zip.getEntries();
-  const csvEntry = entries.find((e) => e.entryName.endsWith('.csv'));
-  if (!csvEntry) throw new Error('ZIP não contém arquivo CSV');
-
-  const csvText = csvEntry.getData().toString('latin1'); // CVM uses ISO-8859-1
+function parseCsvText(csvText: string): Record<string, string>[] {
   const lines = csvText.split('\n');
   if (lines.length < 2) return [];
-
   const header = lines[0].split(';').map((h) => h.trim());
-  const rows: Record<string, unknown>[] = [];
-
+  const rows: Record<string, string>[] = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
     const cols = line.split(';');
-    const row: Record<string, unknown> = {};
+    const row: Record<string, string> = {};
     for (let j = 0; j < header.length && j < cols.length; j++) {
       row[header[j]] = cols[j].trim();
     }
     rows.push(row);
   }
-
   return rows;
+}
+
+/**
+ * Extract a single CSV from a ZIP buffer and parse. Use quando o ZIP tem 1 CSV.
+ */
+function extractCsvFromZip(buffer: Buffer): Record<string, string>[] {
+  const zip = new AdmZip(buffer);
+  const entries = zip.getEntries();
+  const csvEntry = entries.find((e) => e.entryName.endsWith('.csv'));
+  if (!csvEntry) throw new Error('ZIP não contém arquivo CSV');
+  return parseCsvText(csvEntry.getData().toString('latin1'));
+}
+
+/**
+ * Extract multiple CSVs from a ZIP buffer. Use quando o ZIP tem N CSVs (ex.:
+ * registro_fundo_classe.zip que traz registro_fundo, registro_classe,
+ * registro_subclasse). Retorna Map por nome de arquivo (sem extensão).
+ */
+function extractMultipleCsvsFromZip(buffer: Buffer): Map<string, Record<string, string>[]> {
+  const zip = new AdmZip(buffer);
+  const result = new Map<string, Record<string, string>[]>();
+  for (const entry of zip.getEntries()) {
+    if (!entry.entryName.endsWith('.csv')) continue;
+    const key = entry.entryName.replace(/\.csv$/, '');
+    result.set(key, parseCsvText(entry.getData().toString('latin1')));
+  }
+  return result;
 }
 
 /**
@@ -354,144 +375,140 @@ export interface CvmCatalogSyncResult {
 }
 
 /**
- * Download the current month's CVM INF_DIARIO ZIP and extract distinct fund CNPJs
- * with their names, creating searchable Asset records for each active fund.
+ * Sincroniza o catálogo de fundos CVM a partir do `registro_fundo_classe.zip`
+ * (estrutura RCVM 175, vigente desde 2022). Substitui a fonte antiga
+ * INF_DIARIO + cad_fi.csv que cobria só fundos com cota diária — agora
+ * pegamos também FIDC, FIP, Fiagro e FIIM que reportam mensal/trimestral.
  *
- * Why INF_DIARIO instead of cad_fi.csv? The legacy cad_fi.csv shows most funds as
- * "CANCELADA" (migrated to RCVM 175 structure). The INF_DIARIO contains all funds
- * that are actually operating and publishing daily quotas — the true active set.
+ * O ZIP contém 3 CSVs:
+ *   - registro_fundo.csv (~88k rows): CNPJ_Fundo, Tipo_Fundo, Denominacao_Social, Situacao
+ *   - registro_classe.csv (~33k rows): ID_Registro_Fundo, Tipo_Classe, Classificacao
+ *   - registro_subclasse.csv (~3k rows): subclasses pra fundos com várias séries (não usado)
  *
- * Symbol format: CVM-{CNPJ14} (deterministic, stable across syncs)
- * Source: 'cvm'
- *
- * Should be run weekly (or on first deploy).
+ * Pipeline:
+ *   1. Baixar e extrair os CSVs.
+ *   2. Filtrar fundos com Situacao = 'Em Funcionamento Normal'.
+ *   3. JOIN com registro_classe por ID_Registro_Fundo (primeira classe ativa).
+ *   4. Classificar via inferFundType usando Tipo_Fundo + Classificacao + nome.
+ *   5. Cross-reference com INF_DIARIO do mês corrente pra cota inicial (fundos
+ *      fechados ficam sem currentPrice — será preenchido manualmente ou pela
+ *      sync diária quando o usuário cadastrar e o INF_DIARIO trouxer cota).
+ *   6. Upsert Asset (symbol = `CVM-{CNPJ14}`).
  */
 export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
   const startTime = Date.now();
 
-  logger.info('📚 Iniciando sincronização do catálogo CVM de fundos...');
+  logger.info('📚 Iniciando sincronização do catálogo CVM (RCVM 175)...');
   logger.info(`📅 Data/Hora: ${new Date().toLocaleString('pt-BR')}`);
 
   let inserted = 0;
   let updated = 0;
   let errors = 0;
 
-  // 1. Download INF_DIARIO ZIP (same as daily sync, but process ALL CNPJs)
+  // 1. Baixar registro_fundo_classe.zip
+  logger.info(`📥 Baixando ${CVM_REGISTRO_URL}...`);
+  let registroBuffer: ArrayBuffer;
+  try {
+    const response = await axios.get(CVM_REGISTRO_URL, {
+      responseType: 'arraybuffer',
+      timeout: 60000,
+    });
+    registroBuffer = response.data;
+    logger.info(`✅ ZIP baixado: ${(registroBuffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
+  } catch (err) {
+    const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
+    throw new Error(`Falha ao baixar registro_fundo_classe.zip (status: ${status}): ${err}`);
+  }
+
+  // 2. Extrair os 3 CSVs
+  const csvs = extractMultipleCsvsFromZip(Buffer.from(registroBuffer));
+  const fundoRows = csvs.get('registro_fundo') ?? [];
+  const classeRows = csvs.get('registro_classe') ?? [];
+  logger.info(`📊 ${fundoRows.length} fundos, ${classeRows.length} classes`);
+
+  if (fundoRows.length === 0) {
+    throw new Error('registro_fundo.csv vazio ou ausente do ZIP');
+  }
+
+  // 3. Indexar classes por ID_Registro_Fundo (primeira ativa por fundo).
+  //    Cada fundo pode ter múltiplas classes (RCVM 175 separa fundo/classe),
+  //    mas pra classificação usamos a primeira "Em Funcionamento Normal" —
+  //    suficiente pra UI/IR; cadastros multi-classe são raros e tratáveis depois.
+  const classeByFundoId = new Map<string, { tipoClasse: string; classificacao: string }>();
+  for (const cl of classeRows) {
+    const fundoId = cl['ID_Registro_Fundo'];
+    if (!fundoId || classeByFundoId.has(fundoId)) continue;
+    if (cl['Situacao'] && cl['Situacao'].toLowerCase() !== 'em funcionamento normal') continue;
+    classeByFundoId.set(fundoId, {
+      tipoClasse: cl['Tipo_Classe'] || '',
+      classificacao: cl['Classificacao'] || '',
+    });
+  }
+  logger.info(`📝 ${classeByFundoId.size} classes ativas indexadas`);
+
+  // 4. Filtrar fundos ativos e enriquecer com classe
+  interface FundEntry {
+    cnpj: string;
+    name: string;
+    tipoFundo: string;
+    classificacao: string;
+    type: string;
+  }
+  const fundsToUpsert: FundEntry[] = [];
+  for (const f of fundoRows) {
+    const sit = f['Situacao'] || '';
+    if (sit.toLowerCase() !== 'em funcionamento normal') continue;
+
+    const cnpj = normalizeCnpj(f['CNPJ_Fundo'] || '');
+    if (cnpj.length < 14) continue;
+
+    const name = (f['Denominacao_Social'] || '').trim() || `Fundo ${cnpj}`;
+    const tipoFundo = f['Tipo_Fundo'] || '';
+    const classe = classeByFundoId.get(f['ID_Registro_Fundo'] || '');
+    const classificacao = classe?.classificacao || '';
+
+    const type = inferFundType({ tipoFundo, classificacao, name });
+    fundsToUpsert.push({ cnpj, name, tipoFundo, classificacao, type });
+  }
+  logger.info(`🎯 ${fundsToUpsert.length} fundos ativos pra upsert`);
+
+  // 5. Cross-reference com INF_DIARIO pra cota inicial (best-effort).
+  //    Fundos fechados (FIP/FIDC/FII fechado) não publicam diariamente — ficam
+  //    sem currentPrice. A sync diária (runCvmFundSync) preenche quando o
+  //    usuário cadastrar e a CVM publicar.
+  const quotaByCnpj = new Map<string, { quota: number; date: string }>();
   const now = new Date();
-  const currentMonth = getYYYYMM(now);
-  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonth = getYYYYMM(prevDate);
-
-  let zipBuffer: ArrayBuffer | null = null;
-
-  for (const month of [currentMonth, prevMonth]) {
-    const url = CVM_DAILY_URL(month);
+  const months = [getYYYYMM(now), getYYYYMM(new Date(now.getFullYear(), now.getMonth() - 1, 1))];
+  for (const month of months) {
     try {
-      logger.info(`📥 Tentando baixar: ${url}`);
-      const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 60000 });
-      zipBuffer = response.data;
-      logger.info(`✅ ZIP baixado: ${(zipBuffer!.byteLength / 1024 / 1024).toFixed(1)} MB`);
+      logger.info(`📥 INF_DIARIO ${month} (best-effort para cotas)...`);
+      const response = await axios.get(CVM_DAILY_URL(month), {
+        responseType: 'arraybuffer',
+        timeout: 30000,
+      });
+      const rows = extractCsvFromZip(Buffer.from(response.data));
+      for (const row of rows) {
+        const cnpj = normalizeCnpj(String(row['CNPJ_FUNDO_CLASSE'] ?? row['CNPJ_FUNDO'] ?? ''));
+        const dateStr = String(row['DT_COMPTC'] ?? '');
+        const quota = Number(row['VL_QUOTA']);
+        if (!cnpj || cnpj.length < 14 || !dateStr || isNaN(quota) || quota === 0) continue;
+        const existing = quotaByCnpj.get(cnpj);
+        if (!existing || dateStr > existing.date) {
+          quotaByCnpj.set(cnpj, { quota, date: dateStr });
+        }
+      }
+      logger.info(`   ${quotaByCnpj.size} CNPJs com cota no mês ${month}`);
       break;
     } catch (err) {
       const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
-      logger.warn(`⚠️  Falha ao baixar mês ${month} (status: ${status})`);
+      logger.warn(`⚠️  INF_DIARIO ${month} indisponível (${status}); seguindo sem cota inicial`);
     }
   }
 
-  if (!zipBuffer) {
-    throw new Error('Não foi possível baixar o arquivo CVM INF_DIARIO');
-  }
-
-  // 2. Extract and parse
-  const csvRows = extractCsvFromZip(Buffer.from(zipBuffer));
-  logger.info(`📊 ${csvRows.length} linhas totais no CSV`);
-
-  // 3. Extract distinct CNPJs with latest quota
-  const fundMap = new Map<string, { cnpj: string; latestQuota: number; latestDate: string }>();
-
-  for (const row of csvRows) {
-    const rawCnpj = String(row['CNPJ_FUNDO_CLASSE'] ?? row['CNPJ_FUNDO'] ?? '');
-    const cnpj = normalizeCnpj(rawCnpj);
-    if (cnpj.length < 11) continue;
-
-    const dateStr = String(row['DT_COMPTC'] ?? '');
-    const quota = Number(row['VL_QUOTA']);
-    if (!dateStr || isNaN(quota) || quota === 0) continue;
-
-    const existing = fundMap.get(cnpj);
-    if (!existing || dateStr > existing.latestDate) {
-      fundMap.set(cnpj, { cnpj, latestQuota: quota, latestDate: dateStr });
-    }
-  }
-
-  const activeCnpjs = Array.from(fundMap.values());
-  logger.info(`🎯 ${activeCnpjs.length} fundos distintos com cotas no mês`);
-
-  // 4. Cross-reference with cad_fi.csv for fund names (best-effort)
-  const nameMap = new Map<string, { name: string; classe: string }>();
-  try {
-    logger.info('📥 Baixando cad_fi.csv para nomes dos fundos...');
-    const { data: regCsv } = await axios.get<string>(CVM_FUND_REGISTRY_URL, {
-      responseType: 'text',
-      timeout: 30000,
-    });
-    const regLines = regCsv.split('\n');
-    const regHeader = regLines[0].split(';').map((h) => h.trim());
-    const iCnpj = regHeader.indexOf('CNPJ_FUNDO');
-    const iNome = regHeader.indexOf('DENOM_SOCIAL');
-    const iClasse = regHeader.indexOf('CLASSE');
-
-    if (iCnpj !== -1 && iNome !== -1) {
-      for (let i = 1; i < regLines.length; i++) {
-        const cols = regLines[i].split(';');
-        if (cols.length <= Math.max(iCnpj, iNome)) continue;
-        const cnpj = normalizeCnpj((cols[iCnpj] || '').trim());
-        const nome = (cols[iNome] || '').trim();
-        const classe = iClasse !== -1 ? (cols[iClasse] || '').trim() : '';
-        if (cnpj && nome) {
-          nameMap.set(cnpj, { name: nome, classe });
-        }
-      }
-      logger.info(`📝 ${nameMap.size} nomes carregados do registro`);
-    }
-  } catch {
-    logger.warn('⚠️  Não foi possível carregar nomes do registro. Usando CNPJ como nome.');
-  }
-
-  // 5. Upsert Asset records
-  for (let i = 0; i < activeCnpjs.length; i += CATALOG_BATCH_SIZE) {
-    const batch = activeCnpjs.slice(i, i + CATALOG_BATCH_SIZE);
-
+  // 6. Upsert em batches
+  for (let i = 0; i < fundsToUpsert.length; i += CATALOG_BATCH_SIZE) {
+    const batch = fundsToUpsert.slice(i, i + CATALOG_BATCH_SIZE);
     try {
-      const operations = batch.map((fund) => {
-        const symbol = `CVM-${fund.cnpj}`;
-        const reg = nameMap.get(fund.cnpj);
-        const name = reg?.name || `Fundo ${fund.cnpj}`;
-        // cad_fi.csv legacy não traz Tipo_Fundo — passa só classificacao+name.
-        // O commit seguinte migra a fonte pra registro_fundo_classe.zip e
-        // passa tipoFundo (RCVM 175).
-        const type = inferFundType({ classificacao: reg?.classe, name });
-
-        return prisma.asset.upsert({
-          where: { symbol },
-          update: {
-            name,
-            currentPrice: new Decimal(fund.latestQuota),
-            priceUpdatedAt: new Date(fund.latestDate),
-          },
-          create: {
-            symbol,
-            name,
-            type,
-            currency: 'BRL',
-            source: 'cvm',
-            cnpj: fund.cnpj,
-            currentPrice: new Decimal(fund.latestQuota),
-            priceUpdatedAt: new Date(fund.latestDate),
-          },
-        });
-      });
-
       const symbols = batch.map((f) => `CVM-${f.cnpj}`);
       const existing = await prisma.asset.findMany({
         where: { symbol: { in: symbols } },
@@ -499,25 +516,55 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
       });
       const existingSet = new Set(existing.map((a) => a.symbol));
 
+      const operations = batch.map((fund) => {
+        const symbol = `CVM-${fund.cnpj}`;
+        const quota = quotaByCnpj.get(fund.cnpj);
+        const updateData: {
+          name: string;
+          type: string;
+          currentPrice?: Decimal;
+          priceUpdatedAt?: Date;
+        } = { name: fund.name, type: fund.type };
+        if (quota) {
+          updateData.currentPrice = new Decimal(quota.quota);
+          updateData.priceUpdatedAt = new Date(quota.date);
+        }
+        return prisma.asset.upsert({
+          where: { symbol },
+          update: updateData,
+          create: {
+            symbol,
+            name: fund.name,
+            type: fund.type,
+            currency: 'BRL',
+            source: 'cvm',
+            cnpj: fund.cnpj,
+            ...(quota
+              ? {
+                  currentPrice: new Decimal(quota.quota),
+                  priceUpdatedAt: new Date(quota.date),
+                }
+              : {}),
+          },
+        });
+      });
+
       await prisma.$transaction(operations);
 
       for (const fund of batch) {
-        if (existingSet.has(`CVM-${fund.cnpj}`)) {
-          updated++;
-        } else {
-          inserted++;
-        }
+        if (existingSet.has(`CVM-${fund.cnpj}`)) updated++;
+        else inserted++;
       }
     } catch (batchErr) {
-      logger.error(`❌ Erro no batch de catálogo ${i}-${i + batch.length}:`, batchErr);
+      logger.error(`❌ Erro no batch ${i}-${i + batch.length}:`, batchErr);
       errors += batch.length;
     }
   }
 
   const duration = (Date.now() - startTime) / 1000;
-
   logger.info('📊 Resultado catálogo CVM:');
   logger.info(`   • ${inserted} inseridos, ${updated} atualizados, ${errors} erros`);
+  logger.info(`   • ${quotaByCnpj.size} cotas iniciais aplicadas via INF_DIARIO`);
   logger.info(`   • Duração: ${duration.toFixed(2)}s`);
 
   return {
@@ -525,7 +572,7 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
     updated,
     errors,
     duration,
-    totalActive: activeCnpjs.length,
+    totalActive: fundsToUpsert.length,
   };
 }
 
