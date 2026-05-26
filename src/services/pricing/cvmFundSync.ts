@@ -467,7 +467,10 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
         const symbol = `CVM-${fund.cnpj}`;
         const reg = nameMap.get(fund.cnpj);
         const name = reg?.name || `Fundo ${fund.cnpj}`;
-        const type = inferFundType(reg?.classe || '', name);
+        // cad_fi.csv legacy não traz Tipo_Fundo — passa só classificacao+name.
+        // O commit seguinte migra a fonte pra registro_fundo_classe.zip e
+        // passa tipoFundo (RCVM 175).
+        const type = inferFundType({ classificacao: reg?.classe, name });
 
         return prisma.asset.upsert({
           where: { symbol },
@@ -526,19 +529,105 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
   };
 }
 
+export interface InferFundTypeInput {
+  /**
+   * Tipo_Fundo do `registro_fundo.csv` (RCVM 175) ou TP_FUNDO do legacy `cad_fi.csv`.
+   * Valores comuns: 'FI', 'FIDC', 'FIP', 'FII', 'FIAGRO', 'FIIM', 'FAPI', 'FUNCINE',
+   * 'FMIEE', 'FMP-FGTS', 'FITVM', 'FMIA', 'FMIA-CL', 'FIF', 'FACFIF'.
+   * Pode vir vazio quando classificando entries do cad_fi.csv legacy sem TP_FUNDO.
+   */
+  tipoFundo?: string;
+  /**
+   * Classificacao do `registro_classe.csv` ou CLASSE do legacy `cad_fi.csv`.
+   * Valores comuns: 'Multimercado', 'Renda Fixa', 'Ações', 'Cambial', 'Referenciado',
+   * 'Curto Prazo', 'Dívida Externa', 'FIP IE', 'FIP EE', 'FIDC-NP', etc.
+   */
+  classificacao?: string;
+  /** Denominacao_Social do fundo — usado como sinal secundário (Fiagro, FI-Infra, FIA). */
+  name?: string;
+}
+
 /**
- * Infer Asset.type from CVM class name and fund name.
+ * Classifica Asset.type a partir dos campos CVM. Ordem importa: tipos estruturais
+ * (FIDC, FIP, FII, FIAGRO, FIIM) têm prioridade sobre classificação genérica (FI +
+ * Multimercado/RF/Ações), pois a tributação e a UX dependem da estrutura legal.
+ *
+ * Subtipos identificados:
+ *   - 'fidc'           — Fundo de Investimento em Direitos Creditórios
+ *   - 'fip'            — Fundo de Investimento em Participações
+ *   - 'fip-infra'      — FIP em Infraestrutura (Lei 12.431, isenção PF em rendimentos)
+ *   - 'fii'            — Fundo de Investimento Imobiliário
+ *   - 'fiagro'         — Fundo de Investimento nas Cadeias Produtivas Agroindustriais
+ *   - 'etf-cvm'        — FIIM (ETF registrado na CVM, distinto do BRAPI 'etf')
+ *   - 'previdencia'    — PGBL/VGBL/Previdência Privada
+ *   - 'fia'            — Fundo de Ações (Classificacao=Ações)
+ *   - 'multimercado'   — Fundo Multimercado
+ *   - 'fund-rf'        — Fundo de Renda Fixa
+ *   - 'fund-cambial'   — Fundo Cambial
+ *   - 'fund'           — Catch-all pra FI/FIF/FACFIF sem classificação clara
  */
-function inferFundType(classe: string, name: string): string {
-  const text = `${classe} ${name}`.toUpperCase();
-  if (text.includes('IMOBILI') || text.includes(' FII ') || text.includes('FII ')) return 'fii';
+export function inferFundType(input: InferFundTypeInput): string {
+  const tipo = (input.tipoFundo || '').toUpperCase().trim();
+  const classif = (input.classificacao || '').toUpperCase().trim();
+  const name = (input.name || '').toUpperCase();
+  const allText = `${tipo} ${classif} ${name}`;
+
+  // Tipos estruturais primeiro (mais específicos, ordem de prioridade)
+  if (tipo === 'FIDC' || classif.includes('FIDC') || classif === 'FICFIDC-NP') {
+    if (name.includes('FIAGRO') || name.includes('AGROIND')) return 'fiagro';
+    return 'fidc';
+  }
   if (
-    text.includes('PREVID') ||
-    text.includes(' PREV ') ||
-    text.includes('PGBL') ||
-    text.includes('VGBL')
-  )
+    tipo === 'FIP' ||
+    tipo === 'FMIEE' ||
+    classif === 'FIP' ||
+    classif.startsWith('FIP ') ||
+    classif === 'FIC FIP'
+  ) {
+    if (name.includes('FIAGRO')) return 'fiagro';
+    // FIP IE = FIP em Infraestrutura (Lei 12.431) — tributação diferenciada
+    if (classif === 'FIP IE' || allText.includes('INFRAESTRUTUR')) return 'fip-infra';
+    return 'fip';
+  }
+  if (tipo === 'FII' || classif === 'FII') {
+    if (name.includes('FIAGRO')) return 'fiagro';
+    return 'fii';
+  }
+  if (tipo === 'FIAGRO' || name.includes('FIAGRO') || name.includes('AGROIND')) {
+    return 'fiagro';
+  }
+  // FIIM = Fundos de Índice de Mercado (ETFs registrados na CVM). Categoria distinta
+  // dos ETFs vindos da BRAPI (type='etf'), embora muitos sejam os mesmos veículos.
+  if (tipo === 'FIIM') return 'etf-cvm';
+
+  // Previdência (sinalizado no nome, não há tipo estrutural separado)
+  if (
+    allText.includes('PREVID') ||
+    allText.includes(' PREV ') ||
+    allText.includes('PGBL') ||
+    allText.includes('VGBL')
+  ) {
     return 'previdencia';
-  if (text.includes(' FIA ') || text.includes('AÇÕES')) return 'fund';
+  }
+
+  // Imobiliário pelo nome (caso a CVM não tenha marcado como FII explícito)
+  if (name.includes('IMOBILI')) return 'fii';
+
+  // FI/FIF/FACFIF/FITVM/FMIA classificados pelo subtipo (Classificacao)
+  if (classif === 'AÇÕES' || classif === 'ACOES' || tipo === 'FITVM' || tipo === 'FMIA') {
+    return 'fia';
+  }
+  if (classif === 'MULTIMERCADO') return 'multimercado';
+  if (classif === 'RENDA FIXA' || classif === 'REFERENCIADO' || classif === 'CURTO PRAZO') {
+    return 'fund-rf';
+  }
+  if (
+    classif === 'CAMBIAL' ||
+    classif.includes('DÍVIDA EXTERNA') ||
+    classif.includes('DIVIDA EXTERNA')
+  ) {
+    return 'fund-cambial';
+  }
+
   return 'fund';
 }
