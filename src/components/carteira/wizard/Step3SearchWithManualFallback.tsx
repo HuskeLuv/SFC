@@ -7,7 +7,21 @@ import AutocompleteInput from '@/components/form/AutocompleteInput';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
+import Select from '@/components/form/Select';
 import { fundoSubtipoFromAssetType } from '@/lib/fundoTypes';
+
+const FUNDO_SUBTIPO_OPTIONS = [
+  { value: '', label: 'Todos os subtipos' },
+  { value: 'fim', label: 'FIM (Multimercado)' },
+  { value: 'multimercado', label: 'Multimercado (CVM)' },
+  { value: 'fia', label: 'FIA (Ações)' },
+  { value: 'fip', label: 'FIP (Participações)' },
+  { value: 'fip-infra', label: 'FIP Infraestrutura' },
+  { value: 'fidc', label: 'FIDC (Direitos Creditórios)' },
+  { value: 'fiagro', label: 'Fiagro' },
+  { value: 'fund-rf', label: 'Fundos Renda Fixa' },
+  { value: 'fund-cambial', label: 'Fundos Cambiais' },
+];
 
 interface Step3SearchWithManualFallbackProps {
   formData: WizardFormData;
@@ -39,6 +53,7 @@ export default function Step3SearchWithManualFallback({
   const [loading, setLoading] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
+  const [fundoSubtipoFiltro, setFundoSubtipoFiltro] = useState<string>('');
 
   const fetchAssets = useCallback(
     async (search: string) => {
@@ -49,7 +64,11 @@ export default function Step3SearchWithManualFallback({
 
       setLoading(true);
       try {
-        const url = `/api/assets?search=${encodeURIComponent(search)}&tipo=${tipoAtivo}&limit=20`;
+        const subtipoParam =
+          tipoAtivo === 'fundo' && fundoSubtipoFiltro
+            ? `&subtipo=${encodeURIComponent(fundoSubtipoFiltro)}`
+            : '';
+        const url = `/api/assets?search=${encodeURIComponent(search)}&tipo=${tipoAtivo}&limit=20${subtipoParam}`;
         const response = await fetch(url, { credentials: 'include' });
 
         if (response.ok) {
@@ -77,7 +96,7 @@ export default function Step3SearchWithManualFallback({
         setLoading(false);
       }
     },
-    [tipoAtivo, onErrorsChange],
+    [tipoAtivo, fundoSubtipoFiltro, onErrorsChange],
   );
 
   const debouncedFetchAssets = useDebouncedCallback(fetchAssets, 250);
@@ -182,6 +201,28 @@ export default function Step3SearchWithManualFallback({
   // Search mode (default)
   return (
     <div className="space-y-6">
+      {tipoAtivo === 'fundo' && (
+        <div>
+          <Label htmlFor="fundo-subtipo-filter">Tipo de fundo</Label>
+          <Select
+            id="fundo-subtipo-filter"
+            options={FUNDO_SUBTIPO_OPTIONS}
+            placeholder="Todos os subtipos"
+            value={fundoSubtipoFiltro}
+            onChange={(value) => {
+              setFundoSubtipoFiltro(value);
+              // Re-buscar com novo filtro se já há termo de busca.
+              if (formData.ativo.length >= 2) {
+                debouncedFetchAssets(formData.ativo);
+              }
+            }}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Restringe a busca a um subtipo da CVM. Deixe em &quot;Todos&quot; pra varrer toda a
+            base.
+          </p>
+        </div>
+      )}
       <div>
         <AutocompleteInput
           id={`${tipoAtivo}-search`}

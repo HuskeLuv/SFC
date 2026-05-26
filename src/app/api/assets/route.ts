@@ -176,12 +176,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  // Fundos CVM
+  // Fundos CVM — aceita ?subtipo= pra restringir por classe (fip/fidc/etc).
   // ──────────────────────────────────────────────────────────────────────
   if (tipo === 'fundo') {
+    const subtipo = (searchParams.get('subtipo') || '').toLowerCase();
+    const typeFilter =
+      subtipo && (FUNDO_TYPES_ALL as readonly string[]).includes(subtipo)
+        ? [subtipo]
+        : [...FUNDO_TYPES_ALL];
     const assets = await prisma.asset.findMany({
       where: {
-        type: { in: [...FUNDO_TYPES_ALL] },
+        type: { in: typeFilter },
         ...(search
           ? {
               OR: [
