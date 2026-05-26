@@ -10,6 +10,7 @@ import {
 import { apurarStocksUs, type UsTransaction } from '@/services/ir/stocksUsIR';
 import { apurarCripto, type CriptoTransaction } from '@/services/ir/criptoIR';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { isFundoType } from '@/lib/fundoTypes';
 
 /**
  * Resumo anual consolidado de IR (Fase 6).
@@ -197,7 +198,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       eventosRestantes = 2; // maio + novembro pela frente
     else if (today.getMonth() < 10) eventosRestantes = 1; // só novembro
     const rendimentoTotalFundos = portfolio
-      .filter((p) => p.asset?.type === 'fund' || p.asset?.type === 'funds')
+      .filter((p) => isFundoType(p.asset?.type))
       .reduce((s, p) => {
         const vAplic = p.totalInvested || p.quantity * p.avgPrice;
         const cp = p.asset?.currentPrice ? Number(p.asset.currentPrice) : p.avgPrice;

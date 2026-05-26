@@ -5,6 +5,7 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { FUNDO_TYPES_FIM_FIA } from '@/lib/fundoTypes';
 const parseNotes = (notes?: string | null) => {
   if (!notes) return null;
   try {
@@ -46,7 +47,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const portfolio = await prisma.portfolio.findMany({
     where: {
       userId: user.id,
-      asset: { type: { in: ['fund', 'funds'] } },
+      asset: { type: { in: [...FUNDO_TYPES_FIM_FIA] } },
     },
     include: { asset: true },
   });

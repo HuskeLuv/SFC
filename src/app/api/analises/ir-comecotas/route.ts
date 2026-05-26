@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { projetarComecotas, type FundoPosicao, type FundoTipo } from '@/services/ir/comecotasIR';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { FUNDO_TYPES_ALL } from '@/lib/fundoTypes';
 
 /**
  * Projeção da próxima cobrança de come-cotas para fundos do usuário.
@@ -29,7 +30,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const portfolio = await prisma.portfolio.findMany({
     where: {
       userId: targetUserId,
-      asset: { type: { in: ['fund', 'funds'] } },
+      asset: { type: { in: [...FUNDO_TYPES_ALL] } },
     },
     include: { asset: true },
   });

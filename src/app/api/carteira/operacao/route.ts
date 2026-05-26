@@ -9,6 +9,7 @@ import { validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
+import { FUNDO_TYPES_ALL } from '@/lib/fundoTypes';
 /** Structural validation for the operacao request body (common fields). */
 const operacaoBaseSchema = z
   .object({
@@ -81,7 +82,7 @@ const expectedAssetTypeByTipoAtivo: Record<string, readonly string[]> = {
   criptoativo: ['crypto', 'currency', 'metal', 'commodity'],
   moeda: ['crypto', 'currency', 'metal', 'commodity'],
   previdencia: ['previdencia'],
-  fundo: ['fund', 'funds'],
+  fundo: FUNDO_TYPES_ALL,
 };
 
 export const POST = withErrorHandler(async (request: NextRequest) => {

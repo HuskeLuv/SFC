@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { FUNDO_TYPES_ALL } from '@/lib/fundoTypes';
 
 /**
  * Consolidação Stock → Asset (Sprint 4 / bug #16): toda busca de ativos passa
@@ -180,7 +181,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   if (tipo === 'fundo') {
     const assets = await prisma.asset.findMany({
       where: {
-        type: { in: ['fund', 'funds'] },
+        type: { in: [...FUNDO_TYPES_ALL] },
         ...(search
           ? {
               OR: [
