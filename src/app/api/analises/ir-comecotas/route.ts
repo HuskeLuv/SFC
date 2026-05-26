@@ -8,15 +8,31 @@ import { FUNDO_TYPES_ALL } from '@/lib/fundoTypes';
 /**
  * Projeção da próxima cobrança de come-cotas para fundos do usuário.
  *
- * Como o tipo de fundo (curto/longo prazo/ações) não está hoje persistido
- * na nossa modelagem, usamos heurística simples a partir do nome:
- *  - nome contém "Ações" ou "FIA" → 'acoes' (sem come-cotas)
- *  - nome contém "Curto Prazo" ou "Crédito Privado CP" → 'curto-prazo' (20%)
- *  - default → 'longo-prazo' (15%)
- * Quando tiver flag explícita no cadastro, refinar.
+ * Prioridade pro Asset.type classificado pela CVM (RCVM 175). Fallback pra
+ * heurística por nome quando o ativo ainda não tem type específico (FUNDO-MANUAL,
+ * fundo legacy não-reclassificado, etc).
  */
 
-function inferirTipoFundo(nome: string | null | undefined): FundoTipo {
+function inferirTipoFundo(
+  assetType: string | null | undefined,
+  nome: string | null | undefined,
+): FundoTipo {
+  switch (assetType) {
+    case 'fia':
+      return 'acoes';
+    case 'fip':
+      return 'fip';
+    case 'fip-infra':
+      return 'fip-infra';
+    case 'fidc':
+    case 'fiagro':
+    case 'multimercado':
+    case 'fund-rf':
+    case 'fund-cambial':
+    case 'etf-cvm':
+      return 'longo-prazo';
+  }
+  // Fallback: heurística por nome (fundos manuais ou Asset.type genérico).
   if (!nome) return 'longo-prazo';
   const lower = nome.toLowerCase();
   if (lower.includes('ações') || lower.includes('fia') || lower.includes('acoes')) return 'acoes';
@@ -48,7 +64,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         valorAplicado,
         valorAtualizado,
         startDate: p.lastUpdate ?? new Date(),
-        tipo: inferirTipoFundo(p.asset?.name),
+        tipo: inferirTipoFundo(p.asset?.type, p.asset?.name),
       };
     });
 

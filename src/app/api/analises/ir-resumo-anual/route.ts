@@ -197,8 +197,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (today.getMonth() < 4)
       eventosRestantes = 2; // maio + novembro pela frente
     else if (today.getMonth() < 10) eventosRestantes = 1; // só novembro
+    // Fundos sem come-cotas (FIA tributa no resgate, FIP tabela regressiva no
+    // resgate, FIP-Infra isento pra PF) não somam pro evento semestral.
+    const SEM_COMECOTAS_TYPES = new Set(['fia', 'fip', 'fip-infra']);
     const rendimentoTotalFundos = portfolio
-      .filter((p) => isFundoType(p.asset?.type))
+      .filter((p) => isFundoType(p.asset?.type) && !SEM_COMECOTAS_TYPES.has(p.asset?.type ?? ''))
       .reduce((s, p) => {
         const vAplic = p.totalInvested || p.quantity * p.avgPrice;
         const cp = p.asset?.currentPrice ? Number(p.asset.currentPrice) : p.avgPrice;

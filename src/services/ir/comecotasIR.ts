@@ -4,11 +4,14 @@
  * de maio e de novembro de cada ano — o usuário não paga DARF, mas vê o
  * impacto no patrimônio. Esta projeção é informativa.
  *
- * Regras (Lei 11.033/2004 + IN RFB 1585/2015):
- *  - Fundos de **renda fixa, multimercado, cambiais** (longo prazo) — alíquota
- *    15% sobre o rendimento desde a última cobrança/aplicação.
+ * Regras (Lei 11.033/2004 + IN RFB 1585/2015 + Lei 11.478/2007):
+ *  - Fundos de **renda fixa, multimercado, cambiais, FIDC, Fiagro-FIDC**
+ *    (longo prazo) — alíquota 15% sobre o rendimento.
  *  - Fundos de **curto prazo** (carteira de prazo médio ≤ 365 dias) — 20%.
  *  - Fundos de **ações (FIA)** — NÃO têm come-cotas; tributados só no resgate.
+ *  - **FIP** (Lei 11.478/2007, CVM 578/2016) — NÃO têm come-cotas; tributados
+ *    no resgate/amortização pela tabela regressiva (15-22.5%).
+ *  - **FIP-Infra** (FIP-IE, Lei 12.431) — rendimentos ISENTOS pra PF.
  *  - FIIs e ETFs — NÃO têm come-cotas; regras próprias (Fase 2).
  *
  * Aproximação adotada por agora: usamos valorAplicado e valorAtualizado da
@@ -20,7 +23,7 @@
  * Sem I/O. Recebe posições já carregadas; retorna projeção estruturada.
  */
 
-export type FundoTipo = 'longo-prazo' | 'curto-prazo' | 'acoes';
+export type FundoTipo = 'longo-prazo' | 'curto-prazo' | 'acoes' | 'fip' | 'fip-infra';
 
 export interface FundoPosicao {
   symbol: string;
@@ -60,7 +63,15 @@ const ALIQUOTAS: Record<FundoTipo, number> = {
   'longo-prazo': 0.15,
   'curto-prazo': 0.2,
   acoes: 0, // sem come-cotas
+  fip: 0, // sem come-cotas; tributação no resgate (tabela regressiva)
+  'fip-infra': 0, // FIP-IE Lei 12.431 isento pra PF
 };
+
+/**
+ * Subtipos que NÃO participam do come-cotas. UI usa pra explicar ao usuário
+ * por que o IR projetado é zero (isenção vs. evento futuro).
+ */
+const SEM_COMECOTAS: ReadonlySet<FundoTipo> = new Set(['acoes', 'fip', 'fip-infra']);
 
 /**
  * Próxima data de come-cotas a partir de hoje. Considera o último dia útil
@@ -90,7 +101,7 @@ export function projetarComecotas(
   const fundos: ComecotasProjection[] = posicoes.map((p) => {
     const tipo: FundoTipo = p.tipo ?? 'longo-prazo';
     const aliquota = ALIQUOTAS[tipo];
-    const isentoComeCotas = tipo === 'acoes';
+    const isentoComeCotas = SEM_COMECOTAS.has(tipo);
     const rendimentoEstimado = Math.max(0, p.valorAtualizado - p.valorAplicado);
     const irEstimado = isentoComeCotas ? 0 : round2(rendimentoEstimado * aliquota);
     const diasDecorridos = Math.max(

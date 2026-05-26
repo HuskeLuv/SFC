@@ -79,6 +79,34 @@ describe('projetarComecotas — alíquotas', () => {
     expect(result.fundos[0].irEstimado).toBe(0);
     expect(result.fundos[0].isentoComeCotas).toBe(true);
   });
+
+  it('FIP comum: sem come-cotas (tributação no resgate), ir=0', () => {
+    const result = projetarComecotas(
+      [pos({ symbol: 'X', nome: 'X', valorAplicado: 1000, valorAtualizado: 5000, tipo: 'fip' })],
+      new Date('2025-04-15'),
+    );
+    expect(result.fundos[0].aliquota).toBe(0);
+    expect(result.fundos[0].irEstimado).toBe(0);
+    expect(result.fundos[0].isentoComeCotas).toBe(true);
+  });
+
+  it('FIP-Infra (Lei 12.431): isento pra PF, ir=0', () => {
+    const result = projetarComecotas(
+      [
+        pos({
+          symbol: 'X',
+          nome: 'X',
+          valorAplicado: 1000,
+          valorAtualizado: 5000,
+          tipo: 'fip-infra',
+        }),
+      ],
+      new Date('2025-04-15'),
+    );
+    expect(result.fundos[0].aliquota).toBe(0);
+    expect(result.fundos[0].irEstimado).toBe(0);
+    expect(result.fundos[0].isentoComeCotas).toBe(true);
+  });
 });
 
 describe('projetarComecotas — agregado', () => {
