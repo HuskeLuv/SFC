@@ -12,7 +12,7 @@ interface AddInvestmentModalProps {
 const categoriaOptions = [
   { value: 'reserva', label: 'Reserva de Oportunidade' },
   { value: 'renda fixa', label: 'Renda Fixa & Fundos de Renda Fixa' },
-  { value: 'fundo', label: 'FIM/FIA' },
+  { value: 'fundo', label: 'Fundos' },
   { value: 'fii', label: "FII's" },
   { value: 'acao', label: 'Ações' },
   { value: 'exterior', label: 'Stocks' },

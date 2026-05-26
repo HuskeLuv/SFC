@@ -351,7 +351,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       setErrors((prev) => ({
         ...prev,
         fundoDestino: !formData.fundoDestino
-          ? 'Selecione onde o fundo deve aparecer (Renda Fixa, Reserva ou FIM/FIA)'
+          ? 'Selecione onde o fundo deve aparecer (Renda Fixa, Reserva ou subtipo da aba Fundos)'
           : undefined,
         fundoRendaFixaTipo:
           formData.fundoDestino === 'renda-fixa' && !formData.fundoRendaFixaTipo

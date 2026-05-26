@@ -5,7 +5,13 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { FUNDO_TYPES_FIM_FIA } from '@/lib/fundoTypes';
+import {
+  FUNDO_TYPES_AGRUPADOS,
+  FUNDO_SUBTIPO_ORDER,
+  FUNDO_SUBTIPO_LABEL,
+  fundoSubtipoFromAssetType,
+  type FundoSubtipo,
+} from '@/lib/fundoTypes';
 const parseNotes = (notes?: string | null) => {
   if (!notes) return null;
   try {
@@ -47,7 +53,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const portfolio = await prisma.portfolio.findMany({
     where: {
       userId: user.id,
-      asset: { type: { in: [...FUNDO_TYPES_FIM_FIA] } },
+      asset: { type: { in: [...FUNDO_TYPES_AGRUPADOS] } },
     },
     include: { asset: true },
   });
@@ -138,8 +144,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           : valorCalculado;
     const notes = assetId ? latestCompraNotes.get(assetId) : null;
 
-    const tipoFundo =
-      notes?.tipoFundo === 'fia' || notes?.tipoFundo === 'fim' ? notes.tipoFundo : 'fim';
+    // Subtipo: prioridade pro Asset.type classificado (CVM/RCVM 175), fallback
+    // pro notes.tipoFundo (input antigo do wizard), default 'fim'.
+    const subtipoFromAsset = fundoSubtipoFromAssetType(item.asset?.type);
+    const subtipoFromNotes = FUNDO_SUBTIPO_ORDER.includes(notes?.tipoFundo as FundoSubtipo)
+      ? (notes?.tipoFundo as FundoSubtipo)
+      : null;
+    const tipoFundo: FundoSubtipo = subtipoFromAsset ?? subtipoFromNotes ?? 'fim';
 
     return {
       id: item.id,
@@ -172,55 +183,57 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       totalCarteira > 0 ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
   }));
 
-  const FIM_FIA_SECTION_ORDER = ['fim', 'fia'] as const;
-  const FIM_FIA_SECTION_NAMES: Record<string, string> = { fim: 'FIM', fia: 'FIA' };
-  type AtivoFimFia = (typeof ativosComPercentuais)[number];
-  const secoesMap = new Map<string, { tipo: string; nome: string; ativos: AtivoFimFia[] }>();
+  type AtivoFundo = (typeof ativosComPercentuais)[number];
+  const secoesMap = new Map<
+    FundoSubtipo,
+    { tipo: FundoSubtipo; nome: string; ativos: AtivoFundo[] }
+  >();
   ativosComPercentuais.forEach((ativo) => {
     const tipo = ativo.tipo;
     const current = secoesMap.get(tipo) || {
       tipo,
-      nome: FIM_FIA_SECTION_NAMES[tipo] || tipo,
-      ativos: [] as AtivoFimFia[],
+      nome: FUNDO_SUBTIPO_LABEL[tipo] || tipo,
+      ativos: [] as AtivoFundo[],
     };
     current.ativos.push(ativo);
     secoesMap.set(tipo, current);
   });
 
-  const secoes = FIM_FIA_SECTION_ORDER.map((tipo) => {
+  // Mostra apenas as seções que têm ao menos um ativo — evita vitrine vazia
+  // pra subtipos novos (FIDC, FIP, etc.) enquanto a base de usuários cresce.
+  const secoes = FUNDO_SUBTIPO_ORDER.filter(
+    (tipo) => tipo === 'fim' || tipo === 'fia' || secoesMap.has(tipo),
+  ).map((tipo) => {
     const secao = secoesMap.get(tipo) || {
       tipo,
-      nome: FIM_FIA_SECTION_NAMES[tipo],
-      ativos: [] as AtivoFimFia[],
+      nome: FUNDO_SUBTIPO_LABEL[tipo],
+      ativos: [] as AtivoFundo[],
     };
     return {
       tipo: secao.tipo,
       nome: secao.nome,
       ativos: secao.ativos,
       totalValorAplicado: secao.ativos.reduce(
-        (sum: number, ativo: AtivoFimFia) => sum + ativo.valorInicialAplicado,
+        (sum: number, ativo: AtivoFundo) => sum + ativo.valorInicialAplicado,
         0,
       ),
-      totalAporte: secao.ativos.reduce((sum: number, ativo: AtivoFimFia) => sum + ativo.aporte, 0),
-      totalResgate: secao.ativos.reduce(
-        (sum: number, ativo: AtivoFimFia) => sum + ativo.resgate,
-        0,
-      ),
+      totalAporte: secao.ativos.reduce((sum: number, ativo: AtivoFundo) => sum + ativo.aporte, 0),
+      totalResgate: secao.ativos.reduce((sum: number, ativo: AtivoFundo) => sum + ativo.resgate, 0),
       totalValorAtualizado: secao.ativos.reduce(
-        (sum: number, ativo: AtivoFimFia) => sum + ativo.valorAtualizado,
+        (sum: number, ativo: AtivoFundo) => sum + ativo.valorAtualizado,
         0,
       ),
       totalPercentualCarteira:
         totalCarteira > 0
           ? (secao.ativos.reduce(
-              (sum: number, ativo: AtivoFimFia) => sum + ativo.valorAtualizado,
+              (sum: number, ativo: AtivoFundo) => sum + ativo.valorAtualizado,
               0,
             ) /
               totalCarteira) *
             100
           : 0,
       totalRisco: secao.ativos.reduce(
-        (sum: number, ativo: AtivoFimFia) => sum + ativo.riscoPorAtivo,
+        (sum: number, ativo: AtivoFundo) => sum + ativo.riscoPorAtivo,
         0,
       ),
       totalObjetivo: 0,
@@ -228,7 +241,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       totalNecessidadeAporte: 0,
       rentabilidadeMedia:
         secao.ativos.length > 0
-          ? secao.ativos.reduce((sum: number, ativo: AtivoFimFia) => sum + ativo.rentabilidade, 0) /
+          ? secao.ativos.reduce((sum: number, ativo: AtivoFundo) => sum + ativo.rentabilidade, 0) /
             secao.ativos.length
           : 0,
     };

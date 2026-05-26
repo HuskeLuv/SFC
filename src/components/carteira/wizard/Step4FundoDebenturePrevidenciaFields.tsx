@@ -5,6 +5,11 @@ import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import DatePicker from '@/components/form/date-picker';
 import { Step4FieldsProps } from './step4Types';
+import {
+  fundoSubtipoFromAssetType,
+  FUNDO_SUBTIPO_LABEL,
+  type FundoSubtipo,
+} from '@/lib/fundoTypes';
 
 export default function Step4FundoDebenturePrevidenciaFields({
   formData,
@@ -19,6 +24,13 @@ export default function Step4FundoDebenturePrevidenciaFields({
   const isCvmFund =
     formData.tipoAtivo === 'fundo' && formData.assetId && formData.assetId !== 'FUNDO-MANUAL';
 
+  // Quando o ativo selecionado é um fundo classificado pela CVM (FIDC/FIP/etc),
+  // resolvemos o subtipo automaticamente — o destino na aba "Fundos" deixa de
+  // ser ambíguo e o dropdown vira info read-only.
+  const autoSubtipo: FundoSubtipo | null = isCvmFund
+    ? fundoSubtipoFromAssetType(formData.assetType)
+    : null;
+
   // For CVM-backed funds, default to 'cotas' method to encourage quota-based entry
   useEffect(() => {
     if (!isCvmFund) return;
@@ -28,6 +40,18 @@ export default function Step4FundoDebenturePrevidenciaFields({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.assetId]);
+
+  // Auto-preencher fundoDestino e tipoFundo quando o Asset.type é classificado.
+  useEffect(() => {
+    if (!autoSubtipo) return;
+    if (formData.fundoDestino === autoSubtipo && formData.tipoFundo === autoSubtipo) return;
+    onFormDataChange({
+      fundoDestino: autoSubtipo,
+      tipoFundo: autoSubtipo,
+      fundoRendaFixaTipo: undefined,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSubtipo]);
 
   const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
   const totalCalculado = formData.quantidade * formData.cotacaoUnitaria;
@@ -74,7 +98,16 @@ export default function Step4FundoDebenturePrevidenciaFields({
         </div>
       )}
 
-      {formData.tipoAtivo === 'fundo' && (
+      {formData.tipoAtivo === 'fundo' && autoSubtipo && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            Classificação CVM: <strong>{FUNDO_SUBTIPO_LABEL[autoSubtipo]}</strong>. Este fundo será
+            exibido na seção {FUNDO_SUBTIPO_LABEL[autoSubtipo]} da aba Fundos e a cota será
+            atualizada automaticamente.
+          </p>
+        </div>
+      )}
+      {formData.tipoAtivo === 'fundo' && !autoSubtipo && (
         <div>
           <Label htmlFor="fundoDestino">Onde este fundo deve aparecer *</Label>
           <Select
@@ -83,14 +116,19 @@ export default function Step4FundoDebenturePrevidenciaFields({
               { value: 'reserva-emergencia', label: 'Reserva de Emergência' },
               { value: 'reserva-oportunidade', label: 'Reserva de Oportunidade' },
               { value: 'renda-fixa', label: 'Renda Fixa' },
-              { value: 'fim', label: 'FIM (Fundos de Investimento Multimercado)' },
-              { value: 'fia', label: 'FIA (Fundo de Investimento em Ações)' },
+              { value: 'fim', label: 'FIM (Fundo Multimercado)' },
+              { value: 'fia', label: 'FIA (Fundo de Ações)' },
+              { value: 'fip', label: 'FIP (Fundo de Participações)' },
+              { value: 'fip-infra', label: 'FIP Infraestrutura (Lei 12.431)' },
+              { value: 'fidc', label: 'FIDC (Direitos Creditórios)' },
+              { value: 'fiagro', label: 'Fiagro' },
             ]}
             placeholder="Selecione onde exibir"
             value={formData.fundoDestino ?? ''}
             onChange={(value) => {
               handleInputChange('fundoDestino', value);
-              if (value === 'fim' || value === 'fia') {
+              const subtipos: string[] = ['fim', 'fia', 'fip', 'fip-infra', 'fidc', 'fiagro'];
+              if (subtipos.includes(value)) {
                 handleInputChange('tipoFundo', value);
               } else {
                 onFormDataChange({
@@ -102,8 +140,8 @@ export default function Step4FundoDebenturePrevidenciaFields({
             className={errors.fundoDestino ? 'border-red-500' : ''}
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            O fundo será exibido na aba correspondente: Renda Fixa, Reserva de Emergência, Reserva
-            de Oportunidade ou FIM/FIA.
+            Para fundos manuais o destino é informado. Fundos vinculados à CVM têm o destino
+            classificado automaticamente.
           </p>
           {errors.fundoDestino && (
             <p className="mt-1 text-sm text-red-500">{errors.fundoDestino}</p>
@@ -111,7 +149,7 @@ export default function Step4FundoDebenturePrevidenciaFields({
         </div>
       )}
 
-      {isCvmFund && (
+      {isCvmFund && !autoSubtipo && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
           <p className="text-sm text-blue-700 dark:text-blue-300">
             Fundo vinculado ao cadastro CVM. O valor da cota será atualizado automaticamente via

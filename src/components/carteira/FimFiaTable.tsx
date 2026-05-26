@@ -11,11 +11,10 @@ import {
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
-const SECTION_ORDER = ['fim', 'fia'] as const;
-const SECTION_NAMES: Record<string, string> = {
-  fim: 'FIM',
-  fia: 'FIA',
-};
+import { FUNDO_SUBTIPO_ORDER, FUNDO_SUBTIPO_LABEL } from '@/lib/fundoTypes';
+
+const SECTION_ORDER = FUNDO_SUBTIPO_ORDER;
+const SECTION_NAMES: Record<string, string> = FUNDO_SUBTIPO_LABEL;
 
 interface FimFiaTableProps {
   totalCarteira?: number;
@@ -235,7 +234,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       data={data as unknown as Record<string, unknown>}
       loading={loading}
       error={error}
-      loadingText="Carregando dados FIM/FIA..."
+      loadingText="Carregando dados de fundos..."
       columns={columns}
       getSecoes={(d) => (d.secoes as FimFiaSecao[]) ?? []}
       getSectionAtivos={(s) => s.ativos}
@@ -248,7 +247,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       onUpdateCaixaParaInvestir={updateCaixaParaInvestir}
       sectionOrder={SECTION_ORDER}
       sectionNames={SECTION_NAMES}
-      tableTitle="FIM/FIA - Detalhamento"
+      tableTitle="Fundos - Detalhamento"
       formatCurrency={formatCurrency}
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}

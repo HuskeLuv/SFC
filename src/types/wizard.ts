@@ -52,6 +52,10 @@ export interface WizardFormData {
   // Passo 3: Ativo
   ativo: string;
   assetId: string;
+  /** Asset.type quando o ativo foi selecionado via autocomplete (ex.: 'fidc',
+   * 'fip-infra', 'multimercado'). Vazio pra entradas manuais ou tipos sem
+   * classificação. Usado pelo Step4 pra auto-preencher destinos. */
+  assetType?: string;
 
   // Passo 4: Informações do Ativo (varia por tipo)
   dataCompra: string;
@@ -87,11 +91,20 @@ export interface WizardFormData {
   /** Para debênture: tipo (Pré, Pós ou Híbrida) - define em qual seção da aba Renda Fixa será exibida */
   tipoDebenture?: 'prefixada' | 'pos-fixada' | 'hibrida';
 
-  /** Para fundo: tipo (FIM ou FIA) - define em qual seção da aba FIM/FIA será exibido */
-  tipoFundo?: 'fim' | 'fia';
+  /** Para fundo: subtipo da aba Fundos (FIM/FIA/FIP/FIP-Infra/FIDC/Fiagro) */
+  tipoFundo?: 'fim' | 'fia' | 'fip' | 'fip-infra' | 'fidc' | 'fiagro';
 
-  /** Para fundo: onde o fundo deve aparecer (Renda Fixa, Reserva, ou FIM/FIA) */
-  fundoDestino?: 'reserva-emergencia' | 'reserva-oportunidade' | 'renda-fixa' | 'fim' | 'fia';
+  /** Para fundo: onde o fundo deve aparecer (Renda Fixa, Reserva, ou subtipo da aba Fundos) */
+  fundoDestino?:
+    | 'reserva-emergencia'
+    | 'reserva-oportunidade'
+    | 'renda-fixa'
+    | 'fim'
+    | 'fia'
+    | 'fip'
+    | 'fip-infra'
+    | 'fidc'
+    | 'fiagro';
 
   /** Para fundo em Renda Fixa: tipo (Pré, Pós ou Híbrida) */
   fundoRendaFixaTipo?: 'prefixada' | 'pos-fixada' | 'hibrida';

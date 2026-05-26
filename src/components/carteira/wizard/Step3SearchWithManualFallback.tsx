@@ -7,6 +7,7 @@ import AutocompleteInput from '@/components/form/AutocompleteInput';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
+import { fundoSubtipoFromAssetType } from '@/lib/fundoTypes';
 
 interface Step3SearchWithManualFallbackProps {
   formData: WizardFormData;
@@ -32,6 +33,9 @@ export default function Step3SearchWithManualFallback({
   manualPlaceholder,
 }: Step3SearchWithManualFallbackProps) {
   const [assetOptions, setAssetOptions] = useState<AutocompleteOption[]>([]);
+  const [assetsById, setAssetsById] = useState<Map<string, Asset & { currentPrice?: number }>>(
+    new Map(),
+  );
   const [loading, setLoading] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
@@ -50,16 +54,16 @@ export default function Step3SearchWithManualFallback({
 
         if (response.ok) {
           const data = await response.json();
-          const options: AutocompleteOption[] = (data.assets || []).map(
-            (asset: Asset & { currentPrice?: number }) => ({
-              value: asset.id,
-              label: `${asset.symbol} - ${asset.name}`,
-              subtitle: asset.currentPrice
-                ? `R$ ${Number(asset.currentPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : undefined,
-            }),
-          );
+          const assets: (Asset & { currentPrice?: number })[] = data.assets || [];
+          const options: AutocompleteOption[] = assets.map((asset) => ({
+            value: asset.id,
+            label: `${asset.symbol} - ${asset.name}`,
+            subtitle: asset.currentPrice
+              ? `R$ ${Number(asset.currentPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              : undefined,
+          }));
           setAssetOptions(options);
+          setAssetsById(new Map(assets.map((a) => [a.id, a])));
           setSearchPerformed(true);
 
           if (options.length === 0 && search.length >= 2) {
@@ -79,7 +83,7 @@ export default function Step3SearchWithManualFallback({
   const debouncedFetchAssets = useDebouncedCallback(fetchAssets, 250);
 
   const handleSearchChange = (value: string) => {
-    onFormDataChange({ ativo: value, assetId: '' });
+    onFormDataChange({ ativo: value, assetId: '', assetType: undefined });
     setShowManual(false);
 
     if (value.length >= 2) {
@@ -95,9 +99,15 @@ export default function Step3SearchWithManualFallback({
   };
 
   const handleSelect = (option: AutocompleteOption) => {
+    const asset = assetsById.get(option.value);
+    const subtipo = tipoAtivo === 'fundo' ? fundoSubtipoFromAssetType(asset?.type) : null;
     onFormDataChange({
       ativo: option.label,
       assetId: option.value,
+      assetType: asset?.type,
+      // Pra fundos classificados pela CVM, preenche destino/subtipo já no Step3
+      // pra não exigir um clique manual em campo redundante no Step4.
+      ...(subtipo && { fundoDestino: subtipo, tipoFundo: subtipo }),
     });
     onErrorsChange({ ativo: undefined });
   };
@@ -108,20 +118,21 @@ export default function Step3SearchWithManualFallback({
     onFormDataChange({
       ativo: value,
       assetId: trimmed ? `${manualPrefix}-MANUAL` : '',
+      assetType: undefined,
     });
     if (errors.ativo) onErrorsChange({ ativo: undefined });
   };
 
   const switchToManual = () => {
     setShowManual(true);
-    onFormDataChange({ ativo: '', assetId: '' });
+    onFormDataChange({ ativo: '', assetId: '', assetType: undefined });
     setAssetOptions([]);
     setSearchPerformed(false);
   };
 
   const switchToSearch = () => {
     setShowManual(false);
-    onFormDataChange({ ativo: '', assetId: '' });
+    onFormDataChange({ ativo: '', assetId: '', assetType: undefined });
   };
 
   // Manual entry mode

@@ -22,7 +22,7 @@ export const CATEGORIA_LABELS: Record<string, string> = {
   reservaEmergencia: 'Reserva Emergência',
   reservaOportunidade: 'Reserva Oportunidade',
   rendaFixaFundos: 'Renda Fixa',
-  fimFia: 'FIM/FIA',
+  fimFia: 'Fundos',
   fiis: "FII's",
   acoes: 'Ações',
   stocks: 'Stocks',

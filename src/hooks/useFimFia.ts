@@ -6,7 +6,7 @@ export const useFimFia = () => {
     apiPath: '/api/carteira/fim-fia',
     objetivoPath: '/api/carteira/fim-fia/objetivo',
     valorAtualizadoPath: '/api/carteira/fim-fia',
-    label: 'FIM/FIA',
+    label: 'Fundos',
   });
 
   const calculateAtivoValues = (

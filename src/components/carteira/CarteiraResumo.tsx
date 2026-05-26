@@ -82,7 +82,7 @@ const tabs = [
   { id: 'reserva-emergencia', label: 'Reserva Emergência' },
   { id: 'reserva-oportunidade', label: 'Reserva Oportunidade' },
   { id: 'renda-fixa', label: 'Renda Fixa' },
-  { id: 'fim-fia', label: 'FIM/FIA' },
+  { id: 'fim-fia', label: 'Fundos' },
   { id: 'fiis', label: "FII's" },
   { id: 'acoes', label: 'Ações' },
   { id: 'stocks', label: 'Stocks' },

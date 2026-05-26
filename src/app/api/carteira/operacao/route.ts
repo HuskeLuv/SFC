@@ -9,7 +9,10 @@ import { validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
-import { FUNDO_TYPES_ALL } from '@/lib/fundoTypes';
+import { FUNDO_TYPES_ALL, FUNDO_SUBTIPO_ORDER } from '@/lib/fundoTypes';
+
+/** Valores de fundoDestino que viram seções na aba "Fundos". */
+const FUNDO_SUBTIPO_DESTINOS: Set<string> = new Set(FUNDO_SUBTIPO_ORDER);
 /** Structural validation for the operacao request body (common fields). */
 const operacaoBaseSchema = z
   .object({
@@ -1646,7 +1649,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
   if (tipoAtivo === 'fundo' && fundoDestino) {
     metadata.fundoDestino = fundoDestino;
-    if (fundoDestino === 'fim' || fundoDestino === 'fia') {
+    // Subtipos da aba Fundos viram tipoFundo (usado pelo /api/carteira/fim-fia
+    // como fallback quando o Asset.type não está classificado).
+    if (FUNDO_SUBTIPO_DESTINOS.has(fundoDestino)) {
       metadata.tipoFundo = fundoDestino;
     }
     if (fundoDestino === 'renda-fixa' && fundoRendaFixaTipo) {

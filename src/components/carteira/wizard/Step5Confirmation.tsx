@@ -303,8 +303,12 @@ export default function Step5Confirmation({
                   'reserva-emergencia': 'Reserva de Emergência',
                   'reserva-oportunidade': 'Reserva de Oportunidade',
                   'renda-fixa': 'Renda Fixa',
-                  fim: 'FIM (Fundos de Investimento Multimercado)',
-                  fia: 'FIA (Fundo de Investimento em Ações)',
+                  fim: 'FIM (Fundo Multimercado)',
+                  fia: 'FIA (Fundo de Ações)',
+                  fip: 'FIP (Fundo de Participações)',
+                  'fip-infra': 'FIP Infraestrutura',
+                  fidc: 'FIDC',
+                  fiagro: 'Fiagro',
                 };
                 return labels[val as string] ?? val;
               })}

@@ -1,8 +1,10 @@
-// Tipos para FIM/FIA (Fundos Multimercado e Fundos de Ações)
+// Tipos para a aba Fundos (FIM/FIA/FIP/FIP-Infra/FIDC/Fiagro)
+// Nome do arquivo é histórico — quando a aba era só FIM/FIA — mantido pra
+// evitar diff em ~20 importadores.
 
 import { BaseFundAtivo, BaseSecao, BaseFundSecaoTotals, BaseResumo } from './base';
 
-export type TipoFimFia = 'fim' | 'fia';
+export type TipoFimFia = 'fim' | 'fia' | 'fip' | 'fip-infra' | 'fidc' | 'fiagro';
 
 export interface FimFiaAtivo extends BaseFundAtivo {
   cotizacaoResgate: string; // Ex: "D+0", "D+8", "D+30"
