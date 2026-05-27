@@ -21,6 +21,7 @@ import LineChartCarteiraHistorico from '@/components/charts/line/LineChartCartei
 import RentabilidadeChart from '@/components/analises/RentabilidadeChart';
 import { useIndices } from '@/hooks/useIndices';
 import { ChevronDownIcon } from '@/icons';
+import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -74,7 +75,11 @@ const RENTABILIDADE_OPTIONS: { value: RentabilidadeRange; label: string }[] = [
 ];
 
 interface AtivoData {
-  ativo: { nome: string; ticker: string; instituicao: string | null };
+  ativo: {
+    nome: string;
+    ticker: string;
+    instituicao: { id: string | null; nome: string | null } | null;
+  };
   posicao: {
     quantidade: number;
     precoMedio: number;
@@ -372,17 +377,26 @@ function AtivoDetalheContent() {
     );
   }
 
-  const instituicaoLabel = data.ativo.instituicao ?? '—';
+  const instituicaoLabel = data.ativo.instituicao?.nome ?? '—';
+  // Sanitiza symbols sintéticos (RENDA-FIXA-{ts}-{uuid}) que não fazem sentido
+  // pro usuário ver — mostra só o nome do produto.
+  const { ticker: displayTicker, nome: displayNome } = formatAssetDisplayTitle({
+    ticker: data.ativo.ticker,
+    nome: data.ativo.nome,
+  });
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{data.ativo.nome}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {displayNome || data.ativo.nome}
+          </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            {data.ativo.ticker}
-            {instituicaoLabel !== '—' && ` • ${instituicaoLabel}`}
+            {displayTicker}
+            {displayTicker && instituicaoLabel !== '—' && ' • '}
+            {instituicaoLabel !== '—' && instituicaoLabel}
           </p>
         </div>
         <Link href={`/ativos/${id}/editar`}>

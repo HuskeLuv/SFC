@@ -61,7 +61,10 @@ async function buildPlan(): Promise<RecoveryPlan[]> {
     if (tx?.notes) {
       try {
         const parsed = JSON.parse(tx.notes);
-        descricao = (parsed?.descricao ?? '').toString().trim();
+        // descricao pode vir como objeto (legacy bug) — `.toString()` resultaria
+        // em "[object Object]" que vaza pro nome do ativo. Aceita só string.
+        const rawDescricao = parsed?.descricao;
+        descricao = typeof rawDescricao === 'string' ? rawDescricao.trim() : '';
         if (parsed?.dataInicio) dataInicio = new Date(parsed.dataInicio);
       } catch {
         // notes não-JSON — segue com fallback
