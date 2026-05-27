@@ -345,7 +345,14 @@ const fetchAndPersistDividendsFromBrapi = async (symbol: string): Promise<Divide
       const parsed = new Date(rawDate);
       if (Number.isNaN(parsed.getTime())) continue;
 
-      const dateNorm = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      // Date.UTC garante o mesmo timestamp independente do fuso do servidor.
+      // Antes usávamos new Date(year, month, day) que persiste local midnight —
+      // no Vercel (UTC) virava T00:00Z, em dev local (BRT) virava T03:00Z, e a
+      // unique constraint [symbol, date, type] não pegava as duplicatas porque
+      // os timestamps diferiam por 3 horas.
+      const dateNorm = new Date(
+        Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()),
+      );
 
       try {
         await prisma.assetCorporateAction.upsert({
