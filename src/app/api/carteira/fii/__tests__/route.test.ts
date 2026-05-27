@@ -296,4 +296,117 @@ describe('/api/carteira/fii', () => {
       expect(Math.abs(sum - 100)).toBeLessThan(0.001);
     });
   });
+
+  describe('Bug #14 — percentualCarteira por ativo é calculado no backend', () => {
+    it('cada ativo recebe percentualCarteira > 0 (antes ficava zerado)', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(
+        new Map([
+          ['HGLG11', 150],
+          ['MXRF11', 50],
+        ]),
+      );
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          userId: 'user-1',
+          quantity: 100,
+          totalInvested: 10000,
+          avgPrice: 100,
+          objetivo: 60,
+          tipoFii: 'tijolo',
+          assetId: 'asset-1',
+          asset: { symbol: 'HGLG11', name: 'HGLG11', type: 'fii' },
+          lastUpdate: new Date(),
+        },
+        {
+          id: 'p2',
+          userId: 'user-1',
+          quantity: 100,
+          totalInvested: 5000,
+          avgPrice: 50,
+          objetivo: 40,
+          tipoFii: 'tijolo',
+          assetId: 'asset-2',
+          asset: { symbol: 'MXRF11', name: 'MXRF11', type: 'fii' },
+          lastUpdate: new Date(),
+        },
+      ]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+
+      // HGLG11 = 100 × 150 = 15000; MXRF11 = 100 × 50 = 5000; total = 20000
+      // % esperado: 75 e 25
+      const ativos = data.secoes[0].ativos;
+      expect(ativos.find((a: { ticker: string }) => a.ticker === 'HGLG11').percentualCarteira).toBe(
+        75,
+      );
+      expect(ativos.find((a: { ticker: string }) => a.ticker === 'MXRF11').percentualCarteira).toBe(
+        25,
+      );
+      // riscoPorAtivo segue o mesmo valor
+      expect(ativos.find((a: { ticker: string }) => a.ticker === 'HGLG11').riscoPorAtivo).toBe(75);
+    });
+
+    it('soma de percentualCarteira de todos os ativos fecha 100', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(
+        new Map([
+          ['HGLG11', 100],
+          ['MXRF11', 100],
+          ['XPLG11', 100],
+        ]),
+      );
+      mockPrisma.portfolio.findMany.mockResolvedValue(
+        ['HGLG11', 'MXRF11', 'XPLG11'].map((ticker, i) => ({
+          id: `p${i}`,
+          userId: 'user-1',
+          quantity: 100,
+          totalInvested: 10000,
+          avgPrice: 100,
+          objetivo: 33.33,
+          tipoFii: 'tijolo',
+          assetId: `asset-${i}`,
+          asset: { symbol: ticker, name: ticker, type: 'fii' },
+          lastUpdate: new Date(),
+        })),
+      );
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      const ativos = data.secoes[0].ativos;
+      const sum = ativos.reduce(
+        (acc: number, a: { percentualCarteira: number }) => acc + a.percentualCarteira,
+        0,
+      );
+      expect(Math.abs(sum - 100)).toBeLessThan(0.001);
+    });
+
+    it('quantoFalta e necessidadeAporte são calculados quando objetivo > %atual', async () => {
+      const { getAssetPrices } = await import('@/services/pricing/assetPriceService');
+      vi.mocked(getAssetPrices).mockResolvedValueOnce(new Map([['HGLG11', 100]]));
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          userId: 'user-1',
+          quantity: 100,
+          totalInvested: 10000,
+          avgPrice: 100,
+          objetivo: 200, // hipotético: % alvo acima do atual (100%)
+          tipoFii: 'tijolo',
+          assetId: 'asset-1',
+          asset: { symbol: 'HGLG11', name: 'HGLG11', type: 'fii' },
+          lastUpdate: new Date(),
+        },
+      ]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      const ativo = data.secoes[0].ativos[0];
+      expect(ativo.percentualCarteira).toBe(100);
+      expect(ativo.quantoFalta).toBe(100); // 200 - 100
+      expect(ativo.necessidadeAporte).toBe(10000); // (100/100) * 10000
+    });
+  });
 });

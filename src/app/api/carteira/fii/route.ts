@@ -35,6 +35,34 @@ function getAtivoColor(ticker: string): string {
   return colors[index];
 }
 
+// Bug #06: arredondar valores antes de enviar ao chart impede que aritmética
+// JS em ponto flutuante (ex.: 200 × 156,05 = 31210.000000000004) vaze pro
+// label central do donut como "31210.000000000004".
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Bug #14 (2º passe): arredondar cada percentual individualmente NÃO garante
+ * soma=100 (3 ativos de mesmo valor: 33.33+33.33+33.33 = 99.99). Distribui
+ * o resto da divisão no item com maior percentual — diferença de R$ 0.01
+ * indistinguível visualmente mas a soma fecha 100,00 exato.
+ */
+const distributeRoundedPercents = <T extends { percentual: number }>(items: T[]): T[] => {
+  if (items.length === 0) return items;
+  const total = items.reduce((acc, item) => acc + item.percentual, 0);
+  if (total === 0) return items;
+  const diff = round2(100 - total);
+  if (diff === 0) return items;
+  let maxIdx = 0;
+  for (let i = 1; i < items.length; i++) {
+    if (items[i].percentual > items[maxIdx].percentual) maxIdx = i;
+  }
+  items[maxIdx] = {
+    ...items[maxIdx],
+    percentual: round2(items[maxIdx].percentual + diff),
+  };
+  return items;
+};
+
 async function calculateFiiData(userId: string): Promise<FiiData> {
   // Buscar caixa para investir específico de FII
   const caixaParaInvestirData = await prisma.dashboardData.findFirst({
@@ -120,6 +148,31 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   const totalQuantidade = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
   const totalValorAplicado = fiiAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
   const totalValorAtualizado = fiiAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+
+  // Bug #14: calcular percentualCarteira/riscoPorAtivo/quantoFalta/necessidadeAporte
+  // por ativo aqui no backend (antes o front fazia, e o agregado por seção lia o
+  // campo zerado). Denominador = totalValorAtualizado de FIIs — consistente com
+  // alocacaoSegmento/alocacaoAtivo. Ajuste largest-remainder garante Σ=100,00.
+  if (totalValorAtualizado > 0) {
+    fiiAtivos.forEach((ativo) => {
+      const pct = (ativo.valorAtualizado / totalValorAtualizado) * 100;
+      ativo.percentualCarteira = round2(pct);
+      ativo.riscoPorAtivo = ativo.percentualCarteira;
+    });
+    const adjusted = distributeRoundedPercents(
+      fiiAtivos.map((a) => ({ percentual: a.percentualCarteira })),
+    );
+    adjusted.forEach((adj, i) => {
+      fiiAtivos[i].percentualCarteira = adj.percentual;
+      fiiAtivos[i].riscoPorAtivo = adj.percentual;
+    });
+    fiiAtivos.forEach((ativo) => {
+      ativo.quantoFalta = round2(ativo.objetivo - ativo.percentualCarteira);
+      ativo.necessidadeAporte =
+        ativo.quantoFalta > 0 ? round2((ativo.quantoFalta / 100) * totalValorAtualizado) : 0;
+    });
+  }
+
   const totalObjetivo = fiiAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
   const totalQuantoFalta = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
   const totalNecessidadeAporte = fiiAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
@@ -195,34 +248,6 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
       totalValorAplicado > 0
         ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
         : 0,
-  };
-
-  // Bug #06: arredondar valores antes de enviar ao chart impede que aritmética
-  // JS em ponto flutuante (ex.: 200 × 156,05 = 31210.000000000004) vaze pro
-  // label central do donut como "31210.000000000004".
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-
-  /**
-   * Bug #14 (2º passe): arredondar cada percentual individualmente NÃO garante
-   * soma=100 (3 ativos de mesmo valor: 33.33+33.33+33.33 = 99.99). Distribui
-   * o resto da divisão no item com maior percentual — diferença de R$ 0.01
-   * indistinguível visualmente mas a soma fecha 100,00 exato.
-   */
-  const distributeRoundedPercents = <T extends { percentual: number }>(items: T[]): T[] => {
-    if (items.length === 0) return items;
-    const total = items.reduce((acc, item) => acc + item.percentual, 0);
-    if (total === 0) return items;
-    const diff = round2(100 - total);
-    if (diff === 0) return items;
-    let maxIdx = 0;
-    for (let i = 1; i < items.length; i++) {
-      if (items[i].percentual > items[maxIdx].percentual) maxIdx = i;
-    }
-    items[maxIdx] = {
-      ...items[maxIdx],
-      percentual: round2(items[maxIdx].percentual + diff),
-    };
-    return items;
   };
 
   // Calcular alocação por segmento (% sobre total da carteira de FIIs — soma=100)
