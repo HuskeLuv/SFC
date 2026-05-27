@@ -5,6 +5,7 @@ import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import DatePicker from '@/components/form/date-picker';
 import { Step4FieldsProps } from './step4Types';
+import PriceDeviationHint from './PriceDeviationHint';
 
 export default function Step4EtfFields({
   formData,
@@ -75,6 +76,10 @@ export default function Step4EtfFields({
           hint={errors.cotacaoUnitaria}
           min="0"
           step="0.01"
+        />
+        <PriceDeviationHint
+          enteredPrice={formData.cotacaoUnitaria}
+          currentPrice={formData.assetCurrentPrice}
         />
       </div>
       <div>

@@ -65,6 +65,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           type: 'acao',
           currency: a.currency,
           source: a.source,
+          currentPrice: a.currentPrice?.toNumber() ?? null,
         })),
         ...bdrs.map((a) => ({
           id: `bdr:${a.id}`,
@@ -73,6 +74,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           type: 'bdr',
           currency: a.currency,
           source: a.source,
+          currentPrice: a.currentPrice?.toNumber() ?? null,
         })),
       ],
       count: stocks.length + bdrs.length,
@@ -101,6 +103,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         type: 'stock',
         currency: a.currency,
         source: a.source,
+        currentPrice: a.currentPrice?.toNumber() ?? null,
       })),
       count: assets.length,
     });
@@ -130,6 +133,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         type: 'fii',
         currency: a.currency,
         source: a.source,
+        currentPrice: a.currentPrice?.toNumber() ?? null,
       })),
       count: assets.length,
     });
@@ -272,6 +276,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       type: asset.type,
       currency: asset.currency,
       source: asset.source,
+      currentPrice: asset.currentPrice?.toNumber() ?? null,
     })),
     count: assets.length,
   });

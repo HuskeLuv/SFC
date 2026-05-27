@@ -29,6 +29,11 @@ export default function Step3Asset({
   onErrorsChange,
 }: Step3AssetProps) {
   const [assetOptions, setAssetOptions] = useState<AutocompleteOption[]>([]);
+  // Cache do payload do ativo (inclusive currentPrice) indexado por option.value
+  // pra repassar assetCurrentPrice ao formData na seleção (F1.7).
+  const [assetsByOptionValue, setAssetsByOptionValue] = useState<
+    Map<string, { currentPrice?: number | null }>
+  >(new Map());
   const [loading, setLoading] = useState(false);
   // Bug #05: respostas fora de ordem podem sobrescrever uma busca recente
   // bem-sucedida com o resultado vazio de uma busca anterior. Ex.: usuário
@@ -87,22 +92,25 @@ export default function Step3Asset({
 
         if (response.ok) {
           const data = await response.json();
-          const options: AutocompleteOption[] = (data.assets || []).map(
-            (asset: Asset & { type?: string }) => ({
-              // Para acoes-brasil a API já retorna asset.id pré-fixado com
-              // "acao:" ou "bdr:" (src/app/api/assets/route.ts:44-59); pra
-              // outros tipos vem UUID puro.
-              value: asset.id,
-              label: `${asset.symbol} - ${asset.name}`,
-              subtitle:
-                formData.tipoAtivo === 'acoes-brasil'
-                  ? asset.type === 'bdr'
-                    ? 'BDR'
-                    : 'Ação'
-                  : asset.type,
-            }),
-          );
+          const rawAssets: (Asset & { type?: string; currentPrice?: number | null })[] =
+            data.assets || [];
+          const options: AutocompleteOption[] = rawAssets.map((asset) => ({
+            // Para acoes-brasil a API já retorna asset.id pré-fixado com
+            // "acao:" ou "bdr:" (src/app/api/assets/route.ts:44-59); pra
+            // outros tipos vem UUID puro.
+            value: asset.id,
+            label: `${asset.symbol} - ${asset.name}`,
+            subtitle:
+              formData.tipoAtivo === 'acoes-brasil'
+                ? asset.type === 'bdr'
+                  ? 'BDR'
+                  : 'Ação'
+                : asset.type,
+          }));
           setAssetOptions(options);
+          setAssetsByOptionValue(
+            new Map(rawAssets.map((a) => [a.id, { currentPrice: a.currentPrice ?? null }])),
+          );
           // Bug #05: antes só limpávamos o erro quando options vinha vazio E
           // search < 2; quando a busca subsequente trazia resultados, o erro
           // "Nenhum encontrado" de uma busca anterior persistia → campo em
@@ -140,6 +148,7 @@ export default function Step3Asset({
     onFormDataChange({
       ativo: value,
       assetId: '',
+      assetCurrentPrice: null,
       ...(formData.tipoAtivo === 'acoes-brasil' && { acoesBrasilTipo: undefined }),
     });
 
@@ -172,6 +181,8 @@ export default function Step3Asset({
   };
 
   const handleAssetSelect = (option: AutocompleteOption) => {
+    const cached = assetsByOptionValue.get(option.value);
+    const currentPrice = cached?.currentPrice ?? null;
     if (
       formData.tipoAtivo === 'acoes-brasil' &&
       (option.value.startsWith('acao:') || option.value.startsWith('bdr:'))
@@ -181,11 +192,13 @@ export default function Step3Asset({
         ativo: option.label,
         assetId: id,
         acoesBrasilTipo: tipo as 'acao' | 'bdr',
+        assetCurrentPrice: currentPrice,
       });
     } else {
       onFormDataChange({
         ativo: option.label,
         assetId: option.value,
+        assetCurrentPrice: currentPrice,
       });
     }
     onErrorsChange({ ativo: undefined });

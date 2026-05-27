@@ -56,6 +56,12 @@ export interface WizardFormData {
    * 'fip-infra', 'multimercado'). Vazio pra entradas manuais ou tipos sem
    * classificação. Usado pelo Step4 pra auto-preencher destinos. */
   assetType?: string;
+  /** Asset.currentPrice (cotação atual de fechamento) do ativo selecionado.
+   * Usado pelo Step4 para alertar quando `cotacaoUnitaria` digitada divirja
+   * mais de 20% do fechamento — pega erros típicos de casa decimal (R$2,80
+   * vs R$28,00). `null` quando o ativo não tem cotação ou foi adicionado
+   * manualmente. */
+  assetCurrentPrice?: number | null;
 
   // Passo 4: Informações do Ativo (varia por tipo)
   dataCompra: string;

@@ -102,7 +102,12 @@ export default function Step3SearchWithManualFallback({
   const debouncedFetchAssets = useDebouncedCallback(fetchAssets, 250);
 
   const handleSearchChange = (value: string) => {
-    onFormDataChange({ ativo: value, assetId: '', assetType: undefined });
+    onFormDataChange({
+      ativo: value,
+      assetId: '',
+      assetType: undefined,
+      assetCurrentPrice: null,
+    });
     setShowManual(false);
 
     if (value.length >= 2) {
@@ -124,6 +129,7 @@ export default function Step3SearchWithManualFallback({
       ativo: option.label,
       assetId: option.value,
       assetType: asset?.type,
+      assetCurrentPrice: asset?.currentPrice ?? null,
       // Pra fundos classificados pela CVM, preenche destino/subtipo já no Step3
       // pra não exigir um clique manual em campo redundante no Step4.
       ...(subtipo && { fundoDestino: subtipo, tipoFundo: subtipo }),
@@ -138,20 +144,21 @@ export default function Step3SearchWithManualFallback({
       ativo: value,
       assetId: trimmed ? `${manualPrefix}-MANUAL` : '',
       assetType: undefined,
+      assetCurrentPrice: null,
     });
     if (errors.ativo) onErrorsChange({ ativo: undefined });
   };
 
   const switchToManual = () => {
     setShowManual(true);
-    onFormDataChange({ ativo: '', assetId: '', assetType: undefined });
+    onFormDataChange({ ativo: '', assetId: '', assetType: undefined, assetCurrentPrice: null });
     setAssetOptions([]);
     setSearchPerformed(false);
   };
 
   const switchToSearch = () => {
     setShowManual(false);
-    onFormDataChange({ ativo: '', assetId: '', assetType: undefined });
+    onFormDataChange({ ativo: '', assetId: '', assetType: undefined, assetCurrentPrice: null });
   };
 
   // Manual entry mode
