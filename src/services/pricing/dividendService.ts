@@ -30,17 +30,32 @@ const getDbSymbolVariants = (symbol: string): string[] => {
   return [...new Set([s, ...getBrapiSymbolsToTry(symbol).map((x) => x.toUpperCase())])];
 };
 
+// Bug F1.2: BRAPI ocasionalmente devolve `paymentDate: 0` ou `"0"` em payloads
+// de dividendos para ativos com calendário corporativo incompleto. Sem guarda,
+// `parseDateValue(0)` retornava `new Date(0)` (epoch UTC = 1970-01-01) — esse
+// valor era persistido em `AssetDividend.date` e depois ressurgia como barra
+// "Jan 1970" no gráfico de proventos. Threshold conservador alinhado com o
+// frontend: tudo antes de 1990-01-01 é descartado como ruído.
+const MIN_VALID_DIVIDEND_DATE_MS = Date.UTC(1990, 0, 1);
+
 const parseDateValue = (raw: unknown): Date | null => {
   if (raw === null || raw === undefined || raw === '') return null;
   const numericDate = typeof raw === 'number' ? raw : Number(raw);
   if (Number.isFinite(numericDate)) {
+    // Rejeita 0/negativo antes do `new Date()` — caso clássico do bug F1.2.
+    if (numericDate <= 0) return null;
     const timestamp = numericDate < 1e12 ? numericDate * 1000 : numericDate;
     const parsed = new Date(timestamp);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
+    if (!Number.isNaN(parsed.getTime()) && parsed.getTime() >= MIN_VALID_DIVIDEND_DATE_MS) {
+      return parsed;
+    }
+    return null;
   }
   if (typeof raw !== 'string') return null;
   const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getTime() < MIN_VALID_DIVIDEND_DATE_MS) return null;
+  return parsed;
 };
 
 const extractPaymentDate = (dividend: Record<string, unknown>): Date | null => {

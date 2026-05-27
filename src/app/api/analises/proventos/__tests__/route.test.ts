@@ -989,4 +989,62 @@ describe('GET /api/analises/proventos', () => {
     expect(data.proventos.length).toBe(1);
     expect(data.total).toBe(50);
   });
+
+  // Bug F1.2: paymentDate corrompido (epoch zero ou pré-Plano Real) chegando da
+  // BRAPI/DB virava barra "Jan 1970" no gráfico de proventos. A rota agora
+  // filtra qualquer provento com data < 1990-01-01 antes de devolver ao cliente.
+  it('descarta proventos com data epoch-zero ou pré-1990 (regressão F1.2)', async () => {
+    const now = new Date();
+    const lastMonth = new Date(now.getTime() - 30 * 86400000);
+    const validDate = new Date(now.getTime() - 10 * 86400000);
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        userId: 'user-123',
+        quantity: 100,
+        totalInvested: 3000,
+        avgPrice: 30,
+        lastUpdate: lastMonth,
+        stockId: 'stock-1',
+        assetId: null,
+        asset: { id: 'asset-1', symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
+      },
+    ]);
+
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        userId: 'user-123',
+        type: 'compra',
+        quantity: 100,
+        price: 30,
+        total: 3000,
+        date: lastMonth,
+        stockId: 'stock-1',
+        assetId: null,
+        asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
+      },
+    ]);
+
+    mockGetAssetPrices.mockResolvedValue(new Map([['PETR4', 35]]));
+
+    mockGetDividends.mockResolvedValue([
+      // Epoch UTC zero — caso clássico (BRAPI paymentDate: 0).
+      { date: new Date(0), dataCom: null, tipo: 'Dividendo', valorUnitario: 0.7 },
+      // Pré-1990 — também é lixo (pré-Real, BRAPI não cobre).
+      { date: new Date('1985-06-15'), dataCom: null, tipo: 'Dividendo', valorUnitario: 0.7 },
+      // Válido — único que deve aparecer no resultado.
+      { date: validDate, dataCom: null, tipo: 'Dividendo', valorUnitario: 0.5 },
+    ]);
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.proventos.length).toBe(1);
+    expect(data.proventos[0].data).toBe(validDate.toISOString());
+    // Garante que nenhuma data com prefixo "197" (epoch zero) vazou pro payload.
+    expect(data.proventos.every((p: { data: string }) => !p.data.startsWith('19'))).toBe(true);
+  });
 });

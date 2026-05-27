@@ -102,14 +102,31 @@ const COLORS = [
   '#8B5CF6',
 ];
 
+// Bug F1.2: o eixo X do gráfico renderizava "Jan 1970" sequencialmente quando
+// qualquer provento chegava com `data` inválida — `null`, `0`, `''`, ou um
+// timestamp epoch-zero persistido no banco vindo de payloads BRAPI com
+// `paymentDate: 0`. O check anterior (`Number.isNaN(date.getTime())`) só
+// pega Invalid Date; `new Date(0)` e `new Date(null)` retornam epoch (1970)
+// e passavam direto, virando barras com label "Jan 1970" no ApexCharts.
+//
+// Threshold conservador: anything before 1990-01-01 é claramente lixo
+// (mercado financeiro brasileiro pré-Real, BRAPI não cobre essa janela).
+const MIN_VALID_PROVENTO_MS = Date.UTC(1990, 0, 1);
+
+const isValidProventoDate = (date: Date): boolean => {
+  const time = date.getTime();
+  return Number.isFinite(time) && time >= MIN_VALID_PROVENTO_MS;
+};
+
 export default function ProventosHistoricoChart({ proventos }: ProventosHistoricoChartProps) {
   const { series, colors } = useMemo(() => {
     const monthlyMap = new Map<string, Map<string, number>>();
     const ativosSet = new Set<string>();
 
     proventos.forEach((provento) => {
+      if (!provento.data) return;
       const date = new Date(provento.data);
-      if (Number.isNaN(date.getTime())) {
+      if (!isValidProventoDate(date)) {
         return;
       }
       // UTC keys: provento.data é UTC midnight; local em BRT shifta pro mês anterior se cair em dia 1.
@@ -126,7 +143,12 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
     const sortedMonthKeys = Array.from(monthlyMap.keys()).sort((a, b) => a.localeCompare(b));
     const monthDates = sortedMonthKeys.map((key) => {
       const [year, month] = key.split('-');
-      return new Date(Number(year), Number(month) - 1, 1).getTime();
+      const y = Number(year);
+      const m = Number(month);
+      if (!Number.isFinite(y) || !Number.isFinite(m)) return 0;
+      // Date.UTC para evitar drift de timezone na renderização (BRT shifta o
+      // primeiro do mês para o último dia do mês anterior em local time).
+      return Date.UTC(y, m - 1, 1);
     });
 
     const ativos = Array.from(ativosSet);

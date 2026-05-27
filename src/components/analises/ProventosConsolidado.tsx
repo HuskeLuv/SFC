@@ -55,7 +55,7 @@ export default function ProventosConsolidado() {
 
   const { startDate, endDate } = useMemo(() => resolvePeriodRange(period), [period]);
 
-  const { proventos, grouped, monthly, yearly, kpis, loading, error } = useProventos(
+  const { proventos, grouped, monthly, yearly, kpis, loading, isFetching, error } = useProventos(
     startDate,
     endDate,
     groupBy,
@@ -97,6 +97,16 @@ export default function ProventosConsolidado() {
     <div className="space-y-6">
       {/* Period pills */}
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {isFetching && !loading && (
+          <span
+            className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            Atualizando…
+          </span>
+        )}
         <span className="text-sm text-gray-500 dark:text-gray-400">Período:</span>
         {PERIOD_OPTIONS.map((opt) => (
           <button

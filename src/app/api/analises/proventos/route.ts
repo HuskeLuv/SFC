@@ -166,6 +166,19 @@ const netValueOfManualProvento = (mp: {
  * usuário no caso em que ele customizou valor/IR.
  */
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Bug F1.2: defesa contra proventos com `paymentDate` epoch-zero ou anteriores
+// ao Plano Real persistidos a partir de payloads BRAPI corrompidos. Sem essa
+// guarda, a serialização para ISO retorna "1970-01-01T..." e o gráfico ApexCharts
+// renderiza barras "Jan 1970" no eixo X. Threshold conservador: tudo antes de
+// 1990-01-01 é claramente lixo (mercado financeiro brasileiro pré-Real, BRAPI
+// não cobre essa janela). Mesma constante do componente ProventosHistoricoChart.
+const MIN_VALID_PROVENTO_MS = Date.UTC(1990, 0, 1);
+const isValidProventoDate = (date: Date): boolean => {
+  const time = date.getTime();
+  return Number.isFinite(time) && time >= MIN_VALID_PROVENTO_MS;
+};
+
 const proventoDedupKey = (symbol: string, date: Date, tipo: string): string => {
   const dayUtc = Math.floor(date.getTime() / DAY_MS) * DAY_MS;
   const kind = isJcpType(tipo) ? 'jcp' : 'div';
@@ -381,6 +394,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
 
     dividends.forEach((d, index) => {
+      // Bug F1.2: descarta proventos com data inválida (epoch-zero, NaN, pré-Real)
+      // antes que cheguem no payload e contaminem o gráfico de histórico.
+      if (!isValidProventoDate(d.date)) return;
       const dateTime = d.date.getTime();
       // Elegibilidade pela data-com (ex-date): investidor só recebe se possuía a posição
       // ANTES da data-com. Fallback para paymentDate quando data-com não está disponível
@@ -431,6 +447,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const asset = portfolioAssets.find((a) => a.symbol === symbol);
     if (!asset) return;
 
+    // Bug F1.2: rejeita PortfolioProvento com dataPagamento inválida pelo mesmo
+    // motivo do feed BRAPI — Jan 1970 no gráfico.
+    if (!isValidProventoDate(mp.dataPagamento)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime > hojeMs) return;
     if (startDateTime && dateTime < startDateTime) return;
@@ -478,6 +497,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const timeline = timelinesBySymbol.get(asset.symbol) || [];
     const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
     for (const d of dividends) {
+      // Bug F1.2: filtra epoch-zero dos agregados de YoC/lifetime também.
+      if (!isValidProventoDate(d.date)) continue;
       const dateTime = d.date.getTime();
       if (dateTime > hojeMs) continue;
       const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
@@ -496,6 +517,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const pf = portfolioById.get(mp.portfolioId);
     const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
+    if (!isValidProventoDate(mp.dataPagamento)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime > hojeMs) return;
     const liquido = netValueOfManualProvento(mp);
@@ -723,6 +745,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   for (const { asset, dividends } of allDividends) {
     const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
     for (const d of dividends) {
+      if (!isValidProventoDate(d.date)) continue;
       const dateTime = d.date.getTime();
       if (dateTime <= hojeKpiMs) continue;
       // Mesma elegibilidade do histórico: o investidor só recebe se possuía a posição
@@ -743,6 +766,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const pf = portfolioById.get(mp.portfolioId);
     const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
+    if (!isValidProventoDate(mp.dataPagamento)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime <= hojeKpiMs) return;
     const name = pf?.asset?.name || symbol;
@@ -771,6 +795,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const timeline = timelinesBySymbol.get(asset.symbol) || [];
     const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
     for (const d of dividends) {
+      if (!isValidProventoDate(d.date)) continue;
       const dateTime = d.date.getTime();
       if (dateTime > hojeKpiMs) continue;
       const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
@@ -792,6 +817,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const pf = portfolioById.get(mp.portfolioId);
     const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
+    if (!isValidProventoDate(mp.dataPagamento)) return;
     const dateTime = mp.dataPagamento.getTime();
     if (dateTime > hojeKpiMs) return;
     proventosRealizadosTodos.push({ data: dateTime, valor: netValueOfManualProvento(mp) });

@@ -111,6 +111,14 @@ interface UseProventosResult {
   media: number;
   kpis: ProventosKpis;
   loading: boolean;
+  /**
+   * `true` enquanto uma busca está em andamento, inclusive nas refetches
+   * disparadas por troca de filtro (período/grupo). Distinto de `loading`:
+   * `loading` só fica `true` no primeiro carregamento (graças ao
+   * `keepPreviousData`), `isFetching` cobre os refetches subsequentes para
+   * a UI sinalizar "atualizando..." sem esconder os dados antigos.
+   */
+  isFetching: boolean;
   error: string | null;
   refetch: () => void;
 }
@@ -123,6 +131,7 @@ export const useProventos = (
   const {
     data = emptyResponse,
     isLoading: loading,
+    isFetching,
     error: queryError,
     refetch: queryRefetch,
   } = useQuery<ProventosResponse>({
@@ -165,6 +174,7 @@ export const useProventos = (
     media: data.media,
     kpis: data.kpis,
     loading,
+    isFetching,
     error: queryError ? (queryError as Error).message : null,
     refetch: () => void queryRefetch(),
   };
