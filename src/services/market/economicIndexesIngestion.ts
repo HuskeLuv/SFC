@@ -69,9 +69,14 @@ const BATCH_DELAY_MS = 500;
 
 /** Default lookback for daily cron runs (days) */
 const DEFAULT_LOOKBACK_DAYS = 60;
+/**
+ * F2.1: backfill estendido pra 10 anos (era 5). BACEN SGS aceita o range
+ * inteiro sem rate limit relevante — a única limitação prática é tempo de
+ * resposta da série mais longa (CDI diário).
+ */
 
 /** Lookback for backfill runs (years) */
-const BACKFILL_LOOKBACK_YEARS = 5;
+const BACKFILL_LOOKBACK_YEARS = 10;
 
 // ================== HELPER FUNCTIONS ==================
 
