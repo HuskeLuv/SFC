@@ -1270,6 +1270,120 @@ describe('POST /api/carteira/operacao', () => {
     });
   });
 
+  describe('F1.10 — reinvestimento de proventos', () => {
+    it('grava notes.operation.action = "compra" por padrão (aporte normal)', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-petr4',
+        symbol: 'PETR4',
+        name: 'Petrobras PN',
+        type: 'stock',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'acao',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-petr4',
+          dataCompra: '2026-03-15',
+          quantidade: 100,
+          cotacaoUnitaria: 10,
+          estrategia: 'value',
+        }),
+      );
+      expect(response.status).toBe(201);
+      const txCall = mockPrisma.stockTransaction.create.mock.calls[0][0];
+      const notes = JSON.parse(txCall.data.notes);
+      expect(notes.operation.action).toBe('compra');
+    });
+
+    it('grava notes.operation.action = "reinvestimento" quando isReinvestimento=true', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-petr4',
+        symbol: 'PETR4',
+        name: 'Petrobras PN',
+        type: 'stock',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'acao',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-petr4',
+          dataCompra: '2026-03-20',
+          quantidade: 10,
+          cotacaoUnitaria: 25,
+          estrategia: 'value',
+          isReinvestimento: true,
+        }),
+      );
+      expect(response.status).toBe(201);
+      const txCall = mockPrisma.stockTransaction.create.mock.calls[0][0];
+      const notes = JSON.parse(txCall.data.notes);
+      expect(notes.operation.action).toBe('reinvestimento');
+    });
+
+    it('ignora isReinvestimento=false e usa action padrão "compra"', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-hglg11',
+        symbol: 'HGLG11',
+        name: 'CSHG Logística',
+        type: 'fii',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'fii',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-hglg11',
+          dataCompra: '2026-03-20',
+          quantidade: 50,
+          cotacaoUnitaria: 20,
+          tipoFii: 'tijolo',
+          isReinvestimento: false,
+        }),
+      );
+      expect(response.status).toBe(201);
+      const txCall = mockPrisma.stockTransaction.create.mock.calls[0][0];
+      const notes = JSON.parse(txCall.data.notes);
+      expect(notes.operation.action).toBe('compra');
+    });
+
+    it('reinvestimento ainda atualiza posição/Portfolio (totalInvested aumenta)', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-petr4',
+        symbol: 'PETR4',
+        name: 'Petrobras PN',
+        type: 'stock',
+      });
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        id: 'port-1',
+        quantity: 100,
+        totalInvested: 1000,
+        avgPrice: 10,
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'acao',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-petr4',
+          dataCompra: '2026-03-25',
+          quantidade: 5,
+          cotacaoUnitaria: 12,
+          estrategia: 'value',
+          isReinvestimento: true,
+        }),
+      );
+      expect(response.status).toBe(201);
+      // Portfolio é atualizado normalmente (posição aumenta) — reinvestimento
+      // afeta carteira, só não conta como "novo aporte" no Fluxo de Caixa.
+      expect(mockPrisma.portfolio.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            quantity: 105,
+            totalInvested: 1060,
+          }),
+        }),
+      );
+    });
+  });
+
   describe('Atualização de portfolio existente', () => {
     it('atualiza portfolio existente ao adicionar mais ação', async () => {
       mockPrisma.asset.findUnique.mockResolvedValueOnce({

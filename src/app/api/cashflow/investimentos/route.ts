@@ -43,6 +43,24 @@ const mapTransactionToTipo = (transaction: {
 };
 
 /**
+ * F1.10: detecta reinvestimento de proventos a partir do JSON `notes` da
+ * StockTransaction. Operações marcadas com `notes.operation.action =
+ * 'reinvestimento'` são compras feitas com dividendo/JCP/rendimento recebido
+ * — o dinheiro não é capital novo. Ficam segregadas em uma categoria
+ * "Reinvestimentos de Proventos" no Fluxo de Caixa, fora das somas normais
+ * de aporte/resgate.
+ */
+const isReinvestimentoTransaction = (notes: string | null | undefined): boolean => {
+  if (!notes) return false;
+  try {
+    const parsed = JSON.parse(notes);
+    return parsed?.operation?.action === 'reinvestimento';
+  } catch {
+    return false;
+  }
+};
+
+/**
  * API para calcular investimentos por mês a partir das transações reais
  * Usado pelo fluxo de caixa para exibir gastos com investimentos
  */
@@ -109,7 +127,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const valorBase = transacao.total + (transacao.fees || 0); // Total + taxas
     const sinal = transacao.type === 'venda' ? -1 : 1;
     const valor = valorBase * sinal;
-    const tipoAtivo = mapTransactionToTipo(transacao);
+    // F1.10: reinvestimentos vão para um bucket dedicado em vez do tipo do
+    // ativo subjacente. Isso evita inflar a coluna "Ações"/"FIIs"/etc do
+    // Fluxo de Caixa com capital que não veio do bolso do investidor.
+    const tipoAtivo = isReinvestimentoTransaction(transacao.notes)
+      ? 'reinvestimento'
+      : mapTransactionToTipo(transacao);
 
     // Filtrar apenas transações do ano solicitado
     if (transactionYear !== targetYear) {
@@ -170,7 +193,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     outros: 15,
   };
 
-  // Criar itens para TODAS as categorias (mesmo as sem transações)
+  // F1.10: reinvestimentos vivem em uma estrutura separada — não entram em
+  // `investimentos[]` para preservar a semântica "Aporte/Resgate" do grupo
+  // Investimentos no Fluxo de Caixa (consumido por DataTableTwo para calcular
+  // `fluxoCaixaLivre`). Ficam disponíveis em `reinvestimentos`/
+  // `totaisReinvestimentosPorMes`/`totalReinvestimentos` para a UI exibir
+  // como categoria separada quando quiser.
+  const reinvestimentoValoresPorMes = investimentosPorTipo['reinvestimento'] || {};
+
+  // Criar itens para TODAS as categorias (mesmo as sem transações).
+  // Exclui 'reinvestimento' — ele é retornado separadamente.
   const todasCategorias = Object.keys(tipoAtivoLabels);
 
   const investimentosCalculados = todasCategorias.map((tipoAtivo) => {
@@ -216,21 +248,59 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Ordenar por ordem definida (usar order já que rank não é mais numérico)
   investimentosCalculados.sort((a, b) => (a.order || 999) - (b.order || 999));
 
-  // Calcular totais por mês (todos os tipos somados)
+  // Calcular totais por mês (todos os tipos somados, EXCETO reinvestimentos).
+  // `totaisPorMes` é o que vai pra coluna "Aporte/Resgate" no Fluxo de Caixa
+  // (DataTableTwo subtrai esse valor pra calcular fluxoCaixaLivre).
   const totaisPorMes = Array.from({ length: 12 }, (_, mes) => {
-    const total = Object.values(investimentosPorTipo).reduce((sum, valoresPorMes) => {
+    const total = Object.entries(investimentosPorTipo).reduce((sum, [tipo, valoresPorMes]) => {
+      if (tipo === 'reinvestimento') return sum;
       return sum + (valoresPorMes[mes] || 0);
     }, 0);
     return Math.round(total * 100) / 100;
   });
 
-  // Calcular total geral do ano
+  // Calcular total geral do ano (também excluindo reinvestimentos)
   const totalGeral = totaisPorMes.reduce((sum, valor) => sum + valor, 0);
+
+  // F1.10: estrutura paralela para reinvestimentos. Mesmo formato dos
+  // investimentos pra que a UI consiga reusar componentes existentes.
+  const reinvestimentosValues = Array.from({ length: 12 }, (_, month) => {
+    const valorMes = reinvestimentoValoresPorMes[month] || 0;
+    return {
+      id: `reinvestimento-mes-${month}-${targetYear}`,
+      itemId: 'reinvestimento',
+      userId: targetUserId,
+      year: targetYear,
+      month,
+      value: Math.round(valorMes * 100) / 100,
+    };
+  });
+  const reinvestimentoTotalAnual = reinvestimentosValues.reduce((sum, v) => sum + v.value, 0);
+  const reinvestimentos = [
+    {
+      id: 'reinvestimento',
+      name: 'Reinvestimentos de Proventos',
+      descricao: 'Reinvestimentos de Proventos',
+      significado: null,
+      rank: null,
+      order: 1,
+      values: reinvestimentosValues,
+      valores: reinvestimentosValues.map((v) => ({ id: v.id, mes: v.month, valor: v.value })),
+      totalAnual: Math.round(reinvestimentoTotalAnual * 100) / 100,
+    },
+  ];
+  const totaisReinvestimentosPorMes = reinvestimentosValues.map((v) => v.value);
+  const totalReinvestimentos = Math.round(reinvestimentoTotalAnual * 100) / 100;
 
   return NextResponse.json({
     investimentos: investimentosCalculados,
     totaisPorMes,
     totalGeral: Math.round(totalGeral * 100) / 100,
     quantidadeTipos: tiposAtivos.size,
+    // F1.10: reinvestimentos segregados — não somados em totaisPorMes/totalGeral
+    // pra preservar a semântica "Aporte/Resgate" do grupo Investimentos.
+    reinvestimentos,
+    totaisReinvestimentosPorMes,
+    totalReinvestimentos,
   });
 });

@@ -139,6 +139,16 @@ export interface WizardFormData {
   /** Para ETF: região (Brasil ou EUA) - define em qual seção da aba ETF será exibido */
   regiaoEtf?: 'brasil' | 'estados_unidos';
 
+  /**
+   * F1.10: marca uma operação de compra como reinvestimento de proventos
+   * (dividendo/JCP/rendimento) e não como capital novo. A transação criada
+   * recebe `notes.operation.action = 'reinvestimento'` em vez do default
+   * `'compra'`, o que faz o endpoint /api/cashflow/investimentos segregá-la
+   * em uma categoria "Reinvestimentos de Proventos" — fora das somas
+   * normais de aporte/resgate no Fluxo de Caixa.
+   */
+  isReinvestimento?: boolean;
+
   // Aporte
   portfolioId: string;
   dataAporte: string;

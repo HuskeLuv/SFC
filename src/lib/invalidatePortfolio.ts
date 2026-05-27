@@ -21,4 +21,9 @@ export function invalidatePortfolioDerivedQueries(queryClient: QueryClient): voi
   void queryClient.invalidateQueries({ queryKey: queryKeys.alocacao.config() });
   void queryClient.invalidateQueries({ queryKey: queryKeys.reserva.emergencia() });
   void queryClient.invalidateQueries({ queryKey: queryKeys.reserva.oportunidade() });
+  // F1.10: /api/cashflow/investimentos deriva direto de StockTransaction.notes —
+  // qualquer compra (incl. reinvestimento) muda o agrupamento por tipo e
+  // a soma Aporte/Resgate. Sem essa invalidação o Fluxo de Caixa fica
+  // stale até reload.
+  void queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
 }

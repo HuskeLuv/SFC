@@ -43,6 +43,7 @@ const operacaoBaseSchema = z
     rendaFixaTipo: z.string().max(100).optional(),
     rendaFixaIndexer: z.string().max(50).optional(),
     rendaFixaIndexerPercent: z.number().finite().optional(),
+    percentualCDI: z.number().finite().optional(),
     rendaFixaLiquidity: z.string().max(100).optional(),
     rendaFixaTaxExempt: z.boolean().optional(),
     cotizacaoResgate: z.string().max(100).optional(),
@@ -62,6 +63,14 @@ const operacaoBaseSchema = z
     opcaoTipo: z.string().max(100).optional(),
     opcaoCompraVenda: z.string().max(100).optional(),
     contaCorrenteDestino: z.string().max(100).optional(),
+    /**
+     * F1.10: quando true, a transação é marcada como reinvestimento de
+     * proventos (`notes.operation.action = 'reinvestimento'`) e o endpoint
+     * /api/cashflow/investimentos a segrega da categoria de aportes no
+     * Fluxo de Caixa. Capital usado veio da própria carteira (dividendo/JCP),
+     * não de novo aporte.
+     */
+    isReinvestimento: z.boolean().optional(),
   })
   .passthrough();
 
@@ -151,7 +160,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     fundoRendaFixaTipo,
     opcaoTipo,
     opcaoCompraVenda,
-    // percentualCDI,
+    percentualCDI,
     // indexador
   } = requestBody;
 
@@ -1613,6 +1622,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     metadata.cotizacaoResgate = cotizacaoResgate || 'D+0';
     metadata.liquidacaoResgate = liquidacaoResgate || 'Imediata';
     metadata.benchmark = benchmark || 'CDI';
+    // F1.8: rentabilidade contratada (ex.: "112" para 112% do CDI)
+    metadata.percentualCDI = percentualCDI ?? null;
     if (vencimento) {
       metadata.vencimento = vencimento;
     }
@@ -1679,6 +1690,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       metadata.cotizacaoResgate = cotizacaoResgate || null;
       metadata.liquidacaoResgate = liquidacaoResgate || null;
       metadata.benchmark = benchmark || null;
+      // F1.8: rentabilidade contratada do tesouro em reserva
+      metadata.percentualCDI = percentualCDI ?? null;
       if (vencimento) metadata.vencimento = vencimento;
     }
     const tesouroEmRendaFixa =
@@ -1698,10 +1711,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     metadata.observacoes = observacoes;
   }
 
+  // F1.10: reinvestimento de proventos não é capital novo — a transação
+  // ainda é uma 'compra' (afeta posição/Portfolio.totalInvested), mas o
+  // `notes.operation.action` muda para 'reinvestimento' e o endpoint
+  // /api/cashflow/investimentos exclui esse volume da soma de aportes.
+  const isReinvestimento = requestBody.isReinvestimento === true;
+  const operationAction = isReinvestimento ? 'reinvestimento' : 'compra';
+
   const notesData = JSON.stringify({
     ...metadata,
     operation: {
-      action: 'compra',
+      action: operationAction,
       performedBy: {
         userId: payload.id,
         role: payload.role,
@@ -1812,18 +1832,30 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     } else if (isTesouroReserva || isManualReserva) {
       // Reservas (Tesouro ou manual CDB/LCI/LCA): marcação na curva via benchmark
       // informado pelo usuário. Sem taxa fixa adicional — reservas usam liquidez diária.
+      //
+      // F1.8: o campo "Rentabilidade contratada" (percentualCDI) entra como
+      // indexerPercent quando o benchmark é CDI/IPCA — permite reservas como
+      // "112% do CDI" serem precificadas corretamente. Fallback para 100% mantém
+      // compatibilidade com payloads antigos (sem percentualCDI). Para PRE,
+      // percentualCDI vira annualRate (taxa pré-fixada anual).
       const benchmarkUpper = String(benchmark || '').toUpperCase();
+      const percentualCDISafe =
+        typeof percentualCDI === 'number' && percentualCDI > 0 ? percentualCDI : null;
       rendaFixaTipoForAsset = 'CDB_PRE';
       annualRateForAsset = 0;
       if (benchmarkUpper.includes('IPCA')) {
         indexerForAsset = 'IPCA';
-        indexerPercentForAsset = 100;
+        indexerPercentForAsset = percentualCDISafe ?? 100;
+      } else if (benchmarkUpper === 'PRE' || benchmarkUpper === 'PRÉ') {
+        indexerForAsset = 'PRE';
+        indexerPercentForAsset = null;
+        annualRateForAsset = percentualCDISafe ?? 0;
       } else if (benchmarkUpper.includes('CDI') || benchmarkUpper.includes('SELIC')) {
         indexerForAsset = 'CDI';
-        indexerPercentForAsset = 100;
+        indexerPercentForAsset = percentualCDISafe ?? 100;
       } else {
         indexerForAsset = 'CDI';
-        indexerPercentForAsset = 100;
+        indexerPercentForAsset = percentualCDISafe ?? 100;
       }
     } else {
       annualRateForAsset =

@@ -74,6 +74,7 @@ const INITIAL_FORM_DATA: WizardFormData = {
   fundoRendaFixaTipo: undefined,
   opcaoTipo: undefined,
   opcaoCompraVenda: undefined,
+  isReinvestimento: false,
   portfolioId: '',
   dataAporte: '',
   valorAporte: 0,
