@@ -33,6 +33,13 @@ function getBarColor(percent: number): string {
   return '#10B981'; // green — safe
 }
 
+/**
+ * Bug #12: explicação do FGC para a coluna "Não coberto" e cards do resumo.
+ * Texto exibido em title= (tooltip nativo) e em <abbr> próximos ao "ⓘ".
+ */
+export const FGC_NAO_COBERTO_TOOLTIP =
+  'CRI, CRA, debêntures não-incentivadas, LF, Tesouro Direto e fundos de investimento são explicitamente excluídos do FGC. Em caso de inadimplência do emissor, o capital não é ressarcido pelo Fundo Garantidor.';
+
 export interface StatusLabel {
   text: string;
   className: string;
@@ -170,6 +177,7 @@ export default function CoberturaFgc() {
           value={formatBRL(resumo.totalNaoCoberto)}
           subtext="Produtos sem cobertura (CRI, CRA, etc.)"
           color="text-gray-700 dark:text-gray-300"
+          tooltip={FGC_NAO_COBERTO_TOOLTIP}
         />
         <SummaryCard
           label="Excedente (acima do limite)"
@@ -423,7 +431,10 @@ export default function CoberturaFgc() {
                                   Coberto
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-help"
+                                  title={FGC_NAO_COBERTO_TOOLTIP}
+                                >
                                   <svg
                                     width="12"
                                     height="12"
@@ -438,6 +449,9 @@ export default function CoberturaFgc() {
                                     <line x1="6" y1="6" x2="18" y2="18" />
                                   </svg>
                                   Não coberto
+                                  <span className="ml-0.5 opacity-60" aria-hidden>
+                                    ⓘ
+                                  </span>
                                 </span>
                               )}
                             </td>
@@ -461,16 +475,27 @@ function SummaryCard({
   value,
   subtext,
   color,
+  tooltip,
 }: {
   label: string;
   value: string;
   subtext: string;
   color: string;
+  tooltip?: string;
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
       <p className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
         {label}
+        {tooltip && (
+          <span
+            className="ml-1 cursor-help opacity-60 normal-case"
+            title={tooltip}
+            aria-label={tooltip}
+          >
+            ⓘ
+          </span>
+        )}
       </p>
       <p className={`mt-2 text-2xl font-bold ${color}`}>{value}</p>
       <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{subtext}</p>
