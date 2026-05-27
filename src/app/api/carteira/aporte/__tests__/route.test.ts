@@ -5,6 +5,7 @@ import { POST } from '../route';
 const mockPrisma = vi.hoisted(() => ({
   portfolio: { findFirst: vi.fn(), update: vi.fn() },
   stockTransaction: { create: vi.fn() },
+  fixedIncomeAsset: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
 }));
 
 const mockInvalidateSnapshots = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -166,6 +167,21 @@ describe('POST /api/carteira/aporte', () => {
         data: expect.objectContaining({
           totalInvested: 1300,
         }),
+      });
+    });
+
+    it('bug #15: sincroniza FixedIncomeAsset.investedAmount com Portfolio.totalInvested', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioWithAsset);
+      await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataAporte: '2024-01-15',
+          valorAporte: 300,
+        }),
+      );
+      expect(mockPrisma.fixedIncomeAsset.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-123', assetId: 'asset-1' },
+        data: { investedAmount: 1300 },
       });
     });
 

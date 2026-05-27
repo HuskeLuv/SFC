@@ -197,6 +197,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (novaQuantidade <= 0) {
     await prisma.portfolio.delete({ where: { id: portfolio.id } });
+    // Resgate total: remove FI órfão (FK em Asset, não em Portfolio — sobrava
+    // sem o portfolio que apontava pra ele). Sem isso, futuras buscas e o
+    // pricer pegam um FI sem dono.
+    if (portfolio.assetId) {
+      await prisma.fixedIncomeAsset.deleteMany({
+        where: { userId: targetUserId, assetId: portfolio.assetId },
+      });
+    }
   } else {
     const novoTotalInvestido = Math.max(availableTotal - totalResgate, 0);
     const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
@@ -209,6 +217,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         lastUpdate: new Date(),
       },
     });
+    // Bug #15 (residual): resgate parcial em RF atualizava só Portfolio,
+    // deixando FixedIncomeAsset.investedAmount com o valor antigo. updateMany
+    // é no-op pra assets sem FI vinculado.
+    if (portfolio.assetId) {
+      await prisma.fixedIncomeAsset.updateMany({
+        where: { userId: targetUserId, assetId: portfolio.assetId },
+        data: { investedAmount: novoTotalInvestido },
+      });
+    }
   }
 
   // Item A (auditoria 2026-05-19): resgate em data passada deixava snapshots

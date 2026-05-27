@@ -79,6 +79,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
+  // Bug #15 (residual): aporte em RF atualizava só Portfolio.totalInvested,
+  // deixando FixedIncomeAsset.investedAmount preso no valor inicial — daí a
+  // divergência entre a aba Renda Fixa (lê portfolio.totalInvested) e a tela
+  // de detalhes do ativo (lê fi.investedAmount). updateMany é no-op pra
+  // assets sem FI vinculado (ações, FIIs, etc).
+  if (portfolio.assetId) {
+    await prisma.fixedIncomeAsset.updateMany({
+      where: { userId: targetUserId, assetId: portfolio.assetId },
+      data: { investedAmount: novoTotalInvestido },
+    });
+  }
+
   // Item A (auditoria 2026-05-19): #02 só cobriu PATCH/DELETE de
   // historico/transacao. Aporte em data passada deixava snapshots stale entre
   // [dataAporte, hoje] → série de MWR/TWR carregava do cache antigo ignorando
