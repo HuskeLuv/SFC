@@ -1,6 +1,6 @@
-"use client";
-import React, { useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+'use client';
+import React, { useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -8,6 +8,9 @@ interface SidebarProps {
   title: string;
   children: React.ReactNode;
   className?: string;
+  // bug F1.4: clicar no backdrop destruía o estado de wizards multi-step
+  closeOnBackdropClick?: boolean;
+  closeOnEscape?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -15,27 +18,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose,
   title,
   children,
-  className = "",
+  className = '',
+  closeOnBackdropClick = false,
+  closeOnEscape = true,
 }) => {
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         onClose();
       }
     };
 
     if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
-      document.body.style.overflow = "hidden";
+      if (closeOnEscape) {
+        document.addEventListener('keydown', handleEscape);
+      }
+      document.body.style.overflow = 'hidden';
     }
 
     return () => {
-      document.removeEventListener("keydown", handleEscape);
-      document.body.style.overflow = "unset";
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, closeOnEscape]);
 
   return (
     <AnimatePresence>
@@ -48,23 +55,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-[500]"
-            onClick={onClose}
+            onClick={closeOnBackdropClick ? onClose : undefined}
           />
-          
+
           {/* Sidebar */}
           <motion.div
             ref={sidebarRef}
-            initial={{ x: "100%" }}
+            initial={{ x: '100%' }}
             animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className={`fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl z-[500] flex flex-col ${className}`}
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {title}
-              </h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
               <button
                 onClick={onClose}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
@@ -88,9 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {children}
-            </div>
+            <div className="flex-1 overflow-y-auto p-6">{children}</div>
           </motion.div>
         </>
       )}
