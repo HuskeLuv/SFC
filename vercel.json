@@ -56,6 +56,10 @@
       "schedule": "20 7 * * *"
     },
     {
+      "path": "/api/cron/brapi-sync/fundamentals",
+      "schedule": "30 7 * * *"
+    },
+    {
       "path": "/api/cron/portfolio-snapshots",
       "schedule": "0 8 * * *"
     }
