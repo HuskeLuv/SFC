@@ -1,22 +1,36 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
-import flatpickr from "flatpickr";
-import { Portuguese } from "flatpickr/dist/l10n/pt";
-import Label from "./Label";
-import { CalenderIcon } from "../../icons";
+import { useEffect, useRef } from 'react';
+import flatpickr from 'flatpickr';
+import { Portuguese } from 'flatpickr/dist/l10n/pt';
+import Label from './Label';
+import { CalenderIcon } from '../../icons';
 import Hook = flatpickr.Options.Hook;
 import DateOption = flatpickr.Options.DateOption;
 
 type PropsType = {
   id: string;
-  mode?: "single" | "multiple" | "range" | "time";
+  mode?: 'single' | 'multiple' | 'range' | 'time';
   onChange?: Hook | Hook[];
   defaultDate?: DateOption;
   label?: string;
   placeholder?: string;
   staticPosition?: boolean;
   appendToBody?: boolean;
+};
+
+/**
+ * Serializes a flatpickr `DateOption` into a stable string for shallow
+ * comparison. Used to avoid re-initializing the flatpickr instance every
+ * render when callers pass a fresh `new Date(...)` reference each time
+ * (bug F1.3: filtros de proventos fechavam ao clicar em outros controles
+ * porque o DatePicker era destruído e recriado em todo render do pai).
+ */
+const serializeDefaultDate = (value: DateOption | DateOption[] | undefined): string => {
+  if (value === undefined || value === null) return '';
+  if (Array.isArray(value)) return value.map((v) => serializeDefaultDate(v)).join('|');
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
 };
 
 export default function DatePicker({
@@ -30,32 +44,77 @@ export default function DatePicker({
   appendToBody = false,
 }: PropsType) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Mantém a última versão do onChange num ref para que o flatpickr
+  // sempre dispare o callback atual sem precisar ser recriado quando o
+  // pai passa uma função inline (referência nova a cada render).
+  const onChangeRef = useRef<PropsType['onChange']>(onChange);
+  const instanceRef = useRef<flatpickr.Instance | null>(null);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     if (!inputRef.current) {
       return;
     }
 
+    const handleChange: Hook = (selectedDates, dateStr, instance) => {
+      const current = onChangeRef.current;
+      if (!current) return;
+      if (Array.isArray(current)) {
+        current.forEach((cb) => cb(selectedDates, dateStr, instance));
+      } else {
+        current(selectedDates, dateStr, instance);
+      }
+    };
+
     const flatPickr = flatpickr(inputRef.current, {
-      mode: mode || "single",
+      mode: mode || 'single',
       static: staticPosition,
-      monthSelectorType: "static",
-      dateFormat: "Y-m-d",
+      monthSelectorType: 'static',
+      dateFormat: 'Y-m-d',
       allowInput: true,
       clickOpens: true,
       disableMobile: true,
       locale: Portuguese,
       defaultDate,
-      onChange,
+      onChange: handleChange,
       ...(appendToBody ? { appendTo: document.body } : {}),
     });
 
+    if (!Array.isArray(flatPickr)) {
+      instanceRef.current = flatPickr;
+    }
+
     return () => {
+      instanceRef.current = null;
       if (!Array.isArray(flatPickr)) {
         flatPickr.destroy();
       }
     };
-  }, [mode, onChange, defaultDate, staticPosition, appendToBody]);
+    // Intencionalmente NÃO listamos `onChange` nem `defaultDate` aqui:
+    // - `onChange` é acessado via ref (sempre o mais recente).
+    // - `defaultDate` é sincronizado no efeito abaixo via `setDate()`,
+    //   sem destruir a instância (que fecharia o popover aberto).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, staticPosition, appendToBody]);
+
+  // Sincroniza mudanças de `defaultDate` sem destruir o flatpickr — só
+  // chama `setDate` quando o valor serializado de fato muda.
+  const lastDefaultDateRef = useRef<string>(serializeDefaultDate(defaultDate));
+  useEffect(() => {
+    const serialized = serializeDefaultDate(defaultDate);
+    if (serialized === lastDefaultDateRef.current) return;
+    lastDefaultDateRef.current = serialized;
+    const instance = instanceRef.current;
+    if (!instance) return;
+    if (defaultDate === undefined || defaultDate === null || serialized === '') {
+      instance.clear(false);
+    } else {
+      instance.setDate(defaultDate, false);
+    }
+  }, [defaultDate]);
 
   return (
     <div>
