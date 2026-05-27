@@ -1799,10 +1799,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           : tesouroDestino === 'renda-fixa-hibrida'
             ? (taxaFixaAnual ?? 0)
             : (taxaJurosAnual ?? 100);
+      // F1.6: pós-fixada sempre 100% (campo removido da UI). Híbrida mantém o
+      // legado de armazenar a taxa sobre indexador em indexerPercent.
       indexerPercentForAsset =
         tesouroDestino === 'renda-fixa-prefixada'
           ? null
-          : (rendaFixaIndexerPercent ?? taxaJurosAnual ?? 100);
+          : tesouroDestino === 'renda-fixa-posfixada'
+            ? 100
+            : (taxaJurosAnual ?? 100);
       indexerForAsset =
         tesouroDestino === 'renda-fixa-prefixada' ? 'PRE' : rendaFixaIndexer || null;
     } else if (isTesouroReserva || isManualReserva) {
@@ -1824,8 +1828,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     } else {
       annualRateForAsset =
         tipoAtivo === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? taxaJurosAnual) : taxaJurosAnual;
-      indexerPercentForAsset =
-        tipoAtivo === 'renda-fixa-hibrida' ? taxaJurosAnual : rendaFixaIndexerPercent;
+      // F1.6: campo "% do indexador" foi removido da UI do wizard. Pós-fixada com
+      // CDI/IPCA sempre usa 100% (cobre ~95% dos casos). Híbrida mantém o legado
+      // de armazenar o spread sobre o indexador em indexerPercent.
+      if (tipoAtivo === 'renda-fixa-hibrida') {
+        indexerPercentForAsset = taxaJurosAnual;
+      } else if (tipoAtivo === 'renda-fixa-posfixada') {
+        indexerPercentForAsset = 100;
+      } else {
+        indexerPercentForAsset = rendaFixaIndexerPercent ?? null;
+      }
       indexerForAsset = rendaFixaIndexer || null;
     }
 

@@ -200,14 +200,6 @@ export default function Step5Confirmation({
             {(formData.tipoAtivo === 'renda-fixa-posfixada' ||
               formData.tipoAtivo === 'renda-fixa-hibrida') &&
               renderFieldValue('Indexador', formData.rendaFixaIndexer)}
-            {(formData.tipoAtivo === 'renda-fixa-posfixada' ||
-              formData.tipoAtivo === 'renda-fixa-hibrida') &&
-              (formData.rendaFixaIndexerPercent ?? 0) > 0 &&
-              renderFieldValue(
-                '% do Indexador',
-                formData.rendaFixaIndexerPercent ?? 0,
-                (val) => `${val}%`,
-              )}
             {renderFieldValue('Descrição', formData.descricao)}
           </>
         );

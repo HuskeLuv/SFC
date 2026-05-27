@@ -28,7 +28,8 @@ const INITIAL_FORM_DATA: WizardFormData = {
   rendaFixaTipo: '',
   rendaFixaVariante: '',
   rendaFixaIndexer: '',
-  rendaFixaIndexerPercent: 0,
+  // F1.6: campo removido da UI; sempre 100% (cobre ~95% dos casos práticos)
+  rendaFixaIndexerPercent: 100,
   rendaFixaLiquidity: '',
   rendaFixaTaxExempt: false,
   instituicao: '',
@@ -187,9 +188,6 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         const isTaxaFixaValida =
           tipoAtivo !== 'renda-fixa-hibrida' ||
           ((formData.taxaFixaAnual ?? 0) > 0 && (formData.taxaFixaAnual ?? 0) <= 1000);
-        const isIndexerPercentValid =
-          !formData.rendaFixaIndexerPercent ||
-          (formData.rendaFixaIndexerPercent >= 0 && formData.rendaFixaIndexerPercent <= 1000);
         const isIndexerValid =
           tipoAtivo === 'renda-fixa'
             ? true
@@ -203,7 +201,6 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           isTaxaFixaValida &&
           formData.descricao &&
           hasValidDates &&
-          isIndexerPercentValid &&
           isIndexerValid
         );
       }

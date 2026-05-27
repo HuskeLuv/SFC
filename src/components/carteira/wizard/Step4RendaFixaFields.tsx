@@ -105,33 +105,19 @@ export default function Step4RendaFixaFields({
       </div>
       {(formData.tipoAtivo === 'renda-fixa-posfixada' ||
         formData.tipoAtivo === 'renda-fixa-hibrida') && (
-        <>
-          <div>
-            <Label htmlFor="rendaFixaIndexer">Indexador *</Label>
-            <Select
-              options={RENDA_FIXA_INDEXADORES_POS}
-              placeholder="Selecione o indexador"
-              defaultValue={formData.rendaFixaIndexer}
-              onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
-              className={errors.rendaFixaIndexer ? 'border-red-500' : ''}
-            />
-            {errors.rendaFixaIndexer && (
-              <p className="mt-1 text-sm text-red-500">{errors.rendaFixaIndexer}</p>
-            )}
-          </div>
-          <div>
-            <Label htmlFor="rendaFixaIndexerPercent">% do Indexador</Label>
-            <Input
-              id="rendaFixaIndexerPercent"
-              {...decimalInputProps}
-              placeholder="Ex: 100 (100% do CDI)"
-              value={getDecimalInputValue('rendaFixaIndexerPercent')}
-              onChange={handleDecimalInputChange('rendaFixaIndexerPercent')}
-              min="0"
-              step="0.01"
-            />
-          </div>
-        </>
+        <div>
+          <Label htmlFor="rendaFixaIndexer">Indexador *</Label>
+          <Select
+            options={RENDA_FIXA_INDEXADORES_POS}
+            placeholder="Selecione o indexador"
+            defaultValue={formData.rendaFixaIndexer}
+            onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
+            className={errors.rendaFixaIndexer ? 'border-red-500' : ''}
+          />
+          {errors.rendaFixaIndexer && (
+            <p className="mt-1 text-sm text-red-500">{errors.rendaFixaIndexer}</p>
+          )}
+        </div>
       )}
       <div>
         <Label htmlFor="descricao">Descrição / Apelido *</Label>

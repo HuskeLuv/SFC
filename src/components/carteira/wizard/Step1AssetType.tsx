@@ -78,7 +78,8 @@ export default function Step1AssetType({
       rendaFixaTipo: '',
       rendaFixaVariante: '',
       rendaFixaIndexer: '',
-      rendaFixaIndexerPercent: 0,
+      // F1.6: campo removido da UI; sempre 100% (cobre ~95% dos casos práticos)
+      rendaFixaIndexerPercent: 100,
       rendaFixaLiquidity: '',
       rendaFixaTaxExempt: false,
       taxaFixaAnual: 0,
