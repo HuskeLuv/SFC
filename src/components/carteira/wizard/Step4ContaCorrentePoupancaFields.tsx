@@ -3,7 +3,7 @@ import React from 'react';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
-import DatePicker from '@/components/form/date-picker';
+import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
 
 interface Step4ContaCorrentePoupancaFieldsProps extends Step4FieldsProps {
@@ -35,20 +35,14 @@ export default function Step4ContaCorrentePoupancaFields({
           className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
         />
       </div>
-      <div>
-        <DatePicker
-          id="dataInicio"
-          label="Data *"
-          placeholder="Selecione a data"
-          defaultDate={formData.dataInicio}
-          onChange={(selectedDates) => {
-            if (selectedDates && selectedDates.length > 0) {
-              handleInputChange('dataInicio', selectedDates[0].toISOString().split('T')[0]);
-            }
-          }}
-        />
-        {errors.dataInicio && <p className="mt-1 text-sm text-red-500">{errors.dataInicio}</p>}
-      </div>
+      <BusinessDayDatePicker
+        id="dataInicio"
+        label="Data *"
+        placeholder="Selecione a data"
+        value={formData.dataInicio}
+        onChange={(iso) => handleInputChange('dataInicio', iso)}
+        error={errors.dataInicio}
+      />
       <div>
         <Label htmlFor="valorAplicado">Valor (R$) *</Label>
         <Input

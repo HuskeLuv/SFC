@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
-import DatePicker from '@/components/form/date-picker';
+import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
 import {
   fundoSubtipoFromAssetType,
@@ -63,20 +63,14 @@ export default function Step4FundoDebenturePrevidenciaFields({
 
   return (
     <>
-      <div>
-        <DatePicker
-          id="dataCompra"
-          label="Data de Compra *"
-          placeholder="Selecione a data"
-          defaultDate={formData.dataCompra}
-          onChange={(selectedDates) => {
-            if (selectedDates && selectedDates.length > 0) {
-              handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
-            }
-          }}
-        />
-        {errors.dataCompra && <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>}
-      </div>
+      <BusinessDayDatePicker
+        id="dataCompra"
+        label="Data de Compra *"
+        placeholder="Selecione a data"
+        value={formData.dataCompra}
+        onChange={(iso) => handleInputChange('dataCompra', iso)}
+        error={errors.dataCompra}
+      />
 
       {formData.tipoAtivo === 'debenture' && (
         <div>

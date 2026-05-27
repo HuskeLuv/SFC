@@ -6,7 +6,7 @@ import Sidebar from '@/components/ui/sidebar/Sidebar';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
-import DatePicker from '@/components/form/date-picker';
+import BusinessDayDatePicker from './wizard/shared/BusinessDayDatePicker';
 import AutocompleteInput from '@/components/form/AutocompleteInput';
 import Button from '@/components/ui/button/Button';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -319,20 +319,14 @@ export default function AddInvestmentSidebar({
         </div>
 
         {/* Data da Compra */}
-        <div>
-          <DatePicker
-            id="dataCompra"
-            label="Data da Compra"
-            placeholder="Selecione a data"
-            defaultDate={formData.dataCompra}
-            onChange={(selectedDates) => {
-              if (selectedDates && selectedDates.length > 0) {
-                handleInputChange('dataCompra', selectedDates[0].toISOString().split('T')[0]);
-              }
-            }}
-          />
-          {errors.dataCompra && <p className="mt-1 text-sm text-red-500">{errors.dataCompra}</p>}
-        </div>
+        <BusinessDayDatePicker
+          id="dataCompra"
+          label="Data da Compra"
+          placeholder="Selecione a data"
+          value={formData.dataCompra}
+          onChange={(iso) => handleInputChange('dataCompra', iso)}
+          error={errors.dataCompra}
+        />
 
         {/* Quantidade */}
         <div>

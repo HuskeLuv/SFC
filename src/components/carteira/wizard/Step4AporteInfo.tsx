@@ -1,9 +1,9 @@
-"use client";
-import React from "react";
-import Label from "@/components/form/Label";
-import Input from "@/components/form/input/InputField";
-import DatePicker from "@/components/form/date-picker";
-import { WizardErrors, WizardFormData } from "@/types/wizard";
+'use client';
+import React from 'react';
+import Label from '@/components/form/Label';
+import Input from '@/components/form/input/InputField';
+import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
+import { WizardErrors, WizardFormData } from '@/types/wizard';
 
 interface Step4AporteInfoProps {
   formData: WizardFormData;
@@ -27,24 +27,16 @@ export default function Step4AporteInfo({
 
   return (
     <div className="space-y-6">
-      <div>
-        <DatePicker
-          id="dataAporte"
-          label="Data do Aporte *"
-          placeholder="Selecione a data"
-          defaultDate={formData.dataAporte}
-          staticPosition={false}
-          appendToBody
-          onChange={(selectedDates) => {
-            if (selectedDates && selectedDates.length > 0) {
-              handleInputChange("dataAporte", selectedDates[0].toISOString().split("T")[0]);
-            }
-          }}
-        />
-        {errors.dataAporte && (
-          <p className="mt-1 text-sm text-red-500">{errors.dataAporte}</p>
-        )}
-      </div>
+      <BusinessDayDatePicker
+        id="dataAporte"
+        label="Data do Aporte *"
+        placeholder="Selecione a data"
+        value={formData.dataAporte}
+        staticPosition={false}
+        appendToBody
+        onChange={(iso) => handleInputChange('dataAporte', iso)}
+        error={errors.dataAporte}
+      />
 
       <div>
         <Label htmlFor="valorAporte">Valor do Aporte (R$) *</Label>
@@ -55,7 +47,7 @@ export default function Step4AporteInfo({
           pattern="[0-9]*[.,]?[0-9]*"
           placeholder="Ex: 1000.00"
           value={formData.valorAporte}
-          onChange={(e) => handleInputChange("valorAporte", parseFloat(e.target.value) || 0)}
+          onChange={(e) => handleInputChange('valorAporte', parseFloat(e.target.value) || 0)}
           error={!!errors.valorAporte}
           hint={errors.valorAporte}
           min="0"
