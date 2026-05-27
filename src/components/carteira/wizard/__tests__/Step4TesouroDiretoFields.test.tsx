@@ -88,7 +88,9 @@ describe('Step4TesouroDiretoFields — dispatcher', () => {
     // Campos exclusivos do branch de reserva
     expect(screen.getByLabelText(/Cot\. Resgate \*/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Liq\. Resgate \*/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Benchmark \*/i)).toBeInTheDocument();
+    // F1.8: "Rentabilidade contratada" substitui o campo Benchmark solto.
+    expect(screen.getByText(/Rentabilidade contratada/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/% da rentabilidade/i)).toBeInTheDocument();
 
     // Campos exclusivos de renda fixa não devem aparecer
     expect(screen.queryByText(/Escolha o tipo de adição/i)).not.toBeInTheDocument();
@@ -105,7 +107,7 @@ describe('Step4TesouroDiretoFields — dispatcher', () => {
 
     // Campos exclusivos de reserva não devem aparecer
     expect(screen.queryByLabelText(/Cot\. Resgate \*/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Benchmark \*/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rentabilidade contratada/i)).not.toBeInTheDocument();
   });
 
   it('renderiza fallback (apenas seletor de destino) quando tesouroDestino não foi selecionado', () => {
@@ -116,7 +118,7 @@ describe('Step4TesouroDiretoFields — dispatcher', () => {
 
     // Nenhum dos branches deve aparecer
     expect(screen.queryByLabelText(/Cot\. Resgate \*/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Benchmark \*/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rentabilidade contratada/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Escolha o tipo de adição/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Descrição \*/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Indexador \*/i)).not.toBeInTheDocument();

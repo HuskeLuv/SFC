@@ -135,7 +135,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           formData.cotizacaoResgate &&
           formData.liquidacaoResgate &&
           formData.vencimento &&
-          formData.benchmark
+          formData.benchmark &&
+          formData.percentualCDI > 0
         );
       }
 
@@ -216,7 +217,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
             formData.cotizacaoResgate &&
             formData.liquidacaoResgate &&
             formData.vencimento &&
-            formData.benchmark
+            formData.benchmark &&
+            formData.percentualCDI > 0
           );
         }
         if (

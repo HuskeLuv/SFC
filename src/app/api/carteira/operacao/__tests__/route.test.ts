@@ -240,6 +240,88 @@ describe('POST /api/carteira/operacao', () => {
       expect(mockPrisma.asset.create).toHaveBeenCalled();
       expect(mockPrisma.portfolio.create).toHaveBeenCalled();
     });
+
+    it('F1.8: grava percentualCDI como indexerPercent em reserva manual CDI', async () => {
+      // Manual reserva (vencimento + dataCompra) com 112% do CDI deve criar
+      // FixedIncomeAsset com indexer='CDI' e indexerPercent=112.
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'emergency',
+          instituicaoId: 'inst-1',
+          ativo: 'CDB XP 112% CDI',
+          dataCompra: '2024-01-15',
+          valorInvestido: 1000,
+          cotizacaoResgate: 'D+1',
+          liquidacaoResgate: 'D+1',
+          vencimento: '2026-01-15',
+          benchmark: 'CDI',
+          percentualCDI: 112,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            indexer: 'CDI',
+            indexerPercent: 112,
+            liquidityType: 'DAILY',
+          }),
+        }),
+      );
+    });
+
+    it('F1.8: percentualCDI=0 (fallback) mantém 100% CDI em reserva manual', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'opportunity',
+          instituicaoId: 'inst-1',
+          ativo: 'CDB ABC',
+          dataCompra: '2024-01-15',
+          valorInvestido: 5000,
+          cotizacaoResgate: 'D+0',
+          liquidacaoResgate: 'D+1',
+          vencimento: '2026-01-15',
+          benchmark: 'CDI',
+          // percentualCDI omitido — payload legado
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            indexer: 'CDI',
+            indexerPercent: 100,
+          }),
+        }),
+      );
+    });
+
+    it('F1.8: benchmark PRE em reserva manual grava annualRate', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'emergency',
+          instituicaoId: 'inst-1',
+          ativo: 'CDB Pré 13%',
+          dataCompra: '2024-01-15',
+          valorInvestido: 1000,
+          cotizacaoResgate: 'D+1',
+          liquidacaoResgate: 'D+1',
+          vencimento: '2026-01-15',
+          benchmark: 'PRE',
+          percentualCDI: 13.5,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            indexer: 'PRE',
+            indexerPercent: null,
+            annualRate: 13.5,
+          }),
+        }),
+      );
+    });
   });
 
   describe('Personalizado', () => {
@@ -1133,6 +1215,34 @@ describe('POST /api/carteira/operacao', () => {
             taxExempt: true,
             tesouroBondType: null,
             tesouroMaturity: null,
+          }),
+        }),
+      );
+    });
+
+    it('F1.8: tesouro em reserva grava percentualCDI como indexerPercent', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'tesouro-direto',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-td',
+          dataCompra: '2024-01-15',
+          valorInvestido: 5000,
+          metodo: 'valor',
+          tesouroDestino: 'reserva-oportunidade',
+          cotizacaoResgate: 'D+1',
+          liquidacaoResgate: 'D+1',
+          vencimento: '2029-01-01',
+          benchmark: 'CDI',
+          percentualCDI: 105,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            indexer: 'CDI',
+            indexerPercent: 105,
           }),
         }),
       );

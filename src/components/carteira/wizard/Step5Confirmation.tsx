@@ -235,7 +235,12 @@ export default function Step5Confirmation({
                 {renderFieldValue('Cot. Resgate', formData.cotizacaoResgate)}
                 {renderFieldValue('Liq. Resgate', formData.liquidacaoResgate)}
                 {renderFieldValue('Vencimento', formData.vencimento, formatDate)}
-                {renderFieldValue('Benchmark', formData.benchmark)}
+                {formData.percentualCDI > 0 && formData.benchmark
+                  ? renderFieldValue(
+                      'Rentabilidade',
+                      `${formData.percentualCDI}% do ${formData.benchmark}`,
+                    )
+                  : renderFieldValue('Benchmark', formData.benchmark)}
               </>
             )}
             {tesouroEmRendaFixa && (
@@ -348,7 +353,12 @@ export default function Step5Confirmation({
             {renderFieldValue('Cot. Resgate', formData.cotizacaoResgate)}
             {renderFieldValue('Liq. Resgate', formData.liquidacaoResgate)}
             {renderFieldValue('Vencimento', formData.vencimento, formatDate)}
-            {renderFieldValue('Benchmark', formData.benchmark)}
+            {formData.percentualCDI > 0 && formData.benchmark
+              ? renderFieldValue(
+                  'Rentabilidade',
+                  `${formData.percentualCDI}% do ${formData.benchmark}`,
+                )
+              : renderFieldValue('Benchmark', formData.benchmark)}
           </>
         );
 
