@@ -126,7 +126,11 @@ function AtivoDetalheContent() {
   const [data, setData] = useState<AtivoData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rentabilidadeRange, setRentabilidadeRange] = useState<RentabilidadeRange>('12M');
+  // Default MAX pra mostrar todo o histórico do ativo desde a primeira
+  // compra. Importante pra ativos antigos (CDB de 2016, etc.) — abrir em
+  // 12M esconde a maior parte da série e dá impressão de bug. Quem quer
+  // janela menor escolhe explícito.
+  const [rentabilidadeRange, setRentabilidadeRange] = useState<RentabilidadeRange>('MAX');
 
   useEffect(() => {
     if (!id) return;
