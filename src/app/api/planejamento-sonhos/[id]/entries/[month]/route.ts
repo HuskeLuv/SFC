@@ -5,12 +5,21 @@
  *
  * Pre-checa ownership do objetivo (404 se não pertence ao user) antes de tocar
  * em entries — evita vazar existência de objetivos de outros users.
+ *
+ * Pós-delete: re-deriva status do objetivo via deriveStatusAfterEntryDelete.
+ * Sem isso o status "Concluído" promovido por autoStatusOnEntry da entry
+ * recém-deletada fica stale (mesmo padrão D do postmortem v2).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import {
+  deriveStatusAfterEntryDelete,
+  type Status,
+} from '@/services/planejamento/planejamentoSonhos';
+import { decimalToNumber } from '../../../_lib/serializer';
 
 const yearMonthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -25,7 +34,7 @@ export const DELETE = withErrorHandler(
 
     const objetivo = await prisma.planejamentoObjetivo.findFirst({
       where: { id: objetivoId, userId: targetUserId },
-      select: { id: true },
+      select: { id: true, status: true, target: true },
     });
     if (!objetivo) {
       return NextResponse.json({ error: 'Objetivo não encontrado' }, { status: 404 });
@@ -36,6 +45,27 @@ export const DELETE = withErrorHandler(
     });
     if (deleted.count === 0) {
       return NextResponse.json({ error: 'Entry não encontrada' }, { status: 404 });
+    }
+
+    const remaining = await prisma.planejamentoObjetivoEntry.findMany({
+      where: { objetivoId },
+      select: { month: true, balance: true },
+    });
+    const target = decimalToNumber(objetivo.target);
+    const remainingNumeric = remaining.map((e) => ({
+      month: e.month,
+      balance: decimalToNumber(e.balance),
+    }));
+    const nextStatus = deriveStatusAfterEntryDelete(
+      objetivo.status as Status,
+      remainingNumeric,
+      target,
+    );
+    if (nextStatus !== objetivo.status) {
+      await prisma.planejamentoObjetivo.update({
+        where: { id: objetivoId },
+        data: { status: nextStatus },
+      });
     }
 
     return NextResponse.json({ success: true });

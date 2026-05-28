@@ -110,6 +110,30 @@ export function autoStatusOnEntry(currentStatus: Status, balance: number, target
 }
 
 /**
+ * Re-deriva status depois que uma entry foi deletada. Espelho conservador de
+ * autoStatusOnEntry: só desfaz a promoção a "Concluído" — pra evitar carregar
+ * "Concluído" stale quando a entry que satisfazia balance ≥ target some.
+ *
+ * - Sem entries restantes E status atual "Concluído" → "Em espera"
+ * - Latest balance ≥ target → "Concluído" (continua satisfeito)
+ * - Latest balance < target E currentStatus "Concluído" → "Iniciado"
+ * - Outros casos: preserva currentStatus (não bulldoza decisão manual do user)
+ */
+export function deriveStatusAfterEntryDelete(
+  currentStatus: Status,
+  remainingEntries: Array<{ month: string; balance: number }>,
+  target: number,
+): Status {
+  if (remainingEntries.length === 0) {
+    return currentStatus === 'Concluído' ? 'Em espera' : currentStatus;
+  }
+  const latest = [...remainingEntries].sort((a, b) => a.month.localeCompare(b.month)).at(-1)!;
+  if (latest.balance >= target) return 'Concluído';
+  if (currentStatus === 'Concluído') return 'Iniciado';
+  return currentStatus;
+}
+
+/**
  * Adiciona N meses a um YYYY-MM. Útil pra calcular data de conclusão.
  */
 export function addMonths(yearMonth: string, n: number): string {

@@ -5,6 +5,7 @@ import {
   progress,
   categoryFromMonths,
   autoStatusOnEntry,
+  deriveStatusAfterEntryDelete,
   addMonths,
 } from '../planejamentoSonhos';
 
@@ -133,6 +134,61 @@ describe('autoStatusOnEntry — transições automáticas', () => {
     expect(autoStatusOnEntry('Iniciado', 5000, 25000)).toBe('Iniciado');
     expect(autoStatusOnEntry('Pausado', 5000, 25000)).toBe('Pausado');
     expect(autoStatusOnEntry('Atrasado', 5000, 25000)).toBe('Atrasado');
+  });
+});
+
+describe('deriveStatusAfterEntryDelete — re-derivação pós-delete (F3.2 residual)', () => {
+  it('sem entries restantes E status "Concluído" → "Em espera"', () => {
+    expect(deriveStatusAfterEntryDelete('Concluído', [], 1000)).toBe('Em espera');
+  });
+
+  it('sem entries restantes preserva status não-Concluído', () => {
+    expect(deriveStatusAfterEntryDelete('Iniciado', [], 1000)).toBe('Iniciado');
+    expect(deriveStatusAfterEntryDelete('Em espera', [], 1000)).toBe('Em espera');
+    expect(deriveStatusAfterEntryDelete('Pausado', [], 1000)).toBe('Pausado');
+    expect(deriveStatusAfterEntryDelete('Atrasado', [], 1000)).toBe('Atrasado');
+  });
+
+  it('latest balance ≥ target mantém "Concluído"', () => {
+    expect(
+      deriveStatusAfterEntryDelete(
+        'Concluído',
+        [
+          { month: '2026-01', balance: 500 },
+          { month: '2026-02', balance: 1200 },
+        ],
+        1000,
+      ),
+    ).toBe('Concluído');
+  });
+
+  it('latest balance < target E status "Concluído" → "Iniciado" (demote)', () => {
+    expect(
+      deriveStatusAfterEntryDelete('Concluído', [{ month: '2026-01', balance: 500 }], 1000),
+    ).toBe('Iniciado');
+  });
+
+  it('entries existem mas status atual não é "Concluído" → preserva', () => {
+    expect(
+      deriveStatusAfterEntryDelete('Pausado', [{ month: '2026-01', balance: 500 }], 1000),
+    ).toBe('Pausado');
+    expect(
+      deriveStatusAfterEntryDelete('Atrasado', [{ month: '2026-01', balance: 500 }], 1000),
+    ).toBe('Atrasado');
+  });
+
+  it('ordena entries pra escolher latest mesmo se chegarem fora de ordem', () => {
+    expect(
+      deriveStatusAfterEntryDelete(
+        'Concluído',
+        [
+          { month: '2026-03', balance: 800 },
+          { month: '2026-01', balance: 1200 },
+          { month: '2026-02', balance: 600 },
+        ],
+        1000,
+      ),
+    ).toBe('Iniciado');
   });
 });
 
