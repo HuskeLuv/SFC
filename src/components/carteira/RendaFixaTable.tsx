@@ -578,7 +578,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
                   className="px-2 py-2 font-bold text-black text-xs text-left whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  Observacoes
+                  Observações
                 </th>
               </tr>
             </thead>
