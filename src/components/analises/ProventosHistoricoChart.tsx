@@ -119,7 +119,7 @@ const isValidProventoDate = (date: Date): boolean => {
 };
 
 export default function ProventosHistoricoChart({ proventos }: ProventosHistoricoChartProps) {
-  const { series, colors } = useMemo(() => {
+  const { series, colors, xMin, xMax } = useMemo(() => {
     const monthlyMap = new Map<string, Map<string, number>>();
     const ativosSet = new Set<string>();
 
@@ -162,8 +162,18 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
 
     const seriesColors = ativos.map((_, index) => COLORS[index % COLORS.length]);
 
-    return { series: seriesData, colors: seriesColors };
+    // #8 (checklist mai/28): sem `xaxis.min/max` explícitos, ApexCharts cai
+    // no epoch (Jan/1970) quando todas as séries estão hidden ou quando o
+    // dataset vem vazio. Travar o range no primeiro/último mês válido evita
+    // a rótula "Jan 1970" — e quando não há nenhum mês, o componente
+    // antecipa com um EmptyState abaixo.
+    const xMin = monthDates.length > 0 ? monthDates[0] : undefined;
+    const xMax = monthDates.length > 0 ? monthDates[monthDates.length - 1] : undefined;
+
+    return { series: seriesData, colors: seriesColors, xMin, xMax };
   }, [proventos]);
+
+  const hasData = series.length > 0 && series.some((s) => s.data.length > 0);
 
   const options: ApexOptions = useMemo(
     () => ({
@@ -236,6 +246,8 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
       xaxis: {
         type: 'datetime',
         tickAmount: 6,
+        min: xMin,
+        max: xMax,
         axisBorder: {
           show: false,
         },
@@ -380,8 +392,21 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
         opacity: 1,
       },
     }),
-    [colors],
+    [colors, xMin, xMax],
   );
+
+  if (!hasData) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Nenhum provento no período selecionado.
+        </p>
+        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+          Ajuste o filtro de período ou habilite ao menos um ativo na legenda.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-full overflow-x-auto custom-scrollbar">
