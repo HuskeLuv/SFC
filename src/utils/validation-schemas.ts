@@ -267,6 +267,56 @@ export const benchmarkIngestSchema = z.object({
   data: z.record(z.string(), z.unknown()).optional(),
 });
 
+// ── Planejamento Sonhos (F3.2) schemas ────────────────────────────────
+
+// `months` 1..480 → 40 anos é o teto que cobre objetivos de longo prazo
+// (aposentadoria, herança). `rate` aceita decimal mensal entre -1 e 1
+// (ou seja, -100% a +100% ao mês) — range largo de propósito porque o
+// cálculo de pmt já trata edge cases (rate≈0, target<=available).
+// `startDate` YYYY-MM opcional. `available` pode ser zero (default DB).
+
+const planejamentoPriority = z.enum(['Alta', 'Moderado', 'Baixa']);
+const planejamentoCategory = z.enum(['c', 'm', 'l']);
+const planejamentoStatus = z.enum(['Em espera', 'Iniciado', 'Pausado', 'Atrasado', 'Concluído']);
+const yearMonthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
+const planejamentoStartDate = z
+  .string()
+  .regex(yearMonthRegex, 'startDate deve ser YYYY-MM')
+  .nullable()
+  .optional();
+
+export const planejamentoObjetivoCreateSchema = z.object({
+  name: zString(255),
+  target: zPositiveNumber,
+  months: z.number().int().min(1).max(480),
+  startDate: planejamentoStartDate,
+  available: zNonNegativeNumber.optional().default(0),
+  rate: z.number().finite().min(-1).max(1).optional().default(0),
+  priority: planejamentoPriority,
+  category: planejamentoCategory.optional(),
+  status: planejamentoStatus,
+  notes: z.string().max(2000).nullable().optional(),
+});
+
+export const planejamentoObjetivoPatchSchema = z.object({
+  name: zString(255).optional(),
+  target: zPositiveNumber.optional(),
+  months: z.number().int().min(1).max(480).optional(),
+  startDate: planejamentoStartDate,
+  available: zNonNegativeNumber.optional(),
+  rate: z.number().finite().min(-1).max(1).optional(),
+  priority: planejamentoPriority.optional(),
+  category: planejamentoCategory.optional(),
+  status: planejamentoStatus.optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
+
+export const planejamentoEntryUpsertSchema = z.object({
+  month: z.string().regex(yearMonthRegex, 'month deve ser YYYY-MM'),
+  aporte: z.number().finite().nonnegative(),
+  balance: z.number().finite(), // pode ser negativo se houver perda
+});
+
 // ── Utility: build 400 response from ZodError ─────────────────────────
 
 export function validationError(result: { success: false; error: z.ZodError }) {
