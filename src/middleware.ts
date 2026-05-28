@@ -70,12 +70,56 @@ function applyRateLimitHeaders(
   }
 }
 
+/**
+ * Content Security Policy (LGPD ATENÇÃO).
+ *
+ * Diretivas:
+ *  - default-src 'self': bloqueia tudo que não seja do próprio domínio.
+ *  - script-src: 'self' + 'unsafe-inline' (necessário pro Next.js
+ *    inline scripts de hidratação) + 'unsafe-eval' (ApexCharts usa Function
+ *    construtor). Quando migrar pra nonces, isso some.
+ *  - style-src 'self' + 'unsafe-inline': TailAdmin + flatpickr injetam
+ *    estilos inline.
+ *  - img-src: 'self' + data: (QR codes/avatars base64) + https: (logos
+ *    externos eventuais).
+ *  - connect-src: 'self' (todas APIs do app são same-origin).
+ *  - frame-ancestors 'none': mesmo papel que X-Frame-Options=DENY pra
+ *    browsers modernos.
+ *  - form-action 'self': forms só submetem pro próprio domínio.
+ *  - base-uri 'self': proteção contra base tag injection.
+ *  - upgrade-insecure-requests: força HTTPS em recursos opcionais.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "base-uri 'self'",
+  'upgrade-insecure-requests',
+].join('; ');
+
 /** Apply security headers to a response. */
 function setSecurityHeaders(response: NextResponse, request: NextRequest): void {
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  // LGPD ATENÇÃO: CSP + HSTS.
+  // CSP em modo permissivo por ora (unsafe-inline/unsafe-eval) pra não
+  // quebrar Next.js inline scripts e ApexCharts. Próxima iteração: nonces.
+  response.headers.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  // HSTS apenas em produção — em dev local sobre HTTP, o browser
+  // memoriza preload e impede acesso futuro via HTTP.
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains; preload',
+    );
+  }
 
   // Prevent Safari/macOS from serving stale pages and API responses from disk cache
   const { pathname } = request.nextUrl;
