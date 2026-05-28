@@ -159,9 +159,42 @@ const calculateHistoricoTWR = (
   return result;
 };
 
-const tipoOperacaoMap: Record<string, string> = {
-  compra: 'Aporte',
-  venda: 'Resgate',
+const CORPORATE_ACTION_LABEL: Record<string, string> = {
+  BONIFICACAO: 'Bonificação',
+  DESDOBRAMENTO: 'Desdobramento',
+  GRUPAMENTO: 'Grupamento',
+};
+
+/**
+ * Rótulo exibido na coluna "Operação" do histórico. Antes era um mapa
+ * estático (compra→Aporte, venda→Resgate) que escondia o motivo real de
+ * transações geradas por eventos corporativos — split/bonificação ITUB4
+ * aparecia como "Aporte" no histórico do user (#10 do checklist mai/28).
+ *
+ * Lê `notes.operation.action` para distinguir:
+ *   - 'ajuste-corporativo' → "Bonificação"/"Desdobramento"/"Grupamento"
+ *     conforme `corporateActionType`
+ *   - 'reinvestimento' → "Reinvestimento" (F1.10)
+ *   - 'aporte' → "Aporte" (aporte adicional em RF/reserva)
+ *   - qualquer outra compra → "Aporte"
+ *   - venda → "Resgate"
+ */
+const labelForTransaction = (tx: { type: string; notes: string | null }): string => {
+  if (tx.type === 'venda') return 'Resgate';
+  if (tx.notes) {
+    try {
+      const parsed = JSON.parse(tx.notes);
+      const action = parsed?.operation?.action;
+      if (action === 'ajuste-corporativo') {
+        const corpType = parsed?.corporateActionType;
+        return CORPORATE_ACTION_LABEL[corpType] ?? 'Ajuste corporativo';
+      }
+      if (action === 'reinvestimento') return 'Reinvestimento';
+    } catch {
+      // notes malformado → cai no default
+    }
+  }
+  return 'Aporte';
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -412,7 +445,7 @@ export const GET = withErrorHandler(
 
     const transacoes = transactions.map((tx) => ({
       id: tx.id,
-      tipoOperacao: tipoOperacaoMap[tx.type] || tx.type,
+      tipoOperacao: labelForTransaction(tx),
       quantity: tx.quantity,
       price: tx.price,
       total: tx.total,
