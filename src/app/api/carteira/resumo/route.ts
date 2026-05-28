@@ -13,6 +13,7 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import { filterInvestmentsExclReservas } from '@/utils/cashflowFilters';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { parseRangeMonths } from '@/utils/rangeQuery';
 const resumoCache = getTtlCache<Record<string, unknown>>('carteiraResumo');
 
 type FixedIncomeAssetWithAsset = {
@@ -70,6 +71,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const twrStartDateParam = searchParams.get('twrStartDate');
   const twrStartDate = twrStartDateParam ? parseInt(twrStartDateParam, 10) : undefined;
   const includeHistorico = searchParams.get('includeHistorico') !== 'false';
+  // Default null = sem cap. O snapshot reader já carregava sem cap; antes só
+  // o caminho live truncava em 24m, fazendo "MAX" do chart aparentar curto
+  // pra contas com histórico anterior a mai/24 (bug #17 do checklist mai/28).
+  const rangeMonths = parseRangeMonths(request, null);
   // Snapshot path é o caminho rápido: lê portfolio_daily_snapshots em vez de
   // recomputar o histórico inteiro. Default true; o reader retorna coverageOk=false
   // quando não há dados suficientes (usuário novo ou cron ainda não acumulou 24m),
@@ -441,7 +446,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         saldoBrutoAtual: saldoBruto,
         valorAplicadoAtual: valorAplicado,
         twrStartDate,
-        maxHistoricoMonths: 24,
+        maxHistoricoMonths: rangeMonths,
         // Patch desligado: sobrescrever último dia com totais live (BRAPI atual +
         // FI pricer live) divergia da engine que precifica os dias anteriores
         // (assetPriceHistory + curva diária), produzindo um drop artificial em

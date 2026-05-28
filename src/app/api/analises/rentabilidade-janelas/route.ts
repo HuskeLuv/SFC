@@ -12,6 +12,7 @@ import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTo
 import { computeMwr, saldoBrutoAt, type CashFlow } from '@/services/portfolio/mwrCalculator';
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { parseRangeMonths } from '@/utils/rangeQuery';
 
 const IBOV_SYMBOL = '^BVSP';
 
@@ -126,6 +127,10 @@ function priceSeriesReturnPct(
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
+  // Default null = sem cap: a janela `fromBegin` precisa do histórico
+  // completo. Antes o cap fixo de 36m fazia `fromBegin` na prática ser
+  // "desde 36 meses atrás" (#17 do checklist mai/28).
+  const rangeMonths = parseRangeMonths(request, null);
 
   const [portfolio, stockTransactions, investmentGroups, fixedIncomeAssets] = await Promise.all([
     prisma.portfolio.findMany({
@@ -168,7 +173,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     investmentsExclReservas: cashflowInvestments,
     saldoBrutoAtual: saldoBruto,
     valorAplicadoAtual: valorAplicado,
-    maxHistoricoMonths: 36,
+    maxHistoricoMonths: rangeMonths,
     patchLastDayWithLiveTotals: true,
     fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
     implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,

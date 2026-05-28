@@ -17,6 +17,7 @@ import {
   extractMonthlyCloses,
   monthlyReturnsFromCloses,
 } from '@/services/analises/sensibilidadeCarteira';
+import { parseRangeMonths } from '@/utils/rangeQuery';
 
 /** Janela para cálculo de beta: 24 meses, mesma usada em sensibilidade-carteira. */
 const BETA_WINDOW_MONTHS = 24;
@@ -235,6 +236,8 @@ function calcularCdiCarteira(
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
+  // Default null = sem cap; antes o cap fixo de 36m truncava ativos antigos.
+  const rangeMonths = parseRangeMonths(request, null);
 
   // Busca portfolio, transações, investimentos e renda fixa em paralelo
   const [portfolio, stockTransactions, investmentGroups, fixedIncomeAssets] = await Promise.all([
@@ -310,7 +313,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     investmentsExclReservas: cashflowInvestments,
     saldoBrutoAtual: saldoBruto,
     valorAplicadoAtual: valorAplicado,
-    maxHistoricoMonths: 36,
+    maxHistoricoMonths: rangeMonths,
     patchLastDayWithLiveTotals: true,
     fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
     implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,

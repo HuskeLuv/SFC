@@ -30,7 +30,8 @@ vi.mock('@/services/pricing/fundamentalsService', () => ({
   getFundamentals: vi.fn().mockResolvedValue({ pl: null, beta: null, dividendYield: null }),
 }));
 
-import { PATCH, parseRangeMonths } from '../route';
+import { PATCH } from '../route';
+import { parseRangeMonths } from '@/utils/rangeQuery';
 
 const createPatchRequest = (body: object) =>
   new NextRequest('http://localhost/api/ativos/pf-1', {

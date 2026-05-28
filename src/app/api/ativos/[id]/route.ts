@@ -20,35 +20,9 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { parseRangeMonths } from '@/utils/rangeQuery';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Janela do gráfico de rentabilidade — controlada pela UI via ?range=...
- * MAX retorna desde a primeira movimentação do ativo (sem cap), tudo o mais
- * recorta os últimos N meses. Default 24M mantém compat com chamadas
- * existentes sem o param.
- *
- * Bug do checklist mai/28 (#15/#16/#18): antes o cap era hardcoded em 24
- * meses no backend; "MAX" no client filtrava só o que já tinha vindo (24m),
- * deixando ativos antigos (CDB 2016, LCI 2022, TIMS3) sem o histórico real.
- */
-const RANGE_TO_MONTHS: Record<string, number | null> = {
-  '12M': 12,
-  '24M': 24,
-  '2A': 24,
-  '36M': 36,
-  '3A': 36,
-  '5A': 60,
-  '10A': 120,
-  MAX: null,
-};
-
-export const parseRangeMonths = (request: NextRequest): number | null => {
-  const raw = request.nextUrl.searchParams.get('range');
-  if (!raw) return 24;
-  const key = raw.toUpperCase();
-  return key in RANGE_TO_MONTHS ? RANGE_TO_MONTHS[key] : 24;
-};
 
 const displayStartFromMonths = (hoje: Date, startDate: Date, months: number | null): Date => {
   if (months === null) return startDate;
