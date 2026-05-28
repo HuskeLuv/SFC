@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import UserMetaCard from '@/components/user-profile/UserMetaCard';
-import UserInfoCard from '@/components/user-profile/UserInfoCard';
 import PrivacyControls from '@/components/user-profile/PrivacyControls';
 
 interface User {
@@ -38,7 +37,6 @@ export default function ProfilePage() {
         </h3>
         <div className="space-y-6">
           <UserMetaCard user={user || undefined} />
-          <UserInfoCard user={user || undefined} />
         </div>
       </div>
 
