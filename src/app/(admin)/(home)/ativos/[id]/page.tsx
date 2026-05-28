@@ -134,7 +134,9 @@ function AtivoDetalheContent() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/ativos/${id}`, { credentials: 'include' });
+        const res = await fetch(`/api/ativos/${id}?range=${rentabilidadeRange}`, {
+          credentials: 'include',
+        });
         if (!res.ok) {
           if (res.status === 404) throw new Error('Ativo não encontrado');
           throw new Error('Erro ao carregar dados');
@@ -148,7 +150,7 @@ function AtivoDetalheContent() {
       }
     };
     void fetchData();
-  }, [id]);
+  }, [id, rentabilidadeRange]);
 
   const rentabilidadeStartDate = useMemo(() => {
     if (!data?.historicoTWR?.length) return undefined;

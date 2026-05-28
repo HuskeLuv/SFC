@@ -22,6 +22,40 @@ import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Janela do gráfico de rentabilidade — controlada pela UI via ?range=...
+ * MAX retorna desde a primeira movimentação do ativo (sem cap), tudo o mais
+ * recorta os últimos N meses. Default 24M mantém compat com chamadas
+ * existentes sem o param.
+ *
+ * Bug do checklist mai/28 (#15/#16/#18): antes o cap era hardcoded em 24
+ * meses no backend; "MAX" no client filtrava só o que já tinha vindo (24m),
+ * deixando ativos antigos (CDB 2016, LCI 2022, TIMS3) sem o histórico real.
+ */
+const RANGE_TO_MONTHS: Record<string, number | null> = {
+  '12M': 12,
+  '24M': 24,
+  '2A': 24,
+  '36M': 36,
+  '3A': 36,
+  '5A': 60,
+  '10A': 120,
+  MAX: null,
+};
+
+export const parseRangeMonths = (request: NextRequest): number | null => {
+  const raw = request.nextUrl.searchParams.get('range');
+  if (!raw) return 24;
+  const key = raw.toUpperCase();
+  return key in RANGE_TO_MONTHS ? RANGE_TO_MONTHS[key] : 24;
+};
+
+const displayStartFromMonths = (hoje: Date, startDate: Date, months: number | null): Date => {
+  if (months === null) return startDate;
+  const cap = new Date(hoje.getFullYear(), hoje.getMonth() - months, 1);
+  return startDate.getTime() < cap.getTime() ? normalizeDateStartShared(cap) : startDate;
+};
+
 const normalizeDateStart = (date: Date) => {
   const normalized = new Date(date);
   normalized.setHours(0, 0, 0, 0);
@@ -183,18 +217,18 @@ type FixedIncomeRecord = {
   tesouroMaturity: Date | null;
 };
 
-const MAX_HISTORICO_MESES_FI = 24;
-
-const buildFixedIncomeResponse = async (portfolio: PortfolioForFI, fi: FixedIncomeRecord) => {
+const buildFixedIncomeResponse = async (
+  portfolio: PortfolioForFI,
+  fi: FixedIncomeRecord,
+  rangeMonths: number | null,
+) => {
   const hoje = normalizeDateStartShared(new Date());
   const startDate = normalizeDateStartShared(fi.startDate);
   const maturityDate = normalizeDateStartShared(fi.maturityDate);
 
-  // Sempre acumula o fator a partir da startDate real (para o TWR exibido ser correto),
-  // mas limita a janela exibida a MAX_HISTORICO_MESES_FI meses.
-  const minStart = new Date(hoje.getFullYear(), hoje.getMonth() - MAX_HISTORICO_MESES_FI, 1);
-  const displayStart =
-    startDate.getTime() < minStart.getTime() ? normalizeDateStartShared(minStart) : startDate;
+  // Sempre acumula o fator a partir da startDate real (TWR exibido fica correto),
+  // mas limita a janela exibida conforme ?range= recebido (MAX = sem cap).
+  const displayStart = displayStartFromMonths(hoje, startDate, rangeMonths);
 
   const fullTimeline = buildBusinessDayTimeline(startDate, hoje);
 
@@ -361,6 +395,7 @@ export const GET = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { targetUserId } = await requireAuthWithActing(request);
     const { id: portfolioId } = await params;
+    const rangeMonths = parseRangeMonths(request);
 
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId: targetUserId },
@@ -376,7 +411,7 @@ export const GET = withErrorHandler(
       : null;
 
     if (fixedIncome) {
-      return await buildFixedIncomeResponse(portfolio, fixedIncome);
+      return await buildFixedIncomeResponse(portfolio, fixedIncome, rangeMonths);
     }
 
     const symbol = portfolio.asset?.symbol;
@@ -490,9 +525,8 @@ export const GET = withErrorHandler(
           ? new Date(portfolio.lastUpdate)
           : hoje;
     const timelineStart = normalizeDateStart(firstTxDate);
-    const MAX_HISTORICO_MESES = 24;
-    const minStart = new Date(hoje.getFullYear(), hoje.getMonth() - MAX_HISTORICO_MESES, 1);
-    const effectiveStart = timelineStart.getTime() < minStart.getTime() ? minStart : timelineStart;
+    // Janela exibida controlada por ?range= (MAX = sem cap, default 24m).
+    const effectiveStart = displayStartFromMonths(hoje, timelineStart, rangeMonths);
 
     const fetchAssetHistoryFromDb = async (sym: string, startDate?: Date) => {
       const start = startDate

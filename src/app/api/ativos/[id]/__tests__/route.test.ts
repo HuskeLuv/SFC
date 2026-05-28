@@ -30,7 +30,7 @@ vi.mock('@/services/pricing/fundamentalsService', () => ({
   getFundamentals: vi.fn().mockResolvedValue({ pl: null, beta: null, dividendYield: null }),
 }));
 
-import { PATCH } from '../route';
+import { PATCH, parseRangeMonths } from '../route';
 
 const createPatchRequest = (body: object) =>
   new NextRequest('http://localhost/api/ativos/pf-1', {
@@ -173,5 +173,41 @@ describe('PATCH /api/ativos/[id] — Bug #11', () => {
 
     const res = await callPATCH({ instituicaoId: 'inst-1' });
     expect(res.status).toBe(400);
+  });
+});
+
+/* ================================================================== */
+/* parseRangeMonths — query param ?range= (#15/#16/#18 do checklist)  */
+/* ================================================================== */
+
+const reqWithRange = (range?: string) =>
+  new NextRequest(`http://localhost/api/ativos/pf-1${range ? `?range=${range}` : ''}`);
+
+describe('parseRangeMonths', () => {
+  it('default 24M quando nenhum param', () => {
+    expect(parseRangeMonths(reqWithRange())).toBe(24);
+  });
+
+  it('MAX retorna null (sem cap)', () => {
+    expect(parseRangeMonths(reqWithRange('MAX'))).toBeNull();
+    expect(parseRangeMonths(reqWithRange('max'))).toBeNull();
+  });
+
+  it('converte aliases 12M/24M/36M', () => {
+    expect(parseRangeMonths(reqWithRange('12M'))).toBe(12);
+    expect(parseRangeMonths(reqWithRange('24M'))).toBe(24);
+    expect(parseRangeMonths(reqWithRange('36M'))).toBe(36);
+  });
+
+  it('converte aliases 2A/3A/5A/10A', () => {
+    expect(parseRangeMonths(reqWithRange('2A'))).toBe(24);
+    expect(parseRangeMonths(reqWithRange('3A'))).toBe(36);
+    expect(parseRangeMonths(reqWithRange('5A'))).toBe(60);
+    expect(parseRangeMonths(reqWithRange('10A'))).toBe(120);
+  });
+
+  it('valor inválido cai no default 24', () => {
+    expect(parseRangeMonths(reqWithRange('quinze-anos'))).toBe(24);
+    expect(parseRangeMonths(reqWithRange(''))).toBe(24);
   });
 });
