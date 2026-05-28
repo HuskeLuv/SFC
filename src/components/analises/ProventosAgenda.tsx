@@ -1,46 +1,46 @@
-"use client";
-import React, { useState, useMemo } from "react";
-import ComponentCard from "@/components/common/ComponentCard";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import Badge from "@/components/ui/badge/Badge";
-import { useProventos } from "@/hooks/useProventos";
-import DatePicker from "@/components/form/date-picker";
+'use client';
+import React, { useState, useMemo } from 'react';
+import ComponentCard from '@/components/common/ComponentCard';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import Badge from '@/components/ui/badge/Badge';
+import { useProventos } from '@/hooks/useProventos';
+import DatePicker from '@/components/form/date-picker';
 
 const FILTER_OPTIONS = [
-  { value: "all", label: "Todos" },
-  { value: "realizado", label: "Realizado" },
-  { value: "a_receber", label: "A Receber" },
+  { value: 'all', label: 'Todos' },
+  { value: 'realizado', label: 'Realizado' },
+  { value: 'a_receber', label: 'A Receber' },
 ] as const;
 
-type FilterType = typeof FILTER_OPTIONS[number]["value"];
+type FilterType = (typeof FILTER_OPTIONS)[number]['value'];
 
 export default function ProventosAgenda() {
-  const [filter, setFilter] = useState<FilterType>("all");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  
-  const { proventos, loading, error } = useProventos(
+  const [filter, setFilter] = useState<FilterType>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
+  const { proventos, loading, isFetching, error } = useProventos(
     startDate || undefined,
-    endDate || undefined
+    endDate || undefined,
   );
 
   // Filtrar e agrupar proventos por mês
   const proventosAgrupados = useMemo(() => {
-    const filtered = proventos.filter(p => {
-      if (filter === "all") return true;
+    const filtered = proventos.filter((p) => {
+      if (filter === 'all') return true;
       return p.status === filter;
     });
 
     const grouped: Record<string, typeof filtered> = {};
-    
-    filtered.forEach(provento => {
+
+    filtered.forEach((provento) => {
       const date = new Date(provento.data);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
+
       if (!grouped[monthKey]) {
         grouped[monthKey] = [];
       }
-      
+
       grouped[monthKey].push(provento);
     });
 
@@ -74,8 +74,18 @@ export default function ProventosAgenda() {
   const formatMonth = (monthKey: string) => {
     const [year, month] = monthKey.split('-');
     const months = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
     ];
     return `${months[Number(month) - 1]} ${year}`;
   };
@@ -87,6 +97,20 @@ export default function ProventosAgenda() {
 
   return (
     <div className="space-y-6">
+      {/* Indicador de refetch — #9 checklist mai/28 — antes a agenda mudava
+          de período silenciosamente e usuários clicavam várias vezes achando
+          que o filtro não respondia. */}
+      {isFetching && !loading && (
+        <div
+          className="flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          Atualizando agenda…
+        </div>
+      )}
+
       {/* Filtros */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
@@ -100,8 +124,8 @@ export default function ProventosAgenda() {
                 onClick={() => setFilter(option.value)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   filter === option.value
-                    ? "bg-brand-500 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
                 }`}
               >
                 {option.label}
@@ -145,20 +169,33 @@ export default function ProventosAgenda() {
 
       {/* Lista de Proventos */}
       <ComponentCard title="Agenda de Proventos">
-        <div className="space-y-6">
+        <div
+          className={`space-y-6 transition-opacity ${isFetching && !loading ? 'opacity-60' : ''}`}
+          aria-busy={isFetching && !loading}
+        >
           {proventosAgrupados.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               Nenhum provento encontrado no período selecionado
             </div>
           ) : (
             proventosAgrupados.map(({ month, items, total }) => (
-              <div key={month} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 pb-6 last:pb-0">
+              <div
+                key={month}
+                className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 pb-6 last:pb-0"
+              >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                     {formatMonth(month)}
                   </h3>
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Total: <span className="text-brand-500">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    Total:{' '}
+                    <span className="text-brand-500">
+                      R${' '}
+                      {total.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
                   </p>
                 </div>
                 <div className="overflow-x-auto">
@@ -184,7 +221,10 @@ export default function ProventosAgenda() {
                     </thead>
                     <tbody>
                       {items.map((provento) => (
-                        <tr key={provento.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <tr
+                          key={provento.id}
+                          className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                        >
                           <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
                             {formatDate(provento.data)}
                           </td>
@@ -195,7 +235,11 @@ export default function ProventosAgenda() {
                             {provento.tipo}
                           </td>
                           <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white font-medium">
-                            R$ {provento.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            R${' '}
+                            {provento.valor.toLocaleString('pt-BR', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
                           </td>
                           <td className="px-4 py-3 text-center">
                             <Badge
@@ -219,4 +263,3 @@ export default function ProventosAgenda() {
     </div>
   );
 }
-
