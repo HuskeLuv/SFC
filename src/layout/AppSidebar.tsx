@@ -16,6 +16,7 @@ import {
   UserCircleIcon,
   DocsIcon,
 } from '../icons/index';
+import SidebarFooter from './SidebarFooter';
 
 type NavItem = {
   name: string;
@@ -284,7 +285,7 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-full transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
+      className={`fixed flex flex-col top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-full transition-all duration-300 ease-in-out z-50 border-r border-gray-200 pb-4
         ${isExpanded || isMobileOpen ? 'w-[200px]' : isHovered ? 'w-[200px]' : 'w-[90px]'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0`}
@@ -292,7 +293,7 @@ const AppSidebar: React.FC = () => {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className={`py-8 flex  ${
+        className={`py-8 flex shrink-0 ${
           !isExpanded && !isHovered ? 'lg:justify-center' : 'justify-start'
         }`}
       >
@@ -304,7 +305,7 @@ const AppSidebar: React.FC = () => {
           )}
         </Link>
       </div>
-      <div className="flex flex-col overflow-y-auto  duration-300 ease-linear no-scrollbar">
+      <div className="flex flex-col flex-1 overflow-y-auto duration-300 ease-linear no-scrollbar">
         <nav className="mb-6">
           <div className="flex flex-col gap-4">
             <div>
@@ -320,6 +321,7 @@ const AppSidebar: React.FC = () => {
           </div>
         </nav>
       </div>
+      <SidebarFooter />
     </aside>
   );
 };
