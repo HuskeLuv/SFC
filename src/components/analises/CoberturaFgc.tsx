@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useCoberturaFgc } from '@/hooks/useCoberturaFgc';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import Tooltip from '@/components/ui/tooltip/Tooltip';
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -277,17 +278,20 @@ export default function CoberturaFgc() {
                             CNPJ: {inst.cnpj}
                           </span>
                         )}
-                        <span
-                          className={`text-xs font-medium ${status.className}`}
-                          title={status.tooltip}
-                        >
-                          {status.text}
-                          {status.tooltip && (
-                            <span className="ml-1 cursor-help opacity-60" aria-hidden>
-                              ⓘ
+                        {status.tooltip ? (
+                          <Tooltip content={status.tooltip}>
+                            <span className={`text-xs font-medium ${status.className} cursor-help`}>
+                              {status.text}
+                              <span className="ml-1 opacity-60" aria-hidden>
+                                ⓘ
+                              </span>
                             </span>
-                          )}
-                        </span>
+                          </Tooltip>
+                        ) : (
+                          <span className={`text-xs font-medium ${status.className}`}>
+                            {status.text}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -431,28 +435,27 @@ export default function CoberturaFgc() {
                                   Coberto
                                 </span>
                               ) : (
-                                <span
-                                  className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-help"
-                                  title={FGC_NAO_COBERTO_TOOLTIP}
-                                >
-                                  <svg
-                                    width="12"
-                                    height="12"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="3"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <line x1="18" y1="6" x2="6" y2="18" />
-                                    <line x1="6" y1="6" x2="18" y2="18" />
-                                  </svg>
-                                  Não coberto
-                                  <span className="ml-0.5 opacity-60" aria-hidden>
-                                    ⓘ
+                                <Tooltip content={FGC_NAO_COBERTO_TOOLTIP}>
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-help">
+                                    <svg
+                                      width="12"
+                                      height="12"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <line x1="18" y1="6" x2="6" y2="18" />
+                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                    Não coberto
+                                    <span className="ml-0.5 opacity-60" aria-hidden>
+                                      ⓘ
+                                    </span>
                                   </span>
-                                </span>
+                                </Tooltip>
                               )}
                             </td>
                           </tr>
@@ -488,13 +491,11 @@ function SummaryCard({
       <p className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
         {label}
         {tooltip && (
-          <span
-            className="ml-1 cursor-help opacity-60 normal-case"
-            title={tooltip}
-            aria-label={tooltip}
-          >
-            ⓘ
-          </span>
+          <Tooltip content={tooltip}>
+            <span className="ml-1 cursor-help opacity-60 normal-case" aria-label={tooltip}>
+              ⓘ
+            </span>
+          </Tooltip>
         )}
       </p>
       <p className={`mt-2 text-2xl font-bold ${color}`}>{value}</p>
