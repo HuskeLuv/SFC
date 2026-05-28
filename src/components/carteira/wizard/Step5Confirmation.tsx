@@ -7,7 +7,6 @@ import {
   RENDA_FIXA_TIPOS,
   RENDA_FIXA_TIPOS_HIBRIDOS,
 } from '@/types/wizard';
-import Button from '@/components/ui/button/Button';
 
 interface Step5ConfirmationProps {
   formData: WizardFormData;
@@ -568,13 +567,9 @@ export default function Step5Confirmation({
         </ul>
       </div>
 
-      {!autoSubmit && (
-        <div className="flex justify-end gap-4 pt-6">
-          <Button onClick={onSubmit} disabled={loading} className="px-6 py-2">
-            {loading ? 'Salvando...' : 'Confirmar Adição do Ativo'}
-          </Button>
-        </div>
-      )}
+      {/* Botão de confirmação fica no footer do AddAssetWizard (último step
+          já renderiza "Confirmar" automaticamente). Antes havia botão duplicado
+          aqui — #5 do checklist mai/28. */}
     </div>
   );
 }
