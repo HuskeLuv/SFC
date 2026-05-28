@@ -101,6 +101,7 @@ model User {
   sensibilidadeCaches           PortfolioSensibilidadeCache[]
   riscoRetornoCache             PortfolioRiscoRetornoCache?
   portfolioGoal                 PortfolioGoal?
+  planejamentoObjetivos         PlanejamentoObjetivo[]
 }
 
 model Consultant {
@@ -724,4 +725,52 @@ model CvmFundQuota {
   @@index([cnpj])
   @@index([date])
   @@map("cvm_fund_quotas")
+}
+
+// Objetivos financeiros do usuário (F3 — Planejamento Sonhos).
+// Substitui o simulador de aposentadoria. Cada objetivo é uma meta financeira
+// com prazo, valor desejado, valor inicial e rentabilidade esperada.
+//
+// O `category` é uma classificação por prazo (curto/médio/longo) — derivada de
+// `months` mas armazenada pra evitar recalcular em filtros frequentes.
+model PlanejamentoObjetivo {
+  id          String  @id @default(uuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String // "Reserva de Emergência", "Comprar Casa", etc.
+  target      Decimal @db.Decimal(15, 2) // Valor meta (R$)
+  months      Int // Prazo em meses (1-480)
+  startDate   String? // YYYY-MM — opcional pra objetivos não iniciados
+  available   Decimal @db.Decimal(15, 2) @default(0) // Valor disponível hoje
+  rate        Decimal @db.Decimal(8, 6) @default(0) // Rentabilidade ao mês (decimal: 0.01 = 1%)
+  priority    String // "Alta" | "Moderado" | "Baixa"
+  category    String // "c" (curto ≤12m) | "m" (médio 12-60m) | "l" (longo >60m)
+  status      String // "Em espera" | "Iniciado" | "Pausado" | "Atrasado" | "Concluído"
+  notes       String? // Observações livres
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries     PlanejamentoObjetivoEntry[]
+
+  @@index([userId])
+  @@index([userId, category])
+  @@map("planejamento_objetivos")
+}
+
+// Registros mensais de progresso de um objetivo.
+// Cada entrada captura o estado em um mês específico (saldo + aporte realizado),
+// permitindo comparar com o planejado (calculado via PMT) e desenhar a evolução.
+model PlanejamentoObjetivoEntry {
+  id          String   @id @default(uuid())
+  objetivoId  String
+  objetivo    PlanejamentoObjetivo @relation(fields: [objetivoId], references: [id], onDelete: Cascade)
+  month       String // YYYY-MM
+  aporte      Decimal  @db.Decimal(15, 2) // Aporte realizado no mês
+  balance     Decimal  @db.Decimal(15, 2) // Saldo ao fim do mês
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([objetivoId, month])
+  @@index([objetivoId])
+  @@map("planejamento_objetivo_entries")
 }
