@@ -6,6 +6,7 @@ import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import 'simplebar-react/dist/simplebar.min.css';
 import Providers from './providers';
+import CookieConsentBanner from '@/components/legal/CookieConsentBanner';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -26,6 +27,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${outfit.className} dark:bg-gray-900`}>
         <Providers>{children}</Providers>
+        <CookieConsentBanner />
       </body>
     </html>
   );

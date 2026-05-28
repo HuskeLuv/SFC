@@ -177,5 +177,9 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next|public|favicon.ico|signin|signup|test).*)'],
+  matcher: [
+    // Páginas legais (políticas, termos, subprocessadores) acessíveis sem
+    // login — usuário precisa lê-las antes de aceitar/cadastrar (LGPD #1).
+    '/((?!_next|public|favicon.ico|signin|signup|test|politica-de-privacidade|termos-de-uso|subprocessadores).*)',
+  ],
 };
