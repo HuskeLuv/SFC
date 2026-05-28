@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { verifySync } from 'otplib';
 import { loginSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -11,7 +12,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!parsed.success) {
     return validationError(parsed);
   }
-  const { email, password, rememberMe } = parsed.data;
+  const { email, password, rememberMe, totpCode } = parsed.data;
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
@@ -19,6 +20,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
     return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
+  }
+
+  // LGPD #12: se 2FA ativo, exige TOTP válido antes de emitir token.
+  // Sinaliza `totpRequired` quando senha confere mas falta TOTP — UI
+  // mostra o campo. Quando TOTP inválido, mantém `totpRequired=true`
+  // pra não revelar diferenciação entre "sem código" e "código errado".
+  if (user.totpEnabled && user.totpSecret) {
+    if (!totpCode) {
+      return NextResponse.json(
+        { error: 'Código de autenticação em duas etapas é obrigatório', totpRequired: true },
+        { status: 401 },
+      );
+    }
+    const totpResult = verifySync({
+      secret: user.totpSecret,
+      token: totpCode,
+      epochTolerance: 1,
+    });
+    if (!totpResult.valid) {
+      return NextResponse.json(
+        { error: 'Código de autenticação inválido', totpRequired: true },
+        { status: 401 },
+      );
+    }
   }
 
   // Se rememberMe for true, token expira em 7 dias (1 semana), senão em 1 dia

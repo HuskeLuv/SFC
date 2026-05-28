@@ -48,6 +48,13 @@ export const loginSchema = z.object({
   email: zEmail,
   password: z.string().min(1, 'Senha é obrigatória'),
   rememberMe: z.boolean().optional(),
+  // LGPD #12: TOTP opcional no payload. Quando o user tem 2FA ativo
+  // a primeira tentativa sem código retorna 401 com totpRequired=true
+  // pra UI mostrar o campo; o cliente reenvia com `totpCode`.
+  totpCode: z
+    .string()
+    .regex(/^\d{6}$/, 'Código TOTP deve ter 6 dígitos')
+    .optional(),
 });
 
 export const registerSchema = z.object({

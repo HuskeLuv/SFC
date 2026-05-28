@@ -1,18 +1,22 @@
-"use client";
-import Checkbox from "@/components/form/input/Checkbox";
-import Input from "@/components/form/input/InputField";
-import Label from "@/components/form/Label";
-import Button from "@/components/ui/button/Button";
-import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
-import Link from "next/link";
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+'use client';
+import Checkbox from '@/components/form/input/Checkbox';
+import Input from '@/components/form/input/InputField';
+import Label from '@/components/form/Label';
+import Button from '@/components/ui/button/Button';
+import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from '@/icons';
+import Link from 'next/link';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // LGPD #12: 2FA. Quando o backend responde com totpRequired, exibimos
+  // o campo de código e remontamos o request com `totpCode`.
+  const [totpRequired, setTotpRequired] = useState(false);
+  const [totpCode, setTotpCode] = useState('');
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -23,35 +27,45 @@ export default function SignInForm() {
     const email = (form[0] as HTMLInputElement).value.trim();
     const password = (form[1] as HTMLInputElement).value;
     if (!email || !password) {
-      setError("Preencha todos os campos obrigatórios.");
+      setError('Preencha todos os campos obrigatórios.');
       setLoading(false);
       return;
     }
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        cache: "no-store",
-        body: JSON.stringify({ email, password, rememberMe: isChecked }),
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        cache: 'no-store',
+        body: JSON.stringify({
+          email,
+          password,
+          rememberMe: isChecked,
+          ...(totpCode ? { totpCode } : {}),
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || "Erro ao entrar.");
+        if (data?.totpRequired) {
+          setTotpRequired(true);
+          // Só mostra erro de código inválido quando o user já tentou.
+          setError(totpCode ? data.error || 'Código inválido' : null);
+        } else {
+          setError(data.error || 'Erro ao entrar.');
+        }
         setLoading(false);
         return;
       }
       const data = await res.json();
-      const role = data?.user?.role ?? "user";
-      const destination =
-        role === "consultant" ? "/dashboard/consultor" : "/carteira";
-      if (typeof window !== "undefined") {
+      const role = data?.user?.role ?? 'user';
+      const destination = role === 'consultant' ? '/dashboard/consultor' : '/carteira';
+      if (typeof window !== 'undefined') {
         window.location.assign(destination);
         return;
       }
       router.replace(destination);
     } catch {
-      setError("Erro ao entrar. Tente novamente.");
+      setError('Erro ao entrar. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -135,17 +149,17 @@ export default function SignInForm() {
               <div className="space-y-6">
                 <div>
                   <Label>
-                    Email <span className="text-error-500">*</span>{" "}
+                    Email <span className="text-error-500">*</span>{' '}
                   </Label>
                   <Input placeholder="Digite seu email" name="email" />
                 </div>
                 <div>
                   <Label>
-                    Senha <span className="text-error-500">*</span>{" "}
+                    Senha <span className="text-error-500">*</span>{' '}
                   </Label>
                   <div className="relative">
                     <Input
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       placeholder="Digite sua senha"
                       name="password"
                     />
@@ -175,9 +189,29 @@ export default function SignInForm() {
                     Esqueceu sua senha?
                   </Link>
                 </div>
+                {/* LGPD #12: campo TOTP renderizado só quando backend exigiu */}
+                {totpRequired && (
+                  <div>
+                    <Label htmlFor="totp-code">Código de autenticação (2FA)</Label>
+                    <input
+                      id="totp-code"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="000000"
+                      maxLength={6}
+                      value={totpCode}
+                      onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      autoComplete="one-time-code"
+                      className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm tracking-widest text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Abra seu aplicativo autenticador e digite o código de 6 dígitos.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <Button className="w-full" size="sm" type="submit" disabled={loading}>
-                    {loading ? "Entrando..." : "Entrar"}
+                    {loading ? 'Entrando...' : totpRequired ? 'Confirmar código' : 'Entrar'}
                   </Button>
                 </div>
                 {error && <div className="text-red-500 text-sm mt-2">{error}</div>}
@@ -186,7 +220,7 @@ export default function SignInForm() {
 
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Não tem uma conta? {""}
+                Não tem uma conta? {''}
                 <Link
                   href="/signup"
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"

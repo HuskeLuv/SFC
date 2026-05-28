@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import UserMetaCard from '@/components/user-profile/UserMetaCard';
 import PrivacyControls from '@/components/user-profile/PrivacyControls';
+import { TwoFactorAuthAutoLoad } from '@/components/user-profile/TwoFactorAuth';
 
 interface User {
   id: string;
@@ -42,6 +43,9 @@ export default function ProfilePage() {
 
       {/* LGPD Fase 2: controles de privacidade (Art. 18) */}
       {user && <PrivacyControls user={user} />}
+
+      {/* LGPD #12: 2FA TOTP */}
+      {user && <TwoFactorAuthAutoLoad />}
     </div>
   );
 }

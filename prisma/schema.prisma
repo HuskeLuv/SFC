@@ -77,6 +77,12 @@ model User {
   createdAt                     DateTime                      @default(now())
   updatedAt                     DateTime                      @updatedAt
   role                          UserRole                      @default(user)
+  // LGPD #12: 2FA TOTP. totpSecret é base32 (RFC 4226). Hoje plain text;
+  // débito técnico — migrar pra KMS-encrypted quando estiver em AWS.
+  // totpEnabled = false durante o setup; só vira true depois que o user
+  // confirma com código válido.
+  totpSecret                    String?
+  totpEnabled                   Boolean                       @default(false)
   events                        Event[]
   dashboard                     DashboardData[]
   cashflows                     Cashflow[]
