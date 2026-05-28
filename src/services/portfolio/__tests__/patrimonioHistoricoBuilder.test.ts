@@ -18,6 +18,7 @@ import {
   normalizeDateStart,
   buildDailyTimeline,
   getTransactionValue,
+  isReinvestimentoTransaction,
   buildDailyPriceMap,
   calculateFixedIncomeValue,
   calculateHistoricoTWR,
@@ -439,6 +440,38 @@ describe('calculateHistoricoTWR', () => {
 const DAY = 24 * 60 * 60 * 1000;
 
 /* ================================================================== */
+/* isReinvestimentoTransaction                                        */
+/* ================================================================== */
+
+describe('isReinvestimentoTransaction', () => {
+  it('detecta operation.action="reinvestimento"', () => {
+    const notes = JSON.stringify({ operation: { action: 'reinvestimento' } });
+    expect(isReinvestimentoTransaction(notes)).toBe(true);
+  });
+
+  it('retorna false para compra normal', () => {
+    const notes = JSON.stringify({ operation: { action: 'compra' } });
+    expect(isReinvestimentoTransaction(notes)).toBe(false);
+  });
+
+  it('retorna false para notes=null/undefined/string vazia', () => {
+    expect(isReinvestimentoTransaction(null)).toBe(false);
+    expect(isReinvestimentoTransaction(undefined)).toBe(false);
+    expect(isReinvestimentoTransaction('')).toBe(false);
+  });
+
+  it('retorna false para JSON malformado', () => {
+    expect(isReinvestimentoTransaction('not json')).toBe(false);
+    expect(isReinvestimentoTransaction('{')).toBe(false);
+  });
+
+  it('retorna false quando operation/action ausentes', () => {
+    expect(isReinvestimentoTransaction(JSON.stringify({}))).toBe(false);
+    expect(isReinvestimentoTransaction(JSON.stringify({ operation: {} }))).toBe(false);
+  });
+});
+
+/* ================================================================== */
 /* filterInvestmentsExclReservas                                      */
 /* ================================================================== */
 
@@ -505,6 +538,37 @@ describe('buildPatrimonioCashFlowsByDayOnly', () => {
     const result = buildPatrimonioCashFlowsByDayOnly([], [], [], [], timeline);
     expect(result.size).toBe(1);
     expect(result.get(day1)).toBe(0);
+  });
+
+  it('F1.10: compra marcada como reinvestimento não vira fluxo externo', () => {
+    const day1 = normalizeDateStart(new Date(Date.UTC(2025, 0, 2))).getTime();
+    const timeline = [day1];
+
+    const txAporte = {
+      id: 'tx-aporte',
+      date: new Date(Date.UTC(2025, 0, 2)),
+      type: 'compra',
+      quantity: 10,
+      price: 50,
+      total: 500,
+      asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
+      notes: JSON.stringify({ operation: { action: 'compra' } }),
+    } as unknown as StockTransactionWithRelations;
+
+    const txReinvest = {
+      id: 'tx-reinvest',
+      date: new Date(Date.UTC(2025, 0, 2)),
+      type: 'compra',
+      quantity: 2,
+      price: 50,
+      total: 100,
+      asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
+      notes: JSON.stringify({ operation: { action: 'reinvestimento' } }),
+    } as unknown as StockTransactionWithRelations;
+
+    const result = buildPatrimonioCashFlowsByDayOnly([], [], [txAporte, txReinvest], [], timeline);
+    // Sem fix: cashFlow seria 600. Com fix: só o aporte (500) conta.
+    expect(result.get(day1)).toBe(500);
   });
 });
 

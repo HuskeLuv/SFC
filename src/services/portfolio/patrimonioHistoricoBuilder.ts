@@ -99,6 +99,22 @@ export const getTransactionValue = (transaction: {
   return Number.isFinite(fallback) ? fallback : 0;
 };
 
+// F1.10: compras marcadas como reinvestimento de provento não são capital novo.
+// O dinheiro veio de dividendo/JCP/rendimento — entra como compra (afeta posição
+// e cost basis), mas tem que ser excluído de `aportesByDay` E dos cashflows
+// externos que alimentam o TWR. Caso contrário o TWR é deflado artificialmente
+// (a compra entra como aporte e o ganho derivado do provento é subtraído de
+// volta no cálculo time-weighted).
+export const isReinvestimentoTransaction = (notes: string | null | undefined): boolean => {
+  if (!notes) return false;
+  try {
+    const parsed = JSON.parse(notes);
+    return parsed?.operation?.action === 'reinvestimento';
+  } catch {
+    return false;
+  }
+};
+
 export const buildDailyPriceMap = (
   history: Array<{ date: number; value: number }>,
   timeline: number[],
@@ -560,6 +576,9 @@ export const buildPatrimonioHistorico = async (
   const cashDeltasByDay = new Map<number, number>();
   const appliedDeltasByDay = new Map<number, number>();
   const aportesByDay = new Map<number, number>();
+  // F1.10: cashDelta de reinvestimentos rastreado em separado para que o TWR
+  // exclua esses fluxos do cashFlowsByDay (não são aportes externos).
+  const reinvestimentoCashDeltasByDay = new Map<number, number>();
   const pricePointsBySymbol = new Map<string, Array<{ date: number; value: number }>>();
   const firstTransactionBySymbol = new Map<string, number>();
 
@@ -579,8 +598,16 @@ export const buildPatrimonioHistorico = async (
     const totalValue = getTransactionValue(transaction);
     const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
     const appliedDelta = transaction.type === 'compra' ? totalValue : -totalValue;
-    if (transaction.type === 'compra') {
+    const isReinvest =
+      transaction.type === 'compra' && isReinvestimentoTransaction(transaction.notes);
+    if (transaction.type === 'compra' && !isReinvest) {
       aportesByDay.set(day, (aportesByDay.get(day) || 0) + totalValue);
+    }
+    if (isReinvest) {
+      reinvestimentoCashDeltasByDay.set(
+        day,
+        (reinvestimentoCashDeltasByDay.get(day) || 0) + cashDelta,
+      );
     }
     cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
     appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
@@ -919,8 +946,11 @@ export const buildPatrimonioHistorico = async (
   const cashFlowsByDay = new Map<number, number>();
   timeline.forEach((day) => {
     const cashDelta = cashDeltasByDay.get(day) ?? 0;
+    // F1.10: subtrai o componente de reinvestimento — não é fluxo externo.
+    const reinvestDelta = reinvestimentoCashDeltasByDay.get(day) ?? 0;
+    const externalCashDelta = cashDelta - reinvestDelta;
     const manualVal = manualValuesByDay.get(day) ?? 0;
-    cashFlowsByDay.set(day, -cashDelta + manualVal);
+    cashFlowsByDay.set(day, -externalCashDelta + manualVal);
   });
 
   historicoTWR.push(...calculateHistoricoTWR(patrimonioSeries, cashFlowsByDay));
@@ -974,6 +1004,9 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   });
 
   const cashDeltasByDay = new Map<number, number>();
+  // F1.10: cashDelta de reinvestimentos isolado pra exclusão do fluxo externo
+  // que alimenta o TWR.
+  const reinvestimentoCashDeltasByDay = new Map<number, number>();
 
   stockTransactions.forEach((transaction) => {
     const symbol = transaction.asset?.symbol;
@@ -983,6 +1016,12 @@ export const buildPatrimonioCashFlowsByDayOnly = (
     const totalValue = getTransactionValue(transaction);
     const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
     cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
+    if (transaction.type === 'compra' && isReinvestimentoTransaction(transaction.notes)) {
+      reinvestimentoCashDeltasByDay.set(
+        day,
+        (reinvestimentoCashDeltasByDay.get(day) || 0) + cashDelta,
+      );
+    }
   });
 
   portfolio.forEach((item) => {
@@ -1002,8 +1041,10 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   const cashFlowsByDay = new Map<number, number>();
   timeline.forEach((day) => {
     const cashDelta = cashDeltasByDay.get(day) ?? 0;
+    const reinvestDelta = reinvestimentoCashDeltasByDay.get(day) ?? 0;
+    const externalCashDelta = cashDelta - reinvestDelta;
     const manualVal = manualValuesByDay.get(day) ?? 0;
-    cashFlowsByDay.set(day, -cashDelta + manualVal);
+    cashFlowsByDay.set(day, -externalCashDelta + manualVal);
   });
 
   return cashFlowsByDay;
