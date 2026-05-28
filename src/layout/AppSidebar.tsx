@@ -34,10 +34,7 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   {
     icon: <DollarLineIcon />,
     name: 'Carteira',
-    subItems: [
-      { name: 'Resumo', path: '/carteira' },
-      { name: 'Análise', path: '/analises' },
-    ],
+    path: '/carteira',
   },
   {
     name: 'Fluxo de Caixa',
