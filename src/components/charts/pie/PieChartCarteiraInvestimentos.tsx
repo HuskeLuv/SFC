@@ -93,7 +93,10 @@ export default function PieChartCarteiraInvestimentos({
       colors: [
         '#4F81BD', // Reserva de Emergência
         '#DDD9C3', // Reserva de Oportunidade
-        '#404040', // Renda Fixa
+        // #12 (checklist mai/28): cor anterior #404040 ficava indistinguível
+        // tanto da fonte preta da legenda em light mode quanto do fundo
+        // escuro em dark mode. #64748B (slate-500) contrasta nos dois.
+        '#64748B', // Renda Fixa
         '#B9CDE5', // FIM/FIA
         '#9E8A58', // FII's
         '#FFC000', // Ações
