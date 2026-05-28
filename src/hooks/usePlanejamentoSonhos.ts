@@ -214,4 +214,32 @@ export function useObjetivo(id: string | null) {
   }, [objetivos, id]);
 }
 
+export interface PlanejamentoDefaults {
+  rate: number; // decimal mensal (ex.: 0.0095 = 0.95%/mês)
+  available: number;
+}
+
+/**
+ * Defaults pra pré-popular o form inline:
+ *  - rate: CDI atual convertido pra mensal composto.
+ *  - available: soma de Portfolio.totalInvested (sugestão de saldo já alocado).
+ *
+ * Sem retry agressivo — se o endpoint falhar, o form mostra zeros e o user
+ * preenche manualmente.
+ */
+export function usePlanejamentoDefaults() {
+  return useQuery<PlanejamentoDefaults, Error>({
+    queryKey: [...QUERY_KEY, 'defaults'],
+    queryFn: async () => {
+      const res = await fetch(`${BASE_URL}/defaults`, { credentials: 'include' });
+      if (!res.ok) {
+        throw new Error(`Erro ao carregar defaults (${res.status})`);
+      }
+      return (await res.json()) as PlanejamentoDefaults;
+    },
+    staleTime: 5 * 60 * 1000, // 5min: CDI muda devagar
+    retry: 1,
+  });
+}
+
 export { QUERY_KEY as PLANEJAMENTO_SONHOS_QUERY_KEY };

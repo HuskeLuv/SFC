@@ -9,13 +9,14 @@ import { addMonths, planned, pmt, progress } from '@/services/planejamento/plane
 import { useDeleteEntry, type PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import { StatusBadge, PriorityBadge, CategoryBadge } from './SonhosBadges';
 import SonhosObjetivoEvolutionChart from './SonhosObjetivoEvolutionChart';
+import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
 import { formatBRL, formatBRLCompact, formatYearMonth } from './utils';
 
 interface SonhosObjetivoDetailProps {
   objetivo: PlanejamentoObjetivoDTO;
   onBack: () => void;
-  onEdit: () => void;
   onRegistrarMes: () => void;
+  onDeleted: () => void;
 }
 
 /**
@@ -25,8 +26,8 @@ interface SonhosObjetivoDetailProps {
 export default function SonhosObjetivoDetail({
   objetivo,
   onBack,
-  onEdit,
   onRegistrarMes,
+  onDeleted,
 }: SonhosObjetivoDetailProps) {
   const { pct, balance, count } = progress(objetivo);
   const aporte = pmt(objetivo);
@@ -37,6 +38,7 @@ export default function SonhosObjetivoDetail({
     : null;
   const deleteEntry = useDeleteEntry(objetivo.id);
   const [removingMonth, setRemovingMonth] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const handleRemoveEntry = async (month: string) => {
     if (!window.confirm('Remover este registro?')) return;
@@ -50,39 +52,49 @@ export default function SonhosObjetivoDetail({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <button
-            type="button"
-            onClick={onBack}
-            className="mb-2 text-xs text-gray-500 hover:text-brand-500 dark:text-gray-400"
-          >
-            ← Voltar
-          </button>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white/90 break-words">
-            {objetivo.name}
-          </h2>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <CategoryBadge category={objetivo.category} />
-            <PriorityBadge priority={objetivo.priority} />
-            <StatusBadge status={objetivo.status} />
+      <button
+        type="button"
+        onClick={onBack}
+        className="text-xs text-gray-500 hover:text-brand-500 dark:text-gray-400"
+      >
+        ← Voltar
+      </button>
+
+      {/* Header — swap pra inline form quando editando */}
+      {editing ? (
+        <SonhosObjetivoInlineForm
+          objetivo={objetivo}
+          onCancel={() => setEditing(false)}
+          onSaved={() => setEditing(false)}
+          onDeleted={onDeleted}
+        />
+      ) : (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white/90 break-words">
+              {objetivo.name}
+            </h2>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <CategoryBadge category={objetivo.category} />
+              <PriorityBadge priority={objetivo.priority} />
+              <StatusBadge status={objetivo.status} />
+            </div>
+            {objetivo.notes ? (
+              <p className="mt-2 max-w-2xl text-sm italic text-gray-500 dark:text-gray-400">
+                “{objetivo.notes}”
+              </p>
+            ) : null}
           </div>
-          {objetivo.notes ? (
-            <p className="mt-2 max-w-2xl text-sm italic text-gray-500 dark:text-gray-400">
-              “{objetivo.notes}”
-            </p>
-          ) : null}
+          <div className="flex gap-2">
+            <Button onClick={() => setEditing(true)} size="sm" variant="outline">
+              Editar
+            </Button>
+            <Button onClick={onRegistrarMes} size="sm">
+              + Registrar Mês
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={onEdit} size="sm" variant="outline">
-            Editar
-          </Button>
-          <Button onClick={onRegistrarMes} size="sm">
-            + Registrar Mês
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">

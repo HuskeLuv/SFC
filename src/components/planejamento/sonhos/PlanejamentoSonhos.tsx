@@ -5,19 +5,16 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useObjetivos, type PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import SonhosDashboard from './SonhosDashboard';
 import SonhosObjetivoDetail from './SonhosObjetivoDetail';
-import SonhosObjetivoForm from './SonhosObjetivoForm';
 import SonhosRegistrarMesModal from './SonhosRegistrarMesModal';
 
-type View =
-  | { type: 'dashboard' }
-  | { type: 'detail'; id: string }
-  | { type: 'new' }
-  | { type: 'edit'; id: string };
+type View = { type: 'dashboard' } | { type: 'detail'; id: string };
 
 /**
- * Container raiz: orquestra views (dashboard / detail / form) e modal de
- * registrar mês. Estado de navegação fica no client; sem rotas filhas pra
- * evitar refactor de routes/middlewares — toda navegação é interna.
+ * Container raiz: orquestra views (dashboard / detail) e modal de registrar mês.
+ *
+ * Criação e edição de objetivos são INLINE (dashboard pra criar, detail pra
+ * editar) — não há mais view dedicada de form, pra UX mais direta como o
+ * HTML original.
  */
 export default function PlanejamentoSonhos() {
   const { objetivos, loading, error } = useObjetivos();
@@ -26,17 +23,14 @@ export default function PlanejamentoSonhos() {
 
   const goDashboard = useCallback(() => setView({ type: 'dashboard' }), []);
   const goDetail = useCallback((id: string) => setView({ type: 'detail', id }), []);
-  const goNew = useCallback(() => setView({ type: 'new' }), []);
-  const goEdit = useCallback((id: string) => setView({ type: 'edit', id }), []);
 
   const selectedObjetivo: PlanejamentoObjetivoDTO | null = useMemo(() => {
-    if (view.type === 'detail' || view.type === 'edit') {
+    if (view.type === 'detail') {
       return objetivos.find((g) => g.id === view.id) ?? null;
     }
     return null;
   }, [objetivos, view]);
 
-  // Modal de registrar mês — usa id dedicado pra não acoplar com o view atual
   const registrarMesObjetivo = useMemo(
     () => (registrarMesObjId ? (objetivos.find((g) => g.id === registrarMesObjId) ?? null) : null),
     [objetivos, registrarMesObjId],
@@ -56,31 +50,20 @@ export default function PlanejamentoSonhos() {
 
   let content: React.ReactNode = null;
   if (view.type === 'dashboard') {
-    content = <SonhosDashboard objetivos={objetivos} onSelectObjetivo={goDetail} onNew={goNew} />;
+    content = <SonhosDashboard objetivos={objetivos} onSelectObjetivo={goDetail} />;
   } else if (view.type === 'detail') {
     if (!selectedObjetivo) {
-      // Objetivo sumiu (deleção concorrente, refetch). Volta pro dashboard.
-      content = <SonhosDashboard objetivos={objetivos} onSelectObjetivo={goDetail} onNew={goNew} />;
+      content = <SonhosDashboard objetivos={objetivos} onSelectObjetivo={goDetail} />;
     } else {
       content = (
         <SonhosObjetivoDetail
           objetivo={selectedObjetivo}
           onBack={goDashboard}
-          onEdit={() => goEdit(selectedObjetivo.id)}
+          onDeleted={goDashboard}
           onRegistrarMes={() => setRegistrarMesObjId(selectedObjetivo.id)}
         />
       );
     }
-  } else if (view.type === 'new' || view.type === 'edit') {
-    const editing = view.type === 'edit' ? selectedObjetivo : null;
-    content = (
-      <SonhosObjetivoForm
-        objetivo={editing}
-        onCancel={() => (editing ? goDetail(editing.id) : goDashboard())}
-        onSaved={(id) => goDetail(id)}
-        onDeleted={goDashboard}
-      />
-    );
   }
 
   return (

@@ -7,12 +7,12 @@ import Button from '@/components/ui/button/Button';
 import { progress, pmt } from '@/services/planejamento/planejamentoSonhos';
 import type { PlanejamentoCategory, PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import SonhosObjetivoCard from './SonhosObjetivoCard';
+import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
 import { formatBRLCompact, CATEGORY_LONG_LABELS } from './utils';
 
 interface SonhosDashboardProps {
   objetivos: PlanejamentoObjetivoDTO[];
   onSelectObjetivo: (id: string) => void;
-  onNew: () => void;
 }
 
 type TabValue = 'all' | PlanejamentoCategory;
@@ -25,15 +25,13 @@ const TABS: { value: TabValue; label: string }[] = [
 ];
 
 /**
- * Dashboard: 4 stat cards + filtro de categoria via tabs + grid de cards.
- * Stats são calculados em useMemo pra evitar recálculo a cada render do filtro.
+ * Dashboard: stats + tabs + grid de cards. Cria objetivo inline (sem view
+ * dedicada) — o card de criação aparece no topo da grid ao clicar "+
+ * Adicionar".
  */
-export default function SonhosDashboard({
-  objetivos,
-  onSelectObjetivo,
-  onNew,
-}: SonhosDashboardProps) {
+export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosDashboardProps) {
   const [tab, setTab] = useState<TabValue>('all');
+  const [creating, setCreating] = useState(false);
 
   const stats = useMemo(() => {
     const total = objetivos.length;
@@ -45,7 +43,6 @@ export default function SonhosDashboard({
     const concluidos = objetivos.filter((g) => g.status === 'Concluído').length;
     const totalMeta = objetivos.reduce((s, g) => s + g.target, 0);
 
-    // Progresso médio: média ponderada pelo target (objetivos maiores pesam mais).
     let weightedSum = 0;
     let weightTotal = 0;
     for (const g of objetivos) {
@@ -66,7 +63,7 @@ export default function SonhosDashboard({
 
   return (
     <div className="space-y-6">
-      {/* Header com botão novo */}
+      {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">
@@ -76,9 +73,11 @@ export default function SonhosDashboard({
             Acompanhe e organize seus objetivos financeiros.
           </p>
         </div>
-        <Button onClick={onNew} size="sm">
-          + Novo Objetivo
-        </Button>
+        {!creating ? (
+          <Button onClick={() => setCreating(true)} size="sm">
+            + Adicionar objetivo
+          </Button>
+        ) : null}
       </div>
 
       {/* Stat cards */}
@@ -113,6 +112,18 @@ export default function SonhosDashboard({
         />
       </div>
 
+      {/* Inline create */}
+      {creating ? (
+        <SonhosObjetivoInlineForm
+          objetivo={null}
+          onCancel={() => setCreating(false)}
+          onSaved={(id) => {
+            setCreating(false);
+            onSelectObjetivo(id);
+          }}
+        />
+      ) : null}
+
       {/* Tabs categoria */}
       <div className="border-b border-gray-200 dark:border-gray-800">
         <nav className="-mb-px flex flex-wrap gap-1">
@@ -142,15 +153,15 @@ export default function SonhosDashboard({
       </div>
 
       {/* Lista */}
-      {isEmpty ? (
+      {isEmpty && !creating ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
           <EmptyState
             title="Nenhum objetivo cadastrado"
-            description="Crie seu primeiro objetivo financeiro para começar a planejar."
+            description="Crie seu primeiro objetivo financeiro pra começar a planejar."
           />
           <div className="flex justify-center">
-            <Button onClick={onNew} size="sm">
-              + Criar primeiro objetivo
+            <Button onClick={() => setCreating(true)} size="sm">
+              + Adicionar objetivo
             </Button>
           </div>
         </div>

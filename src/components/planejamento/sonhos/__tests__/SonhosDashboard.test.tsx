@@ -11,6 +11,15 @@ vi.mock('@/icons', () => ({
   ChevronDownIcon: () => <svg data-testid="chev-down" />,
 }));
 
+// Mock o inline form pra não fazer fetch real de defaults no render.
+vi.mock('@/components/planejamento/sonhos/SonhosObjetivoInlineForm', () => ({
+  default: ({ onCancel }: { onCancel: () => void }) => (
+    <div data-testid="inline-form">
+      <button onClick={onCancel}>Cancelar inline</button>
+    </div>
+  ),
+}));
+
 import SonhosDashboard from '@/components/planejamento/sonhos/SonhosDashboard';
 import type { PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 
@@ -36,13 +45,12 @@ const buildObjetivo = (
 function renderDashboard(objetivos: PlanejamentoObjetivoDTO[] = []) {
   const queryClient = createTestQueryClient();
   const onSelect = vi.fn();
-  const onNew = vi.fn();
   const utils = render(
     <QueryClientProvider client={queryClient}>
-      <SonhosDashboard objetivos={objetivos} onSelectObjetivo={onSelect} onNew={onNew} />
+      <SonhosDashboard objetivos={objetivos} onSelectObjetivo={onSelect} />
     </QueryClientProvider>,
   );
-  return { ...utils, onSelect, onNew };
+  return { ...utils, onSelect };
 }
 
 describe('SonhosDashboard', () => {
@@ -60,12 +68,22 @@ describe('SonhosDashboard', () => {
     expect(screen.getByText('Carro')).toBeInTheDocument();
   });
 
-  it('"+ Novo Objetivo" button invokes onNew', () => {
-    const { onNew } = renderDashboard([buildObjetivo()]);
-    // dois botões "Novo Objetivo" (header + possível CTA do empty state). Pegamos o primeiro.
-    const buttons = screen.getAllByRole('button', { name: /Novo Objetivo/i });
+  it('"+ Adicionar objetivo" mostra o inline form e oculta o CTA', () => {
+    renderDashboard([buildObjetivo()]);
+    const buttons = screen.getAllByRole('button', { name: /Adicionar objetivo/i });
     fireEvent.click(buttons[0]);
-    expect(onNew).toHaveBeenCalled();
+    expect(screen.getByTestId('inline-form')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Adicionar objetivo/i })).not.toBeInTheDocument();
+  });
+
+  it('Cancelar no inline form volta o CTA', () => {
+    renderDashboard([buildObjetivo()]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Adicionar objetivo/i })[0]);
+    fireEvent.click(screen.getByText('Cancelar inline'));
+    expect(screen.queryByTestId('inline-form')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Adicionar objetivo/i }).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('click no card invoca onSelect com id correto', () => {
@@ -82,7 +100,6 @@ describe('SonhosDashboard', () => {
     expect(screen.getByText('Curto')).toBeInTheDocument();
     expect(screen.getByText('Longo')).toBeInTheDocument();
 
-    // Click no tab "Longo Prazo" (contagem 1)
     fireEvent.click(screen.getByText(/Longo Prazo \(1\)/));
     expect(screen.getByText('Longo')).toBeInTheDocument();
     expect(screen.queryByText('Curto')).not.toBeInTheDocument();
