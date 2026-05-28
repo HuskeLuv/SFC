@@ -6,6 +6,7 @@ import { AcaoData, AcaoAtivo, AcaoSecao, SetorAcao } from '@/types/acoes';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 // Função helper para validar e converter setor para SetorAcao
 function parseSetorAcao(setor: string | null | undefined): SetorAcao {
   const setoresValidos: SetorAcao[] = [
@@ -157,6 +158,30 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   const totalQuantidade = acoesAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
   const totalValorAplicado = acoesAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
   const totalValorAtualizado = acoesAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+
+  // Bug #14 residual: percentualCarteira/riscoPorAtivo/quantoFalta/necessidadeAporte
+  // por ativo no backend (mesma cobertura do fix de FII em 1a8cfb0, que era padrão D
+  // do postmortem v2). Largest-remainder garante Σ=100,00.
+  if (totalValorAtualizado > 0) {
+    acoesAtivos.forEach((ativo) => {
+      const pct = (ativo.valorAtualizado / totalValorAtualizado) * 100;
+      ativo.percentualCarteira = round2(pct);
+      ativo.riscoPorAtivo = ativo.percentualCarteira;
+    });
+    const adjusted = distributeRoundedPercents(
+      acoesAtivos.map((a) => ({ percentual: a.percentualCarteira })),
+    );
+    adjusted.forEach((adj, i) => {
+      acoesAtivos[i].percentualCarteira = adj.percentual;
+      acoesAtivos[i].riscoPorAtivo = adj.percentual;
+    });
+    acoesAtivos.forEach((ativo) => {
+      ativo.quantoFalta = round2(ativo.objetivo - ativo.percentualCarteira);
+      ativo.necessidadeAporte =
+        ativo.quantoFalta > 0 ? round2((ativo.quantoFalta / 100) * totalValorAtualizado) : 0;
+    });
+  }
+
   const totalObjetivo = acoesAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
   const totalQuantoFalta = acoesAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
   const totalNecessidadeAporte = acoesAtivos.reduce(

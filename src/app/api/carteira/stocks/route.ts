@@ -5,6 +5,7 @@ import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { getAllIndicators } from '@/services/market/marketIndicatorService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
   const colors = [
@@ -134,6 +135,33 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         dataUltimaAtualizacao: item.lastUpdate,
       };
     });
+
+  // Bug #14 residual: percentualCarteira no backend (paridade com FII).
+  // Calcular ANTES das seções pra totalPercentualCarteira/totalRisco/totais
+  // por seção ficarem coerentes.
+  const totalValorAtualizadoStocks = stocksAtivos.reduce(
+    (sum, ativo) => sum + ativo.valorAtualizado,
+    0,
+  );
+  if (totalValorAtualizadoStocks > 0) {
+    stocksAtivos.forEach((ativo) => {
+      const pct = (ativo.valorAtualizado / totalValorAtualizadoStocks) * 100;
+      ativo.percentualCarteira = round2(pct);
+      ativo.riscoPorAtivo = ativo.percentualCarteira;
+    });
+    const adjusted = distributeRoundedPercents(
+      stocksAtivos.map((a) => ({ percentual: a.percentualCarteira })),
+    );
+    adjusted.forEach((adj, i) => {
+      stocksAtivos[i].percentualCarteira = adj.percentual;
+      stocksAtivos[i].riscoPorAtivo = adj.percentual;
+    });
+    stocksAtivos.forEach((ativo) => {
+      ativo.quantoFalta = round2(ativo.objetivo - ativo.percentualCarteira);
+      ativo.necessidadeAporte =
+        ativo.quantoFalta > 0 ? round2((ativo.quantoFalta / 100) * totalValorAtualizadoStocks) : 0;
+    });
+  }
 
   // Agrupar por estratégia
   const STOCKS_SECTION_ORDER = ['value', 'growth', 'risk'] as const;

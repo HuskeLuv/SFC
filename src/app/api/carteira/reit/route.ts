@@ -5,6 +5,7 @@ import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { getAllIndicators } from '@/services/market/marketIndicatorService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
   const colors = [
@@ -131,6 +132,28 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const totalQuantidade = reitAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
   const totalValorAplicado = reitAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
   const totalValorAtualizado = reitAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+
+  // Bug #14 residual: percentualCarteira no backend (paridade com FII).
+  if (totalValorAtualizado > 0) {
+    reitAtivos.forEach((ativo) => {
+      const pct = (ativo.valorAtualizado / totalValorAtualizado) * 100;
+      ativo.percentualCarteira = round2(pct);
+      ativo.riscoPorAtivo = ativo.percentualCarteira;
+    });
+    const adjusted = distributeRoundedPercents(
+      reitAtivos.map((a) => ({ percentual: a.percentualCarteira })),
+    );
+    adjusted.forEach((adj, i) => {
+      reitAtivos[i].percentualCarteira = adj.percentual;
+      reitAtivos[i].riscoPorAtivo = adj.percentual;
+    });
+    reitAtivos.forEach((ativo) => {
+      ativo.quantoFalta = round2(ativo.objetivo - ativo.percentualCarteira);
+      ativo.necessidadeAporte =
+        ativo.quantoFalta > 0 ? round2((ativo.quantoFalta / 100) * totalValorAtualizado) : 0;
+    });
+  }
+
   const totalObjetivo = reitAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
   const totalQuantoFalta = reitAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
   const totalNecessidadeAporte = reitAtivos.reduce(

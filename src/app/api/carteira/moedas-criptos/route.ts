@@ -6,6 +6,7 @@ import { getIndicator } from '@/services/market/marketIndicatorService';
 import type { MoedaCriptoAtivo, MoedaCriptoSecao } from '@/types/moedas-criptos';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 const mapAssetTypeToTipo = (assetType: string): 'moeda' | 'criptomoeda' | 'metal' | 'outro' => {
   if (assetType === 'crypto') return 'criptomoeda';
   if (assetType === 'currency') return 'moeda';
@@ -104,6 +105,27 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const totalValorAtualizado = ativos.reduce((sum, a) => sum + a.valorAtualizado, 0);
   const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
 
+  // Bug #14 residual: percentualCarteira no backend (paridade com FII).
+  if (totalValorAtualizado > 0) {
+    ativos.forEach((ativo) => {
+      const pct = (ativo.valorAtualizado / totalValorAtualizado) * 100;
+      ativo.percentualCarteira = round2(pct);
+      ativo.riscoPorAtivo = ativo.percentualCarteira;
+    });
+    const adjusted = distributeRoundedPercents(
+      ativos.map((a) => ({ percentual: a.percentualCarteira })),
+    );
+    adjusted.forEach((adj, i) => {
+      ativos[i].percentualCarteira = adj.percentual;
+      ativos[i].riscoPorAtivo = adj.percentual;
+    });
+    ativos.forEach((ativo) => {
+      ativo.quantoFalta = round2(ativo.objetivo - ativo.percentualCarteira);
+      ativo.necessidadeAporte =
+        ativo.quantoFalta > 0 ? round2((ativo.quantoFalta / 100) * totalValorAtualizado) : 0;
+    });
+  }
+
   const buildSection = (
     tipo: 'moedas' | 'criptomoedas' | 'metais_joias',
     nome: string,
@@ -124,11 +146,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       totalQuantidade: filtrados.reduce((s, a) => s + a.quantidade, 0),
       totalValorAplicado: filtrados.reduce((s, a) => s + a.valorTotal, 0),
       totalValorAtualizado: filtrados.reduce((s, a) => s + a.valorAtualizado, 0),
-      totalRisco: 0,
-      totalPercentualCarteira: 0,
+      totalRisco: filtrados.reduce((s, a) => s + a.riscoPorAtivo, 0),
+      totalPercentualCarteira: filtrados.reduce((s, a) => s + a.percentualCarteira, 0),
       totalObjetivo: filtrados.reduce((s, a) => s + a.objetivo, 0),
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
+      totalQuantoFalta: filtrados.reduce((s, a) => s + a.quantoFalta, 0),
+      totalNecessidadeAporte: filtrados.reduce((s, a) => s + a.necessidadeAporte, 0),
       rentabilidadeMedia: filtrados.length
         ? filtrados.reduce((s, a) => s + a.rentabilidade, 0) / filtrados.length
         : 0,

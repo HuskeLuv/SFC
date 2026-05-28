@@ -3,6 +3,8 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
+
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
 
@@ -223,6 +225,36 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const totalGeralValorAplicado = secoes.reduce((s, sec) => s + sec.totalValorAplicado, 0);
   const totalGeralValorAtualizado = secoes.reduce((s, sec) => s + sec.totalValorAtualizado, 0);
   const totalGeralQuantidade = secoes.reduce((s, sec) => s + sec.totalQuantidade, 0);
+
+  // Bug #14 residual: percentualCarteira no backend (paridade com FII).
+  // Opções calcula pós-secoes porque o agrupamento é por ticker dinâmico.
+  if (totalGeralValorAtualizado > 0) {
+    const allAtivos = secoes.flatMap((sec) => sec.ativos);
+    allAtivos.forEach((ativo) => {
+      const pct = (ativo.valorAtualizado / totalGeralValorAtualizado) * 100;
+      ativo.percentualCarteira = round2(pct);
+      ativo.riscoPorAtivo = ativo.percentualCarteira;
+    });
+    const adjusted = distributeRoundedPercents(
+      allAtivos.map((a) => ({ percentual: a.percentualCarteira })),
+    );
+    adjusted.forEach((adj, i) => {
+      allAtivos[i].percentualCarteira = adj.percentual;
+      allAtivos[i].riscoPorAtivo = adj.percentual;
+    });
+    allAtivos.forEach((ativo) => {
+      ativo.quantoFalta = round2(ativo.objetivo - ativo.percentualCarteira);
+      ativo.necessidadeAporte =
+        ativo.quantoFalta > 0 ? round2((ativo.quantoFalta / 100) * totalGeralValorAtualizado) : 0;
+    });
+    // Recompõe os totais por seção depois do enriquecimento.
+    secoes.forEach((sec) => {
+      sec.totalPercentualCarteira = sec.ativos.reduce((s, a) => s + a.percentualCarteira, 0);
+      sec.totalRisco = sec.ativos.reduce((s, a) => s + a.riscoPorAtivo, 0);
+      sec.totalQuantoFalta = sec.ativos.reduce((s, a) => s + a.quantoFalta, 0);
+      sec.totalNecessidadeAporte = sec.ativos.reduce((s, a) => s + a.necessidadeAporte, 0);
+    });
+  }
 
   const data = {
     resumo: {

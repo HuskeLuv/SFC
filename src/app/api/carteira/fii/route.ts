@@ -6,6 +6,7 @@ import { FiiData, FiiAtivo, FiiSecao, TipoFii } from '@/types/fii';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 // Funções auxiliares para cores
 function getSegmentColor(tipo: string): string {
   const colors: { [key: string]: string } = {
@@ -35,33 +36,9 @@ function getAtivoColor(ticker: string): string {
   return colors[index];
 }
 
-// Bug #06: arredondar valores antes de enviar ao chart impede que aritmética
-// JS em ponto flutuante (ex.: 200 × 156,05 = 31210.000000000004) vaze pro
-// label central do donut como "31210.000000000004".
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
-/**
- * Bug #14 (2º passe): arredondar cada percentual individualmente NÃO garante
- * soma=100 (3 ativos de mesmo valor: 33.33+33.33+33.33 = 99.99). Distribui
- * o resto da divisão no item com maior percentual — diferença de R$ 0.01
- * indistinguível visualmente mas a soma fecha 100,00 exato.
- */
-const distributeRoundedPercents = <T extends { percentual: number }>(items: T[]): T[] => {
-  if (items.length === 0) return items;
-  const total = items.reduce((acc, item) => acc + item.percentual, 0);
-  if (total === 0) return items;
-  const diff = round2(100 - total);
-  if (diff === 0) return items;
-  let maxIdx = 0;
-  for (let i = 1; i < items.length; i++) {
-    if (items[i].percentual > items[maxIdx].percentual) maxIdx = i;
-  }
-  items[maxIdx] = {
-    ...items[maxIdx],
-    percentual: round2(items[maxIdx].percentual + diff),
-  };
-  return items;
-};
+// Bug #06/#14: helpers extraídos pra @/utils/alocacaoPercents — reusados em
+// todas as rotas de carteira (acoes/etf/reit/stocks/opcoes/moedas-criptos/
+// fim-fia). Mantém o pattern de arredondamento + Σ=100,00 consistente.
 
 async function calculateFiiData(userId: string): Promise<FiiData> {
   // Buscar caixa para investir específico de FII

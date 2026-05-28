@@ -5,6 +5,7 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 import {
   FUNDO_TYPES_AGRUPADOS,
   FUNDO_SUBTIPO_ORDER,
@@ -178,10 +179,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const totalCarteira = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
   const ativosComPercentuais = ativos.map((ativo) => ({
     ...ativo,
-    percentualCarteira: totalCarteira > 0 ? (ativo.valorAtualizado / totalCarteira) * 100 : 0,
-    riscoPorAtivo:
-      totalCarteira > 0 ? Math.min(100, (ativo.valorAtualizado / totalCarteira) * 100) : 0,
+    percentualCarteira:
+      totalCarteira > 0 ? round2((ativo.valorAtualizado / totalCarteira) * 100) : 0,
+    riscoPorAtivo: totalCarteira > 0 ? round2((ativo.valorAtualizado / totalCarteira) * 100) : 0,
   }));
+
+  // Bug #14 residual: largest-remainder pra Σ=100,00 (paridade com FII).
+  if (totalCarteira > 0) {
+    const adjusted = distributeRoundedPercents(
+      ativosComPercentuais.map((a) => ({ percentual: a.percentualCarteira })),
+    );
+    adjusted.forEach((adj, i) => {
+      ativosComPercentuais[i].percentualCarteira = adj.percentual;
+      ativosComPercentuais[i].riscoPorAtivo = adj.percentual;
+    });
+  }
 
   type AtivoFundo = (typeof ativosComPercentuais)[number];
   const secoesMap = new Map<
