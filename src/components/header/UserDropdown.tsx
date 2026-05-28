@@ -3,7 +3,6 @@ import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import { Dropdown } from '../ui/dropdown/Dropdown';
 import { DropdownItem } from '../ui/dropdown/DropdownItem';
-import Avatar from '../ui/avatar/Avatar';
 import { useAuth } from '@/hooks/useAuth';
 
 interface UserProfile {
@@ -61,33 +60,24 @@ export default function UserDropdown() {
   const displayName = user?.name && user.name.trim().length > 0 ? user.name.trim() : 'Usuário';
   const firstName = displayName.split(' ')[0] || displayName;
   const displayEmail = user?.email;
-  const avatarSrc = user?.avatarUrl ?? undefined;
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0 flex-1">
       <button
         onClick={toggleDropdown}
-        className="flex items-center dropdown-toggle text-gray-700 dark:text-gray-400 dropdown-toggle"
+        className="dropdown-toggle flex w-full min-w-0 items-center gap-1 text-gray-700 dark:text-gray-400"
+        title={displayName}
       >
-        <span className="mr-3">
-          <Avatar
-            name={displayName}
-            src={avatarSrc || undefined}
-            size="large"
-            alt={`Avatar de ${displayName}`}
-          />
-        </span>
-
-        <span className="block mr-1 font-medium text-theme-sm">
+        <span className="block min-w-0 flex-1 truncate text-left font-medium text-theme-sm">
           {isFetching ? 'Carregando' : firstName}
         </span>
 
         <svg
-          className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
+          className={`shrink-0 stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
             isOpen ? 'rotate-180' : ''
           }`}
-          width="18"
-          height="20"
+          width="14"
+          height="14"
           viewBox="0 0 18 20"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -102,7 +92,15 @@ export default function UserDropdown() {
         </svg>
       </button>
 
-      <Dropdown isOpen={isOpen} onClose={closeDropdown} className="right-0 mt-2 w-56">
+      {/* Sidebar footer renderiza o UserDropdown no fim da tela — dropdown abre
+          pra cima (bottom-full + mb-2) pra não cortar nem precisar de scroll.
+          left-0 alinha pela esquerda do botão (previsível em sidebar
+          collapsed/expanded). */}
+      <Dropdown
+        isOpen={isOpen}
+        onClose={closeDropdown}
+        className="!right-auto !mt-0 left-0 bottom-full mb-2 w-56"
+      >
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
           <p className="text-sm text-gray-900 dark:text-white">{displayName}</p>
           {displayEmail && (
