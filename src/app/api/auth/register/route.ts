@@ -11,12 +11,20 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!parsed.success) {
     return validationError(parsed);
   }
-  const { email, password, name } = parsed.data;
+  const { email, password, name, termsVersion, privacyVersion } = parsed.data;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return NextResponse.json({ error: 'Usuário já existe' }, { status: 409 });
   }
+
+  // LGPD Fase 2: extrai IP+UA pra rastrear o consentimento. Cabe em
+  // ConsultantImpersonationLog (Art. 8º §1º LGPD pede comprovação).
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    req.headers.get('x-real-ip') ||
+    null;
+  const userAgent = req.headers.get('user-agent') || null;
 
   const hashed = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
@@ -25,6 +33,25 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       password: hashed,
       name,
       role: 'user',
+      // Cria os dois registros de consentimento no mesmo transaction commit
+      // do user. Se a inserção falhar, o user inteiro é desfeito — evita
+      // user órfão sem consentimento.
+      consents: {
+        create: [
+          {
+            documentType: 'terms-of-use',
+            documentVersion: termsVersion,
+            ipAddress: ip,
+            userAgent,
+          },
+          {
+            documentType: 'privacy-policy',
+            documentVersion: privacyVersion,
+            ipAddress: ip,
+            userAgent,
+          },
+        ],
+      },
     },
   });
 

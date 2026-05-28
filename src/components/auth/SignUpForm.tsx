@@ -44,6 +44,10 @@ export default function SignUpForm() {
           name: fname + ' ' + lname,
           email,
           password,
+          // LGPD Fase 2: persiste o aceite com versão dos documentos.
+          acceptedTerms: true,
+          termsVersion: '1.0',
+          privacyVersion: '1.0',
         }),
       });
       if (!res.ok) {

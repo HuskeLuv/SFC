@@ -1,81 +1,153 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import bcrypt from 'bcrypt';
 
 const mockPrisma = vi.hoisted(() => ({
-  user: { findUnique: vi.fn() },
+  user: { findUnique: vi.fn(), update: vi.fn() },
+  userConsent: { updateMany: vi.fn() },
 }));
 
-const mockJwtVerify = vi.hoisted(() => vi.fn());
+const mockRequireAuthWithActing = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    payload: { id: 'user-1', email: 't@t.com', role: 'user' },
+    targetUserId: 'user-1',
+    actingClient: null,
+  }),
+);
 
-vi.mock('@/lib/prisma', () => ({ default: mockPrisma }));
-vi.mock('jsonwebtoken', () => ({ default: { verify: mockJwtVerify } }));
+vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
+vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
-import { GET } from '../route';
+import { GET, PATCH, DELETE } from '../route';
 
-const createRequest = (token?: string) => {
-  const req = new NextRequest('http://localhost/api/profile', { method: 'GET' });
-  if (token) {
-    req.cookies.set('token', token);
-  }
-  return req;
-};
+const reqGet = () => new NextRequest('http://localhost/api/profile', { method: 'GET' });
+const reqPatch = (body: object) =>
+  new NextRequest('http://localhost/api/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+  });
+const reqDelete = (body: object) =>
+  new NextRequest('http://localhost/api/profile', {
+    method: 'DELETE',
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockRequireAuthWithActing.mockResolvedValue({
+    payload: { id: 'user-1', email: 't@t.com', role: 'user' },
+    targetUserId: 'user-1',
+    actingClient: null,
+  });
+});
 
 describe('GET /api/profile', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockJwtVerify.mockReturnValue({ id: 'user-1', email: 'test@test.com', role: 'user' });
-  });
-
   it('retorna perfil do usuário autenticado', async () => {
-    const mockUser = {
+    mockPrisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
-      email: 'test@test.com',
-      name: 'Test User',
-      avatarUrl: 'https://example.com/avatar.png',
+      email: 't@t.com',
+      name: 'Test',
+      avatarUrl: null,
       role: 'user',
-    };
-    mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-
-    const response = await GET(createRequest('valid-token'));
-    const data = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(data).toEqual({
-      id: 'user-1',
-      email: 'test@test.com',
-      name: 'Test User',
-      avatarUrl: 'https://example.com/avatar.png',
-      role: 'user',
+      createdAt: new Date('2025-01-01'),
     });
+    const res = await GET(reqGet());
+    const data = await res.json();
+    expect(res.status).toBe(200);
+    expect(data.id).toBe('user-1');
+    expect(data.email).toBe('t@t.com');
   });
 
-  it('retorna 401 sem token', async () => {
-    const response = await GET(createRequest());
-    const data = await response.json();
-
-    expect(response.status).toBe(401);
-    expect(data.error).toBe('Não autorizado');
-  });
-
-  it('retorna 401 com token inválido', async () => {
-    mockJwtVerify.mockImplementation(() => {
-      throw new Error('invalid token');
-    });
-
-    const response = await GET(createRequest('bad-token'));
-    const data = await response.json();
-
-    expect(response.status).toBe(401);
-    expect(data.error).toBe('Token inválido');
-  });
-
-  it('retorna 404 quando usuário não encontrado', async () => {
+  it('retorna 404 quando user não encontrado', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
+    const res = await GET(reqGet());
+    expect(res.status).toBe(404);
+  });
+});
 
-    const response = await GET(createRequest('valid-token'));
-    const data = await response.json();
+describe('PATCH /api/profile', () => {
+  it('atualiza nome', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'Old',
+      avatarUrl: null,
+      role: 'user',
+      password: 'h',
+    });
+    mockPrisma.user.update.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'New',
+      avatarUrl: null,
+      role: 'user',
+    });
 
-    expect(response.status).toBe(404);
-    expect(data.error).toBe('Usuário não encontrado');
+    const res = await PATCH(reqPatch({ name: 'New' }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.name).toBe('New');
+  });
+
+  it('exige currentPassword pra trocar senha', async () => {
+    const res = await PATCH(reqPatch({ newPassword: 'novasenha123' }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejeita senha atual incorreta', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'X',
+      avatarUrl: null,
+      role: 'user',
+      password: await bcrypt.hash('correta', 4),
+    });
+    const res = await PATCH(reqPatch({ currentPassword: 'errada', newPassword: 'novasenha123' }));
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('DELETE /api/profile', () => {
+  it('anonimiza usuário quando senha confere', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'X',
+      avatarUrl: null,
+      role: 'user',
+      password: await bcrypt.hash('123', 4),
+    });
+    mockPrisma.user.update.mockResolvedValue({});
+    mockPrisma.userConsent.updateMany.mockResolvedValue({ count: 2 });
+
+    const res = await DELETE(reqDelete({ currentPassword: '123', confirm: true }));
+    expect(res.status).toBe(200);
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ name: 'Usuário removido' }),
+      }),
+    );
+    expect(mockPrisma.userConsent.updateMany).toHaveBeenCalled();
+  });
+
+  it('exige confirmação explícita', async () => {
+    const res = await DELETE(reqDelete({ currentPassword: '123', confirm: false }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejeita senha incorreta', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'X',
+      avatarUrl: null,
+      role: 'user',
+      password: await bcrypt.hash('correta', 4),
+    });
+    const res = await DELETE(reqDelete({ currentPassword: 'errada', confirm: true }));
+    expect(res.status).toBe(403);
   });
 });

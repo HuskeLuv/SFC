@@ -54,6 +54,15 @@ export const registerSchema = z.object({
   email: zEmail,
   password: z.string().min(1, 'Senha é obrigatória'),
   name: zString(255),
+  // LGPD #5 (Fase 2): aceite explícito dos Termos + Política. Sem isso o
+  // consentimento é juridicamente inválido (Art. 8º §1º).
+  acceptedTerms: z.literal(true, {
+    message: 'Aceite os Termos de Uso e a Política de Privacidade.',
+  }),
+  // Versão dos documentos aceitos. Cada release de política/termos sobe
+  // este número e usuários ativos são pedidos a re-consentir.
+  termsVersion: z.string().min(1).max(20).default('1.0'),
+  privacyVersion: z.string().min(1).max(20).default('1.0'),
 });
 
 // ── Portfolio objetivo schema ─────────────────────────────────────────

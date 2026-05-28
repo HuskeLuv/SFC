@@ -102,6 +102,34 @@ model User {
   riscoRetornoCache             PortfolioRiscoRetornoCache?
   portfolioGoal                 PortfolioGoal?
   planejamentoObjetivos         PlanejamentoObjetivo[]
+  consents                      UserConsent[]
+}
+
+/**
+ * Registro de consentimento LGPD (Art. 8º §1º). Persiste o aceite do
+ * usuário aos Termos de Uso e Política de Privacidade — exigência pra
+ * que o consentimento seja juridicamente válido (informado, expresso,
+ * rastreável).
+ *
+ * Cada nova versão da política/termos gera novo registro (uma versão
+ * vigente por documento). Revogação cria registro com `revokedAt` ≠ null
+ * — mantemos histórico em vez de delete pra cumprir Art. 9º §2º.
+ */
+model UserConsent {
+  id              String   @id @default(uuid())
+  userId          String
+  documentType    String   // "privacy-policy" | "terms-of-use"
+  documentVersion String   // ex. "1.0"
+  acceptedAt      DateTime @default(now())
+  ipAddress       String?
+  userAgent       String?
+  revokedAt       DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, documentType])
+  @@map("user_consents")
 }
 
 model Consultant {
