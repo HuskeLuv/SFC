@@ -1,11 +1,12 @@
 'use client';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { RENDA_FIXA_INDEXADORES_POS } from '@/types/wizard';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import DatePicker from '@/components/form/date-picker';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
+import { inferIndexerFromDescricao } from '@/utils/tesouroIndexador';
 import { Step4FieldsProps } from './step4Types';
 
 export default function Step4TesouroRendaFixaFields({
@@ -18,6 +19,23 @@ export default function Step4TesouroRendaFixaFields({
 }: Step4FieldsProps) {
   const tesouroDestino = formData.tesouroDestino;
   const metodoCotasTesouro = formData.metodo === 'cotas' || formData.metodo === 'percentual';
+
+  // #6 (checklist mai/28): auto-detecta o indexador a partir da descrição
+  // do título Tesouro escolhido (Selic→CDI, IPCA→IPCA). Só sobrescreve
+  // enquanto o usuário não tiver tocado manualmente no select.
+  const indexerTouchedRef = useRef(Boolean(formData.rendaFixaIndexer));
+  useEffect(() => {
+    if (indexerTouchedRef.current) return;
+    if (tesouroDestino !== 'renda-fixa-posfixada' && tesouroDestino !== 'renda-fixa-hibrida') {
+      return;
+    }
+    const inferred = inferIndexerFromDescricao(formData.descricao || '');
+    if (inferred === 'CDI' || inferred === 'IPCA') {
+      if (inferred !== formData.rendaFixaIndexer) {
+        handleInputChange('rendaFixaIndexer', inferred);
+      }
+    }
+  }, [formData.descricao, tesouroDestino, formData.rendaFixaIndexer, handleInputChange]);
 
   return (
     <>
@@ -155,9 +173,17 @@ export default function Step4TesouroRendaFixaFields({
             options={RENDA_FIXA_INDEXADORES_POS}
             placeholder="Selecione (CDI ou IPCA)"
             value={formData.rendaFixaIndexer ?? ''}
-            onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
+            onChange={(value) => {
+              indexerTouchedRef.current = true;
+              handleInputChange('rendaFixaIndexer', value);
+            }}
             className={errors.rendaFixaIndexer ? 'border-red-500' : ''}
           />
+          {!indexerTouchedRef.current && formData.rendaFixaIndexer ? (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Detectado automaticamente a partir do nome do título. Edite se necessário.
+            </p>
+          ) : null}
           {errors.rendaFixaIndexer && (
             <p className="mt-1 text-sm text-red-500">{errors.rendaFixaIndexer}</p>
           )}

@@ -1,10 +1,11 @@
 'use client';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import DatePicker from '@/components/form/date-picker';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
+import { inferIndexerFromDescricao } from '@/utils/tesouroIndexador';
 import { Step4FieldsProps } from './step4Types';
 
 /** Benchmarks aceitos pela reserva Tesouro. CDI/IPCA/PRE são os únicos suportados
@@ -26,6 +27,17 @@ export default function Step4TesouroReservaFields({
   const benchmarkLabel =
     formData.benchmark === 'IPCA' ? 'IPCA' : formData.benchmark === 'PRE' ? 'PRÉ' : 'CDI';
   const percentualCDI = formData.percentualCDI || 0;
+
+  // #6 (checklist mai/28): auto-detecta o benchmark a partir do nome do título
+  // Tesouro escolhido. Só preenche enquanto o usuário não tiver tocado o select.
+  const benchmarkTouchedRef = useRef(Boolean(formData.benchmark));
+  useEffect(() => {
+    if (benchmarkTouchedRef.current) return;
+    const inferred = inferIndexerFromDescricao(formData.ativo || '');
+    if (inferred && inferred !== formData.benchmark) {
+      handleInputChange('benchmark', inferred);
+    }
+  }, [formData.ativo, formData.benchmark, handleInputChange]);
 
   return (
     <>
@@ -128,7 +140,10 @@ export default function Step4TesouroReservaFields({
               options={RESERVA_BENCHMARK_OPTIONS}
               placeholder="CDI"
               value={formData.benchmark || ''}
-              onChange={(value) => handleInputChange('benchmark', value)}
+              onChange={(value) => {
+                benchmarkTouchedRef.current = true;
+                handleInputChange('benchmark', value);
+              }}
               className={errors.benchmark ? 'border-red-500' : ''}
             />
           </div>
