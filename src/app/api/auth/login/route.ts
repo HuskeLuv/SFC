@@ -50,11 +50,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const expiresIn = rememberMe ? '7d' : '1d';
   const maxAge = rememberMe ? 60 * 60 * 24 * 7 : 60 * 60 * 24; // 7 dias ou 1 dia
 
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    process.env.JWT_SECRET!,
-    { expiresIn },
-  );
+  // LGPD ATENÇÃO: email saiu dos claims do JWT pra reduzir PII no payload
+  // base64-decodificável. Endpoints que precisam de e-mail buscam pelo `id`.
+  const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, {
+    expiresIn,
+  });
   const response = NextResponse.json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
   });

@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { registerSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { BCRYPT_ROUNDS } from '@/utils/passwordHashing';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const body = await req.json();
@@ -26,7 +27,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     null;
   const userAgent = req.headers.get('user-agent') || null;
 
-  const hashed = await bcrypt.hash(password, 10);
+  const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const user = await prisma.user.create({
     data: {
       email,
@@ -59,11 +60,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // com overrides do usuário sob demanda. Personalização materializa rows só quando
   // o usuário de fato edita algo (clone-on-write em cashflowPersonalization.ts).
 
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    process.env.JWT_SECRET!,
-    { expiresIn: '7d' },
-  );
+  // LGPD ATENÇÃO: claims mínimos (id + role). Email saiu pra reduzir PII
+  // no payload base64-decodificável do JWT.
+  // Sessão de cadastro = 1 dia (mesmo default do login). User pode marcar
+  // "manter-me logado" no próximo login se quiser 7 dias.
+  const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, {
+    expiresIn: '1d',
+  });
   const response = NextResponse.json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
   });
@@ -71,7 +74,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24, // 1 day
     path: '/',
   });
   return response;

@@ -57,9 +57,24 @@ export const loginSchema = z.object({
     .optional(),
 });
 
+/**
+ * Política de senha (LGPD ATENÇÃO): mínimo 8 caracteres + ao menos uma
+ * letra e um dígito. Mantém a barra acessível mas pega os erros mais
+ * comuns (senhas só de letras ou só de números, 12345, etc.). Sem regra
+ * "símbolo obrigatório" porque OWASP 2024 recomenda comprimento sobre
+ * complexidade — quando subirmos pra 12 chars como mínimo, podemos
+ * remover o regex.
+ */
+export const passwordPolicy = z
+  .string()
+  .min(8, 'Senha precisa ter pelo menos 8 caracteres')
+  .max(128, 'Senha muito longa')
+  .regex(/[a-zA-Z]/, 'Senha precisa conter pelo menos uma letra')
+  .regex(/\d/, 'Senha precisa conter pelo menos um número');
+
 export const registerSchema = z.object({
   email: zEmail,
-  password: z.string().min(1, 'Senha é obrigatória'),
+  password: passwordPolicy,
   name: zString(255),
   // LGPD #5 (Fase 2): aceite explícito dos Termos + Política. Sem isso o
   // consentimento é juridicamente inválido (Art. 8º §1º).

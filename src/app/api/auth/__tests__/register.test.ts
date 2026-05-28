@@ -31,6 +31,10 @@ describe('POST /api/auth/register', () => {
     email: 'new@test.com',
     password: 'password123',
     name: 'New User',
+    // LGPD Fase 2: aceite obrigatório
+    acceptedTerms: true,
+    termsVersion: '1.0',
+    privacyVersion: '1.0',
   };
 
   const createdUser = {
@@ -64,20 +68,29 @@ describe('POST /api/auth/register', () => {
     const setCookie = response.headers.get('set-cookie');
     expect(setCookie).toContain('token=mock-token');
 
-    expect(mockBcrypt.hash).toHaveBeenCalledWith('password123', 10);
-    expect(mockPrisma.user.create).toHaveBeenCalledWith({
-      data: {
-        email: 'new@test.com',
-        password: 'hashed-password',
-        name: 'New User',
-        role: 'user',
-      },
-    });
+    // ATENÇÃO Sprint A: BCRYPT_ROUNDS subiu pra 12
+    expect(mockBcrypt.hash).toHaveBeenCalledWith('password123', 12);
+    expect(mockPrisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'new@test.com',
+          password: 'hashed-password',
+          name: 'New User',
+          role: 'user',
+          // Fase 2: registros de consentimento criados no mesmo commit
+          consents: expect.objectContaining({
+            create: expect.any(Array),
+          }),
+        }),
+      }),
+    );
   });
 
   describe('Validacao Zod', () => {
     it('retorna 400 quando email esta ausente', async () => {
-      const response = await POST(createRequest({ password: 'pass123', name: 'Test' }));
+      const response = await POST(
+        createRequest({ password: 'password123', acceptedTerms: true, name: 'Test' }),
+      );
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -93,7 +106,9 @@ describe('POST /api/auth/register', () => {
     });
 
     it('retorna 400 quando name esta ausente', async () => {
-      const response = await POST(createRequest({ email: 'test@test.com', password: 'pass123' }));
+      const response = await POST(
+        createRequest({ email: 'test@test.com', password: 'password123', acceptedTerms: true }),
+      );
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -102,7 +117,12 @@ describe('POST /api/auth/register', () => {
 
     it('retorna 400 com formato de email invalido', async () => {
       const response = await POST(
-        createRequest({ email: 'not-email', password: 'pass123', name: 'Test' }),
+        createRequest({
+          email: 'not-email',
+          password: 'password123',
+          acceptedTerms: true,
+          name: 'Test',
+        }),
       );
       const data = await response.json();
 

@@ -4,7 +4,8 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { requireAuthWithActing } from '@/utils/auth';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { validationError } from '@/utils/validation-schemas';
+import { passwordPolicy, validationError } from '@/utils/validation-schemas';
+import { BCRYPT_ROUNDS } from '@/utils/passwordHashing';
 
 /**
  * GET /api/profile — dados do usuário logado (Art. 18, II — direito de
@@ -41,7 +42,7 @@ const patchSchema = z
     email: z.string().email().max(255).optional(),
     avatarUrl: z.string().url().max(2048).nullable().optional(),
     currentPassword: z.string().min(1).optional(),
-    newPassword: z.string().min(8, 'Senha precisa ter pelo menos 8 caracteres').optional(),
+    newPassword: passwordPolicy.optional(),
   })
   .refine((data) => !data.newPassword || data.currentPassword, {
     message: 'currentPassword é obrigatório pra trocar a senha',
@@ -84,7 +85,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if (name !== undefined) update.name = name;
   if (email !== undefined) update.email = email;
   if (avatarUrl !== undefined) update.avatarUrl = avatarUrl;
-  if (newPassword) update.password = await bcrypt.hash(newPassword, 10);
+  if (newPassword) update.password = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Nenhum campo pra atualizar' }, { status: 400 });
@@ -141,7 +142,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // com algum outro. bcrypt cost 10 só pra ser consistente.
   const randomPassword = await bcrypt.hash(
     Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64'),
-    10,
+    BCRYPT_ROUNDS,
   );
 
   await prisma.user.update({
