@@ -60,6 +60,10 @@ export default function Step4RendaFixaFields({
           Prazo do título
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* #4 (checklist mai/28): com dois pickers lado a lado, o calendar
+              renderizado inline (staticPosition default) ficava cortado pela
+              coluna vizinha. appendToBody={true} faz o flatpickr flutuar
+              livre do grid. */}
           <BusinessDayDatePicker
             id="dataInicio"
             label="Data do Início *"
@@ -67,6 +71,8 @@ export default function Step4RendaFixaFields({
             value={formData.dataInicio}
             onChange={(iso) => handleInputChange('dataInicio', iso)}
             error={errors.dataInicio}
+            staticPosition={false}
+            appendToBody
           />
           <div>
             <DatePicker
@@ -74,6 +80,8 @@ export default function Step4RendaFixaFields({
               label="Data de Vencimento *"
               placeholder="Selecione a data"
               defaultDate={formData.dataVencimento}
+              staticPosition={false}
+              appendToBody
               onChange={(selectedDates) => {
                 if (selectedDates && selectedDates.length > 0) {
                   handleInputChange('dataVencimento', selectedDates[0].toISOString().split('T')[0]);
