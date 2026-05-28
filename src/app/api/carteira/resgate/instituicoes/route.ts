@@ -30,7 +30,11 @@ const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) =
     case 'fund':
       return 'fundo';
     case 'bond':
-      return 'renda-fixa-prefixada';
+      // RF é classificada via FixedIncomeAsset.type (CDB_PRE/POS/HIB), mas
+      // /aporte e /resgate enviam ?tipo=renda-fixa, renda-fixa-prefixada,
+      // -posfixada ou -hibrida. Marca como "renda-fixa" e deixa o
+      // matchesTipo() abaixo aceitar qualquer variação.
+      return 'renda-fixa';
     case 'insurance':
       return 'previdencia';
     case 'cash':
@@ -38,6 +42,17 @@ const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) =
     default:
       return assetType || 'personalizado';
   }
+};
+
+const isRendaFixaTipo = (tipo: string): boolean =>
+  tipo === 'renda-fixa' || tipo.startsWith('renda-fixa-');
+
+const matchesTipo = (mapped: string, requested: string): boolean => {
+  if (mapped === requested) return true;
+  // RF é uma família: bond → "renda-fixa" no mapPortfolio, mas o caller pode
+  // pedir "-prefixada", "-posfixada" ou "-hibrida". Trata todos como match.
+  if (mapped === 'renda-fixa' && isRendaFixaTipo(requested)) return true;
+  return false;
 };
 
 const extractInstitutionId = (notes?: string | null) => {
@@ -67,7 +82,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     include: { asset: true },
   });
 
-  const filtered = portfolio.filter((item) => mapPortfolioToTipo(item) === tipo);
+  const filtered = portfolio.filter((item) => matchesTipo(mapPortfolioToTipo(item), tipo));
 
   const assetIds = filtered.map((item) => item.assetId).filter(Boolean) as string[];
 
