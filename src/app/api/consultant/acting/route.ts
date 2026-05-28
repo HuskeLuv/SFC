@@ -53,14 +53,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
-  // Log impersonation start with session token
+  // Log impersonation start with session token.
+  // LGPD ATENÇÃO Sprint D: clientId já é FK; gravar email/nome em details
+  // duplica PII num campo Json livre que dificulta o direito de
+  // eliminação (Art. 18, IV). Reconstituir via JOIN com User quando
+  // precisar.
   await logConsultantAction({
     consultantId: consultant.userId,
     clientId,
     action: 'START_IMPERSONATION',
     details: {
-      clientName: clientProfile?.name ?? null,
-      clientEmail: clientProfile?.email ?? null,
       sessionToken,
       timestamp: now.toISOString(),
     },

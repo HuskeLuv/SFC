@@ -140,20 +140,24 @@ export const POST = withErrorHandler(
       }));
 
     if (invite.consultant?.userId) {
+      // LGPD ATENÇÃO Sprint D: Notification.metadata é campo Json livre
+      // — gravar email do cliente ali cria PII órfã que dificulta a
+      // exclusão (Art. 18, IV). Usa nome de exibição na mensagem e
+      // referencia o cliente apenas pelo `clientId` no metadata; quem
+      // precisar do email consulta User pelo id.
+      const displayName = invitedUser?.name ?? 'Cliente';
       await prisma.notification.create({
         data: {
           userId: invite.consultant.userId,
           title: 'Resposta ao convite de consultoria',
           message:
             action === 'accept'
-              ? `${invitedUser?.name ?? invitedUser?.email ?? 'Cliente'} aceitou seu convite de consultoria.`
-              : `${invitedUser?.name ?? invitedUser?.email ?? 'Cliente'} recusou seu convite de consultoria.`,
+              ? `${displayName} aceitou seu convite de consultoria.`
+              : `${displayName} recusou seu convite de consultoria.`,
           type: 'consultant_invite_response',
           metadata: {
             inviteId: invite.id,
             clientId: payload.id,
-            clientName: invitedUser?.name ?? null,
-            clientEmail: invitedUser?.email ?? null,
             action,
           },
         },
