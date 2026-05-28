@@ -56,6 +56,10 @@
       "schedule": "20 7 * * *"
     },
     {
+      "path": "/api/cron/apply-corporate-actions",
+      "schedule": "25 7 * * *"
+    },
+    {
       "path": "/api/cron/brapi-sync/fundamentals",
       "schedule": "30 7 * * *"
     },
