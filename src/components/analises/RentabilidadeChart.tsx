@@ -425,6 +425,17 @@ export default function RentabilidadeChart({
           }
         });
 
+        // #7 (checklist mai/28): a série precisa sobreviver à filtragem
+        // quando tem ao menos um ponto ORIGINAL — antes a verificação só
+        // checava se alignedData tinha algum valor != 0, então índices que
+        // ficavam 0 em todo o range filtrado (ex: CDI/IPCA = 0% acumulado
+        // no início do ano) eram descartados. Resultado: tooltip "shared"
+        // mostrava só a Carteira em "No ano" enquanto em "Do início"
+        // mostrava todas as linhas.
+        if (valueByDate.size === 0) {
+          return null;
+        }
+
         let lastValue: number | null = null;
 
         const alignedData: number[][] = allDates.map((date) => {
@@ -434,15 +445,6 @@ export default function RentabilidadeChart({
           }
           return [date, lastValue !== null && Number.isFinite(lastValue) ? lastValue : 0];
         });
-
-        // Verificar se a série tem pelo menos um valor válido (não-zero)
-        const hasValidValue = alignedData.some(
-          (point) => Number.isFinite(point[1]) && point[1] !== 0,
-        );
-
-        if (!hasValidValue) {
-          return null;
-        }
 
         // Verificar se a série começa apenas com zeros (pode causar problemas no ApexCharts)
         const firstValidIndex = alignedData.findIndex(
