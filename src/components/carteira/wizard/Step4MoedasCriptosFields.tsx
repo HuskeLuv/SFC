@@ -62,6 +62,8 @@ export default function Step4MoedasCriptosFields({
             enteredPrice={formData.cotacaoCompra}
             currentPrice={formData.assetCurrentPrice}
             threshold={CRYPTO_PRICE_DEVIATION_THRESHOLD}
+            symbol={formData.ativo}
+            referenceDate={formData.dataCompra}
           />
         </div>
       </>

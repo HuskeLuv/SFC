@@ -71,6 +71,8 @@ export default function Step4FiiFields({
         <PriceDeviationHint
           enteredPrice={formData.cotacaoUnitaria}
           currentPrice={formData.assetCurrentPrice}
+          symbol={formData.ativo}
+          referenceDate={formData.dataCompra}
         />
       </div>
       <div>

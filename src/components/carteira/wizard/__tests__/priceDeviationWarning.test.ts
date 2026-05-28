@@ -100,4 +100,25 @@ describe('computePriceDeviationWarning', () => {
       expect(DEFAULT_PRICE_DEVIATION_THRESHOLD).toBe(0.2);
     });
   });
+
+  describe('D.3 — mensagem com referenceDate', () => {
+    it('cita a data DD/MM/YYYY quando informada (modo histórico)', () => {
+      const warning = computePriceDeviationWarning(40, 28, 0.2, '2022-05-11');
+      expect(warning).not.toBeNull();
+      expect(warning!.message).toContain('em 11/05/2022');
+      expect(warning!.message).toContain('R$ 28,00');
+    });
+
+    it('mantém "atual" quando referenceDate ausente', () => {
+      const warning = computePriceDeviationWarning(40, 28);
+      expect(warning).not.toBeNull();
+      expect(warning!.message).toContain('fechamento atual');
+    });
+
+    it('referenceDate malformado cai no texto sem formatar (não quebra)', () => {
+      const warning = computePriceDeviationWarning(40, 28, 0.2, 'data-ruim');
+      expect(warning).not.toBeNull();
+      expect(warning!.message).toContain('data-ruim');
+    });
+  });
 });
