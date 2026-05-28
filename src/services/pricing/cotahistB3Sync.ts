@@ -9,13 +9,16 @@
  *   3. Decodifica latin1 e processa linha a linha (~2M linhas/ano).
  *   4. Filtra pelos symbols que JÁ existem em Asset (não criamos asset novo,
  *      pq tem ~5k tickers no COTAHIST e a maior parte não interessa).
- *   5. Upserta em batches de BATCH_SIZE registros via prisma.$transaction.
+ *   5. Insere em batches de BATCH_SIZE via prisma.createMany + skipDuplicates
+ *      (1 round-trip por batch ao Neon ≈ 7s/batch, vs ~70s do upsert antigo).
  *
  * Não emitimos progresso por dia/mês; o log sai a cada PROGRESS_EVERY linhas
  * processadas pra dar feedback durante os 5-15 min de processamento.
  *
- * Idempotente: usa unique constraint [symbol, date] no upsert. Pode rodar
- * múltiplas vezes sem duplicar.
+ * Idempotente: skipDuplicates respeita a unique constraint [symbol, date].
+ * Pode rodar múltiplas vezes sem duplicar; duplicatas são silenciosamente
+ * puladas (não atualizamos preços já gravados — cotações de fechamento são
+ * imutáveis).
  */
 import { logger } from '@/lib/logger';
 import axios from 'axios';
@@ -66,9 +69,12 @@ export interface CotahistSyncResult {
   uniqueSymbols: number;
   /** Linhas cujo symbol bate com algum Asset no banco (alvo do upsert). */
   matched: number;
-  /** Inseridos via upsert (nova linha). */
+  /** Inseridos via createMany (linhas novas; duplicatas em [symbol,date] são skipadas). */
   inserted: number;
-  /** Atualizados via upsert (linha já existia, preço atualizado). */
+  /**
+   * @deprecated Mantido na interface por compat, sempre 0 após F2.2 (createMany
+   * não distingue update; duplicatas são puladas via skipDuplicates).
+   */
   updated: number;
   /** Erros durante o upsert (batches falhos). */
   errors: number;
@@ -175,7 +181,9 @@ export async function syncCotahistYear(
   );
 
   let inserted = 0;
-  let updated = 0;
+  // `updated` é mantido em zero — createMany + skipDuplicates não distingue
+  // update de skip. Vide CotahistSyncResult.updated (deprecated).
+  const updated = 0;
   let errors = 0;
 
   if (dryRun) {
@@ -196,57 +204,45 @@ export async function syncCotahistYear(
     };
   }
 
-  // 5. Upsert em batches.
+  // 5. Insert em batches via createMany + skipDuplicates.
+  //    Trade-off (F2.2 perf): cada batch antes era um $transaction com 1000
+  //    upserts individuais (= 1000 round-trips ao Neon ≈ 70s/batch). Agora é
+  //    UM round-trip via createMany, derrubando 7h pra ~10-15min/ano. Perdemos
+  //    a contagem precisa "updated" — createMany retorna apenas o count dos
+  //    inseridos efetivos (linhas com [symbol,date] novas). `skipDuplicates`
+  //    silencia conflitos na unique [symbol,date], mantendo a idempotência
+  //    desejada do upsert anterior. Como cotações antigas não mudam (o preço
+  //    de fechamento de 2018 é fixo), pular duplicatas é semanticamente
+  //    equivalente a re-upsertar o mesmo valor.
   for (let i = 0; i < matched.length; i += BATCH_SIZE) {
     const batch = matched.slice(i, i + BATCH_SIZE);
 
     try {
-      // Identifica registros já existentes pra distinguir insert vs update.
-      const existing = await prisma.assetPriceHistory.findMany({
-        where: { OR: batch.map((r) => ({ symbol: r.symbol, date: r.date })) },
-        select: { symbol: true, date: true },
-      });
-      const existingSet = new Set(existing.map((e) => `${e.symbol}|${e.date.toISOString()}`));
-
-      const operations = batch.map((rec) => {
+      const dataToCreate = batch.map((rec) => {
         const asset = assetBySymbol.get(rec.symbol.toUpperCase());
         // Se chegamos aqui é porque o symbol existe (já filtrado acima); o
         // assetId é obrigatório no schema.
         if (!asset) {
           throw new Error(`assetId não encontrado para symbol ${rec.symbol} — invariante violada`);
         }
-        return prisma.assetPriceHistory.upsert({
-          where: {
-            symbol_date: { symbol: rec.symbol, date: rec.date },
-          },
-          update: {
-            price: new Decimal(rec.closePrice),
-            currency: 'BRL',
-            source: SOURCE,
-          },
-          create: {
-            assetId: asset.id,
-            symbol: rec.symbol,
-            price: new Decimal(rec.closePrice),
-            currency: 'BRL',
-            source: SOURCE,
-            date: rec.date,
-          },
-        });
+        return {
+          assetId: asset.id,
+          symbol: rec.symbol,
+          price: new Decimal(rec.closePrice),
+          currency: 'BRL',
+          source: SOURCE,
+          date: rec.date,
+        };
       });
 
-      await prisma.$transaction(operations);
-
-      for (const rec of batch) {
-        const key = `${rec.symbol}|${rec.date.toISOString()}`;
-        if (existingSet.has(key)) updated++;
-        else inserted++;
-      }
+      const result = await prisma.assetPriceHistory.createMany({
+        data: dataToCreate,
+        skipDuplicates: true,
+      });
+      inserted += result.count;
 
       if ((i / BATCH_SIZE) % 10 === 0) {
-        logger.info(
-          `   💾 ${i + batch.length}/${matched.length} persistidos (${inserted} ins, ${updated} upd)`,
-        );
+        logger.info(`   💾 ${i + batch.length}/${matched.length} processados (${inserted} novos)`);
       }
     } catch (batchErr) {
       logger.error(`   ❌ Batch ${i}-${i + batch.length} falhou:`, batchErr);
@@ -256,7 +252,7 @@ export async function syncCotahistYear(
 
   const duration = (Date.now() - startTime) / 1000;
   logger.info(
-    `   ✅ [COTAHIST ${year}] ${inserted} inseridos, ${updated} atualizados, ${errors} erros em ${duration.toFixed(1)}s`,
+    `   ✅ [COTAHIST ${year}] ${inserted} novos, ${matched.length - inserted - errors} duplicados (skip), ${errors} erros em ${duration.toFixed(1)}s`,
   );
 
   return {
