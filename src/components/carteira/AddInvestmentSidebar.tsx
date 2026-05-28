@@ -262,7 +262,7 @@ export default function AddInvestmentSidebar({
   };
 
   return (
-    <Sidebar isOpen={isOpen} onClose={handleClose} title="Adicionar Investimento">
+    <Sidebar isOpen={isOpen} onClose={handleClose} title="Adicionar Investimento" noBackdrop>
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Tipo de Ativo */}
         <div>

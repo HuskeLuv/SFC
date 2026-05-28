@@ -11,6 +11,13 @@ interface SidebarProps {
   // bug F1.4: clicar no backdrop destruía o estado de wizards multi-step
   closeOnBackdropClick?: boolean;
   closeOnEscape?: boolean;
+  /**
+   * D.2 (checklist mai/28): quando true, esconde o overlay/backdrop e
+   * libera o scroll do body. O drawer fica fixo à direita, mas o
+   * restante da página continua navegável (user pode mudar de aba,
+   * conferir um número numa tabela etc. sem perder o estado do wizard).
+   */
+  noBackdrop?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -21,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   className = '',
   closeOnBackdropClick = false,
   closeOnEscape = true,
+  noBackdrop = false,
 }) => {
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -35,28 +43,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (closeOnEscape) {
         document.addEventListener('keydown', handleEscape);
       }
-      document.body.style.overflow = 'hidden';
+      // No modo drawer (noBackdrop), o app continua navegável — não
+      // bloqueia scroll do body. Em modal tradicional sim.
+      if (!noBackdrop) {
+        document.body.style.overflow = 'hidden';
+      }
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose, closeOnEscape]);
+  }, [isOpen, onClose, closeOnEscape, noBackdrop]);
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-[500]"
-            onClick={closeOnBackdropClick ? onClose : undefined}
-          />
+          {/* Backdrop — escondido no modo drawer (D.2) */}
+          {!noBackdrop && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-[500]"
+              onClick={closeOnBackdropClick ? onClose : undefined}
+            />
+          )}
 
           {/* Sidebar */}
           <motion.div
@@ -65,7 +79,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl z-[500] flex flex-col ${className}`}
+            className={`fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 z-[500] flex flex-col ${
+              noBackdrop ? 'border-l border-gray-200 dark:border-gray-800 shadow-xl' : 'shadow-2xl'
+            } ${className}`}
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">

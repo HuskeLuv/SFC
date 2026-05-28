@@ -207,7 +207,7 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
   const isLastStep = currentStep === steps.length - 1;
 
   return (
-    <Sidebar isOpen={isOpen} onClose={handleCancel} title="Resgatar Investimento">
+    <Sidebar isOpen={isOpen} onClose={handleCancel} title="Resgatar Investimento" noBackdrop>
       <div className="space-y-6">
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">

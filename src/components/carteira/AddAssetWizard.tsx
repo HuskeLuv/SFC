@@ -671,7 +671,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const isLastStep = skipStep3 ? currentStep === 3 : currentStep === steps.length - 1;
 
   return (
-    <Sidebar isOpen={isOpen} onClose={handleCancel} title="Adicionar Ativo à Carteira">
+    <Sidebar isOpen={isOpen} onClose={handleCancel} title="Adicionar Ativo à Carteira" noBackdrop>
       <div className="space-y-6">
         {/* Progress Indicator */}
         {(() => {
