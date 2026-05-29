@@ -1,5 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { classifyByName } from '../brapiSync';
+import { classifyByName, classifyByBrapiType } from '../brapiSync';
+
+describe('classifyByBrapiType (subType autoritativo da BRAPI)', () => {
+  it('classifica FII pelo subType="fii" (HGLG11, VISC11, XPLG11...)', () => {
+    expect(classifyByBrapiType('fund', 'fii')).toBe('fii');
+  });
+
+  it('classifica ETF pelo subType="etf" — inclui índice/ouro/cripto/RF', () => {
+    // SPYI11, QBTC11, GLDI11, BRAX11 chegam todos como fund/etf na BRAPI
+    expect(classifyByBrapiType('fund', 'etf')).toBe('etf');
+  });
+
+  it('classifica unit como stock pelo subType="unit" (ENGI11, BPAC11)', () => {
+    expect(classifyByBrapiType('stock', 'unit')).toBe('stock');
+  });
+
+  it('classifica BDR pelo subType/type "bdr"', () => {
+    expect(classifyByBrapiType('bdr', 'bdr')).toBe('bdr');
+    expect(classifyByBrapiType('bdr', null)).toBe('bdr');
+  });
+
+  it('mapeia fundos estruturados pros Asset.type do app', () => {
+    expect(classifyByBrapiType('fund', 'fi-agro')).toBe('fiagro');
+    expect(classifyByBrapiType('fund', 'fi-infra')).toBe('fip-infra');
+    expect(classifyByBrapiType('fund', 'fip')).toBe('fip');
+    expect(classifyByBrapiType('fund', 'fidc')).toBe('fidc');
+  });
+
+  it('retorna null quando o subType é ambíguo/ausente (cai no classifyByName)', () => {
+    expect(classifyByBrapiType('fund', null)).toBeNull(); // IMBB11
+    expect(classifyByBrapiType('stock', 'stock')).toBeNull();
+    expect(classifyByBrapiType(undefined, undefined)).toBeNull();
+  });
+
+  it('é case-insensitive e tolera espaços', () => {
+    expect(classifyByBrapiType('FUND', ' FII ')).toBe('fii');
+    expect(classifyByBrapiType('Fund', 'ETF')).toBe('etf');
+  });
+});
 
 describe('classifyByName', () => {
   it('classifica FII quando o nome contém "imobil"', () => {

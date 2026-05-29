@@ -9,6 +9,8 @@ interface BrapiStock {
   stock: string;
   name: string;
   type?: string;
+  /** Subtipo autoritativo do /quote/list: 'fii' | 'etf' | 'unit' | 'stock' | 'bdr' */
+  subType?: string;
   sector?: string;
 }
 
@@ -61,39 +63,58 @@ interface SyncPriceResult {
 /**
  * Busca lista de ativos da B3 via API brapi.dev
  */
-const fetchStocks = async (): Promise<BrapiStock[]> => {
-  logger.info('🔍 Buscando dados de ativos da B3...');
+const fetchStocksByType = async (type: string): Promise<BrapiStock[]> => {
+  const apiKey = process.env.BRAPI_API_KEY;
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
-  try {
-    const apiKey = process.env.BRAPI_API_KEY;
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
-
-    const response = await fetch('https://brapi.dev/api/quote/list', {
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro HTTP: ${response.status} - ${response.statusText}`);
-    }
-
-    const data: BrapiStocksResponse = await response.json();
-
-    if (!data.stocks || !Array.isArray(data.stocks)) {
-      throw new Error('Formato de resposta inesperado da API brapi.dev');
-    }
-
-    logger.info(`✅ ${data.stocks.length} ativos encontrados na API`);
-    return data.stocks;
-  } catch (error) {
-    logger.error('❌ Erro ao buscar dados da API brapi.dev:', error);
-    throw error;
+  // limit alto: a lista sem filtro vem capada em 2000, mas por `type` devolve
+  // o conjunto completo (stock+fund+bdr somam >2000 — sem isso, ~280 ativos,
+  // incluindo FIIs, nunca sincronizavam).
+  const response = await fetch(`https://brapi.dev/api/quote/list?type=${type}&limit=10000`, {
+    headers,
+  });
+  if (!response.ok) {
+    throw new Error(`Erro HTTP: ${response.status} - ${response.statusText}`);
   }
+  const data: BrapiStocksResponse = await response.json();
+  if (!data.stocks || !Array.isArray(data.stocks)) {
+    throw new Error('Formato de resposta inesperado da API brapi.dev');
+  }
+  return data.stocks;
+};
+
+/**
+ * Busca a lista completa de ativos da B3 (stock + fund + bdr). Fatiar por
+ * `type` é necessário porque o endpoint sem filtro vem capado em 2000 itens —
+ * o que truncava FIIs e BDRs e deixava ativos fora do catálogo do wizard.
+ */
+const fetchStocks = async (): Promise<BrapiStock[]> => {
+  logger.info('🔍 Buscando dados de ativos da B3 (stock + fund + bdr)...');
+
+  const merged = new Map<string, BrapiStock>();
+  let anySuccess = false;
+
+  for (const type of ['stock', 'fund', 'bdr']) {
+    try {
+      const stocks = await fetchStocksByType(type);
+      anySuccess = true;
+      for (const s of stocks) {
+        if (s.stock && !merged.has(s.stock)) merged.set(s.stock, s);
+      }
+      logger.info(`   type=${type}: ${stocks.length} ativos`);
+    } catch (error) {
+      logger.error(`❌ Erro ao buscar type=${type} da brapi.dev:`, error);
+    }
+  }
+
+  if (!anySuccess) {
+    throw new Error('Falha ao buscar qualquer tipo de ativo da API brapi.dev');
+  }
+
+  const all = [...merged.values()];
+  logger.info(`✅ ${all.length} ativos únicos encontrados na API`);
+  return all;
 };
 
 /**
@@ -162,20 +183,59 @@ const fetchCrypto = async (): Promise<BrapiCrypto[]> => {
 // ================== HELPER FUNCTIONS ==================
 
 /**
- * Determina o tipo do ativo baseado no nome e características.
+ * Classificação autoritativa a partir dos campos `type`/`subType` que a BRAPI
+ * devolve no `/quote/list`. É o sinal mais confiável e dispensa heurística de
+ * nome/ticker: FIIs vêm com subType 'fii', ETFs (índice, ouro, cripto, RF) com
+ * 'etf', units de empresas com 'unit'. Resolve o caso em que o nome vinha vazio
+ * (name=symbol) e FIIs líquidos como HGLG11/XPLG11/VISC11 acabavam em 'stock',
+ * sumindo da aba FII do wizard — sem o efeito colateral de jogar ETFs no balde
+ * de FII (SPYI11, QBTC11, GLDI11... todos vêm com subType 'etf').
  *
- * A heurística antiga marcava qualquer symbol terminado em '11' como FII,
- * o que poluía o filtro FII com units (ENGI11, BPAC11, SANB11, ALUP11,
- * SAPR11 — units de empresas, não fundos imobiliários). A classificação
- * agora prioriza o nome quando disponível e cai no symbol só como fallback.
- * O endpoint `/api/quote/list` da BRAPI muitas vezes devolve nome vazio;
- * nesse caso o ativo entra como 'stock' e é reclassificado depois pelo
- * `syncAssetPrices` quando `fetchDetailedQuotes` traz o `longName`.
+ * Retorna `null` quando o subType é ambíguo (ex.: type=fund sem subType, caso
+ * do IMBB11) — aí a decisão cai pro classifyByName via nome.
+ */
+export const classifyByBrapiType = (
+  brapiType?: string | null,
+  brapiSubType?: string | null,
+): string | null => {
+  const sub = brapiSubType?.toLowerCase().trim();
+  const top = brapiType?.toLowerCase().trim();
+
+  switch (sub) {
+    case 'fii':
+      return 'fii';
+    case 'etf':
+      return 'etf';
+    case 'unit':
+      return 'stock';
+    case 'bdr':
+      return 'bdr';
+    // Fundos estruturados: alinha com os Asset.type emitidos pelo cvmFundSync
+    // (ver src/lib/fundoTypes.ts) pra caírem na aba "Fundos", não em FII.
+    case 'fi-agro':
+      return 'fiagro';
+    case 'fi-infra':
+      return 'fip-infra';
+    case 'fip':
+      return 'fip';
+    case 'fidc':
+      return 'fidc';
+  }
+
+  if (top === 'bdr') return 'bdr';
+  return null;
+};
+
+/**
+ * Determina o tipo do ativo. Prioriza o subType autoritativo da BRAPI e só cai
+ * na heurística de nome (`classifyByName`) quando o subType é ambíguo/ausente.
  */
 const determineAssetType = (stock: BrapiStock): string => {
+  const byBrapi = classifyByBrapiType(stock.type, stock.subType);
+  if (byBrapi) return byBrapi;
+
   const name = stock.name?.toLowerCase() || '';
   const symbol = stock.stock?.toLowerCase() || '';
-
   return classifyByName(name, symbol, 'stock');
 };
 
