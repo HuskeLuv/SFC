@@ -108,6 +108,7 @@ model User {
   riscoRetornoCache             PortfolioRiscoRetornoCache?
   portfolioGoal                 PortfolioGoal?
   planejamentoObjetivos         PlanejamentoObjetivo[]
+  aposentadoriaPlano            AposentadoriaPlano?
   consents                      UserConsent[]
 }
 
@@ -116,17 +117,16 @@ model User {
  * usuário aos Termos de Uso e Política de Privacidade — exigência pra
  * que o consentimento seja juridicamente válido (informado, expresso,
  * rastreável).
- *
  * Cada nova versão da política/termos gera novo registro (uma versão
  * vigente por documento). Revogação cria registro com `revokedAt` ≠ null
  * — mantemos histórico em vez de delete pra cumprir Art. 9º §2º.
  */
 model UserConsent {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   userId          String
-  documentType    String   // "privacy-policy" | "terms-of-use"
-  documentVersion String   // ex. "1.0"
-  acceptedAt      DateTime @default(now())
+  documentType    String // "privacy-policy" | "terms-of-use"
+  documentVersion String // ex. "1.0"
+  acceptedAt      DateTime  @default(now())
   ipAddress       String?
   userAgent       String?
   revokedAt       DateTime?
@@ -768,23 +768,23 @@ model CvmFundQuota {
 // O `category` é uma classificação por prazo (curto/médio/longo) — derivada de
 // `months` mas armazenada pra evitar recalcular em filtros frequentes.
 model PlanejamentoObjetivo {
-  id          String  @id @default(uuid())
-  userId      String
-  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String // "Reserva de Emergência", "Comprar Casa", etc.
-  target      Decimal @db.Decimal(15, 2) // Valor meta (R$)
-  months      Int // Prazo em meses (1-480)
-  startDate   String? // YYYY-MM — opcional pra objetivos não iniciados
-  available   Decimal @db.Decimal(15, 2) @default(0) // Valor disponível hoje
-  rate        Decimal @db.Decimal(8, 6) @default(0) // Rentabilidade ao mês (decimal: 0.01 = 1%)
-  priority    String // "Alta" | "Moderado" | "Baixa"
-  category    String // "c" (curto ≤12m) | "m" (médio 12-60m) | "l" (longo >60m)
-  status      String // "Em espera" | "Iniciado" | "Pausado" | "Atrasado" | "Concluído"
-  notes       String? // Observações livres
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String // "Reserva de Emergência", "Comprar Casa", etc.
+  target    Decimal  @db.Decimal(15, 2) // Valor meta (R$)
+  months    Int // Prazo em meses (1-480)
+  startDate String? // YYYY-MM — opcional pra objetivos não iniciados
+  available Decimal  @default(0) @db.Decimal(15, 2) // Valor disponível hoje
+  rate      Decimal  @default(0) @db.Decimal(8, 6) // Rentabilidade ao mês (decimal: 0.01 = 1%)
+  priority  String // "Alta" | "Moderado" | "Baixa"
+  category  String // "c" (curto ≤12m) | "m" (médio 12-60m) | "l" (longo >60m)
+  status    String // "Em espera" | "Iniciado" | "Pausado" | "Atrasado" | "Concluído"
+  notes     String? // Observações livres
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  entries     PlanejamentoObjetivoEntry[]
+  entries PlanejamentoObjetivoEntry[]
 
   @@index([userId])
   @@index([userId, category])
@@ -795,16 +795,79 @@ model PlanejamentoObjetivo {
 // Cada entrada captura o estado em um mês específico (saldo + aporte realizado),
 // permitindo comparar com o planejado (calculado via PMT) e desenhar a evolução.
 model PlanejamentoObjetivoEntry {
-  id          String   @id @default(uuid())
-  objetivoId  String
-  objetivo    PlanejamentoObjetivo @relation(fields: [objetivoId], references: [id], onDelete: Cascade)
-  month       String // YYYY-MM
-  aporte      Decimal  @db.Decimal(15, 2) // Aporte realizado no mês
-  balance     Decimal  @db.Decimal(15, 2) // Saldo ao fim do mês
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String               @id @default(uuid())
+  objetivoId String
+  objetivo   PlanejamentoObjetivo @relation(fields: [objetivoId], references: [id], onDelete: Cascade)
+  month      String // YYYY-MM
+  aporte     Decimal              @db.Decimal(15, 2) // Aporte realizado no mês
+  balance    Decimal              @db.Decimal(15, 2) // Saldo ao fim do mês
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
   @@unique([objetivoId, month])
   @@index([objetivoId])
   @@map("planejamento_objetivo_entries")
+}
+
+// Simulador de Aposentadoria (inspirado no protótipo "Planejamento completo").
+// Um plano por usuário: parâmetros de projeção em termos reais (acumulação →
+// saque) + acompanhamento mensal em termos nominais. Convive com o CRUD de
+// objetivos (Sonhos) — são features separadas dentro de /planejamento-financeiro.
+//
+// `eventos` é um Json com aportes/resgates pontuais: [{ tipo, idade, valor }].
+// Mantido como Json (não tabela) porque é uma lista curta editada em bloco
+// junto com o resto dos parâmetros — espelha o estado único do protótipo.
+model AposentadoriaPlano {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Perfil
+  idade Int // idade atual
+  apos  Int // idade de aposentadoria
+  vida  Int // expectativa de vida
+
+  // Taxas (% ao ano)
+  rentNom       Decimal  @db.Decimal(6, 3) // rentabilidade nominal a.a.
+  inflacao      Decimal  @db.Decimal(6, 3) // inflação esperada a.a.
+  rentNomRetiro Decimal? @db.Decimal(6, 3) // taxa nominal na aposentadoria (null = igual à acumulação)
+
+  // Acumulação / renda (R$ de hoje)
+  patrimonio Decimal @db.Decimal(15, 2) // patrimônio inicial
+  aporteM    Decimal @db.Decimal(15, 2) // aporte mensal
+  renda      Decimal @db.Decimal(15, 2) // renda desejada na aposentadoria
+
+  // Início do acompanhamento
+  trackStartMonth Int // 1-12
+  trackStartYear  Int
+
+  // Eventos pontuais: [{ tipo: 'aporte'|'resgate', idade: number, valor: number }]
+  eventos Json @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries AposentadoriaPlanoEntry[]
+
+  @@map("aposentadoria_planos")
+}
+
+// Registro mensal de acompanhamento do plano de aposentadoria.
+// `off` é o offset em meses a partir de (trackStartMonth/trackStartYear);
+// year/month são desnormalizados pra exibição estável.
+model AposentadoriaPlanoEntry {
+  id         String             @id @default(uuid())
+  planoId    String
+  plano      AposentadoriaPlano @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  off        Int // mês do plano (1 = primeiro mês após o início)
+  year       Int
+  month      Int // 1-12
+  aporteReal Decimal            @db.Decimal(15, 2) // aporte realizado no mês
+  patFinal   Decimal            @db.Decimal(15, 2) // patrimônio ao fim do mês
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@unique([planoId, off])
+  @@index([planoId])
+  @@map("aposentadoria_plano_entries")
 }
