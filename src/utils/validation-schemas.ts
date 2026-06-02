@@ -348,6 +348,43 @@ export const planejamentoEntryUpsertSchema = z.object({
   balance: z.number().finite(), // pode ser negativo se houver perda
 });
 
+// ── Simulador de Aposentadoria schemas ────────────────────────────────
+
+// Limites espelham os sliders do protótipo (idade 1-105, taxas 0-100% a.a.,
+// valores monetários não-negativos). `rentNomRetiro` é nullable (null = usa a
+// taxa de acumulação). `eventos` é uma lista curta de aportes/resgates pontuais.
+
+const aposIdade = z.number().int().min(1).max(105);
+const aposRate = z.number().finite().min(0).max(100);
+const aposMoney = z.number().finite().nonnegative();
+
+const aposEventoSchema = z.object({
+  tipo: z.enum(['aporte', 'resgate']),
+  idade: aposIdade,
+  valor: aposMoney,
+});
+
+export const aposentadoriaPlanoUpsertSchema = z.object({
+  idade: aposIdade,
+  apos: aposIdade,
+  vida: aposIdade,
+  rentNom: aposRate,
+  inflacao: aposRate,
+  rentNomRetiro: aposRate.nullable().optional().default(null),
+  patrimonio: aposMoney,
+  aporteM: aposMoney,
+  renda: aposMoney,
+  trackStartMonth: z.number().int().min(1).max(12),
+  trackStartYear: z.number().int().min(2000).max(2100),
+  eventos: z.array(aposEventoSchema).max(50).optional().default([]),
+});
+
+export const aposentadoriaEntryUpsertSchema = z.object({
+  off: z.number().int().min(1).max(2000),
+  aporteReal: z.number().finite().nonnegative(),
+  patFinal: z.number().finite().nonnegative(),
+});
+
 // ── Utility: build 400 response from ZodError ─────────────────────────
 
 export function validationError(result: { success: false; error: z.ZodError }) {
