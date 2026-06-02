@@ -543,6 +543,53 @@ describe('POST /api/carteira/operacao', () => {
       expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalled();
     });
 
+    it('adiciona renda fixa híbrida só com indexador + taxa fixa (sem taxa sobre indexador)', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'renda-fixa-hibrida',
+          instituicaoId: 'inst-1',
+          rendaFixaTipo: 'CDB_HIB',
+          dataInicio: '2024-01-15',
+          dataVencimento: '2030-01-15',
+          valorAplicado: 10000,
+          descricao: 'CDB IPCA + 6%',
+          taxaFixaAnual: 6,
+          rendaFixaIndexer: 'IPCA',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(201);
+      expect(data.success).toBe(true);
+      // Híbrida toma 100% do indexador; a taxa fixa vira annualRate.
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            annualRate: 6,
+            indexer: 'IPCA',
+            indexerPercent: 100,
+          }),
+        }),
+      );
+    });
+
+    it('retorna 400 quando híbrida sem taxa fixa anual', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'renda-fixa-hibrida',
+          instituicaoId: 'inst-1',
+          rendaFixaTipo: 'CDB_HIB',
+          dataInicio: '2024-01-15',
+          dataVencimento: '2030-01-15',
+          valorAplicado: 10000,
+          descricao: 'CDB Híbrido',
+          rendaFixaIndexer: 'IPCA',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Taxa fixa anual');
+    });
+
     it('retorna 400 quando data de início >= data de vencimento', async () => {
       const response = await POST(
         createRequest({

@@ -372,14 +372,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           { status: 400 },
         );
       }
-      if (!taxaJurosAnual) {
-        return NextResponse.json(
-          {
-            error: 'Taxa sobre o indexador é obrigatória para Renda Fixa Híbrida',
-          },
-          { status: 400 },
-        );
-      }
       if (!rendaFixaIndexer || !['CDI', 'IPCA'].includes(rendaFixaIndexer)) {
         return NextResponse.json(
           {
@@ -827,14 +819,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       { status: 400 },
     );
   }
-  if (
-    tipoAtivo === 'renda-fixa-hibrida' &&
-    ((taxaFixaAnual ?? 0) < 0 || (taxaJurosAnual ?? 0) <= 0)
-  ) {
+  if (tipoAtivo === 'renda-fixa-hibrida' && (taxaFixaAnual ?? 0) <= 0) {
     return NextResponse.json(
       {
-        error:
-          'Taxa fixa e taxa sobre indexador devem ser maiores que zero para Renda Fixa Híbrida',
+        error: 'Taxa fixa anual deve ser maior que zero para Renda Fixa Híbrida',
       },
       { status: 400 },
     );
@@ -1642,13 +1630,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     metadata.rendaFixaTipo = rendaFixaTipo || null;
     metadata.dataInicio = dataInicio || null;
     metadata.dataVencimento = dataVencimento || null;
-    metadata.taxaJurosAnual = taxaJurosAnual || null;
+    metadata.taxaJurosAnual = tipoAtivo === 'renda-fixa-hibrida' ? null : taxaJurosAnual || null;
     metadata.taxaFixaAnual = tipoAtivo === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? null) : null;
     metadata.descricao = descricao || null;
     metadata.indexador =
       (tipoAtivo === 'renda-fixa' ? rendaFixaIndexer || 'PRE' : rendaFixaIndexer) || null;
     metadata.indexadorPercent =
-      (tipoAtivo === 'renda-fixa-hibrida' ? taxaJurosAnual : rendaFixaIndexerPercent) ?? null;
+      (tipoAtivo === 'renda-fixa-hibrida' ? 100 : rendaFixaIndexerPercent) ?? null;
     metadata.liquidez = rendaFixaLiquidity || null;
     metadata.taxExempt = rendaFixaTaxExempt ?? false;
   }
@@ -1859,12 +1847,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       }
     } else {
       annualRateForAsset =
-        tipoAtivo === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? taxaJurosAnual) : taxaJurosAnual;
+        tipoAtivo === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? 0) : taxaJurosAnual;
       // F1.6: campo "% do indexador" foi removido da UI do wizard. Pós-fixada com
-      // CDI/IPCA sempre usa 100% (cobre ~95% dos casos). Híbrida mantém o legado
-      // de armazenar o spread sobre o indexador em indexerPercent.
+      // CDI/IPCA sempre usa 100% (cobre ~95% dos casos). Híbrida agora também: é
+      // só indexador + taxa fixa (ex.: IPCA + 6%), então toma 100% do indexador.
       if (tipoAtivo === 'renda-fixa-hibrida') {
-        indexerPercentForAsset = taxaJurosAnual;
+        indexerPercentForAsset = 100;
       } else if (tipoAtivo === 'renda-fixa-posfixada') {
         indexerPercentForAsset = 100;
       } else {

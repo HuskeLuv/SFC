@@ -186,7 +186,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           Number.isFinite(dataVencimentoParsed.getTime()) &&
           dataInicioParsed.getTime() < dataVencimentoParsed.getTime()
         );
-        const isTaxaJurosValida = formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000;
+        // Híbrida usa só Taxa Fixa Anual (indexador + taxa fixa); não exige
+        // "Taxa sobre o Indexador". Pré e pós continuam exigindo taxaJurosAnual.
+        const isTaxaJurosValida =
+          tipoAtivo === 'renda-fixa-hibrida' ||
+          (formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000);
         const isTaxaFixaValida =
           tipoAtivo !== 'renda-fixa-hibrida' ||
           ((formData.taxaFixaAnual ?? 0) > 0 && (formData.taxaFixaAnual ?? 0) <= 1000);

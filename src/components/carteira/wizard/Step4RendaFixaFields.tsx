@@ -20,23 +20,15 @@ export default function Step4RendaFixaFields({
   const isPos = formData.tipoAtivo === 'renda-fixa-posfixada';
   const isHib = formData.tipoAtivo === 'renda-fixa-hibrida';
 
-  const taxaLabel = isPre
-    ? 'Taxa Pré (% ao ano) *'
-    : isHib
-      ? 'Taxa sobre o Indexador (%) *'
-      : 'Taxa sobre o Indexador (%) *';
+  // Híbrida não usa "Taxa sobre o Indexador": é só indexador (CDI/IPCA) + Taxa
+  // Fixa Anual (ex.: IPCA + 6%). O campo abaixo só aparece em pré e pós-fixada.
+  const taxaLabel = isPre ? 'Taxa Pré (% ao ano) *' : 'Taxa sobre o Indexador (%) *';
 
-  const taxaPlaceholder = isPre
-    ? 'Ex: 12.5'
-    : isPos
-      ? 'Ex: 100 (100% CDI) ou 110 (110% CDI)'
-      : 'Ex: 100 (100% CDI) ou 5 (IPCA + 5%)';
+  const taxaPlaceholder = isPre ? 'Ex: 12.5' : 'Ex: 100 (100% CDI) ou 110 (110% CDI)';
 
   const taxaHint = isPre
     ? 'Taxa fixa anual paga até o vencimento.'
-    : isPos
-      ? 'Percentual do indexador que o título paga (ex.: 100 = 100% do CDI).'
-      : 'Spread anual aplicado sobre o indexador escolhido abaixo.';
+    : 'Percentual do indexador que o título paga (ex.: 100 = 100% do CDI).';
 
   return (
     <>
@@ -138,30 +130,34 @@ export default function Step4RendaFixaFields({
               <Input
                 id="taxaFixaAnual"
                 {...decimalInputProps}
-                placeholder="Ex: 6 (parte prefixada)"
+                placeholder="Ex: 6 (IPCA + 6%)"
                 value={getDecimalInputValue('taxaFixaAnual')}
                 onChange={handleDecimalInputChange('taxaFixaAnual')}
                 error={!!errors.taxaFixaAnual}
-                hint={errors.taxaFixaAnual ?? 'Parte fixa adicional ao indexador.'}
+                hint={
+                  errors.taxaFixaAnual ?? 'Parte fixa anual somada ao indexador (ex.: IPCA + 6%).'
+                }
                 min="0"
                 step="0.01"
               />
             </div>
           )}
-          <div>
-            <Label htmlFor="taxaJurosAnual">{taxaLabel}</Label>
-            <Input
-              id="taxaJurosAnual"
-              {...decimalInputProps}
-              placeholder={taxaPlaceholder}
-              value={getDecimalInputValue('taxaJurosAnual')}
-              onChange={handleDecimalInputChange('taxaJurosAnual')}
-              error={!!errors.taxaJurosAnual}
-              hint={errors.taxaJurosAnual ?? taxaHint}
-              min="0"
-              step="0.01"
-            />
-          </div>
+          {!isHib && (
+            <div>
+              <Label htmlFor="taxaJurosAnual">{taxaLabel}</Label>
+              <Input
+                id="taxaJurosAnual"
+                {...decimalInputProps}
+                placeholder={taxaPlaceholder}
+                value={getDecimalInputValue('taxaJurosAnual')}
+                onChange={handleDecimalInputChange('taxaJurosAnual')}
+                error={!!errors.taxaJurosAnual}
+                hint={errors.taxaJurosAnual ?? taxaHint}
+                min="0"
+                step="0.01"
+              />
+            </div>
+          )}
         </div>
       </div>
 
