@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getDividends } from '@/services/pricing/dividendService';
 import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProventosFromMarket';
+import { CORPORATE_ACTION_NOTE_MARKER } from '@/services/portfolio/corporateActions';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
 /**
@@ -58,7 +59,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       for (const p of portfolios) {
         const transactions = p.assetId
           ? await prisma.stockTransaction.findMany({
-              where: { userId: p.userId, assetId: p.assetId, type: { in: ['compra', 'venda'] } },
+              where: {
+                userId: p.userId,
+                assetId: p.assetId,
+                type: { in: ['compra', 'venda'] },
+                // Exclui linhas de auditoria de evento corporativo — a timeline
+                // de proventos aplica o fator, não o delta congelado.
+                NOT: { notes: { contains: CORPORATE_ACTION_NOTE_MARKER } },
+              },
               select: { date: true, quantity: true, type: true },
             })
           : [];

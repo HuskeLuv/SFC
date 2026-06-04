@@ -7,6 +7,7 @@ const mockPrisma = vi.hoisted(() => ({
     create: vi.fn(),
     update: vi.fn(),
   },
+  assetCorporateAction: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const mockGetDividends = vi.hoisted(() => vi.fn());
@@ -21,6 +22,9 @@ vi.mock('@/services/pricing/dividendService', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks zera chamadas mas não restaura implementações; sem isto, o
+  // split de um teste vaza para os seguintes.
+  mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
 });
 
 import { ensurePortfolioProventosFromMarket } from '../ensurePortfolioProventosFromMarket';
@@ -65,6 +69,25 @@ describe('mode initial (default)', () => {
     expect(data.dataPagamento.toISOString().slice(0, 10)).toBe('2026-03-05');
     // 500 × 0.216304 = 108.152 — IRRF 17,5% (LC 224/2025) = 18.93
     expect(data.impostoRenda).toBeCloseTo(18.93, 2);
+  });
+});
+
+describe('eventos corporativos', () => {
+  it('provento após split usa a quantidade pós-evento (500 → 1000)', async () => {
+    mockPrisma.portfolioProvento.count.mockResolvedValue(0);
+    mockPrisma.portfolioProvento.findFirst.mockResolvedValue(null);
+    mockGetDividends.mockResolvedValue([jcpDividend]); // pagamento 2026-03-05
+    // Split 2:1 entre a compra (2025-01-15) e o provento (2026-03-05).
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+      { date: new Date('2025-06-01'), type: 'DESDOBRAMENTO', factor: 2 },
+    ]);
+
+    await ensurePortfolioProventosFromMarket(baseParams);
+
+    const data = mockPrisma.portfolioProvento.create.mock.calls[0][0].data;
+    expect(data.quantidadeBase).toBeCloseTo(1000, 6);
+    // 1000 × 0.216304 = 216.304
+    expect(data.valorTotal).toBeCloseTo(216.304, 3);
   });
 });
 

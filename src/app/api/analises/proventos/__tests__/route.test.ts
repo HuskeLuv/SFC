@@ -14,6 +14,7 @@ const mockPrisma = vi.hoisted(() => ({
   portfolio: { findMany: vi.fn().mockResolvedValue([]) },
   portfolioProvento: { findMany: vi.fn().mockResolvedValue([]) },
   stockTransaction: { findMany: vi.fn().mockResolvedValue([]) },
+  assetCorporateAction: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const mockGetAssetPrices = vi.hoisted(() => vi.fn().mockResolvedValue(new Map()));

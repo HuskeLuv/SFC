@@ -10,6 +10,11 @@ import {
   getJcpIrrfRate,
   type DividendEntry,
 } from '@/services/pricing/dividendService';
+import {
+  APPLICABLE_CORPORATE_ACTION_TYPES,
+  buildQuantityTimeline,
+  isCorporateActionAuditTx,
+} from '@/services/portfolio/corporateActions';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { getTtlCache } from '@/lib/simpleTtlCache';
 
@@ -185,19 +190,6 @@ const proventoDedupKey = (symbol: string, date: Date, tipo: string): string => {
   return `${symbol}\0${dayUtc}\0${kind}`;
 };
 
-const buildTimeline = (transactions: TransactionPoint[]) => {
-  const sorted = [...transactions].sort((a, b) => a.date - b.date);
-  const timeline: TransactionPoint[] = [];
-  let currentQuantity = 0;
-
-  sorted.forEach((transaction) => {
-    currentQuantity += transaction.quantity;
-    timeline.push({ date: transaction.date, quantity: currentQuantity });
-  });
-
-  return timeline;
-};
-
 const getQuantityAtDate = (timeline: TransactionPoint[], date: number) => {
   if (timeline.length === 0) {
     return 0;
@@ -298,23 +290,26 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     orderBy: { date: 'asc' },
   });
 
-  const transactionsBySymbol = new Map<string, TransactionPoint[]>();
+  const rawTxBySymbol = new Map<string, Array<{ date: Date; type: string; quantity: number }>>();
   const purchaseDateBySymbol = new Map<string, number>();
   transactions.forEach((transaction) => {
     const symbol = transaction.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) {
       return;
     }
-
-    const quantityChange =
-      transaction.type === 'venda' ? -transaction.quantity : transaction.quantity;
-    if (!transactionsBySymbol.has(symbol)) {
-      transactionsBySymbol.set(symbol, []);
+    // Linhas de auditoria de evento corporativo não entram na timeline — o
+    // fator é aplicado por buildQuantityTimeline (senão contaria em dobro).
+    if (isCorporateActionAuditTx(transaction.notes)) {
+      return;
     }
 
-    transactionsBySymbol.get(symbol)!.push({
-      date: transaction.date.getTime(),
-      quantity: quantityChange,
+    if (!rawTxBySymbol.has(symbol)) {
+      rawTxBySymbol.set(symbol, []);
+    }
+    rawTxBySymbol.get(symbol)!.push({
+      date: transaction.date,
+      type: transaction.type,
+      quantity: transaction.quantity,
     });
 
     if (transaction.type === 'compra') {
@@ -326,9 +321,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
+  // Eventos corporativos aplicáveis (do banco) por símbolo, pra timeline ciente
+  // de fator. Quantidade na data do provento reflete splits/grupamentos/bonif.
+  const caRows = await prisma.assetCorporateAction.findMany({
+    where: {
+      symbol: { in: Array.from(rawTxBySymbol.keys()) },
+      type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) },
+    },
+    orderBy: { date: 'asc' },
+    select: { symbol: true, date: true, type: true, factor: true },
+  });
+  const caBySymbol = new Map<string, Array<{ date: Date; type: string; factor: number }>>();
+  caRows.forEach((r) => {
+    if (!caBySymbol.has(r.symbol)) caBySymbol.set(r.symbol, []);
+    caBySymbol.get(r.symbol)!.push({ date: r.date, type: r.type, factor: r.factor });
+  });
+
   const timelinesBySymbol = new Map<string, TransactionPoint[]>();
-  transactionsBySymbol.forEach((points, symbol) => {
-    timelinesBySymbol.set(symbol, buildTimeline(points));
+  rawTxBySymbol.forEach((txs, symbol) => {
+    timelinesBySymbol.set(symbol, buildQuantityTimeline(txs, caBySymbol.get(symbol) ?? []));
   });
 
   portfolioAssets.forEach((asset) => {

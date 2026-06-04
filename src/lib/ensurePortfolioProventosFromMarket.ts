@@ -1,39 +1,16 @@
 import { prisma } from '@/lib/prisma';
 import { getDividends, isJcpType, getJcpIrrfRate } from '@/services/pricing/dividendService';
+import {
+  APPLICABLE_CORPORATE_ACTION_TYPES,
+  buildQuantityTimeline,
+  quantityAtDate,
+} from '@/services/portfolio/corporateActions';
 
 // UTC-safe: setHours(0) é local-TZ e gera offset diferentes entre ambientes
 // (WSL BRT salva T03:00Z, Vercel UTC salva T00:00Z), quebrando dup-check.
 // Date.UTC garante T00:00Z determinístico em qualquer ambiente.
 const normalizeDateStart = (date: Date): Date =>
   new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-
-const buildTimeline = (trans: { date: Date; quantity: number; type: string }[]) => {
-  const sorted = [...trans].sort((a, b) => a.date.getTime() - b.date.getTime());
-  const timeline: { date: number; quantity: number }[] = [];
-  let currentQuantity = 0;
-  sorted.forEach((t) => {
-    currentQuantity += t.type === 'compra' ? t.quantity : -t.quantity;
-    timeline.push({ date: t.date.getTime(), quantity: currentQuantity });
-  });
-  return timeline;
-};
-
-const getQuantityAtDate = (timeline: { date: number; quantity: number }[], date: number) => {
-  if (timeline.length === 0) return 0;
-  let left = 0;
-  let right = timeline.length - 1;
-  let result = 0;
-  while (left <= right) {
-    const mid = Math.floor((left + right) / 2);
-    if (timeline[mid].date <= date) {
-      result = timeline[mid].quantity;
-      left = mid + 1;
-    } else {
-      right = mid - 1;
-    }
-  }
-  return Math.max(result, 0);
-};
 
 /**
  * Se não há proventos salvos na posição, preenche a partir de `asset_dividend_history` / BRAPI
@@ -72,7 +49,15 @@ export const ensurePortfolioProventosFromMarket = async (params: {
   const dividends = await getDividends(ticker, { useBrapiFallback: true });
   if (dividends.length === 0) return;
 
-  const timeline = buildTimeline(transactions);
+  // Eventos corporativos do ticker — a timeline precisa refletir a quantidade
+  // APÓS splits/grupamentos/bonificações pra calcular o provento certo.
+  const corporateActions = await prisma.assetCorporateAction.findMany({
+    where: { symbol: ticker, type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) } },
+    orderBy: { date: 'asc' },
+    select: { date: true, type: true, factor: true },
+  });
+
+  const timeline = buildQuantityTimeline(transactions, corporateActions);
   const hoje = normalizeDateStart(new Date());
   const hojeMs = hoje.getTime();
   const compraTimes = transactions.filter((t) => t.type === 'compra').map((t) => t.date.getTime());
@@ -89,7 +74,7 @@ export const ensurePortfolioProventosFromMarket = async (params: {
     if (firstPurchaseDate > 0 && dMs < firstPurchaseDate) continue;
 
     const quantidade =
-      timeline.length > 0 ? getQuantityAtDate(timeline, d.date.getTime()) : portfolioQuantity;
+      timeline.length > 0 ? quantityAtDate(timeline, d.date.getTime()) : portfolioQuantity;
     if (quantidade <= 0) continue;
 
     const valorTotal = Math.round(quantidade * d.valorUnitario * 1e6) / 1e6;

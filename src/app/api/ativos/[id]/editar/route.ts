@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProventosFromMarket';
+import { isCorporateActionAuditTx } from '@/services/portfolio/corporateActions';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const tipoOperacaoMap: Record<string, string> = {
@@ -90,11 +91,15 @@ export const GET = withErrorHandler(
       portfolioId: portfolio.id,
       userId: targetUserId,
       ticker,
-      transactions: transactions.map((t) => ({
-        date: t.date,
-        quantity: t.quantity,
-        type: t.type,
-      })),
+      // Exclui linhas de auditoria de evento corporativo — a timeline de
+      // proventos aplica o fator multiplicativo, não o delta congelado.
+      transactions: transactions
+        .filter((t) => !isCorporateActionAuditTx(t.notes))
+        .map((t) => ({
+          date: t.date,
+          quantity: t.quantity,
+          type: t.type,
+        })),
       portfolioQuantity: portfolio.quantity,
       portfolioLastUpdate: portfolio.lastUpdate,
     });
