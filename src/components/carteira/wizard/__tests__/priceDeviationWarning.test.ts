@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  cleanAssetSymbol,
   computePriceDeviationWarning,
   DEFAULT_PRICE_DEVIATION_THRESHOLD,
   CRYPTO_PRICE_DEVIATION_THRESHOLD,
@@ -119,6 +120,18 @@ describe('computePriceDeviationWarning', () => {
       const warning = computePriceDeviationWarning(40, 28, 0.2, 'data-ruim');
       expect(warning).not.toBeNull();
       expect(warning!.message).toContain('data-ruim');
+    });
+  });
+
+  describe('cleanAssetSymbol — extrai symbol cru do label do wizard', () => {
+    it('extrai o código de um label "SYMBOL - Nome"', () => {
+      expect(cleanAssetSymbol('PETR4 - Petrobras')).toBe('PETR4');
+      expect(cleanAssetSymbol('HGLG11 - CSHG Logística FII')).toBe('HGLG11');
+    });
+
+    it('é idempotente para um symbol já limpo', () => {
+      expect(cleanAssetSymbol('PETR4')).toBe('PETR4');
+      expect(cleanAssetSymbol('BTC')).toBe('BTC');
     });
   });
 });

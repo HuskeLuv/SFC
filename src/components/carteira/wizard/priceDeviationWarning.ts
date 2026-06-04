@@ -25,8 +25,16 @@ export interface PriceDeviationWarning {
   direction: 'acima' | 'abaixo';
 }
 
+/**
+ * O wizard guarda o ativo selecionado como label "SYMBOL - Nome" (ex.:
+ * "PETR4 - Petrobras"), mas o /api/ativos/price-at compara contra o symbol
+ * cru (PETR4). Extrai o código antes do " - ". Idempotente: um symbol já
+ * limpo (sem " - ") passa intacto.
+ */
+export const cleanAssetSymbol = (symbol: string): string => symbol.split(' - ')[0].trim();
+
 /** Formata YYYY-MM-DD em DD/MM/YYYY pra mensagem. */
-const formatDateBR = (iso: string): string => {
+export const formatDateBR = (iso: string): string => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) return iso;
   return `${m[3]}/${m[2]}/${m[1]}`;

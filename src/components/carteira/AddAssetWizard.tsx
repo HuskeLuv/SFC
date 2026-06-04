@@ -15,6 +15,12 @@ import Step2AporteInstitution from './wizard/Step2AporteInstitution';
 import Step3AporteAsset from './wizard/Step3AporteAsset';
 import Step4AporteInfo from './wizard/Step4AporteInfo';
 import Step5AporteConfirmation from './wizard/Step5AporteConfirmation';
+import { usePriceDeviationWarning } from './wizard/usePriceDeviationWarning';
+import {
+  DEFAULT_PRICE_DEVIATION_THRESHOLD,
+  CRYPTO_PRICE_DEVIATION_THRESHOLD,
+} from './wizard/priceDeviationWarning';
+import PriceDeviationConfirmModal from './wizard/PriceDeviationConfirmModal';
 
 interface AddAssetWizardProps {
   isOpen: boolean;
@@ -110,6 +116,36 @@ const STEPS: WizardStep[] = [
   },
 ];
 
+/**
+ * Mapeia o tipo de ativo para os parâmetros de checagem de divergência de
+ * preço, espelhando exatamente o que o PriceDeviationHint usa em cada
+ * Step4*Fields (ações/FII/ETF usam cotacaoUnitaria + threshold padrão;
+ * cripto/moeda usam cotacaoCompra + threshold mais frouxo). Retorna null
+ * para tipos sem cotação de mercado comparável.
+ */
+function getPriceCheckParams(
+  formData: WizardFormData,
+): { enteredPrice: number; threshold: number } | null {
+  switch (formData.tipoAtivo) {
+    case 'acao':
+    case 'acoes-brasil':
+    case 'fii':
+    case 'etf':
+      return {
+        enteredPrice: formData.cotacaoUnitaria,
+        threshold: DEFAULT_PRICE_DEVIATION_THRESHOLD,
+      };
+    case 'criptoativo':
+    case 'moeda':
+      return {
+        enteredPrice: formData.cotacaoCompra,
+        threshold: CRYPTO_PRICE_DEVIATION_THRESHOLD,
+      };
+    default:
+      return null;
+  }
+}
+
 export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetWizardProps) {
   const { csrfFetch } = useCsrf();
   const [currentStep, setCurrentStep] = useState(0);
@@ -118,6 +154,35 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const [loading, setLoading] = useState(false);
   const [steps, setSteps] = useState<WizardStep[]>(STEPS);
   const isSubmittingRef = useRef(false);
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  // Assinatura do preço já confirmado no popup. Se o usuário mudar
+  // preço/data/ativo depois, a assinatura muda e o popup reaparece.
+  const [confirmedPriceSig, setConfirmedPriceSig] = useState<string | null>(null);
+
+  // Divergência entre a cotação digitada e o fechamento da data de compra.
+  // Só vale para tipos com cotação de mercado (ações/FII/ETF/cripto/moeda).
+  const priceCheck = formData.operacao === 'aporte' ? null : getPriceCheckParams(formData);
+  const priceDeviation = usePriceDeviationWarning({
+    enteredPrice: priceCheck?.enteredPrice,
+    currentPrice: formData.assetCurrentPrice,
+    threshold: priceCheck?.threshold,
+    symbol: priceCheck ? formData.ativo : null,
+    referenceDate: priceCheck ? formData.dataCompra : null,
+  });
+
+  // Só pedimos confirmação quando temos o fechamento histórico do dia da
+  // compra (price-at retornou dados). Sem ele não há "preço de fechamento
+  // daquele dia" pra mostrar — aí o hint inline basta, sem bloquear.
+  const hasHistoricClose =
+    priceDeviation.warning != null &&
+    priceCheck != null &&
+    priceDeviation.referencePrice != null &&
+    priceDeviation.effectiveDate != null;
+
+  const priceSignature = hasHistoricClose
+    ? `${priceCheck!.enteredPrice}|${priceDeviation.referencePrice}|${priceDeviation.effectiveDate}`
+    : null;
+  const isPriceConfirmed = priceSignature !== null && priceSignature === confirmedPriceSig;
 
   // Atualizar validação dos passos
   useEffect(() => {
@@ -457,7 +522,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     );
   }, [formData]);
 
-  const handleNext = () => {
+  const proceedToNextStep = () => {
     const skipStep3 =
       formData.tipoAtivo === 'personalizado' ||
       formData.tipoAtivo === 'conta-corrente' ||
@@ -468,6 +533,31 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     } else if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
+  };
+
+  const handleNext = () => {
+    const skipStep3 =
+      formData.tipoAtivo === 'personalizado' ||
+      formData.tipoAtivo === 'conta-corrente' ||
+      formData.tipoAtivo === 'poupanca';
+    // Passo de Informações (onde a cotação é digitada): normal = índice 3,
+    // fluxos que pulam o Step3 = índice 2.
+    const isInfoStep = skipStep3 ? currentStep === 2 : currentStep === 3;
+
+    // Ao sair do passo de Informações com divergência de preço não
+    // confirmada, abre o popup em vez de avançar.
+    if (isInfoStep && hasHistoricClose && !isPriceConfirmed) {
+      setPriceModalOpen(true);
+      return;
+    }
+
+    proceedToNextStep();
+  };
+
+  const handleConfirmPrice = () => {
+    setConfirmedPriceSig(priceSignature);
+    setPriceModalOpen(false);
+    proceedToNextStep();
   };
 
   const handlePrevious = () => {
@@ -487,6 +577,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     setCurrentStep(0);
     setFormData(INITIAL_FORM_DATA);
     setErrors({});
+    setPriceModalOpen(false);
+    setConfirmedPriceSig(null);
     onClose();
   };
 
@@ -783,6 +875,19 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           )}
         </div>
       </div>
+
+      {hasHistoricClose && (
+        <PriceDeviationConfirmModal
+          isOpen={priceModalOpen}
+          enteredPrice={priceCheck!.enteredPrice}
+          referencePrice={priceDeviation.referencePrice!}
+          effectiveDate={priceDeviation.effectiveDate!}
+          ratio={priceDeviation.warning!.ratio}
+          direction={priceDeviation.warning!.direction}
+          onConfirm={handleConfirmPrice}
+          onCancel={() => setPriceModalOpen(false)}
+        />
+      )}
     </Sidebar>
   );
 }
