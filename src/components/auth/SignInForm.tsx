@@ -4,6 +4,7 @@ import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
 import Button from '@/components/ui/button/Button';
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from '@/icons';
+import { isValidEmail } from '@/utils/isValidEmail';
 import Link from 'next/link';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -13,20 +14,25 @@ export default function SignInForm() {
   const [isChecked, setIsChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   // LGPD #12: 2FA. Quando o backend responde com totpRequired, exibimos
   // o campo de código e remontamos o request com `totpCode`.
   const [totpRequired, setTotpRequired] = useState(false);
   const [totpCode, setTotpCode] = useState('');
   const router = useRouter();
 
+  // Botão só habilita com email válido e senha preenchida; no passo de 2FA,
+  // exige o código de 6 dígitos. Junto com `loading`, evita cliques repetidos.
+  const formValid =
+    isValidEmail(email.trim()) && password !== '' && (!totpRequired || totpCode.length === 6);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const form = e.currentTarget;
-    const email = (form[0] as HTMLInputElement).value.trim();
-    const password = (form[1] as HTMLInputElement).value;
-    if (!email || !password) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
       setError('Preencha todos os campos obrigatórios.');
       setLoading(false);
       return;
@@ -38,7 +44,7 @@ export default function SignInForm() {
         credentials: 'include',
         cache: 'no-store',
         body: JSON.stringify({
-          email,
+          email: trimmedEmail,
           password,
           rememberMe: isChecked,
           ...(totpCode ? { totpCode } : {}),
@@ -151,7 +157,12 @@ export default function SignInForm() {
                   <Label>
                     Email <span className="text-error-500">*</span>{' '}
                   </Label>
-                  <Input placeholder="Digite seu email" name="email" />
+                  <Input
+                    placeholder="Digite seu email"
+                    name="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label>
@@ -162,6 +173,8 @@ export default function SignInForm() {
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Digite sua senha"
                       name="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -210,7 +223,12 @@ export default function SignInForm() {
                   </div>
                 )}
                 <div>
-                  <Button className="w-full" size="sm" type="submit" disabled={loading}>
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    type="submit"
+                    disabled={loading || !formValid}
+                  >
                     {loading ? 'Entrando...' : totpRequired ? 'Confirmar código' : 'Entrar'}
                   </Button>
                 </div>

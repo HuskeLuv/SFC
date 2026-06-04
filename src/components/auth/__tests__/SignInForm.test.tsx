@@ -47,15 +47,26 @@ describe('SignInForm', () => {
     expect(screen.getByPlaceholderText('Digite sua senha')).toBeInTheDocument();
   });
 
-  it('shows validation error when submitting empty form', async () => {
+  it('keeps submit button disabled until form is valid', () => {
     render(<SignInForm />);
     const submitButton = screen.getByRole('button', { name: 'Entrar' });
-    fireEvent.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText('Preencha todos os campos obrigatórios.')).toBeInTheDocument();
-    });
+    // Vazio → desabilitado (evita cliques repetidos e submit inválido)
+    expect(submitButton).toBeDisabled();
+    fireEvent.click(submitButton);
     expect(global.fetch).not.toHaveBeenCalled();
+
+    // Só email → ainda desabilitado
+    fireEvent.change(screen.getByPlaceholderText('Digite seu email'), {
+      target: { value: 'test@example.com' },
+    });
+    expect(submitButton).toBeDisabled();
+
+    // Email válido + senha → habilitado
+    fireEvent.change(screen.getByPlaceholderText('Digite sua senha'), {
+      target: { value: 'password123' },
+    });
+    expect(submitButton).toBeEnabled();
   });
 
   it('toggles password visibility when clicking eye icon', () => {
