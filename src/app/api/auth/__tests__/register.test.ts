@@ -29,7 +29,7 @@ const createRequest = (body: object) =>
 describe('POST /api/auth/register', () => {
   const validBody = {
     email: 'new@test.com',
-    password: 'password123',
+    password: 'Password123!',
     name: 'New User',
     // LGPD Fase 2: aceite obrigatório
     acceptedTerms: true,
@@ -69,7 +69,7 @@ describe('POST /api/auth/register', () => {
     expect(setCookie).toContain('token=mock-token');
 
     // ATENÇÃO Sprint A: BCRYPT_ROUNDS subiu pra 12
-    expect(mockBcrypt.hash).toHaveBeenCalledWith('password123', 12);
+    expect(mockBcrypt.hash).toHaveBeenCalledWith('Password123!', 12);
     expect(mockPrisma.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -89,7 +89,7 @@ describe('POST /api/auth/register', () => {
   describe('Validacao Zod', () => {
     it('retorna 400 quando email esta ausente', async () => {
       const response = await POST(
-        createRequest({ password: 'password123', acceptedTerms: true, name: 'Test' }),
+        createRequest({ password: 'Password123!', acceptedTerms: true, name: 'Test' }),
       );
       const data = await response.json();
 
@@ -107,7 +107,7 @@ describe('POST /api/auth/register', () => {
 
     it('retorna 400 quando name esta ausente', async () => {
       const response = await POST(
-        createRequest({ email: 'test@test.com', password: 'password123', acceptedTerms: true }),
+        createRequest({ email: 'test@test.com', password: 'Password123!', acceptedTerms: true }),
       );
       const data = await response.json();
 
@@ -119,7 +119,7 @@ describe('POST /api/auth/register', () => {
       const response = await POST(
         createRequest({
           email: 'not-email',
-          password: 'password123',
+          password: 'Password123!',
           acceptedTerms: true,
           name: 'Test',
         }),

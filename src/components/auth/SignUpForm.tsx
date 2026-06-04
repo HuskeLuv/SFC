@@ -3,6 +3,8 @@ import Checkbox from '@/components/form/input/Checkbox';
 import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from '@/icons';
+import { passwordRequirements, unmetPasswordRequirements } from '@/utils/passwordRequirements';
+import { isValidEmail } from '@/utils/isValidEmail';
 import Link from 'next/link';
 import React, { useState } from 'react';
 
@@ -11,18 +13,41 @@ export default function SignUpForm() {
   const [isChecked, setIsChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fname, setFname] = useState('');
+  const [lname, setLname] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordTouched, setPasswordTouched] = useState(false);
+
+  const passwordValid = unmetPasswordRequirements(password).length === 0;
+  const showRequirements = passwordTouched || password.length > 0;
+
+  // Botão só habilita quando todos os campos estão preenchidos corretamente
+  // e os Termos foram aceitos.
+  const formValid =
+    fname.trim() !== '' &&
+    lname.trim() !== '' &&
+    isValidEmail(email.trim()) &&
+    passwordValid &&
+    isChecked;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const form = e.currentTarget;
-    const fname = (form.fname as HTMLInputElement).value.trim();
-    const lname = (form.lname as HTMLInputElement).value.trim();
-    const email = (form.email as HTMLInputElement).value.trim();
-    const password = (form[3] as HTMLInputElement).value; // password field
-    if (!fname || !lname || !email || !password) {
+    const trimmedFname = fname.trim();
+    const trimmedLname = lname.trim();
+    const trimmedEmail = email.trim();
+    if (!trimmedFname || !trimmedLname || !trimmedEmail || !password) {
       setError('Preencha todos os campos obrigatórios.');
+      setLoading(false);
+      return;
+    }
+    // Valida a senha no cliente antes de chamar a API — o checklist abaixo
+    // do campo mostra exatamente quais requisitos faltam.
+    if (!passwordValid) {
+      setPasswordTouched(true);
+      setError('A senha não atende a todos os requisitos listados abaixo.');
       setLoading(false);
       return;
     }
@@ -41,8 +66,8 @@ export default function SignUpForm() {
         credentials: 'include',
         cache: 'no-store',
         body: JSON.stringify({
-          name: fname + ' ' + lname,
-          email,
+          name: trimmedFname + ' ' + trimmedLname,
+          email: trimmedEmail,
           password,
           // LGPD Fase 2: persiste o aceite com versão dos documentos.
           acceptedTerms: true,
@@ -52,7 +77,14 @@ export default function SignUpForm() {
       });
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || 'Erro ao registrar.');
+        // A API retorna erros por campo em `details` (ex.: details.password).
+        // Mostramos as mensagens específicas em vez do genérico "Dados inválidos".
+        const fieldErrors: string[] = data.details
+          ? (Object.values(data.details as Record<string, string[]>).flat() as string[])
+          : [];
+        setError(
+          fieldErrors.length > 0 ? fieldErrors.join(' ') : data.error || 'Erro ao registrar.',
+        );
         setLoading(false);
         return;
       }
@@ -148,14 +180,28 @@ export default function SignUpForm() {
                     <Label>
                       Nome<span className="text-error-500">*</span>
                     </Label>
-                    <Input type="text" id="fname" name="fname" placeholder="Digite seu nome" />
+                    <Input
+                      type="text"
+                      id="fname"
+                      name="fname"
+                      placeholder="Digite seu nome"
+                      value={fname}
+                      onChange={(e) => setFname(e.target.value)}
+                    />
                   </div>
                   {/* <!-- Last Name --> */}
                   <div className="sm:col-span-1">
                     <Label>
                       Sobrenome<span className="text-error-500">*</span>
                     </Label>
-                    <Input type="text" id="lname" name="lname" placeholder="Digite seu sobrenome" />
+                    <Input
+                      type="text"
+                      id="lname"
+                      name="lname"
+                      placeholder="Digite seu sobrenome"
+                      value={lname}
+                      onChange={(e) => setLname(e.target.value)}
+                    />
                   </div>
                 </div>
                 {/* <!-- Email --> */}
@@ -163,7 +209,14 @@ export default function SignUpForm() {
                   <Label>
                     Email <span className="text-error-500">*</span>{' '}
                   </Label>
-                  <Input type="email" id="email" name="email" placeholder="Digite seu email" />
+                  <Input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="Digite seu email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 </div>
                 {/* <!-- Password --> */}
                 <div>
@@ -175,6 +228,10 @@ export default function SignUpForm() {
                       placeholder="Digite sua senha"
                       type={showPassword ? 'text' : 'password'}
                       name="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onFocus={() => setPasswordTouched(true)}
+                      error={passwordTouched && password.length > 0 && !passwordValid}
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -187,6 +244,37 @@ export default function SignUpForm() {
                       )}
                     </span>
                   </div>
+                  {/* Checklist de requisitos — fica verde em tempo real conforme
+                      o usuário digita, deixando claro o que falta. */}
+                  {showRequirements && (
+                    <ul className="mt-2 space-y-1.5">
+                      {passwordRequirements.map((req) => {
+                        const ok = req.test(password);
+                        return (
+                          <li
+                            key={req.id}
+                            className={`flex items-center gap-2 text-xs ${
+                              ok
+                                ? 'text-success-600 dark:text-success-500'
+                                : 'text-gray-500 dark:text-gray-400'
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold leading-none ${
+                                ok
+                                  ? 'bg-success-500 text-white'
+                                  : 'border border-gray-300 text-transparent dark:border-gray-600'
+                              }`}
+                            >
+                              ✓
+                            </span>
+                            {req.label}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
                 {/* <!-- Checkbox --> */}
                 <div className="flex items-center gap-3">
@@ -217,8 +305,8 @@ export default function SignUpForm() {
                 <div>
                   <button
                     type="submit"
-                    className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600"
-                    disabled={loading}
+                    className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-500"
+                    disabled={loading || !formValid}
                   >
                     {loading ? 'Registrando...' : 'Registre-se'}
                   </button>
@@ -229,12 +317,12 @@ export default function SignUpForm() {
 
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Já tem uma conta?
+                Já tem uma conta?{' '}
                 <Link
                   href="/signin"
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
                 >
-                  Registre-se
+                  Entrar
                 </Link>
               </p>
             </div>

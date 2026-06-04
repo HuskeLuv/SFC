@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from './passwordRequirements';
 
 // ── Reusable primitives ───────────────────────────────────────────────
 
@@ -59,18 +60,21 @@ export const loginSchema = z.object({
 
 /**
  * Política de senha (LGPD ATENÇÃO): mínimo 8 caracteres + ao menos uma
- * letra e um dígito. Mantém a barra acessível mas pega os erros mais
- * comuns (senhas só de letras ou só de números, 12345, etc.). Sem regra
- * "símbolo obrigatório" porque OWASP 2024 recomenda comprimento sobre
- * complexidade — quando subirmos pra 12 chars como mínimo, podemos
- * remover o regex.
+ * letra minúscula, uma maiúscula, um dígito e um símbolo. Pega os erros
+ * mais comuns (senhas só de letras ou só de números, 12345, etc.) e exige
+ * complexidade de caracteres.
  */
+// Os requisitos (min length, minúscula, maiúscula, dígito, símbolo) vivem em
+// `passwordRequirements.ts` como fonte única — o SignUpForm usa a mesma lista
+// pra mostrar o checklist.
 export const passwordPolicy = z
   .string()
-  .min(8, 'Senha precisa ter pelo menos 8 caracteres')
-  .max(128, 'Senha muito longa')
-  .regex(/[a-zA-Z]/, 'Senha precisa conter pelo menos uma letra')
-  .regex(/\d/, 'Senha precisa conter pelo menos um número');
+  .min(PASSWORD_MIN_LENGTH, `Senha precisa ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres`)
+  .max(PASSWORD_MAX_LENGTH, 'Senha muito longa')
+  .regex(/[a-z]/, 'Senha precisa conter pelo menos uma letra minúscula')
+  .regex(/[A-Z]/, 'Senha precisa conter pelo menos uma letra maiúscula')
+  .regex(/\d/, 'Senha precisa conter pelo menos um número')
+  .regex(/[^A-Za-z0-9]/, 'Senha precisa conter pelo menos um símbolo');
 
 export const registerSchema = z.object({
   email: zEmail,
