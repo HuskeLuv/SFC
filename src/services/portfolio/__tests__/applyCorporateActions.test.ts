@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockPrisma = vi.hoisted(() => ({
   portfolio: { findMany: vi.fn() },
-  stockTransaction: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
+  stockTransaction: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
   assetCorporateAction: { findMany: vi.fn() },
 }));
 
@@ -42,6 +42,7 @@ describe('applyCorporateActionsToUserPositions', () => {
     mockPrisma.assetCorporateAction.findMany.mockResolvedValue([mockAction()]);
     mockPrisma.stockTransaction.findFirst.mockResolvedValue(null); // sem auditoria ainda
     mockPrisma.stockTransaction.create.mockResolvedValue({});
+    mockPrisma.stockTransaction.update.mockResolvedValue({});
     mockRecalc.mockResolvedValue(undefined);
   });
 
@@ -101,13 +102,38 @@ describe('applyCorporateActionsToUserPositions', () => {
     expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
   });
 
-  it('é idempotente quando já existe linha de auditoria do evento', async () => {
-    mockPrisma.stockTransaction.findFirst.mockResolvedValue({ id: 'audit-existing' });
+  it('é idempotente quando a linha de auditoria já tem o delta correto', async () => {
+    // delta correto da bonificação 1.1 sobre 100 = +10
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({ id: 'audit-existing', quantity: 10 });
     const result = await applyCorporateActionsToUserPositions('user-1');
     expect(result).toEqual({ scanned: 1, applied: 0, skipped: 1, errors: 0 });
     expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    expect(mockPrisma.stockTransaction.update).not.toHaveBeenCalled();
     // Mesmo idempotente, recomputa pra garantir consistência.
     expect(mockRecalc).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconcilia (atualiza) linha de auditoria com delta defasado', async () => {
+    // delta velho errado (+5) — o correto é +10
+    mockPrisma.stockTransaction.findFirst.mockResolvedValue({ id: 'audit-old', quantity: 5 });
+    const result = await applyCorporateActionsToUserPositions('user-1');
+    expect(result).toEqual({ scanned: 1, applied: 1, skipped: 0, errors: 0 });
+    expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    const upd = mockPrisma.stockTransaction.update.mock.calls[0][0];
+    expect(upd.where).toEqual({ id: 'audit-old' });
+    expect(upd.data.quantity).toBeCloseTo(10, 6);
+    const notes = JSON.parse(upd.data.notes);
+    expect(notes.quantidadeDepois).toBeCloseTo(110, 6);
+  });
+
+  it('loga evento complexo (não tratável) e não recalcula quando não há aplicável', async () => {
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+      mockAction({ type: 'INCORPORACAO', factor: 1 }),
+    ]);
+    const result = await applyCorporateActionsToUserPositions('user-1');
+    expect(result.applied).toBe(0);
+    expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    expect(mockRecalc).not.toHaveBeenCalled();
   });
 
   it('pula portfolios sem assetId/symbol', async () => {
