@@ -1,6 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { normalizeDateStart } from './patrimonioHistoricoBuilder';
 import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
+import {
+  replayPosition,
+  isCorporateActionAuditTx,
+  APPLICABLE_CORPORATE_ACTION_TYPES,
+} from './corporateActions';
 
 /**
  * Source of truth para os totais do Portfolio: lê todas as StockTransactions do
@@ -51,9 +56,16 @@ export async function recalculatePortfolioFromTransactions(params: {
     orderBy: { date: 'asc' },
   });
 
-  if (allTransactions.length === 0) {
+  // Linhas de auditoria de evento corporativo são informativas (visíveis no
+  // histórico) mas NÃO entram no cálculo — o fator é aplicado via replay. Sem
+  // separá-las, o ajuste seria contado em dobro (delta congelado + fator).
+  const realTransactions = allTransactions.filter((tx) => !isCorporateActionAuditTx(tx.notes));
+
+  if (realTransactions.length === 0) {
     if (assetId) {
       await prisma.fixedIncomeAsset.deleteMany({ where: { userId: targetUserId, assetId } });
+      // Limpa eventuais linhas de auditoria órfãs antes de remover a posição.
+      await prisma.stockTransaction.deleteMany({ where: { userId: targetUserId, assetId } });
     }
     await prisma.portfolio.delete({
       where: { id: portfolioId },
@@ -64,24 +76,27 @@ export async function recalculatePortfolioFromTransactions(params: {
     return;
   }
 
-  let runningQty = 0;
-  let runningCost = 0;
-  for (const tx of allTransactions) {
-    const qty = Number(tx.quantity);
-    const price = Number(tx.price);
-    const total = Number(tx.total);
-    const txValue = total > 0 ? total : qty * price;
+  // Eventos corporativos do ativo (por symbol). Renda-fixa/fundos não têm
+  // registros nessa tabela, então o findMany volta vazio e o replay é no-op.
+  const asset = await prisma.asset.findUnique({
+    where: { id: assetId },
+    select: { symbol: true },
+  });
+  const corporateActions = asset?.symbol
+    ? await prisma.assetCorporateAction.findMany({
+        where: {
+          symbol: asset.symbol,
+          type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) },
+        },
+        orderBy: { date: 'asc' },
+        select: { date: true, type: true, factor: true },
+      })
+    : [];
 
-    if (tx.type === 'compra') {
-      runningQty += qty;
-      runningCost += txValue;
-    } else if (runningQty > 0) {
-      const avgAtSale = runningCost / runningQty;
-      const sellQty = Math.min(qty, runningQty);
-      runningCost -= avgAtSale * sellQty;
-      runningQty -= sellQty;
-    }
-  }
+  const { quantity: runningQty, cost: runningCost } = replayPosition(
+    realTransactions,
+    corporateActions,
+  );
 
   const avgPrice = runningQty > 0 ? runningCost / runningQty : 0;
 
@@ -106,7 +121,7 @@ export async function recalculatePortfolioFromTransactions(params: {
     // propaga para a tela de detalhes (título e marcação na curva continuam
     // usando a data antiga). E regenerar Asset.name pra atualizar o template
     // "Renda Fixa - R$ X - data" quando a data muda.
-    const firstBuy = allTransactions.find((tx) => tx.type === 'compra');
+    const firstBuy = realTransactions.find((tx) => tx.type === 'compra');
     if (firstBuy) {
       await prisma.fixedIncomeAsset.updateMany({
         where: { userId: targetUserId, assetId },

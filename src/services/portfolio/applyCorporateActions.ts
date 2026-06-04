@@ -1,29 +1,30 @@
 /**
- * Aplica AssetCorporateAction (DESDOBRAMENTO/GRUPAMENTO/BONIFICACAO) à
- * quantidade atual do Portfolio quando a ação ocorreu APÓS a primeira compra
- * do usuário. Cria uma StockTransaction de ajuste (tipo='compra' com
- * `notes.operation.action='ajuste-corporativo'`, price=0, total=0) pra
- * rastreabilidade e pra que recalculatePortfolioFromTransactions reproduza
- * o mesmo resultado.
+ * Garante, para cada posição de RV do usuário, uma linha de auditoria
+ * (StockTransaction com `notes.operation.action='ajuste-corporativo'`,
+ * price=0, total=0) por evento corporativo aplicável ocorrido APÓS a primeira
+ * compra — e recomputa o Portfolio.
  *
- * Tipos suportados (factor é multiplicador da quantidade):
- *   - DESDOBRAMENTO (split): factor > 1 (ex.: 2.0 = 2 para 1)
- *   - BONIFICACAO: factor > 1 (ex.: 1.1 = 10% extras)
- *   - GRUPAMENTO (reverse split): 0 < factor < 1 (ex.: 0.01 = 1 para 100)
+ * IMPORTANTE: o ajuste de quantidade/preço médio NÃO é feito aqui via delta.
+ * Ele é responsabilidade de `recalculatePortfolioFromTransactions`, que aplica
+ * o FATOR multiplicativo no replay (robusto a edições). A linha de auditoria é
+ * apenas informativa e é IGNORADA pelo recálculo. Ver `corporateActions.ts`.
  *
- * NÃO aplicados (até decisão explícita do contexto):
- *   - CIS RED CAP (cisão/redução de capital): factor não é multiplicador
- *     simples de quantidade — depende do tipo de cisão.
- *   - Outros tipos não listados acima são ignorados (logged como warn).
+ * Tipos aplicados: DESDOBRAMENTO, GRUPAMENTO, BONIFICACAO. Demais são
+ * ignorados (factor da BRAPI não é multiplicador simples de quantidade).
  *
- * Idempotência: cada AssetCorporateAction gera uma StockTransaction com
- * `notes.corporateActionId=<id>`. Antes de aplicar, verifica se já existe
- * transação com esse id no notes. Re-runs são no-op.
+ * Idempotência: cada evento gera no máximo uma linha de auditoria, detectada
+ * por `notes.corporateActionId`. Re-runs só recomputam o Portfolio (no-op se
+ * nada mudou).
  */
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-
-const APPLICABLE_TYPES = new Set(['DESDOBRAMENTO', 'BONIFICACAO', 'GRUPAMENTO']);
+import {
+  APPLICABLE_CORPORATE_ACTION_TYPES,
+  CORPORATE_ACTION_NOTE_MARKER,
+  computeCorporateActionAudit,
+  type CorporateActionFactor,
+} from './corporateActions';
+import { recalculatePortfolioFromTransactions } from './portfolioRecalculation';
 
 export interface ApplyCorporateActionsResult {
   scanned: number;
@@ -35,14 +36,8 @@ export interface ApplyCorporateActionsResult {
 export async function applyCorporateActionsToUserPositions(
   userId: string,
 ): Promise<ApplyCorporateActionsResult> {
-  const result: ApplyCorporateActionsResult = {
-    scanned: 0,
-    applied: 0,
-    skipped: 0,
-    errors: 0,
-  };
+  const result: ApplyCorporateActionsResult = { scanned: 0, applied: 0, skipped: 0, errors: 0 };
 
-  // Posições de ações/FIIs/BDRs do usuário com a primeira compra de cada.
   const portfolios = await prisma.portfolio.findMany({
     where: { userId, asset: { type: { in: ['stock', 'fii', 'bdr'] } } },
     include: { asset: { select: { id: true, symbol: true } } },
@@ -50,39 +45,46 @@ export async function applyCorporateActionsToUserPositions(
 
   for (const p of portfolios) {
     if (!p.assetId || !p.asset?.symbol) continue;
-    const firstBuy = await prisma.stockTransaction.findFirst({
+
+    // Transações reais (sem linhas de auditoria), em ordem cronológica.
+    const txs = await prisma.stockTransaction.findMany({
       where: {
         userId,
         assetId: p.assetId,
-        type: 'compra',
-        notes: { not: { contains: '"corporateActionId"' } },
+        type: { in: ['compra', 'venda'] },
+        NOT: { notes: { contains: CORPORATE_ACTION_NOTE_MARKER } },
       },
       orderBy: { date: 'asc' },
-      select: { date: true },
+      select: { date: true, type: true, quantity: true },
     });
-    if (!firstBuy) continue;
+    if (txs.length === 0) continue;
 
-    const actions = await prisma.assetCorporateAction.findMany({
-      where: { symbol: p.asset.symbol, date: { gte: firstBuy.date } },
+    const corporateActions: CorporateActionFactor[] = await prisma.assetCorporateAction.findMany({
+      where: {
+        symbol: p.asset.symbol,
+        type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) },
+      },
       orderBy: { date: 'asc' },
+      select: { id: true, date: true, type: true, factor: true },
     });
+    if (corporateActions.length === 0) continue;
 
-    for (const action of actions) {
+    // Quantidade antes/depois de cada evento (só os que incidem sobre papéis
+    // efetivamente detidos — quantityBefore > 0).
+    const audit = computeCorporateActionAudit(txs, corporateActions);
+    for (const a of audit) {
       result.scanned++;
-      if (!APPLICABLE_TYPES.has(action.type)) {
-        logger.warn(
-          `[applyCorporateActions] tipo não suportado: ${action.type} factor=${action.factor} symbol=${action.symbol} — ignorado`,
-        );
+      if (a.quantityBefore <= 0) {
+        // Evento anterior à primeira compra do usuário — não se aplica.
         result.skipped++;
         continue;
       }
 
-      // Checa idempotência via notes da transação
       const existing = await prisma.stockTransaction.findFirst({
         where: {
           userId,
           assetId: p.assetId,
-          notes: { contains: `"corporateActionId":"${action.id}"` },
+          notes: { contains: `"corporateActionId":"${a.id}"` },
         },
         select: { id: true },
       });
@@ -92,50 +94,45 @@ export async function applyCorporateActionsToUserPositions(
       }
 
       try {
-        // Lê o portfolio atualizado (pode ter sido modificado por uma action
-        // anterior no loop).
-        const current = await prisma.portfolio.findUnique({
-          where: { id: p.id },
-          select: { quantity: true, totalInvested: true, avgPrice: true },
+        await prisma.stockTransaction.create({
+          data: {
+            userId,
+            assetId: p.assetId,
+            type: 'compra',
+            // Delta informativo (exibido no histórico); o recálculo usa o fator.
+            quantity: a.quantityAfter - a.quantityBefore,
+            price: 0,
+            total: 0,
+            date: a.date,
+            fees: 0,
+            notes: JSON.stringify({
+              operation: { action: 'ajuste-corporativo' },
+              corporateActionId: a.id,
+              corporateActionType: a.type,
+              factor: a.factor,
+              quantidadeAntes: a.quantityBefore,
+              quantidadeDepois: a.quantityAfter,
+            }),
+          },
         });
-        if (!current) continue;
-
-        const newQty = current.quantity * action.factor;
-        // avgPrice se ajusta inversamente — total investido permanece igual.
-        const newAvg = newQty > 0 ? current.totalInvested / newQty : 0;
-
-        await prisma.$transaction([
-          prisma.portfolio.update({
-            where: { id: p.id },
-            data: { quantity: newQty, avgPrice: newAvg, lastUpdate: new Date() },
-          }),
-          prisma.stockTransaction.create({
-            data: {
-              userId,
-              assetId: p.assetId,
-              type: 'compra',
-              quantity: newQty - current.quantity, // delta (positivo pra split/bonif, negativo pra grupamento)
-              price: 0,
-              total: 0,
-              date: action.date,
-              fees: 0,
-              notes: JSON.stringify({
-                operation: { action: 'ajuste-corporativo' },
-                corporateActionId: action.id,
-                corporateActionType: action.type,
-                factor: action.factor,
-                completeFactor: action.completeFactor ?? null,
-                quantidadeAntes: current.quantity,
-                quantidadeDepois: newQty,
-              }),
-            },
-          }),
-        ]);
         result.applied++;
       } catch (err) {
-        logger.warn(`[applyCorporateActions] erro ao aplicar ${action.id}:`, err);
+        logger.warn(`[applyCorporateActions] erro ao criar auditoria ${a.id}:`, err);
         result.errors++;
       }
+    }
+
+    // Recomputa o Portfolio aplicando os fatores (idempotente). É aqui que
+    // quantity/avgPrice de fato se ajustam.
+    try {
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: p.assetId,
+        portfolioId: p.id,
+      });
+    } catch (err) {
+      logger.warn(`[applyCorporateActions] erro ao recalcular portfolio ${p.id}:`, err);
+      result.errors++;
     }
   }
 

@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockPrisma = vi.hoisted(() => ({
-  stockTransaction: { findMany: vi.fn() },
+  stockTransaction: { findMany: vi.fn(), deleteMany: vi.fn() },
   fixedIncomeAsset: { deleteMany: vi.fn(), updateMany: vi.fn() },
   portfolio: { update: vi.fn(), delete: vi.fn() },
   portfolioDailySnapshot: { deleteMany: vi.fn() },
   portfolioPerformance: { deleteMany: vi.fn() },
   asset: { findUnique: vi.fn(), update: vi.fn() },
+  assetCorporateAction: { findMany: vi.fn() },
 }));
 
 const mockDeleteTtlCache = vi.hoisted(() => vi.fn());
@@ -47,6 +48,8 @@ beforeEach(() => {
   mockPrisma.portfolioPerformance.deleteMany.mockResolvedValue({ count: 0 });
   mockPrisma.asset.findUnique.mockResolvedValue(null);
   mockPrisma.asset.update.mockResolvedValue({});
+  mockPrisma.stockTransaction.deleteMany.mockResolvedValue({ count: 0 });
+  mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
 });
 
 describe('recalculatePortfolioFromTransactions', () => {
@@ -275,6 +278,104 @@ describe('recalculatePortfolioFromTransactions', () => {
         where: { userId, assetId: 'asset-1' },
         data: { investedAmount: 0 },
       });
+    });
+  });
+
+  describe('eventos corporativos (ciente de fator)', () => {
+    beforeEach(() => {
+      mockPrisma.asset.findUnique.mockResolvedValue({ symbol: 'PETR4' });
+    });
+
+    it('split 2:1 dobra a quantidade e divide o preço médio (custo intacto)', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ type: 'compra', quantity: 100, price: 28, total: 2800, date: new Date('2024-01-10') }),
+      ]);
+      mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+        { date: new Date('2024-06-01'), type: 'DESDOBRAMENTO', factor: 2 },
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        portfolioId,
+      });
+
+      const data = mockPrisma.portfolio.update.mock.calls[0][0].data;
+      expect(data.quantity).toBeCloseTo(200, 6);
+      expect(data.avgPrice).toBeCloseTo(14, 6);
+      expect(data.totalInvested).toBeCloseTo(2800, 6);
+    });
+
+    it('é robusto a edição: editar a compra 100→200 com split 2:1 dá 400 (não 300)', async () => {
+      // Reproduz o bug do delta congelado. Mesmo havendo uma linha de auditoria
+      // antiga (+100), ela é ignorada e o fator é reaplicado sobre 200.
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ type: 'compra', quantity: 200, price: 28, total: 5600, date: new Date('2024-01-10') }),
+        {
+          type: 'compra',
+          quantity: 100, // delta congelado antigo
+          price: 0,
+          total: 0,
+          date: new Date('2024-06-01'),
+          notes: '{"operation":{"action":"ajuste-corporativo"},"corporateActionId":"ca-1"}',
+        },
+      ]);
+      mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+        { date: new Date('2024-06-01'), type: 'DESDOBRAMENTO', factor: 2 },
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        portfolioId,
+      });
+
+      const data = mockPrisma.portfolio.update.mock.calls[0][0].data;
+      expect(data.quantity).toBeCloseTo(400, 6);
+      expect(data.avgPrice).toBeCloseTo(14, 6);
+    });
+
+    it('não aplica evento anterior à compra (papel comprado já ajustado)', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ type: 'compra', quantity: 100, price: 14, total: 1400, date: new Date('2025-01-10') }),
+      ]);
+      mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+        { date: new Date('2024-06-01'), type: 'DESDOBRAMENTO', factor: 2 }, // antes da compra
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        portfolioId,
+      });
+
+      const data = mockPrisma.portfolio.update.mock.calls[0][0].data;
+      expect(data.quantity).toBeCloseTo(100, 6);
+      expect(data.avgPrice).toBeCloseTo(14, 6);
+    });
+
+    it('deleta o portfolio quando só restam linhas de auditoria (sem transação real)', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          type: 'compra',
+          quantity: 100,
+          price: 0,
+          total: 0,
+          date: new Date('2024-06-01'),
+          notes: '{"corporateActionId":"ca-1"}',
+        },
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        portfolioId,
+      });
+
+      expect(mockPrisma.stockTransaction.deleteMany).toHaveBeenCalledWith({
+        where: { userId, assetId: 'asset-1' },
+      });
+      expect(mockPrisma.portfolio.delete).toHaveBeenCalledWith({ where: { id: portfolioId } });
     });
   });
 });
