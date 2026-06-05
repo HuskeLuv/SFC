@@ -1,0 +1,17 @@
+# Terraform state — NUNCA versionar (contém secrets em plain text)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+# .terraform.lock.hcl É versionado de propósito (trava versões/hashes do provider).
+
+# Variáveis com valores sensíveis (senha do RDS, etc.)
+*.tfvars
+!example.tfvars
+
+# Crash logs / planos salvos (tfplan contém valores de variáveis = secrets!)
+crash.log
+crash.*.log
+*.tfplan
+tfplan
+*.log

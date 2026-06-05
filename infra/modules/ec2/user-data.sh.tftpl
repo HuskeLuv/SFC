@@ -1,0 +1,109 @@
+#!/bin/bash
+set -euxo pipefail
+
+# ─────────────────────────────────────────────────────────────────────
+# Provisionamento do host (Amazon Linux 2023). Idempotente o suficiente
+# pra re-rodar. NÃO faz o deploy do código — isso é passo manual/CI
+# (ver infra/README.md). Aqui prepara runtime, Caddy, env e systemd.
+# ─────────────────────────────────────────────────────────────────────
+
+dnf update -y
+dnf install -y git tar jq postgresql15
+
+# --- Node 20 (NodeSource) ---
+curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+dnf install -y nodejs
+
+# --- Caddy (binário estático, arch-aware) ---
+case "$(uname -m)" in
+  aarch64) CADDY_ARCH=arm64 ;;
+  x86_64)  CADDY_ARCH=amd64 ;;
+esac
+curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=$${CADDY_ARCH}" -o /usr/bin/caddy
+chmod +x /usr/bin/caddy
+useradd --system --home /var/lib/caddy --create-home --shell /usr/sbin/nologin caddy || true
+
+# --- Usuário e diretório da app ---
+useradd --system --home /opt/myfinance --create-home --shell /usr/sbin/nologin myfinance || true
+mkdir -p /opt/myfinance /etc/myfinance
+chown -R myfinance:myfinance /opt/myfinance
+
+# --- Secrets do SSM Parameter Store -> /etc/myfinance/app.env ---
+# Lê todos os parâmetros sob o prefixo e escreve como KEY=VALUE.
+fetch_env() {
+  aws ssm get-parameters-by-path \
+    --path "${ssm_path_prefix}" \
+    --with-decryption --recursive \
+    --region "${aws_region}" \
+    --query "Parameters[].[Name,Value]" --output text 2>/dev/null \
+  | while IFS=$'\t' read -r name value; do
+      key="$${name##*/}"
+      echo "$${key}=$${value}"
+    done
+}
+{
+  echo "NODE_ENV=production"
+  echo "PORT=3000"
+  fetch_env
+} > /etc/myfinance/app.env
+chmod 600 /etc/myfinance/app.env
+chown myfinance:myfinance /etc/myfinance/app.env
+
+# --- Caddyfile (reverse proxy -> :3000, TLS automático se houver domínio) ---
+if [ -n "${domain_name}" ]; then
+  cat > /etc/caddy/Caddyfile <<EOF
+${domain_name} {
+  reverse_proxy localhost:3000
+}
+EOF
+else
+  cat > /etc/caddy/Caddyfile <<'EOF'
+:80 {
+  reverse_proxy localhost:3000
+}
+EOF
+fi
+mkdir -p /etc/caddy
+
+# --- systemd: caddy ---
+cat > /etc/systemd/system/caddy.service <<'EOF'
+[Unit]
+Description=Caddy
+After=network.target
+
+[Service]
+User=caddy
+Group=caddy
+ExecStart=/usr/bin/caddy run --config /etc/caddy/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile
+Restart=on-failure
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# --- systemd: app Next.js (falha até o código ser deployado — ok) ---
+cat > /etc/systemd/system/myfinance.service <<'EOF'
+[Unit]
+Description=MyFinance Next.js
+After=network.target
+
+[Service]
+User=myfinance
+Group=myfinance
+WorkingDirectory=/opt/myfinance
+EnvironmentFile=/etc/myfinance/app.env
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now caddy
+systemctl enable myfinance || true
+
+echo "Provisionamento base concluído. Falta o deploy do código (ver infra/README.md)."
