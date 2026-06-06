@@ -13,6 +13,7 @@ import {
   recalculatePortfolioFromTransactions,
 } from '@/services/portfolio/portfolioRecalculation';
 import { FUNDO_TYPES_ALL, FUNDO_SUBTIPO_ORDER } from '@/lib/fundoTypes';
+import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
 
 /** Valores de fundoDestino que viram seções na aba "Fundos". */
 const FUNDO_SUBTIPO_DESTINOS: Set<string> = new Set(FUNDO_SUBTIPO_ORDER);
@@ -2053,6 +2054,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     // snapshots stale → MWR/TWR não recompunha. Invalidar força fallback ao
     // builder ao vivo até o cron diário repopular.
     await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
+  }
+
+  // Fundo CVM (tem CNPJ): dispara o sync de cotas em BACKGROUND (best-effort) pra
+  // popular Asset.currentPrice + a série histórica de cotas sem o usuário esperar
+  // o cron diário — fazendo o fundo se comportar como ação (valor = qtd × cota,
+  // gráfico, rendimento). Só dispara se a cota estiver ausente/desatualizada, pra
+  // não rebaixar o arquivo bulk da CVM a cada registro. Não-bloqueante (EC2 mantém
+  // a promise viva após a resposta).
+  if (asset?.cnpj) {
+    const cotaUpdatedAt = asset.priceUpdatedAt ? new Date(asset.priceUpdatedAt).getTime() : 0;
+    const cotaStale = !asset.currentPrice || Date.now() - cotaUpdatedAt > 24 * 60 * 60 * 1000;
+    if (cotaStale) {
+      void runCvmFundSync().catch((e) =>
+        logger.error('[fundo] sync de cotas CVM (async) falhou', e),
+      );
+    }
   }
 
   const result = NextResponse.json(

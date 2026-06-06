@@ -39,6 +39,11 @@ vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
   recalculatePortfolioFromTransactions: vi.fn().mockResolvedValue(undefined),
 }));
 
+const mockRunCvmFundSync = vi.hoisted(() => vi.fn().mockResolvedValue({}));
+vi.mock('@/services/pricing/cvmFundSync', () => ({
+  runCvmFundSync: mockRunCvmFundSync,
+}));
+
 const createRequest = (body: object) =>
   new NextRequest('http://localhost/api/carteira/operacao', {
     method: 'POST',
@@ -1048,6 +1053,37 @@ describe('POST /api/carteira/operacao', () => {
       expect(data.success).toBe(true);
       expect(mockPrisma.asset.create).toHaveBeenCalled();
       expect(mockPrisma.portfolio.create).toHaveBeenCalled();
+      // Fundo manual (sem CNPJ) não dispara o sync de cotas CVM.
+      expect(mockRunCvmFundSync).not.toHaveBeenCalled();
+    });
+
+    // Fase 2: fundo CVM (com CNPJ) dispara o sync de cotas em background pra
+    // popular a cota atual + a série histórica (comportar-se como ação).
+    it('fundo com CNPJ dispara o sync de cotas CVM em background', async () => {
+      mockPrisma.asset.create.mockResolvedValueOnce({
+        id: 'asset-fund',
+        symbol: 'CVM-12345678000190',
+        name: 'Fundo Multimercado XYZ',
+        type: 'fund',
+        cnpj: '12345678000190',
+        currentPrice: null,
+        priceUpdatedAt: null,
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'fundo',
+          instituicaoId: 'inst-1',
+          assetId: 'FUNDO-MANUAL',
+          ativo: 'Fundo Multimercado XYZ',
+          dataCompra: '2024-01-15',
+          quantidade: 100,
+          cotacaoUnitaria: 15,
+          metodo: 'cotas',
+          fundoDestino: 'fim',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockRunCvmFundSync).toHaveBeenCalledTimes(1);
     });
 
     it('retorna 400 quando fundoDestino ausente', async () => {

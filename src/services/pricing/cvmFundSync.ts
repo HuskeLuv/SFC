@@ -308,7 +308,10 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
 }
 
 /**
- * Update Asset.currentPrice with the latest CVM quota value for each fund.
+ * Liga as cotas CVM ao modelo de preço dos ativos, como uma ação:
+ * - `Asset.currentPrice` = última cota (valor atual da posição = qty × cota);
+ * - `AssetPriceHistory` recebe a SÉRIE COMPLETA de cotas (não só a última), para
+ *   alimentar os gráficos de histórico do fundo igual a uma ação/FII.
  */
 async function bridgeCvmToAssetPrices(
   fundAssets: { id: string; symbol: string; cnpj: string | null }[],
@@ -320,47 +323,52 @@ async function bridgeCvmToAssetPrices(
     if (!asset.cnpj) continue;
     const cnpj = normalizeCnpj(asset.cnpj);
 
-    const latestQuota = await prisma.cvmFundQuota.findFirst({
+    // Série completa (ordenada) — a última é o preço atual; todas viram histórico.
+    const quotas = await prisma.cvmFundQuota.findMany({
       where: { cnpj },
-      orderBy: { date: 'desc' },
+      orderBy: { date: 'asc' },
       select: { quotaValue: true, date: true },
     });
 
-    if (!latestQuota) continue;
+    if (quotas.length === 0) continue;
+    const latestQuota = quotas[quotas.length - 1];
 
     const now = new Date();
-    await prisma.$transaction([
-      prisma.asset.update({
-        where: { id: asset.id },
-        data: {
-          currentPrice: latestQuota.quotaValue,
-          priceUpdatedAt: now,
-          source: 'cvm',
-        },
-      }),
-      prisma.assetPriceHistory.upsert({
-        where: {
-          symbol_date: {
-            symbol: asset.symbol,
-            date: latestQuota.date,
-          },
-        },
-        update: { price: latestQuota.quotaValue },
-        create: {
-          assetId: asset.id,
-          symbol: asset.symbol,
-          price: latestQuota.quotaValue,
-          currency: 'BRL',
-          source: 'CVM',
-          date: latestQuota.date,
-        },
-      }),
-    ]);
+    await prisma.asset.update({
+      where: { id: asset.id },
+      data: {
+        currentPrice: latestQuota.quotaValue,
+        priceUpdatedAt: now,
+        source: 'cvm',
+      },
+    });
+
+    // Grava toda a série no histórico de preços (em lotes pra não estourar a
+    // transação). Sem isso, o gráfico do fundo fica sem pontos intermediários.
+    for (let i = 0; i < quotas.length; i += BATCH_SIZE) {
+      const batch = quotas.slice(i, i + BATCH_SIZE);
+      await prisma.$transaction(
+        batch.map((q) =>
+          prisma.assetPriceHistory.upsert({
+            where: { symbol_date: { symbol: asset.symbol, date: q.date } },
+            update: { price: q.quotaValue },
+            create: {
+              assetId: asset.id,
+              symbol: asset.symbol,
+              price: q.quotaValue,
+              currency: 'BRL',
+              source: 'CVM',
+              date: q.date,
+            },
+          }),
+        ),
+      );
+    }
 
     bridged++;
   }
 
-  logger.info(`   ✅ ${bridged} fundos atualizados com cota CVM`);
+  logger.info(`   ✅ ${bridged} fundos atualizados com cota CVM (série completa no histórico)`);
   return bridged;
 }
 
