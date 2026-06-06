@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "portfolios" ADD COLUMN "objetivo" DOUBLE PRECISION NOT NULL DEFAULT 0;
