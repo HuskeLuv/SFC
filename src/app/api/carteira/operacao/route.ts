@@ -2066,7 +2066,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const cotaUpdatedAt = asset.priceUpdatedAt ? new Date(asset.priceUpdatedAt).getTime() : 0;
     const cotaStale = !asset.currentPrice || Date.now() - cotaUpdatedAt > 24 * 60 * 60 * 1000;
     if (cotaStale) {
-      void runCvmFundSync().catch((e) =>
+      // 6 meses no registro pra já dar um gráfico de cota com corpo; o backfill
+      // profundo fica pro cron semanal.
+      void runCvmFundSync({ monthsBack: 6 }).catch((e) =>
         logger.error('[fundo] sync de cotas CVM (async) falhou', e),
       );
     }

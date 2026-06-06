@@ -128,7 +128,7 @@ const parseNum = (val: unknown): number | null => {
  * 4. Upsert matching rows to CvmFundQuota
  * 5. Update Asset.currentPrice for linked funds
  */
-export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
+export async function runCvmFundSync(opts?: { monthsBack?: number }): Promise<CvmFundSyncResult> {
   const startTime = Date.now();
 
   logger.info('📋 Iniciando sincronização CVM Fundos...');
@@ -160,74 +160,72 @@ export async function runCvmFundSync(): Promise<CvmFundSyncResult> {
 
   logger.info(`🎯 ${targetCnpjs.size} CNPJs alvo encontrados`);
 
-  // 2. Download ZIP (try current month, fall back to previous)
+  // 2. Baixar os últimos `monthsBack` meses de INF_DIARIO e acumular.
+  //    Daily cron usa 2 (mês atual + anterior — pega cotas publicadas com
+  //    atraso); o registro de fundo e o backfill de histórico pedem mais meses
+  //    pra alimentar o gráfico longo. Cada mês é um ZIP separado da CVM.
+  const monthsBack = Math.max(1, opts?.monthsBack ?? 2);
   const now = new Date();
-  const currentMonth = getYYYYMM(now);
-  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonth = getYYYYMM(prevDate);
+  const monthsToFetch: string[] = [];
+  for (let i = 0; i < monthsBack; i++) {
+    monthsToFetch.push(getYYYYMM(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+  }
 
-  let zipBuffer: ArrayBuffer | null = null;
-  let usedMonth = currentMonth;
+  const filteredRows: CvmDailyRow[] = [];
+  let anyMonthOk = false;
 
-  for (const month of [currentMonth, prevMonth]) {
+  for (const month of monthsToFetch) {
     const url = CVM_DAILY_URL(month);
     try {
       logger.info(`📥 Tentando baixar: ${url}`);
       const response = await axios.get(url, {
         responseType: 'arraybuffer',
-        timeout: 20000, // 20s — leave headroom for parsing + DB writes within Vercel's 60s limit
+        timeout: 30000,
       });
-      zipBuffer = response.data;
-      usedMonth = month;
-      logger.info(`✅ ZIP baixado: ${(zipBuffer!.byteLength / 1024 / 1024).toFixed(1)} MB`);
-      break;
+      const zipBuffer: ArrayBuffer = response.data;
+      anyMonthOk = true;
+      logger.info(`✅ ZIP ${month}: ${(zipBuffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
+
+      const csvRows = extractCsvFromZip(Buffer.from(zipBuffer));
+      for (const row of csvRows) {
+        // CVM uses CNPJ_FUNDO or CNPJ_FUNDO_CLASSE depending on version
+        const rawCnpj = String(row['CNPJ_FUNDO_CLASSE'] ?? row['CNPJ_FUNDO'] ?? '');
+        const cnpj = normalizeCnpj(rawCnpj);
+        if (!targetCnpjs.has(cnpj)) continue;
+
+        const dateStr = String(row['DT_COMPTC'] ?? '');
+        if (!dateStr) continue;
+
+        const quotaValue = parseNum(row['VL_QUOTA']);
+        if (quotaValue === null || quotaValue === 0) continue;
+
+        filteredRows.push({
+          cnpj,
+          date: new Date(dateStr),
+          quotaValue,
+          netWorth: parseNum(row['VL_PATRIM_LIQ']),
+          totalValue: parseNum(row['VL_TOTAL']),
+          shareholders: (() => {
+            const n = parseNum(row['NR_COTST']);
+            return n !== null ? Math.round(n) : null;
+          })(),
+          dailyInflow: parseNum(row['CAPTC_DIA']),
+          dailyOutflow: parseNum(row['RESG_DIA']),
+        });
+      }
     } catch (err) {
       const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
-      logger.warn(`⚠️  Falha ao baixar mês ${month} (status: ${status})`);
+      logger.warn(`⚠️  Falha ao baixar/processar mês ${month} (status: ${status})`);
     }
   }
 
-  if (!zipBuffer) {
+  if (!anyMonthOk) {
     throw new Error('Não foi possível baixar o arquivo CVM INF_DIARIO para nenhum mês');
   }
 
-  // 3. Extract and parse CSV from ZIP
-  logger.info(`📄 Extraindo CSV do ZIP (mês: ${usedMonth})...`);
-  const csvRows = extractCsvFromZip(Buffer.from(zipBuffer));
-  logger.info(`📊 ${csvRows.length} linhas totais no CSV`);
-
-  // 4. Filter by target CNPJs and parse
-  const filteredRows: CvmDailyRow[] = [];
-
-  for (const row of csvRows) {
-    // CVM uses CNPJ_FUNDO or CNPJ_FUNDO_CLASSE depending on version
-    const rawCnpj = String(row['CNPJ_FUNDO_CLASSE'] ?? row['CNPJ_FUNDO'] ?? '');
-    const cnpj = normalizeCnpj(rawCnpj);
-
-    if (!targetCnpjs.has(cnpj)) continue;
-
-    const dateStr = String(row['DT_COMPTC'] ?? '');
-    if (!dateStr) continue;
-
-    const quotaValue = parseNum(row['VL_QUOTA']);
-    if (quotaValue === null || quotaValue === 0) continue;
-
-    filteredRows.push({
-      cnpj,
-      date: new Date(dateStr),
-      quotaValue,
-      netWorth: parseNum(row['VL_PATRIM_LIQ']),
-      totalValue: parseNum(row['VL_TOTAL']),
-      shareholders: (() => {
-        const n = parseNum(row['NR_COTST']);
-        return n !== null ? Math.round(n) : null;
-      })(),
-      dailyInflow: parseNum(row['CAPTC_DIA']),
-      dailyOutflow: parseNum(row['RESG_DIA']),
-    });
-  }
-
-  logger.info(`🎯 ${filteredRows.length} linhas correspondentes aos CNPJs alvo`);
+  logger.info(
+    `🎯 ${filteredRows.length} linhas correspondentes aos CNPJs alvo (${monthsBack} meses)`,
+  );
 
   // 5. Upsert in batches
   for (let i = 0; i < filteredRows.length; i += BATCH_SIZE) {

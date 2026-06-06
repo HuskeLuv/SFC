@@ -131,15 +131,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         ? fiCurveValue > 0
         : fiCurveValue > fixedIncome.investedAmount
       : false;
-    // Cota CVM sincronizada (bridgeCvmToAssetPrices) tem prioridade sobre edição manual.
+    // Cota CVM tem PRIORIDADE: um fundo com cota publicada vale qtd × cota (como
+    // ação). A marcação na curva (fiCurveValue) só vale como fallback pra fundo
+    // SEM cota CVM — ex.: fundo manual lançado em "renda fixa" sem vínculo CVM.
+    // Antes a curva vencia, fazendo um fundo de verdade ser marcado como CDB.
     const cvmCurrentPrice = item.asset?.currentPrice?.toNumber() ?? null;
-    const isAutoUpdated = Boolean(
-      fiHasCurve || (cvmCurrentPrice && cvmCurrentPrice > 0 && item.quantity > 0),
-    );
-    const valorAtualizado = fiHasCurve
-      ? fiCurveValue
-      : cvmCurrentPrice && cvmCurrentPrice > 0 && item.quantity > 0
-        ? cvmCurrentPrice * item.quantity
+    const hasCvmCota = Boolean(cvmCurrentPrice && cvmCurrentPrice > 0 && item.quantity > 0);
+    const isAutoUpdated = Boolean(hasCvmCota || fiHasCurve);
+    const valorAtualizado = hasCvmCota
+      ? cvmCurrentPrice! * item.quantity
+      : fiHasCurve
+        ? fiCurveValue
         : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
           ? item.avgPrice * item.quantity
           : valorCalculado;
