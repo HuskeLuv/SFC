@@ -9,16 +9,18 @@ resource "aws_budgets_budget" "this" {
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
 
-  # Medir uso bruto: NÃO subtrair créditos (senão ficaria $0 e nunca dispararia).
+  # Medir uso BRUTO de infraestrutura: não subtrair créditos (senão ficaria $0),
+  # mas EXCLUIR o plano de Support ($29/mês), assinaturas e impostos — senão o
+  # budget conta a taxa de suporte como "uso" e dispara à toa.
   cost_types {
-    include_credit   = false
-    include_refund   = false
-    include_upfront  = true
-    include_recurring = true
-    include_other_subscription = true
-    include_subscription       = true
-    include_support            = true
-    include_tax                = true
+    include_credit             = false
+    include_refund             = false
+    include_upfront            = true
+    include_recurring          = true
+    include_other_subscription = false
+    include_subscription       = false
+    include_support            = false
+    include_tax                = false
     use_blended                = false
     use_amortized              = false
   }
