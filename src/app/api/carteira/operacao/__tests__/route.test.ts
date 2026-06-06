@@ -1086,6 +1086,35 @@ describe('POST /api/carteira/operacao', () => {
       expect(mockRunCvmFundSync).toHaveBeenCalledTimes(1);
     });
 
+    // Opção A: fundo da CVM (com CNPJ) só por cotas — entrada por valor é rejeitada.
+    it('retorna 400 ao registrar fundo CVM por valor', async () => {
+      mockPrisma.asset.create.mockResolvedValueOnce({
+        id: 'asset-fund',
+        symbol: 'CVM-12345678000190',
+        name: 'Fundo Multimercado XYZ',
+        type: 'fund',
+        cnpj: '12345678000190',
+        currentPrice: null,
+        priceUpdatedAt: null,
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'fundo',
+          instituicaoId: 'inst-1',
+          assetId: 'FUNDO-MANUAL',
+          ativo: 'Fundo Multimercado XYZ',
+          dataCompra: '2024-01-15',
+          valorInvestido: 5000,
+          metodo: 'valor',
+          fundoDestino: 'fim',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('cotas');
+      expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    });
+
     it('retorna 400 quando fundoDestino ausente', async () => {
       const response = await POST(
         createRequest({

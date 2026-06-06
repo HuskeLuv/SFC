@@ -31,15 +31,16 @@ export default function Step4FundoDebenturePrevidenciaFields({
     ? fundoSubtipoFromAssetType(formData.assetType)
     : null;
 
-  // For CVM-backed funds, default to 'cotas' method to encourage quota-based entry
+  // Fundos da CVM são SEMPRE por cotas (qtd × preço da cota), como uma ação —
+  // entrada por valor gerava posição qty=1 que não acompanha a cota. Força o
+  // método e o toggle some (abaixo).
   useEffect(() => {
     if (!isCvmFund) return;
-
-    if (formData.cotacaoUnitaria === 0) {
+    if (formData.metodo !== 'cotas') {
       onFormDataChange({ metodo: 'cotas' });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.assetId]);
+  }, [formData.assetId, isCvmFund, formData.metodo]);
 
   // Auto-preencher fundoDestino e tipoFundo quando o Asset.type é classificado.
   useEffect(() => {
@@ -176,35 +177,43 @@ export default function Step4FundoDebenturePrevidenciaFields({
         </div>
       )}
 
-      <div className="mb-4">
-        <Label>Escolha o tipo de adição *</Label>
-        <div className="flex flex-col sm:flex-row gap-4 mt-2">
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="radio"
-              name={`metodo-${formData.tipoAtivo}`}
-              value="valor"
-              checked={formData.metodo === 'valor'}
-              onChange={() => handleInputChange('metodo', 'valor')}
-              className="mr-2"
-            />
-            Por valor investido
-          </label>
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="radio"
-              name={`metodo-${formData.tipoAtivo}`}
-              value="cotas"
-              checked={metodoCotas}
-              onChange={() => handleInputChange('metodo', 'cotas')}
-              className="mr-2"
-            />
-            Por preço de cota e quantidade
-          </label>
+      {/* Fundos CVM: entrada sempre por cotas (como ação) — toggle escondido. */}
+      {isCvmFund ? (
+        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+          A posição é registrada por <strong>cotas</strong> (quantidade × preço da cota), como uma
+          ação.
+        </p>
+      ) : (
+        <div className="mb-4">
+          <Label>Escolha o tipo de adição *</Label>
+          <div className="flex flex-col sm:flex-row gap-4 mt-2">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name={`metodo-${formData.tipoAtivo}`}
+                value="valor"
+                checked={formData.metodo === 'valor'}
+                onChange={() => handleInputChange('metodo', 'valor')}
+                className="mr-2"
+              />
+              Por valor investido
+            </label>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name={`metodo-${formData.tipoAtivo}`}
+                value="cotas"
+                checked={metodoCotas}
+                onChange={() => handleInputChange('metodo', 'cotas')}
+                className="mr-2"
+              />
+              Por preço de cota e quantidade
+            </label>
+          </div>
         </div>
-      </div>
+      )}
 
-      {formData.metodo === 'valor' || !metodoCotas ? (
+      {(formData.metodo === 'valor' || !metodoCotas) && !isCvmFund ? (
         <div>
           <Label htmlFor="valorInvestido">Valor Investido (R$) *</Label>
           <Input

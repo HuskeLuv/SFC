@@ -1581,6 +1581,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
   } else if (tipoAtivo === 'debenture' || tipoAtivo === 'fundo' || tipoAtivo === 'previdencia') {
     const metodoCotas = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';
+    // Fundos da CVM (com CNPJ) são SEMPRE por cotas — entrada por valor gerava
+    // posição qty=1 que não acompanha a cota (não se comporta como ação). Fundo
+    // manual (sem CNPJ) continua aceitando valor. Guard servidor + wizard.
+    if (
+      tipoAtivo === 'fundo' &&
+      asset?.cnpj &&
+      !(metodoCotas && quantidade > 0 && cotacaoUnitaria > 0)
+    ) {
+      return NextResponse.json(
+        { error: 'Fundos da CVM devem ser informados por cotas (quantidade e preço da cota).' },
+        { status: 400 },
+      );
+    }
     if (metodoCotas && quantidade > 0 && cotacaoUnitaria > 0) {
       valorCalculado = quantidade * cotacaoUnitaria;
       quantidadeFinal = quantidade;
