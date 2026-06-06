@@ -5,6 +5,7 @@ import { logDataUpdate } from '@/services/impersonationLogger';
 import { aporteSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
+import { isEquityAssetType } from '@/lib/assetClassification';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
@@ -23,6 +24,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (!portfolio) {
     return NextResponse.json({ error: 'Investimento não encontrado' }, { status: 404 });
+  }
+
+  // Opção 3: aporte é operação de VALOR (renda-fixa/reservas). Ativos share-based
+  // (ação/FII/ETF/REIT) crescem via Comprar — aportar valor neles contaria como
+  // cota e corromperia o recálculo. Rejeita e orienta o usuário.
+  if (isEquityAssetType(portfolio.asset?.type)) {
+    return NextResponse.json(
+      {
+        error:
+          'Para ações, FIIs, ETFs e REITs use "Comprar" para adicionar cotas. Aporte é para renda fixa e reservas.',
+      },
+      { status: 400 },
+    );
   }
 
   const dataTransacao = new Date(dataAporte);

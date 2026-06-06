@@ -4,7 +4,11 @@ import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
 import { resgateSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
+import {
+  invalidatePortfolioSnapshots,
+  recalculatePortfolioFromTransactions,
+} from '@/services/portfolio/portfolioRecalculation';
+import { isEquityAssetType } from '@/lib/assetClassification';
 
 const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
   const assetType = item.asset?.type || '';
@@ -205,7 +209,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         where: { userId: targetUserId, assetId: portfolio.assetId },
       });
     }
+    // Item A (auditoria 2026-05-19): resgate em data passada deixava snapshots
+    // stale entre [dataResgate, hoje]. Mesma justificativa do aporte.
+    await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
+  } else if (isEquityAssetType(portfolio.asset?.type) && portfolio.assetId) {
+    // Opção 3 / eventos corporativos: venda parcial de ativo share-based recalcula
+    // pela source of truth, que (a) aplica eventos corporativos e (b) remove o
+    // CUSTO PROPORCIONAL — o cálculo inline subtraía a RECEITA da venda do custo,
+    // distorcendo o avgPrice. O recalc também invalida os snapshots internamente.
+    await recalculatePortfolioFromTransactions({
+      targetUserId,
+      assetId: portfolio.assetId,
+      portfolioId: portfolio.id,
+      recomputeSnapshotsFrom: dataTransacao,
+    });
   } else {
+    // Value-based (renda-fixa/reservas): cálculo inline.
     const novoTotalInvestido = Math.max(availableTotal - totalResgate, 0);
     const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
     await prisma.portfolio.update({
@@ -226,11 +245,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         data: { investedAmount: novoTotalInvestido },
       });
     }
+    await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
   }
-
-  // Item A (auditoria 2026-05-19): resgate em data passada deixava snapshots
-  // stale entre [dataResgate, hoje]. Mesma justificativa do aporte.
-  await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
 
   const result = NextResponse.json(
     { success: true, transacao, message: 'Resgate realizado com sucesso!' },

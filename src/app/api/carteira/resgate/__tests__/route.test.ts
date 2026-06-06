@@ -28,9 +28,11 @@ vi.mock('@/services/impersonationLogger', () => ({
   logDataUpdate: vi.fn().mockResolvedValue(undefined),
 }));
 
+const mockRecalc = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
 vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
   invalidatePortfolioSnapshots: vi.fn().mockResolvedValue(undefined),
-  recalculatePortfolioFromTransactions: vi.fn().mockResolvedValue(undefined),
+  recalculatePortfolioFromTransactions: mockRecalc,
 }));
 
 const createRequest = (body: object) =>
@@ -276,6 +278,60 @@ describe('POST /api/carteira/resgate', () => {
       expect(mockPrisma.portfolio.delete).toHaveBeenCalledWith({
         where: { id: 'port-crypto' },
       });
+    });
+  });
+
+  // Opção 3 / eventos corporativos: venda parcial de ação share-based recalcula
+  // pela source of truth (aplica eventos e custo proporcional correto).
+  describe('Ativo share-based (ação) recalcula na venda', () => {
+    const mockPortfolioStock = {
+      id: 'port-stk',
+      userId: 'user-123',
+      quantity: 100,
+      totalInvested: 1000,
+      avgPrice: 10,
+      stockId: null,
+      assetId: 'asset-stk',
+      stock: null,
+      asset: { symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
+    };
+
+    it('venda parcial roteia pelo recalc (não usa cálculo inline)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioStock);
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-stk',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'quantidade',
+          quantidade: 40,
+          cotacaoUnitaria: 30,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockRecalc).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targetUserId: 'user-123',
+          assetId: 'asset-stk',
+          portfolioId: 'port-stk',
+        }),
+      );
+      expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+    });
+
+    it('venda total deleta a posição (sem recalc)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioStock);
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-stk',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'quantidade',
+          quantidade: 100,
+          cotacaoUnitaria: 30,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.portfolio.delete).toHaveBeenCalledWith({ where: { id: 'port-stk' } });
+      expect(mockRecalc).not.toHaveBeenCalled();
     });
   });
 });

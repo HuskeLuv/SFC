@@ -47,7 +47,7 @@ describe('POST /api/carteira/aporte', () => {
     avgPrice: 10,
     stockId: null,
     assetId: 'asset-1',
-    asset: { symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
+    asset: { symbol: 'TESOURO-SELIC-2029', name: 'Tesouro Selic 2029', type: 'bond' },
   };
 
   const mockPortfolioWithAsset = {
@@ -106,13 +106,13 @@ describe('POST /api/carteira/aporte', () => {
   });
 
   describe('Fluxo de sucesso', () => {
-    it('realiza aporte com sucesso em portfolio com stock', async () => {
+    it('realiza aporte com sucesso em portfolio de renda fixa', async () => {
       const response = await POST(
         createRequest({
           portfolioId: 'port-1',
           dataAporte: '2024-01-15',
           valorAporte: 500,
-          tipoAtivo: 'acao',
+          tipoAtivo: 'renda-fixa',
           instituicaoId: 'inst-1',
         }),
       );
@@ -221,7 +221,7 @@ describe('POST /api/carteira/aporte', () => {
           portfolioId: 'port-1',
           dataAporte: '2024-01-15',
           valorAporte: 500,
-          tipoAtivo: 'acao',
+          tipoAtivo: 'renda-fixa',
           instituicaoId: 'inst-1',
         }),
       );
@@ -260,6 +260,26 @@ describe('POST /api/carteira/aporte', () => {
       const data = await response.json();
       expect(response.status).toBe(404);
       expect(data.error).toContain('Investimento não encontrado');
+    });
+
+    // Opção 3: aporte é só para value-based. Ativo share-based (ação/FII/ETF/REIT)
+    // deve ser rejeitado com orientação de usar "Comprar".
+    it('retorna 400 ao aportar em ativo share-based (ação)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolio,
+        asset: { symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
+      });
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataAporte: '2024-01-15',
+          valorAporte: 500,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Comprar');
+      expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
     });
   });
 });

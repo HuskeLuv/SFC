@@ -33,7 +33,7 @@ export default function Step1AssetType({
     setLoadingTipos(true);
     setAporteTiposError(null);
     try {
-      const response = await fetch('/api/carteira/resgate/tipos', {
+      const response = await fetch('/api/carteira/aporte/tipos', {
         credentials: 'include',
       });
       if (!response.ok) {
