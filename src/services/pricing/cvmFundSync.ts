@@ -460,6 +460,7 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
     name: string;
     tipoFundo: string;
     classificacao: string;
+    tipoClasse: string;
     type: string;
   }
   const fundsToUpsert: FundEntry[] = [];
@@ -474,9 +475,10 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
     const tipoFundo = f['Tipo_Fundo'] || '';
     const classe = classeByFundoId.get(f['ID_Registro_Fundo'] || '');
     const classificacao = classe?.classificacao || '';
+    const tipoClasse = classe?.tipoClasse || '';
 
     const type = inferFundType({ tipoFundo, classificacao, name });
-    fundsToUpsert.push({ cnpj, name, tipoFundo, classificacao, type });
+    fundsToUpsert.push({ cnpj, name, tipoFundo, classificacao, tipoClasse, type });
   }
   logger.info(`🎯 ${fundsToUpsert.length} fundos ativos pra upsert`);
 
@@ -530,9 +532,16 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
         const updateData: {
           name: string;
           type: string;
+          categoria: string | null;
+          subcategoria: string | null;
           currentPrice?: Decimal;
           priceUpdatedAt?: Date;
-        } = { name: fund.name, type: fund.type };
+        } = {
+          name: fund.name,
+          type: fund.type,
+          categoria: fund.tipoClasse || null,
+          subcategoria: fund.classificacao || null,
+        };
         if (quota) {
           updateData.currentPrice = new Decimal(quota.quota);
           updateData.priceUpdatedAt = new Date(quota.date);
@@ -547,6 +556,8 @@ export async function runCvmCatalogSync(): Promise<CvmCatalogSyncResult> {
             currency: 'BRL',
             source: 'cvm',
             cnpj: fund.cnpj,
+            categoria: fund.tipoClasse || null,
+            subcategoria: fund.classificacao || null,
             ...(quota
               ? {
                   currentPrice: new Decimal(quota.quota),

@@ -422,6 +422,8 @@ model Asset {
   currentPrice   Decimal?  @db.Decimal(18, 6) // Preço atual; IBOV pode exceder 10^4
   priceUpdatedAt DateTime? // Data da última atualização de preço
   cnpj           String? // CNPJ para fundos — vincula a dados CVM
+  categoria      String? // Fundos: Tipo_Classe da CVM (categoria nível 1)
+  subcategoria   String? // Fundos: Classificacao da CVM (subcategoria nível 2)
   updatedAt      DateTime  @updatedAt
 
   // Relacionamentos

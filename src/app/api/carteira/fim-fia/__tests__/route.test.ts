@@ -94,6 +94,37 @@ describe('/api/carteira/fim-fia', () => {
       expect(ativo.valorAtualizado).toBe(750); // 7.5 * 100
       expect(ativo.isAutoUpdated).toBe(true);
     });
+
+    // Fixes: categoria/subcategoria vêm da classificação CVM (Asset), e
+    // quantoFalta/necessidadeAporte são calculados no servidor (paridade ações).
+    it('popula categoria/subcategoria da CVM e calcula quantoFalta', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'pf-1',
+          assetId: 'asset-fund-1',
+          quantity: 100,
+          avgPrice: 5,
+          totalInvested: 500,
+          objetivo: 80,
+          asset: {
+            id: 'asset-fund-1',
+            type: 'fund',
+            name: 'Fundo Multi XP',
+            currentPrice: { toNumber: () => 7.5 },
+            categoria: 'Fundo Multimercado',
+            subcategoria: 'Multimercado Macro',
+          },
+        },
+      ]);
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      const ativo = data.secoes.flatMap((s: { ativos: unknown[] }) => s.ativos)[0];
+      // Fix #2: classificação CVM populada
+      expect(ativo.categoriaNivel1).toBe('Fundo Multimercado');
+      expect(ativo.subcategoriaNivel2).toBe('Multimercado Macro');
+      // Fix #1: quantoFalta = objetivo - %carteira (100% num fundo só) = 80 - 100
+      expect(ativo.quantoFalta).toBe(-20);
+    });
   });
 
   describe('POST', () => {

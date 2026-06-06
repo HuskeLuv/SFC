@@ -158,8 +158,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       nome: item.asset?.name || 'Fundo',
       cotizacaoResgate: notes?.cotizacaoResgate || 'D+0',
       liquidacaoResgate: notes?.liquidacaoResgate || 'Imediata',
-      categoriaNivel1: notes?.categoriaNivel1 || '',
-      subcategoriaNivel2: notes?.subcategoriaNivel2 || '',
+      // Classificação CVM (RCVM 175) tem prioridade; fallback pro input do wizard.
+      categoriaNivel1: item.asset?.categoria || notes?.categoriaNivel1 || '',
+      subcategoriaNivel2: item.asset?.subcategoria || notes?.subcategoriaNivel2 || '',
       valorInicialAplicado: valorInicial,
       aporte,
       resgate,
@@ -194,6 +195,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       ativosComPercentuais[i].riscoPorAtivo = adj.percentual;
     });
   }
+
+  // Paridade com a tabela de Ações (stocks/route.ts): "Quanto Falta" e
+  // "Nec. Aporte R$" são calculados no servidor após o % da carteira. Sem isso
+  // os fundos mostravam 0 mesmo com objetivo definido.
+  ativosComPercentuais.forEach((ativo) => {
+    ativo.quantoFalta = round2(ativo.objetivo - ativo.percentualCarteira);
+    ativo.necessidadeAporte =
+      ativo.quantoFalta > 0 ? round2((ativo.quantoFalta / 100) * totalCarteira) : 0;
+  });
 
   type AtivoFundo = (typeof ativosComPercentuais)[number];
   const secoesMap = new Map<
@@ -248,9 +258,18 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         (sum: number, ativo: AtivoFundo) => sum + ativo.riscoPorAtivo,
         0,
       ),
-      totalObjetivo: 0,
-      totalQuantoFalta: 0,
-      totalNecessidadeAporte: 0,
+      totalObjetivo: secao.ativos.reduce(
+        (sum: number, ativo: AtivoFundo) => sum + ativo.objetivo,
+        0,
+      ),
+      totalQuantoFalta: secao.ativos.reduce(
+        (sum: number, ativo: AtivoFundo) => sum + ativo.quantoFalta,
+        0,
+      ),
+      totalNecessidadeAporte: secao.ativos.reduce(
+        (sum: number, ativo: AtivoFundo) => sum + ativo.necessidadeAporte,
+        0,
+      ),
       rentabilidadeMedia:
         secao.ativos.length > 0
           ? secao.ativos.reduce((sum: number, ativo: AtivoFundo) => sum + ativo.rentabilidade, 0) /
@@ -275,9 +294,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
       : 0;
 
+  const totalNecessidadeAporte = ativosComPercentuais.reduce(
+    (sum, ativo) => sum + ativo.necessidadeAporte,
+    0,
+  );
+  const totalObjetivo = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+  const totalQuantoFalta = ativosComPercentuais.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
+
   return NextResponse.json({
     resumo: {
-      necessidadeAporteTotal: 0,
+      necessidadeAporteTotal: totalNecessidadeAporte,
       caixaParaInvestir: caixaParaInvestir,
       saldoInicioMes: totalValorAplicado,
       valorAtualizado: valorAtualizadoComCaixa,
@@ -293,9 +319,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       valorAtualizado: valorAtualizadoComCaixa, // Incluir caixa no total
       percentualCarteira: totalCarteira > 0 ? 100 : 0,
       risco: ativosComPercentuais.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0),
-      objetivo: 0,
-      quantoFalta: 0,
-      necessidadeAporte: 0,
+      objetivo: totalObjetivo,
+      quantoFalta: totalQuantoFalta,
+      necessidadeAporte: totalNecessidadeAporte,
       rentabilidade,
     },
   });
