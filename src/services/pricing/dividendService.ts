@@ -461,3 +461,47 @@ export const getCorporateActions = async (
   }
   return [];
 };
+
+/**
+ * Tipos de ativo negociados em bolsa que podem ter eventos corporativos.
+ * Renda-fixa / imóveis / fundos não-listados não têm — não dispara BRAPI pra eles.
+ */
+const CORPORATE_ACTION_ASSET_TYPES = new Set([
+  'acao',
+  'stock',
+  'fii',
+  'etf',
+  'reit',
+  'fim-fia',
+  'bdr',
+]);
+
+/**
+ * Garante que os eventos corporativos de um símbolo estejam no banco ANTES do
+ * recálculo da carteira, sem depender do cron diário. Resolve o gap em que um
+ * ativo recém-registrado que passou por split/bonificação/grupamento só era
+ * ajustado quando o cron rodava — gerando quantidade/preço médio errados no ato.
+ *
+ * Idempotente e barato: se o símbolo já tem qualquer dado de mercado salvo
+ * (eventos OU dividendos — ambos vêm da mesma resposta BRAPI), não busca de novo.
+ * Só dispara o fetch na primeira vez que um símbolo nunca sincronizado aparece.
+ */
+export const ensureCorporateActionsSynced = async (
+  symbol: string | null | undefined,
+  assetType?: string | null,
+): Promise<void> => {
+  if (!symbol?.trim()) return;
+  if (assetType && !CORPORATE_ACTION_ASSET_TYPES.has(assetType)) return;
+  if (isBlockedSymbol(symbol)) return;
+
+  const variants = getDbSymbolVariants(symbol);
+  const [caCount, divCount] = await Promise.all([
+    prisma.assetCorporateAction.count({ where: { symbol: { in: variants } } }),
+    prisma.assetDividendHistory.count({ where: { symbol: { in: variants } } }),
+  ]);
+  // Já sincronizado antes (pela rotina ou por um registro anterior) → no-op.
+  if (caCount > 0 || divCount > 0) return;
+
+  // Nunca visto: busca na BRAPI (persiste eventos corporativos + dividendos).
+  await getCorporateActions(symbol, { useBrapiFallback: true });
+};

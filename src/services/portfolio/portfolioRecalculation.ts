@@ -6,6 +6,7 @@ import {
   isCorporateActionAuditTx,
   APPLICABLE_CORPORATE_ACTION_TYPES,
 } from './corporateActions';
+import { ensureCorporateActionsSynced } from '@/services/pricing/dividendService';
 
 /**
  * Source of truth para os totais do Portfolio: lê todas as StockTransactions do
@@ -80,8 +81,14 @@ export async function recalculatePortfolioFromTransactions(params: {
   // registros nessa tabela, então o findMany volta vazio e o replay é no-op.
   const asset = await prisma.asset.findUnique({
     where: { id: assetId },
-    select: { symbol: true },
+    select: { symbol: true, type: true },
   });
+  // Garante os eventos corporativos no banco antes do replay, sem depender do
+  // cron: um ativo recém-registrado que passou por split/bonificação/grupamento
+  // é ajustado no ato (busca on-demand na BRAPI só se nunca sincronizado).
+  if (asset?.symbol) {
+    await ensureCorporateActionsSynced(asset.symbol, asset.type);
+  }
   const corporateActions = asset?.symbol
     ? await prisma.assetCorporateAction.findMany({
         where: {

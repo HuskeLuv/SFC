@@ -11,9 +11,13 @@ const mockPrisma = vi.hoisted(() => ({
 }));
 
 const mockDeleteTtlCache = vi.hoisted(() => vi.fn());
+const mockEnsureCA = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/simpleTtlCache', () => ({ deleteTtlCacheKeyPrefix: mockDeleteTtlCache }));
+vi.mock('@/services/pricing/dividendService', () => ({
+  ensureCorporateActionsSynced: mockEnsureCA,
+}));
 
 import { recalculatePortfolioFromTransactions } from '../portfolioRecalculation';
 
@@ -50,6 +54,7 @@ beforeEach(() => {
   mockPrisma.asset.update.mockResolvedValue({});
   mockPrisma.stockTransaction.deleteMany.mockResolvedValue({ count: 0 });
   mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
+  mockEnsureCA.mockResolvedValue(undefined);
 });
 
 describe('recalculatePortfolioFromTransactions', () => {
@@ -109,6 +114,44 @@ describe('recalculatePortfolioFromTransactions', () => {
       where: { userId, assetId: 'asset-1' },
     });
     expect(mockPrisma.portfolio.delete).toHaveBeenCalledWith({ where: { id: portfolioId } });
+  });
+
+  // Part B: eventos corporativos não dependem mais do cron — o recálculo
+  // garante os dados on-demand e aplica o fator no ato.
+  it('sincroniza eventos corporativos on-demand e aplica o fator (split 2:1)', async () => {
+    mockPrisma.asset.findUnique.mockResolvedValue({ symbol: 'MGLU3', type: 'stock' });
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+      { date: new Date('2024-04-01'), type: 'DESDOBRAMENTO', factor: 2 },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({ quantity: 10, price: 30, total: 300, date: new Date('2024-01-15') }),
+    ]);
+
+    await recalculatePortfolioFromTransactions({
+      targetUserId: userId,
+      assetId: 'asset-1',
+      portfolioId,
+    });
+
+    // fetch on-demand disparado com (symbol, type)
+    expect(mockEnsureCA).toHaveBeenCalledWith('MGLU3', 'stock');
+    // split 2:1 aplicado: 10 -> 20 cotas, custo preservado, avg cai pela metade
+    const updateCall = mockPrisma.portfolio.update.mock.calls[0]?.[0];
+    expect(updateCall?.data.quantity).toBe(20);
+    expect(updateCall?.data.totalInvested).toBe(300);
+    expect(updateCall?.data.avgPrice).toBe(15);
+  });
+
+  it('não dispara sync de eventos quando o ativo não tem symbol (renda-fixa)', async () => {
+    mockPrisma.asset.findUnique.mockResolvedValue({ symbol: null, type: 'tesouro-direto' });
+
+    await recalculatePortfolioFromTransactions({
+      targetUserId: userId,
+      assetId: 'asset-1',
+      portfolioId,
+    });
+
+    expect(mockEnsureCA).not.toHaveBeenCalled();
   });
 
   // Bug #02: invalidação de snapshots/cache na edição

@@ -4,6 +4,12 @@ const mockPrisma = vi.hoisted(() => ({
   assetDividendHistory: {
     findMany: vi.fn(),
     upsert: vi.fn(),
+    count: vi.fn(),
+  },
+  assetCorporateAction: {
+    findMany: vi.fn(),
+    upsert: vi.fn(),
+    count: vi.fn(),
   },
 }));
 
@@ -19,7 +25,12 @@ beforeEach(() => {
   global.fetch = mockFetch;
 });
 
-import { getDividends, isJcpType, getJcpIrrfRate } from '../dividendService';
+import {
+  getDividends,
+  isJcpType,
+  getJcpIrrfRate,
+  ensureCorporateActionsSynced,
+} from '../dividendService';
 
 const makeBrapiResponse = (dividends: Record<string, unknown>[]) => ({
   ok: true,
@@ -527,5 +538,42 @@ describe('BRAPI dedup pré-upsert', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].dataCom).toEqual(new Date('2025-06-02T00:00:00.000Z'));
+  });
+});
+
+describe('ensureCorporateActionsSynced', () => {
+  it('não busca na BRAPI quando o símbolo já tem dados (CA ou dividendos)', async () => {
+    mockPrisma.assetCorporateAction.count.mockResolvedValue(2);
+    mockPrisma.assetDividendHistory.count.mockResolvedValue(0);
+
+    await ensureCorporateActionsSynced('MGLU3', 'stock');
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('busca na BRAPI quando nunca sincronizado e o tipo é de bolsa', async () => {
+    mockPrisma.assetCorporateAction.count.mockResolvedValue(0);
+    mockPrisma.assetDividendHistory.count.mockResolvedValue(0);
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
+    mockPrisma.assetDividendHistory.findMany.mockResolvedValue([]);
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ results: [{}] }) });
+
+    await ensureCorporateActionsSynced('PETR4', 'stock');
+
+    expect(mockFetch).toHaveBeenCalled();
+  });
+
+  it('não busca para tipos sem eventos corporativos (renda-fixa)', async () => {
+    await ensureCorporateActionsSynced('LTN2029', 'tesouro-direto');
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockPrisma.assetCorporateAction.count).not.toHaveBeenCalled();
+  });
+
+  it('não busca para símbolo vazio', async () => {
+    await ensureCorporateActionsSynced('', 'stock');
+    await ensureCorporateActionsSynced(null, 'stock');
+
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

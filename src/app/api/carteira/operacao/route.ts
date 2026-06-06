@@ -8,7 +8,10 @@ import { z } from 'zod';
 import { validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
+import {
+  invalidatePortfolioSnapshots,
+  recalculatePortfolioFromTransactions,
+} from '@/services/portfolio/portfolioRecalculation';
 import { FUNDO_TYPES_ALL, FUNDO_SUBTIPO_ORDER } from '@/lib/fundoTypes';
 
 /** Valores de fundoDestino que viram seções na aba "Fundos". */
@@ -1937,6 +1940,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // Atualizar ou criar portfolio
   // Para reservas (emergency e opportunity) e personalizado, sempre criar um novo portfolio
   // Para outros tipos, atualizar se existir ou criar novo
+  // marketTradedPortfolioId: setado só no branch de ativos de bolsa (ações/FII/ETF/etc.),
+  // pra recalcular a posição aplicando eventos corporativos no ato do registro.
+  let marketTradedPortfolioId: string | null = null;
   if (
     isReserva ||
     isPersonalizado ||
@@ -2007,9 +2013,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           lastUpdate: new Date(),
         },
       });
+      marketTradedPortfolioId = portfolioExistente.id;
     } else {
       // Criar novo portfolio
-      await prisma.portfolio.create({
+      const novoPortfolio = await prisma.portfolio.create({
         data: {
           userId: targetUserId,
           assetId: asset!.id,
@@ -2023,14 +2030,30 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           lastUpdate: new Date(),
         },
       });
+      marketTradedPortfolioId = novoPortfolio.id;
     }
   }
 
-  // Item A (auditoria 2026-05-19): mesmo motivo do aporte/resgate. Operação
-  // em data passada (backfill manual de transações antigas) deixava
-  // snapshots stale → MWR/TWR não recompunha. Invalidar força fallback ao
-  // builder ao vivo até o cron diário repopular.
-  await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
+  // Ativos de bolsa (ações/FII/ETF/etc.): recalcula a posição pela source of
+  // truth, que APLICA os eventos corporativos (split/bonificação/grupamento) no
+  // ato do registro e busca os eventos on-demand se faltarem — sem depender do
+  // cron. O recálculo já invalida os snapshots (recomputeSnapshotsFrom).
+  // Renda-fixa/reservas/personalizado não passam por aqui (multi-portfolio),
+  // então mantêm a invalidação direta.
+  if (marketTradedPortfolioId && asset?.id) {
+    await recalculatePortfolioFromTransactions({
+      targetUserId,
+      assetId: asset.id,
+      portfolioId: marketTradedPortfolioId,
+      recomputeSnapshotsFrom: dataTransacao,
+    });
+  } else {
+    // Item A (auditoria 2026-05-19): mesmo motivo do aporte/resgate. Operação
+    // em data passada (backfill manual de transações antigas) deixava
+    // snapshots stale → MWR/TWR não recompunha. Invalidar força fallback ao
+    // builder ao vivo até o cron diário repopular.
+    await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
+  }
 
   const result = NextResponse.json(
     {
