@@ -165,32 +165,36 @@ export default function RentabilidadeResumo() {
   const valoresResumo = useMemo(() => {
     const carteiraTotal = resumo?.rentabilidade ?? 0;
 
-    let cdiAcumulado = 0;
-    if (firstInvestmentDate) {
-      const cdi1y = indices1y.find((i) => i.name === 'CDI');
-      if (cdi1y?.data && cdi1y.data.length > 0) {
-        const hojeTs = (() => {
-          const d = new Date();
-          d.setHours(0, 0, 0, 0);
-          return d.getTime();
-        })();
-        const filtrados = cdi1y.data.filter(
-          (item) => item.date >= firstInvestmentDate && item.date <= hojeTs,
-        );
-        if (filtrados.length > 0) {
-          const inicio = filtrados[0]?.value ?? 0;
-          const fim = filtrados[filtrados.length - 1]?.value ?? 0;
-          const cumInicio = 1 + inicio / 100;
-          const cumFim = 1 + fim / 100;
-          if (cumInicio > 0) {
-            cdiAcumulado = (cumFim / cumInicio - 1) * 100;
-          }
-        }
-      }
-    }
+    // Acumulado de um benchmark (CDI/IPCA) desde a 1ª data de investimento.
+    const acumuladoDesdeInicio = (nome: string): number => {
+      if (!firstInvestmentDate) return 0;
+      const serie = indices1y.find((i) => i.name === nome);
+      if (!serie?.data || serie.data.length === 0) return 0;
+      const hojeTs = (() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })();
+      const filtrados = serie.data.filter(
+        (item) => item.date >= firstInvestmentDate && item.date <= hojeTs,
+      );
+      if (filtrados.length === 0) return 0;
+      const inicio = filtrados[0]?.value ?? 0;
+      const fim = filtrados[filtrados.length - 1]?.value ?? 0;
+      const cumInicio = 1 + inicio / 100;
+      if (cumInicio <= 0) return 0;
+      return ((1 + fim / 100) / cumInicio - 1) * 100;
+    };
 
+    const cdiAcumulado = acumuladoDesdeInicio('CDI');
+    const ipcaAcumulado = acumuladoDesdeInicio('IPCA');
+
+    // % SOBRE CDI: razão (carteira rendeu X% do CDI) — mesma definição do Kinvo.
     const sobreCDI = cdiAcumulado > 0 ? (carteiraTotal / cdiAcumulado) * 100 : 0;
-    const real = carteiraTotal - cdiAcumulado;
+    // % REAL: retorno ajustado pela INFLAÇÃO (IPCA), descontando a inflação
+    // acumulada do período: (1 + nominal) / (1 + ipca) - 1. (Antes subtraía o
+    // CDI — errado: dava -88% num nominal de -12% pq CDI acumulado ~76% em 5a.)
+    const real = ((1 + carteiraTotal / 100) / (1 + ipcaAcumulado / 100) - 1) * 100;
 
     return {
       real,
