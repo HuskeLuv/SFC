@@ -144,6 +144,7 @@ async function main() {
     },
   });
   console.log(`  aporte PETR4 100@40 jun → ${r.status}`);
+  const aporteTxId: string | undefined = r.json?.transacao?.id; // p/ remover no fim (idempotência)
   const invAfter = await getInvest();
   const acoesJunAfter = investValue(invAfter, 'Ações', JUN);
   console.log(
@@ -293,6 +294,12 @@ async function main() {
     );
   } else {
     assert(false, '', 'item Salário não encontrado p/ testar edição de entrada');
+  }
+
+  // limpeza: remove o aporte de teste de jun (PART A) p/ a rodada ser idempotente
+  if (aporteTxId) {
+    const d = await api(`/api/historico/transacao/${aporteTxId}`, { method: 'DELETE', csrf: true });
+    console.log(`\n  limpeza: aporte de teste de jun removido (${d.status})`);
   }
 
   const fails = checks.filter((c) => c.level === 'FAIL');

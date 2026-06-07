@@ -131,9 +131,12 @@ async function main() {
   if (pre?.portfolioId)
     await api(`/api/ativos/${pre.portfolioId}/portfolio`, { method: 'DELETE', csrf: true });
 
+  // ids das transações criadas, p/ limpeza no fim (não deixa resíduo entre rodadas)
+  const txIds: string[] = [];
+
   // 1. cria posição: 1000 @ 60 (lote único, custo médio 60)
   console.log('\n── criar VALE3 1000@60 (custo médio 60) ──');
-  await api('/api/carteira/operacao', {
+  const buy = await api('/api/carteira/operacao', {
     method: 'POST',
     csrf: true,
     body: {
@@ -148,6 +151,7 @@ async function main() {
       instituicao: 'XP',
     },
   });
+  if (buy.json?.transacao?.id) txIds.push(buy.json.transacao.id);
   let pos = await getPos();
   console.log(`  posição: qty=${pos?.qty} avg=${pos?.avg} total=${pos?.total}`);
   assert(
@@ -192,6 +196,7 @@ async function main() {
     },
   });
   console.log(`  resgate → ${r1.status} ${r1.ok ? 'ok' : r1.text.slice(0, 150)}`);
+  if (r1.json?.transacao?.id) txIds.push(r1.json.transacao.id);
   pos = await getPos();
   console.log(`  posição: qty=${pos?.qty} avg=${pos?.avg} total=${pos?.total}`);
   // esperado: qty 600, avg 60 (custo médio NÃO muda na venda), total 36000
@@ -236,6 +241,7 @@ async function main() {
     },
   });
   console.log(`  resgate total → ${r2.status} ${r2.ok ? 'ok' : r2.text.slice(0, 150)}`);
+  if (r2.json?.transacao?.id) txIds.push(r2.json.transacao.id);
   pos = await getPos();
   const zerou = pos === null || approx(pos.qty, 0, 0.001);
   console.log(`  posição depois: ${pos ? `qty=${pos.qty}` : 'REMOVIDA'}`);
@@ -245,9 +251,16 @@ async function main() {
     `posição não zerou: ${JSON.stringify(pos)}`,
   );
 
-  // limpeza: se sobrou linha zerada, remove
-  if (pos?.portfolioId)
-    await api(`/api/ativos/${pos.portfolioId}/portfolio`, { method: 'DELETE', csrf: true });
+  // limpeza: deleta TODAS as transações criadas neste teste. Inclui as órfãs
+  // após a venda total — a posição some, mas as transações persistem e
+  // poluiriam o cashflow. DELETE /api/historico/transacao/[id] lida com órfã
+  // (deleta mesmo sem portfolio vinculado).
+  let limpas = 0;
+  for (const tid of txIds) {
+    const d = await api(`/api/historico/transacao/${tid}`, { method: 'DELETE', csrf: true });
+    if (d.ok) limpas++;
+  }
+  console.log(`  limpeza: ${limpas}/${txIds.length} transações removidas`);
 
   const fails = checks.filter((c) => c.level === 'FAIL');
   console.log(`\n================ RELATÓRIO RESGATE/METADADOS ================`);
