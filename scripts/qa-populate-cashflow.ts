@@ -76,6 +76,7 @@ const BUDGET: Record<string, number[]> = {
     [11, 10000],
   ]),
   Férias: M(0, [[6, 6800]]),
+  'Entradas Fixas::Outros': F(8000), // renda do cônjuge (renomeada p/ "Salário (cônjuge)")
   // Habitação
   'Aluguel / Prestação': F(3500),
   Condomínio: F(800),
@@ -174,7 +175,30 @@ const BUDGET: Record<string, number[]> = {
     [11, 5500],
   ]), // férias de julho + fim de ano
   Hobbies: F(160),
+  // Planejamento Financeiro (metas — aportes mensais reservados)
+  'Planejamento Financeiro::Objetivo 1': F(1500),
+  'Planejamento Financeiro::Objetivo 2': F(800),
+  'Planejamento Financeiro::Objetivo 3': F(500),
+  'Planejamento Financeiro::Objetivo 4': F(1200),
 };
+
+// renomeia linhas genéricas p/ ficarem claras (batch-update aceita name)
+const RENAME: Record<string, string> = {
+  'Entradas Fixas::Outros': 'Salário (cônjuge)',
+  'Planejamento Financeiro::Objetivo 1': 'Reserva de emergência',
+  'Planejamento Financeiro::Objetivo 2': 'Faculdade dos filhos',
+  'Planejamento Financeiro::Objetivo 3': 'Viagem internacional',
+  'Planejamento Financeiro::Objetivo 4': 'Entrada do imóvel',
+};
+const renameByNorm = new Map<string, string>();
+for (const [k, v] of Object.entries(RENAME)) {
+  if (k.includes('::')) {
+    const [g, i] = k.split('::');
+    renameByNorm.set(norm(g) + '::' + norm(i), v);
+  } else {
+    renameByNorm.set(norm(k), v);
+  }
+}
 
 const budgetByNorm = new Map<string, number[]>();
 for (const [k, v] of Object.entries(BUDGET)) {
@@ -206,18 +230,22 @@ async function main() {
   // estrutura
   const groups: any[] = (await api('/api/cashflow?year=2026')).json?.groups ?? [];
   // monta, por grupo, os updates dos itens que têm orçamento
-  const perGroup = new Map<string, { itemId: string; name: string; values: number[] }[]>();
+  const perGroup = new Map<
+    string,
+    { itemId: string; name: string; values: number[]; key: string }[]
+  >();
   const matched = new Set<string>();
   const walk = (g: any) => {
     for (const it of g.items ?? []) {
       const qualKey = norm(g.name) + '::' + norm(it.name);
       const plainKey = norm(it.name);
+      const key = budgetByNorm.has(qualKey) ? qualKey : plainKey;
       const b = budgetByNorm.get(qualKey) ?? budgetByNorm.get(plainKey);
       if (b) {
         const arr = perGroup.get(g.id) ?? [];
-        arr.push({ itemId: it.id, name: it.name, values: b });
+        arr.push({ itemId: it.id, name: it.name, values: b, key });
         perGroup.set(g.id, arr);
-        matched.add(budgetByNorm.has(qualKey) ? qualKey : plainKey);
+        matched.add(key);
       }
     }
     (g.children ?? []).forEach(walk);
@@ -227,10 +255,15 @@ async function main() {
   // aplica por grupo
   let totalItems = 0;
   for (const [groupId, items] of perGroup) {
-    const updates = items.map((i) => ({
-      itemId: i.itemId,
-      values: i.values.map((value, month) => ({ month, value })),
-    }));
+    const updates = items.map((i) => {
+      const u: { itemId: string; values: { month: number; value: number }[]; name?: string } = {
+        itemId: i.itemId,
+        values: i.values.map((value, month) => ({ month, value })),
+      };
+      const rn = renameByNorm.get(i.key);
+      if (rn) u.name = rn;
+      return u;
+    });
     const r = await api('/api/cashflow/batch-update', {
       method: 'PUT',
       csrf: true,
