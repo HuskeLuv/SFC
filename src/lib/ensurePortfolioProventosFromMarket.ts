@@ -68,6 +68,22 @@ export const ensurePortfolioProventosFromMarket = async (params: {
         ? normalizeDateStart(portfolioLastUpdate).getTime()
         : 0;
 
+  // Sync: limpa proventos brapi ANTERIORES à 1ª compra (espúrios — o usuário não
+  // tinha o ativo na data). O loop abaixo nunca os recria (guard dMs <
+  // firstPurchaseDate), mas também não os remove; sem isto, proventos pré-compra
+  // de imports antigos ficam órfãos pra sempre. Não toca em 'manual'/'dismissed'.
+  if (mode === 'sync' && firstPurchaseDate > 0) {
+    await prisma.portfolioProvento.deleteMany({
+      where: {
+        portfolioId,
+        userId,
+        source: 'brapi',
+        dismissed: false,
+        dataPagamento: { lt: new Date(firstPurchaseDate) },
+      },
+    });
+  }
+
   for (const d of dividends) {
     const dMs = normalizeDateStart(d.date).getTime();
     if (dMs > hojeMs) continue;
