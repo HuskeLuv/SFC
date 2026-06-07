@@ -35,11 +35,19 @@ export interface ApplyCorporateActionsResult {
 
 export async function applyCorporateActionsToUserPositions(
   userId: string,
+  opts?: { assetId?: string },
 ): Promise<ApplyCorporateActionsResult> {
   const result: ApplyCorporateActionsResult = { scanned: 0, applied: 0, skipped: 0, errors: 0 };
 
+  // opts.assetId escopa a uma única posição — usado no fluxo síncrono do aporte
+  // (rota operacao), pra não varrer toda a carteira a cada compra. O cron diário
+  // chama sem opts (varredura completa).
   const portfolios = await prisma.portfolio.findMany({
-    where: { userId, asset: { type: { in: ['stock', 'fii', 'bdr'] } } },
+    where: {
+      userId,
+      asset: { type: { in: ['stock', 'fii', 'bdr'] } },
+      ...(opts?.assetId ? { assetId: opts.assetId } : {}),
+    },
     include: { asset: { select: { id: true, symbol: true } } },
   });
 

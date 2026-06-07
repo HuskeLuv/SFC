@@ -14,6 +14,7 @@ import {
 } from '@/services/portfolio/portfolioRecalculation';
 import { FUNDO_TYPES_ALL, FUNDO_SUBTIPO_ORDER } from '@/lib/fundoTypes';
 import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
+import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
 
 /** Valores de fundoDestino que viram seções na aba "Fundos". */
 const FUNDO_SUBTIPO_DESTINOS: Set<string> = new Set(FUNDO_SUBTIPO_ORDER);
@@ -2061,6 +2062,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       portfolioId: marketTradedPortfolioId,
       recomputeSnapshotsFrom: dataTransacao,
     });
+    // Materializa as linhas de auditoria dos eventos corporativos JÁ no ato do
+    // registro (não espera o cron diário) — assim o histórico e
+    // /api/carteira/corporate-actions mostram split/bonificação/grupamento na
+    // hora. Escopado ao ativo (no-op p/ tipos fora de stock/fii/bdr) e
+    // idempotente. O valor já foi ajustado pelo recalc acima; isto é o registro
+    // visível. Best-effort: falha aqui não derruba o aporte.
+    try {
+      await applyCorporateActionsToUserPositions(targetUserId, { assetId: asset.id });
+    } catch (err) {
+      logger.warn('[operacao] applyCorporateActions síncrono falhou (não-fatal):', err);
+    }
   } else {
     // Item A (auditoria 2026-05-19): mesmo motivo do aporte/resgate. Operação
     // em data passada (backfill manual de transações antigas) deixava
