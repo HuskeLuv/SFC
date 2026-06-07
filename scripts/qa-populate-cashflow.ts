@@ -111,7 +111,7 @@ const BUDGET: Record<string, number[]> = {
   ]),
   Lavagens: F(85),
   Pedágio: F(100),
-  Acessórios: M(0, [[2, 2200]]), // emplacamento/película/tapetes do carro novo
+  'Transporte::Acessórios': M(0, [[2, 2200]]), // emplacamento/película/tapetes do carro novo
   // Saúde (família de 4)
   'Plano de Saúde': F(1600),
   'Seguro Vida': F(150),
@@ -152,6 +152,11 @@ const BUDGET: Record<string, number[]> = {
   'Banho e tosa': F(220),
   Vacinas: M(0, [[3, 380]]),
   // Despesas Pessoais
+  'Despesas Pessoais::Acessórios': M(0, [
+    [3, 250],
+    [8, 300],
+    [11, 350],
+  ]), // bolsas/relógio/óculos
   Roupas: [400, 300, 500, 400, 450, 400, 600, 400, 500, 450, 600, 1100],
   Calçados: M(0, [
     [1, 250],
@@ -172,7 +177,14 @@ const BUDGET: Record<string, number[]> = {
 };
 
 const budgetByNorm = new Map<string, number[]>();
-for (const [k, v] of Object.entries(BUDGET)) budgetByNorm.set(norm(k), v);
+for (const [k, v] of Object.entries(BUDGET)) {
+  if (k.includes('::')) {
+    const [grp, item] = k.split('::');
+    budgetByNorm.set(norm(grp) + '::' + norm(item), v); // chave qualificada por grupo
+  } else {
+    budgetByNorm.set(norm(k), v);
+  }
+}
 
 async function main() {
   console.log(`→ base=${BASE_URL}\n`);
@@ -198,12 +210,14 @@ async function main() {
   const matched = new Set<string>();
   const walk = (g: any) => {
     for (const it of g.items ?? []) {
-      const b = budgetByNorm.get(norm(it.name));
+      const qualKey = norm(g.name) + '::' + norm(it.name);
+      const plainKey = norm(it.name);
+      const b = budgetByNorm.get(qualKey) ?? budgetByNorm.get(plainKey);
       if (b) {
         const arr = perGroup.get(g.id) ?? [];
         arr.push({ itemId: it.id, name: it.name, values: b });
         perGroup.set(g.id, arr);
-        matched.add(norm(it.name));
+        matched.add(budgetByNorm.has(qualKey) ? qualKey : plainKey);
       }
     }
     (g.children ?? []).forEach(walk);
