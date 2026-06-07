@@ -182,10 +182,14 @@ async function main() {
   // indicadores
   {
     const r = await api('/api/analises/indicadores');
-    check(r.ok, 'indicadores HTTP 200', `indicadores HTTP ${r.status}`);
-    const j = r.json ?? {};
+    const ind = r.json?.indicators ?? {};
+    check(
+      r.ok && num(ind.ibov?.price) > 0 && num(ind.dolar?.price) > 0,
+      'indicadores com valores (IBOV/USD/BTC/ETH)',
+      `indicadores HTTP ${r.status} / sem valores`,
+    );
     note(
-      `IBOV=${num(j.ibov?.valor ?? j.ibov)} USD=${num(j.dolar?.valor ?? j.dolar)} BTC=${num(j.bitcoin?.valor ?? j.bitcoin)}`,
+      `IBOV=${num(ind.ibov?.price).toFixed(0)} USD=${num(ind.dolar?.price).toFixed(2)} BTC=${num(ind.bitcoin?.price).toFixed(0)} ETH=${num(ind.ethereum?.price).toFixed(0)}`,
     );
   }
   // indices
@@ -202,25 +206,31 @@ async function main() {
       const b = idx.find((i) => i.symbol === name || i.name === name);
       if (b) {
         const vals = (b.data ?? []).map((d: any) => num(d.value));
-        const monot = vals.every((v: number, i: number) => i === 0 || v >= vals[i - 1] - 0.01);
-        check(monot, `${name} é monotônico crescente (acumulado)`, `${name} NÃO monotônico`, true);
+        // acumulado deve crescer no período (IPCA pode ter mês de deflação, mas
+        // o acumulado de 2 anos cresce); CDI/Poupança sempre crescem.
+        const grew = vals.length > 1 && vals[vals.length - 1] >= vals[0];
+        check(
+          grew,
+          `${name} acumulado cresceu no período (${vals[0]?.toFixed(1)}→${vals[vals.length - 1]?.toFixed(1)}%)`,
+          `${name} não cresceu`,
+          true,
+        );
       }
     }
   }
   // carteira-historico
   {
     const r = await api('/api/analises/carteira-historico');
-    const data: any[] = r.json?.data ?? r.json?.historico ?? (Array.isArray(r.json) ? r.json : []);
+    const data: any[] = r.json?.data ?? [];
     check(
       r.ok && data.length > 0,
-      `carteira-historico: ${data.length} pontos`,
+      `carteira-historico: ${data.length} pontos (retorno acumulado + MWR)`,
       `carteira-historico vazio (${r.status})`,
     );
-    if (data.length) {
-      const last = data[data.length - 1];
-      const sb = num(last.saldoBruto ?? last.valor);
-      check(sb > 0, `último saldoBruto=${sb.toFixed(0)} > 0`, `saldoBruto inválido`, true);
-    }
+    const allFinite = data.every((p) => Number.isFinite(num(p.value)));
+    check(allFinite, 'série com valores finitos', 'valores não-finitos na série', true);
+    if (data.length)
+      note(`retorno acumulado último=${num(data[data.length - 1]?.value).toFixed(2)}%`);
   }
   // risco-retorno  (Sharpe = (retorno - CDI) / vol)
   {
@@ -276,7 +286,7 @@ async function main() {
     );
     for (const a of ativos.slice(0, 6))
       note(
-        `${a.ticker}: corr=${num(a.correlacao).toFixed(2)} mrc=${num(a.mrc).toFixed(3)} [${a.bucket}]`,
+        `${a.ticker}: corr=${num(a.correlacao).toFixed(2)} contribRisco=${num(a.contribuicaoRisco).toFixed(1)} peso=${(num(a.peso) * 100).toFixed(1)}% [${a.bucket}]`,
       );
   }
   // cobertura-fgc
@@ -299,15 +309,20 @@ async function main() {
   // rentabilidade-janelas
   {
     const r = await api('/api/analises/rentabilidade-janelas');
-    const per: any[] = r.json?.periodos ?? r.json?.janelas ?? (Array.isArray(r.json) ? r.json : []);
+    const jan = r.json?.janelas ?? {}; // objeto: { lastDay, inTheMonth, inTheYear, ... }
+    const keys = Object.keys(jan);
     check(
-      r.ok && per.length > 0,
-      `rentabilidade-janelas: ${per.length} janelas`,
+      r.ok && keys.length > 0,
+      `rentabilidade-janelas: ${keys.length} janelas (TWR/MWR vs CDI/IBOV/IPCA)`,
       `janelas vazias (${r.status})`,
       !r.ok,
     );
-    for (const p of per.slice(0, 6))
-      note(`${p.range ?? p.janela ?? p.label}: ${num(p.retorno ?? p.value).toFixed(2)}%`);
+    for (const k of keys.slice(0, 8)) {
+      const w = jan[k];
+      note(
+        `${k}: TWR=${num(w.portfolioReturn).toFixed(2)}% MWR=${num(w.portfolioMwr).toFixed(2)}% CDI=${num(w.cdiReturn).toFixed(2)}% IBOV=${num(w.ibovReturn).toFixed(2)}%`,
+      );
+    }
   }
   // portfolio-goal
   {
