@@ -61,8 +61,16 @@ export const BACEN_SERIES: readonly SeriesConfig[] = [
 
 // ================== CONSTANTS ==================
 
-/** Number of series to fetch concurrently */
+/** Number of series to fetch concurrently (daily cron — janelas curtas) */
 const BATCH_CONCURRENCY = 3;
+
+/**
+ * Concorrência no backfill (janelas de 10 anos). Sequencial de propósito: séries
+ * diárias longas (CDI/TR/POUPANCA/SELIC ~2.5k-3.7k linhas) rodando em paralelo
+ * esgotam o pool do Prisma (`connection_limit=5` no RDS t4g.micro) e a série mais
+ * longa do lote falhava 100%. One-time, então velocidade não é crítica.
+ */
+const BACKFILL_BATCH_CONCURRENCY = 1;
 
 /** Delay between concurrent batches (ms) to respect BACEN rate limits */
 const BATCH_DELAY_MS = 500;
@@ -143,40 +151,51 @@ const ingestIndex = async (
 
     logger.info(`📥 Recebidos ${data.length} registros de ${indexType}`);
 
-    for (const item of data) {
+    const parsed = data.map((item) => {
+      const rawValue = Number(item.valor);
+      return {
+        rawDate: item.data,
+        date: parseDateBR(item.data),
+        value: divideBy100 ? rawValue / 100 : rawValue,
+      };
+    });
+
+    // Pré-carrega numa única query as datas já existentes desta série. Antes
+    // havia um findUnique POR LINHA, dobrando o nº de queries; com séries longas
+    // concorrentes (backfill) isso esgotava o pool e a série falhava 100%.
+    const existingRows = await prisma.economicIndex.findMany({
+      where: {
+        indexType,
+        date: { in: parsed.map((p) => p.date).filter((d) => !Number.isNaN(d.getTime())) },
+      },
+      select: { date: true },
+    });
+    const existingDates = new Set(existingRows.map((r) => r.date.getTime()));
+
+    for (const row of parsed) {
       try {
-        const date = parseDateBR(item.data);
-        const rawValue = Number(item.valor);
-        const value = divideBy100 ? rawValue / 100 : rawValue;
-
-        const existing = await prisma.economicIndex.findUnique({
-          where: {
-            indexType_date: { indexType, date },
-          },
-        });
-
         await prisma.economicIndex.upsert({
           where: {
-            indexType_date: { indexType, date },
+            indexType_date: { indexType, date: row.date },
           },
           update: {
-            value,
+            value: row.value,
             updatedAt: new Date(),
           },
           create: {
             indexType,
-            date,
-            value,
+            date: row.date,
+            value: row.value,
           },
         });
 
-        if (existing) {
+        if (existingDates.has(row.date.getTime())) {
           updated++;
         } else {
           inserted++;
         }
       } catch (error) {
-        logger.error(`❌ Erro ao processar registro ${item.data} de ${indexType}:`, error);
+        logger.error(`❌ Erro ao processar registro ${row.rawDate} de ${indexType}:`, error);
         errors++;
       }
     }
@@ -231,9 +250,13 @@ export const runEconomicIndexesIngestion = async (
   let totalErrors = 0;
   const details: Record<string, { inserted: number; updated: number; errors: number }> = {};
 
-  // Process series in batches of BATCH_CONCURRENCY
-  for (let i = 0; i < BACEN_SERIES.length; i += BATCH_CONCURRENCY) {
-    const batch = BACEN_SERIES.slice(i, i + BATCH_CONCURRENCY);
+  // Backfill (janelas longas) roda sequencial pra não esgotar o pool; o cron
+  // diário (janelas curtas) mantém a concorrência padrão.
+  const concurrency = backfill ? BACKFILL_BATCH_CONCURRENCY : BATCH_CONCURRENCY;
+
+  // Process series in batches of `concurrency`
+  for (let i = 0; i < BACEN_SERIES.length; i += concurrency) {
+    const batch = BACEN_SERIES.slice(i, i + concurrency);
 
     const results = await Promise.allSettled(
       batch.map((series) => ingestIndex(series, finalStartDate, endDate)),
@@ -259,7 +282,7 @@ export const runEconomicIndexesIngestion = async (
     }
 
     // Delay between batches (skip after last batch)
-    if (i + BATCH_CONCURRENCY < BACEN_SERIES.length) {
+    if (i + concurrency < BACEN_SERIES.length) {
       await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
     }
   }

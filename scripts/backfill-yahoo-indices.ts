@@ -60,7 +60,9 @@ function parseArgs(): Args {
   const symbolsArg = argv.find((a) => a.startsWith('--symbols='));
   let symbols = DEFAULT_SYMBOLS;
   if (symbolsArg) {
-    const value = symbolsArg.split('=', 2)[1] ?? '';
+    // slice (não split('=')) porque os próprios tickers contêm '=' (ex.: BRL=X);
+    // split('=') quebraria 'BRL=X' em 'BRL' e o validador rejeitaria o ticker.
+    const value = symbolsArg.slice('--symbols='.length);
     symbols = value
       .split(',')
       .map((s) => s.trim())
