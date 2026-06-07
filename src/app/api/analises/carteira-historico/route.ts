@@ -271,6 +271,23 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
+  // Proventos recebidos (realizados, líquidos de IRRF) entram como CAIXA no
+  // saldo a partir da data de pagamento — somam ao patrimônio e fazem o TWR/MWR
+  // refletir retorno TOTAL (capital + renda), não só preço. NÃO são cashflow
+  // (não entram em cashFlowsByDay): são retorno, não aporte/resgate externo.
+  const proventosByDay = new Map<number, number>();
+  const proventosRows = await prisma.portfolioProvento.findMany({
+    where: { userId: targetUserId, dismissed: false },
+    select: { dataPagamento: true, valorTotal: true, impostoRenda: true },
+  });
+  for (const pp of proventosRows) {
+    const liquido = pp.valorTotal - (pp.impostoRenda ?? 0);
+    if (!(liquido > 0)) continue;
+    const dayKey = nextBusinessDayB3(getDayKey(new Date(pp.dataPagamento).getTime()));
+    if (dayKey < timelineStart.getTime() || dayKey > today.getTime()) continue;
+    proventosByDay.set(dayKey, (proventosByDay.get(dayKey) || 0) + liquido);
+  }
+
   const entries = await Promise.all(
     Array.from(transactionsPorSimbolo.keys()).map(async (symbol) => {
       const historico = await fetchAssetHistoryFromDb(symbol, timelineStart);
@@ -295,6 +312,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
 
   const portfolioValues: IndexData[] = [];
+  let proventosAcumulados = 0;
 
   for (const day of timeline) {
     let portfolioTotal = 0;
@@ -314,9 +332,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       }
     });
 
+    // Caixa de proventos acumulada até o dia (persiste após recebida).
+    proventosAcumulados += proventosByDay.get(day) ?? 0;
+
     portfolioValues.push({
       date: day,
-      value: Math.round(portfolioTotal * 100) / 100,
+      value: Math.round((portfolioTotal + proventosAcumulados) * 100) / 100,
     });
   }
 
