@@ -342,8 +342,22 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Totais consolidados
   const valorAplicado = stocksTotalInvested + otherInvestmentsTotalInvested;
   const saldoBruto = stocksCurrentValue + otherInvestmentsCurrentValue;
+
+  // Proventos recebidos (realizados, líquidos de IRRF) entram no RETORNO: a
+  // rentabilidade é TOTAL (capital + renda), igual à metodologia do Kinvo.
+  // Sem isso, ativos com dividendo apareciam com retorno só de capital — ex.:
+  // um FII que rendeu +35% com proventos aparecia como -12% (só o preço).
+  const proventosAgg = await prisma.portfolioProvento.aggregate({
+    where: { userId: targetUserId, dismissed: false, dataPagamento: { lte: new Date() } },
+    _sum: { valorTotal: true, impostoRenda: true },
+  });
+  const proventosRecebidos =
+    (proventosAgg._sum.valorTotal ?? 0) - (proventosAgg._sum.impostoRenda ?? 0);
+
   const rentabilidade =
-    valorAplicado > 0 ? ((saldoBruto - valorAplicado) / valorAplicado) * 100 : 0;
+    valorAplicado > 0
+      ? ((saldoBruto + proventosRecebidos - valorAplicado) / valorAplicado) * 100
+      : 0;
 
   // dashboardMetrics já carregado em paralelo acima
   const metaPatrimonio = dashboardMetrics.find((item) => item.metric === 'meta_patrimonio');
