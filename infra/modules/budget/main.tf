@@ -60,10 +60,49 @@ resource "aws_iam_role" "budget_action" {
   tags               = var.tags
 }
 
-# Managed policy da AWS com as permissões pra parar EC2/RDS via SSM.
+# Managed policy da AWS (budgets:*, PassRole pra budgets, describes).
 resource "aws_iam_role_policy_attachment" "budget_action" {
   role       = aws_iam_role.budget_action.name
   policy_arn = "arn:aws:iam::aws:policy/AWSBudgetsActionsWithAWSResourceControlAccess"
+}
+
+# A managed policy acima NÃO concede ssm:StartAutomationExecution nem o
+# ec2:StopInstances/rds:StopDBInstance que a automation AWS-StopEC2Instance/
+# AWS-StopRdsInstance executa. Sem isto a ação RUN_SSM_DOCUMENTS dispara mas
+# morre em EXECUTION_FAILURE ("not authorized to perform ssm:StartAutomationExecution").
+data "aws_iam_policy_document" "budget_action_ssm" {
+  statement {
+    sid    = "RunStopAutomations"
+    effect = "Allow"
+    actions = [
+      "ssm:StartAutomationExecution",
+      "ssm:GetAutomationExecution",
+      "ssm:StopAutomationExecution",
+    ]
+    resources = [
+      "arn:aws:ssm:${var.region}::automation-definition/AWS-Stop*",
+      "arn:aws:ssm:${var.region}:*:automation-execution/*",
+    ]
+  }
+
+  statement {
+    sid    = "StopComputeTargets"
+    effect = "Allow"
+    actions = [
+      "ec2:StopInstances",
+      "ec2:DescribeInstances",
+      "ec2:DescribeInstanceStatus",
+      "rds:StopDBInstance",
+      "rds:DescribeDBInstances",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "budget_action_ssm" {
+  name   = "${var.name}-budget-action-ssm"
+  role   = aws_iam_role.budget_action.id
+  policy = data.aws_iam_policy_document.budget_action_ssm.json
 }
 
 # --- Ação 1: parar o EC2 ao atingir $1 (absoluto) ---

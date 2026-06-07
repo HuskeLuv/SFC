@@ -41,9 +41,13 @@ variable "alert_email" {
 }
 
 variable "budget_cap_usd" {
-  description = "Teto de uso bruto (USD). Ao atingir, para EC2 e RDS automaticamente."
+  # Circuit-breaker de RUNAWAY (não mais de "observação pré-launch"). A app está
+  # live, então o teto fica acima do run-rate normal de prod (~$25-35/mês bruto)
+  # pra só parar EC2/RDS em fuga real de custo, não no uso normal. Era "1" antes
+  # do lançamento (que com a app no ar viraria um auto-stop do site).
+  description = "Teto de uso bruto (USD/mês). Ao atingir, para EC2 e RDS (guard de runaway)."
   type        = string
-  default     = "1"
+  default     = "50"
 }
 
 variable "db_name" {
