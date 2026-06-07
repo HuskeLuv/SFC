@@ -340,7 +340,6 @@ async function seedDemoUsers() {
     return {
       userId: demoUser.id,
       assetId: asset.id,
-      stockId: null as string | null,
       type: 'compra' as const,
       quantity,
       price,
