@@ -33,7 +33,18 @@ const mapTransactionToTipo = (transaction: {
       return 'fund';
     case 'bond':
       return 'bond';
+    // Tesouro Direto e debêntures são renda fixa → mesmo bucket "Renda Fixa &
+    // Fundos Renda Fixa". Sem estes cases, aportes em Tesouro/debênture entravam
+    // na carteira mas SUMIAM do fluxo de caixa (caíam no default 'outros').
+    case 'tesouro-direto':
+      return 'bond';
+    case 'debenture':
+      return 'bond';
     case 'insurance':
+      return 'insurance';
+    // O catálogo usa o type 'previdencia'; o item de cashflow é 'insurance'
+    // ("Previdência e Seguros"). Sem este case, aportes de previdência sumiam.
+    case 'previdencia':
       return 'insurance';
     case 'cash':
       return 'cash';
