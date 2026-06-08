@@ -32,3 +32,53 @@ jobs:
         run: npm run test:coverage
       - name: Build
         run: npm run build
+
+  # Smoke de render: sobe Postgres efêmero, builda, sobe o app e abre cada rota
+  # autenticada num browser real. Pega crashes de runtime (ex.: hook de contexto
+  # fora do Provider) que type-check/lint/build NÃO pegam.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sfc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sfc_test?schema=public
+      JWT_SECRET: ci-e2e-jwt-secret-not-for-prod
+      BRAPI_API_KEY: ${{ secrets.BRAPI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - name: Prisma generate + migrate + seed
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+          npm run seed
+      - name: Build
+        run: npm run build
+      - name: Start app
+        run: |
+          npm start &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3000/api/health >/dev/null && echo "app up" && exit 0
+            sleep 2
+          done
+          echo "app não subiu a tempo" && exit 1
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E (inclui smoke de rotas)
+        run: npx playwright test
