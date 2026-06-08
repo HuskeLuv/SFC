@@ -7,6 +7,79 @@ que foi feito manualmente em 2026-06-05/06 (o `user-data` prepara o runtime mas
 Contexto da infra: ver [`README.md`](./README.md) e
 [`../docs/aws-migration-plan.md`](../docs/aws-migration-plan.md).
 
+---
+
+## Deploy atômico (Camada 2 — preferido)
+
+> Substitui o `rm -rf $APP` + build-in-place + restart (que derrubava a app
+> durante o build e não tinha rollback). Agora cada deploy é uma **release
+> versionada** com **health-check antes do flip** e **rollback automático**.
+
+**Layout em prod:**
+
+```
+/opt/myfinance/
+  releases/<timestamp>-<sha>/   # cada deploy clona+builda aqui
+  current -> releases/<...>      # symlink pra release ativa (systemd aponta aqui)
+```
+
+**Scripts versionados** (em `infra/`):
+
+- `bootstrap-deploy.sh` — entry point via SSM: swap + clona main em `releases/` + chama `deploy.sh`.
+- `deploy.sh` — roda na release nova: deps + build + **health-check na porta 3001** → `migrate deploy` → **flip do symlink** + restart → health na 3000 → **rollback automático** se falhar → prune (mantém 5).
+- `rollback.sh` — volta `current` pra release anterior + restart.
+
+**Disparar um deploy** (da máquina com o profile `myfinance`):
+
+```bash
+aws ssm send-command --document-name AWS-RunShellScript \
+  --instance-ids i-09099b2b041adcdb6 --region sa-east-1 --profile myfinance \
+  --parameters '{"commands":["set -e; TOKEN=$(aws ssm get-parameter --name /myfinance/prod/GITHUB_TOKEN --with-decryption --region sa-east-1 --query Parameter.Value --output text); D=$(mktemp -d); git clone --depth 1 -b main https://${TOKEN}@github.com/HuskeLuv/SFC.git $D >/dev/null 2>&1; bash $D/infra/bootstrap-deploy.sh; rm -rf $D"],"executionTimeout":["1800"]}'
+```
+
+> O `bootstrap-deploy.sh` re-clona a versão final em `releases/`; o clone do mktemp
+> serve só pra obter o próprio bootstrap atualizado. A release antiga **continua
+> servindo** durante todo o build — só o flip troca a versão.
+
+**Rollback manual:**
+
+```bash
+aws ssm send-command --document-name AWS-RunShellScript \
+  --instance-ids i-09099b2b041adcdb6 --region sa-east-1 --profile myfinance \
+  --parameters '{"commands":["bash /opt/myfinance/current/infra/rollback.sh"]}'
+```
+
+### Migração one-time (passar do layout antigo `/opt/myfinance/app` pro releases/current)
+
+1. `mkdir -p /opt/myfinance/releases`
+2. Rodar `bootstrap-deploy.sh` UMA vez — ele cria `releases/<sha>` e tenta o flip;
+   nesse primeiro run o systemd ainda aponta pra `/opt/myfinance/app`, então o
+   "restart" reinicia a app antiga. Após o run, `current` já existe.
+3. Apontar o systemd pra `current` e reiniciar:
+   ```bash
+   sed -i 's#WorkingDirectory=/opt/myfinance/app#WorkingDirectory=/opt/myfinance/current#' \
+     /etc/systemd/system/myfinance.service
+   systemctl daemon-reload && systemctl restart myfinance
+   curl -sf http://localhost:3000/api/health   # confirmar
+   ```
+4. Validar e, se OK, o `/opt/myfinance/app` antigo pode ser removido depois.
+   **Rollback da migração:** apontar `WorkingDirectory` de volta pra `/opt/myfinance/app`.
+
+> **Build no CI (futuro):** hoje o build roda na box (em release isolada; o swap
+> cobre a RAM e a release ativa não é afetada). Mover o build pro GitHub Actions
+>
+> - artefato (S3/OIDC) é otimização futura, não requisito de segurança.
+
+> **Migrations:** `migrate deploy` roda antes do flip. Use migrations
+> forward-compatible (expand/contract) — o health-check é raso e não cobre
+> incompatibilidade de schema com a release anterior.
+
+---
+
+## Deploy manual legado (pré-Camada 2)
+
+> Mantido como referência. **Prefira o deploy atômico acima.**
+
 ## Pré-requisitos
 
 - `terraform apply` feito (EC2, RDS, SSM secrets, budget no ar).
