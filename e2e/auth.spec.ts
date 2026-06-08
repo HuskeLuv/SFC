@@ -12,12 +12,17 @@ test.describe('Authentication', () => {
     await expect(page.getByRole('button', { name: 'Entrar', exact: true })).toBeVisible();
   });
 
-  test('shows validation error on empty form submission', async ({ page }) => {
+  test('disables submit button while the form is empty', async ({ page }) => {
     await page.goto('/signin');
 
-    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    // Com o formulário vazio o botão fica desabilitado (disabled={loading || !formValid}),
+    // então não há submit vazio a validar — o botão simplesmente não é clicável.
+    await expect(page.getByRole('button', { name: 'Entrar', exact: true })).toBeDisabled();
 
-    await expect(page.getByText('Preencha todos os campos obrigatórios')).toBeVisible();
+    // Ao preencher os campos, o botão habilita.
+    await page.getByPlaceholder('Digite seu email').fill('alguem@email.com');
+    await page.getByPlaceholder('Digite sua senha').fill('algumasenha');
+    await expect(page.getByRole('button', { name: 'Entrar', exact: true })).toBeEnabled();
   });
 
   test('shows error on invalid credentials', async ({ page }) => {
