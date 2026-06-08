@@ -24,6 +24,12 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
+      # next-env.d.ts é gitignored e gerado pelo `next build`/`dev`. Sem ele, o
+      # `tsc --noEmit` isolado perde os tipos de import de SVG (SVGR) e quebra com
+      # falsos "className não atribuível a IntrinsicAttributes". Geramos o stub
+      # canônico (o build depois sobrescreve com o mesmo conteúdo).
+      - name: Generate next-env.d.ts
+        run: printf '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n' > next-env.d.ts
       - name: Type Check
         run: npm run type-check
       - name: Lint
