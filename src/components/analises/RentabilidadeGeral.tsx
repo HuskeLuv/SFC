@@ -8,6 +8,7 @@ import { useCarteiraHistorico } from '@/hooks/useCarteiraHistorico';
 import { useRentabilidadePeriodo } from '@/hooks/useRentabilidadePeriodo';
 import RentabilidadeChart from './RentabilidadeChart';
 import RentabilidadeResumo from './RentabilidadeResumo';
+import { inicioUltimosNMeses, inicioDoAno } from '@/utils/periodWindow';
 
 type RentabilidadeRangeValue = 'inicio' | 'ano' | '12m' | '2y' | '3y' | '5y' | '10y';
 type RentabilidadeMetric = 'mwr' | 'twr';
@@ -38,29 +39,20 @@ const getRangeStartDate = (range: RentabilidadeRangeValue, firstDate?: number) =
 
   let calculatedStart: number | undefined;
 
+  // Janelas ancoradas em mês-calendário (dia 1º), como o Kinvo. Ex.: "2 anos" em
+  // jun/2026 começa em 01/07/2024, não 08/06/2024 (janela rolante dia-a-dia).
+  const RANGE_TO_MONTHS: Partial<Record<RentabilidadeRangeValue, number>> = {
+    '12m': 12,
+    '2y': 24,
+    '3y': 36,
+    '5y': 60,
+    '10y': 120,
+  };
+
   if (range === 'ano') {
-    const yearStart = new Date(now.getFullYear(), 0, 1);
-    calculatedStart = normalizeStartDate(yearStart);
-  } else if (range === '12m') {
-    const start = new Date(now);
-    start.setMonth(start.getMonth() - 12);
-    calculatedStart = normalizeStartDate(start);
-  } else if (range === '2y') {
-    const start = new Date(now);
-    start.setFullYear(start.getFullYear() - 2);
-    calculatedStart = normalizeStartDate(start);
-  } else if (range === '3y') {
-    const start = new Date(now);
-    start.setFullYear(start.getFullYear() - 3);
-    calculatedStart = normalizeStartDate(start);
-  } else if (range === '5y') {
-    const start = new Date(now);
-    start.setFullYear(start.getFullYear() - 5);
-    calculatedStart = normalizeStartDate(start);
-  } else if (range === '10y') {
-    const start = new Date(now);
-    start.setFullYear(start.getFullYear() - 10);
-    calculatedStart = normalizeStartDate(start);
+    calculatedStart = normalizeStartDate(inicioDoAno(now));
+  } else if (RANGE_TO_MONTHS[range]) {
+    calculatedStart = normalizeStartDate(inicioUltimosNMeses(RANGE_TO_MONTHS[range]!, now));
   } else {
     calculatedStart = normalizedNow;
   }

@@ -6,6 +6,7 @@ import { useProventos } from '@/hooks/useProventos';
 import ProventosHistoricoChart from './ProventosHistoricoChart';
 import ProventosDistribuicao from './ProventosDistribuicao';
 import ProventosKpiCard from './ProventosKpiCard';
+import { inicioUltimosNMeses, inicioDoAno, toISODate } from '@/utils/periodWindow';
 
 type PeriodPill = 'ano' | '12m' | '24m' | '36m' | 'inicio';
 type GroupByType = 'ativo' | 'classe' | 'tipo';
@@ -26,27 +27,28 @@ const formatCurrency = (value: number) =>
 
 const formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
-/** Resolve a date range (ISO strings) for each period pill. */
+/**
+ * Resolve a date range (ISO strings) for each period pill.
+ * Janelas ancoradas em mês-calendário (dia 1º), como o Kinvo: "24 meses" em
+ * jun/2026 começa em 01/07/2024, não 06/06/2024 (janela rolante dia-a-dia).
+ */
 const resolvePeriodRange = (pill: PeriodPill): { startDate?: string; endDate?: string } => {
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
-  const endDate = today.toISOString().split('T')[0];
+  const now = new Date();
+  const endDate = toISODate(now);
 
   if (pill === 'inicio') return {};
 
-  const start = new Date(today);
+  let start: Date;
   if (pill === 'ano') {
-    start.setMonth(0);
-    start.setDate(1);
+    start = inicioDoAno(now);
   } else if (pill === '12m') {
-    start.setFullYear(start.getFullYear() - 1);
+    start = inicioUltimosNMeses(12, now);
   } else if (pill === '24m') {
-    start.setFullYear(start.getFullYear() - 2);
-  } else if (pill === '36m') {
-    start.setFullYear(start.getFullYear() - 3);
+    start = inicioUltimosNMeses(24, now);
+  } else {
+    start = inicioUltimosNMeses(36, now);
   }
-  start.setHours(0, 0, 0, 0);
-  return { startDate: start.toISOString().split('T')[0], endDate };
+  return { startDate: toISODate(start), endDate };
 };
 
 export default function ProventosConsolidado() {
