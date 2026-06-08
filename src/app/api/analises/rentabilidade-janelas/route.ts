@@ -13,6 +13,7 @@ import { computeMwr, saldoBrutoAt, type CashFlow } from '@/services/portfolio/mw
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { parseRangeMonths } from '@/utils/rangeQuery';
+import { inicioUltimosNMeses, inicioDoAno, inicioDoMes } from '@/utils/periodWindow';
 
 const IBOV_SYMBOL = '^BVSP';
 
@@ -232,13 +233,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const hojeMs = hoje.getTime();
   const DAY_MS = 24 * 60 * 60 * 1000;
 
-  const startOfMonth = new Date(hoje.getFullYear(), hoje.getMonth(), 1).getTime();
-  const startOfYear = new Date(hoje.getFullYear(), 0, 1).getTime();
-  const minus = (months: number) => {
-    const d = new Date(hoje);
-    d.setMonth(d.getMonth() - months);
-    return d.getTime();
-  };
+  // Janelas ancoradas em mês-calendário (dia 1º), como o Kinvo: "24 meses" em
+  // jun/2026 começa em 01/07/2024, não 08/06/2024 (janela rolante dia-a-dia).
+  const startOfMonth = inicioDoMes(hoje).getTime();
+  const startOfYear = inicioDoAno(hoje).getTime();
+  const minus = (months: number) => inicioUltimosNMeses(months, hoje).getTime();
 
   // cashFlowsByDay vem do builder com convenção: amount > 0 = aporte, < 0 = resgate.
   // É o input direto pro computeMwr.
