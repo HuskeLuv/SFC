@@ -68,7 +68,9 @@ const getRangeStartDate = (range: RentabilidadeRangeValue, firstDate?: number) =
 
 export default function RentabilidadeGeral() {
   const [selectedRange, setSelectedRange] = useState<RentabilidadeRangeValue>('inicio');
-  const [metric, setMetric] = useState<RentabilidadeMetric>('mwr');
+  // TWR como padrão: é a rentabilidade por cota (time-weighted) que o Kinvo e os
+  // benchmarks usam — comparação apples-to-apples. O toggle MWR continua disponível.
+  const [metric, setMetric] = useState<RentabilidadeMetric>('twr');
   const { resumo, loading: carteiraLoading } = useCarteiraResumoContext();
 
   // Calcular data do primeiro investimento (primeira data com valor não-zero do histórico)

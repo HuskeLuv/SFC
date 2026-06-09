@@ -177,16 +177,18 @@ const toDayKey = (ts: number): number => {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 };
 
-// Cores para cada série
-const COLORS = [
-  '#465FFF', // Carteira (azul)
-  '#10B981', // IBOV (verde)
-  '#F59E0B', // IFIX (laranja)
-  '#8B5CF6', // Poupança (roxo)
-  '#EF4444', // IPCA (vermelho)
-  '#06B6D4', // IBRX (ciano)
-  '#84CC16', // IMA-B (verde claro)
-];
+// Paleta por NOME de série, alinhada ao Kinvo (comparação lado a lado). Mapear
+// por nome (não por posição) evita que a ordem das séries troque as cores.
+const KINVO_COLOR_BY_NAME: Record<string, string> = {
+  CDI: '#8B5CF6', // roxo
+  IBOV: '#F59E0B', // laranja
+  IPCA: '#22C55E', // verde
+  'Inflação (IPCA)': '#22C55E',
+  Poupança: '#EC4899', // magenta
+  Poupanca: '#EC4899',
+};
+const CARTEIRA_COLOR = '#06B6D4'; // ciano (como no Kinvo)
+const FALLBACK_SERIES_COLOR = '#94A3B8';
 
 // Função para agrupar dados por mês (pega o último valor de cada mês)
 const groupByMonth = (data: IndexData[]): IndexData[] => {
@@ -494,6 +496,17 @@ export default function RentabilidadeChart({
 
   const chartType = chartTypeProp ?? (period === '1mo' || period === '1y' ? 'bar' : 'line');
 
+  // Cores por NOME de série (paleta Kinvo), na ordem em que as séries entram.
+  const seriesColors = useMemo(
+    () =>
+      series.map((s) =>
+        s.name === carteiraLabel
+          ? CARTEIRA_COLOR
+          : (KINVO_COLOR_BY_NAME[s.name] ?? FALLBACK_SERIES_COLOR),
+      ),
+    [series, carteiraLabel],
+  );
+
   // Eixo Y com escala "redonda": passo 1/2/5 × 10^n (nice numbers) — em faixas de
   // rentabilidade típicas vira 5/10/20/50 (múltiplos de 5), deixando o gráfico
   // visualmente comparável com outros. min/max snapados ao passo; ticks caem
@@ -518,12 +531,16 @@ export default function RentabilidadeChart({
     const span = hi - lo;
     lo -= span * 0.05;
     hi += span * 0.05;
-    // passo "bonito" mirando ~7 divisões
-    const rough = (hi - lo) / 7 || 1;
-    const mag = Math.pow(10, Math.floor(Math.log10(rough)));
-    const norm = rough / mag;
-    const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
-    const step = niceNorm * mag;
+    // Passo a partir de candidatos MÚLTIPLOS DE 5 (mesma família que o Kinvo:
+    // faixas de rentabilidade típicas caem em 25 → escala idêntica). Escolhe o
+    // menor candidato que mantenha ≤ ~7 divisões. Faixas muito pequenas (RF)
+    // usam passos sub-5 (0.1/0.2/0.5) só pra a curva não colar no rodapé.
+    const STEP_CANDIDATES = [
+      0.1, 0.2, 0.5, 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000,
+    ];
+    const target = hi - lo || 1;
+    const step =
+      STEP_CANDIDATES.find((c) => target / c <= 7) ?? STEP_CANDIDATES[STEP_CANDIDATES.length - 1];
     const min = Math.floor(lo / step) * step;
     const max = Math.ceil(hi / step) * step;
     const tickAmount = Math.max(1, Math.round((max - min) / step));
@@ -575,7 +592,7 @@ export default function RentabilidadeChart({
           strokeWidth: 0,
         },
       },
-      colors: customColors ?? COLORS,
+      colors: customColors ?? seriesColors,
       chart: {
         fontFamily: 'Outfit, sans-serif',
         height: 300,
@@ -797,7 +814,15 @@ export default function RentabilidadeChart({
     }
 
     return baseOptions;
-  }, [period, chartType, uniqueYearsCount, customColors, legendPosition, yAxisBounds]);
+  }, [
+    period,
+    chartType,
+    uniqueYearsCount,
+    customColors,
+    legendPosition,
+    yAxisBounds,
+    seriesColors,
+  ]);
 
   const hasSeriesData = Array.isArray(series) && series.length > 0;
 
