@@ -494,9 +494,12 @@ export default function RentabilidadeChart({
 
   const chartType = chartTypeProp ?? (period === '1mo' || period === '1y' ? 'bar' : 'line');
 
-  // Janela apertada no eixo Y. Sem isso, para ativos de renda fixa cuja rentabilidade
-  // cresce suavemente (0 → 2%), a curva fica colada no rodapé do gráfico.
-  const yAxisMin = useMemo(() => {
+  // Eixo Y com escala "redonda": passo 1/2/5 × 10^n (nice numbers) — em faixas de
+  // rentabilidade típicas vira 5/10/20/50 (múltiplos de 5), deixando o gráfico
+  // visualmente comparável com outros. min/max snapados ao passo; ticks caem
+  // exatamente nos múltiplos. Faixas pequenas (RF 0→2%) usam passo proporcional
+  // (0.5/1/2) pra a curva não colar no rodapé.
+  const yAxisBounds = useMemo(() => {
     const values: number[] = [];
     series.forEach((s) => {
       s.data.forEach((point) => {
@@ -506,11 +509,26 @@ export default function RentabilidadeChart({
       });
     });
     if (values.length === 0) return undefined;
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const range = maxValue - minValue;
-    const padding = range > 0 ? range * 0.1 : Math.max(Math.abs(minValue) * 0.05, 0.5);
-    return minValue - padding;
+    let lo = Math.min(...values);
+    let hi = Math.max(...values);
+    if (lo === hi) {
+      lo -= 1;
+      hi += 1;
+    }
+    const span = hi - lo;
+    lo -= span * 0.05;
+    hi += span * 0.05;
+    // passo "bonito" mirando ~7 divisões
+    const rough = (hi - lo) / 7 || 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+    const norm = rough / mag;
+    const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    const step = niceNorm * mag;
+    const min = Math.floor(lo / step) * step;
+    const max = Math.ceil(hi / step) * step;
+    const tickAmount = Math.max(1, Math.round((max - min) / step));
+    const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
+    return { min, max, tickAmount, decimals };
   }, [series]);
 
   // Calcular número de anos únicos quando período for anual (após agrupamento)
@@ -672,9 +690,11 @@ export default function RentabilidadeChart({
         },
       },
       yaxis: {
-        min: yAxisMin,
-        decimalsInFloat: 2,
-        forceNiceScale: true,
+        min: yAxisBounds?.min,
+        max: yAxisBounds?.max,
+        tickAmount: yAxisBounds?.tickAmount,
+        decimalsInFloat: yAxisBounds?.decimals ?? 2,
+        forceNiceScale: false,
         title: {
           text: period === '1mo' ? '% por mês' : period === '1y' ? '% por ano' : 'Retorno (%)',
           style: {
@@ -688,11 +708,10 @@ export default function RentabilidadeChart({
             fontSize: '12px',
           },
           formatter: (val: number) => {
-            // Garantir que sempre mostra 2 casas decimais, removendo zeros desnecessários
+            // Casas decimais conforme o passo do eixo (passo redondo → 0 casas).
             const num = Number(val);
-            if (isNaN(num)) return '0.00%';
-            const formatted = num.toFixed(2);
-            return `${formatted}%`;
+            if (isNaN(num)) return '0%';
+            return `${num.toFixed(yAxisBounds?.decimals ?? 0)}%`;
           },
         },
       },
@@ -778,7 +797,7 @@ export default function RentabilidadeChart({
     }
 
     return baseOptions;
-  }, [period, chartType, uniqueYearsCount, customColors, legendPosition, yAxisMin]);
+  }, [period, chartType, uniqueYearsCount, customColors, legendPosition, yAxisBounds]);
 
   const hasSeriesData = Array.isArray(series) && series.length > 0;
 
