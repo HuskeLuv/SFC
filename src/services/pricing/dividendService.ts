@@ -4,7 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { syncYahooSplits } from '@/services/pricing/yahooCorporateActions';
+import { syncYahooSplits, syncYahooDividends } from '@/services/pricing/yahooCorporateActions';
 
 const BLOCKED_SYMBOL_PREFIXES = [
   'RESERVA-EMERG',
@@ -509,4 +509,6 @@ export const ensureCorporateActionsSynced = async (
   // errada. Símbolos já existentes são cobertos pelo backfill + cron.
   await getCorporateActions(symbol, { useBrapiFallback: true });
   await syncYahooSplits(symbol);
+  // Preenche o gap de dividendos antigos (BRAPI free só guarda ~12 meses).
+  await syncYahooDividends(symbol);
 };

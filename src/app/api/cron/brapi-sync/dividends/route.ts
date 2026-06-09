@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getDividends } from '@/services/pricing/dividendService';
-import { syncYahooSplits } from '@/services/pricing/yahooCorporateActions';
+import { syncYahooSplits, syncYahooDividends } from '@/services/pricing/yahooCorporateActions';
 import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProventosFromMarket';
 import { CORPORATE_ACTION_NOTE_MARKER } from '@/services/portfolio/corporateActions';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -52,6 +52,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
       await prisma.assetDividendHistory.deleteMany({ where: { symbol } });
       const dividends = await getDividends(symbol, { useBrapiFallback: true });
+      // Re-preenche o gap de dividendos antigos via Yahoo (a BRAPI free só guarda
+      // ~12 meses; o delete acima apagou o gap-fill anterior). DEPOIS do BRAPI.
+      await syncYahooDividends(symbol);
       if (dividends.length === 0) {
         symbolsProcessed += 1;
         continue;

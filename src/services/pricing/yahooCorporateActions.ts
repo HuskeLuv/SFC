@@ -13,6 +13,7 @@
  */
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporateActions';
 
 const YAHOO_HOSTS = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
 // UA minimalista — o anti-bot do Yahoo rejeita UAs completos (ver yahooFinanceSync).
@@ -164,6 +165,136 @@ export async function syncYahooSplits(symbol: string): Promise<number> {
     return await persistYahooSplits(symbol, splits);
   } catch (err) {
     logger.warn(`[yahoo-ca] sync de ${symbol} falhou (não-fatal):`, err);
+    return 0;
+  }
+}
+
+// ===================== DIVIDENDOS =====================
+
+interface YahooDivRaw {
+  date?: number;
+  amount?: number;
+}
+
+export interface YahooDividend {
+  /** Data de pagamento, normalizada para 00:00 UTC. */
+  date: Date;
+  /** Valor por cota — Yahoo entrega SPLIT-ADJUSTED (escala pós-split). */
+  amount: number;
+}
+
+/**
+ * Busca dividendos de um símbolo B3 no Yahoo (`events=div`). Não persiste.
+ * ATENÇÃO: os valores vêm split-ADJUSTED (ex.: HFOF11 0,06/cota mesmo pré-split).
+ */
+export async function fetchYahooDividends(symbol: string, years = 25): Promise<YahooDividend[]> {
+  const ticker = toYahooTicker(symbol);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const period1 = nowSec - Math.ceil(years * 365.25 * 24 * 60 * 60);
+  const qs = `?period1=${period1}&period2=${nowSec}&interval=1d&events=div`;
+
+  let data: {
+    chart?: {
+      result?: Array<{ events?: { dividends?: Record<string, YahooDivRaw> } }> | null;
+      error?: unknown;
+    };
+  } | null = null;
+  let lastErr: unknown = null;
+  for (const host of YAHOO_HOSTS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(
+        `https://${host}/v8/finance/chart/${encodeURIComponent(ticker)}${qs}`,
+        {
+          headers: { 'User-Agent': USER_AGENT },
+          signal: controller.signal,
+        },
+      );
+      if (!res.ok) {
+        lastErr = new Error(`Yahoo HTTP ${res.status} via ${host} para ${ticker}`);
+        continue;
+      }
+      data = await res.json();
+      break;
+    } catch (err) {
+      lastErr = err;
+      continue;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+  if (!data) throw lastErr instanceof Error ? lastErr : new Error(`Yahoo falhou para ${ticker}`);
+  if (data.chart?.error) return [];
+
+  const divsObj = data.chart?.result?.[0]?.events?.dividends ?? {};
+  const out: YahooDividend[] = [];
+  for (const raw of Object.values(divsObj)) {
+    const amount = Number(raw.amount);
+    const ts = Number(raw.date);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(ts) || ts <= 0) continue;
+    out.push({ date: normalizeUtcDay(ts), amount });
+  }
+  return out.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+/**
+ * Preenche o GAP de dividendos de um símbolo usando o Yahoo, des-ajustando os
+ * valores split-adjusted de volta pra CRU (× fator dos eventos após a data),
+ * pra casar com a convenção da BRAPI (valor/cota cru no momento) + cálculo por
+ * quantidade real. Só insere datas ANTERIORES ao dividendo mais antigo já no
+ * banco (não toca no que a BRAPI tem). Best-effort. Retorna nº de inseridos.
+ */
+export async function syncYahooDividends(symbol: string): Promise<number> {
+  try {
+    const divs = await fetchYahooDividends(symbol);
+    if (divs.length === 0) return 0;
+    const dbSymbol = toDbSymbol(symbol);
+
+    const earliest = await prisma.assetDividendHistory.findFirst({
+      where: { symbol: dbSymbol },
+      orderBy: { date: 'asc' },
+      select: { date: true },
+    });
+    const cutoff = earliest?.date.getTime() ?? Infinity;
+
+    const cas = await prisma.assetCorporateAction.findMany({
+      where: { symbol: dbSymbol, type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) } },
+      select: { date: true, factor: true },
+    });
+    const cumFactorAfter = (dMs: number): number =>
+      cas.reduce(
+        (f, c) =>
+          c.date.getTime() > dMs && Number.isFinite(c.factor) && c.factor > 0 ? f * c.factor : f,
+        1,
+      );
+
+    let n = 0;
+    for (const div of divs) {
+      const dMs = div.date.getTime();
+      if (dMs >= cutoff) continue; // só preenche o gap anterior ao que já existe
+      const raw = div.amount * cumFactorAfter(dMs); // des-ajusta pra cru
+      if (!(raw > 0)) continue;
+      try {
+        await prisma.assetDividendHistory.upsert({
+          where: { symbol_date_tipo: { symbol: dbSymbol, date: div.date, tipo: 'Dividendo' } },
+          update: {},
+          create: {
+            symbol: dbSymbol,
+            date: div.date,
+            tipo: 'Dividendo',
+            valorUnitario: raw,
+            source: YAHOO_CA_SOURCE,
+          },
+        });
+        n++;
+      } catch (err) {
+        logger.warn(`[yahoo-div] falha ao gravar dividendo de ${dbSymbol}:`, err);
+      }
+    }
+    return n;
+  } catch (err) {
+    logger.warn(`[yahoo-div] sync de ${symbol} falhou (não-fatal):`, err);
     return 0;
   }
 }
