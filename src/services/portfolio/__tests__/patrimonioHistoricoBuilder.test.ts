@@ -834,4 +834,49 @@ describe('buildPatrimonioHistorico', () => {
     expect(post / pre).toBeGreaterThan(0.8);
     expect(post / pre).toBeLessThan(1.25);
   });
+
+  it('soma proventos recebidos ao saldoBruto (retorno TOTAL, não só preço)', async () => {
+    mockCaFindMany.mockResolvedValue([]);
+    const buyDate = new Date(Date.UTC(2025, 0, 2));
+    // preço plano em 100 → valor de mercado constante = 10 × 100 = 1000
+    const hist: Array<{ date: number; value: number }> = [];
+    for (let d = 2; d <= 20; d++) hist.push({ date: Date.UTC(2025, 0, d), value: 100 });
+    mockGetAssetHistory.mockResolvedValue(hist);
+
+    const tx = {
+      id: 'tx-prov',
+      date: buyDate,
+      type: 'compra',
+      quantity: 10,
+      price: 100,
+      total: 1000,
+      asset: { symbol: 'ITUB4', name: 'Itau', type: 'stock' },
+      stockId: 'stk',
+      assetId: null,
+      userId: 'u1',
+      portfolioId: 'p1',
+    } as unknown as StockTransactionWithRelations;
+
+    const base = {
+      ...emptyParams,
+      stockTransactions: [tx],
+      saldoBrutoAtual: 1000,
+      valorAplicadoAtual: 1000,
+      patchLastDayWithLiveTotals: false,
+      timelineEndDate: new Date(Date.UTC(2025, 0, 20)),
+    };
+
+    // sem proventos: saldoBruto final ~1000 (só preço)
+    const semProv = await buildPatrimonioHistorico(base);
+    const lastSem = semProv.historicoPatrimonio[semProv.historicoPatrimonio.length - 1].saldoBruto;
+
+    // com R$ 50 de provento recebido em 10/01: saldoBruto final ~1050
+    const proventosByDay = new Map<number, number>([[Date.UTC(2025, 0, 10), 50]]);
+    const comProv = await buildPatrimonioHistorico({ ...base, proventosByDay });
+    const lastCom = comProv.historicoPatrimonio[comProv.historicoPatrimonio.length - 1].saldoBruto;
+
+    expect(lastSem).toBeCloseTo(1000, 0);
+    expect(lastCom).toBeCloseTo(1050, 0); // 1000 preço + 50 provento
+    expect(lastCom - lastSem).toBeCloseTo(50, 0);
+  });
 });

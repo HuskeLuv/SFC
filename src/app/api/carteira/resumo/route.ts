@@ -14,6 +14,7 @@ import { filterInvestmentsExclReservas } from '@/utils/cashflowFilters';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { parseRangeMonths } from '@/utils/rangeQuery';
+import { loadProventosByDay } from '@/services/portfolio/proventosByDay';
 const resumoCache = getTtlCache<Record<string, unknown>>('carteiraResumo');
 
 type FixedIncomeAssetWithAsset = {
@@ -347,12 +348,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // rentabilidade é TOTAL (capital + renda), igual à metodologia do Kinvo.
   // Sem isso, ativos com dividendo apareciam com retorno só de capital — ex.:
   // um FII que rendeu +35% com proventos aparecia como -12% (só o preço).
-  const proventosAgg = await prisma.portfolioProvento.aggregate({
-    where: { userId: targetUserId, dismissed: false, dataPagamento: { lte: new Date() } },
-    _sum: { valorTotal: true, impostoRenda: true },
-  });
-  const proventosRecebidos =
-    (proventosAgg._sum.valorTotal ?? 0) - (proventosAgg._sum.impostoRenda ?? 0);
+  // Proventos por dia (líquido de IRRF) — alimentam a SÉRIE de rentabilidade
+  // (historicoTWR/MWR) além do card, pra ser retorno TOTAL (capital + renda).
+  const { proventosByDay, total: proventosRecebidos } = await loadProventosByDay(targetUserId);
 
   const rentabilidade =
     valorAplicado > 0
@@ -470,6 +468,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         patchLastDayWithLiveTotals: false,
         fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
         implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
+        proventosByDay,
       });
       if (usePortfolioSnapshots) {
         const startMs = built.historicoPatrimonio[0]?.data ?? hoje.getTime();

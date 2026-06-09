@@ -489,6 +489,15 @@ export type BuildPatrimonioHistoricoParams = {
   ) => Array<{ date: number; value: number }>;
   /** Fim da linha do tempo (ex.: ontem no job diário). Default: hoje. */
   timelineEndDate?: Date;
+  /**
+   * Proventos recebidos (líquidos de IRRF) por dia (chave = dia normalizado UTC,
+   * valor = soma do dia). Entram no RETORNO (somados ao saldoBruto, acumulados),
+   * NÃO como fluxo de caixa — dividendo é retorno interno, não aporte. Sem isso a
+   * série de rentabilidade fica só com o preço (ex.: FII que caiu 11% mas pagou
+   * 18% de dividendo aparecia como -11% no gráfico, batendo com o card só após o
+   * fix do card). Casa o gráfico com o número do card e com o Kinvo.
+   */
+  proventosByDay?: Map<number, number>;
 };
 
 export type BuildPatrimonioHistoricoResult = {
@@ -520,6 +529,7 @@ export const buildPatrimonioHistorico = async (
     implicitCdiValueSeriesBuilder,
     patchLastDayWithLiveTotals,
     timelineEndDate,
+    proventosByDay,
   } = params;
 
   const historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }> =
@@ -892,6 +902,7 @@ export const buildPatrimonioHistorico = async (
   const rendimentosByDay = new Map<number, number>();
   let cashBalance = 0;
   let rendimentosAcumulados = 0;
+  let proventosAcumulados = 0;
   let manualInvestmentsValue = 0;
   let valorAplicadoDia = 0;
   const patrimonioSeries: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
@@ -907,6 +918,12 @@ export const buildPatrimonioHistorico = async (
   }
   for (const [day, delta] of cashDeltasByDay) {
     if (day < timelineStartTs) cashBalance += delta;
+  }
+  // Proventos recebidos antes do início da janela já contam como retorno acumulado.
+  if (proventosByDay) {
+    for (const [day, valor] of proventosByDay) {
+      if (day < timelineStartTs) proventosAcumulados += valor;
+    }
   }
 
   for (const day of timeline) {
@@ -930,6 +947,10 @@ export const buildPatrimonioHistorico = async (
 
     if (appliedDeltasByDay.has(day)) {
       valorAplicadoDia += appliedDeltasByDay.get(day) || 0;
+    }
+
+    if (proventosByDay?.has(day)) {
+      proventosAcumulados += proventosByDay.get(day) || 0;
     }
 
     transactionsBySymbol.forEach((deltas, symbol) => {
@@ -964,7 +985,11 @@ export const buildPatrimonioHistorico = async (
     });
 
     const saldoBrutoDia =
-      valorMercadoAtivos + manualInvestmentsValue + cashBalance + rendimentosAcumulados;
+      valorMercadoAtivos +
+      manualInvestmentsValue +
+      cashBalance +
+      rendimentosAcumulados +
+      proventosAcumulados;
 
     patrimonioSeries.push({
       data: day,
