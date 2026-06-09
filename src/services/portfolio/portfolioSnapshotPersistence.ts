@@ -2,6 +2,7 @@ import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { normalizeDateStart } from './patrimonioHistoricoBuilder';
 import { buildPatrimonioHistorico } from './patrimonioHistoricoBuilder';
+import { loadProventosByDay } from './proventosByDay';
 import { loadCarteiraHistoricoData } from './carteiraHistoricoDataLoader';
 import { createFixedIncomePricer } from './fixedIncomePricing';
 
@@ -29,6 +30,9 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
     asOfDate: timelineEndDate,
   });
 
+  // Proventos recebidos entram no retorno (série = retorno total, igual ao card).
+  const { proventosByDay } = await loadProventosByDay(userId);
+
   const { historicoPatrimonio, historicoTWR } = await buildPatrimonioHistorico({
     portfolio,
     fixedIncomeAssets,
@@ -41,6 +45,7 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
     timelineEndDate,
     fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
     implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
+    proventosByDay,
   });
 
   if (historicoPatrimonio.length === 0) {
@@ -151,6 +156,9 @@ export const persistFullHistoryForUser = async (userId: string, timelineEndDate:
     asOfDate: timelineEndDate,
   });
 
+  // Proventos recebidos entram no retorno (série = retorno total, igual ao card).
+  const { proventosByDay } = await loadProventosByDay(userId);
+
   const { historicoPatrimonio, historicoTWR } = await buildPatrimonioHistorico({
     portfolio,
     fixedIncomeAssets,
@@ -163,6 +171,7 @@ export const persistFullHistoryForUser = async (userId: string, timelineEndDate:
     timelineEndDate,
     fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
     implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
+    proventosByDay,
   });
 
   if (historicoPatrimonio.length === 0) {
