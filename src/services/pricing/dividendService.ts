@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { syncYahooSplits } from '@/services/pricing/yahooCorporateActions';
 
 const BLOCKED_SYMBOL_PREFIXES = [
   'RESERVA-EMERG',
@@ -502,6 +503,10 @@ export const ensureCorporateActionsSynced = async (
   // Já sincronizado antes (pela rotina ou por um registro anterior) → no-op.
   if (caCount > 0 || divCount > 0) return;
 
-  // Nunca visto: busca na BRAPI (persiste eventos corporativos + dividendos).
+  // Nunca visto: busca na BRAPI (dividendos + bonificações) E no Yahoo (splits/
+  // grupamentos — a BRAPI só os entrega no módulo pago `splitHistory`). Sem o
+  // Yahoo, desdobramentos de FII (ex.: HFOF11 10:1) não chegam e a posição fica
+  // errada. Símbolos já existentes são cobertos pelo backfill + cron.
   await getCorporateActions(symbol, { useBrapiFallback: true });
+  await syncYahooSplits(symbol);
 };
