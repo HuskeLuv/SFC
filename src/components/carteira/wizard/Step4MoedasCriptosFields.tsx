@@ -4,8 +4,6 @@ import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
-import PriceDeviationHint from './PriceDeviationHint';
-import { CRYPTO_PRICE_DEVIATION_THRESHOLD } from './priceDeviationWarning';
 
 interface Step4MoedasCriptosFieldsProps extends Step4FieldsProps {
   variant: 'criptoativo' | 'moeda';
@@ -57,13 +55,6 @@ export default function Step4MoedasCriptosFields({
             hint={errors.cotacaoCompra}
             min="0"
             step="0.01"
-          />
-          <PriceDeviationHint
-            enteredPrice={formData.cotacaoCompra}
-            currentPrice={formData.assetCurrentPrice}
-            threshold={CRYPTO_PRICE_DEVIATION_THRESHOLD}
-            symbol={formData.ativo}
-            referenceDate={formData.dataCompra}
           />
         </div>
       </>
