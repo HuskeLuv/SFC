@@ -20,6 +20,7 @@
 import { prisma } from '@/lib/prisma';
 import { fetchYahooSplits, persistYahooSplits } from '@/services/pricing/yahooCorporateActions';
 import { recalculatePortfolioFromTransactions } from '@/services/portfolio/portfolioRecalculation';
+import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
 
 const CA_TYPES = ['acao', 'stock', 'fii', 'etf', 'reit', 'fim-fia', 'bdr'];
 const THROTTLE_MS = 300;
@@ -91,6 +92,8 @@ async function main() {
                 portfolioId: p.id,
                 recomputeSnapshotsFrom: splits[0].date,
               });
+              // Cria a linha de auditoria do evento no extrato (idempotente).
+              await applyCorporateActionsToUserPositions(p.userId, { assetId });
               positionsRecomputed++;
             }
             if (portfolios.length)
