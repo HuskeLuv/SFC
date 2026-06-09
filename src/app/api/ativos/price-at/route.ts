@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporateActions';
 
 const yyyyMmDdRegex = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -66,11 +67,28 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
+  // O preço armazenado (BRAPI) é split-ADJUSTED — na data passada ele aparece já
+  // na escala pós-split. O usuário, porém, digita o preço CRU que valia naquele
+  // dia. Sem des-ajustar, um ativo que sofreu split daria falso alerta de
+  // divergência (ex.: digitado R$60 pré-split vs ajustado R$6). Multiplicamos
+  // pelo fator dos eventos POSTERIORES à data → preço cru daquele dia.
+  const corporateActions = await prisma.assetCorporateAction.findMany({
+    where: { symbol, type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) } },
+    select: { date: true, factor: true },
+  });
+  const rowMs = row.date.getTime();
+  const cumFactorAfter = corporateActions.reduce(
+    (f, ca) =>
+      ca.date.getTime() > rowMs && Number.isFinite(ca.factor) && ca.factor > 0 ? f * ca.factor : f,
+    1,
+  );
+  const rawPrice = Number(row.price) * cumFactorAfter;
+
   return NextResponse.json({
     symbol,
     date: dateParam,
     effectiveDate: row.date.toISOString().split('T')[0],
-    price: Number(row.price),
+    price: rawPrice,
     source: row.source,
   });
 });

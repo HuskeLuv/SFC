@@ -6,7 +6,6 @@ import Select from '@/components/form/Select';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import { Step4FieldsProps } from './step4Types';
-import PriceDeviationHint from './PriceDeviationHint';
 
 export default function Step4AcoesFields({
   formData,
@@ -68,12 +67,6 @@ export default function Step4AcoesFields({
           hint={errors.cotacaoUnitaria}
           min="0"
           step="0.01"
-        />
-        <PriceDeviationHint
-          enteredPrice={formData.cotacaoUnitaria}
-          currentPrice={formData.assetCurrentPrice}
-          symbol={formData.ativo}
-          referenceDate={formData.dataCompra}
         />
       </div>
       <div>

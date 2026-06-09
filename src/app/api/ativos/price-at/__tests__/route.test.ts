@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
   assetPriceHistory: { findFirst: vi.fn() },
+  assetCorporateAction: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -22,6 +23,7 @@ const req = (qs: string) => new NextRequest(`http://localhost/api/ativos/price-a
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
 });
 
 describe('GET /api/ativos/price-at (#3 / D.3 checklist mai/28)', () => {
@@ -42,6 +44,38 @@ describe('GET /api/ativos/price-at (#3 / D.3 checklist mai/28)', () => {
       price: 27.5,
       source: 'B3_COTAHIST',
     });
+  });
+
+  it('des-ajusta o preço pra cru quando houve split APÓS a data (sem falso alerta)', async () => {
+    // Preço armazenado é split-adjusted (~6); na data pré-split o cru era ~60.
+    mockPrisma.assetPriceHistory.findFirst.mockResolvedValue({
+      date: new Date('2024-06-15T00:00:00Z'),
+      price: 6.0,
+      source: 'BRAPI',
+    });
+    // split 10:1 em 2025-05-12 (depois da data) → fator 10
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+      { date: new Date('2025-05-12T00:00:00Z'), factor: 10 },
+    ]);
+
+    const res = await GET(req('symbol=HFOF11&date=2024-06-15'));
+    const data = await res.json();
+    expect(data.price).toBeCloseTo(60, 5); // 6 × 10 = preço cru daquele dia
+  });
+
+  it('NÃO altera o preço quando o split é ANTERIOR à data', async () => {
+    mockPrisma.assetPriceHistory.findFirst.mockResolvedValue({
+      date: new Date('2025-08-01T00:00:00Z'),
+      price: 6.0,
+      source: 'BRAPI',
+    });
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+      { date: new Date('2025-05-12T00:00:00Z'), factor: 10 },
+    ]);
+
+    const res = await GET(req('symbol=HFOF11&date=2025-08-01'));
+    const data = await res.json();
+    expect(data.price).toBeCloseTo(6, 5); // split antes → já na escala certa
   });
 
   it('faz fallback pro fechamento mais recente anterior quando data exata não tem', async () => {
