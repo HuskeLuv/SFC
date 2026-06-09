@@ -4,7 +4,11 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { syncYahooSplits, syncYahooDividends } from '@/services/pricing/yahooCorporateActions';
+import {
+  syncYahooSplits,
+  syncYahooDividends,
+  YAHOO_CA_SOURCE,
+} from '@/services/pricing/yahooCorporateActions';
 
 const BLOCKED_SYMBOL_PREFIXES = [
   'RESERVA-EMERG',
@@ -500,15 +504,36 @@ export const ensureCorporateActionsSynced = async (
     prisma.assetCorporateAction.count({ where: { symbol: { in: variants } } }),
     prisma.assetDividendHistory.count({ where: { symbol: { in: variants } } }),
   ]);
-  // Já sincronizado antes (pela rotina ou por um registro anterior) → no-op.
-  if (caCount > 0 || divCount > 0) return;
 
-  // Nunca visto: busca na BRAPI (dividendos + bonificações) E no Yahoo (splits/
-  // grupamentos — a BRAPI só os entrega no módulo pago `splitHistory`). Sem o
-  // Yahoo, desdobramentos de FII (ex.: HFOF11 10:1) não chegam e a posição fica
-  // errada. Símbolos já existentes são cobertos pelo backfill + cron.
-  await getCorporateActions(symbol, { useBrapiFallback: true });
-  await syncYahooSplits(symbol);
-  // Preenche o gap de dividendos antigos (BRAPI free só guarda ~12 meses).
-  await syncYahooDividends(symbol);
+  // Nunca visto: sync COMPLETO no ato — BRAPI (dividendos + bonificações) E Yahoo
+  // (splits/grupamentos, que a BRAPI só entrega no módulo pago `splitHistory`, +
+  // dividendos antigos, que a BRAPI free não guarda). Sem isso, desdobramentos de
+  // FII (ex.: HFOF11 10:1) não chegam e a posição/proventos ficam errados.
+  if (caCount === 0 && divCount === 0) {
+    await getCorporateActions(symbol, { useBrapiFallback: true });
+    await syncYahooSplits(symbol);
+    await syncYahooDividends(symbol);
+    return;
+  }
+
+  // Já tem dados (catálogo/cron), mas pode FALTAR o histórico ANTIGO de
+  // dividendos: a BRAPI free só guarda ~12 meses. Preenchemos o gap aqui, no add,
+  // pra NÃO depender do cron — uma única vez por símbolo (marca = já existir
+  // dividendo source=YAHOO) e só quando o histórico atual é raso (mais antigo
+  // recente), evitando re-buscar o Yahoo à toa em cada edição.
+  const [yahooDivCount, earliest] = await Promise.all([
+    prisma.assetDividendHistory.count({
+      where: { symbol: { in: variants }, source: YAHOO_CA_SOURCE },
+    }),
+    prisma.assetDividendHistory.findFirst({
+      where: { symbol: { in: variants } },
+      orderBy: { date: 'asc' },
+      select: { date: true },
+    }),
+  ]);
+  const earliestMs = earliest?.date.getTime() ?? 0;
+  const GAP_THRESHOLD_MS = 18 * 30 * 24 * 60 * 60 * 1000; // ~18 meses
+  if (yahooDivCount === 0 && earliestMs > Date.now() - GAP_THRESHOLD_MS) {
+    await syncYahooDividends(symbol);
+  }
 };

@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockPrisma = vi.hoisted(() => ({
   assetDividendHistory: {
     findMany: vi.fn(),
+    findFirst: vi.fn(),
+    deleteMany: vi.fn(),
     upsert: vi.fn(),
     count: vi.fn(),
   },
@@ -547,6 +549,43 @@ describe('ensureCorporateActionsSynced', () => {
     mockPrisma.assetDividendHistory.count.mockResolvedValue(0);
 
     await ensureCorporateActionsSynced('MGLU3', 'stock');
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('preenche gap de dividendos antigos no ADD (sem cron) quando histórico é raso', async () => {
+    // já tem CA (catálogo) + dividendos recentes da BRAPI, mas o mais antigo é
+    // recente (~6 meses) e não há nada source=YAHOO → deve buscar o Yahoo no ato.
+    mockPrisma.assetCorporateAction.count.mockResolvedValue(1); // caCount
+    mockPrisma.assetDividendHistory.count
+      .mockResolvedValueOnce(12) // divCount (tem dados)
+      .mockResolvedValueOnce(0); // yahooDivCount (nada do Yahoo ainda)
+    mockPrisma.assetDividendHistory.findFirst.mockResolvedValue({
+      date: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000),
+    });
+    mockPrisma.assetDividendHistory.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ chart: { result: [{}] } }),
+    });
+
+    await ensureCorporateActionsSynced('HFOF11', 'fii');
+
+    // buscou o Yahoo (events=div) sem depender do cron
+    expect(mockFetch).toHaveBeenCalled();
+    expect(String(mockFetch.mock.calls[0][0])).toContain('events=div');
+  });
+
+  it('NÃO re-busca quando histórico já é profundo (gap improvável)', async () => {
+    mockPrisma.assetCorporateAction.count.mockResolvedValue(1);
+    mockPrisma.assetDividendHistory.count.mockResolvedValueOnce(40).mockResolvedValueOnce(0);
+    // mais antigo há ~3 anos → sem gap → não busca
+    mockPrisma.assetDividendHistory.findFirst.mockResolvedValue({
+      date: new Date(Date.now() - 3 * 365 * 24 * 60 * 60 * 1000),
+    });
+
+    await ensureCorporateActionsSynced('XPLG11', 'fii');
 
     expect(mockFetch).not.toHaveBeenCalled();
   });
