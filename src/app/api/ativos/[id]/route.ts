@@ -21,6 +21,7 @@ import {
   buildQuantityTimeline,
   quantityAtDate,
   APPLICABLE_CORPORATE_ACTION_TYPES,
+  isCorporateActionAuditTx,
 } from '@/services/portfolio/corporateActions';
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 
@@ -473,11 +474,16 @@ export const GET = withErrorHandler(
       select: { date: true, type: true, factor: true },
     });
 
+    // Linhas de auditoria de evento corporativo são DISPLAY-ONLY (extrato) — o
+    // split é aplicado via fator/timeline. Excluí-las da MATEMÁTICA de quantidade
+    // (senão conta o evento 2×). O array `transactions` segue intacto pro extrato.
+    const realTransactions = transactions.filter((t) => !isCorporateActionAuditTx(t.notes));
+
     // Timeline de quantidade split-aware (aplica os fatores via replayPosition).
     // Usada nos PROVENTOS: quantidade REAL por data (100 pré-split, 1000 pós) ×
     // valor/cota CRU do provento = correto.
     const timeline = buildQuantityTimeline(
-      transactions.map((t) => ({ date: t.date, quantity: t.quantity, type: t.type })),
+      realTransactions.map((t) => ({ date: t.date, quantity: t.quantity, type: t.type })),
       corporateActions,
     );
 
@@ -587,7 +593,7 @@ export const GET = withErrorHandler(
       const cashFlowsByDay = new Map<number, number>();
       const pricePointsBySymbol: Array<{ date: number; value: number }> = [];
 
-      transactions.forEach((tx) => {
+      realTransactions.forEach((tx) => {
         // tx em weekend/feriado é ancorado no próximo BD pra alinhar com timeline filtrada.
         // normalizeDateStartShared (UTC) em vez do local pra evitar shift de dia em BRT.
         const dayRaw = normalizeDateStartShared(tx.date).getTime();
@@ -606,7 +612,7 @@ export const GET = withErrorHandler(
         if (priceValue > 0) pricePointsBySymbol.push({ date: day, value: priceValue });
       });
 
-      if (transactions.length === 0 && portfolio.quantity > 0) {
+      if (realTransactions.length === 0 && portfolio.quantity > 0) {
         const day = nextBusinessDayB3(
           normalizeDateStartShared(portfolio.lastUpdate || new Date()).getTime(),
         );

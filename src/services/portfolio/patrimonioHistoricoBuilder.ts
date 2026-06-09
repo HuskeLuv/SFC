@@ -1,7 +1,10 @@
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import { isHolidayB3, nextBusinessDayB3 } from '@/utils/feriadosB3';
 import { prisma } from '@/lib/prisma';
-import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporateActions';
+import {
+  APPLICABLE_CORPORATE_ACTION_TYPES,
+  isCorporateActionAuditTx,
+} from '@/services/portfolio/corporateActions';
 import type { Prisma } from '@prisma/client';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -587,6 +590,11 @@ export const buildPatrimonioHistorico = async (
   stockTransactions.forEach((transaction) => {
     const symbol = transaction.asset?.symbol;
     if (!symbol) return;
+
+    // Linhas de auditoria de evento corporativo são DISPLAY-ONLY (extrato). O
+    // split já é aplicado via fator (cumulativeFactorAfter); somar o delta da
+    // auditoria aqui contaria o evento DUAS vezes.
+    if (isCorporateActionAuditTx(transaction.notes)) return;
 
     const day = shiftToBusinessDay(normalizeDateStart(transaction.date).getTime());
     const qtyDelta = transaction.type === 'compra' ? transaction.quantity : -transaction.quantity;
