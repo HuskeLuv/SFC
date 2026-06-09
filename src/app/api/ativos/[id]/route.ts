@@ -17,6 +17,11 @@ import {
   type FixedIncomeAssetWithAsset,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
+import {
+  buildQuantityTimeline,
+  quantityAtDate,
+  APPLICABLE_CORPORATE_ACTION_TYPES,
+} from '@/services/portfolio/corporateActions';
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -459,37 +464,34 @@ export const GET = withErrorHandler(
       getFundamentals(ticker, { useBrapiFallback: true }),
     ]);
 
-    const buildTimeline = (trans: { date: Date; quantity: number; type: string }[]) => {
-      const sorted = [...trans].sort((a, b) => a.date.getTime() - b.date.getTime());
-      const timeline: { date: number; quantity: number }[] = [];
-      let currentQuantity = 0;
-      sorted.forEach((t) => {
-        currentQuantity += t.type === 'compra' ? t.quantity : -t.quantity;
-        timeline.push({ date: t.date.getTime(), quantity: currentQuantity });
-      });
-      return timeline;
-    };
+    // Eventos corporativos (split/grupamento) do ativo. Preços do histórico são
+    // split-ADJUSTED, então a quantidade por data tem que ser normalizada
+    // pós-split — senão proventos e patrimônio ficam 10× errados (ex.: HFOF11 10:1).
+    const corporateActions = await prisma.assetCorporateAction.findMany({
+      where: { symbol: ticker, type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) } },
+      orderBy: { date: 'asc' },
+      select: { date: true, type: true, factor: true },
+    });
 
-    const getQuantityAtDate = (timeline: { date: number; quantity: number }[], date: number) => {
-      if (timeline.length === 0) return 0;
-      let left = 0;
-      let right = timeline.length - 1;
-      let result = 0;
-      while (left <= right) {
-        const mid = Math.floor((left + right) / 2);
-        if (timeline[mid].date <= date) {
-          result = timeline[mid].quantity;
-          left = mid + 1;
-        } else {
-          right = mid - 1;
-        }
-      }
-      return Math.max(result, 0);
-    };
-
-    const timeline = buildTimeline(
+    // Timeline de quantidade split-aware (aplica os fatores via replayPosition).
+    // Usada nos PROVENTOS: quantidade REAL por data (100 pré-split, 1000 pós) ×
+    // valor/cota CRU do provento = correto.
+    const timeline = buildQuantityTimeline(
       transactions.map((t) => ({ date: t.date, quantity: t.quantity, type: t.type })),
+      corporateActions,
     );
+
+    // Produto dos fatores de eventos ESTRITAMENTE APÓS `dayMs`. Usado no
+    // PATRIMÔNIO: normaliza quantidade (× fator) e ajusta preço de transação
+    // (÷ fator) pra escala do histórico BRAPI (split-adjusted) — saldo contínuo.
+    const caDays = corporateActions
+      .filter((ca) => Number.isFinite(ca.factor) && ca.factor > 0 && ca.factor !== 1)
+      .map((ca) => ({
+        day: nextBusinessDayB3(normalizeDateStartShared(ca.date).getTime()),
+        factor: ca.factor,
+      }));
+    const cumFactorAfter = (dayMs: number): number =>
+      caDays.reduce((f, e) => (e.day > dayMs ? f * e.factor : f), 1);
 
     const hoje = normalizeDateStart(new Date());
     const hojeMs = hoje.getTime();
@@ -513,7 +515,7 @@ export const GET = withErrorHandler(
       })
       .map((d) => {
         const quantidade =
-          timeline.length > 0 ? getQuantityAtDate(timeline, d.date.getTime()) : portfolio.quantity;
+          timeline.length > 0 ? quantityAtDate(timeline, d.date.getTime()) : portfolio.quantity;
         if (quantidade <= 0) return null;
         return {
           data: d.date.toISOString(),
@@ -590,13 +592,17 @@ export const GET = withErrorHandler(
         // normalizeDateStartShared (UTC) em vez do local pra evitar shift de dia em BRT.
         const dayRaw = normalizeDateStartShared(tx.date).getTime();
         const day = nextBusinessDayB3(dayRaw);
-        const qtyDelta = tx.type === 'compra' ? tx.quantity : -tx.quantity;
+        const caFactor = cumFactorAfter(day);
+        // Quantidade normalizada pra escala pós-split (constante em termos atuais).
+        const qtyDelta = (tx.type === 'compra' ? tx.quantity : -tx.quantity) * caFactor;
         quantityDeltasByDay.set(day, (quantityDeltasByDay.get(day) || 0) + qtyDelta);
         const totalValue = getTransactionValue(tx);
         const appliedDelta = tx.type === 'compra' ? totalValue : -totalValue;
         appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
         cashFlowsByDay.set(day, (cashFlowsByDay.get(day) || 0) + appliedDelta);
-        const priceValue = tx.price > 0 ? tx.price : tx.quantity > 0 ? totalValue / tx.quantity : 0;
+        // Preço pago é CRU; ajusta pra escala do histórico BRAPI (split-adjusted).
+        const rawPrice = tx.price > 0 ? tx.price : tx.quantity > 0 ? totalValue / tx.quantity : 0;
+        const priceValue = caFactor !== 1 ? rawPrice / caFactor : rawPrice;
         if (priceValue > 0) pricePointsBySymbol.push({ date: day, value: priceValue });
       });
 
@@ -625,6 +631,7 @@ export const GET = withErrorHandler(
       let valorAplicadoDia = 0;
 
       for (const day of dayTimeline) {
+        // qtyDelta já vem normalizado pós-split (na montagem de quantityDeltasByDay).
         const qtyDelta = quantityDeltasByDay.get(day) || 0;
         quantitiesBySymbol += qtyDelta;
         valorAplicadoDia += appliedDeltasByDay.get(day) || 0;
