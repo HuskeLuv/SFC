@@ -192,6 +192,19 @@ export default function RentabilidadeGeral() {
     carteiraHistoricoDiarioMwr,
   ]);
 
+  // Resumo (cards % e donut) acompanha o filtro: retorno da carteira NO período
+  // (= último ponto do gráfico, já recalculado com proventos) + início da janela.
+  // "Do início" mantém o comportamento atual (acumulado total).
+  const periodReturn = useMemo(() => {
+    if (isPeriodoInicio) return undefined;
+    return carteiraParaChart.length > 0
+      ? carteiraParaChart[carteiraParaChart.length - 1]?.value
+      : undefined;
+  }, [isPeriodoInicio, carteiraParaChart]);
+  const periodLabel = isPeriodoInicio
+    ? undefined
+    : RENTABILIDADE_RANGE_OPTIONS.find((o) => o.value === selectedRange)?.label;
+
   const filteredIndices1d = useMemo(
     () =>
       Array.isArray(indices1d)
@@ -367,7 +380,11 @@ export default function RentabilidadeGeral() {
 
         {/* Resumo de Rentabilidade à direita */}
         <div className="lg:col-span-1">
-          <RentabilidadeResumo />
+          <RentabilidadeResumo
+            periodStart={isPeriodoInicio ? undefined : selectedRangeStart}
+            periodReturn={periodReturn}
+            periodLabel={periodLabel}
+          />
         </div>
       </div>
     </div>
