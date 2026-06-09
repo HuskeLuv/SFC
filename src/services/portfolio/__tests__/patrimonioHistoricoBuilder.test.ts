@@ -788,9 +788,29 @@ describe('buildPatrimonioHistorico', () => {
       portfolioId: 'p1',
     } as unknown as StockTransactionWithRelations;
 
+    // Linha de auditoria do split (DISPLAY-ONLY): NÃO pode contar na quantidade
+    // (senão double-count com o fator). qty=900 = delta do 10:1 (100→1000).
+    const auditTx = {
+      id: 'tx-audit',
+      date: new Date(Date.UTC(2025, 4, 12)),
+      type: 'compra',
+      quantity: 900,
+      price: 0,
+      total: 0,
+      notes: JSON.stringify({
+        operation: { action: 'ajuste-corporativo' },
+        corporateActionId: 'ca1',
+      }),
+      asset: { symbol: 'HFOF11', name: 'Hedge Top FOFII', type: 'fii' },
+      stockId: 'stk',
+      assetId: null,
+      userId: 'u1',
+      portfolioId: 'p1',
+    } as unknown as StockTransactionWithRelations;
+
     const result = await buildPatrimonioHistorico({
       ...emptyParams,
-      stockTransactions: [tx],
+      stockTransactions: [tx, auditTx],
       saldoBrutoAtual: 6000,
       valorAplicadoAtual: 7315,
       patchLastDayWithLiveTotals: false,
