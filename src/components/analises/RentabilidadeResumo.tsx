@@ -10,7 +10,20 @@ import ErrorBoundary from '@/components/common/ErrorBoundary';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
-export default function RentabilidadeResumo() {
+interface RentabilidadeResumoProps {
+  /** Início do período selecionado (ms). undefined/igual ao 1º investimento = desde o início. */
+  periodStart?: number;
+  /** Retorno da carteira NO período selecionado (% acumulado, já recalculado pelo gráfico). */
+  periodReturn?: number;
+  /** Rótulo do período pra exibição (ex.: "24 meses"). */
+  periodLabel?: string;
+}
+
+export default function RentabilidadeResumo({
+  periodStart,
+  periodReturn,
+  periodLabel,
+}: RentabilidadeResumoProps = {}) {
   const { resumo, formatPercentage } = useCarteiraResumoContext();
 
   // Calcular data do primeiro investimento
@@ -163,11 +176,15 @@ export default function RentabilidadeResumo() {
   // calcularRentabilidade(cdi1y, firstInvestmentDate, hoje) devolve o
   // acumulado do período.
   const valoresResumo = useMemo(() => {
-    const carteiraTotal = resumo?.rentabilidade ?? 0;
+    // Início efetivo: o período selecionado (ou desde o 1º investimento).
+    const startTs = periodStart ?? firstInvestmentDate;
+    // Carteira NO período: usa o retorno já recalculado pelo gráfico (com
+    // proventos); cai pro acumulado total quando não há período selecionado.
+    const carteiraTotal = periodReturn ?? resumo?.rentabilidade ?? 0;
 
-    // Acumulado de um benchmark (CDI/IPCA) desde a 1ª data de investimento.
-    const acumuladoDesdeInicio = (nome: string): number => {
-      if (!firstInvestmentDate) return 0;
+    // Acumulado de um benchmark (CDI/IPCA) no período (a partir de startTs).
+    const acumuladoNoPeriodo = (nome: string): number => {
+      if (!startTs) return 0;
       const serie = indices1y.find((i) => i.name === nome);
       if (!serie?.data || serie.data.length === 0) return 0;
       const hojeTs = (() => {
@@ -175,9 +192,7 @@ export default function RentabilidadeResumo() {
         d.setHours(0, 0, 0, 0);
         return d.getTime();
       })();
-      const filtrados = serie.data.filter(
-        (item) => item.date >= firstInvestmentDate && item.date <= hojeTs,
-      );
+      const filtrados = serie.data.filter((item) => item.date >= startTs && item.date <= hojeTs);
       if (filtrados.length === 0) return 0;
       const inicio = filtrados[0]?.value ?? 0;
       const fim = filtrados[filtrados.length - 1]?.value ?? 0;
@@ -186,8 +201,9 @@ export default function RentabilidadeResumo() {
       return ((1 + fim / 100) / cumInicio - 1) * 100;
     };
 
-    const cdiAcumulado = acumuladoDesdeInicio('CDI');
-    const ipcaAcumulado = acumuladoDesdeInicio('IPCA');
+    const cdiAcumulado = acumuladoNoPeriodo('CDI');
+    const ipcaAcumulado = acumuladoNoPeriodo('IPCA');
+    const ibovAcumulado = acumuladoNoPeriodo('IBOV');
 
     // % SOBRE CDI: razão (carteira rendeu X% do CDI) — mesma definição do Kinvo.
     const sobreCDI = cdiAcumulado > 0 ? (carteiraTotal / cdiAcumulado) * 100 : 0;
@@ -200,15 +216,17 @@ export default function RentabilidadeResumo() {
       real,
       total: carteiraTotal,
       sobreCDI,
+      cdiPeriodo: cdiAcumulado,
+      ibovPeriodo: ibovAcumulado,
     };
-  }, [resumo?.rentabilidade, firstInvestmentDate, indices1y]);
+  }, [resumo?.rentabilidade, firstInvestmentDate, indices1y, periodStart, periodReturn]);
 
   // Dados para o gráfico donut (Carteira, CDI, IBOV baseado na rentabilidade de 12 meses)
   const donutData = useMemo(() => {
-    // Usar valores reais (positivos) para o donut; séries negativas ficam de fora
-    const carteiraValor = Math.max(0, rentabilidades.carteira.dozeMeses || 0);
-    const cdiValor = Math.max(0, rentabilidades.cdi.dozeMeses || 0);
-    const ibovValor = Math.max(0, rentabilidades.ibov.dozeMeses || 0);
+    // Usar valores reais (positivos) do PERÍODO selecionado; negativos ficam de fora
+    const carteiraValor = Math.max(0, valoresResumo.total || 0);
+    const cdiValor = Math.max(0, valoresResumo.cdiPeriodo || 0);
+    const ibovValor = Math.max(0, valoresResumo.ibovPeriodo || 0);
 
     const valores = [
       { nome: 'CARTEIRA', valor: carteiraValor, cor: '#465FFF' },
@@ -248,7 +266,7 @@ export default function RentabilidadeResumo() {
       series: percentuais.map((d) => d.percentual),
       colors: percentuais.map((d) => d.cor),
     };
-  }, [rentabilidades]);
+  }, [valoresResumo]);
 
   const donutOptions: ApexOptions = useMemo(() => {
     if (donutData.labels.length === 0) {
@@ -327,7 +345,12 @@ export default function RentabilidadeResumo() {
           </div>
         </div>
 
-        {/* Valores de Resumo */}
+        {/* Valores de Resumo (acompanham o filtro de período) */}
+        {periodLabel ? (
+          <div className="text-center text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+            Acumulado · {periodLabel}
+          </div>
+        ) : null}
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="text-sm text-gray-500 dark:text-gray-400">% REAL</div>
