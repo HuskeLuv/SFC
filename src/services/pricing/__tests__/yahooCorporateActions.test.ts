@@ -7,6 +7,7 @@ import {
 
 const mockDivUpsert = vi.hoisted(() => vi.fn());
 const mockDivFindFirst = vi.hoisted(() => vi.fn(async () => null as { date: Date } | null));
+const mockDivDeleteMany = vi.hoisted(() => vi.fn(async () => ({ count: 0 })));
 const mockCaFindMany = vi.hoisted(() =>
   vi.fn(async () => [] as Array<{ date: Date; factor: number }>),
 );
@@ -14,7 +15,11 @@ const mockCaFindMany = vi.hoisted(() =>
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     assetCorporateAction: { upsert: vi.fn(), findMany: mockCaFindMany },
-    assetDividendHistory: { upsert: mockDivUpsert, findFirst: mockDivFindFirst },
+    assetDividendHistory: {
+      upsert: mockDivUpsert,
+      findFirst: mockDivFindFirst,
+      deleteMany: mockDivDeleteMany,
+    },
   },
 }));
 vi.mock('@/lib/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -120,29 +125,32 @@ describe('syncYahooDividends (des-ajuste + gap-fill)', () => {
     vi.restoreAllMocks();
     mockDivUpsert.mockReset();
     mockDivFindFirst.mockReset();
+    mockDivDeleteMany.mockReset();
+    mockDivDeleteMany.mockResolvedValue({ count: 0 });
     mockCaFindMany.mockReset();
   });
 
-  it('des-ajusta dividendo pré-split pra cru (×fator) e só preenche o gap anterior', async () => {
-    // Yahoo: 0,06/cota em 2024-07 (pré-split) e 2025-07 (pós-split).
+  it('des-ajusta pré-split pra cru, limpa YAHOO antigo e respeita cutoff por MÊS', async () => {
+    // Yahoo: 2024-07 (pré-split), 2025-06-01 (MESMO mês da BRAPI), 2025-07 (pós).
     global.fetch = vi.fn().mockResolvedValue(
       mockDivChart({
         a: { date: Date.UTC(2024, 6, 1) / 1000, amount: 0.06 },
-        b: { date: Date.UTC(2025, 6, 1) / 1000, amount: 0.06 },
+        b: { date: Date.UTC(2025, 5, 1) / 1000, amount: 0.056 }, // jun/2025 — Yahoo ex-date
+        c: { date: Date.UTC(2025, 6, 1) / 1000, amount: 0.056 },
       }),
     ) as unknown as typeof fetch;
-    // BRAPI já tem dividendos a partir de 2025-06 → cutoff
+    // BRAPI mais antigo: 2025-06-13 → cutoff = início de jun/2025
     mockDivFindFirst.mockResolvedValue({ date: new Date(Date.UTC(2025, 5, 13)) });
-    // split 10:1 em 2025-05-12
     mockCaFindMany.mockResolvedValue([{ date: new Date(Date.UTC(2025, 4, 12)), factor: 10 }]);
 
     const n = await syncYahooDividends('HFOF11');
-    // só o de 2024-07 (anterior ao cutoff 2025-06) deve ser inserido
+    // jun/2025 (mesmo mês da BRAPI) e jul/2025 são pulados → só 2024-07 entra
     expect(n).toBe(1);
-    expect(mockDivUpsert).toHaveBeenCalledTimes(1);
+    expect(mockDivDeleteMany).toHaveBeenCalledWith({
+      where: { symbol: 'HFOF11', source: 'YAHOO' },
+    });
     const arg = mockDivUpsert.mock.calls[0][0];
-    // des-ajustado: 0,06 × 10 = 0,60 (cru pré-split)
-    expect(arg.create.valorUnitario).toBeCloseTo(0.6, 5);
+    expect(arg.create.valorUnitario).toBeCloseTo(0.6, 5); // 0,06 × 10
     expect(arg.create.source).toBe('YAHOO');
   });
 });

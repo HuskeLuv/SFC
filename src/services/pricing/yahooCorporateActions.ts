@@ -251,12 +251,24 @@ export async function syncYahooDividends(symbol: string): Promise<number> {
     if (divs.length === 0) return 0;
     const dbSymbol = toDbSymbol(symbol);
 
+    // Idempotente: limpa os próprios registros YAHOO antes de re-preencher
+    // (nunca toca em BRAPI/manual). Evita acúmulo em re-execuções.
+    await prisma.assetDividendHistory.deleteMany({
+      where: { symbol: dbSymbol, source: YAHOO_CA_SOURCE },
+    });
+
+    // Cutoff por MÊS (não data exata): Yahoo (ex-date) e BRAPI (pagamento) trazem
+    // o MESMO provento em datas levemente diferentes dentro do mês → cutoff por
+    // dia deixaria duplicar no mês de borda. Só preenche meses ANTERIORES ao
+    // dividendo mais antigo que NÃO é YAHOO (BRAPI/manual).
     const earliest = await prisma.assetDividendHistory.findFirst({
       where: { symbol: dbSymbol },
       orderBy: { date: 'asc' },
       select: { date: true },
     });
-    const cutoff = earliest?.date.getTime() ?? Infinity;
+    const cutoff = earliest
+      ? Date.UTC(earliest.date.getUTCFullYear(), earliest.date.getUTCMonth(), 1)
+      : Infinity;
 
     const cas = await prisma.assetCorporateAction.findMany({
       where: { symbol: dbSymbol, type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) } },
