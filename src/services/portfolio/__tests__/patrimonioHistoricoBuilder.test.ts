@@ -5,9 +5,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 /* ------------------------------------------------------------------ */
 
 const mockGetAssetHistory = vi.hoisted(() => vi.fn());
+const mockCaFindMany = vi.hoisted(() => vi.fn(async () => [] as unknown[]));
 
 vi.mock('@/services/pricing/assetPriceService', () => ({
   getAssetHistory: mockGetAssetHistory,
+}));
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: { assetCorporateAction: { findMany: mockCaFindMany } },
 }));
 
 /* ------------------------------------------------------------------ */
@@ -579,6 +584,7 @@ describe('buildPatrimonioCashFlowsByDayOnly', () => {
 describe('buildPatrimonioHistorico', () => {
   beforeEach(() => {
     mockGetAssetHistory.mockResolvedValue([]);
+    mockCaFindMany.mockResolvedValue([]);
   });
 
   const emptyParams = {
@@ -745,5 +751,67 @@ describe('buildPatrimonioHistorico', () => {
     // Should not have called getAssetHistory for manual/fixed-income assets
     // (CDB-TEST is mapped as manual due to fixedIncome match)
     expect(mockGetAssetHistory).not.toHaveBeenCalled();
+  });
+
+  it('aplica split (10:1) sem salto e na escala certa no saldoBruto', async () => {
+    // Compra 100 cotas pré-split; preço de mercado vem split-ADJUSTED (~6) em
+    // todo o histórico (como a BRAPI entrega). Split 10:1 em 2025-05-12.
+    // Esperado: posição "real" 100→1000 no split, preço des-ajustado pra escala
+    // crua → saldo CONTÍNUO em ~6000 (não 600, nem salto 600→6000).
+    const buyDate = new Date(Date.UTC(2024, 5, 15));
+    mockCaFindMany.mockResolvedValue([
+      {
+        symbol: 'HFOF11',
+        date: new Date(Date.UTC(2025, 4, 12)),
+        type: 'DESDOBRAMENTO',
+        factor: 10,
+      },
+    ]);
+    // histórico mensal split-adjusted plano em 6.0
+    const hist: Array<{ date: number; value: number }> = [];
+    for (let m = 0; m < 13; m++) {
+      hist.push({ date: Date.UTC(2024, 5 + m, 1), value: 6.0 });
+    }
+    mockGetAssetHistory.mockResolvedValue(hist);
+
+    const tx = {
+      id: 'tx-hfof',
+      date: buyDate,
+      type: 'compra',
+      quantity: 100,
+      price: 73.15,
+      total: 7315,
+      asset: { symbol: 'HFOF11', name: 'Hedge Top FOFII', type: 'fii' },
+      stockId: 'stk',
+      assetId: null,
+      userId: 'u1',
+      portfolioId: 'p1',
+    } as unknown as StockTransactionWithRelations;
+
+    const result = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [tx],
+      saldoBrutoAtual: 6000,
+      valorAplicadoAtual: 7315,
+      patchLastDayWithLiveTotals: false,
+      timelineEndDate: new Date(Date.UTC(2025, 5, 1)),
+    });
+
+    const at = (y: number, mo: number, d: number) => {
+      const target = Date.UTC(y, mo, d);
+      // ponto mais próximo <= target
+      let best = result.historicoPatrimonio[0];
+      for (const p of result.historicoPatrimonio) if (p.data <= target) best = p;
+      return best.saldoBruto;
+    };
+    const pre = at(2025, 3, 15); // abr/2025, pré-split
+    const post = at(2025, 4, 20); // mai/2025, pós-split
+
+    // escala certa (~6000), NÃO 600 (bug de qty crua × preço ajustado)
+    expect(pre).toBeGreaterThan(4000);
+    expect(post).toBeGreaterThan(4000);
+    // contínuo: sem salto de 10× no split
+    expect(post / pre).toBeGreaterThan(0.8);
+    expect(post / pre).toBeLessThan(1.25);
   });
 });

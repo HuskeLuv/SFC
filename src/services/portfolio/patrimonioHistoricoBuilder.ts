@@ -1,5 +1,7 @@
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import { isHolidayB3, nextBusinessDayB3 } from '@/utils/feriadosB3';
+import { prisma } from '@/lib/prisma';
+import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporateActions';
 import type { Prisma } from '@prisma/client';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -667,6 +669,45 @@ export const buildPatrimonioHistorico = async (
     ...Array.from(portfolioBySymbol.keys()),
   ]);
 
+  // Eventos corporativos (split/grupamento/bonificação) por símbolo/dia.
+  // Os preços do histórico (BRAPI) são split-ADJUSTED, então a quantidade
+  // histórica precisa ser normalizada pós-split — senão `qty_crua × preço_ajustado`
+  // fica 10× errado em ações que sofreram desdobramento (ex.: HFOF11 10:1).
+  // Carregamos aqui (1 query) pra que TODOS os callers do builder fiquem corretos.
+  const corporateFactorsBySymbol = new Map<string, Map<number, number>>();
+  if (allSymbols.size > 0) {
+    const caRows = await prisma.assetCorporateAction.findMany({
+      where: {
+        symbol: { in: Array.from(allSymbols) },
+        type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) },
+      },
+      orderBy: { date: 'asc' },
+      select: { symbol: true, date: true, factor: true },
+    });
+    for (const ca of caRows) {
+      if (!Number.isFinite(ca.factor) || ca.factor <= 0 || ca.factor === 1) continue;
+      const day = shiftToBusinessDay(normalizeDateStart(ca.date).getTime());
+      if (!corporateFactorsBySymbol.has(ca.symbol)) {
+        corporateFactorsBySymbol.set(ca.symbol, new Map());
+      }
+      const m = corporateFactorsBySymbol.get(ca.symbol)!;
+      // Eventos no mesmo dia normalizado compõem multiplicativamente.
+      m.set(day, (m.get(day) ?? 1) * ca.factor);
+    }
+  }
+
+  // Produto dos fatores de eventos ESTRITAMENTE APÓS `dayMs` — usado pra
+  // des-ajustar o preço (BRAPI vem split-adjusted) de volta pra escala "crua"
+  // daquela data, casando com a quantidade real (que o loop multiplica pelo
+  // fator no dia do evento). Assim `qtd_real × preço_cru` é contínuo no split.
+  const cumulativeFactorAfter = (symbol: string, dayMs: number): number => {
+    const m = corporateFactorsBySymbol.get(symbol);
+    if (!m) return 1;
+    let f = 1;
+    for (const [evDay, factor] of m) if (evDay > dayMs) f *= factor;
+    return f;
+  };
+
   const timelineStartCandidates: number[] = [];
   if (stockTransactions.length > 0) {
     timelineStartCandidates.push(normalizeDateStart(stockTransactions[0].date).getTime());
@@ -779,7 +820,13 @@ export const buildPatrimonioHistorico = async (
 
     const portfolioInfo = portfolioBySymbol.get(symbol);
     const isManual = portfolioInfo?.isManual ?? false;
-    const pricePoints = pricePointsBySymbol.get(symbol) || [];
+    // Preço pago na transação é CRU; o histórico BRAPI é split-adjusted. Ajusta
+    // o preço da transação (÷ fator dos eventos após a data) pra ficar na mesma
+    // escala do histórico — senão o dia da compra vira um spike.
+    const pricePoints = (pricePointsBySymbol.get(symbol) || []).map((p) => {
+      const f = cumulativeFactorAfter(symbol, p.date);
+      return f !== 1 ? { date: p.date, value: p.value / f } : p;
+    });
 
     let history: Array<{ date: number; value: number }> = [];
     if (!isManual) {
@@ -880,7 +927,11 @@ export const buildPatrimonioHistorico = async (
     transactionsBySymbol.forEach((deltas, symbol) => {
       const qtyDelta = deltas.get(day);
       if (!qtyDelta) return;
-      quantitiesBySymbol.set(symbol, (quantitiesBySymbol.get(symbol) || 0) + qtyDelta);
+      // Normaliza o delta pra escala pós-split (× fator dos eventos APÓS a data),
+      // pra a quantidade ficar constante em termos atuais e casar com o preço
+      // ajustado (BRAPI) — saldo contínuo no split, sem 10× errado.
+      const norm = qtyDelta * cumulativeFactorAfter(symbol, day);
+      quantitiesBySymbol.set(symbol, (quantitiesBySymbol.get(symbol) || 0) + norm);
     });
 
     let valorMercadoAtivos = 0;
