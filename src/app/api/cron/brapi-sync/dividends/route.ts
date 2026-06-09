@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getDividends } from '@/services/pricing/dividendService';
+import { syncYahooSplits } from '@/services/pricing/yahooCorporateActions';
 import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProventosFromMarket';
 import { CORPORATE_ACTION_NOTE_MARKER } from '@/services/portfolio/corporateActions';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -45,6 +46,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   for (const { symbol } of assets) {
     try {
+      // Refresca splits/grupamentos do Yahoo (a BRAPI não os entrega no nosso
+      // plano). Cobre splits novos em ativos já existentes, pós-backfill.
+      await syncYahooSplits(symbol);
+
       await prisma.assetDividendHistory.deleteMany({ where: { symbol } });
       const dividends = await getDividends(symbol, { useBrapiFallback: true });
       if (dividends.length === 0) {
