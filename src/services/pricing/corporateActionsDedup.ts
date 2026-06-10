@@ -7,18 +7,22 @@
  * Como DESDOBRAMENTO/BONIFICACAO/GRUPAMENTO TODOS multiplicam a quantidade no
  * replay, o fator era aplicado em DOBRO → quantidade/posição errada.
  *
- * Estratégia (Yahoo é canônico p/ split — a BRAPI free nem tem splitHistory):
- * para cada evento aplicável NÃO-Yahoo, se existe um evento Yahoo aplicável do
- * mesmo símbolo dentro de ±7 dias com fator ~igual (≤5%), o NÃO-Yahoo é a
- * duplicata e é removido. Eventos BRAPI órfãos (sem gêmeo Yahoo — ex.: splits
- * antigos que o Yahoo não tem) são PRESERVADOS.
+ * Também o próprio Yahoo às vezes grava o mesmo split em duas ex-dates próximas
+ * (ex.: B3SA3 DESDOBRAMENTO 3:1 em 06/05 E 17/05, ambos YAHOO).
+ *
+ * Estratégia: agrupa eventos aplicáveis do símbolo em CLUSTERS (≤15 dias entre
+ * vizinhos E fator ~IDÊNTICO, ≤1% — o mesmo evento de fontes/datas diferentes) e
+ * mantém UM por cluster (Yahoo é canônico p/ split; senão o mais antigo). A
+ * tolerância apertada de 1% evita fundir eventos pequenos DISTINTOS (ex.: SBSP3
+ * 1.028 vs 1.0016 em dias consecutivos NÃO são fundidos). Eventos isolados são
+ * preservados (inclui órfãos BRAPI de splits antigos que o Yahoo não tem).
  */
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporateActions';
 
-const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-const FACTOR_TOL = 0.05;
+const WINDOW_MS = 15 * 24 * 60 * 60 * 1000;
+const FACTOR_TOL = 0.01;
 const YAHOO = 'YAHOO';
 
 const isApplicable = (type: string, factor: number) =>
@@ -37,18 +41,30 @@ export const dedupSymbolCorporateActions = async (
       where: { symbol },
       select: { id: true, type: true, factor: true, date: true, source: true },
     });
-    const yahoo = evs.filter((e) => e.source === YAHOO && isApplicable(e.type, e.factor));
-    if (yahoo.length === 0) return 0;
+    const applicable = evs
+      .filter((e) => isApplicable(e.type, e.factor))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
 
+    // Agrupa em clusters (próximos no tempo + fator ~idêntico = mesmo evento) e
+    // mantém UM por cluster (Yahoo canônico, senão o mais antigo).
     const dropIds: string[] = [];
-    for (const e of evs) {
-      if (e.source === YAHOO || !isApplicable(e.type, e.factor)) continue;
-      const twin = yahoo.find(
-        (y) =>
-          Math.abs(y.date.getTime() - e.date.getTime()) <= WINDOW_MS &&
-          Math.abs(y.factor / e.factor - 1) < FACTOR_TOL,
-      );
-      if (twin) dropIds.push(e.id);
+    let i = 0;
+    while (i < applicable.length) {
+      const cluster = [applicable[i]];
+      let j = i + 1;
+      while (
+        j < applicable.length &&
+        applicable[j].date.getTime() - cluster[cluster.length - 1].date.getTime() <= WINDOW_MS &&
+        Math.abs(applicable[j].factor / cluster[0].factor - 1) < FACTOR_TOL
+      ) {
+        cluster.push(applicable[j]);
+        j++;
+      }
+      if (cluster.length > 1) {
+        const keep = cluster.find((e) => e.source === YAHOO) ?? cluster[0];
+        for (const e of cluster) if (e.id !== keep.id) dropIds.push(e.id);
+      }
+      i = j;
     }
     if (dropIds.length === 0 || opts?.dryRun) return dropIds.length;
 
