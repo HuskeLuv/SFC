@@ -508,6 +508,30 @@ model AssetFundamentals {
   @@map("asset_fundamentals")
 }
 
+// Cobertura de dados de mercado por símbolo: registro de status do backfill,
+// checkpoint de resumabilidade e fila de gaps de runtime. Permite que o runtime
+// leia SÓ do banco (sem fallback externo no request) — quando um símbolo falta,
+// registra-se um gap aqui e o backfill background o drena.
+model MarketDataCoverage {
+  id             String    @id @default(uuid())
+  symbol         String    @unique
+  // 'OK' (tem dados) | 'EMPTY' (fonte buscada, ativo genuinamente sem provento/evento)
+  // | 'FETCH_FAIL' (não conseguiu buscar — retry) | 'GAP_QUEUED' (faltou em runtime)
+  status         String
+  dividendCount  Int       @default(0)
+  caCount        Int       @default(0)
+  lastCheckedAt  DateTime? // última vez que o backfill processou o símbolo (cursor/resume)
+  gapRequestedAt DateTime? // setado pelo runtime quando o símbolo falta
+  lastError      String?
+  source         String? // 'backfill' | 'runtime-gap' | 'catalog-hook' | 'add-flow'
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
+  @@index([gapRequestedAt])
+  @@index([lastCheckedAt])
+  @@map("market_data_coverage")
+}
+
 // Log opcional de execução do sync de preços
 model SyncPriceLog {
   id            String   @id @default(uuid())
