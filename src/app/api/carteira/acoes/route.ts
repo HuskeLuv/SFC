@@ -47,7 +47,9 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     include: { asset: true },
   });
 
-  const isB3StockTicker = (ticker: string) => /^[A-Z]{4}[0-9]$/.test(ticker.toUpperCase());
+  // Aceita dígito no meio (ex.: B3SA3, o ticker da própria B3); exclui units
+  // (AAAA11), fracionários (AAAA3F) e BDRs (6+ chars).
+  const isB3StockTicker = (ticker: string) => /^[A-Z][A-Z0-9]{3}[0-9]$/.test(ticker.toUpperCase());
   const acoesStockPortfolio = portfolio.filter(
     (item) => item.asset?.type === 'stock' && isB3StockTicker(item.asset.symbol),
   );

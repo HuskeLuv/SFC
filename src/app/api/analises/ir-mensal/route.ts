@@ -23,7 +23,8 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * Padrão de ticker B3 para ações: 4 letras + 1 dígito (3, 4, 5, 6, 8) — ex.: PETR4, ITUB4, BBAS3.
  * Stocks US (AAPL, MSFT, NVDA) não casam — vão para a fase 3 (IR de stocks US).
  */
-const isB3StockTicker = (ticker: string): boolean => /^[A-Z]{4}[0-9]$/.test(ticker.toUpperCase());
+const isB3StockTicker = (ticker: string): boolean =>
+  /^[A-Z][A-Z0-9]{3}[0-9]$/.test(ticker.toUpperCase());
 
 function categorizeTransaction(
   ticker: string | null,

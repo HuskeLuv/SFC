@@ -636,7 +636,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         // Após consolidação Stock → Asset: aba Ações filtra por Asset.type='stock'
         // e ticker no padrão B3 (4 letras + 1 dígito, ex.: PETR4). Ações US também
         // são type='stock' mas têm currency='USD' e ticker fora do padrão B3.
-        const isB3StockTicker = /^[A-Z]{4}[0-9]$/.test(symbol.toUpperCase());
+        const isB3StockTicker = /^[A-Z][A-Z0-9]{3}[0-9]$/.test(symbol.toUpperCase());
         const isAcaoTabItem = asset.type === 'stock' && isB3StockTicker;
         switch (tipo) {
           case 'ação':

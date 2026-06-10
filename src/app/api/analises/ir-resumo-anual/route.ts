@@ -56,7 +56,8 @@ interface AnualResumo {
 }
 
 // Padrão B3 (PETR4, ITUB4, BBAS3) — distinguir de stocks US (AAPL, MSFT).
-const isB3StockTicker = (ticker: string): boolean => /^[A-Z]{4}[0-9]$/.test(ticker.toUpperCase());
+const isB3StockTicker = (ticker: string): boolean =>
+  /^[A-Z][A-Z0-9]{3}[0-9]$/.test(ticker.toUpperCase());
 
 function categorizeBR(
   ticker: string | null,
