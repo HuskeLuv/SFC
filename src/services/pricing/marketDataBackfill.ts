@@ -18,6 +18,7 @@ import {
   syncYahooDividends,
 } from '@/services/pricing/yahooCorporateActions';
 import { recordCoverage, type CoverageStatus } from '@/services/pricing/marketDataGap';
+import { dedupSymbolCorporateActions } from '@/services/pricing/corporateActionsDedup';
 
 export interface SymbolBackfillResult {
   symbol: string;
@@ -79,6 +80,11 @@ export const backfillSymbolMarketData = async (symbol: string): Promise<SymbolBa
   if (yahooReachable) {
     await syncYahooDividends(sym);
   }
+
+  // 3b) Dedup: a BRAPI grava o mesmo split como BONIFICACAO e o Yahoo como
+  // DESDOBRAMENTO (datas/tipos diferentes) → fator dobrado. Colapsa, mantendo o
+  // Yahoo canônico. Roda DEPOIS de ambos. Preserva eventos BRAPI órfãos.
+  await dedupSymbolCorporateActions(sym);
 
   // 4) Conta o que de fato ficou no banco e classifica.
   const [dividendCount, caCount] = await Promise.all([
