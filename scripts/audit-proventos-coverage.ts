@@ -25,8 +25,78 @@ const LATE_START_THRESHOLD_MS = 120 * DAY_MS;
 const fmt = (date: Date | null): string => (date ? date.toISOString().slice(0, 10) : '   -   ');
 const isFii = (symbol: string): boolean => /11B?$/.test(symbol);
 
+/**
+ * Modo --catalog: audita a cobertura sobre TODO o catálogo RV (`Asset`), não só
+ * os símbolos detidos. Cruza com `MarketDataCoverage` e as contagens reais de
+ * dividendos/eventos. É o gate do backfill: idealmente 0 FETCH_FAIL e 0 sem-linha.
+ */
+async function auditCatalog(): Promise<void> {
+  const assets = await prisma.asset.findMany({
+    where: { type: { in: RV_TYPES } },
+    select: { symbol: true, type: true },
+    distinct: ['symbol'],
+    orderBy: { symbol: 'asc' },
+  });
+
+  const coverage = await prisma.marketDataCoverage.findMany({
+    select: { symbol: true, status: true, dividendCount: true, caCount: true },
+  });
+  const covBySym = new Map(coverage.map((c) => [c.symbol, c]));
+
+  const buckets: Record<string, string[]> = {
+    OK: [],
+    EMPTY: [],
+    FETCH_FAIL: [],
+    GAP_QUEUED: [],
+    SEM_LINHA: [],
+  };
+  const byType = new Map<string, { tot: number; covered: number }>();
+
+  for (const a of assets) {
+    const c = covBySym.get(a.symbol);
+    const status = c ? c.status : 'SEM_LINHA';
+    (buckets[status] ?? (buckets[status] = [])).push(a.symbol);
+    const t = byType.get(a.type) ?? { tot: 0, covered: 0 };
+    t.tot++;
+    if (status === 'OK' || status === 'EMPTY') t.covered++;
+    byType.set(a.type, t);
+  }
+
+  const total = assets.length;
+  const resolved = buckets.OK.length + buckets.EMPTY.length;
+  console.log(`\n=== Cobertura do catálogo RV — ${total} símbolo(s) ===\n`);
+  console.log(`  OK (com dados):        ${buckets.OK.length}`);
+  console.log(`  EMPTY (sem provento):  ${buckets.EMPTY.length}`);
+  console.log(`  FETCH_FAIL (retry):    ${buckets.FETCH_FAIL.length}`);
+  console.log(`  GAP_QUEUED (na fila):  ${buckets.GAP_QUEUED.length}`);
+  console.log(`  SEM_LINHA (nunca):     ${buckets.SEM_LINHA.length}`);
+  console.log(`  → resolvidos: ${resolved}/${total} (${((resolved / total) * 100).toFixed(1)}%)\n`);
+
+  console.log('  Por tipo (resolvidos/total):');
+  for (const [t, v] of [...byType.entries()].sort()) {
+    console.log(`    ${t.padEnd(12)} ${v.covered}/${v.tot}`);
+  }
+
+  const pendentes = [...buckets.FETCH_FAIL, ...buckets.GAP_QUEUED, ...buckets.SEM_LINHA];
+  if (pendentes.length) {
+    console.log(`\n  ⚠️  ${pendentes.length} pendente(s) de backfill:`);
+    console.log(`     ${pendentes.slice(0, 40).join(', ')}${pendentes.length > 40 ? ' …' : ''}`);
+    console.log(`\n  ↻ Rode: tsx --env-file=.env scripts/backfill-market-data.ts --apply`);
+  } else {
+    console.log(`\n  ✅ Catálogo 100% coberto — runtime pode operar banco-only.`);
+  }
+  console.log('');
+}
+
 async function main(): Promise<void> {
-  const filterSymbols = process.argv.slice(2).map((s) => s.toUpperCase());
+  if (process.argv.includes('--catalog')) {
+    await auditCatalog();
+    return;
+  }
+  const filterSymbols = process.argv
+    .slice(2)
+    .filter((s) => !s.startsWith('--'))
+    .map((s) => s.toUpperCase());
 
   // Primeira compra por símbolo (entre todos os usuários).
   const txs = await prisma.stockTransaction.findMany({
