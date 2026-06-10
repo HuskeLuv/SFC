@@ -673,6 +673,64 @@ describe('buildPatrimonioHistorico', () => {
     expect(firstDay.getUTCMonth()).toBeGreaterThanOrEqual(9); // October or later
   });
 
+  it('des-ajusta o histórico de mercado pelo split (sem penhasco fantasma no pré-split)', async () => {
+    // Compra 100 cotas ANTES de um split 10:1. O histórico de mercado vem CRU
+    // (getAssetHistory usa `close`, COTAHIST também é cru): ~R$90 antes, ~R$9
+    // depois. A quantidade é normalizada pra pós-split (1000). Sem des-ajustar o
+    // preço, o pré-split ficaria 1000×90 = 90k e despencaria 90% na data do split.
+    const buy = new Date(Date.UTC(2017, 0, 2));
+    const split = new Date(Date.UTC(2017, 4, 17));
+    const end = new Date(Date.UTC(2017, 6, 1));
+
+    const tx = {
+      id: 'tx-s',
+      date: buy,
+      type: 'compra',
+      quantity: 100,
+      price: 90,
+      total: 9000,
+      asset: { symbol: 'SPLIT11', name: 'Split FII', type: 'fii' },
+      stockId: null,
+      assetId: 'asset-s',
+      userId: 'u1',
+      portfolioId: 'p1',
+    } as unknown as StockTransactionWithRelations;
+
+    mockCaFindMany.mockResolvedValue([
+      { symbol: 'SPLIT11', type: 'DESDOBRAMENTO', factor: 10, date: split },
+    ]);
+
+    const history: { date: number; value: number }[] = [];
+    for (let d = buy.getTime(); d <= end.getTime(); d += DAY_MS) {
+      history.push({ date: d, value: d < split.getTime() ? 90 : 9 });
+    }
+    mockGetAssetHistory.mockResolvedValue(history);
+
+    const result = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [tx],
+      saldoBrutoAtual: 9000,
+      valorAplicadoAtual: 9000,
+      maxHistoricoMonths: 12,
+      timelineEndDate: end,
+    });
+
+    const serie = result.historicoPatrimonio;
+    expect(serie.length).toBeGreaterThan(5);
+    // nenhuma queda diária > 50% (penhasco fantasma)
+    let maxDrop = 0;
+    for (let i = 1; i < serie.length; i++) {
+      const a = serie[i - 1].saldoBruto;
+      const b = serie[i].saldoBruto;
+      if (a > 0) maxDrop = Math.max(maxDrop, (a - b) / a);
+    }
+    expect(maxDrop).toBeLessThan(0.5);
+    // pré-split ~9000 (100 cotas reais × 90), NÃO 90000 (1000 × 90)
+    const preSplit = serie.find((p) => p.data < split.getTime());
+    expect(preSplit!.saldoBruto).toBeGreaterThan(5000);
+    expect(preSplit!.saldoBruto).toBeLessThan(20000);
+  });
+
   it('patchLastDayWithLiveTotals atualiza ultimo ponto', async () => {
     const endDate = new Date(2025, 0, 3);
 
@@ -754,23 +812,26 @@ describe('buildPatrimonioHistorico', () => {
   });
 
   it('aplica split (10:1) sem salto e na escala certa no saldoBruto', async () => {
-    // Compra 100 cotas pré-split; preço de mercado vem split-ADJUSTED (~6) em
-    // todo o histórico (como a BRAPI entrega). Split 10:1 em 2025-05-12.
-    // Esperado: posição "real" 100→1000 no split, preço des-ajustado pra escala
-    // crua → saldo CONTÍNUO em ~6000 (não 600, nem salto 600→6000).
+    // Compra 100 cotas pré-split. O preço de mercado vem CRU (getAssetHistory usa
+    // `close`/AssetPriceHistory, não adjusted): ~R$60 antes do split, ~R$6 depois
+    // (10:1 em 2025-05-12). A quantidade é normalizada pra pós-split (1000) e o
+    // builder des-ajusta o preço cru pela escala do evento → saldo CONTÍNUO em
+    // ~6000 (não 60000 pré com penhasco de 90%, nem 600).
     const buyDate = new Date(Date.UTC(2024, 5, 15));
+    const splitDate = Date.UTC(2025, 4, 12);
     mockCaFindMany.mockResolvedValue([
       {
         symbol: 'HFOF11',
-        date: new Date(Date.UTC(2025, 4, 12)),
+        date: new Date(splitDate),
         type: 'DESDOBRAMENTO',
         factor: 10,
       },
     ]);
-    // histórico mensal split-adjusted plano em 6.0
+    // histórico mensal CRU: R$60 antes do split, R$6 a partir do split
     const hist: Array<{ date: number; value: number }> = [];
     for (let m = 0; m < 13; m++) {
-      hist.push({ date: Date.UTC(2024, 5 + m, 1), value: 6.0 });
+      const date = Date.UTC(2024, 5 + m, 1);
+      hist.push({ date, value: date < splitDate ? 60 : 6 });
     }
     mockGetAssetHistory.mockResolvedValue(hist);
 

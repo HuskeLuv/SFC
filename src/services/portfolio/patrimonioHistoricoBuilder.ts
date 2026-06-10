@@ -853,7 +853,18 @@ export const buildPatrimonioHistorico = async (
       // que o mercado fecha em R$44 sobrescrevia o priceMap pra R$33 — o
       // saldo "perdia" R$11 × posição_total nesse dia, distorcendo o TWR.
       // Pricepoints só preenchem dias em que a brapi não publicou cotação.
-      const brapi = historyBySymbol.get(symbol) ?? [];
+      // O histórico de mercado vem CRU (getAssetHistory usa `close`, não adjclose;
+      // COTAHIST também é cru). A quantidade é normalizada pra unidades pós-split
+      // (× fator no dia do evento) e o preço da transação já foi des-ajustado
+      // (÷ fator) acima. Pra ficar na MESMA escala, o histórico de mercado também
+      // precisa ser des-ajustado — senão o período PRÉ-split fica inflado pelo
+      // fator (ex.: MXRF11 com COTAHIST cru em 2017 → saldoBruto 10× e penhasco
+      // de 90% na data do split). cumulativeFactorAfter=1 fora de splits → no-op.
+      const brapi = (historyBySymbol.get(symbol) ?? []).map((h) => {
+        const day = normalizeDateStart(new Date(h.date)).getTime();
+        const f = cumulativeFactorAfter(symbol, day);
+        return f !== 1 ? { date: h.date, value: h.value / f } : h;
+      });
       const brapiDays = new Set(brapi.map((h) => normalizeDateStart(new Date(h.date)).getTime()));
       const supplemental = pricePoints.filter((p) => !brapiDays.has(p.date));
       history = [...brapi, ...supplemental];
