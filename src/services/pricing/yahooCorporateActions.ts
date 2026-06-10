@@ -86,6 +86,9 @@ export async function fetchYahooSplits(symbol: string, years = 25): Promise<Yaho
           signal: controller.signal,
         },
       );
+      // 404 = ticker inexistente no Yahoo (não é falha transiente): trata como
+      // "sem eventos", igual ao chart.error do JSON. Evita FETCH_FAIL eterno.
+      if (res.status === 404) return [];
       if (!res.ok) {
         lastErr = new Error(`Yahoo HTTP ${res.status} via ${host} para ${ticker}`);
         continue;
@@ -211,6 +214,8 @@ export async function fetchYahooDividends(symbol: string, years = 25): Promise<Y
           signal: controller.signal,
         },
       );
+      // 404 = ticker inexistente no Yahoo: trata como "sem dividendos".
+      if (res.status === 404) return [];
       if (!res.ok) {
         lastErr = new Error(`Yahoo HTTP ${res.status} via ${host} para ${ticker}`);
         continue;

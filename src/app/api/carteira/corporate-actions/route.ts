@@ -19,7 +19,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'symbol é obrigatório' }, { status: 400 });
   }
 
-  const actions = await getCorporateActions(symbol, { useBrapiFallback: true });
+  const actions = await getCorporateActions(symbol);
 
   return NextResponse.json({
     success: true,

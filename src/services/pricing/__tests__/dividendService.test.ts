@@ -13,6 +13,10 @@ const mockPrisma = vi.hoisted(() => ({
     upsert: vi.fn(),
     count: vi.fn(),
   },
+  marketDataCoverage: {
+    findUnique: vi.fn().mockResolvedValue(null),
+    upsert: vi.fn().mockResolvedValue({}),
+  },
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -24,6 +28,11 @@ const mockFetch = vi.hoisted(() => vi.fn());
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('BRAPI_API_KEY', 'test-key');
+  // Os testes de parsing/fallback abaixo exercitam o caminho BRAPI explicitamente.
+  // O default de produção é banco-only; o bloco "banco-only (default)" o cobre.
+  vi.stubEnv('MARKET_DATA_DB_ONLY', 'false');
+  mockPrisma.marketDataCoverage.findUnique.mockResolvedValue(null);
+  mockPrisma.marketDataCoverage.upsert.mockResolvedValue({});
   global.fetch = mockFetch;
 });
 
@@ -543,76 +552,91 @@ describe('BRAPI dedup pré-upsert', () => {
   });
 });
 
-describe('ensureCorporateActionsSynced', () => {
-  it('não busca na BRAPI quando o símbolo já tem dados (CA ou dividendos)', async () => {
+describe('ensureCorporateActionsSynced (banco-only: enfileira-só)', () => {
+  it('NÃO enfileira quando o símbolo já tem dados (CA ou dividendos)', async () => {
     mockPrisma.assetCorporateAction.count.mockResolvedValue(2);
     mockPrisma.assetDividendHistory.count.mockResolvedValue(0);
 
     await ensureCorporateActionsSynced('MGLU3', 'stock');
 
     expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockPrisma.marketDataCoverage.upsert).not.toHaveBeenCalled();
   });
 
-  it('preenche gap de dividendos antigos no ADD (sem cron) quando histórico é raso', async () => {
-    // já tem CA (catálogo) + dividendos recentes da BRAPI, mas o mais antigo é
-    // recente (~6 meses) e não há nada source=YAHOO → deve buscar o Yahoo no ato.
-    mockPrisma.assetCorporateAction.count.mockResolvedValue(1); // caCount
-    mockPrisma.assetDividendHistory.count
-      .mockResolvedValueOnce(12) // divCount (tem dados)
-      .mockResolvedValueOnce(0); // yahooDivCount (nada do Yahoo ainda)
-    mockPrisma.assetDividendHistory.findFirst.mockResolvedValue({
-      date: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000),
-    });
-    mockPrisma.assetDividendHistory.deleteMany.mockResolvedValue({ count: 0 });
-    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ chart: { result: [{}] } }),
-    });
-
-    await ensureCorporateActionsSynced('HFOF11', 'fii');
-
-    // buscou o Yahoo (events=div) sem depender do cron
-    expect(mockFetch).toHaveBeenCalled();
-    expect(String(mockFetch.mock.calls[0][0])).toContain('events=div');
-  });
-
-  it('NÃO re-busca quando histórico já é profundo (gap improvável)', async () => {
-    mockPrisma.assetCorporateAction.count.mockResolvedValue(1);
-    mockPrisma.assetDividendHistory.count.mockResolvedValueOnce(40).mockResolvedValueOnce(0);
-    // mais antigo há ~3 anos → sem gap → não busca
-    mockPrisma.assetDividendHistory.findFirst.mockResolvedValue({
-      date: new Date(Date.now() - 3 * 365 * 24 * 60 * 60 * 1000),
-    });
-
-    await ensureCorporateActionsSynced('XPLG11', 'fii');
-
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('busca na BRAPI quando nunca sincronizado e o tipo é de bolsa', async () => {
+  it('enfileira gap (sem fetch inline) quando nunca sincronizado', async () => {
     mockPrisma.assetCorporateAction.count.mockResolvedValue(0);
     mockPrisma.assetDividendHistory.count.mockResolvedValue(0);
-    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
-    mockPrisma.assetDividendHistory.findMany.mockResolvedValue([]);
-    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ results: [{}] }) });
+    mockPrisma.marketDataCoverage.findUnique.mockResolvedValue(null);
 
     await ensureCorporateActionsSynced('PETR4', 'stock');
 
-    expect(mockFetch).toHaveBeenCalled();
+    // não busca externo no add — só enfileira
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockPrisma.marketDataCoverage.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ status: 'GAP_QUEUED', source: 'add-flow' }),
+      }),
+    );
   });
 
-  it('não busca para tipos sem eventos corporativos (renda-fixa)', async () => {
+  it('não enfileira nem conta para tipos sem eventos corporativos (renda-fixa)', async () => {
     await ensureCorporateActionsSynced('LTN2029', 'tesouro-direto');
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(mockPrisma.assetCorporateAction.count).not.toHaveBeenCalled();
+    expect(mockPrisma.marketDataCoverage.upsert).not.toHaveBeenCalled();
   });
 
-  it('não busca para símbolo vazio', async () => {
+  it('não processa símbolo vazio', async () => {
     await ensureCorporateActionsSynced('', 'stock');
     await ensureCorporateActionsSynced(null, 'stock');
 
     expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockPrisma.assetCorporateAction.count).not.toHaveBeenCalled();
+  });
+});
+
+describe('getDividends — banco-only (default)', () => {
+  beforeEach(() => {
+    // Default de produção: sem fallback externo no request.
+    vi.stubEnv('MARKET_DATA_DB_ONLY', 'true');
+  });
+
+  it('NÃO busca BRAPI quando DB vazio; registra gap e retorna []', async () => {
+    mockPrisma.assetDividendHistory.findMany.mockResolvedValue([]);
+    mockPrisma.marketDataCoverage.findUnique.mockResolvedValue(null);
+
+    const result = await getDividends('NEWW11');
+
+    expect(result).toEqual([]);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockPrisma.marketDataCoverage.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ status: 'GAP_QUEUED', source: 'runtime-gap' }),
+      }),
+    );
+  });
+
+  it('NÃO re-enfileira símbolo já coberto (status OK/EMPTY)', async () => {
+    mockPrisma.assetDividendHistory.findMany.mockResolvedValue([]);
+    mockPrisma.marketDataCoverage.findUnique.mockResolvedValue({ status: 'EMPTY' });
+
+    const result = await getDividends('EMPTY3');
+
+    expect(result).toEqual([]);
+    expect(mockPrisma.marketDataCoverage.upsert).not.toHaveBeenCalled();
+  });
+
+  it('explicit useBrapiFallback:true ainda busca (caminho do backfill/cron)', async () => {
+    mockPrisma.assetDividendHistory.findMany.mockResolvedValue([]);
+    mockPrisma.assetDividendHistory.upsert.mockResolvedValue({});
+    mockFetch.mockResolvedValue(
+      makeBrapiResponse([{ paymentDate: '2024-06-01', cashAmount: 0.5, type: 'Dividendo' }]),
+    );
+
+    const result = await getDividends('VALE3', { useBrapiFallback: true });
+
+    expect(result).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalled();
   });
 });

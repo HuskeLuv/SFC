@@ -233,7 +233,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     portfolioStocks.map(async (p) => {
       const symbol = p.asset!.symbol;
       const isFii = p.asset!.type === 'fii';
-      const dividends = await getDividends(symbol, { useBrapiFallback: true });
+      const dividends = await getDividends(symbol);
       for (const d of dividends) {
         const ts = d.date.getTime();
         if (ts < yearStart || ts > yearEnd) continue;

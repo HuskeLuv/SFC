@@ -136,7 +136,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
           orderBy: { date: 'asc' },
           select: { date: true, type: true, factor: true },
         }),
-        getDividends(symbol, { useBrapiFallback: true }),
+        getDividends(symbol),
       ]);
       if (dividends.length === 0) return [];
 

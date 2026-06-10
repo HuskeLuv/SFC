@@ -1,14 +1,20 @@
 /**
  * Serviço de proventos/dividendos e ações corporativas (split/inplit/bonificação).
- * Regra: banco primeiro, fallback BRAPI apenas quando necessário, persistir no banco.
+ *
+ * Runtime BANCO-ONLY: o caminho de request lê só do banco — sem fetch externo
+ * inline. Quando o dado falta, registra um gap (`recordGap`) e o backfill
+ * background (cron de refresh + `drainGaps`) resolve. O fallback BRAPI/Yahoo
+ * permanece disponível só para o backfill/cron, que passam `useBrapiFallback:true`
+ * explícito. Reversão de emergência: `MARKET_DATA_DB_ONLY=false` reativa o
+ * fallback inline como default (volta ao comportamento antigo).
  */
 
 import { prisma } from '@/lib/prisma';
-import {
-  syncYahooSplits,
-  syncYahooDividends,
-  YAHOO_CA_SOURCE,
-} from '@/services/pricing/yahooCorporateActions';
+import { recordGap } from '@/services/pricing/marketDataGap';
+
+// Default banco-only quando o caller não especifica `useBrapiFallback`. Lido por
+// chamada (não no load) pra permitir reversão de emergência via env sem reiniciar.
+const dbOnlyMode = (): boolean => process.env.MARKET_DATA_DB_ONLY !== 'false';
 
 const BLOCKED_SYMBOL_PREFIXES = [
   'RESERVA-EMERG',
@@ -414,7 +420,8 @@ export const getDividends = async (
   if (!symbol?.trim()) return [];
   if (isBlockedSymbol(symbol)) return [];
 
-  const useFallback = options?.useBrapiFallback !== false;
+  // Explícito vence; senão default banco-only (não busca inline, registra gap).
+  const useFallback = options?.useBrapiFallback ?? !dbOnlyMode();
 
   const fromDb = await getDividendsFromDb(symbol);
   if (fromDb.length > 0) return fromDb;
@@ -422,6 +429,9 @@ export const getDividends = async (
   if (useFallback) {
     return fetchAndPersistDividendsFromBrapi(symbol);
   }
+  // Banco-only e vazio: rede de alarme. `recordGap` é best-effort e só enfileira
+  // símbolos sem cobertura confirmada (OK/EMPTY já no banco não re-enfileiram).
+  await recordGap(symbol, 'runtime-gap');
   return [];
 };
 
@@ -456,14 +466,19 @@ export const getCorporateActions = async (
   if (!symbol?.trim()) return [];
   if (isBlockedSymbol(symbol)) return [];
 
+  const useFallback = options?.useBrapiFallback ?? !dbOnlyMode();
+
   const fromDb = await getCorporateActionsFromDb(symbol);
   if (fromDb.length > 0) return fromDb;
 
   // Trigger BRAPI fetch (which persists both dividends AND corporate actions)
-  if (options?.useBrapiFallback !== false) {
+  if (useFallback) {
     await fetchAndPersistDividendsFromBrapi(symbol);
     return getCorporateActionsFromDb(symbol);
   }
+  // Banco-only: CA vazio é o caso comum (maioria não tem evento). `recordGap` só
+  // enfileira símbolos SEM cobertura — quem já está OK/EMPTY no banco não re-entra.
+  await recordGap(symbol, 'runtime-gap');
   return [];
 };
 
@@ -482,14 +497,13 @@ const CORPORATE_ACTION_ASSET_TYPES = new Set([
 ]);
 
 /**
- * Garante que os eventos corporativos de um símbolo estejam no banco ANTES do
- * recálculo da carteira, sem depender do cron diário. Resolve o gap em que um
- * ativo recém-registrado que passou por split/bonificação/grupamento só era
- * ajustado quando o cron rodava — gerando quantidade/preço médio errados no ato.
- *
- * Idempotente e barato: se o símbolo já tem qualquer dado de mercado salvo
- * (eventos OU dividendos — ambos vêm da mesma resposta BRAPI), não busca de novo.
- * Só dispara o fetch na primeira vez que um símbolo nunca sincronizado aparece.
+ * Garante que os eventos corporativos/dividendos de um símbolo estejam no banco
+ * ANTES do recálculo da carteira. Banco-only: o catálogo é pré-carregado pelo
+ * backfill (`backfill-market-data.ts`) + cron de refresh, então o dado normalmente
+ * JÁ está aqui. Se faltar — símbolo recém-catalogado ainda não drenado — NÃO busca
+ * inline (essa abordagem sob demanda falhava): apenas enfileira o gap (`recordGap`)
+ * pro backfill background resolver. O replay da carteira prossegue com os eventos
+ * que existirem (vazio = no-op, já tolerado pelo recálculo).
  */
 export const ensureCorporateActionsSynced = async (
   symbol: string | null | undefined,
@@ -505,35 +519,7 @@ export const ensureCorporateActionsSynced = async (
     prisma.assetDividendHistory.count({ where: { symbol: { in: variants } } }),
   ]);
 
-  // Nunca visto: sync COMPLETO no ato — BRAPI (dividendos + bonificações) E Yahoo
-  // (splits/grupamentos, que a BRAPI só entrega no módulo pago `splitHistory`, +
-  // dividendos antigos, que a BRAPI free não guarda). Sem isso, desdobramentos de
-  // FII (ex.: HFOF11 10:1) não chegam e a posição/proventos ficam errados.
   if (caCount === 0 && divCount === 0) {
-    await getCorporateActions(symbol, { useBrapiFallback: true });
-    await syncYahooSplits(symbol);
-    await syncYahooDividends(symbol);
-    return;
-  }
-
-  // Já tem dados (catálogo/cron), mas pode FALTAR o histórico ANTIGO de
-  // dividendos: a BRAPI free só guarda ~12 meses. Preenchemos o gap aqui, no add,
-  // pra NÃO depender do cron — uma única vez por símbolo (marca = já existir
-  // dividendo source=YAHOO) e só quando o histórico atual é raso (mais antigo
-  // recente), evitando re-buscar o Yahoo à toa em cada edição.
-  const [yahooDivCount, earliest] = await Promise.all([
-    prisma.assetDividendHistory.count({
-      where: { symbol: { in: variants }, source: YAHOO_CA_SOURCE },
-    }),
-    prisma.assetDividendHistory.findFirst({
-      where: { symbol: { in: variants } },
-      orderBy: { date: 'asc' },
-      select: { date: true },
-    }),
-  ]);
-  const earliestMs = earliest?.date.getTime() ?? 0;
-  const GAP_THRESHOLD_MS = 18 * 30 * 24 * 60 * 60 * 1000; // ~18 meses
-  if (yahooDivCount === 0 && earliestMs > Date.now() - GAP_THRESHOLD_MS) {
-    await syncYahooDividends(symbol);
+    await recordGap(symbol, 'add-flow');
   }
 };

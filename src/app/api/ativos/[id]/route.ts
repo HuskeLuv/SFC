@@ -461,7 +461,7 @@ export const GET = withErrorHandler(
     }));
 
     const [dividends, fundamentals] = await Promise.all([
-      getDividends(ticker, { useBrapiFallback: true }),
+      getDividends(ticker),
       getFundamentals(ticker, { useBrapiFallback: true }),
     ]);
 

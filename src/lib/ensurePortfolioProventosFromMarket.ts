@@ -46,7 +46,7 @@ export const ensurePortfolioProventosFromMarket = async (params: {
     if (existing > 0) return;
   }
 
-  const dividends = await getDividends(ticker, { useBrapiFallback: true });
+  const dividends = await getDividends(ticker);
   if (dividends.length === 0) return;
 
   // Eventos corporativos do ticker — a timeline precisa refletir a quantidade

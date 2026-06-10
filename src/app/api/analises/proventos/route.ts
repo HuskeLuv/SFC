@@ -28,7 +28,7 @@ const dividendsBySymbolCache = getTtlCache<DividendEntry[]>('dividendsBySymbol')
 const getDividendsCached = async (symbol: string): Promise<DividendEntry[]> => {
   const cached = dividendsBySymbolCache.get(symbol);
   if (cached) return cached;
-  const fresh = await getDividends(symbol, { useBrapiFallback: true });
+  const fresh = await getDividends(symbol);
   dividendsBySymbolCache.set(symbol, fresh, DIVIDENDS_CACHE_TTL_MS);
   return fresh;
 };
@@ -915,7 +915,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const allCorporateActions = await Promise.all(
     portfolioAssets.map(async (asset) => {
       try {
-        const actions = await getCorporateActions(asset.symbol, { useBrapiFallback: true });
+        const actions = await getCorporateActions(asset.symbol);
         return actions.map((a) => ({
           symbol: asset.symbol,
           ativo: asset.name || asset.symbol,
