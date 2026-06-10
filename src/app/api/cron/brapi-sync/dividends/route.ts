@@ -1,27 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getDividends } from '@/services/pricing/dividendService';
-import { syncYahooSplits, syncYahooDividends } from '@/services/pricing/yahooCorporateActions';
 import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProventosFromMarket';
 import { CORPORATE_ACTION_NOTE_MARKER } from '@/services/portfolio/corporateActions';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
 /**
- * Cron diário: sincroniza dividendos novos da BRAPI para PortfolioProvento.
+ * Cron diário: MATERIALIZA `PortfolioProvento` (camada de override/exibição) a
+ * partir do histórico de dividendos JÁ no banco — que é mantido fresco pelo cron
+ * `market-data/refresh`. Banco-only: NÃO busca fonte externa nem deleta+refetch
+ * (o padrão destrutivo antigo saiu). A SÉRIE de rentabilidade não depende disto
+ * (lê do histórico global via `resolveProventos`); a materialização serve aos
+ * overrides do usuário e à exibição no editor.
  *
- * Endereça o gap arquitetural em [[proventos-sync-gaps]]: `dividendService`
- * usa o DB como cache permanente. Sem refresh periódico, proventos novos
- * catalogados após a primeira sync nunca chegam.
- *
- * Para cada symbol ativo (com Portfolio):
- *   1. Deleta AssetDividendHistory daquele symbol e força re-fetch BRAPI
- *      (dedup pré-upsert soma duplicates por (date, tipo)).
- *   2. Pra cada Portfolio com o symbol, chama ensurePortfolioProventosFromMarket
- *      em mode='sync' — pula guard externo, depende do dup-check pra evitar
- *      duplicar (inclui dismissed pra respeitar deletes do usuário).
- *
- * Idempotente. Vercel limit: 60s. Pra carteiras maiores, considerar
- * paginação por symbol/batch.
+ * Idempotente (dup-check em ensurePortfolioProventosFromMarket, respeita dismissed).
+ * Itera só posições detidas (Portfolio), não o catálogo inteiro.
  */
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const secret = process.env.CRON_SECRET;
@@ -34,79 +26,63 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
-  const assets = await prisma.asset.findMany({
-    where: { type: { in: ['stock', 'fii', 'etf', 'reit', 'fim-fia'] } },
-    select: { symbol: true },
-    distinct: ['symbol'],
+  const portfolios = await prisma.portfolio.findMany({
+    where: { asset: { type: { in: ['stock', 'fii', 'etf', 'reit', 'fim-fia'] } } },
+    select: {
+      id: true,
+      userId: true,
+      assetId: true,
+      quantity: true,
+      lastUpdate: true,
+      asset: { select: { symbol: true } },
+    },
   });
 
-  let symbolsProcessed = 0;
+  let portfoliosProcessed = 0;
   let totalCreated = 0;
   const errors: Array<{ symbol: string; error: string }> = [];
 
-  for (const { symbol } of assets) {
+  for (const p of portfolios) {
+    const symbol = p.asset?.symbol;
+    if (!symbol) continue;
     try {
-      // Refresca splits/grupamentos do Yahoo (a BRAPI não os entrega no nosso
-      // plano). Cobre splits novos em ativos já existentes, pós-backfill.
-      await syncYahooSplits(symbol);
+      const transactions = p.assetId
+        ? await prisma.stockTransaction.findMany({
+            where: {
+              userId: p.userId,
+              assetId: p.assetId,
+              type: { in: ['compra', 'venda'] },
+              // Exclui linhas de auditoria de evento corporativo — a timeline de
+              // proventos aplica o fator, não o delta congelado.
+              NOT: { notes: { contains: CORPORATE_ACTION_NOTE_MARKER } },
+            },
+            select: { date: true, quantity: true, type: true },
+          })
+        : [];
 
-      await prisma.assetDividendHistory.deleteMany({ where: { symbol } });
-      const dividends = await getDividends(symbol, { useBrapiFallback: true });
-      // Re-preenche o gap de dividendos antigos via Yahoo (a BRAPI free só guarda
-      // ~12 meses; o delete acima apagou o gap-fill anterior). DEPOIS do BRAPI.
-      await syncYahooDividends(symbol);
-      if (dividends.length === 0) {
-        symbolsProcessed += 1;
-        continue;
-      }
-
-      const portfolios = await prisma.portfolio.findMany({
-        where: { asset: { symbol } },
+      const before = await prisma.portfolioProvento.count({
+        where: { portfolioId: p.id, userId: p.userId },
       });
 
-      for (const p of portfolios) {
-        const transactions = p.assetId
-          ? await prisma.stockTransaction.findMany({
-              where: {
-                userId: p.userId,
-                assetId: p.assetId,
-                type: { in: ['compra', 'venda'] },
-                // Exclui linhas de auditoria de evento corporativo — a timeline
-                // de proventos aplica o fator, não o delta congelado.
-                NOT: { notes: { contains: CORPORATE_ACTION_NOTE_MARKER } },
-              },
-              select: { date: true, quantity: true, type: true },
-            })
-          : [];
+      await ensurePortfolioProventosFromMarket({
+        portfolioId: p.id,
+        userId: p.userId,
+        ticker: symbol,
+        transactions,
+        portfolioQuantity: p.quantity,
+        portfolioLastUpdate: p.lastUpdate,
+        mode: 'sync',
+      });
 
-        const before = await prisma.portfolioProvento.count({
-          where: { portfolioId: p.id, userId: p.userId },
-        });
-
-        await ensurePortfolioProventosFromMarket({
-          portfolioId: p.id,
-          userId: p.userId,
-          ticker: symbol,
-          transactions,
-          portfolioQuantity: p.quantity,
-          portfolioLastUpdate: p.lastUpdate,
-          mode: 'sync',
-        });
-
-        const after = await prisma.portfolioProvento.count({
-          where: { portfolioId: p.id, userId: p.userId },
-        });
-        totalCreated += after - before;
-      }
-      symbolsProcessed += 1;
+      const after = await prisma.portfolioProvento.count({
+        where: { portfolioId: p.id, userId: p.userId },
+      });
+      totalCreated += after - before;
+      portfoliosProcessed += 1;
     } catch (err) {
       errors.push({ symbol, error: err instanceof Error ? err.message : String(err) });
     }
   }
 
-  return NextResponse.json({
-    symbolsProcessed,
-    totalCreated,
-    errors,
-  });
+  return NextResponse.json({ portfoliosProcessed, totalCreated, errors });
 });

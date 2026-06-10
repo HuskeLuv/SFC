@@ -2,6 +2,7 @@ import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { runCvmCatalogSync } from '@/services/pricing/cvmFundSync';
+import { enqueueUncoveredCatalogSymbols } from '@/services/pricing/marketDataGap';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
 /**
@@ -27,7 +28,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   try {
     const result = await runCvmCatalogSync();
-    return NextResponse.json(result);
+    const enqueued = await enqueueUncoveredCatalogSymbols();
+    return NextResponse.json({ ...result, marketDataEnqueued: enqueued });
   } catch (error) {
     logger.error('[cron/cvm-catalog-sync]', error);
     return NextResponse.json(
