@@ -627,17 +627,9 @@ export const GET = withErrorHandler(
           pricePointsBySymbol.push({ date: day, value: portfolio.avgPrice });
       }
 
-      // O histórico de mercado vem CRU (getAssetHistory usa `close`/COTAHIST, não
-      // adjusted). Como a quantidade é normalizada pós-split e o preço da transação
-      // já foi des-ajustado (÷ fator) acima, o histórico de mercado TAMBÉM precisa
-      // ser des-ajustado — senão o pré-split fica inflado (qtd pós-split × preço cru)
-      // e o saldoBruto despenca 90% na data do split (penhasco fantasma, ex. MXRF11).
-      const deAdjustHistory = (rows: Array<{ date: number; value: number }>) =>
-        rows.map((h) => {
-          const f = cumFactorAfter(normalizeDateStartShared(new Date(h.date)).getTime());
-          return f !== 1 ? { date: h.date, value: h.value / f } : h;
-        });
-      const history = deAdjustHistory(await fetchAssetHistoryFromDb(ticker, effectiveStart));
+      // getAssetHistory já devolve preço split-ADJUSTED consistente (normaliza as
+      // linhas cruas do COTAHIST). Combina com a quantidade normalizada pós-split.
+      const history = await fetchAssetHistoryFromDb(ticker, effectiveStart);
       const allHistory = [...history, ...pricePointsBySymbol];
       const initialPrice = pricePointsBySymbol[0]?.value ?? portfolio.avgPrice;
       const priceMap = buildDailyPriceMap(allHistory, dayTimeline, initialPrice);
@@ -675,9 +667,7 @@ export const GET = withErrorHandler(
       // Usa janela fixa de 24m a partir de hoje (independente da data da primeira compra do
       // usuário) para que o cálculo seja sobre o desempenho do ATIVO, não da posição.
       const riskWindowStart = new Date(hoje.getFullYear(), hoje.getMonth() - 24, 1);
-      // Des-ajusta também (split recente na janela de 24m geraria um retorno diário
-      // de -90% na data ex → volatilidade/sharpe distorcidos).
-      const riskHistory = deAdjustHistory(await fetchAssetHistoryFromDb(ticker, riskWindowStart));
+      const riskHistory = await fetchAssetHistoryFromDb(ticker, riskWindowStart);
       if (riskHistory.length >= 30) {
         const monthlyCloses = extractMonthlyCloses(riskHistory);
         const monthlyReturnsMap = monthlyReturnsFromCloses(monthlyCloses);

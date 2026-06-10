@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger';
  */
 
 import prisma from '@/lib/prisma';
+import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporateActions';
 import { fetchQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from './brapiQuote';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -374,6 +375,43 @@ export const persistPriceFromBrapi = async (
  * Busca histórico de preços de um ativo: banco primeiro, fallback BRAPI com persistência.
  * Quando o banco tem dados parciais (lacunas), busca na BRAPI para preencher e persiste.
  */
+/** Fontes de preço histórico que guardam preço CRU (não split-adjusted). */
+const RAW_PRICE_SOURCES = new Set(['B3_COTAHIST']);
+
+/**
+ * Normaliza o histórico para escala split-ADJUSTED consistente. O COTAHIST grava
+ * preço CRU (ex.: MXRF11 R$95→R$9 na data do split 10:1), enquanto a BRAPI já
+ * entrega ajustado. Misturados, a curva de patrimônio (que usa quantidade
+ * normalizada pós-split) ganhava um penhasco fantasma de 90% na data do split.
+ * Aqui as linhas de fonte CRUA são divididas pelo produto dos fatores de eventos
+ * APÓS a sua data (escala pós-split); as já-ajustadas (BRAPI) passam intactas.
+ */
+const splitAdjustRawRows = async (
+  symbol: string,
+  rows: Array<{ date: number; value: number; source: string }>,
+): Promise<Array<{ date: number; value: number }>> => {
+  if (!rows.some((r) => RAW_PRICE_SOURCES.has(r.source))) {
+    return rows.map(({ date, value }) => ({ date, value }));
+  }
+  const cas = await prisma.assetCorporateAction.findMany({
+    where: { symbol, type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) } },
+    select: { date: true, factor: true },
+  });
+  const events = cas
+    .filter((c) => Number.isFinite(c.factor) && c.factor > 0)
+    .map((c) => ({ day: normalizeDateToDayStart(c.date).getTime(), factor: c.factor }));
+  if (events.length === 0) return rows.map(({ date, value }) => ({ date, value }));
+
+  const cumFactorAfter = (dayMs: number): number =>
+    events.reduce((f, e) => (e.day > dayMs ? f * e.factor : f), 1);
+
+  return rows.map((r) => {
+    if (!RAW_PRICE_SOURCES.has(r.source)) return { date: r.date, value: r.value };
+    const f = cumFactorAfter(normalizeDateToDayStart(new Date(r.date)).getTime());
+    return { date: r.date, value: f !== 1 ? r.value / f : r.value };
+  });
+};
+
 export const getAssetHistory = async (
   symbol: string,
   startDate: Date,
@@ -394,13 +432,13 @@ export const getAssetHistory = async (
       date: { gte: start, lte: end },
     },
     orderBy: { date: 'asc' },
-    select: { date: true, price: true },
+    select: { date: true, price: true, source: true },
   });
 
-  let data: Array<{ date: number; value: number }> = fromDb.map((r) => ({
-    date: r.date.getTime(),
-    value: Number(r.price),
-  }));
+  let data: Array<{ date: number; value: number }> = await splitAdjustRawRows(
+    normalized,
+    fromDb.map((r) => ({ date: r.date.getTime(), value: Number(r.price), source: r.source })),
+  );
 
   const useFallback = options?.useBrapiFallback !== false;
   const expectedDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS));

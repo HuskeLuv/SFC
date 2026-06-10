@@ -17,6 +17,9 @@ const mockPrisma = vi.hoisted(() => ({
     deleteMany: vi.fn(),
     createMany: vi.fn(),
   },
+  assetCorporateAction: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
   $transaction: vi.fn().mockResolvedValue([]),
 }));
 
@@ -399,6 +402,48 @@ describe('assetPriceService', () => {
       expect(result.length).toBe(60);
       expect(result[0]).toEqual({ date: dbRecords[0].date.getTime(), value: 100 });
       expect(mockGlobalFetch).not.toHaveBeenCalled();
+    });
+
+    it('des-ajusta linhas CRUAS do COTAHIST pelo split (escala consistente)', async () => {
+      const splitDate = new Date('2026-02-01T00:00:00.000Z');
+      // 60 dias: preço CRU R$95 antes do split 10:1, R$9.5 depois (como o COTAHIST grava).
+      const dbRecords = Array.from({ length: 60 }, (_, i) => {
+        const date = new Date(`2026-01-01T00:00:00.000Z`);
+        date.setUTCDate(date.getUTCDate() + i);
+        return {
+          date,
+          price: new Decimal(date < splitDate ? 95 : 9.5),
+          source: 'B3_COTAHIST',
+        };
+      });
+      mockPrisma.assetPriceHistory.findMany.mockResolvedValue(dbRecords);
+      mockPrisma.assetCorporateAction.findMany.mockResolvedValue([{ date: splitDate, factor: 10 }]);
+
+      const result = await getAssetHistory('MXRF11', startDate, endDate);
+
+      const pre = result.find((r) => r.date < splitDate.getTime());
+      const post = result.find((r) => r.date >= splitDate.getTime());
+      // pré-split des-ajustado (95/10 ≈ 9.5), contínuo com o pós-split (9.5).
+      expect(pre!.value).toBeCloseTo(9.5, 5);
+      expect(post!.value).toBeCloseTo(9.5, 5);
+      // sem salto de 10× entre os dois lados.
+      expect(post!.value / pre!.value).toBeGreaterThan(0.8);
+      expect(post!.value / pre!.value).toBeLessThan(1.25);
+    });
+
+    it('NÃO toca linhas já ajustadas (BRAPI) mesmo com split', async () => {
+      const splitDate = new Date('2026-02-01T00:00:00.000Z');
+      const dbRecords = Array.from({ length: 60 }, (_, i) => {
+        const date = new Date(`2026-01-01T00:00:00.000Z`);
+        date.setUTCDate(date.getUTCDate() + i);
+        return { date, price: new Decimal(6), source: 'BRAPI' }; // já ajustado, plano
+      });
+      mockPrisma.assetPriceHistory.findMany.mockResolvedValue(dbRecords);
+      mockPrisma.assetCorporateAction.findMany.mockResolvedValue([{ date: splitDate, factor: 10 }]);
+
+      const result = await getAssetHistory('HFOF11', startDate, endDate);
+      // BRAPI ajustado passa intacto (6), não é dividido pelo fator.
+      expect(result.every((r) => r.value === 6)).toBe(true);
     });
 
     it('falls back to BRAPI when insufficient DB data', async () => {
