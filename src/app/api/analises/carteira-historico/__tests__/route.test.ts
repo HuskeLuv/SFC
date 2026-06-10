@@ -16,8 +16,16 @@ const mockPrisma = vi.hoisted(() => ({
 
 const mockGetAssetHistory = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 
+const mockResolveProventoEvents = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ events: [], total: 0 }),
+);
+
 vi.mock('@/utils/auth', () => ({
   requireAuthWithActing: mockRequireAuthWithActing,
+}));
+
+vi.mock('@/services/portfolio/resolveProventos', () => ({
+  resolveProventoEvents: mockResolveProventoEvents,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -49,6 +57,7 @@ describe('GET /api/analises/carteira-historico', () => {
     });
     mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
     mockGetAssetHistory.mockResolvedValue([]);
+    mockResolveProventoEvents.mockResolvedValue({ events: [], total: 0 });
   });
 
   it('retorna data vazio quando nenhuma transacao existe', async () => {

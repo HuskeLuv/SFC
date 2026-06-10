@@ -8,6 +8,7 @@ import {
   normalizeDateStart,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
+import { resolveProventoEvents } from '@/services/portfolio/resolveProventos';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 interface IndexData {
@@ -276,16 +277,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // refletir retorno TOTAL (capital + renda), não só preço. NÃO são cashflow
   // (não entram em cashFlowsByDay): são retorno, não aporte/resgate externo.
   const proventosByDay = new Map<number, number>();
-  const proventosRows = await prisma.portfolioProvento.findMany({
-    where: { userId: targetUserId, dismissed: false },
-    select: { dataPagamento: true, valorTotal: true, impostoRenda: true },
-  });
-  for (const pp of proventosRows) {
-    const liquido = pp.valorTotal - (pp.impostoRenda ?? 0);
-    if (!(liquido > 0)) continue;
-    const dayKey = nextBusinessDayB3(getDayKey(new Date(pp.dataPagamento).getTime()));
+  const { events: proventoEvents } = await resolveProventoEvents(targetUserId);
+  for (const ev of proventoEvents) {
+    if (!(ev.net > 0)) continue;
+    const dayKey = nextBusinessDayB3(getDayKey(ev.paymentDay));
     if (dayKey < timelineStart.getTime() || dayKey > today.getTime()) continue;
-    proventosByDay.set(dayKey, (proventosByDay.get(dayKey) || 0) + liquido);
+    proventosByDay.set(dayKey, (proventosByDay.get(dayKey) || 0) + ev.net);
   }
 
   const entries = await Promise.all(

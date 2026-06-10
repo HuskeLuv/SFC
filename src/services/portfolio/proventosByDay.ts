@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { resolveProventoEvents } from '@/services/portfolio/resolveProventos';
 
 export interface ProventosByDayResult {
   /** Proventos recebidos por dia (chave = dia normalizado UTC, valor = soma líquida de IRRF). */
@@ -8,28 +8,23 @@ export interface ProventosByDayResult {
 }
 
 /**
- * Carrega os proventos recebidos (PortfolioProvento, líquidos de IRRF, não
- * dispensados, até hoje) de um usuário, agrupados por dia de pagamento.
+ * Carrega os proventos recebidos de um usuário (líquidos de IRRF, até hoje),
+ * agrupados por dia de pagamento.
  *
  * Usado para que a SÉRIE de rentabilidade (historicoTWR/MWR) seja retorno TOTAL
  * (capital + renda), igual à metodologia do Kinvo e ao número do card. Sem isso,
  * um ativo que caiu de preço mas pagou dividendos aparecia só com o retorno de
  * capital no gráfico (ex.: FII -11% no preço, mas +7% total com proventos).
+ *
+ * A fonte é o HISTÓRICO GLOBAL (`resolveProventoEvents` → `asset_dividend_history`),
+ * não a materialização por-usuário `PortfolioProvento`, para eliminar a janela em
+ * que usuário novo via drawdown-fantasma antes da materialização rodar.
  */
 export const loadProventosByDay = async (userId: string): Promise<ProventosByDayResult> => {
-  const rows = await prisma.portfolioProvento.findMany({
-    where: { userId, dismissed: false, dataPagamento: { lte: new Date() } },
-    select: { dataPagamento: true, valorTotal: true, impostoRenda: true },
-  });
+  const { events, total } = await resolveProventoEvents(userId);
   const proventosByDay = new Map<number, number>();
-  let total = 0;
-  for (const r of rows) {
-    const net = (r.valorTotal ?? 0) - (r.impostoRenda ?? 0);
-    total += net;
-    if (!r.dataPagamento) continue;
-    const d = r.dataPagamento;
-    const key = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-    proventosByDay.set(key, (proventosByDay.get(key) ?? 0) + net);
+  for (const e of events) {
+    proventosByDay.set(e.paymentDay, (proventosByDay.get(e.paymentDay) ?? 0) + e.net);
   }
   return { proventosByDay, total };
 };
