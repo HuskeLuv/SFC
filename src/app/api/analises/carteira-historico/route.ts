@@ -272,15 +272,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
-  // Proventos recebidos (realizados, líquidos de IRRF) entram como CAIXA no
-  // saldo a partir da data de pagamento — somam ao patrimônio e fazem o TWR/MWR
-  // refletir retorno TOTAL (capital + renda), não só preço. NÃO são cashflow
-  // (não entram em cashFlowsByDay): são retorno, não aporte/resgate externo.
+  // Proventos (líquidos de IRRF) entram como CAIXA/direito-a-receber a partir da
+  // DATA-EX (não da data de pagamento) — Total Return Index: na data-ex o preço
+  // do ativo cai descontando o provento, então provisionar o direito no MESMO dia
+  // mantém o patrimônio contínuo (sem "dente"/drawdown-fantasma entre data-ex e
+  // pagamento). NÃO são cashflow (não entram em cashFlowsByDay): são retorno.
   const proventosByDay = new Map<number, number>();
   const { events: proventoEvents } = await resolveProventoEvents(targetUserId);
   for (const ev of proventoEvents) {
     if (!(ev.net > 0)) continue;
-    const dayKey = nextBusinessDayB3(getDayKey(ev.paymentDay));
+    const dayKey = nextBusinessDayB3(getDayKey(ev.exDay));
     if (dayKey < timelineStart.getTime() || dayKey > today.getTime()) continue;
     proventosByDay.set(dayKey, (proventosByDay.get(dayKey) || 0) + ev.net);
   }

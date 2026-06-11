@@ -55,6 +55,43 @@ describe('resolveProventoEvents', () => {
     expect(res.total).toBeCloseTo(50, 6);
   });
 
+  it('ancora na DATA-EX (data-com + 1) pro Total Return, preservando paymentDay', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        date: d('2024-01-10'),
+        type: 'compra',
+        quantity: 100,
+        notes: null,
+        asset: { symbol: 'HFOF11' },
+      },
+    ]);
+    mockGetDividends.mockResolvedValue([
+      { date: d('2024-03-15'), dataCom: d('2024-02-29'), tipo: 'Rendimento', valorUnitario: 0.6 },
+    ]);
+    const res = await resolveProventoEvents('u1');
+    // data-com 29/02 → data-ex (preço cai) = 01/03; pagamento permanece 15/03.
+    expect(res.events[0].exDay).toBe(Date.UTC(2024, 2, 1));
+    expect(res.events[0].paymentDay).toBe(Date.UTC(2024, 2, 15));
+  });
+
+  it('exDay cai no pagamento quando a data-com é desconhecida', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        date: d('2024-01-10'),
+        type: 'compra',
+        quantity: 100,
+        notes: null,
+        asset: { symbol: 'XPML11' },
+      },
+    ]);
+    mockGetDividends.mockResolvedValue([
+      { date: d('2024-03-15'), dataCom: null, tipo: 'Rendimento', valorUnitario: 0.6 },
+    ]);
+    const res = await resolveProventoEvents('u1');
+    expect(res.events[0].exDay).toBe(res.events[0].paymentDay);
+    expect(res.events[0].exDay).toBe(Date.UTC(2024, 2, 15));
+  });
+
   it('ignora dividendo anterior à primeira compra (não detinha o ativo)', async () => {
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
       {

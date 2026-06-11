@@ -18,10 +18,23 @@ export interface ProventoEvent {
   symbol: string;
   /** Dia de pagamento normalizado (UTC 00:00) em ms. */
   paymentDay: number;
+  /**
+   * Dia da DATA-EX normalizado (UTC 00:00) em ms — pregão seguinte à data-com,
+   * quando o preço do ativo cai descontando o provento. É onde a série de
+   * rentabilidade (Total Return) deve provisionar o direito a receber, pra a
+   * linha não sofrer "dente"/drawdown-fantasma entre a data-ex e o pagamento.
+   * Fallback = `paymentDay` quando a data-com é desconhecida.
+   */
+  exDay: number;
   tipo: string;
   /** Valor recebido líquido de IRRF (R$). */
   net: number;
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Data-ex = pregão seguinte à data-com (último dia COM direito). O preço cai aqui. */
+const exDayFromDataCom = (dataCom: Date | null, fallbackMs: number): number =>
+  dataCom ? normalizeDateStart(dataCom).getTime() + DAY_MS : fallbackMs;
 
 export interface ResolveProventosResult {
   events: ProventoEvent[];
@@ -146,6 +159,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
         const payDay = normalizeDateStart(d.date);
         const dMs = payDay.getTime();
         if (dMs > hojeMs || dMs < firstPurchase) continue;
+        const exMs = exDayFromDataCom(d.dataCom, dMs);
 
         const key = overrideKey(symbol, dMs, d.tipo);
         if (dismissedKeys.has(key)) continue; // usuário deletou explicitamente
@@ -154,7 +168,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
         if (manual) {
           // Edição manual vence; consome o override para não duplicar abaixo.
           manualOverrides.delete(key);
-          out.push({ symbol, paymentDay: dMs, tipo: d.tipo, net: manual.net });
+          out.push({ symbol, paymentDay: dMs, exDay: exMs, tipo: d.tipo, net: manual.net });
           continue;
         }
 
@@ -166,7 +180,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
         const imposto = isJcpType(d.tipo)
           ? Math.round(valorTotal * getJcpIrrfRate(payDay) * 100) / 100
           : 0;
-        out.push({ symbol, paymentDay: dMs, tipo: d.tipo, net: valorTotal - imposto });
+        out.push({ symbol, paymentDay: dMs, exDay: exMs, tipo: d.tipo, net: valorTotal - imposto });
       }
       return out;
     }),
@@ -178,7 +192,14 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
   // adicionou e não existe no histórico global) entram como eventos próprios.
   for (const m of manualOverrides.values()) {
     if (m.paymentDay > hojeMs) continue;
-    events.push({ symbol: m.symbol, paymentDay: m.paymentDay, tipo: m.tipo, net: m.net });
+    // Override órfão (sem evento-base): sem data-com → ancora no pagamento.
+    events.push({
+      symbol: m.symbol,
+      paymentDay: m.paymentDay,
+      exDay: m.paymentDay,
+      tipo: m.tipo,
+      net: m.net,
+    });
   }
 
   const total = events.reduce((sum, e) => sum + e.net, 0);
