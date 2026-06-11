@@ -159,6 +159,15 @@ export default function RentabilidadeGeral() {
     return filtered;
   };
 
+  // Remove o DIA CORRENTE da série (preço intraday/incompleto), igual ao Kinvo:
+  // o gráfico termina no último dia fechado. Datas são UTC-midnight (normalizeDateStart
+  // no backend), então comparamos contra a meia-noite UTC de hoje.
+  const dropCurrentDay = <T extends { date: number }>(series: T[]): T[] => {
+    const now = new Date();
+    const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    return series.filter((p) => p.date < todayUtc);
+  };
+
   /**
    * Dados de rentabilidade pro gráfico — TWR ou MWR conforme o toggle.
    * SEMPRE recalculados por período (nunca filtro visual):
@@ -169,15 +178,15 @@ export default function RentabilidadeGeral() {
     const useMwr = metric === 'mwr';
     if (hasHistoricoTWR && !isPeriodoInicio) {
       const periodo = useMwr ? rentabilidadePeriodoMwr : rentabilidadePeriodo;
-      if (periodo.length > 0) return periodo;
+      if (periodo.length > 0) return dropCurrentDay(periodo);
     }
     if (hasHistoricoTWR && isPeriodoInicio) {
       const serie = useMwr ? (resumo?.historicoMWR ?? []) : (resumo?.historicoTWR ?? []);
-      return serie.map((item) => ({ date: item.data, value: item.value }));
+      return dropCurrentDay(serie.map((item) => ({ date: item.data, value: item.value })));
     }
     const fallback = useMwr ? carteiraHistoricoDiarioMwr : carteiraHistoricoDiario;
     if (fallback && fallback.length > 0) {
-      return fallback.map((item) => ({ date: item.date, value: item.value }));
+      return dropCurrentDay(fallback.map((item) => ({ date: item.date, value: item.value })));
     }
     return [];
   }, [
@@ -212,7 +221,7 @@ export default function RentabilidadeGeral() {
             .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
             .map((index) => ({
               ...index,
-              data: filterDataByStart(index.data, selectedRangeStart),
+              data: dropCurrentDay(filterDataByStart(index.data, selectedRangeStart)),
             }))
             .filter((index) => Array.isArray(index.data) && index.data.length > 0)
         : [],
@@ -226,7 +235,7 @@ export default function RentabilidadeGeral() {
             .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
             .map((index) => ({
               ...index,
-              data: filterDataByStart(index.data, selectedRangeStart),
+              data: dropCurrentDay(filterDataByStart(index.data, selectedRangeStart)),
             }))
             .filter((index) => Array.isArray(index.data) && index.data.length > 0)
         : [],
@@ -240,7 +249,7 @@ export default function RentabilidadeGeral() {
             .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
             .map((index) => ({
               ...index,
-              data: filterDataByStart(index.data, selectedRangeStart),
+              data: dropCurrentDay(filterDataByStart(index.data, selectedRangeStart)),
             }))
             .filter((index) => Array.isArray(index.data) && index.data.length > 0)
         : [],
