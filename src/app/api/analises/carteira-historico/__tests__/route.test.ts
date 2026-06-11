@@ -12,6 +12,7 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 const mockPrisma = vi.hoisted(() => ({
   stockTransaction: { findMany: vi.fn().mockResolvedValue([]) },
   assetPriceHistory: { findMany: vi.fn().mockResolvedValue([]) },
+  assetCorporateAction: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const mockGetAssetHistory = vi.hoisted(() => vi.fn().mockResolvedValue([]));

@@ -9,6 +9,11 @@ import {
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 import { resolveProventoEvents } from '@/services/portfolio/resolveProventos';
+import {
+  APPLICABLE_CORPORATE_ACTION_TYPES,
+  buildQuantityTimeline,
+  quantityAtDate,
+} from '@/services/portfolio/corporateActions';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 interface IndexData {
@@ -231,8 +236,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const timeline = buildDailyTimeline(timelineStart, today);
 
   const cashFlowsByDay = new Map<number, number>();
-  const quantityDeltasBySymbol = new Map<string, Map<number, number>>();
-  const preStartQuantities = new Map<string, number>();
   const pricePointsBySymbol = new Map<string, IndexData[]>();
 
   transactionsFiltradas.forEach((trans) => {
@@ -245,23 +248,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const rawDayKey = getDayKey(new Date(trans.date).getTime());
     const dayKey = nextBusinessDayB3(rawDayKey);
     const value = getTransactionValue(trans);
-    const qtyDelta = trans.type === 'compra' ? trans.quantity : -trans.quantity;
 
-    if (dayKey < timelineStart.getTime()) {
-      preStartQuantities.set(symbol, (preStartQuantities.get(symbol) || 0) + qtyDelta);
-      return;
-    }
-
-    if (!quantityDeltasBySymbol.has(symbol)) {
-      quantityDeltasBySymbol.set(symbol, new Map());
-    }
-
-    const symbolDeltas = quantityDeltasBySymbol.get(symbol)!;
-    symbolDeltas.set(dayKey, (symbolDeltas.get(dayKey) || 0) + qtyDelta);
+    // Pré-janela: a timeline de quantidade split-aware (buildQuantityTimeline)
+    // já captura a posição herdada; não precisa de preStartQuantities.
+    if (dayKey < timelineStart.getTime()) return;
 
     const cashFlowDelta = trans.type === 'compra' ? value : -value;
     cashFlowsByDay.set(dayKey, (cashFlowsByDay.get(dayKey) || 0) + cashFlowDelta);
 
+    // Preço CRU da transação como ponto-âncora (des-ajustado pelo split mais
+    // abaixo, pra casar com a escala ajustada do preço de mercado e a quantidade
+    // split-aware). Sem o des-ajuste, qty pós-split × preço cru pré-split inflaria.
     const priceValue =
       trans.price > 0 ? trans.price : trans.quantity > 0 ? value / trans.quantity : 0;
     if (priceValue > 0) {
@@ -288,13 +285,53 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const entries = await Promise.all(
     Array.from(transactionsPorSimbolo.keys()).map(async (symbol) => {
-      const historico = await fetchAssetHistoryFromDb(symbol, timelineStart);
-      return [symbol, historico] as const;
+      const [historico, cas] = await Promise.all([
+        fetchAssetHistoryFromDb(symbol, timelineStart),
+        prisma.assetCorporateAction.findMany({
+          where: { symbol, type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) } },
+          orderBy: { date: 'asc' },
+          select: { date: true, type: true, factor: true },
+        }),
+      ]);
+      return [symbol, historico, cas] as const;
     }),
   );
-  for (const [symbol, historico] of entries) {
+  const corporateActionsBySymbol = new Map<
+    string,
+    Array<{ date: Date; type: string; factor: number }>
+  >();
+  for (const [symbol, historico, cas] of entries) {
     historicosPorAtivo.set(symbol, historico);
+    corporateActionsBySymbol.set(symbol, cas);
   }
+
+  // Quantidade SPLIT-AWARE por símbolo (replay de transações + eventos) + fator
+  // acumulado pós-data. O preço de mercado (getAssetHistory) já vem ajustado, então
+  // a quantidade TEM que ser pós-split e o preço de transação injetado, des-ajustado
+  // pra mesma escala — senão qty pós-split × preço cru pré-split infla o saldo (~10×).
+  const quantityTimelineBySymbol = new Map<string, ReturnType<typeof buildQuantityTimeline>>();
+  const cumFactorAfterBySymbol = new Map<string, (dayMs: number) => number>();
+  transactionsPorSimbolo.forEach((txs, symbol) => {
+    const cas = corporateActionsBySymbol.get(symbol) ?? [];
+    quantityTimelineBySymbol.set(symbol, buildQuantityTimeline(txs, cas));
+    cumFactorAfterBySymbol.set(symbol, (dayMs: number) =>
+      cas.reduce(
+        (f, ca) =>
+          normalizeDateStart(ca.date).getTime() > dayMs && ca.factor > 0 ? f * ca.factor : f,
+        1,
+      ),
+    );
+  });
+
+  // Des-ajusta os pontos de preço de transação (crus) pela escala pós-split.
+  pricePointsBySymbol.forEach((points, symbol) => {
+    const cumFactorAfter = cumFactorAfterBySymbol.get(symbol);
+    if (!cumFactorAfter) return;
+    for (const p of points) {
+      const f = cumFactorAfter(p.date);
+      if (f !== 1) p.value = p.value / f;
+    }
+  });
 
   const pricesBySymbol = new Map<string, Map<number, number>>();
   historicosPorAtivo.forEach((historico, symbol) => {
@@ -304,11 +341,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     pricesBySymbol.set(symbol, buildDailyPriceMap(history, timeline, initialPrice));
   });
 
-  const quantitiesBySymbol = new Map<string, number>();
-  transactionsPorSimbolo.forEach((_value, symbol) => {
-    quantitiesBySymbol.set(symbol, Math.max(0, preStartQuantities.get(symbol) || 0));
-  });
-
   const portfolioValues: IndexData[] = [];
   let proventosAcumulados = 0;
 
@@ -316,13 +348,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     let portfolioTotal = 0;
 
     pricesBySymbol.forEach((priceMap, symbol) => {
-      const quantityDelta = quantityDeltasBySymbol.get(symbol)?.get(day) || 0;
-      if (quantityDelta !== 0) {
-        quantitiesBySymbol.set(symbol, (quantitiesBySymbol.get(symbol) || 0) + quantityDelta);
-      }
+      const qtyTimeline = quantityTimelineBySymbol.get(symbol);
+      const actualQty = qtyTimeline ? quantityAtDate(qtyTimeline, day) : 0;
+      if (actualQty <= 0) return;
 
-      const quantity = quantitiesBySymbol.get(symbol) || 0;
-      if (quantity <= 0) return;
+      // quantityAtDate dá a quantidade REAL na data (100 antes do split, 1000
+      // depois). O preço de mercado já vem ajustado (escala pós-split), então
+      // normalizamos a quantidade pra pós-split (× fator dos eventos posteriores)
+      // pra a escala bater em TODA a série — senão o saldo pré-split fica 10× menor
+      // que o pós-split (penhasco no dia do split).
+      const cumFactorAfter = cumFactorAfterBySymbol.get(symbol);
+      const quantity = cumFactorAfter ? actualQty * cumFactorAfter(day) : actualQty;
 
       const price = priceMap.get(day);
       if (price && price > 0) {
