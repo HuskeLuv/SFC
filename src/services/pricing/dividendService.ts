@@ -435,6 +435,27 @@ export const getDividends = async (
   return [];
 };
 
+/**
+ * Re-busca o histórico COMPLETO de dividendos na BRAPI (chave PAGA → histórico
+ * inteiro, NÃO banco-primeiro) e faz upsert — preenche buracos antigos que o
+ * banco-primeiro nunca re-buscava (ex.: KFOF11 com 39 dividendos 2018-2021
+ * faltando). A BRAPI é a fonte PRINCIPAL: no range que ela cobre, os dividendos
+ * de fonte YAHOO viram redundantes e são removidos (Yahoo fica só como fallback
+ * pra antes do início da cobertura BRAPI, ou quando a BRAPI vem vazia). Retorna
+ * quantos dividendos a BRAPI trouxe (0 = não cobre o símbolo).
+ */
+export const refreshDividendsFromBrapi = async (symbol: string): Promise<number> => {
+  if (!symbol?.trim() || isBlockedSymbol(symbol)) return 0;
+  const entries = await fetchAndPersistDividendsFromBrapi(symbol);
+  if (entries.length === 0) return 0;
+  const dbSymbol = symbol.trim().toUpperCase();
+  const earliest = entries.reduce((m, e) => Math.min(m, e.date.getTime()), Infinity);
+  await prisma.assetDividendHistory.deleteMany({
+    where: { symbol: dbSymbol, source: 'YAHOO', date: { gte: new Date(earliest) } },
+  });
+  return entries.length;
+};
+
 // ================== CORPORATE ACTION FUNCTIONS ==================
 
 /**

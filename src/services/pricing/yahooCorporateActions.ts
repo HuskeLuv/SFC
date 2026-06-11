@@ -1,11 +1,11 @@
 /**
  * Eventos corporativos (splits/grupamentos) via Yahoo Finance.
  *
- * Motivação: a BRAPI só entrega splits no módulo pago `splitHistory` (fora do
- * nosso plano) — o que usamos (`dividendsData.stockDividends`) traz só
- * bonificações/subscrições. Resultado: desdobramentos de FIIs como HFOF11
- * (10:1 em 2025) nunca chegavam ao banco e a posição do usuário não era
- * ajustada. O Yahoo expõe os mesmos splits de graça via `events=split`.
+ * Motivação: o que consumimos da BRAPI (`dividendsData.stockDividends`) traz só
+ * bonificações/subscrições, não splits/grupamentos. Sem isso, desdobramentos de
+ * FII (ex.: MXRF11 10:1 em 2017) não chegavam ao banco e a posição do usuário não
+ * era ajustada. O Yahoo expõe esses eventos via `events=split`. (Avaliar migrar
+ * pro módulo `splitHistory` da BRAPI — temos plano pago; ver [[project_brapi_paid]].)
  *
  * Grava em `AssetCorporateAction` (source = "YAHOO"), com a mesma semântica de
  * `factor` que o resto do app: 10.0 = desdobramento 10:1, 0.5 = grupamento 1:2.

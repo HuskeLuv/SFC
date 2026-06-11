@@ -11,7 +11,7 @@
  */
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-import { getDividends } from '@/services/pricing/dividendService';
+import { refreshDividendsFromBrapi } from '@/services/pricing/dividendService';
 import {
   fetchYahooSplits,
   persistYahooSplits,
@@ -54,17 +54,20 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
 export const backfillSymbolMarketData = async (symbol: string): Promise<SymbolBackfillResult> => {
   const sym = symbol.trim().toUpperCase();
 
-  // 1) BRAPI: dividendos recentes + bonificações (persiste dividendos E CA).
+  // 1) BRAPI é a fonte PRINCIPAL (chave paga): puxa o histórico COMPLETO de
+  // dividendos (força refresh, não banco-primeiro → preenche buracos antigos) +
+  // bonificações. Retorna quantos dividendos a BRAPI cobre.
   let brapiThrew = false;
+  let brapiDivCount = 0;
   try {
-    await withRetry(() => getDividends(sym, { useBrapiFallback: true }));
+    brapiDivCount = await withRetry(() => refreshDividendsFromBrapi(sym));
   } catch (err) {
     brapiThrew = true;
     logger.warn(`[market-backfill] BRAPI falhou para ${sym} (não-fatal):`, err);
   }
 
-  // 2) Yahoo splits/grupamentos (a BRAPI free não os entrega). Fetch CRU pra
-  // detectar reachability — se lançar, a fonte está fora (FETCH_FAIL).
+  // 2) Splits/grupamentos via Yahoo. Fetch CRU pra detectar reachability — se
+  // lançar, a fonte está fora (FETCH_FAIL).
   let yahooReachable = false;
   let yahooErr: string | null = null;
   try {
@@ -76,9 +79,9 @@ export const backfillSymbolMarketData = async (symbol: string): Promise<SymbolBa
     logger.warn(`[market-backfill] Yahoo splits falhou para ${sym} (não-fatal):`, err);
   }
 
-  // 3) Yahoo dividendos antigos (só se a fonte respondeu — já sabemos que está no
-  // ar pelo passo 2). syncYahooDividends é best-effort e engole erro internamente.
-  if (yahooReachable) {
+  // 3) Yahoo dividendos só como FALLBACK: quando a BRAPI não cobre o símbolo
+  // (brapiDivCount === 0). Se a BRAPI trouxe dividendos, ela é canônica.
+  if (yahooReachable && brapiDivCount === 0) {
     await syncYahooDividends(sym);
   }
 

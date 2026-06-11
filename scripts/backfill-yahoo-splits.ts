@@ -1,12 +1,12 @@
 /**
  * Backfill de eventos corporativos (splits/grupamentos) via Yahoo Finance.
  *
- * Motivo: a BRAPI só entrega splits no módulo pago `splitHistory` (fora do nosso
- * plano), então desdobramentos como o do HFOF11 (10:1, 2025) nunca chegavam ao
- * banco e as posições dos usuários ficavam erradas. O Yahoo expõe esses eventos
- * de graça. Este script pré-popula `AssetCorporateAction` (source=YAHOO) pra
- * TODOS os ativos do catálogo, pra que qualquer ativo adicionado já tenha os
- * eventos prontos e o cálculo (replayPosition) os aplique.
+ * Motivo: o que consumimos da BRAPI (`dividendsData.stockDividends`) traz só
+ * bonificações, não splits/grupamentos. Sem isso, desdobramentos (ex.: MXRF11
+ * 10:1) não chegavam ao banco e as posições ficavam erradas. O Yahoo expõe esses
+ * eventos via `events=split`. Este script pré-popula `AssetCorporateAction`
+ * (source=YAHOO) pra TODOS os ativos do catálogo. (Avaliar o módulo `splitHistory`
+ * da BRAPI — temos plano pago; ver [[project_brapi_paid]].)
  *
  * Uso:
  *   npx tsx --env-file=.env scripts/backfill-yahoo-splits.ts                 # DRY-RUN (não grava)

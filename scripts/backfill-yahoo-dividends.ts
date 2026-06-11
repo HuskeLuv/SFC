@@ -1,11 +1,11 @@
 /**
  * Backfill de dividendos antigos via Yahoo Finance.
  *
- * Motivo: a BRAPI free só guarda ~12 meses de dividendos em AssetDividendHistory.
- * Ativos com histórico mais longo (ex.: HFOF11 comprado em 2024) ficam com os
- * proventos pré-~12m faltando nos gráficos. O Yahoo tem o histórico cheio (mas
- * split-ADJUSTED) — `syncYahooDividends` des-ajusta pra cru e preenche só o GAP
- * anterior ao dividendo mais antigo já no banco (não toca no que a BRAPI tem).
+ * FALLBACK do Yahoo: a fonte PRINCIPAL de dividendos é a BRAPI (chave paga →
+ * histórico completo via `refreshDividendsFromBrapi`). Este script só preenche
+ * símbolos que a BRAPI NÃO cobre. O Yahoo tem o histórico (mas split-ADJUSTED) —
+ * `syncYahooDividends` des-ajusta pra cru e preenche só o GAP anterior ao
+ * dividendo mais antigo já no banco. Ver [[project_brapi_paid]].
  *
  * Uso:
  *   npx tsx --env-file=.env scripts/backfill-yahoo-dividends.ts                 # DRY-RUN
