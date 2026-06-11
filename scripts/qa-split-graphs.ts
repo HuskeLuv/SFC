@@ -35,12 +35,15 @@ const TARGETS: Target[] = [
   { sym: 'ZAVI11', tipo: 'fii', buy: '2025-06-02', qty: 100, price: 95 },
   { sym: 'TEPP11', tipo: 'fii', buy: '2025-06-02', qty: 100, price: 95 },
   { sym: 'RBFM11', tipo: 'fii', buy: '2025-08-01', qty: 100, price: 95 },
-  { sym: 'CARE11', tipo: 'fii', buy: '2025-09-01', qty: 100, price: 9 },
-  { sym: 'SBSP3', tipo: 'acao', buy: '2025-10-01', qty: 100, price: 95 },
+  { sym: 'CARE11', tipo: 'fii', buy: '2025-09-01', qty: 100, price: 5.5 },
+  { sym: 'SBSP3', tipo: 'acao', buy: '2025-10-01', qty: 100, price: 28 },
   { sym: 'B3SA3', tipo: 'acao', buy: '2020-06-01', qty: 100, price: 50 },
   { sym: 'MXRF11', tipo: 'fii', buy: '2016-09-01', qty: 100, price: 10 },
   { sym: 'HGLG11', tipo: 'fii', buy: '2017-06-01', qty: 50, price: 120 },
   { sym: 'GOAU4', tipo: 'acao', buy: '2025-06-02', qty: 100, price: 10 },
+  // KFOF11: sem split — caso de COMPLETUDE DE DIVIDENDOS (histórico 2018-2021 que
+  // faltava e foi preenchido da BRAPI paga). Compra antiga pra cobrir o trecho.
+  { sym: 'KFOF11', tipo: 'fii', buy: '2019-01-02', qty: 100, price: 100 },
 ];
 
 const cookies: Record<string, string> = {};

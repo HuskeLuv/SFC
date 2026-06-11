@@ -36,6 +36,14 @@ export const CORPORATE_ACTION_BLOCKLIST: BlockEntry[] = [
     before: '2018-04-30',
     reason: 'COTAHIST cru ~R$10,5 contínuo na data — grupamento 1:10 nunca aconteceu.',
   },
+  {
+    symbol: 'CARE11',
+    factor: 0.2,
+    after: '2026-01-15',
+    before: '2026-03-15',
+    reason:
+      'Yahoo+BRAPI: preço contínuo ~R$5,4 na data (jan R$5,6 → fev R$5,36) e 52sem topo R$6,6 — um 1:5 real teria ido a ~R$27. Grupamento nunca aconteceu.',
+  },
 ];
 
 const FACTOR_TOL = 0.1; // 10% de tolerância no fator
