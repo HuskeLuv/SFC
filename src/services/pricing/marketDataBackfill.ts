@@ -19,7 +19,6 @@ import {
 } from '@/services/pricing/yahooCorporateActions';
 import { recordCoverage, type CoverageStatus } from '@/services/pricing/marketDataGap';
 import { dedupSymbolCorporateActions } from '@/services/pricing/corporateActionsDedup';
-import { removeSpuriousForSymbol } from '@/services/pricing/corporateActionValidation';
 
 export interface SymbolBackfillResult {
   symbol: string;
@@ -90,10 +89,11 @@ export const backfillSymbolMarketData = async (symbol: string): Promise<SymbolBa
   // Yahoo canônico. Roda DEPOIS de ambos. Preserva eventos BRAPI órfãos.
   await dedupSymbolCorporateActions(sym);
 
-  // 3c) Anti-espúrio: os feeds têm splits/grupamentos FALSOS (sobretudo FII) que
-  // inflam a posição. Confere cada evento contra o salto de preço real e remove
-  // os que não aconteceram. Depende do histórico de preço já estar no banco.
-  await removeSpuriousForSymbol(sym);
+  // NB: a auto-remoção de eventos "espúrios" por preço foi REMOVIDA do pipeline —
+  // dava falso-positivo em splits REAIS (ex.: HFOF11 10:1), porque o preço da
+  // BRAPI vem split-ADJUSTED e esconde o salto. A validação confiável só roda com
+  // COTAHIST CRU e é manual (scripts/validate-corporate-actions.ts). Default:
+  // confiar no split do feed.
 
   // 4) Conta o que de fato ficou no banco e classifica.
   const [dividendCount, caCount] = await Promise.all([

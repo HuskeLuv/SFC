@@ -7,15 +7,19 @@
  * 10× — bug grave. Um split/grupamento REAL provoca um salto de ~fator no preço
  * CRU na data ex; um evento falso deixa o preço contínuo.
  *
- * Esta validação compara a mediana do preço (AssetPriceHistory — COTAHIST cru +
- * BRAPI, que sem split real fica cru/contínuo) ANTES vs DEPOIS do evento:
+ * ⚠️ USA SÓ COTAHIST CRU (preço oficial da B3, source=B3_COTAHIST). NÃO usar o
+ * preço da BRAPI: ela entrega o histórico já split-ADJUSTED, que esconde o salto
+ * de um split REAL e fazia esta validação remover splits verdadeiros (ex.: HFOF11
+ * 10:1 — COTAHIST mostra R$85→R$8, mas a BRAPI mostra ~R$6 contínuo). Compara a
+ * mediana do preço CRU ANTES vs DEPOIS do evento:
  *   - ratio ≈ 1/fator → REAL (o preço saltou como esperado)
  *   - ratio ≈ 1       → ESPÚRIO (preço contínuo apesar de fator grande)
- *   - sem dado / ambíguo → UNKNOWN (preserva — conservador)
+ *   - sem COTAHIST / ambíguo → UNKNOWN (PRESERVA — confia no feed por default)
  *
  * Só classifica fatores GRANDES o bastante pra separar real de falso sem
  * ambiguidade (fora de [0.85, 1.18]); bonificações pequenas (1–18%) ficam
- * UNKNOWN — impacto baixo e indistinguíveis do ruído de preço.
+ * UNKNOWN. Como a cobertura do COTAHIST é parcial, na prática isso só remove
+ * eventos antigos comprovadamente falsos — e nunca um split recente sem prova.
  */
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
@@ -50,9 +54,13 @@ export const classifyCorporateActionViaPrice = async (
   if (!Number.isFinite(factor) || factor <= 0 || !isDetectableFactor(factor)) return 'unknown';
   try {
     const ev = eventDate.getTime();
+    // SÓ COTAHIST (preço CRU da B3). A BRAPI entrega o histórico split-ADJUSTED, o
+    // que ESCONDE o salto de um split REAL (ex.: HFOF11 R$85→R$8 vira ~R$6 contínuo)
+    // → falso-positivo. Sem COTAHIST cru em torno do evento → 'unknown' (preserva).
     const rows = await prisma.assetPriceHistory.findMany({
       where: {
         symbol,
+        source: 'B3_COTAHIST',
         date: { gte: new Date(ev - WINDOW_DAYS * DAY), lte: new Date(ev + WINDOW_DAYS * DAY) },
       },
       select: { date: true, price: true },
