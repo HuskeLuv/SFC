@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getDividends, isJcpType, getJcpIrrfRate } from '@/services/pricing/dividendService';
+import { nextBusinessDayB3 } from '@/utils/feriadosB3';
 import {
   APPLICABLE_CORPORATE_ACTION_TYPES,
   buildQuantityTimeline,
@@ -32,9 +33,15 @@ export interface ProventoEvent {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** Data-ex = pregão seguinte à data-com (último dia COM direito). O preço cai aqui. */
+/**
+ * Data-ex = PRÓXIMO PREGÃO após a data-com (último dia COM direito). O preço cai
+ * aqui. CRÍTICO usar `nextBusinessDayB3`: a data-com cai numa sexta com frequência
+ * → +1 dia de calendário daria sábado, que NÃO está na timeline de dias úteis do
+ * builder → o provento seria DESCARTADO (regressão real: série perdia ~metade dos
+ * dividendos). Alinhando ao pregão, o dia bate com a timeline e o provento entra.
+ */
 const exDayFromDataCom = (dataCom: Date | null, fallbackMs: number): number =>
-  dataCom ? normalizeDateStart(dataCom).getTime() + DAY_MS : fallbackMs;
+  dataCom ? nextBusinessDayB3(normalizeDateStart(dataCom).getTime() + DAY_MS) : fallbackMs;
 
 export interface ResolveProventosResult {
   events: ProventoEvent[];
