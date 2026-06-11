@@ -19,6 +19,7 @@ import {
 } from '@/services/pricing/yahooCorporateActions';
 import { recordCoverage, type CoverageStatus } from '@/services/pricing/marketDataGap';
 import { dedupSymbolCorporateActions } from '@/services/pricing/corporateActionsDedup';
+import { removeBlockedForSymbol } from '@/services/pricing/corporateActionBlocklist';
 
 export interface SymbolBackfillResult {
   symbol: string;
@@ -89,11 +90,11 @@ export const backfillSymbolMarketData = async (symbol: string): Promise<SymbolBa
   // Yahoo canônico. Roda DEPOIS de ambos. Preserva eventos BRAPI órfãos.
   await dedupSymbolCorporateActions(sym);
 
-  // NB: a auto-remoção de eventos "espúrios" por preço foi REMOVIDA do pipeline —
-  // dava falso-positivo em splits REAIS (ex.: HFOF11 10:1), porque o preço da
-  // BRAPI vem split-ADJUSTED e esconde o salto. A validação confiável só roda com
-  // COTAHIST CRU e é manual (scripts/validate-corporate-actions.ts). Default:
-  // confiar no split do feed.
+  // 3c) Blocklist: remove só os eventos comprovadamente FALSOS e listados à mão
+  // (corporateActionBlocklist.ts) — impede o feed/cron de re-adicioná-los. NÃO há
+  // mais auto-remoção por preço (dava falso-positivo em splits REAIS como HFOF11
+  // 10:1, pois a BRAPI vem split-ADJUSTED). Default: confiar no feed.
+  await removeBlockedForSymbol(sym);
 
   // 4) Conta o que de fato ficou no banco e classifica.
   const [dividendCount, caCount] = await Promise.all([
