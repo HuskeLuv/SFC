@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporateActions';
 import { fetchQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from './brapiQuote';
+import { canOverwrite } from './sourcePrecedence';
 import { Decimal } from '@prisma/client/runtime/library';
 
 const normalizeDateToDayStart = (date: Date): Date => {
@@ -554,9 +555,17 @@ const tryFetchHistoryFromBrapi = async (
     // resultado do upsert com uma fração do custo.
     if (toPersist.length > 0) {
       const dates = toPersist.map((p) => p.date);
+      // Precedência de fonte: este backfill da BRAPI NÃO apaga linhas de prioridade
+      // maior (B3 oficial, manual). Só remove o que a BRAPI pode sobrescrever; os
+      // dias preservados são pulados pelo `skipDuplicates` do createMany.
+      const existing = await prisma.assetPriceHistory.findMany({
+        where: { symbol: dbSymbol, date: { in: dates } },
+        select: { id: true, source: true },
+      });
+      const deletableIds = existing.filter((e) => canOverwrite(e.source, 'BRAPI')).map((e) => e.id);
       await prisma.$transaction([
         prisma.assetPriceHistory.deleteMany({
-          where: { symbol: dbSymbol, date: { in: dates } },
+          where: { id: { in: deletableIds } },
         }),
         prisma.assetPriceHistory.createMany({
           data: toPersist.map((p) => ({

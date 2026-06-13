@@ -1,6 +1,7 @@
 import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import { fetchDetailedQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from './brapiQuote';
+import { canOverwrite } from './sourcePrecedence';
 import { Decimal } from '@prisma/client/runtime/library';
 
 // ================== TYPES ==================
@@ -616,28 +617,40 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
             },
           },
         });
+        // Precedência de fonte: a BRAPI não sobrescreve uma cotação de prioridade
+        // maior já gravada (ex.: B3 oficial). O preço atual (`currentPrice`) é
+        // sempre atualizado — é a cotação viva; só o HISTÓRICO respeita a precedência.
+        const writeHistory = canOverwrite(existing?.source, 'BRAPI');
         await prisma.$transaction([
-          prisma.assetPriceHistory.upsert({
-            where: {
-              symbol_date: {
-                symbol: symbolUpper,
-                date: new Date(
-                  marketDate.getFullYear(),
-                  marketDate.getMonth(),
-                  marketDate.getDate(),
-                ),
-              },
-            },
-            update: { price: new Decimal(r.regularMarketPrice) },
-            create: {
-              assetId: asset.id,
-              symbol: symbolUpper,
-              price: new Decimal(r.regularMarketPrice),
-              currency: currency ?? null,
-              source: 'BRAPI',
-              date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
-            },
-          }),
+          ...(writeHistory
+            ? [
+                prisma.assetPriceHistory.upsert({
+                  where: {
+                    symbol_date: {
+                      symbol: symbolUpper,
+                      date: new Date(
+                        marketDate.getFullYear(),
+                        marketDate.getMonth(),
+                        marketDate.getDate(),
+                      ),
+                    },
+                  },
+                  update: { price: new Decimal(r.regularMarketPrice) },
+                  create: {
+                    assetId: asset.id,
+                    symbol: symbolUpper,
+                    price: new Decimal(r.regularMarketPrice),
+                    currency: currency ?? null,
+                    source: 'BRAPI',
+                    date: new Date(
+                      marketDate.getFullYear(),
+                      marketDate.getMonth(),
+                      marketDate.getDate(),
+                    ),
+                  },
+                }),
+              ]
+            : []),
           prisma.asset.update({
             where: { id: asset.id },
             data: {
@@ -648,8 +661,10 @@ export const syncAssetPrices = async (): Promise<SyncPriceResult> => {
             },
           }),
         ]);
-        if (existing) totalUpdated++;
-        else totalInserted++;
+        if (writeHistory) {
+          if (existing) totalUpdated++;
+          else totalInserted++;
+        }
       } catch (persistErr) {
         logger.warn(`   Erro ao persistir preço de ${r.symbol}:`, persistErr);
         errors++;
@@ -975,28 +990,40 @@ export const syncPricesByScope = async (
             },
           },
         });
+        // Precedência de fonte: a BRAPI não sobrescreve uma cotação de prioridade
+        // maior já gravada (ex.: B3 oficial). O preço atual (`currentPrice`) é
+        // sempre atualizado — é a cotação viva; só o HISTÓRICO respeita a precedência.
+        const writeHistory = canOverwrite(existing?.source, 'BRAPI');
         await prisma.$transaction([
-          prisma.assetPriceHistory.upsert({
-            where: {
-              symbol_date: {
-                symbol: symbolUpper,
-                date: new Date(
-                  marketDate.getFullYear(),
-                  marketDate.getMonth(),
-                  marketDate.getDate(),
-                ),
-              },
-            },
-            update: { price: new Decimal(r.regularMarketPrice) },
-            create: {
-              assetId: asset.id,
-              symbol: symbolUpper,
-              price: new Decimal(r.regularMarketPrice),
-              currency: currency ?? null,
-              source: 'BRAPI',
-              date: new Date(marketDate.getFullYear(), marketDate.getMonth(), marketDate.getDate()),
-            },
-          }),
+          ...(writeHistory
+            ? [
+                prisma.assetPriceHistory.upsert({
+                  where: {
+                    symbol_date: {
+                      symbol: symbolUpper,
+                      date: new Date(
+                        marketDate.getFullYear(),
+                        marketDate.getMonth(),
+                        marketDate.getDate(),
+                      ),
+                    },
+                  },
+                  update: { price: new Decimal(r.regularMarketPrice) },
+                  create: {
+                    assetId: asset.id,
+                    symbol: symbolUpper,
+                    price: new Decimal(r.regularMarketPrice),
+                    currency: currency ?? null,
+                    source: 'BRAPI',
+                    date: new Date(
+                      marketDate.getFullYear(),
+                      marketDate.getMonth(),
+                      marketDate.getDate(),
+                    ),
+                  },
+                }),
+              ]
+            : []),
           prisma.asset.update({
             where: { id: asset.id },
             data: {
@@ -1007,8 +1034,10 @@ export const syncPricesByScope = async (
             },
           }),
         ]);
-        if (existing) totalUpdated++;
-        else totalInserted++;
+        if (writeHistory) {
+          if (existing) totalUpdated++;
+          else totalInserted++;
+        }
       } catch (persistErr) {
         logger.warn(`   Erro ao persistir preço de ${r.symbol}:`, persistErr);
         errors++;

@@ -72,6 +72,9 @@ describe('resolveProventoEvents', () => {
     // data-com 29/02 → data-ex (preço cai) = 01/03; pagamento permanece 15/03.
     expect(res.events[0].exDay).toBe(Date.UTC(2024, 2, 1));
     expect(res.events[0].paymentDay).toBe(Date.UTC(2024, 2, 15));
+    // A SÉRIE provisiona no PAGAMENTO (espelha o Kinvo), não na data-ex.
+    // 15/03/2024 é sexta (pregão) → bookingDay = o próprio pagamento.
+    expect(res.events[0].bookingDay).toBe(Date.UTC(2024, 2, 15));
   });
 
   it('exDay cai no pagamento quando a data-com é desconhecida', async () => {
@@ -90,6 +93,26 @@ describe('resolveProventoEvents', () => {
     const res = await resolveProventoEvents('u1');
     expect(res.events[0].exDay).toBe(res.events[0].paymentDay);
     expect(res.events[0].exDay).toBe(Date.UTC(2024, 2, 15));
+    expect(res.events[0].bookingDay).toBe(Date.UTC(2024, 2, 15));
+  });
+
+  it('bookingDay snapa um pagamento em fim de semana pro pregão seguinte', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        date: d('2024-01-10'),
+        type: 'compra',
+        quantity: 100,
+        notes: null,
+        asset: { symbol: 'XPML11' },
+      },
+    ]);
+    // Pagamento no sábado 16/03/2024 → série provisiona na 2ª-feira 18/03.
+    mockGetDividends.mockResolvedValue([
+      { date: d('2024-03-16'), dataCom: null, tipo: 'Rendimento', valorUnitario: 0.6 },
+    ]);
+    const res = await resolveProventoEvents('u1');
+    expect(res.events[0].paymentDay).toBe(Date.UTC(2024, 2, 16));
+    expect(res.events[0].bookingDay).toBe(Date.UTC(2024, 2, 18));
   });
 
   it('ignora dividendo anterior à primeira compra (não detinha o ativo)', async () => {

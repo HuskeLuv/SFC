@@ -269,16 +269,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
-  // Proventos (líquidos de IRRF) entram como CAIXA/direito-a-receber a partir da
-  // DATA-EX (não da data de pagamento) — Total Return Index: na data-ex o preço
-  // do ativo cai descontando o provento, então provisionar o direito no MESMO dia
-  // mantém o patrimônio contínuo (sem "dente"/drawdown-fantasma entre data-ex e
-  // pagamento). NÃO são cashflow (não entram em cashFlowsByDay): são retorno.
+  // Proventos (líquidos de IRRF) entram como CAIXA/direito-a-receber no
+  // `bookingDay` (= data de PAGAMENTO snapada pro pregão), espelhando o Kinvo, que
+  // credita o provento no pagamento. NÃO são cashflow (não entram em
+  // cashFlowsByDay): são retorno. (`bookingDay` já vem snapado pro pregão.)
   const proventosByDay = new Map<number, number>();
   const { events: proventoEvents } = await resolveProventoEvents(targetUserId);
   for (const ev of proventoEvents) {
     if (!(ev.net > 0)) continue;
-    const dayKey = nextBusinessDayB3(getDayKey(ev.exDay));
+    const dayKey = ev.bookingDay;
     if (dayKey < timelineStart.getTime() || dayKey > today.getTime()) continue;
     proventosByDay.set(dayKey, (proventosByDay.get(dayKey) || 0) + ev.net);
   }

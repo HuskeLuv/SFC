@@ -21,12 +21,20 @@ export interface ProventoEvent {
   paymentDay: number;
   /**
    * Dia da DATA-EX normalizado (UTC 00:00) em ms — pregão seguinte à data-com,
-   * quando o preço do ativo cai descontando o provento. É onde a série de
-   * rentabilidade (Total Return) deve provisionar o direito a receber, pra a
-   * linha não sofrer "dente"/drawdown-fantasma entre a data-ex e o pagamento.
-   * Fallback = `paymentDay` quando a data-com é desconhecida.
+   * quando o preço do ativo cai descontando o provento. INFORMATIVO: a série de
+   * rentabilidade NÃO provisiona mais aqui (ver `bookingDay`). Mantido para
+   * referência/auditoria. Fallback = `paymentDay` quando a data-com é desconhecida.
    */
   exDay: number;
+  /**
+   * Dia em que a SÉRIE de rentabilidade provisiona o provento — data de PAGAMENTO
+   * snapada pro pregão B3 (on-or-after). Espelha a metodologia do Kinvo, que credita
+   * o provento no PAGAMENTO (não na data-ex). Trade-off aceito: reintroduz um pequeno
+   * "dente" entre a data-ex (quando o preço cai) e o pagamento; em troca, a linha bate
+   * com o Kinvo. O snap pro pregão é CRÍTICO: a timeline do builder só tem dias úteis,
+   * então um pagamento em fim de semana/feriado seria descartado da série.
+   */
+  bookingDay: number;
   tipo: string;
   /** Valor recebido líquido de IRRF (R$). */
   net: number;
@@ -167,6 +175,8 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
         const dMs = payDay.getTime();
         if (dMs > hojeMs || dMs < firstPurchase) continue;
         const exMs = exDayFromDataCom(d.dataCom, dMs);
+        // A série provisiona no PAGAMENTO (espelha o Kinvo), snapado pro pregão B3.
+        const bookingMs = nextBusinessDayB3(dMs);
 
         const key = overrideKey(symbol, dMs, d.tipo);
         if (dismissedKeys.has(key)) continue; // usuário deletou explicitamente
@@ -175,7 +185,14 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
         if (manual) {
           // Edição manual vence; consome o override para não duplicar abaixo.
           manualOverrides.delete(key);
-          out.push({ symbol, paymentDay: dMs, exDay: exMs, tipo: d.tipo, net: manual.net });
+          out.push({
+            symbol,
+            paymentDay: dMs,
+            exDay: exMs,
+            bookingDay: bookingMs,
+            tipo: d.tipo,
+            net: manual.net,
+          });
           continue;
         }
 
@@ -187,7 +204,14 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
         const imposto = isJcpType(d.tipo)
           ? Math.round(valorTotal * getJcpIrrfRate(payDay) * 100) / 100
           : 0;
-        out.push({ symbol, paymentDay: dMs, exDay: exMs, tipo: d.tipo, net: valorTotal - imposto });
+        out.push({
+          symbol,
+          paymentDay: dMs,
+          exDay: exMs,
+          bookingDay: bookingMs,
+          tipo: d.tipo,
+          net: valorTotal - imposto,
+        });
       }
       return out;
     }),
@@ -204,6 +228,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
       symbol: m.symbol,
       paymentDay: m.paymentDay,
       exDay: m.paymentDay,
+      bookingDay: nextBusinessDayB3(m.paymentDay),
       tipo: m.tipo,
       net: m.net,
     });
