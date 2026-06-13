@@ -26,6 +26,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import AdmZip from 'adm-zip';
 import prisma from '@/lib/prisma';
 import { parseCotahistLine, type CotahistRecord } from './cotahistB3Parser';
+import { canOverwrite } from './sourcePrecedence';
 
 // ================== CONSTANTS ==================
 
@@ -181,9 +182,8 @@ export async function syncCotahistYear(
   );
 
   let inserted = 0;
-  // `updated` é mantido em zero — createMany + skipDuplicates não distingue
-  // update de skip. Vide CotahistSyncResult.updated (deprecated).
-  const updated = 0;
+  // `updated` = nº de linhas de prioridade menor (BRAPI/Yahoo) que a B3 sobrescreveu.
+  let updated = 0;
   let errors = 0;
 
   if (dryRun) {
@@ -235,11 +235,31 @@ export async function syncCotahistYear(
         };
       });
 
-      const result = await prisma.assetPriceHistory.createMany({
-        data: dataToCreate,
-        skipDuplicates: true,
+      // Precedência: a B3 (oficial) SOBRESCREVE linhas BRAPI/Yahoo já gravadas, mas
+      // preserva `manual` e outras linhas B3. Antes era só createMany+skipDuplicates
+      // (pulava qualquer dia já existente), o que impedia a B3 de ser primária nos
+      // anos que a BRAPI já preencheu. Apaga só o que a B3 pode sobrescrever (por id);
+      // os dias preservados são pulados pelo skipDuplicates do createMany.
+      const batchKeys = new Set(dataToCreate.map((d) => `${d.symbol}|${d.date.getTime()}`));
+      const symbolsInBatch = [...new Set(dataToCreate.map((d) => d.symbol))];
+      const datesInBatch = [...new Set(dataToCreate.map((d) => d.date.getTime()))].map(
+        (t) => new Date(t),
+      );
+      const existing = await prisma.assetPriceHistory.findMany({
+        where: { symbol: { in: symbolsInBatch }, date: { in: datesInBatch } },
+        select: { id: true, symbol: true, date: true, source: true },
       });
+      const deletableIds = existing
+        .filter(
+          (e) => batchKeys.has(`${e.symbol}|${e.date.getTime()}`) && canOverwrite(e.source, SOURCE),
+        )
+        .map((e) => e.id);
+      const [, result] = await prisma.$transaction([
+        prisma.assetPriceHistory.deleteMany({ where: { id: { in: deletableIds } } }),
+        prisma.assetPriceHistory.createMany({ data: dataToCreate, skipDuplicates: true }),
+      ]);
       inserted += result.count;
+      updated += deletableIds.length;
 
       if ((i / BATCH_SIZE) % 10 === 0) {
         logger.info(`   💾 ${i + batch.length}/${matched.length} processados (${inserted} novos)`);
@@ -252,7 +272,7 @@ export async function syncCotahistYear(
 
   const duration = (Date.now() - startTime) / 1000;
   logger.info(
-    `   ✅ [COTAHIST ${year}] ${inserted} novos, ${matched.length - inserted - errors} duplicados (skip), ${errors} erros em ${duration.toFixed(1)}s`,
+    `   ✅ [COTAHIST ${year}] ${inserted} gravados (${updated} sobrescreveram BRAPI/Yahoo), ${matched.length - inserted - errors} preservados (manual/B3), ${errors} erros em ${duration.toFixed(1)}s`,
   );
 
   return {
