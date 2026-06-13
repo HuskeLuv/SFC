@@ -123,9 +123,12 @@ export async function syncCotahistYear(
   if (!txtEntry) {
     throw new Error(`COTAHIST_A${year}.ZIP não contém arquivo .TXT`);
   }
-  // ISO-8859-1 (latin1) é a mesma família usada pelos CSVs CVM.
-  const txt = txtEntry.getData().toString('latin1');
-  logger.info(`   📄 TXT ${(txt.length / 1024 / 1024).toFixed(1)} MB descompactado`);
+  // ISO-8859-1 (latin1), igual aos CSVs da CVM. NÃO materializa a string inteira:
+  // arquivos recentes (2024+ ≈ 75MB zipado → ~500MB texto) estouram o limite de
+  // string do Node (ERR_STRING_TOO_LONG, máx 0x1fffffe8). Decodifica linha a linha
+  // direto do Buffer (peak de memória menor que o toString antigo).
+  const data = txtEntry.getData();
+  logger.info(`   📄 TXT ${(data.length / 1024 / 1024).toFixed(1)} MB descompactado`);
 
   // 3. Carrega map de symbols → assetId pra cruzar antes de upsertar.
   //    Mantemos a lista de assets em memória (apenas ~5k registros) pra evitar
@@ -141,44 +144,54 @@ export async function syncCotahistYear(
     logger.info(`   📚 ${assetBySymbol.size} assets já cadastrados no banco`);
   }
 
-  // 4. Stream linha a linha. split('\n') em string de 150MB cria ~2M strings na
-  //    heap; aceitável (Node aguenta), e poupa ler o ZIP duas vezes. Alternativa
-  //    seria escrever em /tmp e usar readline, mas pra 5 anos a memória peak
-  //    fica em ~500MB que cabe num runner padrão.
-  const lines = txt.split('\n');
+  // 4. Stream linha a linha direto do Buffer (sem materializar a string inteira —
+  //    ver acima). COTAHIST usa CRLF; cada linha é decodificada de latin1 entre
+  //    quebras `\n`, incluindo o `\r` final (igual ao split('\n') antigo — o
+  //    parser ignora colunas além do registro fixo).
   let parsed = 0;
+  let lineCount = 0;
   const uniqueSymbols = new Set<string>();
   const sample: CotahistRecord[] = [];
   const matched: CotahistRecord[] = [];
+  const LF = 0x0a;
 
-  for (let i = 0; i < lines.length; i++) {
-    const rec = parseCotahistLine(lines[i]);
-    if (!rec) continue;
-    parsed++;
-    uniqueSymbols.add(rec.symbol);
+  let lineStart = 0;
+  for (let pos = 0; pos <= data.length; pos++) {
+    if (pos !== data.length && data[pos] !== LF) continue;
+    if (pos > lineStart) {
+      const line = data.toString('latin1', lineStart, pos);
+      lineCount++;
+      const rec = parseCotahistLine(line);
+      if (rec) {
+        parsed++;
+        uniqueSymbols.add(rec.symbol);
+        if (sample.length < 3) sample.push(rec);
 
-    if (sample.length < 3) sample.push(rec);
+        // Filtra pelo conjunto de symbols (Asset table OU filtro custom).
+        if (options.symbolFilter) {
+          // symbolFilter vazio = aceitar tudo (modo "carregar geral")
+          if (
+            options.symbolFilter.size === 0 ||
+            options.symbolFilter.has(rec.symbol.toUpperCase())
+          ) {
+            matched.push(rec);
+          }
+        } else if (assetBySymbol.has(rec.symbol.toUpperCase())) {
+          matched.push(rec);
+        }
 
-    // Filtra pelo conjunto de symbols (Asset table OU filtro custom).
-    if (options.symbolFilter) {
-      if (options.symbolFilter.size > 0 && !options.symbolFilter.has(rec.symbol.toUpperCase())) {
-        continue;
+        if (lineCount % PROGRESS_EVERY === 0) {
+          logger.info(
+            `   ⏳ ${lineCount.toLocaleString('pt-BR')} linhas lidas | ${parsed} parseadas | ${matched.length} candidatas`,
+          );
+        }
       }
-      // symbolFilter vazio = aceitar tudo (modo "carregar geral")
-      matched.push(rec);
-    } else if (assetBySymbol.has(rec.symbol.toUpperCase())) {
-      matched.push(rec);
     }
-
-    if (i > 0 && i % PROGRESS_EVERY === 0) {
-      logger.info(
-        `   ⏳ ${i.toLocaleString('pt-BR')} linhas lidas | ${parsed} parseadas | ${matched.length} candidatas`,
-      );
-    }
+    lineStart = pos + 1;
   }
 
   logger.info(
-    `   📊 ${lines.length.toLocaleString('pt-BR')} linhas, ${parsed} parseadas, ${uniqueSymbols.size} symbols únicos, ${matched.length} candidatas a upsert`,
+    `   📊 ${lineCount.toLocaleString('pt-BR')} linhas, ${parsed} parseadas, ${uniqueSymbols.size} symbols únicos, ${matched.length} candidatas a upsert`,
   );
 
   let inserted = 0;
@@ -191,7 +204,7 @@ export async function syncCotahistYear(
     logger.info(`   🚫 DRY RUN — não persistido. Duração: ${duration.toFixed(2)}s`);
     return {
       year,
-      lines: lines.length,
+      lines: lineCount,
       parsed,
       uniqueSymbols: uniqueSymbols.size,
       matched: matched.length,
@@ -277,7 +290,7 @@ export async function syncCotahistYear(
 
   return {
     year,
-    lines: lines.length,
+    lines: lineCount,
     parsed,
     uniqueSymbols: uniqueSymbols.size,
     matched: matched.length,
