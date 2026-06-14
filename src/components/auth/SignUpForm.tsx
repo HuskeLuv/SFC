@@ -8,7 +8,11 @@ import { isValidEmail } from '@/utils/isValidEmail';
 import Link from 'next/link';
 import React, { useState } from 'react';
 
-export default function SignUpForm() {
+export default function SignUpForm({
+  registrationDisabled = false,
+}: {
+  registrationDisabled?: boolean;
+}) {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -95,6 +99,45 @@ export default function SignUpForm() {
       setLoading(false);
     }
   };
+
+  // Kill-switch de cadastro (REGISTRATION_DISABLED no servidor). Em vez de
+  // mostrar o form e só falhar no submit com 503, exibimos um painel claro.
+  if (registrationDisabled) {
+    return (
+      <div className="flex flex-col flex-1 lg:w-1/2 w-full overflow-y-auto no-scrollbar">
+        <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
+          <Link
+            href="/"
+            className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+          >
+            <ChevronLeftIcon />
+            Voltar para o dashboard
+          </Link>
+        </div>
+        <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-800 dark:bg-white/[0.03]">
+            <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90">
+              Cadastro temporariamente indisponível
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No momento não estamos aceitando novos cadastros. Tente novamente mais tarde.
+            </p>
+            <div className="mt-5">
+              <p className="text-sm font-normal text-gray-700 dark:text-gray-400">
+                Já tem uma conta?{' '}
+                <Link
+                  href="/signin"
+                  className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
+                >
+                  Entrar
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col flex-1 lg:w-1/2 w-full overflow-y-auto no-scrollbar">
