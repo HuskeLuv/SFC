@@ -7,6 +7,16 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { BCRYPT_ROUNDS } from '@/utils/passwordHashing';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
+  // Kill-switch temporário de cadastro. Lido em runtime (não no import) pra
+  // poder ligar/desligar só com toggle no app.env + restart, sem redeploy.
+  // Setar REGISTRATION_DISABLED=true bloqueia a criação de novos usuários.
+  if (process.env.REGISTRATION_DISABLED === 'true') {
+    return NextResponse.json(
+      { error: 'Cadastro de novos usuários temporariamente indisponível.' },
+      { status: 503 },
+    );
+  }
+
   const body = await req.json();
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {

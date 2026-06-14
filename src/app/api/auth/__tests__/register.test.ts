@@ -131,6 +131,27 @@ describe('POST /api/auth/register', () => {
     });
   });
 
+  describe('Kill-switch REGISTRATION_DISABLED', () => {
+    it('retorna 503 e nao cria usuario quando REGISTRATION_DISABLED=true', async () => {
+      vi.stubEnv('REGISTRATION_DISABLED', 'true');
+
+      const response = await POST(createRequest(validBody));
+      const data = await response.json();
+
+      expect(response.status).toBe(503);
+      expect(data.error).toContain('temporariamente indisponível');
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+
+      vi.unstubAllEnvs();
+    });
+
+    it('permite cadastro normal quando REGISTRATION_DISABLED ausente', async () => {
+      const response = await POST(createRequest(validBody));
+      expect(response.status).toBe(200);
+      expect(mockPrisma.user.create).toHaveBeenCalled();
+    });
+  });
+
   it('retorna 409 quando email ja existe', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(createdUser);
 
