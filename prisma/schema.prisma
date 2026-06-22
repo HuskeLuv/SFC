@@ -110,6 +110,7 @@ model User {
   planejamentoObjetivos         PlanejamentoObjetivo[]
   aposentadoriaPlano            AposentadoriaPlano?
   consents                      UserConsent[]
+  loginEvents                   LoginEvent[]
 }
 
 /**
@@ -909,4 +910,30 @@ model AposentadoriaPlanoEntry {
   @@unique([planoId, off])
   @@index([planoId])
   @@map("aposentadoria_plano_entries")
+}
+
+// Trilha de auditoria de autenticação (login tracking).
+// Append-only: cada tentativa de login (sucesso OU falha) gera uma linha.
+// Falhas em conta inexistente têm userId=null mas email preenchido, pra
+// rastrear ataques de enumeração/brute-force por e-mail.
+//
+// LGPD: ipAddress + userAgent são PII de segurança (legítimo interesse,
+// Art. 7º IX). Retenção de 90 dias aplicada pelo cron lgpd-retention.
+model LoginEvent {
+  id        String   @id @default(uuid())
+  userId    String? // null quando o e-mail não corresponde a nenhuma conta
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String // e-mail tentado (sempre gravado)
+  success   Boolean
+  // motivo da falha: "user_not_found" | "bad_password" | "totp_required"
+  // | "totp_invalid" (null em sucesso)
+  reason    String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+  @@index([createdAt])
+  @@map("login_events")
 }

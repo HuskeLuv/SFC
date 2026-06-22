@@ -9,6 +9,8 @@
  *    aceitos/rejeitados são preservados como trilha de auditoria.
  *  - ConsultantImpersonationLog > 12 meses: deleta (IP + UA + sessionToken
  *    são PII de auditoria; manter "para sempre" fere minimização).
+ *  - LoginEvent > 90 dias: deleta (IP + UA da trilha de login; 90 dias
+ *    cobrem investigação de incidente sem reter PII indefinidamente).
  *
  * Agendado em vercel.json: domingo 05:00 UTC (sem conflito com os crons
  * de mercado que rodam 06-08 UTC).
@@ -23,6 +25,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 const DAYS = 24 * 60 * 60 * 1000;
 const INVITE_TTL_DAYS = 30;
 const IMPERSONATION_LOG_TTL_DAYS = 365;
+const LOGIN_EVENT_TTL_DAYS = 90;
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const secret = process.env.CRON_SECRET;
@@ -37,26 +40,32 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const now = Date.now();
   const inviteCutoff = new Date(now - INVITE_TTL_DAYS * DAYS);
   const logCutoff = new Date(now - IMPERSONATION_LOG_TTL_DAYS * DAYS);
+  const loginEventCutoff = new Date(now - LOGIN_EVENT_TTL_DAYS * DAYS);
 
-  const [invites, logs] = await Promise.all([
+  const [invites, logs, loginEvents] = await Promise.all([
     prisma.consultantInvite.deleteMany({
       where: { status: 'pending', createdAt: { lt: inviteCutoff } },
     }),
     prisma.consultantImpersonationLog.deleteMany({
       where: { createdAt: { lt: logCutoff } },
     }),
+    prisma.loginEvent.deleteMany({
+      where: { createdAt: { lt: loginEventCutoff } },
+    }),
   ]);
 
   logger.info(
-    `[lgpd-retention] convites pendentes purgados: ${invites.count}, logs de impersonation purgados: ${logs.count}`,
+    `[lgpd-retention] convites pendentes purgados: ${invites.count}, logs de impersonation purgados: ${logs.count}, eventos de login purgados: ${loginEvents.count}`,
   );
 
   return NextResponse.json({
     invitesPurged: invites.count,
     impersonationLogsPurged: logs.count,
+    loginEventsPurged: loginEvents.count,
     cutoffs: {
       pendingInvites: inviteCutoff.toISOString(),
       impersonationLogs: logCutoff.toISOString(),
+      loginEvents: loginEventCutoff.toISOString(),
     },
   });
 });
