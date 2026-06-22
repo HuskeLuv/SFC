@@ -2,8 +2,8 @@ import { logger } from '@/lib/logger';
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CashflowGroup, CashflowValue, AlertState, NewRowData } from '@/types/cashflow';
-import { isReceitaGroupByType } from '@/utils/formatters';
 import { queryKeys } from '@/lib/queryKeys';
+import { aggregateCashflow } from '@/services/cashflow/cashflowAggregation';
 
 interface InvestimentoItem {
   id: string;
@@ -233,165 +233,8 @@ export const useAlert = () => {
 };
 
 export const useProcessedData = (data: CashflowGroup[]) => {
-  return useMemo(() => {
-    const groupTotals: Record<string, number[]> = {};
-    const groupAnnualTotals: Record<string, number> = {};
-    const groupPercentages: Record<string, number> = {};
-    const itemTotals: Record<string, number[]> = {};
-    const itemAnnualTotals: Record<string, number> = {};
-    const itemPercentages: Record<string, number> = {};
-
-    let entradasTotal = 0;
-    let despesasTotal = 0;
-    const entradasByMonth = Array(12).fill(0);
-    const despesasByMonth = Array(12).fill(0);
-
-    const findGroupById = (groupId: string): CashflowGroup | undefined => {
-      const findInGroups = (groups: CashflowGroup[]): CashflowGroup | undefined => {
-        for (const group of groups) {
-          if (group.id === groupId) return group;
-          if (group.children) {
-            const found = findInGroups(group.children);
-            if (found) return found;
-          }
-        }
-        return undefined;
-      };
-      return findInGroups(data);
-    };
-
-    const processGroup = (group: CashflowGroup, isInvestmentGroup: boolean = false) => {
-      const isInvestment = isInvestmentGroup || group.type === 'investimento';
-
-      if (group.items?.length) {
-        group.items.forEach((item) => {
-          const itemValues = Array(12).fill(0);
-          if (item.values?.length) {
-            item.values.forEach((val: CashflowValue & { mes?: number; valor?: number }) => {
-              const month = val.month !== undefined ? val.month : val.mes;
-              const value = val.value !== undefined ? val.value : val.valor;
-              if (
-                typeof month === 'number' &&
-                month >= 0 &&
-                month < 12 &&
-                typeof value === 'number'
-              ) {
-                itemValues[month] = value;
-              }
-            });
-          }
-          itemTotals[item.id] = itemValues;
-          const annualTotal = itemValues.reduce((a, b) => a + b, 0);
-          itemAnnualTotals[item.id] = annualTotal;
-
-          if (isReceitaGroupByType(group.type)) {
-            entradasTotal += annualTotal;
-            itemValues.forEach((value, month) => {
-              entradasByMonth[month] += value;
-            });
-          } else {
-            despesasTotal += annualTotal;
-            if (!isInvestment) {
-              itemValues.forEach((value, month) => {
-                despesasByMonth[month] += value;
-              });
-            }
-          }
-        });
-      }
-
-      groupTotals[group.id] = Array(12).fill(0);
-      groupAnnualTotals[group.id] = 0;
-
-      if (group.items?.length) {
-        group.items.forEach((item) => {
-          const itemValues = itemTotals[item.id];
-          if (itemValues) {
-            itemValues.forEach((value, month) => {
-              groupTotals[group.id][month] += value;
-              groupAnnualTotals[group.id] += value;
-            });
-          }
-        });
-      }
-
-      if (group.children?.length) {
-        group.children.forEach((child) => {
-          processGroup(child, isInvestment);
-          const childTotals = groupTotals[child.id];
-          if (childTotals) {
-            childTotals.forEach((value, month) => {
-              groupTotals[group.id][month] += value;
-              groupAnnualTotals[group.id] += value;
-            });
-          }
-        });
-      }
-    };
-
-    data.forEach((group) => {
-      processGroup(group);
-    });
-
-    const receitaTotalBase = entradasTotal;
-
-    Object.entries(groupAnnualTotals).forEach(([groupId, annualTotal]) => {
-      const group = findGroupById(groupId);
-      if (group) {
-        const base = receitaTotalBase > 0 ? receitaTotalBase : 0;
-        groupPercentages[groupId] = base > 0 ? (annualTotal / base) * 100 : 0;
-      }
-    });
-
-    Object.entries(itemAnnualTotals).forEach(([itemId, annualTotal]) => {
-      let itemGroup: CashflowGroup | undefined;
-      for (const group of data) {
-        const findItemInGroup = (g: CashflowGroup): CashflowGroup | undefined => {
-          if (g.items?.some((item) => item.id === itemId)) return g;
-          for (const child of g.children || []) {
-            const found = findItemInGroup(child);
-            if (found) return found;
-          }
-          return undefined;
-        };
-        itemGroup = findItemInGroup(group);
-        if (itemGroup) break;
-      }
-
-      if (itemGroup) {
-        const base = receitaTotalBase > 0 ? receitaTotalBase : 0;
-        itemPercentages[itemId] = base > 0 ? (annualTotal / base) * 100 : 0;
-      }
-    });
-
-    const totalByMonth = Array(12).fill(0);
-    data.forEach((group) => {
-      if (group.type === 'investimento') return;
-      const arr = groupTotals[group.id];
-      if (arr) {
-        const isReceita = isReceitaGroupByType(group.type);
-        arr.forEach((v, i) => {
-          totalByMonth[i] += isReceita ? v : -v;
-        });
-      }
-    });
-
-    const totalAnnual = totalByMonth.reduce((a, b) => a + b, 0);
-
-    return {
-      groups: data,
-      groupTotals,
-      groupAnnualTotals,
-      groupPercentages,
-      itemTotals,
-      itemAnnualTotals,
-      itemPercentages,
-      totalByMonth,
-      totalAnnual,
-      entradasTotal,
-      despesasTotal,
-      entradasByMonth,
-      despesasByMonth,
-    };
-  }, [data]);
+  // A agregação vive em `@/services/cashflow/cashflowAggregation` (pura e
+  // isomórfica) para que a planilha e o contexto de planejamento server-side
+  // compartilhem exatamente a mesma semântica de sobra/despesa/despesa fixa.
+  return useMemo(() => ({ groups: data, ...aggregateCashflow(data) }), [data]);
 };

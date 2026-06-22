@@ -381,6 +381,8 @@ export const aposentadoriaPlanoUpsertSchema = z.object({
   trackStartMonth: z.number().int().min(1).max(12),
   trackStartYear: z.number().int().min(2000).max(2100),
   eventos: z.array(aposEventoSchema).max(50).optional().default([]),
+  // Override layer: nomes dos campos travados manualmente (não re-sincronizam).
+  fieldLocks: z.array(z.string().max(40)).max(20).optional().default([]),
 });
 
 export const aposentadoriaEntryUpsertSchema = z.object({

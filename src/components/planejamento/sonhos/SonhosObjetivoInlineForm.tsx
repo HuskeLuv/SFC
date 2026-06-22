@@ -264,7 +264,10 @@ export default function SonhosObjetivoInlineForm({
             value={form.available}
             onChange={(e) => update('available', e.target.value)}
             min="0"
-            step="100"
+            // step="any": o saldo é auto-preenchido com o patrimônio (valor com
+            // centavos, ex.: 12345.67). Com step="100" isso vira stepMismatch e
+            // o navegador BLOQUEIA o submit do form (onSubmit nunca dispara).
+            step="any"
             placeholder="0"
             error={!!validationErrors.available}
             hint={validationErrors.available}

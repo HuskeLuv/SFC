@@ -33,6 +33,7 @@ export interface AposentadoriaPlanoDTO {
   trackStartMonth: number;
   trackStartYear: number;
   eventos: AposentadoriaEvento[];
+  fieldLocks: string[];
   entries: AposentadoriaEntryDTO[];
   createdAt: string;
   updatedAt: string;
@@ -62,10 +63,17 @@ type PlanoRow = {
   trackStartMonth: number;
   trackStartYear: number;
   eventos: Prisma.JsonValue;
+  fieldLocks?: Prisma.JsonValue;
   createdAt: Date;
   updatedAt: Date;
   entries?: EntryRow[];
 };
+
+/** Coage o Json `fieldLocks` num array de strings, descartando lixo. */
+export function parseFieldLocks(raw: Prisma.JsonValue | undefined): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((v): v is string => typeof v === 'string');
+}
 
 /**
  * Coage o Json `eventos` (que vem como `unknown` do Prisma) num array tipado,
@@ -113,6 +121,7 @@ export function serializePlano(p: PlanoRow): AposentadoriaPlanoDTO {
     trackStartMonth: p.trackStartMonth,
     trackStartYear: p.trackStartYear,
     eventos: parseEventos(p.eventos),
+    fieldLocks: parseFieldLocks(p.fieldLocks),
     entries,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),

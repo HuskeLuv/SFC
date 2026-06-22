@@ -8,12 +8,15 @@ import type {
   AposentadoriaEntryDTO,
   AposentadoriaEvento,
 } from '@/app/api/aposentadoria/_lib/serializer';
+import type { DerivedAcompanhamentoEntry } from '@/services/planejamento/acompanhamentoAuto';
 
 const QUERY_KEY = ['aposentadoria'] as const;
 const DEFAULTS_KEY = ['aposentadoria', 'defaults'] as const;
+const AUTO_KEY = ['aposentadoria', 'entries', 'auto'] as const;
 const BASE_URL = '/api/aposentadoria';
 
 export type { AposentadoriaPlanoDTO, AposentadoriaEntryDTO, AposentadoriaEvento };
+export type { DerivedAcompanhamentoEntry };
 
 /** Parâmetros do plano enviados no PUT (tudo menos id/entries/timestamps). */
 export interface PlanoUpsertPayload {
@@ -29,6 +32,8 @@ export interface PlanoUpsertPayload {
   trackStartMonth: number;
   trackStartYear: number;
   eventos: AposentadoriaEvento[];
+  /** Campos travados manualmente (override) — não re-sincronizam do contexto. */
+  fieldLocks: string[];
 }
 
 export interface EntryUpsertPayload {
@@ -162,6 +167,64 @@ export function useAposentadoriaDefaults(enabled = true) {
     },
     staleTime: 5 * 60 * 1000,
     retry: 1,
+  });
+}
+
+// ── Acompanhamento mensal automático ──────────────────────────────────────
+
+interface AutoPreview {
+  asOf: string;
+  derived: DerivedAcompanhamentoEntry[];
+  fillable: number;
+}
+
+/**
+ * Preview dos valores de acompanhamento derivados da carteira (aporte líquido +
+ * patrimônio de snapshot) por mês. `fillable` = meses com snapshot ainda sem
+ * registro. Retorna null se o plano ainda não existe (404).
+ */
+export function useAcompanhamentoAuto(enabled = true) {
+  const query = useQuery<AutoPreview | null, Error>({
+    queryKey: AUTO_KEY,
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`${BASE_URL}/entries/auto`, { credentials: 'include', signal });
+      if (!res.ok) {
+        if (res.status === 404) return null;
+        throw new Error(`Erro ao carregar sugestões (${res.status})`);
+      }
+      return (await res.json()) as AutoPreview;
+    },
+  });
+  return {
+    preview: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+  };
+}
+
+/**
+ * Preenche automaticamente os meses sem registro com os valores derivados da
+ * carteira. Não sobrescreve registros manuais. Atualiza o cache do plano.
+ */
+export function useAutoFillEntries() {
+  const { csrfFetch } = useCsrf();
+  const queryClient = useQueryClient();
+
+  return useMutation<{ plano: AposentadoriaPlanoDTO; filled: number }, Error, void>({
+    mutationFn: async () => {
+      const res = await csrfFetch(`${BASE_URL}/entries/auto`, { method: 'POST' });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `Erro ao preencher meses (${res.status})`);
+      }
+      return (await res.json()) as { plano: AposentadoriaPlanoDTO; filled: number };
+    },
+    onSuccess: ({ plano }) => {
+      queryClient.setQueryData(QUERY_KEY, plano);
+      void queryClient.invalidateQueries({ queryKey: AUTO_KEY });
+    },
   });
 }
 

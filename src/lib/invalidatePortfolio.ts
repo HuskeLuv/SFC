@@ -26,4 +26,8 @@ export function invalidatePortfolioDerivedQueries(queryClient: QueryClient): voi
   // a soma Aporte/Resgate. Sem essa invalidação o Fluxo de Caixa fica
   // stale até reload.
   void queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
+  // O contexto de planejamento deriva de patrimônio, aportes e reserva — todos
+  // mudam com qualquer transação. Mantém os defaults/seeds do planejamento
+  // (Sonhos/Aposentadoria) coerentes com a carteira em tempo real.
+  void queryClient.invalidateQueries({ queryKey: queryKeys.planejamento.all });
 }

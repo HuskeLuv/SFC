@@ -11,10 +11,16 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { planejamentoObjetivoCreateSchema, validationError } from '@/utils/validation-schemas';
 import { categoryFromMonths } from '@/services/planejamento/planejamentoSonhos';
+import { provisionDefaultSonhos } from '@/services/planejamento/sonhosDefaults';
+import { syncObjetivoToCashflow } from '@/services/planejamento/sonhoCashflowSync';
 import { serializeObjetivo } from './_lib/serializer';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
+
+  // 1º acesso: provisiona os 6 sonhos padrão + linhas espelho no fluxo de caixa
+  // (idempotente — só roda uma vez por usuário).
+  await provisionDefaultSonhos(targetUserId);
 
   const rows = await prisma.planejamentoObjetivo.findMany({
     where: { userId: targetUserId },
@@ -55,6 +61,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       notes: notes ?? null,
     },
     include: { entries: true },
+  });
+
+  // Espelha o sonho no fluxo de caixa (linha em "Planejamento Financeiro").
+  await syncObjetivoToCashflow(targetUserId, {
+    id: created.id,
+    name,
+    target,
+    available,
+    months,
+    rate,
   });
 
   return NextResponse.json({ objetivo: serializeObjetivo(created) }, { status: 201 });

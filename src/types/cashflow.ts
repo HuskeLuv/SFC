@@ -22,6 +22,8 @@ export interface CashflowItem {
   templateId?: string | null;
   hidden?: boolean;
   isTemplate?: boolean;
+  /** Quando setado, a linha espelha um sonho (somente-leitura no fluxo de caixa). */
+  objetivoId?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

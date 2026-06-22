@@ -539,7 +539,9 @@ export default function DataTableTwo() {
       isLastItem: boolean = false,
     ) => {
       const groupId = group.id;
-      if (isGroupEditing(groupId)) {
+      // Linhas vinculadas a um sonho são somente-leitura no fluxo de caixa
+      // (o sonho é a fonte) — nunca entram no modo de edição do grupo.
+      if (isGroupEditing(groupId) && !item.objetivoId) {
         if (isItemDeleted(item.id)) {
           return null;
         }

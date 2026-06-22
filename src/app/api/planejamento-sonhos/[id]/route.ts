@@ -15,7 +15,11 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { planejamentoObjetivoPatchSchema, validationError } from '@/utils/validation-schemas';
 import { categoryFromMonths } from '@/services/planejamento/planejamentoSonhos';
-import { serializeObjetivo } from '../_lib/serializer';
+import {
+  syncObjetivoToCashflow,
+  removeObjetivoCashflow,
+} from '@/services/planejamento/sonhoCashflowSync';
+import { decimalToNumber, serializeObjetivo } from '../_lib/serializer';
 
 async function findOwned(id: string, userId: string) {
   return prisma.planejamentoObjetivo.findFirst({
@@ -83,6 +87,16 @@ export const PATCH = withErrorHandler(
       include: { entries: true },
     });
 
+    // Re-sincroniza a linha espelho no fluxo de caixa com o aporte recalculado.
+    await syncObjetivoToCashflow(targetUserId, {
+      id: updated.id,
+      name: updated.name,
+      target: decimalToNumber(updated.target),
+      available: decimalToNumber(updated.available),
+      months: updated.months,
+      rate: decimalToNumber(updated.rate),
+    });
+
     return NextResponse.json({ objetivo: serializeObjetivo(updated) });
   },
 );
@@ -100,6 +114,9 @@ export const DELETE = withErrorHandler(
       return NextResponse.json({ error: 'Objetivo não encontrado' }, { status: 404 });
     }
 
+    // Remove a linha espelho no fluxo de caixa antes (o FK é SetNull, então
+    // sem isso a linha ficaria órfã com os valores antigos).
+    await removeObjetivoCashflow(id);
     // Cascade via FK onDelete:Cascade no schema → entries somem juntas.
     await prisma.planejamentoObjetivo.delete({ where: { id } });
 

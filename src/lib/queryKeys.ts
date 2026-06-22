@@ -5,6 +5,7 @@ export const queryKeys = {
     historico: () => [...queryKeys.carteira.all, 'historico'] as const,
     rentabilidade: (startDate?: string) =>
       [...queryKeys.carteira.all, 'rentabilidade', startDate] as const,
+    janelas: () => [...queryKeys.carteira.all, 'janelas'] as const,
   },
   assets: {
     all: ['assets'] as const,
@@ -13,6 +14,10 @@ export const queryKeys = {
   cashflow: {
     all: ['cashflow'] as const,
     year: (year: number) => [...queryKeys.cashflow.all, year] as const,
+  },
+  planejamento: {
+    all: ['planejamento'] as const,
+    contexto: () => [...queryKeys.planejamento.all, 'contexto'] as const,
   },
   reserva: {
     emergencia: () => ['reserva', 'emergencia'] as const,

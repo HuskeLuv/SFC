@@ -19,6 +19,11 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+// Sincronização sonho↔fluxo de caixa tem testes próprios; isolamos as rotas.
+vi.mock('@/services/planejamento/sonhoCashflowSync', () => ({
+  syncObjetivoToCashflow: vi.fn().mockResolvedValue(undefined),
+  removeObjetivoCashflow: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { GET, PATCH, DELETE } from '../route';
 

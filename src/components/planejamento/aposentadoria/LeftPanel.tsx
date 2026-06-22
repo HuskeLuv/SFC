@@ -11,10 +11,17 @@ import {
 } from '@/services/planejamento/aposentadoria';
 import type { PlanoUpsertPayload } from '@/hooks/useAposentadoria';
 import { formatBRL, fPct, MONTH_OPTIONS } from './utils';
+import type { AutoField, AutoValues } from './autoFields';
 
 interface LeftPanelProps {
   params: PlanoUpsertPayload;
   onChange: (patch: Partial<PlanoUpsertPayload>) => void;
+  autoValues: AutoValues;
+  onResync: (field: AutoField) => void;
+  /** Rentabilidade anualizada da própria carteira (fonte alternativa ao CDI). */
+  rentCarteiraAA: number | null;
+  rentCarteiraLoading: boolean;
+  onUseCarteira: () => void;
 }
 
 // ── Subcomponentes de campo ──────────────────────────────────────────────
@@ -39,6 +46,7 @@ function SliderField({
   display,
   onChange,
   showNumber = true,
+  hint,
 }: {
   label: string;
   value: number;
@@ -48,6 +56,7 @@ function SliderField({
   display?: string;
   onChange: (v: number) => void;
   showNumber?: boolean;
+  hint?: React.ReactNode;
 }) {
   const id = useId();
   return (
@@ -82,6 +91,7 @@ function SliderField({
         onChange={(e) => onChange(Number(e.target.value))}
         className="block w-full accent-brand-500"
       />
+      {hint}
     </div>
   );
 }
@@ -92,12 +102,14 @@ function MoneyField({
   sliderMax,
   step = 100,
   onChange,
+  hint,
 }: {
   label: string;
   value: number;
   sliderMax: number;
   step?: number;
   onChange: (v: number) => void;
+  hint?: React.ReactNode;
 }) {
   const id = useId();
   return (
@@ -133,13 +145,101 @@ function MoneyField({
         onChange={(e) => onChange(Number(e.target.value))}
         className="mt-1 block w-full accent-brand-500"
       />
+      {hint}
     </div>
+  );
+}
+
+/**
+ * Badge de procedência do modelo híbrido: mostra se o campo está em modo
+ * automático (espelha carteira/fluxo de caixa) ou manual (travado pelo
+ * usuário), com atalho para voltar ao automático.
+ */
+function AutoBadge({
+  field,
+  locked,
+  autoValue,
+  label,
+  format,
+  onResync,
+}: {
+  field: AutoField;
+  locked: boolean;
+  autoValue: number | null;
+  label: string;
+  format: (v: number) => string;
+  onResync: (field: AutoField) => void;
+}) {
+  if (autoValue == null && !locked) return null;
+  if (!locked) {
+    return (
+      <p className="mt-1 flex items-center gap-1 text-[10px] text-brand-600 dark:text-brand-400">
+        <span aria-hidden>✦</span> auto · {label}
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-gray-400">
+      <span aria-hidden>✎</span> manual
+      {autoValue != null ? (
+        <button
+          type="button"
+          onClick={() => onResync(field)}
+          className="rounded border border-gray-300 px-1.5 py-0.5 text-brand-600 hover:bg-brand-50 dark:border-gray-700 dark:text-brand-400 dark:hover:bg-brand-900/10"
+          title={`Voltar ao automático (${label})`}
+        >
+          ↺ usar {format(autoValue)} ({label})
+        </button>
+      ) : null}
+    </p>
   );
 }
 
 // ── Painel ────────────────────────────────────────────────────────────────
 
-export default function LeftPanel({ params, onChange }: LeftPanelProps) {
+export default function LeftPanel({
+  params,
+  onChange,
+  autoValues,
+  onResync,
+  rentCarteiraAA,
+  rentCarteiraLoading,
+  onUseCarteira,
+}: LeftPanelProps) {
+  const lockSet = new Set(params.fieldLocks);
+  const badge = (field: AutoField, format: (v: number) => string) => (
+    <AutoBadge
+      field={field}
+      locked={lockSet.has(field)}
+      autoValue={autoValues[field].autoValue}
+      label={autoValues[field].label}
+      format={format}
+      onResync={onResync}
+    />
+  );
+  const fmtPct = (v: number) => fPct(v);
+
+  // Hint do rentNom: badge CDI/manual + atalho para usar a rentabilidade da
+  // própria carteira (3 fontes: CDI, carteira, manual).
+  const rentNomHint = (
+    <div>
+      {badge('rentNom', fmtPct)}
+      <button
+        type="button"
+        onClick={onUseCarteira}
+        disabled={rentCarteiraLoading}
+        className="mt-1 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-brand-600 hover:bg-brand-50 disabled:opacity-50 dark:border-gray-700 dark:text-brand-400 dark:hover:bg-brand-900/10"
+        title="Usar o retorno anualizado histórico da sua carteira"
+      >
+        {rentCarteiraLoading
+          ? 'calculando…'
+          : rentCarteiraAA != null
+            ? `📈 usar minha carteira (${fPct(rentCarteiraAA)} a.a.)`
+            : '📈 usar rentab. da minha carteira'}
+      </button>
+    </div>
+  );
+
   const realAA = getRealAA(params) * 100;
   const realM = getRealM(params) * 100;
   const retiroNom = getRetiroNom(params);
@@ -235,6 +335,7 @@ export default function LeftPanel({ params, onChange }: LeftPanelProps) {
           display={fPct(params.rentNom)}
           showNumber={false}
           onChange={(v) => onChange({ rentNom: v })}
+          hint={rentNomHint}
         />
         <SliderField
           label="Expectativa de inflação a.a."
@@ -245,6 +346,7 @@ export default function LeftPanel({ params, onChange }: LeftPanelProps) {
           display={fPct(params.inflacao)}
           showNumber={false}
           onChange={(v) => onChange({ inflacao: v })}
+          hint={badge('inflacao', fmtPct)}
         />
         <div className="mb-3 flex items-center gap-2">
           <span
@@ -313,6 +415,7 @@ export default function LeftPanel({ params, onChange }: LeftPanelProps) {
             sliderMax={1_000_000}
             step={1000}
             onChange={(v) => onChange({ patrimonio: v })}
+            hint={badge('patrimonio', formatBRL)}
           />
           <MoneyField
             label="Aportes mensais"
@@ -320,6 +423,7 @@ export default function LeftPanel({ params, onChange }: LeftPanelProps) {
             sliderMax={30_000}
             step={100}
             onChange={(v) => onChange({ aporteM: v })}
+            hint={badge('aporteM', formatBRL)}
           />
         </div>
       </section>
@@ -335,6 +439,7 @@ export default function LeftPanel({ params, onChange }: LeftPanelProps) {
           sliderMax={100_000}
           step={500}
           onChange={(v) => onChange({ renda: v })}
+          hint={badge('renda', formatBRL)}
         />
       </section>
 
