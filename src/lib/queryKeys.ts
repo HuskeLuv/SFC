@@ -14,6 +14,10 @@ export const queryKeys = {
     all: ['cashflow'] as const,
     year: (year: number) => [...queryKeys.cashflow.all, year] as const,
   },
+  planejamento: {
+    all: ['planejamento'] as const,
+    contexto: () => [...queryKeys.planejamento.all, 'contexto'] as const,
+  },
   reserva: {
     emergencia: () => ['reserva', 'emergencia'] as const,
     oportunidade: () => ['reserva', 'oportunidade'] as const,
