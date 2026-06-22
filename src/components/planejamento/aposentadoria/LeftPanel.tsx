@@ -18,6 +18,10 @@ interface LeftPanelProps {
   onChange: (patch: Partial<PlanoUpsertPayload>) => void;
   autoValues: AutoValues;
   onResync: (field: AutoField) => void;
+  /** Rentabilidade anualizada da própria carteira (fonte alternativa ao CDI). */
+  rentCarteiraAA: number | null;
+  rentCarteiraLoading: boolean;
+  onUseCarteira: () => void;
 }
 
 // ── Subcomponentes de campo ──────────────────────────────────────────────
@@ -193,7 +197,15 @@ function AutoBadge({
 
 // ── Painel ────────────────────────────────────────────────────────────────
 
-export default function LeftPanel({ params, onChange, autoValues, onResync }: LeftPanelProps) {
+export default function LeftPanel({
+  params,
+  onChange,
+  autoValues,
+  onResync,
+  rentCarteiraAA,
+  rentCarteiraLoading,
+  onUseCarteira,
+}: LeftPanelProps) {
   const lockSet = new Set(params.fieldLocks);
   const badge = (field: AutoField, format: (v: number) => string) => (
     <AutoBadge
@@ -206,6 +218,27 @@ export default function LeftPanel({ params, onChange, autoValues, onResync }: Le
     />
   );
   const fmtPct = (v: number) => fPct(v);
+
+  // Hint do rentNom: badge CDI/manual + atalho para usar a rentabilidade da
+  // própria carteira (3 fontes: CDI, carteira, manual).
+  const rentNomHint = (
+    <div>
+      {badge('rentNom', fmtPct)}
+      <button
+        type="button"
+        onClick={onUseCarteira}
+        disabled={rentCarteiraLoading}
+        className="mt-1 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-brand-600 hover:bg-brand-50 disabled:opacity-50 dark:border-gray-700 dark:text-brand-400 dark:hover:bg-brand-900/10"
+        title="Usar o retorno anualizado histórico da sua carteira"
+      >
+        {rentCarteiraLoading
+          ? 'calculando…'
+          : rentCarteiraAA != null
+            ? `📈 usar minha carteira (${fPct(rentCarteiraAA)} a.a.)`
+            : '📈 usar rentab. da minha carteira'}
+      </button>
+    </div>
+  );
 
   const realAA = getRealAA(params) * 100;
   const realM = getRealM(params) * 100;
@@ -302,7 +335,7 @@ export default function LeftPanel({ params, onChange, autoValues, onResync }: Le
           display={fPct(params.rentNom)}
           showNumber={false}
           onChange={(v) => onChange({ rentNom: v })}
-          hint={badge('rentNom', fmtPct)}
+          hint={rentNomHint}
         />
         <SliderField
           label="Expectativa de inflação a.a."

@@ -12,6 +12,7 @@ import {
   type AposentadoriaPlanoDTO,
 } from '@/hooks/useAposentadoria';
 import { usePlanejamentoContexto } from '@/hooks/usePlanejamentoContexto';
+import { useRentabilidadeCarteira } from '@/hooks/useRentabilidadeCarteira';
 import { AUTO_FIELDS, deriveAutoValues, buildAutoSyncPatch, type AutoField } from './autoFields';
 import LeftPanel from './LeftPanel';
 import ProjecaoTab from './tabs/ProjecaoTab';
@@ -64,8 +65,13 @@ export default function AposentadoriaSimulador() {
   const [params, setParams] = useState<PlanoUpsertPayload | null>(null);
   const [tab, setTab] = useState<TabValue>('proj');
   const [savedTick, setSavedTick] = useState(false);
+  // Rentabilidade da própria carteira: carregada sob demanda (cálculo pesado).
+  const [wantCarteira, setWantCarteira] = useState(false);
+  const { rentabilidadeAA: rentCarteiraAA, loading: rentCarteiraLoading } =
+    useRentabilidadeCarteira(wantCarteira);
   const seededRef = useRef(false);
   const resyncedRef = useRef(false);
+  const applyCarteiraRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const autoValues = useMemo(() => deriveAutoValues(contexto), [contexto]);
@@ -174,6 +180,25 @@ export default function AposentadoriaSimulador() {
     [autoValues, scheduleSave],
   );
 
+  // Fonte "minha carteira" para rentNom: dispara o fetch (lazy) e aplica o
+  // retorno anualizado quando chega. Travar como lock evita que o re-sync do
+  // CDI sobrescreva a escolha.
+  const handleUseCarteira = useCallback(() => {
+    setWantCarteira(true);
+    if (rentCarteiraAA != null) {
+      handleChange({ rentNom: rentCarteiraAA });
+    } else {
+      applyCarteiraRef.current = true;
+    }
+  }, [rentCarteiraAA, handleChange]);
+
+  useEffect(() => {
+    if (applyCarteiraRef.current && rentCarteiraAA != null) {
+      applyCarteiraRef.current = false;
+      handleChange({ rentNom: rentCarteiraAA });
+    }
+  }, [rentCarteiraAA, handleChange]);
+
   const projection = useMemo(() => (params ? calc(params) : null), [params]);
 
   const handleSaveEntry = useCallback(
@@ -227,6 +252,9 @@ export default function AposentadoriaSimulador() {
             onChange={handleChange}
             autoValues={autoValues}
             onResync={handleResync}
+            rentCarteiraAA={rentCarteiraAA}
+            rentCarteiraLoading={rentCarteiraLoading}
+            onUseCarteira={handleUseCarteira}
           />
         </aside>
 

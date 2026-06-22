@@ -5,6 +5,7 @@ export const queryKeys = {
     historico: () => [...queryKeys.carteira.all, 'historico'] as const,
     rentabilidade: (startDate?: string) =>
       [...queryKeys.carteira.all, 'rentabilidade', startDate] as const,
+    janelas: () => [...queryKeys.carteira.all, 'janelas'] as const,
   },
   assets: {
     all: ['assets'] as const,
