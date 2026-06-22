@@ -870,6 +870,11 @@ model AposentadoriaPlano {
   // Eventos pontuais: [{ tipo: 'aporte'|'resgate', idade: number, valor: number }]
   eventos Json @default("[]")
 
+  // Campos travados manualmente pelo usuário (override): não re-sincronizam do
+  // contexto financeiro (carteira/fluxo de caixa). Ex.: ["aporteM","renda"].
+  // Campos auto (ausentes daqui) refletem os dados ao vivo.
+  fieldLocks Json @default("[]")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

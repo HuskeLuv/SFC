@@ -29,6 +29,8 @@ export interface PlanoUpsertPayload {
   trackStartMonth: number;
   trackStartYear: number;
   eventos: AposentadoriaEvento[];
+  /** Campos travados manualmente (override) — não re-sincronizam do contexto. */
+  fieldLocks: string[];
 }
 
 export interface EntryUpsertPayload {

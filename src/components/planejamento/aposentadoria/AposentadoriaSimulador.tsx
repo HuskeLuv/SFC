@@ -5,13 +5,14 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { calc } from '@/services/planejamento/aposentadoria';
 import {
   usePlanoAposentadoria,
-  useAposentadoriaDefaults,
   useSavePlano,
   useUpsertEntry,
   useDeleteEntry,
   type PlanoUpsertPayload,
   type AposentadoriaPlanoDTO,
 } from '@/hooks/useAposentadoria';
+import { usePlanejamentoContexto } from '@/hooks/usePlanejamentoContexto';
+import { AUTO_FIELDS, deriveAutoValues, buildAutoSyncPatch, type AutoField } from './autoFields';
 import LeftPanel from './LeftPanel';
 import ProjecaoTab from './tabs/ProjecaoTab';
 import AcompanhamentoTab from './tabs/AcompanhamentoTab';
@@ -41,6 +42,7 @@ function planoToParams(p: AposentadoriaPlanoDTO): PlanoUpsertPayload {
     trackStartMonth: p.trackStartMonth,
     trackStartYear: p.trackStartYear,
     eventos: p.eventos,
+    fieldLocks: p.fieldLocks ?? [],
   };
 }
 
@@ -53,7 +55,8 @@ function planoToParams(p: AposentadoriaPlanoDTO): PlanoUpsertPayload {
  */
 export default function AposentadoriaSimulador() {
   const { plano, loading } = usePlanoAposentadoria();
-  const { data: defaults } = useAposentadoriaDefaults(!loading && plano === null);
+  // Contexto financeiro (carteira + fluxo de caixa) para auto-preencher/sincronizar.
+  const { contexto } = usePlanejamentoContexto(!loading);
   const savePlano = useSavePlano();
   const upsertEntry = useUpsertEntry();
   const deleteEntry = useDeleteEntry();
@@ -62,33 +65,10 @@ export default function AposentadoriaSimulador() {
   const [tab, setTab] = useState<TabValue>('proj');
   const [savedTick, setSavedTick] = useState(false);
   const seededRef = useRef(false);
+  const resyncedRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Seed inicial: do plano salvo, ou dos defaults (com fallback do protótipo).
-  useEffect(() => {
-    if (seededRef.current || loading) return;
-    if (plano) {
-      setParams(planoToParams(plano));
-      seededRef.current = true;
-    } else if (defaults !== undefined || plano === null) {
-      const now = new Date();
-      setParams({
-        idade: 30,
-        apos: 65,
-        vida: 90,
-        rentNom: defaults?.rentNom ?? 12,
-        inflacao: defaults?.inflacao ?? 5,
-        rentNomRetiro: null,
-        patrimonio: defaults?.patrimonio && defaults.patrimonio > 0 ? defaults.patrimonio : 10000,
-        aporteM: 1000,
-        renda: 5000,
-        trackStartMonth: now.getMonth() + 1,
-        trackStartYear: now.getFullYear(),
-        eventos: [],
-      });
-      if (defaults !== undefined) seededRef.current = true;
-    }
-  }, [plano, defaults, loading]);
+  const autoValues = useMemo(() => deriveAutoValues(contexto), [contexto]);
 
   // Autosave debounced sempre que os parâmetros mudam (após o seed).
   const scheduleSave = useCallback(
@@ -101,23 +81,97 @@ export default function AposentadoriaSimulador() {
     [savePlano],
   );
 
+  // Seed inicial: do plano salvo, ou do contexto (com fallback do protótipo).
+  // Para um plano novo, aguardamos o contexto para já nascer auto-preenchido.
+  useEffect(() => {
+    if (seededRef.current || loading) return;
+    if (plano) {
+      setParams(planoToParams(plano));
+      seededRef.current = true;
+      return;
+    }
+    // plano === null: nasce do contexto (auto) com fallback do protótipo se
+    // o contexto estiver indisponível.
+    const now = new Date();
+    const pick = (field: AutoField, fallback: number) => autoValues[field].autoValue ?? fallback;
+    const seed: PlanoUpsertPayload = {
+      idade: 30,
+      apos: 65,
+      vida: 90,
+      rentNom: pick('rentNom', 12),
+      inflacao: pick('inflacao', 5),
+      rentNomRetiro: null,
+      patrimonio: pick('patrimonio', 10000),
+      aporteM: pick('aporteM', 1000),
+      renda: pick('renda', 5000),
+      trackStartMonth: now.getMonth() + 1,
+      trackStartYear: now.getFullYear(),
+      eventos: [],
+      // Tudo nasce auto (sem locks): o usuário trava ao editar.
+      fieldLocks: [],
+    };
+    setParams(seed);
+    seededRef.current = true;
+    // Persiste o seed para o plano existir (o autosave normal só dispara em edição).
+    if (contexto) scheduleSave(seed);
+  }, [plano, contexto, autoValues, loading, scheduleSave]);
+
+  // Re-sincroniza (uma vez) os campos auto NÃO travados de um plano existente
+  // com o contexto ao vivo — patrimônio/sobra/CDI mudam entre sessões.
+  useEffect(() => {
+    if (resyncedRef.current) return;
+    if (!plano || !contexto || !seededRef.current) return;
+    setParams((prev) => {
+      if (!prev) return prev;
+      const patch = buildAutoSyncPatch(prev, autoValues, prev.fieldLocks);
+      resyncedRef.current = true;
+      if (Object.keys(patch).length === 0) return prev;
+      const next = { ...prev, ...patch };
+      scheduleSave(next);
+      return next;
+    });
+  }, [plano, contexto, autoValues, scheduleSave]);
+
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
 
+  // Edição do usuário: trava (lock) os campos auto presentes no patch.
   const handleChange = useCallback(
     (patch: Partial<PlanoUpsertPayload>) => {
       setParams((prev) => {
         if (!prev) return prev;
-        const next = { ...prev, ...patch };
+        const touchedAuto = (Object.keys(patch) as AutoField[]).filter((k) =>
+          (AUTO_FIELDS as readonly string[]).includes(k),
+        );
+        const fieldLocks = touchedAuto.length
+          ? Array.from(new Set([...prev.fieldLocks, ...touchedAuto]))
+          : prev.fieldLocks;
+        const next = { ...prev, ...patch, fieldLocks };
         setSavedTick(false);
         scheduleSave(next);
         return next;
       });
     },
     [scheduleSave],
+  );
+
+  // "Voltar ao automático": destrava o campo e aplica o valor do contexto.
+  const handleResync = useCallback(
+    (field: AutoField) => {
+      const auto = autoValues[field].autoValue;
+      setParams((prev) => {
+        if (!prev) return prev;
+        const fieldLocks = prev.fieldLocks.filter((f) => f !== field);
+        const next = { ...prev, fieldLocks, ...(auto != null ? { [field]: auto } : {}) };
+        setSavedTick(false);
+        scheduleSave(next);
+        return next;
+      });
+    },
+    [autoValues, scheduleSave],
   );
 
   const projection = useMemo(() => (params ? calc(params) : null), [params]);
@@ -168,7 +222,12 @@ export default function AposentadoriaSimulador() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
         {/* Painel esquerdo */}
         <aside className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-          <LeftPanel params={params} onChange={handleChange} />
+          <LeftPanel
+            params={params}
+            onChange={handleChange}
+            autoValues={autoValues}
+            onResync={handleResync}
+          />
         </aside>
 
         {/* Área direita */}

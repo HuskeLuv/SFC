@@ -38,8 +38,9 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   }
 
   const d = parsed.data;
-  // eventos é Json no Prisma; o array tipado serializa direto.
+  // eventos/fieldLocks são Json no Prisma; os arrays tipados serializam direto.
   const eventos = d.eventos as unknown as Prisma.InputJsonValue;
+  const fieldLocks = d.fieldLocks as unknown as Prisma.InputJsonValue;
   const data = {
     idade: d.idade,
     apos: d.apos,
@@ -53,6 +54,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     trackStartMonth: d.trackStartMonth,
     trackStartYear: d.trackStartYear,
     eventos,
+    fieldLocks,
   };
 
   const plano = await prisma.aposentadoriaPlano.upsert({
