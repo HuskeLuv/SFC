@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
+  loginEvent: { create: vi.fn() },
 }));
 
 const mockBcrypt = vi.hoisted(() => ({
@@ -38,6 +39,7 @@ describe('POST /api/auth/login', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+    mockPrisma.loginEvent.create.mockResolvedValue({});
     mockBcrypt.compare.mockResolvedValue(true);
     mockJwt.sign.mockReturnValue('mock-token');
   });
@@ -65,7 +67,7 @@ describe('POST /api/auth/login', () => {
 
     expect(response.status).toBe(200);
     expect(mockJwt.sign).toHaveBeenCalledWith(
-      { id: 'user-1', email: 'test@test.com', role: 'user' },
+      { id: 'user-1', role: 'user' },
       process.env.JWT_SECRET,
       { expiresIn: '7d' },
     );
@@ -78,7 +80,7 @@ describe('POST /api/auth/login', () => {
 
     expect(response.status).toBe(200);
     expect(mockJwt.sign).toHaveBeenCalledWith(
-      { id: 'user-1', email: 'test@test.com', role: 'user' },
+      { id: 'user-1', role: 'user' },
       process.env.JWT_SECRET,
       { expiresIn: '1d' },
     );
@@ -133,6 +135,80 @@ describe('POST /api/auth/login', () => {
 
       expect(response.status).toBe(401);
       expect(data.error).toContain('Credenciais inválidas');
+    });
+  });
+
+  describe('Login tracking (LoginEvent)', () => {
+    it('grava evento de sucesso com userId e success=true', async () => {
+      await POST(createRequest({ email: 'test@test.com', password: 'password123' }));
+
+      expect(mockPrisma.loginEvent.create).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.loginEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          email: 'test@test.com',
+          success: true,
+          reason: null,
+        }),
+      });
+    });
+
+    it('grava falha user_not_found com userId null', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await POST(createRequest({ email: 'ghost@test.com', password: 'password123' }));
+
+      expect(mockPrisma.loginEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: null,
+          email: 'ghost@test.com',
+          success: false,
+          reason: 'user_not_found',
+        }),
+      });
+    });
+
+    it('grava falha bad_password com userId do usuario', async () => {
+      mockBcrypt.compare.mockResolvedValue(false);
+
+      await POST(createRequest({ email: 'test@test.com', password: 'wrong' }));
+
+      expect(mockPrisma.loginEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          success: false,
+          reason: 'bad_password',
+        }),
+      });
+    });
+
+    it('grava falha totp_required quando 2FA ativo e codigo ausente', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        totpEnabled: true,
+        totpSecret: 'SECRET',
+      });
+
+      const response = await POST(
+        createRequest({ email: 'test@test.com', password: 'password123' }),
+      );
+
+      expect(response.status).toBe(401);
+      expect(mockPrisma.loginEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ success: false, reason: 'totp_required' }),
+      });
+    });
+
+    it('login bem-sucedido mesmo se a gravacao do evento falhar (best-effort)', async () => {
+      mockPrisma.loginEvent.create.mockRejectedValue(new Error('db down'));
+
+      const response = await POST(
+        createRequest({ email: 'test@test.com', password: 'password123' }),
+      );
+
+      expect(response.status).toBe(200);
+      const setCookie = response.headers.get('set-cookie');
+      expect(setCookie).toContain('token=mock-token');
     });
   });
 });
