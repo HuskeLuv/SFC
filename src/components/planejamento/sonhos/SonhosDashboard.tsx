@@ -6,8 +6,10 @@ import EmptyState from '@/components/carteira/shared/EmptyState';
 import Button from '@/components/ui/button/Button';
 import { progress, pmt } from '@/services/planejamento/planejamentoSonhos';
 import type { PlanejamentoCategory, PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
+import { usePlanejamentoContexto } from '@/hooks/usePlanejamentoContexto';
 import SonhosObjetivoCard from './SonhosObjetivoCard';
 import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
+import ReservaEmergenciaWidget from './ReservaEmergenciaWidget';
 import { formatBRLCompact, CATEGORY_LONG_LABELS } from './utils';
 
 interface SonhosDashboardProps {
@@ -32,6 +34,7 @@ const TABS: { value: TabValue; label: string }[] = [
 export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosDashboardProps) {
   const [tab, setTab] = useState<TabValue>('all');
   const [creating, setCreating] = useState(false);
+  const { contexto } = usePlanejamentoContexto();
 
   const stats = useMemo(() => {
     const total = objetivos.length;
@@ -53,6 +56,15 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
 
     return { total, totalAlocado, totalMeta, aporteAtivo, ativos, concluidos, progressoMedio };
   }, [objetivos]);
+
+  // Capacidade de poupança: aportes planejados (ativos) vs. sobra média do
+  // fluxo de caixa. Integra Sonhos ↔ fluxo de caixa.
+  const capacidade = useMemo(() => {
+    const sobra = contexto?.cashflow.sobraMensalMedia ?? 0;
+    if (!contexto || sobra <= 0) return null;
+    const comprometido = stats.aporteAtivo;
+    return { sobra, comprometido, folga: sobra - comprometido, excede: comprometido > sobra };
+  }, [contexto, stats.aporteAtivo]);
 
   const filtered = useMemo(() => {
     if (tab === 'all') return objetivos;
@@ -111,6 +123,36 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
           change="ponderado por meta"
         />
       </div>
+
+      {/* Capacidade de poupança (Sonhos ↔ fluxo de caixa) */}
+      {capacidade ? (
+        <div
+          className={`rounded-xl border p-3 text-sm ${
+            capacidade.excede
+              ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/15 dark:text-amber-200'
+              : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300'
+          }`}
+        >
+          {capacidade.excede ? (
+            <>
+              ⚠️ Seus aportes planejados (
+              <strong>{formatBRLCompact(capacidade.comprometido)}/mês</strong>) superam sua sobra
+              média de caixa (<strong>{formatBRLCompact(capacidade.sobra)}/mês</strong>). Revise os
+              prazos ou as metas para o plano caber no seu orçamento.
+            </>
+          ) : (
+            <>
+              Seus aportes planejados (
+              <strong>{formatBRLCompact(capacidade.comprometido)}/mês</strong>) cabem na sua sobra
+              de caixa (<strong>{formatBRLCompact(capacidade.sobra)}/mês</strong>). Folga de{' '}
+              <strong>{formatBRLCompact(capacidade.folga)}/mês</strong>.
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {/* Reserva de emergência: ideal vs. atual (carteira ↔ fluxo de caixa) */}
+      <ReservaEmergenciaWidget contexto={contexto} />
 
       {/* Inline create */}
       {creating ? (
