@@ -49,7 +49,17 @@ export const ItemRow: React.FC<ItemRowProps> = ({
           borderRight: 'none',
         }}
       >
-        <span className="cursor-default truncate block">{item.name || ''}</span>
+        <span className="cursor-default truncate block">
+          {item.objetivoId ? (
+            <span
+              className="mr-1"
+              title="Linha vinculada a um sonho — edite no Planejamento de Sonhos"
+            >
+              🎯
+            </span>
+          ) : null}
+          {item.name || ''}
+        </span>
       </TableCell>
       <TableCell
         className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 h-6 leading-6 whitespace-nowrap"

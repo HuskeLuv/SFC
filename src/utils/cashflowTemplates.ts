@@ -190,12 +190,10 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Despesas Financeiras' },
       { name: 'Outros' },
     ],
-    'Planejamento Financeiro': [
-      { name: 'Objetivo 1' },
-      { name: 'Objetivo 2' },
-      { name: 'Objetivo 3' },
-      { name: 'Objetivo 4' },
-    ],
+    // Os itens deste grupo são provisionados por usuário a partir do
+    // Planejamento de Sonhos (linhas espelho, vínculo via objetivoId) — ver
+    // src/services/planejamento/sonhoCashflowSync.ts. Sem placeholders no template.
+    'Planejamento Financeiro': [],
     'Despesas Variáveis': [
       { name: 'Lazer' },
       { name: 'Compras' },

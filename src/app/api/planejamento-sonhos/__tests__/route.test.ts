@@ -18,6 +18,15 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+// Sincronização sonho↔fluxo de caixa e provisionamento têm testes próprios;
+// aqui isolamos as rotas (no-ops).
+vi.mock('@/services/planejamento/sonhoCashflowSync', () => ({
+  syncObjetivoToCashflow: vi.fn().mockResolvedValue(undefined),
+  removeObjetivoCashflow: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('@/services/planejamento/sonhosDefaults', () => ({
+  provisionDefaultSonhos: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { GET, POST } from '../route';
 

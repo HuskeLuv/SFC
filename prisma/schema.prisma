@@ -290,6 +290,11 @@ model CashflowItem {
   overrides   CashflowItem[] @relation("ItemOverride")
   // Tombstone: usuário ocultou um item-template.
   hidden      Boolean        @default(false)
+  // Vínculo opcional com um objetivo do Planejamento de Sonhos. Quando setado,
+  // esta linha é espelho do sonho (somente-leitura no fluxo de caixa) e seus
+  // valores mensais são o aporte mensal (pmt) sincronizado pelo planejamento.
+  objetivoId  String?               @unique
+  objetivo    PlanejamentoObjetivo? @relation(fields: [objetivoId], references: [id], onDelete: SetNull)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -811,6 +816,9 @@ model PlanejamentoObjetivo {
   updatedAt DateTime @updatedAt
 
   entries PlanejamentoObjetivoEntry[]
+  // Linha espelhada no fluxo de caixa (grupo "Planejamento Financeiro"). O
+  // sonho é a fonte: o aporte mensal (pmt) é gravado nessa linha.
+  cashflowItem CashflowItem?
 
   @@index([userId])
   @@index([userId, category])

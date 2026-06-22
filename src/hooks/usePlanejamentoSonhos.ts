@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { logger } from '@/lib/logger';
+import { queryKeys } from '@/lib/queryKeys';
 import type {
   PlanejamentoObjetivoDTO,
   PlanejamentoEntryDTO,
@@ -14,6 +15,17 @@ import type {
 
 const QUERY_KEY = ['planejamento-sonhos'] as const;
 const BASE_URL = '/api/planejamento-sonhos';
+
+/**
+ * Invalida o cache de sonhos + fluxo de caixa + contexto. Criar/editar/excluir
+ * um sonho mexe na linha espelho do fluxo de caixa (aporte) e na capacidade de
+ * poupança do contexto — todos precisam refazer.
+ */
+function invalidateSonhoCaches(queryClient: ReturnType<typeof useQueryClient>): void {
+  queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.planejamento.all });
+}
 
 export type {
   PlanejamentoObjetivoDTO,
@@ -106,7 +118,7 @@ export function useCreateObjetivo() {
       return data.objetivo;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      invalidateSonhoCaches(queryClient);
     },
   });
 }
@@ -134,7 +146,7 @@ export function useUpdateObjetivo() {
       return data.objetivo;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      invalidateSonhoCaches(queryClient);
     },
   });
 }
@@ -152,7 +164,7 @@ export function useDeleteObjetivo() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      invalidateSonhoCaches(queryClient);
     },
   });
 }

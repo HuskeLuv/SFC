@@ -32,6 +32,19 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
   }
 
+  // Linhas vinculadas a um sonho são somente-leitura aqui: o aporte é definido
+  // no Planejamento de Sonhos (fonte da verdade) e sincronizado de lá.
+  const linkedItem = await prisma.cashflowItem.findUnique({
+    where: { id: finalItemId },
+    select: { objetivoId: true },
+  });
+  if (linkedItem?.objetivoId) {
+    return NextResponse.json(
+      { error: 'Esta linha é vinculada a um sonho. Edite no Planejamento de Sonhos.' },
+      { status: 409 },
+    );
+  }
+
   let updatedItem;
 
   if (field === 'name' || field === 'descricao' || field === 'significado' || field === 'rank') {
