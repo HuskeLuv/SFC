@@ -13,6 +13,7 @@ import {
   type AposentadoriaEntry,
 } from '@/services/planejamento/aposentadoria';
 import type { PlanoUpsertPayload, AposentadoriaEntryDTO } from '@/hooks/useAposentadoria';
+import { useAcompanhamentoAuto, useAutoFillEntries } from '@/hooks/useAposentadoria';
 import { formatBRL, formatBRLCompact, fPct, fMonth } from '../utils';
 
 interface AcompanhamentoTabProps {
@@ -56,6 +57,16 @@ export default function AcompanhamentoTab({
   const { T, C, retM } = useMemo(() => planTraj(params), [params]);
   const maxOff = maxEOff(svcEntries);
   const reqRentM = nomM(params) * 100;
+
+  // Acompanhamento automático: valores derivados da carteira (snapshots +
+  // transações) para sugerir/preencher sem digitação.
+  const { preview } = useAcompanhamentoAuto();
+  const autoFill = useAutoFillEntries();
+  const derivedByOff = useMemo(() => {
+    const m = new Map<number, { aporteReal: number; patFinal: number | null; hasData: boolean }>();
+    preview?.derived.forEach((d) => m.set(d.off, d));
+    return m;
+  }, [preview]);
 
   const [curOffset, setCurOffset] = useState(1);
   const [aporteStr, setAporteStr] = useState('');
@@ -272,6 +283,32 @@ export default function AcompanhamentoTab({
           </div>
           <p className="mb-2 text-[10px] text-gray-400">Necessário: {formatBRL(formReqPat)}</p>
 
+          {(() => {
+            const sug = derivedByOff.get(curOffset);
+            if (!sug || !sug.hasData || editingExists) return null;
+            return (
+              <div className="mb-2 rounded-lg border border-brand-200 bg-white/70 p-2 text-[11px] dark:border-brand-900/40 dark:bg-white/[0.02]">
+                <p className="text-gray-500 dark:text-gray-400">
+                  <span className="font-semibold text-brand-600 dark:text-brand-400">
+                    ✦ Da sua carteira:
+                  </span>{' '}
+                  aporte {formatBRL(sug.aporteReal)} · patrimônio{' '}
+                  {sug.patFinal != null ? formatBRL(sug.patFinal) : '—'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAporteStr(String(sug.aporteReal));
+                    if (sug.patFinal != null) setPatStr(String(sug.patFinal));
+                  }}
+                  className="mt-1 rounded border border-brand-300 px-2 py-0.5 text-brand-600 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-900/10"
+                >
+                  ↳ usar estes valores
+                </button>
+              </div>
+            );
+          })()}
+
           <div className="mb-3 rounded-lg border border-gray-200 bg-white/60 p-2 text-xs dark:border-gray-800 dark:bg-white/[0.02]">
             <div className="flex justify-between py-0.5">
               <span className="text-gray-500 dark:text-gray-400">Rentabilidade do mês</span>
@@ -326,13 +363,28 @@ export default function AcompanhamentoTab({
 
         {/* Tabela */}
         <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
-          <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2.5 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2.5 dark:border-gray-800 dark:bg-white/[0.03]">
             <span className="text-sm font-semibold text-gray-900 dark:text-white/90">
               Histórico Mensal
             </span>
-            <span className="text-[10px] text-gray-400">
-              {entries.length} registro{entries.length !== 1 ? 's' : ''}
-            </span>
+            <div className="flex items-center gap-2">
+              {preview && preview.fillable > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => autoFill.mutate()}
+                  disabled={autoFill.isPending || saving}
+                  className="rounded-md bg-brand-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+                  title="Preenche os meses sem registro com patrimônio e aportes da sua carteira"
+                >
+                  {autoFill.isPending
+                    ? 'Preenchendo…'
+                    : `✨ Preencher ${preview.fillable} ${preview.fillable === 1 ? 'mês' : 'meses'}`}
+                </button>
+              ) : null}
+              <span className="text-[10px] text-gray-400">
+                {entries.length} registro{entries.length !== 1 ? 's' : ''}
+              </span>
+            </div>
           </div>
           <div className="max-h-[380px] overflow-auto">
             <table className="w-full text-right text-[11px]">
