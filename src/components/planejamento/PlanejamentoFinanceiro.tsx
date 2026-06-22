@@ -7,8 +7,8 @@ import AposentadoriaSimulador from './aposentadoria/AposentadoriaSimulador';
 type Modo = 'sonhos' | 'aposentadoria';
 
 const MODOS: { value: Modo; label: string }[] = [
-  { value: 'sonhos', label: 'Meus Sonhos' },
   { value: 'aposentadoria', label: 'Aposentadoria' },
+  { value: 'sonhos', label: 'Meus Sonhos' },
 ];
 
 /**
@@ -20,7 +20,8 @@ const MODOS: { value: Modo; label: string }[] = [
  * reload, sem disparar navegação completa do Next (history.replaceState).
  */
 export default function PlanejamentoFinanceiro() {
-  const [modo, setModo] = useState<Modo>('sonhos');
+  // Seção aberta por padrão (sem ?modo= na URL).
+  const [modo, setModo] = useState<Modo>('aposentadoria');
 
   // Lê o modo inicial da URL no client (evita useSearchParams + Suspense).
   useEffect(() => {
