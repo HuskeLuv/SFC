@@ -8,6 +8,7 @@ import { progress, pmt } from '@/services/planejamento/planejamentoSonhos';
 import type { PlanejamentoCategory, PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import { usePlanejamentoContexto } from '@/hooks/usePlanejamentoContexto';
 import SonhosObjetivoCard from './SonhosObjetivoCard';
+import SonhosObjetivosTable from './SonhosObjetivosTable';
 import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
 import ReservaEmergenciaWidget from './ReservaEmergenciaWidget';
 import { formatBRLCompact, CATEGORY_LONG_LABELS } from './utils';
@@ -33,6 +34,7 @@ const TABS: { value: TabValue; label: string }[] = [
  */
 export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosDashboardProps) {
   const [tab, setTab] = useState<TabValue>('all');
+  const [view, setView] = useState<'cards' | 'table'>('cards');
   const [creating, setCreating] = useState(false);
   const { contexto } = usePlanejamentoContexto();
 
@@ -166,8 +168,8 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
         />
       ) : null}
 
-      {/* Tabs categoria */}
-      <div className="border-b border-gray-200 dark:border-gray-800">
+      {/* Tabs categoria + toggle de visualização */}
+      <div className="flex items-end justify-between gap-3 border-b border-gray-200 dark:border-gray-800">
         <nav className="-mb-px flex flex-wrap gap-1">
           {TABS.map((t) => {
             const isActive = t.value === tab;
@@ -192,6 +194,25 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
             );
           })}
         </nav>
+        {!isEmpty ? (
+          <div className="mb-1 inline-flex shrink-0 rounded-lg border border-gray-200 p-0.5 dark:border-gray-800">
+            {(['cards', 'table'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                  view === v
+                    ? 'bg-brand-500 text-white'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+                aria-pressed={view === v}
+              >
+                {v === 'cards' ? 'Cards' : 'Tabela'}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Lista */}
@@ -213,6 +234,8 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
             Nenhum objetivo em <strong>{CATEGORY_LONG_LABELS[tab as PlanejamentoCategory]}</strong>.
           </p>
         </div>
+      ) : view === 'table' ? (
+        <SonhosObjetivosTable objetivos={filtered} onSelectObjetivo={onSelectObjetivo} />
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((g) => (
