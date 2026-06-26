@@ -836,6 +836,10 @@ model PlanejamentoObjetivoEntry {
   month      String // YYYY-MM
   aporte     Decimal              @db.Decimal(15, 2) // Aporte realizado no mês
   balance    Decimal              @db.Decimal(15, 2) // Saldo ao fim do mês
+  // "manual" = digitado no modal "Registrar Mês"; "auto" = derivado das células
+  // verdes (realizadas) da linha-espelho no fluxo de caixa. Manual tem
+  // precedência: o sync caixa→sonho nunca sobrescreve/remove entries manuais.
+  source     String               @default("manual")
   createdAt  DateTime             @default(now())
   updatedAt  DateTime             @updatedAt
 

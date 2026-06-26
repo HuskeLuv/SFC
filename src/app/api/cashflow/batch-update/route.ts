@@ -5,6 +5,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { cashflowBatchUpdateSchema, validationError } from '@/utils/validation-schemas';
+import { syncCashflowToObjetivo } from '@/services/planejamento/cashflowToSonhoSync';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
@@ -52,9 +53,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     try {
       const owned = await prisma.cashflowItem.findMany({
         where: { id: { in: deletes }, userId: targetUserId },
-        select: { id: true },
+        select: { id: true, objetivoId: true },
       });
-      const ownedIds = new Set(owned.map((i) => i.id));
+      // Linhas vinculadas a um sonho não podem ser excluídas pelo fluxo de caixa
+      // (o sonho é a fonte; excluir é no Planejamento de Sonhos).
+      const linkedIds = new Set(owned.filter((i) => i.objetivoId).map((i) => i.id));
+      const ownedIds = new Set(owned.filter((i) => !i.objetivoId).map((i) => i.id));
 
       if (ownedIds.size > 0) {
         const ids = [...ownedIds];
@@ -69,6 +73,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
       for (const itemId of deletes) {
         if (ownedIds.has(itemId)) {
           results.push({ itemId, success: true });
+        } else if (linkedIds.has(itemId)) {
+          results.push({
+            itemId,
+            success: false,
+            error: 'Linha vinculada a um sonho — exclua no Planejamento de Sonhos.',
+          });
         } else {
           results.push({ itemId, success: false, error: 'Item não encontrado' });
         }
@@ -80,6 +90,10 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
       }
     }
   }
+
+  // Objetivos cujas linhas-espelho foram editadas — re-derivar o "Realizado"
+  // (sync caixa→sonho) ao final, fora do loop.
+  const affectedObjetivos = new Set<string>();
 
   // Processar atualizações
   if (updates && Array.isArray(updates) && updates.length > 0) {
@@ -101,22 +115,33 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           continue;
         }
 
-        // Atualizar campos do item
+        // Linha vinculada a um sonho: valores/cor são editáveis (o cliente lança
+        // o realizado e pinta de verde), mas nome/significado/rank são da fonte
+        // (o sonho) e não podem ser alterados aqui.
+        const linked = await prisma.cashflowItem.findUnique({
+          where: { id: finalItemId },
+          select: { objetivoId: true },
+        });
+        const objetivoId = linked?.objetivoId ?? null;
+
+        // Atualizar campos do item (somente em linhas livres)
         const itemUpdateData: {
           name?: string;
           significado?: string | null;
           rank?: string | null;
         } = {};
 
-        if (name !== undefined) itemUpdateData.name = name;
-        if (significado !== undefined) itemUpdateData.significado = significado;
-        if (rank !== undefined) itemUpdateData.rank = rank;
+        if (!objetivoId) {
+          if (name !== undefined) itemUpdateData.name = name;
+          if (significado !== undefined) itemUpdateData.significado = significado;
+          if (rank !== undefined) itemUpdateData.rank = rank;
 
-        if (Object.keys(itemUpdateData).length > 0) {
-          await prisma.cashflowItem.update({
-            where: { id: finalItemId },
-            data: itemUpdateData,
-          });
+          if (Object.keys(itemUpdateData).length > 0) {
+            await prisma.cashflowItem.update({
+              where: { id: finalItemId },
+              data: itemUpdateData,
+            });
+          }
         }
 
         // Atualizar valores mensais — upsert na chave composta `(itemId, userId,
@@ -161,6 +186,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           );
         }
 
+        if (objetivoId) affectedObjetivos.add(objetivoId);
         results.push({ itemId, success: true });
       } catch (error) {
         logger.error(`Erro ao atualizar item ${update.itemId}:`, error);
@@ -170,6 +196,16 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           error: 'Erro ao atualizar',
         });
       }
+    }
+  }
+
+  // Re-deriva o "Realizado" dos sonhos cujas linhas foram editadas (best-effort:
+  // uma falha aqui não invalida o salvamento do fluxo de caixa).
+  for (const objetivoId of affectedObjetivos) {
+    try {
+      await syncCashflowToObjetivo(targetUserId, objetivoId);
+    } catch (error) {
+      logger.error(`Erro ao sincronizar sonho ${objetivoId} a partir do caixa:`, error);
     }
   }
 

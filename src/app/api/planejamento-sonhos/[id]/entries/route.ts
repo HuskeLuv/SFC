@@ -46,8 +46,9 @@ export const POST = withErrorHandler(
     const [, , updatedObjetivo] = await prisma.$transaction([
       prisma.planejamentoObjetivoEntry.upsert({
         where: { objetivoId_month: { objetivoId, month } },
-        create: { objetivoId, month, aporte, balance },
-        update: { aporte, balance },
+        // Registro manual sempre vence o auto-derivado das células verdes.
+        create: { objetivoId, month, aporte, balance, source: 'manual' },
+        update: { aporte, balance, source: 'manual' },
       }),
       prisma.planejamentoObjetivo.update({
         where: { id: objetivoId },

@@ -29,6 +29,12 @@ interface EditableItemRowProps {
   onCommentCellClick?: (itemId: string, monthIndex: number) => void;
   currentYear?: number;
   isLastItem?: boolean;
+  /**
+   * Linha vinculada a um sonho (🎯): nome/significado/rank/exclusão são da fonte
+   * (o sonho) e ficam travados, mas valores e cores SEGUEM editáveis — é assim
+   * que o cliente lança o aporte realizado e pinta de verde ("Recebido").
+   */
+  objetivoLocked?: boolean;
 }
 
 export const EditableItemRow: React.FC<EditableItemRowProps> = ({
@@ -46,8 +52,11 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   isCommentModeActive = false,
   onCommentCellClick,
   currentYear = new Date().getFullYear(),
+  objetivoLocked = false,
 }) => {
   const isInvestmentItem = group.type === 'investimento' || item.id.startsWith('investimento-');
+  // Campos estruturais editáveis? (não em linha de investimento nem de sonho)
+  const canEditStructure = isEditing && !isInvestmentItem && !objetivoLocked;
 
   const getPercentageColorClass = () => {
     return 'text-black dark:text-black';
@@ -121,7 +130,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           borderRight: 'none',
         }}
       >
-        {isEditing && !isInvestmentItem ? (
+        {canEditStructure ? (
           <input
             type="text"
             value={displayData.name}
@@ -129,7 +138,17 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 h-6 leading-6"
           />
         ) : (
-          <span className="truncate block">{displayData.name || ''}</span>
+          <span className="truncate block">
+            {objetivoLocked ? (
+              <span
+                className="mr-1"
+                title="Linha vinculada a um sonho — edite o nome no Planejamento de Sonhos"
+              >
+                🎯
+              </span>
+            ) : null}
+            {displayData.name || ''}
+          </span>
         )}
       </TableCell>
 
@@ -146,7 +165,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           borderRight: 'none',
         }}
       >
-        {isEditing && !isInvestmentItem ? (
+        {canEditStructure ? (
           <input
             type="text"
             value={displayData.significado || ''}
@@ -172,7 +191,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           borderRight: 'none',
         }}
       >
-        {isEditing && !isInvestmentItem ? (
+        {canEditStructure ? (
           <input
             type="text"
             value={displayData.rank || ''}
@@ -310,7 +329,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
       </TableCell>
 
-      {isEditing && !isInvestmentItem && (
+      {canEditStructure && (
         <TableCell className="px-2 border border-gray-200 w-8 text-center h-6 leading-6">
           <DeleteItemButton onClick={() => onDeleteItem(item.id)} />
         </TableCell>

@@ -99,8 +99,14 @@ describe('POST /api/planejamento-sonhos/[id]/entries', () => {
     expect(mockPrisma.planejamentoObjetivoEntry.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { objetivoId_month: { objetivoId: 'obj-1', month: '2026-02' } },
-        create: { objetivoId: 'obj-1', month: '2026-02', aporte: 1_000, balance: 2_000 },
-        update: { aporte: 1_000, balance: 2_000 },
+        create: {
+          objetivoId: 'obj-1',
+          month: '2026-02',
+          aporte: 1_000,
+          balance: 2_000,
+          source: 'manual',
+        },
+        update: { aporte: 1_000, balance: 2_000, source: 'manual' },
       }),
     );
   });
