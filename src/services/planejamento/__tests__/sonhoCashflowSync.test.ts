@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockPrisma = vi.hoisted(() => ({
   cashflowItem: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  cashflowValue: { deleteMany: vi.fn(), createMany: vi.fn() },
+  cashflowValue: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
   cashflowGroup: { findFirst: vi.fn() },
 }));
 const mockPersonalizeGroup = vi.hoisted(() => vi.fn());
@@ -14,6 +14,7 @@ import { syncObjetivoToCashflow, removeObjetivoCashflow } from '../sonhoCashflow
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockPrisma.cashflowValue.findMany.mockResolvedValue([]);
   mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 0 });
   mockPrisma.cashflowValue.createMany.mockResolvedValue({ count: 12 });
 });
@@ -94,6 +95,33 @@ describe('syncObjetivoToCashflow', () => {
       data: { name: 'Novo' },
     });
     expect(mockPrisma.cashflowItem.create).not.toHaveBeenCalled();
+  });
+
+  it('preserva os meses REALIZADOS (verdes) ao reescrever o aporte planejado', async () => {
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', name: 'Viagem' });
+    // Meses 0 e 1 já realizados (verde #76933C); o resto é planejado.
+    mockPrisma.cashflowValue.findMany.mockResolvedValue([
+      { month: 0, color: '#76933C' },
+      { month: 1, color: '#76933C' },
+      { month: 2, color: null },
+    ]);
+
+    // target 24000, available 0, months 12, rate 0 → pmt = 2000/mês
+    await syncObjetivoToCashflow(
+      'u1',
+      { id: 'obj-1', name: 'Viagem', target: 24000, available: 0, months: 12, rate: 0 },
+      2026,
+    );
+
+    // deleteMany só apaga os meses NÃO realizados.
+    expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalledWith({
+      where: { itemId: 'item-1', userId: 'u1', year: 2026, month: { notIn: [0, 1] } },
+    });
+    // createMany reescreve só os 10 meses planejados (sem 0 e 1).
+    const createArg = mockPrisma.cashflowValue.createMany.mock.calls[0][0];
+    expect(createArg.data).toHaveLength(10);
+    expect(createArg.data.map((d: { month: number }) => d.month)).not.toContain(0);
+    expect(createArg.data.map((d: { month: number }) => d.month)).not.toContain(1);
   });
 });
 

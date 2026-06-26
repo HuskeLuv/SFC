@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { personalizeGroup } from '@/utils/cashflowPersonalization';
 import { pmt } from './planejamentoSonhos';
+import { REALIZADO_COLOR } from './cashflowToSonhoSync';
 
 /**
  * Sincroniza um objetivo do Planejamento de Sonhos com a linha espelho no fluxo
@@ -62,11 +63,26 @@ export async function syncObjetivoToCashflow(
     });
   }
 
-  // Reescreve o ano corrente com o aporte (idempotente).
-  await prisma.cashflowValue.deleteMany({ where: { itemId: item.id, userId, year } });
+  // Reescreve o ano corrente com o aporte PLANEJADO (idempotente), mas PRESERVA
+  // os meses já REALIZADOS (células verdes) — esses são o "Realizado" do sonho,
+  // derivado pelo sync reverso, e não podem ser sobrescritos pelo planejado.
+  const existing = await prisma.cashflowValue.findMany({
+    where: { itemId: item.id, userId, year },
+    select: { month: true, color: true },
+  });
+  const realizedMonths = new Set(
+    existing.filter((v) => v.color === REALIZADO_COLOR).map((v) => v.month),
+  );
+
+  await prisma.cashflowValue.deleteMany({
+    where: { itemId: item.id, userId, year, month: { notIn: [...realizedMonths] } },
+  });
   if (aporte > 0) {
+    const plannedMonths = Array.from({ length: 12 }, (_, month) => month).filter(
+      (month) => !realizedMonths.has(month),
+    );
     await prisma.cashflowValue.createMany({
-      data: Array.from({ length: 12 }, (_, month) => ({
+      data: plannedMonths.map((month) => ({
         itemId: item!.id,
         userId,
         year,

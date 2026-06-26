@@ -3,6 +3,8 @@
 import { logger } from '@/lib/logger';
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 import Alert from '@/components/ui/alert/Alert';
 import { Table, TableBody } from '@/components/ui/table';
 import {
@@ -47,6 +49,7 @@ import { GroupRenderContext } from './dataTableTwoTypes';
 
 export default function DataTableTwo() {
   const { csrfFetch } = useCsrf();
+  const queryClient = useQueryClient();
   const { data, loading, error, refetch } = useCashflowData();
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const startDateISO = useMemo(() => new Date(currentYear, 0, 1).toISOString(), [currentYear]);
@@ -503,6 +506,10 @@ export default function DataTableTwo() {
         }
 
         await refetch();
+        // Editar a linha-espelho de um sonho re-deriva o "Realizado" no backend;
+        // invalida a query de sonhos pra a tela de Planejamento refletir na hora.
+        queryClient.invalidateQueries({ queryKey: queryKeys.planejamento.all });
+        queryClient.invalidateQueries({ queryKey: ['planejamento-sonhos'] });
         stopGroupEditing(group.id, allItems);
         showAlert('success', 'Alterações salvas', 'As alterações foram salvas com sucesso.');
       } catch (error) {
@@ -516,7 +523,7 @@ export default function DataTableTwo() {
         });
       }
     },
-    [getChangesForGroup, stopGroupEditing, refetch, showAlert, csrfFetch],
+    [getChangesForGroup, stopGroupEditing, refetch, showAlert, csrfFetch, queryClient],
   );
 
   const handleCancelGroupEdit = useCallback(
@@ -539,9 +546,11 @@ export default function DataTableTwo() {
       isLastItem: boolean = false,
     ) => {
       const groupId = group.id;
-      // Linhas vinculadas a um sonho são somente-leitura no fluxo de caixa
-      // (o sonho é a fonte) — nunca entram no modo de edição do grupo.
-      if (isGroupEditing(groupId) && !item.objetivoId) {
+      // Linhas vinculadas a um sonho (🎯) entram no modo de edição, mas só os
+      // VALORES/CORES são editáveis (o cliente lança o realizado e pinta de
+      // verde). Nome/rank/exclusão ficam travados (`objetivoLocked`) — a fonte é
+      // o Planejamento de Sonhos.
+      if (isGroupEditing(groupId)) {
         if (isItemDeleted(item.id)) {
           return null;
         }
@@ -563,6 +572,7 @@ export default function DataTableTwo() {
             onCommentCellClick={handleCommentCellClick}
             currentYear={currentYear}
             isLastItem={isLastItem}
+            objetivoLocked={!!item.objetivoId}
           />
         );
       } else {
