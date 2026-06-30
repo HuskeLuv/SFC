@@ -42,9 +42,9 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   if (!parsed.success) {
     return validationError(parsed);
   }
-  const { groupId: _groupId, updates, deletes } = parsed.data;
+  const { groupId: _groupId, updates, deletes, year } = parsed.data;
 
-  const currentYear = new Date().getFullYear();
+  const targetYear = year ?? new Date().getFullYear();
   const results: Array<{ itemId: string; success: boolean; error?: string }> = [];
 
   // Processar deletados — single round-trip de ownership check + bulk delete
@@ -116,8 +116,8 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         }
 
         // Linha vinculada a um sonho: valores/cor são editáveis (o cliente lança
-        // o realizado e pinta de verde), mas nome/significado/rank são da fonte
-        // (o sonho) e não podem ser alterados aqui.
+        // o realizado e pinta de vermelho "Pago"), mas nome/significado/rank são
+        // da fonte (o sonho) e não podem ser alterados aqui.
         const linked = await prisma.cashflowItem.findUnique({
           where: { id: finalItemId },
           select: { objetivoId: true },
@@ -168,7 +168,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
                   itemId_userId_year_month: {
                     itemId: finalItemId,
                     userId: targetUserId,
-                    year: currentYear,
+                    year: targetYear,
                     month,
                   },
                 },
@@ -176,7 +176,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
                 create: {
                   itemId: finalItemId,
                   userId: targetUserId,
-                  year: currentYear,
+                  year: targetYear,
                   month,
                   value: numericValue,
                   color: color !== undefined ? color : null,

@@ -22,7 +22,8 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   if (!parsed.success) {
     return validationError(parsed);
   }
-  const { itemId, field, value, monthIndex } = parsed.data;
+  const { itemId, field, value, monthIndex, year } = parsed.data;
+  const targetYear = year ?? new Date().getFullYear();
 
   // Ensure item is personalized (creates a copy if it's a template)
   let finalItemId: string;
@@ -72,14 +73,12 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       },
     });
   } else if (field === 'monthlyValue' && typeof monthIndex === 'number') {
-    const currentYear = new Date().getFullYear();
-
     // Update monthly value
     const existingValue = await prisma.cashflowValue.findFirst({
       where: {
         itemId: finalItemId,
         userId: targetUserId,
-        year: currentYear,
+        year: targetYear,
         month: monthIndex,
       },
     });
@@ -101,7 +100,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
         data: {
           itemId: finalItemId,
           userId: targetUserId,
-          year: currentYear,
+          year: targetYear,
           month: monthIndex,
           value: numericValue,
         },
@@ -117,7 +116,6 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       },
     });
   } else if (field === 'annualTotal') {
-    const currentYear = new Date().getFullYear();
     const annualTotal = parseFloat(String(value));
     if (!Number.isFinite(annualTotal)) {
       return NextResponse.json({ error: 'Valor anual inválido' }, { status: 400 });
@@ -130,7 +128,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
         where: {
           itemId: finalItemId,
           userId: targetUserId,
-          year: currentYear,
+          year: targetYear,
         },
       });
 
@@ -138,7 +136,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
         data: Array.from({ length: 12 }, (_, month) => ({
           itemId: finalItemId,
           userId: targetUserId,
-          year: currentYear,
+          year: targetYear,
           month,
           value: monthlyValue,
         })),
