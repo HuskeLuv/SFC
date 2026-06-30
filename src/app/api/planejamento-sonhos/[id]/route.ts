@@ -95,6 +95,7 @@ export const PATCH = withErrorHandler(
       available: decimalToNumber(updated.available),
       months: updated.months,
       rate: decimalToNumber(updated.rate),
+      startDate: updated.startDate,
     });
 
     return NextResponse.json({ objetivo: serializeObjetivo(updated) });

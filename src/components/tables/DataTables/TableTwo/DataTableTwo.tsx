@@ -15,6 +15,7 @@ import {
 } from '@/hooks/useCashflow';
 import { useProventos } from '@/hooks/useProventos';
 import { useCsrf } from '@/hooks/useCsrf';
+import { useCashflowYear } from '@/context/CashflowYearContext';
 import { validateNewRow } from '@/utils/validation';
 import {
   TableHeaderComponent,
@@ -50,8 +51,8 @@ import { GroupRenderContext } from './dataTableTwoTypes';
 export default function DataTableTwo() {
   const { csrfFetch } = useCsrf();
   const queryClient = useQueryClient();
-  const { data, loading, error, refetch } = useCashflowData();
-  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const { year: currentYear } = useCashflowYear();
+  const { data, loading, error, refetch } = useCashflowData(currentYear);
   const startDateISO = useMemo(() => new Date(currentYear, 0, 1).toISOString(), [currentYear]);
   const endDateISO = useMemo(
     () => new Date(currentYear, 11, 31, 23, 59, 59).toISOString(),
@@ -496,6 +497,7 @@ export default function DataTableTwo() {
           },
           body: JSON.stringify({
             groupId: group.id,
+            year: currentYear,
             updates: changes.updates,
             deletes: changes.deletes,
           }),
@@ -523,7 +525,7 @@ export default function DataTableTwo() {
         });
       }
     },
-    [getChangesForGroup, stopGroupEditing, refetch, showAlert, csrfFetch, queryClient],
+    [getChangesForGroup, stopGroupEditing, refetch, showAlert, csrfFetch, queryClient, currentYear],
   );
 
   const handleCancelGroupEdit = useCallback(

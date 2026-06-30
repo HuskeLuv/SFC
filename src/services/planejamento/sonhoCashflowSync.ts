@@ -1,12 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { personalizeGroup } from '@/utils/cashflowPersonalization';
-import { pmt } from './planejamentoSonhos';
+import { addMonths, pmt } from './planejamentoSonhos';
 import { REALIZADO_COLOR } from './cashflowToSonhoSync';
 
 /**
  * Sincroniza um objetivo do Planejamento de Sonhos com a linha espelho no fluxo
  * de caixa (grupo "Planejamento Financeiro"). O sonho é a FONTE: o aporte mensal
- * necessário (pmt) vira o valor dos 12 meses dessa linha. A linha é
+ * necessário (pmt) vira o valor dos meses da JANELA do sonho (`startDate` →
+ * `startDate + months`), que pode atravessar vários anos. A linha é
  * somente-leitura no fluxo de caixa (vínculo via CashflowItem.objetivoId).
  */
 
@@ -19,6 +20,7 @@ export interface ObjetivoForSync {
   available: number;
   months: number;
   rate: number;
+  startDate: string | null; // YYYY-MM — início da janela de aportes
 }
 
 /** Resolve (personalizando se preciso) o grupo "Planejamento Financeiro" do usuário. */
@@ -37,15 +39,24 @@ async function resolvePlanejamentoGroupId(userId: string): Promise<string | null
   return personalizeGroup(template.id, userId);
 }
 
+/** YYYY-MM → { year, month0 } (month0 = 0-based). */
+function ymToYearMonth0(ym: string): { year: number; month: number } {
+  const [y, m] = ym.split('-').map(Number);
+  return { year: y, month: m - 1 };
+}
+
 /**
- * Cria/atualiza a linha do fluxo de caixa que espelha o sonho. Reescreve os 12
- * meses do ano com o aporte mensal (pmt); se o aporte é 0 (meta não definida),
- * apenas garante a linha existir, sem valores (ausência = 0 na agregação).
+ * Cria/atualiza a linha do fluxo de caixa que espelha o sonho. Escreve o aporte
+ * mensal (pmt) nos meses da janela (`startDate` por `months` meses, atravessando
+ * anos); se o aporte é 0 (meta não definida), apenas garante a linha existir.
+ *
+ * Preserva as células já REALIZADAS (vermelhas/"Pago") — derivadas pelo sync
+ * reverso — e remove o planejado órfão de qualquer ano (ex.: quando `startDate`
+ * ou `months` mudam e a janela se desloca).
  */
 export async function syncObjetivoToCashflow(
   userId: string,
   objetivo: ObjetivoForSync,
-  year: number = new Date().getFullYear(),
 ): Promise<void> {
   const aporte = Math.round(pmt(objetivo) * 100) / 100;
 
@@ -63,33 +74,45 @@ export async function syncObjetivoToCashflow(
     });
   }
 
-  // Reescreve o ano corrente com o aporte PLANEJADO (idempotente), mas PRESERVA
-  // os meses já REALIZADOS (células verdes) — esses são o "Realizado" do sonho,
-  // derivado pelo sync reverso, e não podem ser sobrescritos pelo planejado.
-  const existing = await prisma.cashflowValue.findMany({
-    where: { itemId: item.id, userId, year },
-    select: { month: true, color: true },
-  });
-  const realizedMonths = new Set(
-    existing.filter((v) => v.color === REALIZADO_COLOR).map((v) => v.month),
+  // Janela de aportes: `months` meses a partir de startDate (YYYY-MM), podendo
+  // atravessar anos. Sem startDate (legado), começa em janeiro do ano corrente.
+  const start = objetivo.startDate ?? `${new Date().getFullYear()}-01`;
+  const janela = Array.from({ length: Math.max(0, objetivo.months) }, (_, i) =>
+    ymToYearMonth0(addMonths(start, i)),
   );
 
-  await prisma.cashflowValue.deleteMany({
-    where: { itemId: item.id, userId, year, month: { notIn: [...realizedMonths] } },
+  // Meses já REALIZADOS (vermelho) — preservados em qualquer ano.
+  const realized = await prisma.cashflowValue.findMany({
+    where: { itemId: item.id, userId, color: REALIZADO_COLOR },
+    select: { year: true, month: true },
   });
+  const realizedKey = new Set(realized.map((v) => `${v.year}-${v.month}`));
+
+  // Remove o planejado (não-realizado) de QUALQUER ano — limpa planejado órfão
+  // fora da janela atual. Preserva os realizados (vermelhos).
+  await prisma.cashflowValue.deleteMany({
+    where: {
+      itemId: item.id,
+      userId,
+      OR: [{ color: null }, { color: { not: REALIZADO_COLOR } }],
+    },
+  });
+
+  // Reescreve o aporte planejado na janela, exceto nos meses já realizados.
   if (aporte > 0) {
-    const plannedMonths = Array.from({ length: 12 }, (_, month) => month).filter(
-      (month) => !realizedMonths.has(month),
-    );
-    await prisma.cashflowValue.createMany({
-      data: plannedMonths.map((month) => ({
-        itemId: item!.id,
-        userId,
-        year,
-        month,
-        value: aporte,
-      })),
-    });
+    const toCreate = janela.filter((w) => !realizedKey.has(`${w.year}-${w.month}`));
+    if (toCreate.length > 0) {
+      await prisma.cashflowValue.createMany({
+        data: toCreate.map((w) => ({
+          itemId: item!.id,
+          userId,
+          year: w.year,
+          month: w.month,
+          value: aporte,
+        })),
+        skipDuplicates: true,
+      });
+    }
   }
 }
 
