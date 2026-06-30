@@ -30,9 +30,9 @@
 
 **Objetivo:** expor `startDate` como campo editável no form do sonho.
 
-- [ ] 1.1 Adicionar `startDate` ao `FormState` e à UI de `SonhosObjetivoInlineForm.tsx` (input `month`, YYYY-MM). Default = mês atual na criação; carregar valor existente na edição.
-- [ ] 1.2 Incluir `startDate` no `payload` (já vai no `ObjetivoUpsertPayload`); validar formato YYYY-MM no zod do POST/PATCH `/api/planejamento-sonhos`.
-- [ ] 1.3 Garantir que mudança de `startDate` **redispara** `syncObjetivoToCashflow` (a janela de meses no caixa muda) — ver Fase 4.
+- [x] 1.1 Adicionado `startDate` ao `FormState` e à UI de `SonhosObjetivoInlineForm.tsx` (input `month`, YYYY-MM). Default = mês atual na criação; carrega valor existente na edição; validação client AAAA-MM.
+- [x] 1.2 `startDate` já fluía no `ObjetivoUpsertPayload`/POST/PATCH; zod (`planejamentoStartDate`, regex YYYY-MM) já validava em create e patch — nada a fazer.
+- [~] 1.3 Mudança de `startDate` persiste e redispara o sync, mas a reescrita da **janela de meses** (atravessando anos) é a Fase 4 — hoje o sync ainda escreve 12 meses do ano corrente.
 
 **Arquivos:** `SonhosObjetivoInlineForm.tsx`, `usePlanejamentoSonhos.ts` (tipo do payload), `api/planejamento-sonhos/route.ts` + `[id]/route.ts` (zod).
 
