@@ -97,10 +97,10 @@
 Hipótese principal (alta confiança): `curve: 'smooth'` (spline) gera **vales/overshoots artificiais** em dados com espaçamento irregular e `null` gaps → parece "queda aleatória", apesar de planejado e realizado serem matematicamente crescentes.
 Hipótese secundária: saldo dos entries é composto na **ordem das células** (contagem), mas plotado na **posição de calendário** (`idx`), gerando degraus inconsistentes quando há meses pulados.
 
-- [ ] 6.1 Instrumentar/inspecionar `plannedSeries`/`actualSeries` de um sonho real p/ confirmar a causa antes de mudar.
-- [ ] 6.2 Trocar `stroke.curve` para `'straight'` (ou `'monotoneCubic'`) — elimina o overshoot do spline.
-- [ ] 6.3 Alinhar o saldo realizado à **posição de calendário**: compor `saldo[idx] = saldo*(1+rate)^(meses decorridos) + aporte` por offset real de mês desde `startDate`, não pela contagem de células verdes/vermelhas. Ajustar em `cashflowToSonhoSync` (geração do `balance`) e/ou no cálculo do chart.
-- [ ] 6.4 Revisar o default de `available` no form (hoje auto-preenchido com patrimônio agregado) — se o saldo inicial é o patrimônio inteiro mas a meta é pequena, o eixo Y fica dominado e a linha de meta some no rodapé ("estranho"). Avaliar usar saldo inicial específico do objetivo.
+- [x] 6.1 Análise de código confirmou: séries são matematicamente crescentes; as "quedas" vinham do rendering (spline `smooth` + série Realizado esparsa com `null` entre pontos), não dos dados.
+- [x] 6.2 `stroke.curve` → `['smooth', 'straight']` (Planejado suave, Realizado reta sem overshoot).
+- [x] 6.3 Realizado virou linha **contínua e monotônica** alinhada ao calendário: posiciona cada entry pelo offset de mês desde `startDate` e carrega o saldo pra frente nos meses sem registro; `null` só após o último realizado. Marcadores discretos só nos meses realizados.
+- [~] 6.4 Default de `available` (patrimônio agregado) que pode dominar o eixo Y fica como ajuste de UX futuro — não alterado p/ não mexer na semântica de `pmt`/`planned`.
 
 **Arquivos:** `SonhosObjetivoEvolutionChart.tsx`, `cashflowToSonhoSync.ts`, eventualmente `planejamentoSonhos.ts`.
 
