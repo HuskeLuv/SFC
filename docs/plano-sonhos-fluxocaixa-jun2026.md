@@ -81,10 +81,10 @@
 
 **Objetivo:** o gatilho do "Realizado" do sonho passa a ser a célula **vermelha** (`#FF0000`, "Pago"). Semanticamente correto: aporte é saída ("Pago"), não "Recebido".
 
-- [ ] 5.1 `cashflowToSonhoSync.ts`: `REALIZADO_COLOR = '#FF0000'` (era `#76933C`). Constante é fonte única — propaga p/ o sync direto que preserva realizados.
-- [ ] 5.2 Auditar usos hardcoded de `#76933C` / "verde" ligados ao realizado de sonho e migrar p/ a constante.
-- [ ] 5.3 (Opcional, fase de testes) Migração one-shot: repintar células de **linhas de sonho** de `#76933C`→`#FF0000` p/ dados de teste existentes não pararem de refletir. Sem usuários reais (ver memória `project-test-phase`), pode-se apenas re-marcar manualmente.
-- [ ] 5.4 Verificar UX do `ColorPickerButton` (vermelho já existe como "Pago") — talvez um hint de que, em linha de sonho, vermelho = aporte realizado.
+- [x] 5.1 `cashflowToSonhoSync.ts`: `REALIZADO_COLOR = '#FF0000'` (era `#76933C`). Constante é fonte única — propaga p/ o sync direto que preserva realizados.
+- [x] 5.2 Auditados usos de `#76933C`: os demais (`useGroupEditMode` colorMap, `GroupHeader` "Investimentos", `ColorPickerButton` "Recebido") são independentes do gatilho de sonho — nada a migrar. Comentários/testes de sonho atualizados p/ "vermelho".
+- [ ] 5.3 (Opcional, fase de testes) Migração one-shot pulada: sem usuários reais (memória `project-test-phase`), basta re-marcar manualmente as células de teste.
+- [x] 5.4 `ColorPickerButton` mantido: vermelho já é "Pago", semanticamente correto p/ aporte — sem mudança de UI necessária.
 
 **Arquivos:** `cashflowToSonhoSync.ts`, `sonhoCashflowSync.ts`, varredura por `#76933C`.
 

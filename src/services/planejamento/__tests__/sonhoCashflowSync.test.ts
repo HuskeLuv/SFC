@@ -11,6 +11,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/utils/cashflowPersonalization', () => ({ personalizeGroup: mockPersonalizeGroup }));
 
 import { syncObjetivoToCashflow, removeObjetivoCashflow } from '../sonhoCashflowSync';
+import { REALIZADO_COLOR } from '../cashflowToSonhoSync';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -97,12 +98,12 @@ describe('syncObjetivoToCashflow', () => {
     expect(mockPrisma.cashflowItem.create).not.toHaveBeenCalled();
   });
 
-  it('preserva os meses REALIZADOS (verdes) ao reescrever o aporte planejado', async () => {
+  it('preserva os meses REALIZADOS (vermelhos) ao reescrever o aporte planejado', async () => {
     mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', name: 'Viagem' });
-    // Meses 0 e 1 já realizados (verde #76933C); o resto é planejado.
+    // Meses 0 e 1 já realizados (vermelho "Pago"); o resto é planejado.
     mockPrisma.cashflowValue.findMany.mockResolvedValue([
-      { month: 0, color: '#76933C' },
-      { month: 1, color: '#76933C' },
+      { month: 0, color: REALIZADO_COLOR },
+      { month: 1, color: REALIZADO_COLOR },
       { month: 2, color: null },
     ]);
 

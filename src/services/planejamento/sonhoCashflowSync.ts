@@ -64,8 +64,8 @@ export async function syncObjetivoToCashflow(
   }
 
   // Reescreve o ano corrente com o aporte PLANEJADO (idempotente), mas PRESERVA
-  // os meses já REALIZADOS (células verdes) — esses são o "Realizado" do sonho,
-  // derivado pelo sync reverso, e não podem ser sobrescritos pelo planejado.
+  // os meses já REALIZADOS (células vermelhas/"Pago") — esses são o "Realizado"
+  // do sonho, derivado pelo sync reverso, e não podem ser sobrescritos pelo planejado.
   const existing = await prisma.cashflowValue.findMany({
     where: { itemId: item.id, userId, year },
     select: { month: true, color: true },

@@ -51,9 +51,9 @@ describe('syncCashflowToObjetivo', () => {
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('deriva entries auto das células verdes com saldo acumulado (rate 0)', async () => {
+  it('deriva entries auto das células realizadas com saldo acumulado (rate 0)', async () => {
     mockPrisma.planejamentoObjetivo.findFirst.mockResolvedValue(baseObjetivo);
-    // Só busca as células VERDES.
+    // Só busca as células REALIZADAS (vermelhas).
     mockPrisma.cashflowValue.findMany.mockResolvedValue([
       { year: 2026, month: 0, value: 2000 },
       { year: 2026, month: 1, value: 3000 },
@@ -61,7 +61,7 @@ describe('syncCashflowToObjetivo', () => {
 
     await syncCashflowToObjetivo('u1', 'obj-1');
 
-    // O filtro de cor pediu exatamente o verde.
+    // O filtro de cor pediu exatamente o vermelho (realizado).
     expect(mockPrisma.cashflowValue.findMany).toHaveBeenCalledWith({
       where: { itemId: 'item-1', userId: 'u1', color: REALIZADO_COLOR },
       select: { year: true, month: true, value: true },
@@ -104,7 +104,7 @@ describe('syncCashflowToObjetivo', () => {
     expect(upserts[0].args.create.balance).toBeCloseTo(1510, 2);
   });
 
-  it('remove entries auto de meses que não estão mais verdes', async () => {
+  it('remove entries auto de meses que não estão mais realizados', async () => {
     mockPrisma.planejamentoObjetivo.findFirst.mockResolvedValue(baseObjetivo);
     mockPrisma.cashflowValue.findMany.mockResolvedValue([{ year: 2026, month: 0, value: 2000 }]);
 
@@ -122,7 +122,7 @@ describe('syncCashflowToObjetivo', () => {
       ...baseObjetivo,
       entries: [{ month: '2026-01', balance: 9999, source: 'manual' }],
     });
-    // Jan e Fev verdes, mas Jan tem entry manual → só Fev vira auto.
+    // Jan e Fev realizados, mas Jan tem entry manual → só Fev vira auto.
     mockPrisma.cashflowValue.findMany.mockResolvedValue([
       { year: 2026, month: 0, value: 2000 },
       { year: 2026, month: 1, value: 3000 },
