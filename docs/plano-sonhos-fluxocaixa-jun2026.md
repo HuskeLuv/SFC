@@ -42,11 +42,11 @@
 
 **Objetivo:** planilha passa a operar sobre um `year` selecionável; persistência respeita o ano.
 
-- [ ] 2.1 `DataTableTwo.tsx`: trocar `currentYear` hardcoded por `year` vindo de prop/URL (`?ano=YYYY`, default ano atual).
-- [ ] 2.2 Hooks de dados (`useCashflowData` e afins): aceitar `year`, incluir `year` na **queryKey** do React Query (cache por ano), e enviar `?year` nos GETs.
-- [ ] 2.3 `values/route.ts` e `batch-update/route.ts`: receber `year` no body (default ano atual p/ retrocompat) em vez de `new Date().getFullYear()`.
-- [ ] 2.4 `comments/route.ts` e `investimentos/route.ts`: já aceitam `?year` — confirmar que a planilha repassa o ano selecionado.
-- [ ] 2.5 Proventos/investimentos derivados de transações: filtrar pelo `year` selecionado.
+- [x] 2.1 `DataTableTwo.tsx`: `currentYear` agora vem do `useCashflowYear()` (context), não mais `new Date().getFullYear()`.
+- [x] 2.2 `useCashflowData(year)` já aceitava ano e usa `queryKeys.cashflow.year()` (cache por ano) + `?year` nos GETs — só passei o ano do context.
+- [x] 2.3 `values/route.ts` e `batch-update/route.ts`: `year` opcional no body (zod), default ano atual p/ retrocompat. `targetYear` substitui `new Date().getFullYear()`.
+- [x] 2.4 `investimentos` recebe `?year` via `useCashflowData`; `comments` usa o `currentYear` do context na planilha.
+- [x] 2.5 Proventos: `startDateISO/endDateISO` derivam do ano do context → `useProventos` filtra pelo ano selecionado.
 
 **Arquivos:** `DataTableTwo.tsx`, `EditableItemRow.tsx`, `src/hooks/useCashflow*.ts`, `api/cashflow/{values,batch-update,comments,investimentos}/route.ts`.
 
@@ -56,9 +56,9 @@
 
 **Objetivo:** seletor de ano na sidebar, escopo só do fluxo de caixa.
 
-- [ ] 3.1 Estado do ano via **URL** (`/fluxodecaixa?ano=YYYY`) — fonte única, sobrevive a refresh e deep-link. `DataTableTwo` lê com `useSearchParams`.
-- [ ] 3.2 `AppSidebar.tsx`: ao lado/abaixo do item "Fluxo de Caixa", renderizar um `<Select>` de ano que faz `router.push('/fluxodecaixa?ano=...')`. Só aparece nesse item (escopo restrito).
-- [ ] 3.3 Range de anos: derivar de `min(startDate)`…`max(startDate+meses)` dos sonhos do usuário ∪ ano atual (ex.: cliente com sonho até 2027 vê 2026 e 2027). Fallback: ano atual ± 1.
+- [x] 3.1 Estado do ano via **`CashflowYearContext`** (provider no `AdminLayoutClient`), inicializado da URL `?ano=` e espelhado via `replaceState` (deep-link/refresh ok). Evita `useSearchParams`+Suspense, padrão do projeto.
+- [x] 3.2 `AppSidebar.tsx`: `<CashflowYearSelect>` renderizado sob o item "Fluxo de Caixa" (só quando expandido). Muda o ano e navega pra `/fluxodecaixa` se estiver em outra página.
+- [~] 3.3 Range de anos: janela fixa `ano atual−2 … ano atual+8` (cobre "até 2027" sem acoplar a sidebar ao fetch de sonhos / side-effect de provisionamento). Derivar dos sonhos fica como melhoria futura.
 
 **Arquivos:** `AppSidebar.tsx`, `DataTableTwo.tsx`, possivelmente um pequeno hook `useAnosDisponiveis` (deriva range dos sonhos).
 
