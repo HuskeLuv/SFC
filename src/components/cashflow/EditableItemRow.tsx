@@ -57,6 +57,21 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   const isInvestmentItem = group.type === 'investimento' || item.id.startsWith('investimento-');
   // Campos estruturais editáveis? (não em linha de investimento nem de sonho)
   const canEditStructure = isEditing && !isInvestmentItem && !objetivoLocked;
+  // Excluir é permitido também em linha de sonho (propaga pro Planejamento, com
+  // confirmação); só não em linha de investimento (calculada).
+  const canDelete = isEditing && !isInvestmentItem;
+
+  const handleDeleteClick = () => {
+    if (
+      objetivoLocked &&
+      !window.confirm(
+        'Esta linha é um sonho do Planejamento. Excluir aqui também remove o objetivo e todo o histórico dele. Continuar?',
+      )
+    ) {
+      return;
+    }
+    onDeleteItem(item.id);
+  };
 
   const getPercentageColorClass = () => {
     return 'text-black dark:text-black';
@@ -329,9 +344,9 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
       </TableCell>
 
-      {canEditStructure && (
+      {canDelete && (
         <TableCell className="px-2 border border-gray-200 w-8 text-center h-6 leading-6">
-          <DeleteItemButton onClick={() => onDeleteItem(item.id)} />
+          <DeleteItemButton onClick={handleDeleteClick} />
         </TableCell>
       )}
     </TableRow>

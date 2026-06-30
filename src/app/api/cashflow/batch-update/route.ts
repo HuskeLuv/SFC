@@ -6,6 +6,7 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { cashflowBatchUpdateSchema, validationError } from '@/utils/validation-schemas';
 import { syncCashflowToObjetivo } from '@/services/planejamento/cashflowToSonhoSync';
+import { removeObjetivoCashflow } from '@/services/planejamento/sonhoCashflowSync';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
@@ -47,46 +48,70 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   const targetYear = year ?? new Date().getFullYear();
   const results: Array<{ itemId: string; success: boolean; error?: string }> = [];
 
-  // Processar deletados — single round-trip de ownership check + bulk delete
-  // em transação. Antes era 1 findFirst + 1 transação por id (até 3N RTTs).
+  // Processar deletados. Linhas livres: bulk delete em transação. Linhas
+  // vinculadas a um sonho: excluir AQUI propaga a exclusão pro Planejamento
+  // (remove o objetivo + entries + linha-espelho) — liberado na reunião
+  // jun/2026, com confirmação no front.
   if (deletes && Array.isArray(deletes) && deletes.length > 0) {
-    try {
-      const owned = await prisma.cashflowItem.findMany({
-        where: { id: { in: deletes }, userId: targetUserId },
-        select: { id: true, objetivoId: true },
-      });
-      // Linhas vinculadas a um sonho não podem ser excluídas pelo fluxo de caixa
-      // (o sonho é a fonte; excluir é no Planejamento de Sonhos).
-      const linkedIds = new Set(owned.filter((i) => i.objetivoId).map((i) => i.id));
-      const ownedIds = new Set(owned.filter((i) => !i.objetivoId).map((i) => i.id));
+    const owned = await prisma.cashflowItem.findMany({
+      where: { id: { in: deletes }, userId: targetUserId },
+      select: { id: true, objetivoId: true },
+    });
+    const ownedFree = owned.filter((i) => !i.objetivoId).map((i) => i.id);
+    const ownedLinked = owned.filter(
+      (i): i is { id: string; objetivoId: string } => i.objetivoId != null,
+    );
+    const handled = new Set<string>();
 
-      if (ownedIds.size > 0) {
-        const ids = [...ownedIds];
+    // 1) Linhas livres — single round-trip (values + items) em transação.
+    if (ownedFree.length > 0) {
+      try {
         await prisma.$transaction([
-          prisma.cashflowValue.deleteMany({ where: { itemId: { in: ids } } }),
+          prisma.cashflowValue.deleteMany({ where: { itemId: { in: ownedFree } } }),
           prisma.cashflowItem.deleteMany({
-            where: { id: { in: ids }, userId: targetUserId },
+            where: { id: { in: ownedFree }, userId: targetUserId },
           }),
         ]);
-      }
-
-      for (const itemId of deletes) {
-        if (ownedIds.has(itemId)) {
-          results.push({ itemId, success: true });
-        } else if (linkedIds.has(itemId)) {
-          results.push({
-            itemId,
-            success: false,
-            error: 'Linha vinculada a um sonho — exclua no Planejamento de Sonhos.',
-          });
-        } else {
-          results.push({ itemId, success: false, error: 'Item não encontrado' });
+        for (const id of ownedFree) {
+          results.push({ itemId: id, success: true });
+          handled.add(id);
+        }
+      } catch (error) {
+        logger.error('Erro ao deletar items:', error);
+        for (const id of ownedFree) {
+          results.push({ itemId: id, success: false, error: 'Erro ao deletar' });
+          handled.add(id);
         }
       }
-    } catch (error) {
-      logger.error('Erro ao deletar items:', error);
-      for (const itemId of deletes) {
-        results.push({ itemId, success: false, error: 'Erro ao deletar' });
+    }
+
+    // 2) Linhas de sonho — propaga pro Planejamento. FK é SetNull, então remove
+    //    a linha-espelho (removeObjetivoCashflow) antes de apagar o objetivo
+    //    (cascade nas entries).
+    for (const { id: itemId, objetivoId } of ownedLinked) {
+      handled.add(itemId);
+      try {
+        const obj = await prisma.planejamentoObjetivo.findFirst({
+          where: { id: objetivoId, userId: targetUserId },
+          select: { id: true },
+        });
+        if (!obj) {
+          results.push({ itemId, success: false, error: 'Sonho não encontrado' });
+          continue;
+        }
+        await removeObjetivoCashflow(objetivoId);
+        await prisma.planejamentoObjetivo.delete({ where: { id: objetivoId } });
+        results.push({ itemId, success: true });
+      } catch (error) {
+        logger.error(`Erro ao excluir sonho vinculado ao item ${itemId}:`, error);
+        results.push({ itemId, success: false, error: 'Erro ao excluir sonho' });
+      }
+    }
+
+    // 3) Ids que não pertencem ao usuário (nem livres, nem vinculados).
+    for (const itemId of deletes) {
+      if (!handled.has(itemId)) {
+        results.push({ itemId, success: false, error: 'Item não encontrado' });
       }
     }
   }

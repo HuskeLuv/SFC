@@ -110,10 +110,10 @@ Hipótese secundária: saldo dos entries é composto na **ordem das células** (
 
 **Objetivo:** permitir excluir o sonho direto da linha no fluxo de caixa, com confirmação.
 
-- [ ] 7.1 `batch-update/route.ts` / `update`: criar caminho que aceita excluir item vinculado a sonho **propagando** a exclusão do `PlanejamentoObjetivo` (chama o mesmo fluxo do `DELETE /api/planejamento-sonhos/[id]` → `removeObjetivoCashflow`). Hoje há bloqueio explícito a remover.
-- [ ] 7.2 UI na planilha: ação de excluir na linha-espelho de sonho com `confirm()` deixando claro "isto exclui o objetivo no Planejamento de Sonhos também".
-- [ ] 7.3 Invalidar caches `planejamento` + `cashflow` após exclusão (`invalidatePortfolioDerivedQueries`).
-- [ ] 7.4 Garantir que exclusão é só do sonho (não derruba outras linhas do grupo "Planejamento Financeiro").
+- [x] 7.1 `batch-update/route.ts`: bloqueio removido. Linha de sonho agora propaga a exclusão pro `PlanejamentoObjetivo` (`removeObjetivoCashflow` + delete do objetivo, cascade nas entries). Linhas livres seguem bulk delete.
+- [x] 7.2 `EditableItemRow.tsx`: botão de excluir liberado em linha de sonho (`canDelete`), com `window.confirm` avisando que remove o objetivo e o histórico. Estrutura (nome) segue bloqueada.
+- [x] 7.3 `handleSaveGroup` (DataTableTwo) já invalida `planejamento` + `planejamento-sonhos` + refetch do caixa após salvar.
+- [x] 7.4 Exclusão atinge só o objetivo daquela linha (busca por `objetivoId` do item, valida `userId`); demais linhas do grupo intactas. Teste de propagação adicionado.
 
 **Arquivos:** `DataTableTwo.tsx`/`EditableItemRow.tsx`, `api/cashflow/{batch-update,update,[id]}/route.ts`, reutilizar `removeObjetivoCashflow` + delete do objetivo.
 
