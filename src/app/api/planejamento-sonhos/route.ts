@@ -71,6 +71,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     available,
     months,
     rate,
+    startDate: created.startDate,
   });
 
   return NextResponse.json({ objetivo: serializeObjetivo(created) }, { status: 201 });

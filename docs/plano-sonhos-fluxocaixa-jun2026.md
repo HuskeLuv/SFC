@@ -68,10 +68,10 @@
 
 **Objetivo:** o aporte planejado do sonho aparece nos anos certos da planilha (sonho até 2027 escreve meses de 2026 **e** 2027).
 
-- [ ] 4.1 Reescrever `syncObjetivoToCashflow` para escrever `pmt` **apenas na janela do sonho** (`startDate` → `startDate + months`), atravessando anos, em vez de "12 meses de um ano". Continua **preservando células realizadas** (agora vermelhas — ver Fase 5).
-- [ ] 4.2 Limpeza de células planejadas **fora** da janela atual (quando `startDate`/`months` muda, apagar planejado órfão em anos antigos).
-- [ ] 4.3 Sync reverso (`cashflowToSonhoSync`) já varre todos os anos — só ajustar a constante de cor (Fase 5). Confirmar ordenação cronológica `year-month` cross-ano (o `monthStr` já gera YYYY-MM ordenável).
-- [ ] 4.4 Reprocessar sync direto ao alterar `startDate`, `months`, `target`, `available` ou `rate`.
+- [x] 4.1 `syncObjetivoToCashflow` reescrito: escreve `pmt` na **janela do sonho** (`startDate` por `months` meses, atravessando anos) via `addMonths`. `ObjetivoForSync` ganhou `startDate`; param `year` removido. Preserva realizados (vermelho).
+- [x] 4.2 `deleteMany` agora apaga o planejado (não-realizado) de **qualquer ano** (`OR: [{color:null},{color:{not:vermelho}}]`) — limpa planejado órfão ao deslocar a janela. Novo teste cross-ano (Nov/26+4 → 2026 e 2027).
+- [x] 4.3 Sync reverso já varre todos os anos e ordena por `YYYY-MM` (localeCompare) — cross-ano correto, sem mudança.
+- [x] 4.4 POST/PATCH/provisionDefaultSonhos passam `startDate` ao sync → recálculo da janela ao alterar o objetivo.
 
 **Arquivos:** `sonhoCashflowSync.ts`, `cashflowToSonhoSync.ts`, callers em `api/planejamento-sonhos/*`.
 
