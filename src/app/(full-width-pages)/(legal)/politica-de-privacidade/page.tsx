@@ -20,7 +20,7 @@ export const metadata: Metadata = {
  */
 export default function PoliticaDePrivacidade() {
   return (
-    <LegalArticle title="Política de Privacidade" updatedAt="28 de maio de 2026" version="1.0">
+    <LegalArticle title="Política de Privacidade" updatedAt="5 de julho de 2026" version="1.1">
       <h2>1. Quem somos</h2>
       <p>
         A <strong>MyFinance</strong> é uma plataforma de gestão financeira pessoal que ajuda
@@ -111,6 +111,11 @@ export default function PoliticaDePrivacidade() {
         </li>
         <li>
           <strong>Logs de auditoria:</strong> mantidos por até 12 meses para fins de segurança.
+        </li>
+        <li>
+          <strong>Histórico de alterações:</strong> o registro das edições feitas na sua conta
+          (disponível na seção &quot;Histórico&quot;) é mantido por até 12 meses e eliminado
+          integralmente na exclusão da conta.
         </li>
       </ul>
 

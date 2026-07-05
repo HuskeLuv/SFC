@@ -76,7 +76,7 @@ export default function SignUpForm({
           // LGPD Fase 2: persiste o aceite com versão dos documentos.
           acceptedTerms: true,
           termsVersion: '1.0',
-          privacyVersion: '1.0',
+          privacyVersion: '1.1',
         }),
       });
       if (!res.ok) {
