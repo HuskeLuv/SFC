@@ -15,6 +15,7 @@ import {
 import { FUNDO_TYPES_ALL, FUNDO_SUBTIPO_ORDER } from '@/lib/fundoTypes';
 import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
 import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
+import { recordChange, assetEntityLabel } from '@/services/changeHistory';
 
 /** Valores de fundoDestino que viram seções na aba "Fundos". */
 const FUNDO_SUBTIPO_DESTINOS: Set<string> = new Set(FUNDO_SUBTIPO_ORDER);
@@ -103,7 +104,8 @@ const expectedAssetTypeByTipoAtivo: Record<string, readonly string[]> = {
 };
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { payload, targetUserId, actingClient } = auth;
 
   const requestBody = await request.json();
   const parsed = operacaoBaseSchema.safeParse(requestBody);
@@ -2098,6 +2100,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       );
     }
   }
+
+  await recordChange({
+    request,
+    auth,
+    section: 'carteira',
+    action: 'operacao.registrar',
+    entity: 'operacao',
+    entityId: transacao.id,
+    entityLabel: assetEntityLabel(asset) ?? ativoNome ?? undefined,
+  });
 
   const result = NextResponse.json(
     {

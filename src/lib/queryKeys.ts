@@ -46,6 +46,11 @@ export const queryKeys = {
   coberturaFgc: {
     all: ['coberturaFgc'] as const,
   },
+  historicoAlteracoes: {
+    all: ['historicoAlteracoes'] as const,
+    list: (page: number, section?: string) =>
+      [...queryKeys.historicoAlteracoes.all, page, section ?? 'todas'] as const,
+  },
   ir: {
     all: ['ir'] as const,
     resumoAnual: (year: number) => [...queryKeys.ir.all, 'resumoAnual', year] as const,

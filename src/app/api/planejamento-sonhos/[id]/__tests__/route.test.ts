@@ -7,6 +7,7 @@ const mockPrisma = vi.hoisted(() => ({
     update: vi.fn(),
     delete: vi.fn(),
   },
+  userChangeLog: { create: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -110,6 +111,19 @@ describe('PATCH /api/planejamento-sonhos/[id]', () => {
     expect(call.data.target).toBeUndefined();
     expect(call.data.months).toBeUndefined();
     expect(call.data.priority).toBeUndefined();
+    // Registra a edição no histórico de alterações (com diff do campo alterado).
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          section: 'planejamento',
+          action: 'sonho.editar',
+          entityId: 'obj-1',
+          entityLabel: 'Novo Nome',
+          changes: [expect.objectContaining({ field: 'name', before: 'Casa', after: 'Novo Nome' })],
+        }),
+      }),
+    );
   });
 
   it('reaplica category quando months muda', async () => {
@@ -143,6 +157,8 @@ describe('PATCH /api/planejamento-sonhos/[id]', () => {
     const res = await callPATCH({ name: 'Hack' });
     expect(res.status).toBe(404);
     expect(mockPrisma.planejamentoObjetivo.update).not.toHaveBeenCalled();
+    // Caminho de erro não pode gerar entrada no histórico.
+    expect(mockPrisma.userChangeLog.create).not.toHaveBeenCalled();
   });
 
   it('valida months > 480', async () => {

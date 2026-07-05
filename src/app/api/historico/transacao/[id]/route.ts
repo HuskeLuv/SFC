@@ -3,13 +3,20 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { transactionPatchSchema, validationError } from '@/utils/validation-schemas';
 import { recalculatePortfolioFromTransactions } from '@/services/portfolio/portfolioRecalculation';
+import {
+  recordChange,
+  diffFields,
+  assetEntityLabel,
+  TRANSACTION_FIELD_LABELS,
+} from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const EDITABLE_FIELDS = ['quantity', 'price', 'total', 'date', 'fees', 'notes'] as const;
 
 export const PATCH = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id } = await params;
 
     const body = await request.json();
@@ -108,17 +115,30 @@ export const PATCH = withErrorHandler(
       }
     }
 
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'transacao.editar',
+      entity: 'transacao',
+      entityId: id,
+      entityLabel: assetEntityLabel(transaction.asset),
+      changes: diffFields(transaction, updates, TRANSACTION_FIELD_LABELS),
+    });
+
     return NextResponse.json({ success: true });
   },
 );
 
 export const DELETE = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id } = await params;
 
     const transaction = await prisma.stockTransaction.findFirst({
       where: { id, userId: targetUserId },
+      include: { asset: { select: { symbol: true, name: true, source: true } } },
     });
 
     if (!transaction) {
@@ -145,6 +165,16 @@ export const DELETE = withErrorHandler(
         recomputeSnapshotsFrom: snapshotCutoff,
       });
     }
+
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'transacao.excluir',
+      entity: 'transacao',
+      entityId: id,
+      entityLabel: assetEntityLabel(transaction.asset),
+    });
 
     return NextResponse.json({ success: true });
   },

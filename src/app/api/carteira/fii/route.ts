@@ -6,6 +6,7 @@ import { FiiData, FiiAtivo, FiiSecao, TipoFii } from '@/types/fii';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 // Funções auxiliares para cores
 function getSegmentColor(tipo: string): string {
@@ -301,7 +302,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const body = await request.json();
   const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
 
@@ -337,6 +339,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         },
       });
     }
+
+    await recordCaixaParaInvestirAtualizado(request, auth, {
+      classe: 'FIIs',
+      valorAnterior: existingCaixa?.value,
+      valor: caixaParaInvestir,
+    });
 
     return NextResponse.json({
       success: true,

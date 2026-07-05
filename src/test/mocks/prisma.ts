@@ -34,6 +34,12 @@ export function createMockPrisma() {
     assetDividendHistory: { findMany: vi.fn(), upsert: vi.fn() },
     marketIndicatorCache: { findUnique: vi.fn(), upsert: vi.fn() },
     consultantImpersonationLog: { create: vi.fn(), findMany: vi.fn() },
+    userChangeLog: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     consultant: { findFirst: vi.fn(), findUnique: vi.fn() },
     clientConsultant: { findFirst: vi.fn(), findMany: vi.fn() },
     notification: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() },

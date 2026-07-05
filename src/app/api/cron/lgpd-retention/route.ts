@@ -11,6 +11,8 @@
  *    são PII de auditoria; manter "para sempre" fere minimização).
  *  - LoginEvent > 90 dias: deleta (IP + UA da trilha de login; 90 dias
  *    cobrem investigação de incidente sem reter PII indefinidamente).
+ *  - UserChangeLog > 12 meses: deleta (histórico de alterações do usuário
+ *    contém IP + UA e valores antes/depois; 1 ano de trilha é suficiente).
  *
  * Agendado em vercel.json: domingo 05:00 UTC (sem conflito com os crons
  * de mercado que rodam 06-08 UTC).
@@ -26,6 +28,7 @@ const DAYS = 24 * 60 * 60 * 1000;
 const INVITE_TTL_DAYS = 30;
 const IMPERSONATION_LOG_TTL_DAYS = 365;
 const LOGIN_EVENT_TTL_DAYS = 90;
+const USER_CHANGE_LOG_TTL_DAYS = 365;
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const secret = process.env.CRON_SECRET;
@@ -41,8 +44,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const inviteCutoff = new Date(now - INVITE_TTL_DAYS * DAYS);
   const logCutoff = new Date(now - IMPERSONATION_LOG_TTL_DAYS * DAYS);
   const loginEventCutoff = new Date(now - LOGIN_EVENT_TTL_DAYS * DAYS);
+  const changeLogCutoff = new Date(now - USER_CHANGE_LOG_TTL_DAYS * DAYS);
 
-  const [invites, logs, loginEvents] = await Promise.all([
+  const [invites, logs, loginEvents, changeLogs] = await Promise.all([
     prisma.consultantInvite.deleteMany({
       where: { status: 'pending', createdAt: { lt: inviteCutoff } },
     }),
@@ -52,20 +56,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     prisma.loginEvent.deleteMany({
       where: { createdAt: { lt: loginEventCutoff } },
     }),
+    prisma.userChangeLog.deleteMany({
+      where: { createdAt: { lt: changeLogCutoff } },
+    }),
   ]);
 
   logger.info(
-    `[lgpd-retention] convites pendentes purgados: ${invites.count}, logs de impersonation purgados: ${logs.count}, eventos de login purgados: ${loginEvents.count}`,
+    `[lgpd-retention] convites pendentes purgados: ${invites.count}, logs de impersonation purgados: ${logs.count}, eventos de login purgados: ${loginEvents.count}, histórico de alterações purgado: ${changeLogs.count}`,
   );
 
   return NextResponse.json({
     invitesPurged: invites.count,
     impersonationLogsPurged: logs.count,
     loginEventsPurged: loginEvents.count,
+    changeLogsPurged: changeLogs.count,
     cutoffs: {
       pendingInvites: inviteCutoff.toISOString(),
       impersonationLogs: logCutoff.toISOString(),
       loginEvents: loginEventCutoff.toISOString(),
+      changeLogs: changeLogCutoff.toISOString(),
     },
   });
 });

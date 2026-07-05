@@ -3,8 +3,17 @@ import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { personalizeGroup, getGroupForUser } from '@/utils/cashflowPersonalization';
 import { cashflowItemCreateSchema, validationError } from '@/utils/validation-schemas';
+import { recordChange } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+
+// Rota autenticada via JWT direto (sem impersonation) — o histórico registra
+// o próprio usuário como dono e ator (mesmo padrão de /api/profile).
+const selfAuth = (userId: string) => ({
+  payload: { id: userId },
+  targetUserId: userId,
+  actingClient: null,
+});
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const token = request.cookies.get('token')?.value;
   if (!token) {
@@ -54,6 +63,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         where: { userId: payload.id },
       },
     },
+  });
+
+  await recordChange({
+    request,
+    auth: selfAuth(payload.id),
+    section: 'fluxo-caixa',
+    action: 'item.criar',
+    entity: 'item',
+    entityId: newItem.id,
+    entityLabel: newItem.name,
   });
 
   return NextResponse.json(newItem);

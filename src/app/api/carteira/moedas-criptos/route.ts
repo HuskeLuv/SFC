@@ -6,6 +6,7 @@ import { getIndicator } from '@/services/market/marketIndicatorService';
 import type { MoedaCriptoAtivo, MoedaCriptoSecao } from '@/types/moedas-criptos';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 const mapAssetTypeToTipo = (assetType: string): 'moeda' | 'criptomoeda' | 'metal' | 'outro' => {
   if (assetType === 'crypto') return 'criptomoeda';
@@ -210,7 +211,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const body = await request.json();
   const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
 
@@ -246,6 +248,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         },
       });
     }
+
+    await recordCaixaParaInvestirAtualizado(request, auth, {
+      classe: 'Moedas e Criptos',
+      valorAnterior: existingCaixa?.value,
+      valor: caixaParaInvestir,
+    });
 
     return NextResponse.json({
       success: true,

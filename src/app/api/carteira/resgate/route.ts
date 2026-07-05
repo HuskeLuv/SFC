@@ -9,6 +9,7 @@ import {
   recalculatePortfolioFromTransactions,
 } from '@/services/portfolio/portfolioRecalculation';
 import { isEquityAssetType } from '@/lib/assetClassification';
+import { recordChange, assetEntityLabel } from '@/services/changeHistory';
 
 const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
   const assetType = item.asset?.type || '';
@@ -48,7 +49,8 @@ const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) =
 };
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { payload, targetUserId, actingClient } = auth;
   const body = await request.json();
 
   const parsed = resgateSchema.safeParse(body);
@@ -247,6 +249,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
     await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
   }
+
+  await recordChange({
+    request,
+    auth,
+    section: 'carteira',
+    action: 'resgate.registrar',
+    entity: 'resgate',
+    entityId: transacao.id,
+    entityLabel: assetEntityLabel(portfolio.asset),
+  });
 
   const result = NextResponse.json(
     { success: true, transacao, message: 'Resgate realizado com sucesso!' },

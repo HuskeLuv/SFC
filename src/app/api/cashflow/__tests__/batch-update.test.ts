@@ -28,6 +28,9 @@ const mockPrisma = vi.hoisted(() => ({
     findFirst: vi.fn(),
     create: vi.fn(),
   },
+  userChangeLog: {
+    create: vi.fn(),
+  },
   planejamentoObjetivo: {
     findFirst: vi.fn(),
     delete: vi.fn(),

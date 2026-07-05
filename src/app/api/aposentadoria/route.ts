@@ -15,6 +15,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { aposentadoriaPlanoUpsertSchema, validationError } from '@/utils/validation-schemas';
+import { recordChange } from '@/services/changeHistory';
 import { serializePlano } from './_lib/serializer';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -29,7 +30,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const PUT = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
 
   const body = await request.json();
   const parsed = aposentadoriaPlanoUpsertSchema.safeParse(body);
@@ -62,6 +64,16 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     create: { userId: targetUserId, ...data },
     update: data,
     include: { entries: true },
+  });
+
+  // Upsert sem before-state carregado → registra a ação sem diff de campos.
+  await recordChange({
+    request,
+    auth,
+    section: 'planejamento',
+    action: 'aposentadoria.editar',
+    entity: 'aposentadoria',
+    entityId: plano.id,
   });
 
   return NextResponse.json({ plano: serializePlano(plano) });

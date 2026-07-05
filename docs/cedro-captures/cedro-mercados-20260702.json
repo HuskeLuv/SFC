@@ -1,0 +1,11 @@
+{
+ "Indices": {
+  "error": "CedroError: Cedro E:3 — E:3:MQC:INDICES"
+ },
+ "Indicators": {
+  "error": "CedroError: Cedro E:3 — E:3:MQC:INDICATORS"
+ },
+ "Money": {
+  "error": "CedroError: Cedro E:3 — E:3:MQC:MONEY"
+ }
+}

@@ -19,6 +19,7 @@ import {
   syncObjetivoToCashflow,
   removeObjetivoCashflow,
 } from '@/services/planejamento/sonhoCashflowSync';
+import { recordChange, diffFields, SONHO_FIELD_LABELS } from '@/services/changeHistory';
 import { decimalToNumber, serializeObjetivo } from '../_lib/serializer';
 
 async function findOwned(id: string, userId: string) {
@@ -44,7 +45,8 @@ export const GET = withErrorHandler(
 
 export const PATCH = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id } = await params;
 
     const existing = await findOwned(id, targetUserId);
@@ -98,18 +100,30 @@ export const PATCH = withErrorHandler(
       startDate: updated.startDate,
     });
 
+    await recordChange({
+      request,
+      auth,
+      section: 'planejamento',
+      action: 'sonho.editar',
+      entity: 'sonho',
+      entityId: updated.id,
+      entityLabel: updated.name,
+      changes: diffFields(existing, data, SONHO_FIELD_LABELS),
+    });
+
     return NextResponse.json({ objetivo: serializeObjetivo(updated) });
   },
 );
 
 export const DELETE = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id } = await params;
 
     const existing = await prisma.planejamentoObjetivo.findFirst({
       where: { id, userId: targetUserId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     if (!existing) {
       return NextResponse.json({ error: 'Objetivo não encontrado' }, { status: 404 });
@@ -120,6 +134,16 @@ export const DELETE = withErrorHandler(
     await removeObjetivoCashflow(id);
     // Cascade via FK onDelete:Cascade no schema → entries somem juntas.
     await prisma.planejamentoObjetivo.delete({ where: { id } });
+
+    await recordChange({
+      request,
+      auth,
+      section: 'planejamento',
+      action: 'sonho.excluir',
+      entity: 'sonho',
+      entityId: id,
+      entityLabel: existing.name,
+    });
 
     return NextResponse.json({ success: true });
   },

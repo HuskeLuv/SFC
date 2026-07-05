@@ -19,13 +19,15 @@ import {
   deriveStatusAfterEntryDelete,
   type Status,
 } from '@/services/planejamento/planejamentoSonhos';
+import { recordChange } from '@/services/changeHistory';
 import { decimalToNumber } from '../../../_lib/serializer';
 
 const yearMonthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export const DELETE = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string; month: string }> }) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id: objetivoId, month } = await params;
 
     if (!yearMonthRegex.test(month)) {
@@ -34,7 +36,7 @@ export const DELETE = withErrorHandler(
 
     const objetivo = await prisma.planejamentoObjetivo.findFirst({
       where: { id: objetivoId, userId: targetUserId },
-      select: { id: true, status: true, target: true },
+      select: { id: true, name: true, status: true, target: true },
     });
     if (!objetivo) {
       return NextResponse.json({ error: 'Objetivo não encontrado' }, { status: 404 });
@@ -67,6 +69,16 @@ export const DELETE = withErrorHandler(
         data: { status: nextStatus },
       });
     }
+
+    await recordChange({
+      request,
+      auth,
+      section: 'planejamento',
+      action: 'sonho-aporte.excluir',
+      entity: 'sonho',
+      entityId: objetivoId,
+      entityLabel: objetivo.name,
+    });
 
     return NextResponse.json({ success: true });
   },

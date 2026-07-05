@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
+  // Histórico de alterações (recordChange importa prisma como default export).
+  userChangeLog: { create: vi.fn() },
   portfolio: { findUnique: vi.fn(), update: vi.fn() },
 }));
 
@@ -14,7 +16,7 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 );
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
-vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
+vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/impersonationLogger', () => ({
   logDataUpdate: vi.fn().mockResolvedValue(undefined),
 }));

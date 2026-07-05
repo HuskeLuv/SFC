@@ -4,6 +4,7 @@ import { POST } from '../route';
 
 const mockPrisma = vi.hoisted(() => ({
   cashflowItem: { create: vi.fn() },
+  userChangeLog: { create: vi.fn() },
 }));
 
 const mockJwtVerify = vi.hoisted(() =>

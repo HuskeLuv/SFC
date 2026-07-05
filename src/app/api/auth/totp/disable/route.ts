@@ -16,6 +16,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
+import { recordChange } from '@/services/changeHistory';
 
 const schema = z.object({
   currentPassword: z.string().min(1),
@@ -37,5 +38,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     where: { id: me.id },
     data: { totpSecret: null, totpEnabled: false },
   });
+
+  await recordChange({
+    request: req,
+    auth: { payload, targetUserId: payload.id, actingClient: null },
+    section: 'perfil',
+    action: '2fa.desativar',
+    entity: 'usuario',
+    entityId: me.id,
+  });
+
   return NextResponse.json({ ok: true });
 });

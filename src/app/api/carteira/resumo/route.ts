@@ -13,6 +13,7 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import { filterInvestmentsExclReservas } from '@/utils/cashflowFilters';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { recordChange, diffFields, RESUMO_FIELD_LABELS } from '@/services/changeHistory';
 import { parseRangeMonths } from '@/utils/rangeQuery';
 import { loadProventosByDay } from '@/services/portfolio/proventosByDay';
 const resumoCache = getTtlCache<Record<string, unknown>>('carteiraResumo');
@@ -900,7 +901,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
 // POST para atualizar meta de patrimônio ou caixa para investir consolidado
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
 
   const { metaPatrimonio, caixaParaInvestir } = await request.json();
 
@@ -938,6 +940,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
 
     deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
+
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'resumo.atualizar',
+      entity: 'resumo',
+      changes: diffFields(
+        { caixaParaInvestir: existingCaixa?.value ?? null },
+        { caixaParaInvestir },
+        RESUMO_FIELD_LABELS,
+      ),
+    });
 
     return NextResponse.json({
       success: true,
@@ -980,6 +995,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
 
     deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
+
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'resumo.atualizar',
+      entity: 'resumo',
+      changes: diffFields(
+        { metaPatrimonio: existingMeta?.value ?? null },
+        { metaPatrimonio },
+        RESUMO_FIELD_LABELS,
+      ),
+    });
 
     return NextResponse.json({ success: true, metaPatrimonio });
   }

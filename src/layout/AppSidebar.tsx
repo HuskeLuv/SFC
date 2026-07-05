@@ -13,6 +13,7 @@ import {
   HorizontaLDots,
   PencilIcon,
   TableIcon,
+  TimeIcon,
   UserCircleIcon,
   DocsIcon,
 } from '../icons/index';
@@ -58,6 +59,11 @@ const MAIN_NAV_ITEMS: NavItem[] = [
     path: '/profile',
   },
   {
+    icon: <TimeIcon />,
+    name: 'Histórico',
+    path: '/historico-alteracoes',
+  },
+  {
     icon: <DocsIcon />,
     name: 'Relatórios',
     path: '/relatorios',
@@ -98,6 +104,8 @@ const AppSidebar: React.FC = () => {
         'Carteira',
         'Relatórios',
         'Planejamento',
+        // Consultor vê o histórico do cliente (inclui a própria trilha "via consultor")
+        'Histórico',
       ];
       items = items.filter((item) => allowedItems.includes(item.name));
     }

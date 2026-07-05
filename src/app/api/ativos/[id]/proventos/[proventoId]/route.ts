@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { proventoPatchSchema, validationError } from '@/utils/validation-schemas';
+import {
+  recordChange,
+  diffFields,
+  assetEntityLabel,
+  PROVENTO_FIELD_LABELS,
+} from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const serialize = (p: {
@@ -32,6 +38,11 @@ async function findProventoOwned(portfolioId: string, proventoId: string, userId
       userId,
       dismissed: false,
     },
+    include: {
+      portfolio: {
+        select: { asset: { select: { symbol: true, name: true, source: true } } },
+      },
+    },
   });
 }
 
@@ -40,7 +51,8 @@ export const PATCH = withErrorHandler(
     request: NextRequest,
     { params }: { params: Promise<{ id: string; proventoId: string }> },
   ) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id: portfolioId, proventoId } = await params;
 
     const existing = await findProventoOwned(portfolioId, proventoId, targetUserId);
@@ -97,6 +109,17 @@ export const PATCH = withErrorHandler(
       data: { ...updates, source: 'manual' },
     });
 
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'provento.editar',
+      entity: 'provento',
+      entityId: proventoId,
+      entityLabel: assetEntityLabel(existing.portfolio?.asset),
+      changes: diffFields(existing, updates, PROVENTO_FIELD_LABELS),
+    });
+
     return NextResponse.json({ provento: serialize(updated) });
   },
 );
@@ -106,7 +129,8 @@ export const DELETE = withErrorHandler(
     request: NextRequest,
     { params }: { params: Promise<{ id: string; proventoId: string }> },
   ) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id: portfolioId, proventoId } = await params;
 
     const existing = await findProventoOwned(portfolioId, proventoId, targetUserId);
@@ -118,6 +142,16 @@ export const DELETE = withErrorHandler(
     await prisma.portfolioProvento.update({
       where: { id: proventoId },
       data: { dismissed: true },
+    });
+
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'provento.excluir',
+      entity: 'provento',
+      entityId: proventoId,
+      entityLabel: assetEntityLabel(existing.portfolio?.asset),
     });
 
     return NextResponse.json({ success: true });

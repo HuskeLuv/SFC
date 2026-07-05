@@ -5,6 +5,13 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import {
+  recordChange,
+  diffFields,
+  assetEntityLabel,
+  recordCaixaParaInvestirAtualizado,
+  ATIVO_VALOR_FIELD_LABELS,
+} from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 import {
   FUNDO_TYPES_AGRUPADOS,
@@ -330,7 +337,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const body = await request.json();
   const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir, campo, valor } = body;
 
@@ -378,6 +386,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         },
       });
 
+      await recordChange({
+        request,
+        auth,
+        section: 'carteira',
+        action: 'ativo.editar',
+        entity: 'ativo',
+        entityId: ativoId,
+        entityLabel: assetEntityLabel(portfolio.asset),
+        changes: diffFields(
+          { valorAtualizado: qty * portfolio.avgPrice },
+          { valorAtualizado: numValor },
+          ATIVO_VALOR_FIELD_LABELS,
+        ),
+      });
+
       return NextResponse.json({
         success: true,
         message: 'Valor atualizado com sucesso',
@@ -417,6 +440,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         },
       });
     }
+
+    await recordCaixaParaInvestirAtualizado(request, auth, {
+      classe: 'FIM/FIA',
+      valorAnterior: existingCaixa?.value,
+      valor: caixaParaInvestir,
+    });
 
     return NextResponse.json({
       success: true,

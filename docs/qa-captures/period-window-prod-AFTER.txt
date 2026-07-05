@@ -1,0 +1,24 @@
+→ base=https://appmyfinance.com.br
+
+✓ logado
+── SETUP: histórico profundo (≥2023) ──
+  histórico profundo já existe (1ª transação 2023-01-16) — pulando backdate
+
+── VERIFY: rentabilidade-janelas alinhadas ao mês-calendário ──
+  ✓ rentabilidade-janelas respondeu
+    · asOf=2026-06-08  primeiro ponto da série=2023-01-16
+  ✓ inTheMonth ancora no dia 1º (2026-06-01)
+  ✓ inTheYear ancora em 01/01 (2026-01-01)
+  ✓ in12Months: fromDate=2025-07-01 confere com alinhada 2025-07-01
+  ✓ in12Months: ancorada no dia 1º
+  ✓ in12Months: NÃO é a janela rolante antiga (2025-06-08)
+  ✓ in24Months: fromDate=2024-07-01 confere com alinhada 2024-07-01
+  ✓ in24Months: ancorada no dia 1º
+  ✓ in24Months: NÃO é a janela rolante antiga (2024-06-08)
+  ✓ in36Months: fromDate=2023-07-01 confere com alinhada 2023-07-01
+  ✓ in36Months: ancorada no dia 1º
+  ✓ in36Months: NÃO é a janela rolante antiga (2023-06-08)
+
+============ RELATÓRIO JANELAS DE PERÍODO ============
+12 PASS, 0 WARN, 0 FAIL
+======================================================

@@ -15,6 +15,8 @@ const mockPrisma = vi.hoisted(() => ({
   // Bug #02: recalc apaga snapshots/performance quando recomputeSnapshotsFrom é passado.
   portfolioDailySnapshot: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   portfolioPerformance: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  // Histórico de alterações (recordChange importa prisma como default export).
+  userChangeLog: { create: vi.fn().mockResolvedValue({}) },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -28,7 +30,7 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 const mockDeleteTtlCache = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
-vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
+vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/lib/simpleTtlCache', () => ({ deleteTtlCacheKeyPrefix: mockDeleteTtlCache }));
 
 import { PATCH, DELETE } from '../route';
@@ -86,6 +88,24 @@ describe('PATCH /api/historico/transacao/[id]', () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
     expect(mockPrisma.stockTransaction.update).toHaveBeenCalled();
+
+    // Histórico de alterações: edição com sucesso registra transacao.editar.
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          section: 'carteira',
+          action: 'transacao.editar',
+          entity: 'transacao',
+          entityId: 'tx-1',
+          entityLabel: 'PETR4',
+          changes: expect.arrayContaining([
+            expect.objectContaining({ field: 'quantity', before: 10, after: 20 }),
+          ]),
+        }),
+      }),
+    );
   });
 
   it('retorna 401 quando não autenticado', async () => {
@@ -105,6 +125,8 @@ describe('PATCH /api/historico/transacao/[id]', () => {
 
     expect(response.status).toBe(404);
     expect(data.error).toBe('Transação não encontrada');
+    // Sem mutação, nada entra no histórico de alterações.
+    expect(mockPrisma.userChangeLog.create).not.toHaveBeenCalled();
   });
 
   it('retorna erro de validação com dados inválidos', async () => {
@@ -352,6 +374,11 @@ describe('DELETE /api/historico/transacao/[id]', () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
     expect(mockPrisma.stockTransaction.delete).toHaveBeenCalledWith({ where: { id: 'tx-1' } });
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ section: 'carteira', action: 'transacao.excluir' }),
+      }),
+    );
   });
 
   it('retorna 404 quando transação não encontrada', async () => {

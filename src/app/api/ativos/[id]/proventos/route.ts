@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { proventoCreateSchema, validationError } from '@/utils/validation-schemas';
+import { recordChange, assetEntityLabel } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const serialize = (p: {
@@ -26,11 +27,13 @@ const serialize = (p: {
 
 export const POST = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id: portfolioId } = await params;
 
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId: targetUserId },
+      include: { asset: { select: { symbol: true, name: true, source: true } } },
     });
 
     if (!portfolio) {
@@ -63,6 +66,16 @@ export const POST = withErrorHandler(
         quantidadeBase,
         impostoRenda,
       },
+    });
+
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'provento.adicionar',
+      entity: 'provento',
+      entityId: created.id,
+      entityLabel: assetEntityLabel(portfolio.asset),
     });
 
     return NextResponse.json({ provento: serialize(created) }, { status: 201 });

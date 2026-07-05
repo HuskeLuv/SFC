@@ -12,6 +12,7 @@ const mockPrisma = vi.hoisted(() => ({
   },
   // $transaction recebe um array e devolve outro array de resultados.
   $transaction: vi.fn(),
+  userChangeLog: { create: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>

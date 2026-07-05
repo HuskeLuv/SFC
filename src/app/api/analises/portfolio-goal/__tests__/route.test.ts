@@ -10,6 +10,8 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 );
 
 const mockPrisma = vi.hoisted(() => ({
+  // Histórico de alterações (recordChange importa prisma como default export).
+  userChangeLog: { create: vi.fn() },
   portfolio: { findMany: vi.fn().mockResolvedValue([]) },
   cashflowGroup: { findMany: vi.fn().mockResolvedValue([]) },
   fixedIncomeAsset: { findMany: vi.fn().mockResolvedValue([]) },
@@ -30,7 +32,7 @@ const mockComputeLiveTotals = vi.hoisted(() =>
 vi.mock('@/utils/auth', () => ({
   requireAuthWithActing: mockRequireAuthWithActing,
 }));
-vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
+vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/portfolio/patrimonioHistoricoBuilder', () => ({
   filterInvestmentsExclReservas: (xs: unknown[]) => xs,
 }));

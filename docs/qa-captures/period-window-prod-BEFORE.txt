@@ -1,0 +1,34 @@
+→ base=https://appmyfinance.com.br
+
+✓ logado
+── SETUP: histórico profundo (≥2023) ──
+  backdatando aporte para 2023-01 (para in24/in36 não-clampadas)…
+    ✓ aporte PETR4 2023-01-16 100@25 → 201
+
+── VERIFY: rentabilidade-janelas alinhadas ao mês-calendário ──
+  ✓ rentabilidade-janelas respondeu
+    · asOf=2026-06-08  primeiro ponto da série=2023-01-16
+  ✓ inTheMonth ancora no dia 1º (2026-06-01)
+  ✓ inTheYear ancora em 01/01 (2026-01-01)
+  ✗ in12Months: fromDate=2025-06-08 ≠ esperado 2025-07-01 (alinhada=2025-07-01, firstPoint=2023-01-16)
+  ✗ in12Months: dia=08 (não é 1º)
+  ✗ in12Months: REGRESSÃO — voltou pra janela rolante dia-exato (2025-06-08)
+  ✗ in24Months: fromDate=2024-06-08 ≠ esperado 2024-07-01 (alinhada=2024-07-01, firstPoint=2023-01-16)
+  ✗ in24Months: dia=08 (não é 1º)
+  ✗ in24Months: REGRESSÃO — voltou pra janela rolante dia-exato (2024-06-08)
+  ✗ in36Months: fromDate=2023-06-08 ≠ esperado 2023-07-01 (alinhada=2023-07-01, firstPoint=2023-01-16)
+  ✗ in36Months: dia=08 (não é 1º)
+  ✗ in36Months: REGRESSÃO — voltou pra janela rolante dia-exato (2023-06-08)
+
+============ RELATÓRIO JANELAS DE PERÍODO ============
+3 PASS, 0 WARN, 9 FAIL
+  ✗ in12Months: fromDate=2025-06-08 ≠ esperado 2025-07-01 (alinhada=2025-07-01, firstPoint=2023-01-16)
+  ✗ in12Months: dia=08 (não é 1º)
+  ✗ in12Months: REGRESSÃO — voltou pra janela rolante dia-exato (2025-06-08)
+  ✗ in24Months: fromDate=2024-06-08 ≠ esperado 2024-07-01 (alinhada=2024-07-01, firstPoint=2023-01-16)
+  ✗ in24Months: dia=08 (não é 1º)
+  ✗ in24Months: REGRESSÃO — voltou pra janela rolante dia-exato (2024-06-08)
+  ✗ in36Months: fromDate=2023-06-08 ≠ esperado 2023-07-01 (alinhada=2023-07-01, firstPoint=2023-01-16)
+  ✗ in36Months: dia=08 (não é 1º)
+  ✗ in36Months: REGRESSÃO — voltou pra janela rolante dia-exato (2023-06-08)
+======================================================

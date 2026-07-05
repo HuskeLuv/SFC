@@ -13,6 +13,7 @@ import { planejamentoObjetivoCreateSchema, validationError } from '@/utils/valid
 import { categoryFromMonths } from '@/services/planejamento/planejamentoSonhos';
 import { provisionDefaultSonhos } from '@/services/planejamento/sonhosDefaults';
 import { syncObjetivoToCashflow } from '@/services/planejamento/sonhoCashflowSync';
+import { recordChange } from '@/services/changeHistory';
 import { serializeObjetivo } from './_lib/serializer';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -32,7 +33,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
 
   const body = await request.json();
   const parsed = planejamentoObjetivoCreateSchema.safeParse(body);
@@ -72,6 +74,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     months,
     rate,
     startDate: created.startDate,
+  });
+
+  await recordChange({
+    request,
+    auth,
+    section: 'planejamento',
+    action: 'sonho.criar',
+    entity: 'sonho',
+    entityId: created.id,
+    entityLabel: name,
   });
 
   return NextResponse.json({ objetivo: serializeObjetivo(created) }, { status: 201 });

@@ -5,6 +5,7 @@ import { GET, PATCH } from '../route';
 const mockPrisma = vi.hoisted(() => ({
   cashflowItem: { findFirst: vi.fn(), findUnique: vi.fn() },
   cashflowValue: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
+  userChangeLog: { create: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());

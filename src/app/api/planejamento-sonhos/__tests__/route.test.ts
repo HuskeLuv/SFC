@@ -6,6 +6,7 @@ const mockPrisma = vi.hoisted(() => ({
     findMany: vi.fn(),
     create: vi.fn(),
   },
+  userChangeLog: { create: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>

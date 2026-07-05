@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { alocacaoConfigSchema, validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { recordChange } from '@/services/changeHistory';
 interface AlocacaoConfig {
   categoria: string;
   minimo: number;
@@ -68,7 +69,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
 // PUT - Atualizar configurações de alocação do usuário
 export const PUT = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const body = await request.json();
   const parsed = alocacaoConfigSchema.safeParse(body);
   if (!parsed.success) {
@@ -124,6 +126,15 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
       });
     }),
   );
+
+  // Upsert direto, sem carregar o estado anterior — registra sem before/after.
+  await recordChange({
+    request,
+    auth,
+    section: 'carteira',
+    action: 'configuracao.editar',
+    entity: 'configuracao',
+  });
 
   return NextResponse.json({
     success: true,

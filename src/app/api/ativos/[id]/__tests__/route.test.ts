@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
+  // Histórico de alterações (recordChange importa prisma como default export).
+  userChangeLog: { create: vi.fn() },
   portfolio: { findFirst: vi.fn() },
   stockTransaction: { findMany: vi.fn(), update: vi.fn() },
   institution: { findUnique: vi.fn() },
@@ -17,7 +19,7 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 );
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
-vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
+vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 // Mocks pra não importar todo o universo do GET (que arrastaria pricer/dividends/etc).
 vi.mock('@/services/pricing/assetPriceService', () => ({
   getAssetPrices: vi.fn().mockResolvedValue(new Map()),

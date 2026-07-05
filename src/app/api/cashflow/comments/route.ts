@@ -5,8 +5,24 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { getItemForUser, ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { cashflowCommentSchema, validationError } from '@/utils/validation-schemas';
+import { recordChange, diffFields, CASHFLOW_FIELD_LABELS } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+
+const MESES_ABREV = [
+  'jan',
+  'fev',
+  'mar',
+  'abr',
+  'mai',
+  'jun',
+  'jul',
+  'ago',
+  'set',
+  'out',
+  'nov',
+  'dez',
+];
 /**
  * GET /api/cashflow/comments
  * Busca comentário de uma célula específica
@@ -94,7 +110,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
  * Body: { itemId, month, year, comment }
  */
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
-  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { payload, targetUserId, actingClient } = auth;
   await logSensitiveEndpointAccess(
     request,
     payload,
@@ -113,8 +130,14 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
 
   // Ensure item is personalized (creates a copy if it's a template)
   let finalItemId: string;
+  // Nome do item — já carregado pela personalização; usado só no rótulo do
+  // histórico de alterações.
+  let itemName: string;
   try {
-    ({ itemId: finalItemId } = await ensurePersonalizedItem(itemId, targetUserId));
+    ({
+      itemId: finalItemId,
+      item: { name: itemName },
+    } = await ensurePersonalizedItem(itemId, targetUserId));
   } catch (error: unknown) {
     logger.error('Erro ao personalizar item:', error);
     if (error instanceof Error && error.message.includes('Usuário não encontrado')) {
@@ -146,9 +169,11 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
+  let savedValue: { id: string; comment: string | null; updatedAt: Date };
+
   if (existingValue) {
     // Atualizar comentário existente
-    const updatedValue = await prisma.cashflowValue.update({
+    savedValue = await prisma.cashflowValue.update({
       where: { id: existingValue.id },
       data: { comment: normalizedComment },
       select: {
@@ -157,18 +182,12 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
         updatedAt: true,
       },
     });
-
-    return NextResponse.json({
-      success: true,
-      comment: updatedValue.comment,
-      updatedAt: updatedValue.updatedAt,
-    });
   } else {
     // Se não existe valor, criar um com valor 0 e o comentário
     // Primeiro buscar o valor original do item para usar como padrão
     const defaultValue = 0;
 
-    const newValue = await prisma.cashflowValue.create({
+    savedValue = await prisma.cashflowValue.create({
       data: {
         itemId: finalItemId,
         userId: targetUserId,
@@ -183,11 +202,26 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
         updatedAt: true,
       },
     });
-
-    return NextResponse.json({
-      success: true,
-      comment: newValue.comment,
-      updatedAt: newValue.updatedAt,
-    });
   }
+
+  await recordChange({
+    request,
+    auth,
+    section: 'fluxo-caixa',
+    action: 'comentario.editar',
+    entity: 'item',
+    entityId: finalItemId,
+    entityLabel: `${itemName} · ${MESES_ABREV[month]}/${year}`,
+    changes: diffFields(
+      { comment: existingValue?.comment ?? null },
+      { comment: normalizedComment },
+      CASHFLOW_FIELD_LABELS,
+    ),
+  });
+
+  return NextResponse.json({
+    success: true,
+    comment: savedValue.comment,
+    updatedAt: savedValue.updatedAt,
+  });
 });

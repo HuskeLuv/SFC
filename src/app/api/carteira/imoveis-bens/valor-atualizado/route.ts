@@ -3,10 +3,12 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
 import { valorAtualizadoImovelSchema, validationError } from '@/utils/validation-schemas';
+import { recordChange, diffFields, ATIVO_VALOR_FIELD_LABELS } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { payload, targetUserId, actingClient } = auth;
 
   const body = await request.json();
   const parsed = valorAtualizadoImovelSchema.safeParse(body);
@@ -47,6 +49,25 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       totalInvested: novoValor, // Atualizar totalInvested também
       lastUpdate: new Date(),
     },
+  });
+
+  // Mesma regra de exibição do GET: totalInvested quando > 0, senão qtd × preço.
+  const valorAnterior =
+    portfolio.totalInvested > 0 ? portfolio.totalInvested : portfolio.quantity * portfolio.avgPrice;
+
+  await recordChange({
+    request,
+    auth,
+    section: 'carteira',
+    action: 'imovel-bem.atualizar-valor',
+    entity: 'imovel-bem',
+    entityId: portfolioId,
+    entityLabel: portfolio.asset?.name ?? undefined,
+    changes: diffFields(
+      { valorAtualizado: valorAnterior },
+      { valorAtualizado: novoValor },
+      ATIVO_VALOR_FIELD_LABELS,
+    ),
   });
 
   const result = NextResponse.json({
