@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn() },
   userConsent: { updateMany: vi.fn() },
+  userChangeLog: { create: vi.fn(), deleteMany: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -89,6 +90,44 @@ describe('PATCH /api/profile', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.name).toBe('New');
+
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        section: 'perfil',
+        action: 'perfil.editar',
+        changes: [{ field: 'name', label: 'Nome', before: 'Old', after: 'New' }],
+      }),
+    });
+  });
+
+  it('troca de senha registra senha.alterar sem valores', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'X',
+      avatarUrl: null,
+      role: 'user',
+      password: await bcrypt.hash('correta', 4),
+    });
+    mockPrisma.user.update.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'X',
+      avatarUrl: null,
+      role: 'user',
+    });
+
+    const res = await PATCH(reqPatch({ currentPassword: 'correta', newPassword: 'NovaSenha123!' }));
+    expect(res.status).toBe(200);
+
+    const calls = mockPrisma.userChangeLog.create.mock.calls.map((c) => c[0].data);
+    const senhaRow = calls.find((d) => d.action === 'senha.alterar');
+    expect(senhaRow).toBeDefined();
+    expect(senhaRow.changes).toBeUndefined();
+    // Nenhuma linha pode conter valores de senha
+    expect(JSON.stringify(calls)).not.toContain('NovaSenha123!');
+    expect(JSON.stringify(calls)).not.toContain('correta');
   });
 
   it('exige currentPassword pra trocar senha', async () => {
@@ -131,6 +170,10 @@ describe('DELETE /api/profile', () => {
       }),
     );
     expect(mockPrisma.userConsent.updateMany).toHaveBeenCalled();
+    // Histórico de alterações (contém PII) é eliminado na anonimização
+    expect(mockPrisma.userChangeLog.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+    });
   });
 
   it('exige confirmação explícita', async () => {

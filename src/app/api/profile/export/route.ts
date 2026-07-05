@@ -34,6 +34,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     watchlists,
     alocacaoConfigs,
     portfolioGoal,
+    changeHistory,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -52,6 +53,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     prisma.watchlist.findMany({ where: { userId } }),
     prisma.alocacaoConfig.findMany({ where: { userId } }),
     prisma.portfolioGoal.findFirst({ where: { userId } }),
+    prisma.userChangeLog.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
   ]);
 
   if (!user) {
@@ -79,6 +81,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     },
     planejamento: planejamentoObjetivos,
     notifications,
+    changeHistory,
   };
 
   const json = JSON.stringify(payload_, null, 2);

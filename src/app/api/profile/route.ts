@@ -6,6 +6,16 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { passwordPolicy, validationError } from '@/utils/validation-schemas';
 import { BCRYPT_ROUNDS } from '@/utils/passwordHashing';
+import { recordChange, diffFields, PERFIL_FIELD_LABELS } from '@/services/changeHistory';
+import type { JWTPayload } from '@/utils/auth';
+
+// Perfil é sempre self-edit (ignora impersonation) — o histórico registra
+// payload.id como dono e ator.
+const selfAuth = (payload: JWTPayload) => ({
+  payload,
+  targetUserId: payload.id,
+  actingClient: null,
+});
 
 /**
  * GET /api/profile — dados do usuário logado (Art. 18, II — direito de
@@ -96,6 +106,27 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     data: update,
   });
 
+  await recordChange({
+    request: req,
+    auth: selfAuth(payload),
+    section: 'perfil',
+    action: 'perfil.editar',
+    entity: 'usuario',
+    entityId: me.id,
+    changes: diffFields(me, update, { ...PERFIL_FIELD_LABELS, avatarUrl: 'Foto de perfil' }),
+  });
+  if (newPassword) {
+    // Nunca registrar valores de senha — só o fato da troca.
+    await recordChange({
+      request: req,
+      auth: selfAuth(payload),
+      section: 'perfil',
+      action: 'senha.alterar',
+      entity: 'usuario',
+      entityId: me.id,
+    });
+  }
+
   return NextResponse.json({
     id: updated.id,
     email: updated.email,
@@ -160,6 +191,10 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     where: { userId: me.id, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+
+  // Histórico de alterações guarda PII (nome/e-mail antigos em `changes`) —
+  // eliminado junto com a anonimização (Art. 18, IV).
+  await prisma.userChangeLog.deleteMany({ where: { userId: me.id } });
 
   // Limpa o cookie de auth da resposta.
   const response = NextResponse.json({ success: true });
