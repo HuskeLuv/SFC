@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 
-const DEFAULT_LIMIT = 50;
+export const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
 export interface PaginationParams {
