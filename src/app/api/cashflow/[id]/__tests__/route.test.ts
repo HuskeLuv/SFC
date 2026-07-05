@@ -9,6 +9,7 @@ const mockPrisma = vi.hoisted(() => ({
     updateMany: vi.fn(),
     deleteMany: vi.fn(),
   },
+  userChangeLog: { create: vi.fn() },
 }));
 
 const mockJwtVerify = vi.hoisted(() =>

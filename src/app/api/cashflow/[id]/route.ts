@@ -4,6 +4,15 @@ import jwt from 'jsonwebtoken';
 import type { JWTPayload } from '@/utils/auth';
 import { cashflowIdPatchSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { recordChange } from '@/services/changeHistory';
+
+// Rota autenticada via JWT direto (sem impersonation) — o histórico registra
+// o próprio usuário como dono e ator (mesmo padrão de /api/profile).
+const selfAuth = (userId: string) => ({
+  payload: { id: userId },
+  targetUserId: userId,
+  actingClient: null,
+});
 
 export const GET = withErrorHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -51,6 +60,17 @@ export const PATCH = withErrorHandler(
       if (updated.count === 0)
         return NextResponse.json({ error: 'Não encontrado' }, { status: 404 });
       const item = await prisma.cashflow.findUnique({ where: { id } });
+
+      await recordChange({
+        request: req,
+        auth: selfAuth(userId),
+        section: 'fluxo-caixa',
+        action: 'item.editar',
+        entity: 'item',
+        entityId: id,
+        entityLabel: item?.descricao ?? descricao ?? undefined,
+      });
+
       return NextResponse.json(item);
     } catch {
       return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
@@ -69,6 +89,16 @@ export const DELETE = withErrorHandler(
       const deleted = await prisma.cashflow.deleteMany({ where: { id, userId } });
       if (deleted.count === 0)
         return NextResponse.json({ error: 'Não encontrado' }, { status: 404 });
+
+      await recordChange({
+        request: req,
+        auth: selfAuth(userId),
+        section: 'fluxo-caixa',
+        action: 'item.excluir',
+        entity: 'item',
+        entityId: id,
+      });
+
       return NextResponse.json({ success: true });
     } catch {
       return NextResponse.json({ error: 'Token inválido' }, { status: 401 });

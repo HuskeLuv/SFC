@@ -12,6 +12,7 @@ import {
   hideTemplateItem,
 } from '@/utils/cashflowPersonalization';
 import { cashflowUpdateSchema, validationError } from '@/utils/validation-schemas';
+import { recordChange } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
@@ -49,7 +50,8 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * }
  */
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
-  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { payload, targetUserId, actingClient } = auth;
   await logSensitiveEndpointAccess(
     request,
     payload,
@@ -74,6 +76,23 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
     result = await handleItemOperation(operation, id, (data || {}) as ItemData, targetUserId);
   } else {
     return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
+  }
+
+  // Histórico de alterações — só após a mutação ter sucesso. O estado anterior
+  // fica encapsulado nos helpers, então não há diff; o rótulo usa o nome
+  // enviado no payload quando disponível.
+  if (result.status >= 200 && result.status < 300) {
+    const verb = { create: 'criar', update: 'editar', delete: 'excluir' }[operation];
+    const dataName = data && typeof data.name === 'string' ? data.name : undefined;
+    await recordChange({
+      request,
+      auth,
+      section: 'fluxo-caixa',
+      action: `${type === 'group' ? 'grupo' : 'item'}.${verb}`,
+      entity: type === 'group' ? 'grupo' : 'item',
+      entityId: id,
+      entityLabel: dataName,
+    });
   }
 
   // Registrar log detalhado se estiver personificado

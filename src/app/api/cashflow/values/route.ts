@@ -4,10 +4,33 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { cashflowValuePatchSchema, validationError } from '@/utils/validation-schemas';
+import {
+  recordChange,
+  diffFields,
+  CASHFLOW_FIELD_LABELS,
+  type FieldChange,
+} from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+
+const MESES_ABREV = [
+  'jan',
+  'fev',
+  'mar',
+  'abr',
+  'mai',
+  'jun',
+  'jul',
+  'ago',
+  'set',
+  'out',
+  'nov',
+  'dez',
+];
+
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
-  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { payload, targetUserId, actingClient } = auth;
   await logSensitiveEndpointAccess(
     request,
     payload,
@@ -26,8 +49,14 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
 
   // Ensure item is personalized (creates a copy if it's a template)
   let finalItemId: string;
+  // Estado anterior do item (nome/significado/rank) — já carregado pela
+  // personalização; usado apenas para o diff do histórico de alterações.
+  let itemBefore: { name: string; significado: string | null; rank: string | null };
   try {
-    ({ itemId: finalItemId } = await ensurePersonalizedItem(itemId, targetUserId));
+    ({ itemId: finalItemId, item: itemBefore } = await ensurePersonalizedItem(
+      itemId,
+      targetUserId,
+    ));
   } catch {
     return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
   }
@@ -46,6 +75,10 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   }
 
   let updatedItem;
+  // Histórico de alterações: diffs (quando o estado anterior já está carregado)
+  // e referência de período para o rótulo ("mar/2026" ou "2026").
+  let changes: FieldChange[] | undefined;
+  let periodLabel: string | null = null;
 
   if (field === 'name' || field === 'descricao' || field === 'significado' || field === 'rank') {
     // Update item fields
@@ -71,6 +104,8 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
         },
       },
     });
+
+    changes = diffFields(itemBefore, updateData, CASHFLOW_FIELD_LABELS);
   } else if (field === 'monthlyValue' && typeof monthIndex === 'number') {
     const currentYear = new Date().getFullYear();
 
@@ -116,6 +151,13 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
         },
       },
     });
+
+    changes = diffFields(
+      { monthlyValue: existingValue?.value ?? null },
+      { monthlyValue: numericValue },
+      CASHFLOW_FIELD_LABELS,
+    );
+    periodLabel = `${MESES_ABREV[monthIndex]}/${currentYear}`;
   } else if (field === 'annualTotal') {
     const currentYear = new Date().getFullYear();
     const annualTotal = parseFloat(String(value));
@@ -153,6 +195,11 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
         },
       },
     });
+
+    // Sem estado anterior carregado (valores antigos são deletados às cegas) —
+    // registra a edição sem diff.
+    changes = undefined;
+    periodLabel = String(currentYear);
   } else {
     return NextResponse.json({ error: 'Campo inválido' }, { status: 400 });
   }
@@ -160,6 +207,17 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   if (!updatedItem) {
     return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
   }
+
+  await recordChange({
+    request,
+    auth,
+    section: 'fluxo-caixa',
+    action: 'valor.editar',
+    entity: 'item',
+    entityId: finalItemId,
+    entityLabel: periodLabel ? `${updatedItem.name} · ${periodLabel}` : updatedItem.name,
+    changes,
+  });
 
   return NextResponse.json(updatedItem);
 });

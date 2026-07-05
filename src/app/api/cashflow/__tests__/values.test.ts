@@ -24,6 +24,9 @@ const mockPrisma = vi.hoisted(() => ({
     findFirst: vi.fn(),
     create: vi.fn(),
   },
+  userChangeLog: {
+    create: vi.fn(),
+  },
   $transaction: vi
     .fn()
     .mockImplementation((args: unknown) =>
@@ -164,6 +167,20 @@ describe('PATCH /api/cashflow/values', () => {
     expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
       where: { id: 'existing-val-1' },
       data: { value: 5000 },
+    });
+
+    // Sucesso do PATCH registra entrada no histórico de alterações
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-123',
+        actorId: 'user-123',
+        section: 'fluxo-caixa',
+        action: 'valor.editar',
+        entityId: 'item-1',
+        entityLabel: `Salario · abr/${new Date().getFullYear()}`,
+        changes: [{ field: 'monthlyValue', label: 'Valor mensal', before: 3000, after: 5000 }],
+      }),
     });
   });
 

@@ -6,6 +6,7 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { cashflowBatchUpdateSchema, validationError } from '@/utils/validation-schemas';
 import { syncCashflowToObjetivo } from '@/services/planejamento/cashflowToSonhoSync';
+import { recordChange } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
@@ -27,7 +28,8 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * }
  */
 export const PUT = withErrorHandler(async (request: NextRequest) => {
-  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { payload, targetUserId, actingClient } = auth;
   await logSensitiveEndpointAccess(
     request,
     payload,
@@ -207,6 +209,21 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     } catch (error) {
       logger.error(`Erro ao sincronizar sonho ${objetivoId} a partir do caixa:`, error);
     }
+  }
+
+  // Histórico de alterações: UMA linha agregada por request. O caminho de
+  // upsert não lê os valores anteriores, então não há diff computável sem
+  // queries extras — registra só a contagem de linhas alteradas com sucesso.
+  const successCount = results.filter((r) => r.success).length;
+  if (successCount > 0) {
+    await recordChange({
+      request,
+      auth,
+      section: 'fluxo-caixa',
+      action: 'valores.editar-lote',
+      entity: 'valores',
+      entityLabel: successCount === 1 ? '1 valor' : `${successCount} valores`,
+    });
   }
 
   return NextResponse.json({
