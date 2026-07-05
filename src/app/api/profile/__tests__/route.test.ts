@@ -105,7 +105,7 @@ describe('PATCH /api/profile', () => {
       role: 'user',
       password: await bcrypt.hash('correta', 4),
     });
-    const res = await PATCH(reqPatch({ currentPassword: 'errada', newPassword: 'novasenha123' }));
+    const res = await PATCH(reqPatch({ currentPassword: 'errada', newPassword: 'NovaSenha123!' }));
     expect(res.status).toBe(403);
   });
 });
