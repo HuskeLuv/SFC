@@ -111,6 +111,7 @@ model User {
   aposentadoriaPlano            AposentadoriaPlano?
   consents                      UserConsent[]
   loginEvents                   LoginEvent[]
+  changeLogs                    UserChangeLog[]               @relation("UserChangeLogUser")
 }
 
 /**
@@ -633,6 +634,34 @@ model ImpersonationSession {
   @@index([sessionToken])
   @@index([expiresAt])
   @@map("impersonation_sessions")
+}
+
+/**
+ * Histórico de alterações visível ao usuário: registra edições feitas na
+ * conta (pelo próprio usuário ou por consultor impersonando), categorizadas
+ * por seção do app. `changes` guarda os pares antes/depois já filtrados por
+ * allowlist — nunca senhas, hashes ou segredos TOTP. Retenção: 365 dias
+ * (cron lgpd-retention).
+ */
+model UserChangeLog {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation("UserChangeLogUser", fields: [userId], references: [id], onDelete: Cascade)
+  actorId       String?
+  viaConsultant Boolean  @default(false)
+  section       String
+  action        String
+  entity        String?
+  entityId      String?
+  entityLabel   String?
+  changes       Json?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, section, createdAt])
+  @@map("user_change_logs")
 }
 
 // ===== ECONOMIC INDEXES MODULE =====
