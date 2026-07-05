@@ -18,11 +18,13 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { planejamentoEntryUpsertSchema, validationError } from '@/utils/validation-schemas';
 import { autoStatusOnEntry, type Status } from '@/services/planejamento/planejamentoSonhos';
+import { recordChange } from '@/services/changeHistory';
 import { decimalToNumber, serializeObjetivo } from '../../_lib/serializer';
 
 export const POST = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id: objetivoId } = await params;
 
     const objetivo = await prisma.planejamentoObjetivo.findFirst({
@@ -59,6 +61,16 @@ export const POST = withErrorHandler(
         include: { entries: true },
       }),
     ]);
+
+    await recordChange({
+      request,
+      auth,
+      section: 'planejamento',
+      action: 'sonho-aporte.registrar',
+      entity: 'sonho',
+      entityId: objetivoId,
+      entityLabel: objetivo.name,
+    });
 
     return NextResponse.json({ objetivo: serializeObjetivo(updatedObjetivo) }, { status: 201 });
   },

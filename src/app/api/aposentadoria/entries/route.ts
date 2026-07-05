@@ -14,10 +14,12 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { aposentadoriaEntryUpsertSchema, validationError } from '@/utils/validation-schemas';
 import { off2date } from '@/services/planejamento/aposentadoria';
+import { recordChange } from '@/services/changeHistory';
 import { serializePlano } from '../_lib/serializer';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
 
   const plano = await prisma.aposentadoriaPlano.findUnique({
     where: { userId: targetUserId },
@@ -43,6 +45,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     where: { planoId_off: { planoId: plano.id, off } },
     create: { planoId: plano.id, off, year, month, aporteReal, patFinal },
     update: { year, month, aporteReal, patFinal },
+  });
+
+  await recordChange({
+    request,
+    auth,
+    section: 'planejamento',
+    action: 'aposentadoria-aporte.registrar',
+    entity: 'aposentadoria',
+    entityId: plano.id,
   });
 
   const updated = await prisma.aposentadoriaPlano.findUniqueOrThrow({

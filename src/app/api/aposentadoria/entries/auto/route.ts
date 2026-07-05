@@ -16,6 +16,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { deriveAcompanhamentoEntries } from '@/services/planejamento/acompanhamentoAuto';
+import { recordChange } from '@/services/changeHistory';
 import { serializePlano } from '../../_lib/serializer';
 
 async function loadPlanoTrack(userId: string) {
@@ -48,7 +49,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
 
   const plano = await loadPlanoTrack(targetUserId);
   if (!plano) {
@@ -73,6 +75,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (toCreate.length > 0) {
     await prisma.aposentadoriaPlanoEntry.createMany({ data: toCreate, skipDuplicates: true });
+
+    await recordChange({
+      request,
+      auth,
+      section: 'planejamento',
+      action: 'aposentadoria-aporte.auto',
+      entity: 'aposentadoria',
+      entityId: plano.id,
+    });
   }
 
   const updated = await prisma.aposentadoriaPlano.findUniqueOrThrow({
