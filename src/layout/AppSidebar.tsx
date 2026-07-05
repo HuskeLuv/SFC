@@ -18,6 +18,7 @@ import {
   DocsIcon,
 } from '../icons/index';
 import SidebarFooter from './SidebarFooter';
+import CashflowYearSelect from './CashflowYearSelect';
 
 type NavItem = {
   name: string;
@@ -223,6 +224,11 @@ const AppSidebar: React.FC = () => {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {nav.name === 'Fluxo de Caixa' && (isExpanded || isHovered || isMobileOpen) && (
+            <div className="mt-2 ml-9 mr-1">
+              <CashflowYearSelect />
             </div>
           )}
         </li>

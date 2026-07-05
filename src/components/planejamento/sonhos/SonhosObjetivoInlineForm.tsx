@@ -36,6 +36,7 @@ type FormState = {
   name: string;
   target: string;
   months: string;
+  startDate: string; // YYYY-MM
   available: string;
   ratePercent: string;
   priority: PlanejamentoPriority;
@@ -48,6 +49,7 @@ function initialFormState(objetivo: PlanejamentoObjetivoDTO | null): FormState {
       name: '',
       target: '',
       months: '',
+      startDate: currentYearMonth(),
       available: '',
       ratePercent: '',
       priority: 'Moderado',
@@ -58,6 +60,7 @@ function initialFormState(objetivo: PlanejamentoObjetivoDTO | null): FormState {
     name: objetivo.name,
     target: String(objetivo.target),
     months: String(objetivo.months),
+    startDate: objetivo.startDate ?? currentYearMonth(),
     available: String(objetivo.available),
     ratePercent: (objetivo.rate * 100).toFixed(2),
     priority: objetivo.priority,
@@ -66,10 +69,9 @@ function initialFormState(objetivo: PlanejamentoObjetivoDTO | null): FormState {
 }
 
 /**
- * Card inline pra criar/editar objetivo. 7 campos visíveis (nome, meta, prazo,
- * saldo, rate, prioridade, status); demais ficam derivados:
+ * Card inline pra criar/editar objetivo. 8 campos visíveis (nome, meta, prazo,
+ * início, saldo, rate, prioridade, status); demais ficam derivados:
  *  - category: auto via categoryFromMonths(prazo)
- *  - startDate: mês atual em criação; preservado em edição
  *  - notes: preservado em edição; vazio em criação
  *  - endDate: derivado (não persistido)
  *
@@ -138,6 +140,9 @@ export default function SonhosObjetivoInlineForm({
     if (targetNum <= 0) errors.target = 'Meta > 0.';
     if (monthsNum <= 0) errors.months = 'Prazo > 0.';
     if (monthsNum > 480) errors.months = 'Máx 480.';
+    if (form.startDate && !/^\d{4}-(0[1-9]|1[0-2])$/.test(form.startDate)) {
+      errors.startDate = 'Use AAAA-MM.';
+    }
     if (availableNum < 0) errors.available = 'Negativo não.';
     if (rateDecimal < 0) errors.ratePercent = 'Negativo não.';
     setValidationErrors(errors);
@@ -153,7 +158,7 @@ export default function SonhosObjetivoInlineForm({
       name: form.name.trim(),
       target: targetNum,
       months: monthsNum,
-      startDate: objetivo?.startDate ?? currentYearMonth(),
+      startDate: form.startDate || currentYearMonth(),
       available: availableNum,
       rate: rateDecimal,
       priority: form.priority,
@@ -253,6 +258,18 @@ export default function SonhosObjetivoInlineForm({
             placeholder="12"
             error={!!validationErrors.months}
             hint={validationErrors.months}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="inline-start">Início</Label>
+          <Input
+            id="inline-start"
+            type="month"
+            value={form.startDate}
+            onChange={(e) => update('startDate', e.target.value)}
+            error={!!validationErrors.startDate}
+            hint={validationErrors.startDate}
           />
         </div>
 

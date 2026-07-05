@@ -31,6 +31,10 @@ const mockPrisma = vi.hoisted(() => ({
   userChangeLog: {
     create: vi.fn(),
   },
+  planejamentoObjetivo: {
+    findFirst: vi.fn(),
+    delete: vi.fn(),
+  },
   $transaction: vi
     .fn()
     .mockImplementation((args: unknown) =>
@@ -213,6 +217,30 @@ describe('PUT /api/cashflow/batch-update', () => {
       success: false,
       error: 'Item não encontrado',
     });
+  });
+
+  it('exclui linha de sonho propagando p/ o Planejamento (objetivo + espelho)', async () => {
+    // Linha vinculada a um sonho (objetivoId setado).
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([{ id: 'item-sonho', objetivoId: 'obj-1' }]);
+    mockPrisma.planejamentoObjetivo.findFirst.mockResolvedValue({ id: 'obj-1' });
+    // removeObjetivoCashflow: findUnique do item + deleteMany + delete.
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-sonho' });
+    mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.cashflowItem.delete.mockResolvedValue({ id: 'item-sonho' });
+    mockPrisma.planejamentoObjetivo.delete.mockResolvedValue({ id: 'obj-1' });
+
+    const response = await PUT(
+      createRequest({
+        groupId: 'g1',
+        updates: [],
+        deletes: ['item-sonho'],
+      }),
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.results).toContainEqual({ itemId: 'item-sonho', success: true });
+    expect(mockPrisma.planejamentoObjetivo.delete).toHaveBeenCalledWith({ where: { id: 'obj-1' } });
   });
 
   it('upsert é idempotente para mesma (itemId, ano, mês)', async () => {

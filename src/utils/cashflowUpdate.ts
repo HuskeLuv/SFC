@@ -11,6 +11,7 @@ export async function updateCashflowValue(
   field: string,
   value: string | number,
   monthIndex?: number,
+  year?: number,
 ): Promise<CashflowItem> {
   const response = await fetch('/api/cashflow/values', {
     method: 'PATCH',
@@ -24,6 +25,7 @@ export async function updateCashflowValue(
       field,
       value,
       monthIndex,
+      year,
     }),
   });
 

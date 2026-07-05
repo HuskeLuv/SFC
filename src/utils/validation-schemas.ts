@@ -134,6 +134,8 @@ export const cashflowUpdateSchema = z.object({
 
 export const cashflowBatchUpdateSchema = z.object({
   groupId: zString(255),
+  // Ano da planilha; opcional p/ retrocompat (default = ano atual no handler).
+  year: z.number().int().min(2000).max(2100).optional(),
   updates: z
     .array(
       z.object({
@@ -195,6 +197,8 @@ export const cashflowValuePatchSchema = z.object({
   field: z.string().min(1).max(50),
   value: z.unknown(),
   monthIndex: z.number().int().min(0).max(11).optional(),
+  // Ano da planilha; opcional p/ retrocompat (default = ano atual no handler).
+  year: z.number().int().min(2000).max(2100).optional(),
 });
 
 // ── Cashflow comments (PATCH) schema ──────────────────────────────────

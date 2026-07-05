@@ -1,6 +1,7 @@
 'use client';
 
 import { useSidebar } from '@/context/SidebarContext';
+import { CashflowYearProvider } from '@/context/CashflowYearContext';
 import AppSidebar from '@/layout/AppSidebar';
 import Backdrop from '@/layout/Backdrop';
 import MobileSidebarTrigger from '@/layout/MobileSidebarTrigger';
@@ -23,15 +24,17 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
       : 'lg:ml-[90px]';
 
   return (
-    <div className="min-h-screen xl:flex">
-      <AppSidebar />
-      <Backdrop />
-      <MobileSidebarTrigger />
-      <div className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}>
-        <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
-          <ErrorBoundary>{children}</ErrorBoundary>
+    <CashflowYearProvider>
+      <div className="min-h-screen xl:flex">
+        <AppSidebar />
+        <Backdrop />
+        <MobileSidebarTrigger />
+        <div className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}>
+          <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
         </div>
       </div>
-    </div>
+    </CashflowYearProvider>
   );
 }

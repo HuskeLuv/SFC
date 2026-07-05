@@ -18,21 +18,20 @@ interface SonhosObjetivoEvolutionChartProps {
  *
  * - Eixo X usa rótulos YYYY-MM (categorias) derivados de `startDate` ou
  *   fallback pra "M0..Mn" quando o objetivo não tem startDate definido.
- * - Série "Realizado" tem buracos (null) nos meses sem entry — ApexCharts
- *   junta automaticamente com `connectNulls`. Desligamos pra deixar visível
- *   onde paramos de registrar.
+ * - Série "Realizado": linha CONTÍNUA e monotônica do início até o último mês
+ *   realizado — carrega o saldo pra frente nos meses sem registro e fica `null`
+ *   só depois do último realizado (futuro). Evita as "quedas aleatórias" que
+ *   apareciam com pontos esparsos + curva spline (`smooth`).
  */
 export default function SonhosObjetivoEvolutionChart({
   objetivo,
 }: SonhosObjetivoEvolutionChartProps) {
   const accent = categoryAccent(objetivo.category);
 
-  const { categories, plannedSeries, actualSeries } = useMemo(() => {
+  const { categories, plannedSeries, actualSeries, realizedIdxs } = useMemo(() => {
     const n = objetivo.months;
     const cats: string[] = [];
     const plan: number[] = [];
-    // null porque ApexCharts pula valores nulos sem ligar pontos vizinhos.
-    const act: (number | null)[] = new Array(n + 1).fill(null);
 
     // Categorias: se temos startDate, viramos "Mai/26"; senão, "M0..Mn".
     for (let i = 0; i <= n; i++) {
@@ -40,28 +39,35 @@ export default function SonhosObjetivoEvolutionChart({
       plan.push(Number(planned(objetivo, i).toFixed(2)));
     }
 
-    // Ponto inicial = available; entries preenchem o restante.
-    act[0] = objetivo.available;
-    objetivo.entries.forEach((e) => {
-      // Posição do entry: diff em meses entre e.month e startDate (se houver).
-      // Sem startDate, usamos a ordem cronológica dos entries.
-      if (objetivo.startDate) {
-        const [sy, sm] = objetivo.startDate.split('-').map(Number);
+    // Mapeia cada entry → índice de calendário (offset de meses desde startDate).
+    // Sem startDate, usa a ordem cronológica dos entries a partir de M1.
+    const balanceByIdx = new Map<number, number>();
+    if (objetivo.startDate) {
+      const [sy, sm] = objetivo.startDate.split('-').map(Number);
+      objetivo.entries.forEach((e) => {
         const [ey, em] = e.month.split('-').map(Number);
         const idx = (ey - sy) * 12 + (em - sm);
-        if (idx >= 0 && idx <= n) act[idx] = e.balance;
-      }
-    });
-
-    if (!objetivo.startDate) {
-      // Sem startDate, alocamos entries em sequência a partir de M1.
+        if (idx >= 0 && idx <= n) balanceByIdx.set(idx, e.balance);
+      });
+    } else {
       objetivo.entries.forEach((e, i) => {
         const idx = i + 1;
-        if (idx <= n) act[idx] = e.balance;
+        if (idx <= n) balanceByIdx.set(idx, e.balance);
       });
     }
 
-    return { categories: cats, plannedSeries: plan, actualSeries: act };
+    // Linha contínua até o último mês realizado: carrega o saldo conhecido pra
+    // frente nos meses sem registro; `null` depois disso (ainda não realizado).
+    const idxs = [...balanceByIdx.keys()].sort((a, b) => a - b);
+    const lastIdx = idxs.length > 0 ? idxs[idxs.length - 1] : 0;
+    const act: (number | null)[] = new Array(n + 1).fill(null);
+    let running = objetivo.available;
+    for (let i = 0; i <= lastIdx; i++) {
+      if (balanceByIdx.has(i)) running = balanceByIdx.get(i)!;
+      act[i] = Number(running.toFixed(2));
+    }
+
+    return { categories: cats, plannedSeries: plan, actualSeries: act, realizedIdxs: idxs };
   }, [objetivo]);
 
   const options: ApexOptions = useMemo(
@@ -75,12 +81,22 @@ export default function SonhosObjetivoEvolutionChart({
       },
       colors: ['#94A3B8', accent],
       stroke: {
-        curve: 'smooth',
+        // Planejado: spline suave (curva convexa, sem dips). Realizado: reta —
+        // evita overshoot de spline que criava "quedas" entre pontos.
+        curve: ['smooth', 'straight'],
         width: [2, 3],
         dashArray: [4, 0],
       },
       markers: {
-        size: [0, 4],
+        // Sem marcadores genéricos; só os meses efetivamente realizados.
+        size: 0,
+        discrete: realizedIdxs.map((idx) => ({
+          seriesIndex: 1,
+          dataPointIndex: idx,
+          fillColor: accent,
+          strokeColor: '#fff',
+          size: 4,
+        })),
         hover: { size: 6 },
       },
       legend: {
@@ -132,7 +148,7 @@ export default function SonhosObjetivoEvolutionChart({
         strokeDashArray: 3,
       },
     }),
-    [objetivo.id, objetivo.target, objetivo.months, accent, categories],
+    [objetivo.id, objetivo.target, objetivo.months, accent, categories, realizedIdxs],
   );
 
   const series = useMemo(

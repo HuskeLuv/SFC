@@ -11,6 +11,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/utils/cashflowPersonalization', () => ({ personalizeGroup: mockPersonalizeGroup }));
 
 import { syncObjetivoToCashflow, removeObjetivoCashflow } from '../sonhoCashflowSync';
+import { REALIZADO_COLOR } from '../cashflowToSonhoSync';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -20,7 +21,7 @@ beforeEach(() => {
 });
 
 describe('syncObjetivoToCashflow', () => {
-  it('cria a linha (personalizando o grupo) e grava 12 meses com o aporte', async () => {
+  it('cria a linha (personalizando o grupo) e grava a janela de 12 meses com o aporte', async () => {
     mockPrisma.cashflowItem.findUnique.mockResolvedValue(null);
     mockPrisma.cashflowGroup.findFirst
       .mockResolvedValueOnce(null) // grupo do usuário ainda não existe
@@ -28,19 +29,16 @@ describe('syncObjetivoToCashflow', () => {
     mockPersonalizeGroup.mockResolvedValue('user-grp');
     mockPrisma.cashflowItem.create.mockResolvedValue({ id: 'item-1', name: 'Viagem' });
 
-    // target 24000, available 0, months 12, rate 0 → pmt = 2000/mês
-    await syncObjetivoToCashflow(
-      'u1',
-      {
-        id: 'obj-1',
-        name: 'Viagem',
-        target: 24000,
-        available: 0,
-        months: 12,
-        rate: 0,
-      },
-      2026,
-    );
+    // target 24000, available 0, months 12, rate 0 → pmt = 2000/mês; janela Jan–Dez/2026
+    await syncObjetivoToCashflow('u1', {
+      id: 'obj-1',
+      name: 'Viagem',
+      target: 24000,
+      available: 0,
+      months: 12,
+      rate: 0,
+      startDate: '2026-01',
+    });
 
     expect(mockPersonalizeGroup).toHaveBeenCalledWith('tpl-grp', 'u1');
     expect(mockPrisma.cashflowItem.create).toHaveBeenCalledWith(
@@ -70,6 +68,7 @@ describe('syncObjetivoToCashflow', () => {
       available: 0,
       months: 12,
       rate: 0,
+      startDate: '2026-01',
     });
 
     expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalled();
@@ -88,6 +87,7 @@ describe('syncObjetivoToCashflow', () => {
       available: 0,
       months: 12,
       rate: 0,
+      startDate: '2026-01',
     });
 
     expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith({
@@ -97,31 +97,60 @@ describe('syncObjetivoToCashflow', () => {
     expect(mockPrisma.cashflowItem.create).not.toHaveBeenCalled();
   });
 
-  it('preserva os meses REALIZADOS (verdes) ao reescrever o aporte planejado', async () => {
+  it('preserva os meses REALIZADOS (vermelhos) ao reescrever o aporte planejado', async () => {
     mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', name: 'Viagem' });
-    // Meses 0 e 1 já realizados (verde #76933C); o resto é planejado.
+    // Meses 0 e 1 de 2026 já realizados (vermelho "Pago") — o findMany filtra por cor.
     mockPrisma.cashflowValue.findMany.mockResolvedValue([
-      { month: 0, color: '#76933C' },
-      { month: 1, color: '#76933C' },
-      { month: 2, color: null },
+      { year: 2026, month: 0 },
+      { year: 2026, month: 1 },
     ]);
 
-    // target 24000, available 0, months 12, rate 0 → pmt = 2000/mês
-    await syncObjetivoToCashflow(
-      'u1',
-      { id: 'obj-1', name: 'Viagem', target: 24000, available: 0, months: 12, rate: 0 },
-      2026,
-    );
-
-    // deleteMany só apaga os meses NÃO realizados.
-    expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalledWith({
-      where: { itemId: 'item-1', userId: 'u1', year: 2026, month: { notIn: [0, 1] } },
+    // target 24000, available 0, months 12, rate 0 → pmt = 2000/mês; janela Jan–Dez/2026
+    await syncObjetivoToCashflow('u1', {
+      id: 'obj-1',
+      name: 'Viagem',
+      target: 24000,
+      available: 0,
+      months: 12,
+      rate: 0,
+      startDate: '2026-01',
     });
-    // createMany reescreve só os 10 meses planejados (sem 0 e 1).
+
+    // deleteMany apaga o planejado (não-realizado) de qualquer ano, preservando o vermelho.
+    expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalledWith({
+      where: {
+        itemId: 'item-1',
+        userId: 'u1',
+        OR: [{ color: null }, { color: { not: REALIZADO_COLOR } }],
+      },
+    });
+    // createMany reescreve só os 10 meses planejados (sem 0 e 1 de 2026).
     const createArg = mockPrisma.cashflowValue.createMany.mock.calls[0][0];
     expect(createArg.data).toHaveLength(10);
-    expect(createArg.data.map((d: { month: number }) => d.month)).not.toContain(0);
-    expect(createArg.data.map((d: { month: number }) => d.month)).not.toContain(1);
+    const keys = createArg.data.map((d: { year: number; month: number }) => `${d.year}-${d.month}`);
+    expect(keys).not.toContain('2026-0');
+    expect(keys).not.toContain('2026-1');
+  });
+
+  it('janela atravessa anos: startDate nov/2026 + 4 meses cobre 2026 e 2027', async () => {
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', name: 'Viagem' });
+
+    // target 4000, available 0, months 4, rate 0 → pmt = 1000/mês; janela Nov/26–Fev/27
+    await syncObjetivoToCashflow('u1', {
+      id: 'obj-1',
+      name: 'Viagem',
+      target: 4000,
+      available: 0,
+      months: 4,
+      rate: 0,
+      startDate: '2026-11',
+    });
+
+    const createArg = mockPrisma.cashflowValue.createMany.mock.calls[0][0];
+    const keys = createArg.data.map((d: { year: number; month: number }) => `${d.year}-${d.month}`);
+    expect(createArg.data).toHaveLength(4);
+    expect(keys).toEqual(['2026-10', '2026-11', '2027-0', '2027-1']);
+    expect(createArg.data.every((d: { value: number }) => d.value === 1000)).toBe(true);
   });
 });
 

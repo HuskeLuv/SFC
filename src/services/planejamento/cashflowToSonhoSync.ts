@@ -3,21 +3,22 @@ import type { Status } from './planejamentoSonhos';
 
 /**
  * Sync REVERSO (caixa → sonho): deriva o "Realizado" de um objetivo a partir das
- * células VERDES (realizadas) da linha-espelho no fluxo de caixa.
+ * células VERMELHAS (realizadas/"Pago") da linha-espelho no fluxo de caixa.
  *
  * Direção complementar ao `sonhoCashflowSync` (sonho → caixa, que escreve o
  * aporte PLANEJADO). Aqui, conforme o cliente lança o valor real no mês e pinta
- * a célula de verde ("Recebido"), derivamos uma `PlanejamentoObjetivoEntry`:
- *  - `aporte`  = valor da célula verde.
- *  - `balance` = saldo composto pela taxa do objetivo sobre os aportes verdes
+ * a célula de vermelho ("Pago" — aporte é saída), derivamos uma
+ * `PlanejamentoObjetivoEntry`:
+ *  - `aporte`  = valor da célula vermelha.
+ *  - `balance` = saldo composto pela taxa do objetivo sobre os aportes realizados
  *                (saldo[n] = saldo[n-1]·(1+rate) + aporte[n], saldo[0]=available).
  *
  * Precedência: entries `source='manual'` (modal "Registrar Mês") NUNCA são
  * tocadas. O sync só cria/atualiza/remove entries `source='auto'`.
  */
 
-/** Verde "Recebido" do ColorPickerButton — marca a célula como realizada. */
-export const REALIZADO_COLOR = '#76933C';
+/** Vermelho "Pago" do ColorPickerButton — marca o aporte como realizado. */
+export const REALIZADO_COLOR = '#FF0000';
 
 const ENTRY_SOURCE_AUTO = 'auto';
 const ENTRY_SOURCE_MANUAL = 'manual';
@@ -58,7 +59,7 @@ export async function syncCashflowToObjetivo(userId: string, objetivoId: string)
   const available = toNum(objetivo.available);
   const rate = toNum(objetivo.rate);
 
-  // Células verdes (realizadas) da linha-espelho, ordenadas cronologicamente.
+  // Células vermelhas (realizadas/"Pago") da linha-espelho, ordenadas cronologicamente.
   const values = await prisma.cashflowValue.findMany({
     where: { itemId: objetivo.cashflowItem.id, userId, color: REALIZADO_COLOR },
     select: { year: true, month: true, value: true },
@@ -72,14 +73,14 @@ export async function syncCashflowToObjetivo(userId: string, objetivoId: string)
     objetivo.entries.filter((e) => e.source === ENTRY_SOURCE_MANUAL).map((e) => e.month),
   );
 
-  // Trajetória de saldo composta sobre os aportes verdes (independe do manual).
-  const greenMonths: string[] = [];
+  // Trajetória de saldo composta sobre os aportes realizados (independe do manual).
+  const realizedMonths: string[] = [];
   const autoEntries: { month: string; aporte: number; balance: number }[] = [];
   let bal = available;
   for (const r of realized) {
     bal = bal * (1 + rate) + r.aporte;
     const balance = Math.round(bal * 100) / 100;
-    greenMonths.push(r.month);
+    realizedMonths.push(r.month);
     if (!manualMonths.has(r.month)) {
       autoEntries.push({ month: r.month, aporte: Math.round(r.aporte * 100) / 100, balance });
     }
@@ -95,11 +96,11 @@ export async function syncCashflowToObjetivo(userId: string, objetivoId: string)
   const nextStatus = resolveStatus(objetivo.status as Status, remaining, target);
 
   await prisma.$transaction([
-    // Remove entries auto de meses que não estão mais verdes.
+    // Remove entries auto de meses que não estão mais realizados.
     prisma.planejamentoObjetivoEntry.deleteMany({
-      where: { objetivoId, source: ENTRY_SOURCE_AUTO, month: { notIn: greenMonths } },
+      where: { objetivoId, source: ENTRY_SOURCE_AUTO, month: { notIn: realizedMonths } },
     }),
-    // Cria/atualiza as entries auto dos meses verdes (exceto os manuais).
+    // Cria/atualiza as entries auto dos meses realizados (exceto os manuais).
     ...autoEntries.map((e) =>
       prisma.planejamentoObjetivoEntry.upsert({
         where: { objetivoId_month: { objetivoId, month: e.month } },
