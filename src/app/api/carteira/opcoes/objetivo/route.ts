@@ -3,9 +3,11 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { objetivoSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { recordObjetivoClasseDefinido } from '@/services/changeHistory';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const body = await request.json();
   const parsed = objetivoSchema.safeParse(body);
   if (!parsed.success) {
@@ -21,6 +23,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (updateResult.count === 0) {
     return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
   }
+
+  await recordObjetivoClasseDefinido(request, auth, { classe: 'Opções', ativoId });
 
   return NextResponse.json({
     success: true,

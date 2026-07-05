@@ -6,9 +6,11 @@ import { aporteSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { isEquityAssetType } from '@/lib/assetClassification';
+import { recordChange, assetEntityLabel } from '@/services/changeHistory';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { payload, targetUserId, actingClient } = auth;
   const body = await request.json();
 
   const parsed = aporteSchema.safeParse(body);
@@ -111,6 +113,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // o novo fluxo. Invalidar força o reader a cair no live builder até o cron
   // diário repopular.
   await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
+
+  await recordChange({
+    request,
+    auth,
+    section: 'carteira',
+    action: 'aporte.registrar',
+    entity: 'aporte',
+    entityId: transacao.id,
+    entityLabel: assetEntityLabel(portfolio.asset),
+  });
 
   const result = NextResponse.json({ success: true, transacao }, { status: 201 });
 

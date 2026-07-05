@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { investimentoCreateSchema, validationError } from '@/utils/validation-schemas';
 import { parsePaginationParams, paginatedResponse } from '@/utils/pagination';
+import { recordChange } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // GET - Buscar investimentos categorizados do usuário
@@ -78,7 +79,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
 // POST - Adicionar novo investimento categorizado
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
 
   const user = await prisma.user.findUnique({
     where: { id: targetUserId },
@@ -170,6 +172,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       month: monthAtual,
       value: valor,
     },
+  });
+
+  await recordChange({
+    request,
+    auth,
+    section: 'carteira',
+    action: 'investimento.registrar',
+    entity: 'investimento',
+    entityId: investimento.id,
+    entityLabel: itemName,
   });
 
   // Buscar o investimento criado com todos os dados

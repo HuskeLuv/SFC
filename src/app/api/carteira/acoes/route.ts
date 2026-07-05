@@ -6,6 +6,7 @@ import { AcaoData, AcaoAtivo, AcaoSecao, SetorAcao } from '@/types/acoes';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 // Função helper para validar e converter setor para SetorAcao
 function parseSetorAcao(setor: string | null | undefined): SetorAcao {
@@ -302,7 +303,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const body = await request.json();
   const { ativoId, objetivo, cotacao, caixaParaInvestir } = body;
 
@@ -338,6 +340,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         },
       });
     }
+
+    await recordCaixaParaInvestirAtualizado(request, auth, {
+      classe: 'Ações',
+      valorAnterior: existingCaixa?.value,
+      valor: caixaParaInvestir,
+    });
 
     return NextResponse.json({
       success: true,

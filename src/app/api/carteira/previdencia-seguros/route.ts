@@ -8,6 +8,7 @@ import type {
 } from '@/types/previdencia-seguros';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 
 function getAtivoColor(label: string): string {
   const colors = [
@@ -197,7 +198,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const body = await request.json();
   const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
 
@@ -233,6 +235,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         },
       });
     }
+
+    await recordCaixaParaInvestirAtualizado(request, auth, {
+      classe: 'Previdência e Seguros',
+      valorAnterior: existingCaixa?.value,
+      valor: caixaParaInvestir,
+    });
 
     return NextResponse.json({
       success: true,

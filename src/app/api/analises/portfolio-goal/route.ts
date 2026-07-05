@@ -10,6 +10,7 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTotals';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
+import { recordChange } from '@/services/changeHistory';
 
 /**
  * Meta de patrimônio do usuário: "atingir R$ X até dezembro do ano Y".
@@ -137,7 +138,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const PUT = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
 
   const body = await request.json();
   const parsed = goalSchema.safeParse(body);
@@ -151,6 +153,17 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     create: { userId: targetUserId, targetEquity, targetYear },
   });
 
+  // Upsert direto, sem carregar a meta anterior — registra sem before/after.
+  await recordChange({
+    request,
+    auth,
+    section: 'carteira',
+    action: 'objetivo-carteira.definir',
+    entity: 'objetivo-carteira',
+    entityId: goalRow.id,
+    entityLabel: `R$ ${targetEquity} até ${targetYear}`,
+  });
+
   const currentEquity = await computeCurrentEquity(targetUserId);
   return NextResponse.json(
     buildStatus(
@@ -161,9 +174,20 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const DELETE = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
 
-  await prisma.portfolioGoal.deleteMany({ where: { userId: targetUserId } });
+  const deleted = await prisma.portfolioGoal.deleteMany({ where: { userId: targetUserId } });
+
+  if (deleted.count > 0) {
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'objetivo-carteira.remover',
+      entity: 'objetivo-carteira',
+    });
+  }
 
   const currentEquity = await computeCurrentEquity(targetUserId);
   return NextResponse.json(buildStatus(null, currentEquity));

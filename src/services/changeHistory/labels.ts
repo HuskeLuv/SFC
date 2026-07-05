@@ -73,3 +73,28 @@ export const PERFIL_FIELD_LABELS: Record<string, string> = {
   name: 'Nome',
   email: 'E-mail',
 };
+
+/** DashboardData "caixa para investir" (por classe de ativo e consolidado) */
+export const CAIXA_INVESTIR_FIELD_LABELS: Record<string, string> = {
+  value: 'Caixa para investir',
+};
+
+/** Resumo da carteira (DashboardData: meta de patrimônio / caixa consolidado) */
+export const RESUMO_FIELD_LABELS: Record<string, string> = {
+  metaPatrimonio: 'Meta de patrimônio',
+  caixaParaInvestir: 'Caixa para investir',
+};
+
+/** Campos editáveis inline de renda fixa (valor + metadados em notes) */
+export const RENDA_FIXA_FIELD_LABELS: Record<string, string> = {
+  valorAtualizado: 'Valor atualizado',
+  cotizacaoResgate: 'Cotização do resgate',
+  liquidacaoResgate: 'Liquidação do resgate',
+  benchmark: 'Benchmark',
+  observacoes: 'Observações',
+};
+
+/** Edição manual de "valor atualizado" (FIM/FIA sem cota CVM, imóveis e bens) */
+export const ATIVO_VALOR_FIELD_LABELS: Record<string, string> = {
+  valorAtualizado: 'Valor atualizado',
+};

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { validationError } from '@/utils/validation-schemas';
+import { recordChange, assetEntityLabel } from '@/services/changeHistory';
 import { getAssetPrices, getAssetHistory } from '@/services/pricing/assetPriceService';
 import { getDividends } from '@/services/pricing/dividendService';
 import { getFundamentals } from '@/services/pricing/fundamentalsService';
@@ -769,7 +770,8 @@ const patchSchema = z.object({
 
 export const PATCH = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { targetUserId } = await requireAuthWithActing(request);
+    const auth = await requireAuthWithActing(request);
+    const { targetUserId } = auth;
     const { id: portfolioId } = await params;
 
     const body = await request.json();
@@ -778,7 +780,11 @@ export const PATCH = withErrorHandler(
 
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId: targetUserId },
-      select: { id: true, assetId: true },
+      select: {
+        id: true,
+        assetId: true,
+        asset: { select: { symbol: true, name: true, source: true } },
+      },
     });
     if (!portfolio) {
       return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
@@ -825,6 +831,18 @@ export const PATCH = withErrorHandler(
     });
 
     await prisma.$transaction(updates);
+
+    // Instituição anterior vive dentro do JSON `notes` de cada transação (pode
+    // variar entre elas) — sem before-state único, registra sem diff.
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'ativo.editar',
+      entity: 'ativo',
+      entityId: portfolioId,
+      entityLabel: assetEntityLabel(portfolio.asset),
+    });
 
     return NextResponse.json({
       success: true,

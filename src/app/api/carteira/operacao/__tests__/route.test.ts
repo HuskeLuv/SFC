@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server';
 import { POST } from '../route';
 
 const mockPrisma = vi.hoisted(() => ({
+  // Histórico de alterações (recordChange importa prisma como default export).
+  userChangeLog: { create: vi.fn() },
   user: { findUnique: vi.fn() },
   institution: { findFirst: vi.fn(), findUnique: vi.fn() },
   asset: { findUnique: vi.fn(), create: vi.fn() },
@@ -28,6 +30,7 @@ vi.mock('@/utils/auth', () => ({
 
 vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
+  default: mockPrisma,
 }));
 
 vi.mock('@/services/impersonationLogger', () => ({

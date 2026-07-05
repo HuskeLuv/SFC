@@ -28,18 +28,20 @@ const withLabel =
 
 const ACTION_RENDERERS: Record<string, Renderer> = {
   // Carteira
-  'ativo.adicionar': withLabel('Adicionou um ativo', (l) => `Adicionou o ativo ${l}`),
   'ativo.editar': withLabel('Editou um ativo', (l) => `Editou o ativo ${l}`),
   'ativo.remover': withLabel('Removeu um ativo', (l) => `Removeu o ativo ${l}`),
+  'caixa-investir.atualizar': withLabel(
+    'Atualizou o caixa para investir',
+    (l) => `Atualizou o caixa para investir de ${l}`,
+  ),
   'objetivo-classe.definir': withLabel(
     'Definiu o objetivo de uma classe de ativos',
     (l) => `Definiu o objetivo da classe ${l}`,
   ),
-  'renda-fixa.adicionar': withLabel(
-    'Adicionou um ativo de renda fixa',
-    (l) => `Adicionou o ativo de renda fixa ${l}`,
+  'renda-fixa.editar': withLabel(
+    'Editou um ativo de renda fixa',
+    (l) => `Editou o ativo de renda fixa ${l}`,
   ),
-  'imovel-bem.adicionar': withLabel('Adicionou um imóvel/bem', (l) => `Adicionou ${l}`),
   'imovel-bem.atualizar-valor': withLabel(
     'Atualizou o valor de um imóvel/bem',
     (l) => `Atualizou o valor de ${l}`,
@@ -71,6 +73,9 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     (l) => `Editou ${l} do fluxo de caixa`,
   ),
   'comentario.editar': withLabel('Editou um comentário', (l) => `Editou comentário de ${l}`),
+  'grupo.criar': withLabel('Criou um grupo no fluxo de caixa', (l) => `Criou o grupo ${l}`),
+  'grupo.editar': withLabel('Editou um grupo do fluxo de caixa', (l) => `Editou o grupo ${l}`),
+  'grupo.excluir': withLabel('Excluiu um grupo do fluxo de caixa', (l) => `Excluiu o grupo ${l}`),
 
   // Planejamento
   'sonho.criar': withLabel('Criou um sonho', (l) => `Criou o sonho "${l}"`),

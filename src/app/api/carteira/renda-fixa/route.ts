@@ -6,6 +6,13 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import { calcularIRRendaFixa } from '@/services/ir/fixedIncomeIR';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import {
+  recordChange,
+  diffFields,
+  assetEntityLabel,
+  recordCaixaParaInvestirAtualizado,
+  RENDA_FIXA_FIELD_LABELS,
+} from '@/services/changeHistory';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
@@ -342,7 +349,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const body = await request.json();
   const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir, campo, valor } = body;
 
@@ -378,6 +386,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         },
       });
     }
+
+    await recordCaixaParaInvestirAtualizado(request, auth, {
+      classe: 'Renda Fixa',
+      valorAnterior: existingCaixa?.value,
+      valor: caixaParaInvestir,
+    });
 
     return NextResponse.json({
       success: true,
@@ -500,6 +514,39 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         }
       }
     }
+
+    // Estado anterior sem query extra: valorAtualizado deriva do próprio
+    // portfolio; metadados vêm das notes da transação já carregada acima.
+    let valorAnterior: unknown = null;
+    if (campo === 'valorAtualizado') {
+      valorAnterior = portfolio.avgPrice * (portfolio.quantity || 1);
+    } else if (transaction?.notes) {
+      try {
+        valorAnterior =
+          (JSON.parse(transaction.notes) as Record<string, unknown>)[campo as string] ?? null;
+      } catch {
+        valorAnterior = null;
+      }
+    }
+    const valorNovo =
+      campo === 'valorAtualizado' && typeof valor !== 'number'
+        ? parseFloat(valor as string)
+        : valor;
+
+    await recordChange({
+      request,
+      auth,
+      section: 'carteira',
+      action: 'renda-fixa.editar',
+      entity: 'renda-fixa',
+      entityId: ativoId,
+      entityLabel: assetEntityLabel(portfolio.asset),
+      changes: diffFields(
+        { [campo as string]: valorAnterior },
+        { [campo as string]: valorNovo },
+        RENDA_FIXA_FIELD_LABELS,
+      ),
+    });
 
     return NextResponse.json({
       success: true,
