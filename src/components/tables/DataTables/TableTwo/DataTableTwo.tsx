@@ -3,7 +3,7 @@
 import { logger } from '@/lib/logger';
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import React from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import Alert from '@/components/ui/alert/Alert';
 import { Table, TableBody } from '@/components/ui/table';
@@ -25,10 +25,10 @@ import {
   SavingsIndexRow,
   FinancialPeaceIndexRow,
   InflationPedroRow,
-  PreviousMonthBalanceRow,
   InvestmentIncomeRow,
   EvolutionRow,
   ExpenseRatioRow,
+  SummaryRow,
 } from '@/components/cashflow';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
@@ -46,7 +46,6 @@ import {
   renderGroupHeaderProps,
 } from './DataTableTwoGroupRenderer';
 import DataTableTwoGroupRenderer from './DataTableTwoGroupRenderer';
-import DataTableTwoFreeCashflowRow from './DataTableTwoFreeCashflowRow';
 import { GroupRenderContext } from './dataTableTwoTypes';
 
 export default function DataTableTwo() {
@@ -170,22 +169,77 @@ export default function DataTableTwo() {
     [evolucaoPatrimonioByMonth],
   );
 
-  // Calcular Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior
-  const previousMonthBalance = useMemo(() => {
-    const saldo: number[] = [];
-    const fluxoCaixaLivreAcumulado: number[] = [];
-    for (let index = 0; index < 12; index++) {
-      const saldoMesAtual =
-        processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
-      const aportesResgates = investimentosByMonth[index] || 0;
-      const saldoNaoInvestidoMesAnterior =
-        index === 0 ? 0 : fluxoCaixaLivreAcumulado[index - 1] || 0;
-      const fluxoCaixaLivre = saldoMesAtual - aportesResgates + saldoNaoInvestidoMesAnterior;
-      fluxoCaixaLivreAcumulado.push(fluxoCaixaLivre);
-      saldo.push(saldoNaoInvestidoMesAnterior);
-    }
-    return saldo;
-  }, [processedData.entradasByMonth, processedData.despesasByMonth, investimentosByMonth]);
+  // Bloco "Conta Corrente" (type='saldo'): o cliente informa manualmente o que
+  // ficou parado em cada banco no fim de cada mês.
+  const contaCorrenteGroup = useMemo(() => {
+    const findSaldoGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
+      for (const group of groups) {
+        if (group.type === 'saldo') return group;
+        if (group.children) {
+          const found = findSaldoGroup(group.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    return findSaldoGroup(processedData.groups);
+  }, [processedData.groups]);
+
+  const contaCorrenteByMonth = useMemo(
+    () =>
+      contaCorrenteGroup
+        ? processedData.groupTotals[contaCorrenteGroup.id] || Array(12).fill(0)
+        : Array(12).fill(0),
+    [contaCorrenteGroup, processedData.groupTotals],
+  );
+
+  // Carry-over cross-year: saldo da Conta Corrente em dezembro do ano anterior
+  // entra como "Saldo Conta Corrente Mês Anterior" de janeiro.
+  const { data: saldoAnteriorData } = useQuery({
+    queryKey: queryKeys.cashflow.contaCorrenteAnterior(currentYear),
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/cashflow/conta-corrente-anterior?year=${currentYear}`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!response.ok) throw new Error('Erro ao buscar saldo do ano anterior');
+      return response.json() as Promise<{ saldoDezembroAnterior: number }>;
+    },
+  });
+  const saldoDezembroAnterior = saldoAnteriorData?.saldoDezembroAnterior ?? 0;
+
+  // Saldo Conta Corrente Mês Anterior: jan puxa dez do ano anterior; os demais
+  // meses puxam o bloco Conta Corrente do mês anterior. Não soma nas entradas —
+  // só compõe o Fluxo de Caixa livre (regra Pedro Haddad).
+  const saldoContaCorrenteAnteriorByMonth = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, index) =>
+        index === 0 ? saldoDezembroAnterior : contaCorrenteByMonth[index - 1] || 0,
+      ),
+    [saldoDezembroAnterior, contaCorrenteByMonth],
+  );
+
+  // Fluxo de Caixa livre = saldo do mês + saldo conta corrente do mês anterior
+  // − aportes/resgates (fórmula da planilha, não acumulado: a sobra que ficou
+  // na conta entra no mês seguinte via Conta Corrente preenchida pelo cliente).
+  const fluxoCaixaLivreByMonth = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, index) => {
+        const saldoMes =
+          processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
+        return (
+          saldoMes +
+          (saldoContaCorrenteAnteriorByMonth[index] || 0) -
+          (investimentosByMonth[index] || 0)
+        );
+      }),
+    [
+      processedData.entradasByMonth,
+      processedData.despesasByMonth,
+      saldoContaCorrenteAnteriorByMonth,
+      investimentosByMonth,
+    ],
+  );
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
@@ -667,7 +721,7 @@ export default function DataTableTwo() {
           <TableHeaderComponent showActionsColumn={anyGroupEditing} />
           <TableBody>
             {processedData.groups
-              .filter((group) => group.type !== 'investimento')
+              .filter((group) => group.type !== 'investimento' && group.type !== 'saldo')
               .map((group, groupIndex, groups) => {
                 const isFirstDespesaGroup =
                   !isReceitaGroupByType(group.type) &&
@@ -679,9 +733,13 @@ export default function DataTableTwo() {
                   <React.Fragment key={group.id}>
                     {group.name === 'Entradas' && !group.parentId && <SpacingRow />}
                     {isFirstDespesaGroup && (
-                      <PreviousMonthBalanceRow
-                        valuesByMonth={previousMonthBalance}
-                        totalAnnual={previousMonthBalance.reduce((sum, val) => sum + val, 0)}
+                      <SummaryRow
+                        label="Saldo Conta Corrente Mês Anterior"
+                        cells={saldoContaCorrenteAnteriorByMonth}
+                        annual={saldoContaCorrenteAnteriorByMonth.reduce(
+                          (sum, val) => sum + val,
+                          0,
+                        )}
                         showActionsColumn={anyGroupEditing}
                       />
                     )}
@@ -753,6 +811,17 @@ export default function DataTableTwo() {
 
             <SpacingRow />
 
+            {/* Conta Corrente: saldo parado nos bancos, preenchido manualmente */}
+            {contaCorrenteGroup && (
+              <React.Fragment key={contaCorrenteGroup.id}>
+                <GroupHeader {...renderGroupHeaderProps(contaCorrenteGroup, ctx)} />
+                {!collapsed[contaCorrenteGroup.id] && (
+                  <DataTableTwoGroupRenderer group={contaCorrenteGroup} ctx={ctx} />
+                )}
+                <SpacingRow />
+              </React.Fragment>
+            )}
+
             {/* Aporte/Resgate (grupo Investimentos, automático da carteira) */}
             {processedData.groups
               .filter((group) => group.type === 'investimento')
@@ -787,10 +856,11 @@ export default function DataTableTwo() {
 
             <SpacingRow />
 
-            <DataTableTwoFreeCashflowRow
-              entradasByMonth={processedData.entradasByMonth}
-              despesasByMonth={processedData.despesasByMonth}
-              investimentosByMonth={investimentosByMonth}
+            <SummaryRow
+              label="Fluxo de Caixa livre"
+              cells={fluxoCaixaLivreByMonth}
+              annual={fluxoCaixaLivreByMonth.reduce((sum, val) => sum + val, 0)}
+              negativeRed
               showActionsColumn={anyGroupEditing}
             />
 

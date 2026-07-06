@@ -32,7 +32,7 @@ export interface CashflowGroup {
   id: string;
   userId: string | null; // null = template
   name: string;
-  type: string; // 'entrada', 'despesa' ou 'investimento'
+  type: string; // 'entrada', 'despesa', 'investimento' ou 'saldo' (Conta Corrente)
   parentId: string | null;
   orderIndex: number; // era order
   items: CashflowItem[];

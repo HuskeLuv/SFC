@@ -79,8 +79,12 @@ export function aggregateCashflow(data: CashflowGroup[]): CashflowAggregation {
   const entradasByMonth = Array(MONTHS).fill(0);
   const despesasByMonth = Array(MONTHS).fill(0);
 
-  const processGroup = (group: CashflowGroup, isInvestmentGroup = false) => {
+  const processGroup = (group: CashflowGroup, isInvestmentGroup = false, isSaldoGroup = false) => {
     const isInvestment = isInvestmentGroup || group.type === 'investimento';
+    // Grupos de saldo (Conta Corrente) não são entrada nem despesa: guardam o
+    // que ficou parado na conta. Ficam fora de entradas/despesas/totalByMonth,
+    // mas seus itemTotals/groupTotals continuam calculados para a UI.
+    const isSaldo = isSaldoGroup || group.type === 'saldo';
 
     if (group.items?.length) {
       group.items.forEach((item) => {
@@ -103,7 +107,9 @@ export function aggregateCashflow(data: CashflowGroup[]): CashflowAggregation {
         const annualTotal = itemValues.reduce((a, b) => a + b, 0);
         itemAnnualTotals[item.id] = annualTotal;
 
-        if (isReceitaGroupByType(group.type)) {
+        if (isSaldo) {
+          // fora das somas de entradas/despesas
+        } else if (isReceitaGroupByType(group.type)) {
           entradasTotal += annualTotal;
           itemValues.forEach((value, month) => {
             entradasByMonth[month] += value;
@@ -136,7 +142,7 @@ export function aggregateCashflow(data: CashflowGroup[]): CashflowAggregation {
 
     if (group.children?.length) {
       group.children.forEach((child) => {
-        processGroup(child, isInvestment);
+        processGroup(child, isInvestment, isSaldo);
         const childTotals = groupTotals[child.id];
         if (childTotals) {
           childTotals.forEach((value, month) => {
@@ -164,7 +170,7 @@ export function aggregateCashflow(data: CashflowGroup[]): CashflowAggregation {
 
   const totalByMonth = Array(MONTHS).fill(0);
   data.forEach((group) => {
-    if (group.type === 'investimento') return;
+    if (group.type === 'investimento' || group.type === 'saldo') return;
     const arr = groupTotals[group.id];
     if (arr) {
       const isReceita = isReceitaGroupByType(group.type);

@@ -54,6 +54,10 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
     },
     { name: 'Despesas Variáveis', orderIndex: 2, parentId: 'Despesas', type: 'despesa' as const },
     { name: 'Investimentos', orderIndex: 3, parentId: null, type: 'investimento' as const },
+    // Bloco de SALDO (não é entrada nem despesa): o cliente informa manualmente
+    // quanto ficou parado em cada banco no fim do mês. Alimenta o carry-over
+    // "Saldo Conta Corrente Mês Anterior" e o Fluxo de Caixa livre.
+    { name: 'Conta Corrente', orderIndex: 4, parentId: null, type: 'saldo' as const },
   ],
   itensPorGrupo: {
     'Entradas Fixas': [
@@ -200,6 +204,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Viagem' },
       { name: 'Outros' },
     ],
+    'Conta Corrente': [{ name: 'Banco 1' }, { name: 'Banco 2' }, { name: 'Banco 3' }],
     Investimentos: [
       { name: 'Reserva Emergência' },
       { name: 'Reserva Oportunidade' },
@@ -216,6 +221,48 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
     ],
   },
 };
+
+// ===== ENSURE: CONTA CORRENTE (upgrade de template para bancos existentes) =====
+
+// Cache de processo: uma vez confirmado que o template existe, não consulta de novo.
+let contaCorrenteEnsured = false;
+
+/**
+ * Garante que o grupo template "Conta Corrente" (type='saldo') exista.
+ * Bancos criados antes desta feature têm o seed completo mas não este grupo —
+ * o seedTemplates() pula quando já há templates. Idempotente e barato
+ * (1 findFirst por processo).
+ */
+export async function ensureContaCorrenteTemplate(): Promise<void> {
+  if (contaCorrenteEnsured) return;
+
+  const existing = await prisma.cashflowGroup.findFirst({
+    where: { userId: null, parentId: null, type: 'saldo' },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    const group = await prisma.cashflowGroup.create({
+      data: {
+        userId: null,
+        name: 'Conta Corrente',
+        type: 'saldo',
+        orderIndex: 4,
+        parentId: null,
+      },
+    });
+    await prisma.cashflowItem.createMany({
+      data: ['Banco 1', 'Banco 2', 'Banco 3'].map((name) => ({
+        userId: null,
+        groupId: group.id,
+        name,
+      })),
+    });
+    logger.info('✅ Template "Conta Corrente" criado (upgrade de template)');
+  }
+
+  contaCorrenteEnsured = true;
+}
 
 // ===== SEED TEMPLATES =====
 

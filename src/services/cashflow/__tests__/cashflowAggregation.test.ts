@@ -99,6 +99,23 @@ describe('aggregateCashflow', () => {
     expect(agg.totalAnnual).toBe(0);
   });
 
+  it('exclui grupo saldo (Conta Corrente) de entradas, despesas e totalByMonth', () => {
+    const tree = [
+      ...sampleTree(),
+      group('cc', 'saldo', 'Conta Corrente', [item('banco1', { 0: 639.9, 1: 1800 })]),
+    ];
+    const agg = aggregateCashflow(tree);
+    // Mesmos totais do sampleTree puro: o bloco de saldo não é entrada nem despesa
+    expect(agg.entradasByMonth[0]).toBe(5000);
+    expect(agg.despesasByMonth[0]).toBe(2500);
+    expect(agg.totalByMonth[0]).toBe(2500);
+    expect(agg.despesasTotal).toBe(5800); // 4800 despesas + 1000 investimento (quirk)
+    // Mas os totais do próprio grupo continuam disponíveis para a UI
+    expect(agg.groupTotals['cc'][0]).toBeCloseTo(639.9);
+    expect(agg.groupTotals['cc'][1]).toBe(1800);
+    expect(agg.groupAnnualTotals['cc']).toBeCloseTo(2439.9);
+  });
+
   it('agrega subgrupos no grupo pai (groupTotals recursivo)', () => {
     const tree = [
       group(

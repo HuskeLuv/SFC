@@ -15,7 +15,6 @@ export { ExpenseRatioRow } from './ExpenseRatioRow';
 export { TotalRow } from './TotalRow';
 export { SavingsIndexRow } from './SavingsIndexRow';
 export { FinancialPeaceIndexRow } from './FinancialPeaceIndexRow';
-export { PreviousMonthBalanceRow } from './PreviousMonthBalanceRow';
 export { InvestmentIncomeRow } from './InvestmentIncomeRow';
 export { EvolutionRow } from './EvolutionRow';
 export { InflationPedroRow } from './InflationPedroRow';

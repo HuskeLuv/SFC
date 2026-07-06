@@ -3,7 +3,13 @@ import { NextRequest } from 'next/server';
 import { GET } from '../route';
 
 const mockPrisma = vi.hoisted(() => ({
-  cashflowGroup: { findMany: vi.fn() },
+  cashflowGroup: {
+    findMany: vi.fn(),
+    // ensureContaCorrenteTemplate: template já existe → não cria nada
+    findFirst: vi.fn().mockResolvedValue({ id: 'tpl-conta-corrente' }),
+    create: vi.fn(),
+  },
+  cashflowItem: { createMany: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
