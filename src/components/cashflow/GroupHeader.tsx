@@ -269,7 +269,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
         </TableCell>
       ))}
       {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 align-middle bg-white dark:bg-white"></TableCell>
+      <TableCell className="px-0 w-[10px] h-6 leading-6 align-middle bg-white dark:bg-gray-900"></TableCell>
       <TableCell
         className={`px-2 text-xs font-bold text-right border-t border-b border-gray-200 border border-gray-200 h-6 leading-6 align-middle ${isMainEntradasGroup || isMainDespesasGroup || isEntradasFixasOrVariaveis || isDespesasFixasOrVariaveis || isTributacaoGroup || isDespesasEmpresa || isPlanejamentoFinanceiro || isInvestimentosGroup || isDespesasFixasSubgroup ? 'text-white' : 'text-blue-900 dark:text-blue-100'}`}
         style={{ minWidth: '4rem' }}

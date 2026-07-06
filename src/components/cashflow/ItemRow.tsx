@@ -28,7 +28,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
   currentYear = new Date().getFullYear(),
 }) => {
   const getPercentageColorClass = () => {
-    return 'text-black dark:text-black';
+    return 'text-black dark:text-gray-300';
   };
 
   return (
@@ -37,10 +37,9 @@ export const ItemRow: React.FC<ItemRowProps> = ({
       style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
     >
       <TableCell
-        className="px-2 font-medium text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap"
+        className="px-2 font-medium text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap bg-white dark:bg-gray-900"
         style={{
           position: 'sticky',
-          backgroundColor: 'white',
           ...FIXED_COLUMN_BODY_STYLES[0],
           overflow: 'hidden',
           flexShrink: 0,
@@ -62,10 +61,9 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         </span>
       </TableCell>
       <TableCell
-        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 h-6 leading-6 whitespace-nowrap"
+        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 h-6 leading-6 whitespace-nowrap bg-white dark:bg-gray-900"
         style={{
           position: 'sticky',
-          backgroundColor: 'white',
           ...FIXED_COLUMN_BODY_STYLES[1],
           overflow: 'hidden',
           flexShrink: 0,
@@ -79,10 +77,9 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         </span>
       </TableCell>
       <TableCell
-        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 text-center h-6 leading-6 whitespace-nowrap"
+        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 text-center h-6 leading-6 whitespace-nowrap bg-white dark:bg-gray-900"
         style={{
           position: 'sticky',
-          backgroundColor: 'white',
           ...FIXED_COLUMN_BODY_STYLES[2],
           overflow: 'hidden',
           flexShrink: 0,
@@ -94,10 +91,9 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         <span className="cursor-default">{item.rank || '-'}</span>
       </TableCell>
       <TableCell
-        className={`px-2 font-normal text-xs text-right h-6 leading-6 whitespace-nowrap ${getPercentageColorClass()}`}
+        className={`px-2 font-normal text-xs text-right h-6 leading-6 whitespace-nowrap bg-white dark:bg-gray-900 ${getPercentageColorClass()}`}
         style={{
           position: 'sticky',
-          backgroundColor: 'white',
           ...FIXED_COLUMN_BODY_STYLES[3],
           overflow: 'hidden',
           flexShrink: 0,
@@ -127,7 +123,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         return (
           <TableCell
             key={index}
-            className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right cursor-default h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+            className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right cursor-default h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900"
             style={{ overflow: 'visible' }}
           >
             <div
@@ -150,9 +146,9 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         );
       })}
       {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-gray-900"></TableCell>
       <TableCell
-        className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+        className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900"
         style={{ minWidth: '4rem' }}
       >
         {formatCurrency(itemAnnualTotal)}

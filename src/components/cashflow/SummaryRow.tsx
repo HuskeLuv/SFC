@@ -82,7 +82,7 @@ export const SummaryRow: React.FC<SummaryRowProps> = ({
         </TableCell>
       ))}
       {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-gray-900"></TableCell>
       <TableCell
         className={`px-2 font-bold border border-gray-200 text-xs text-right h-6 leading-6 ${valueClass(annual)}`}
         style={{ minWidth: '4rem' }}

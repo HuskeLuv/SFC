@@ -259,7 +259,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             return (
               <TableCell
                 key={index}
-                className={`px-1 font-normal text-xs h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white ${
+                className={`px-1 font-normal text-xs h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900 ${
                   isCommentModeActive
                     ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors'
                     : isColorModeActive
@@ -311,7 +311,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             return (
               <TableCell
                 key={index}
-                className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+                className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900"
                 style={{ overflow: 'visible' }}
               >
                 <div
@@ -335,10 +335,10 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           })}
 
       {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-gray-900"></TableCell>
 
       <TableCell
-        className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+        className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900"
         style={{ minWidth: '4rem' }}
       >
         {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
