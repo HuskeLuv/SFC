@@ -38,6 +38,12 @@ export interface CashflowGroup {
   items: CashflowItem[];
   children: CashflowGroup[];
   templateId?: string | null;
+  /**
+   * Nome canônico do template de origem (estampado pelo merge server-side).
+   * Estável mesmo se o usuário renomear o grupo — use-o (via groupMatchers)
+   * para identificar grupos estruturais como 'Despesas Fixas'.
+   */
+  templateName?: string | null;
   hidden?: boolean;
   isTemplate?: boolean;
   createdAt?: Date;

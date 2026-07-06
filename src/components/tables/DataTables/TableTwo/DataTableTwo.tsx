@@ -36,6 +36,12 @@ import {
   resolveRealUpTo,
 } from '@/services/cashflow/evolucaoPatrimonioSeries';
 import { FIXED_COLUMNS_TOTAL_WIDTH } from '@/components/cashflow/fixedColumns';
+import {
+  CANONICAL_GROUPS,
+  canonicalName,
+  isCanonical,
+  findGroupByCanonicalName,
+} from '@/services/cashflow/groupMatchers';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { createCashflowItem } from '@/utils/cashflowUpdate';
@@ -81,22 +87,11 @@ export default function DataTableTwo() {
   const [savingGroups, setSavingGroups] = useState<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Função auxiliar para encontrar grupo "Despesas Fixas" recursivamente
-  const findDespesasFixasGroup = useMemo(() => {
-    const findGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
-      for (const group of groups) {
-        if (group.name === 'Despesas Fixas') {
-          return group;
-        }
-        if (group.children && group.children.length > 0) {
-          const found = findGroup(group.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    return findGroup(processedData.groups);
-  }, [processedData.groups]);
+  // Grupo "Despesas Fixas" pelo nome canônico do template (sobrevive a rename)
+  const findDespesasFixasGroup = useMemo(
+    () => findGroupByCanonicalName(processedData.groups, CANONICAL_GROUPS.DESPESAS_FIXAS),
+    [processedData.groups],
+  );
 
   // Calcular valores de Despesas Fixas por mês e anual
   const despesasFixasData = useMemo(() => {
@@ -618,15 +613,18 @@ export default function DataTableTwo() {
             {processedData.groups
               .filter((group) => group.type !== 'investimento' && group.type !== 'saldo')
               .map((group, groupIndex, groups) => {
+                const groupCanonical = canonicalName(group);
+                const isEntradasGroup = isCanonical(group, CANONICAL_GROUPS.ENTRADAS);
                 const isFirstDespesaGroup =
                   !isReceitaGroupByType(group.type) &&
                   groups.slice(0, groupIndex).every((g) => isReceitaGroupByType(g.type));
                 const isMainGroup = !group.parentId;
-                const isMainDespesasGroup = group.name === 'Despesas' && !group.parentId;
+                const isMainDespesasGroup =
+                  isCanonical(group, CANONICAL_GROUPS.DESPESAS) && !group.parentId;
 
                 return (
                   <React.Fragment key={group.id}>
-                    {group.name === 'Entradas' && !group.parentId && <SpacingRow />}
+                    {isEntradasGroup && !group.parentId && <SpacingRow />}
                     {isFirstDespesaGroup && (
                       <SummaryRow
                         label="Saldo Conta Corrente Mês Anterior"
@@ -638,7 +636,7 @@ export default function DataTableTwo() {
                         showActionsColumn={anyGroupEditing}
                       />
                     )}
-                    {isMainGroup && needsSpacingBefore(group.name) && group.name !== 'Entradas' && (
+                    {isMainGroup && needsSpacingBefore(groupCanonical) && !isEntradasGroup && (
                       <SpacingRow />
                     )}
                     <GroupHeader {...renderGroupHeaderProps(group, ctx)} />
@@ -652,7 +650,7 @@ export default function DataTableTwo() {
                         />
                       </>
                     )}
-                    {group.name === 'Entradas' && !group.parentId && <SpacingRow />}
+                    {isEntradasGroup && !group.parentId && <SpacingRow />}
 
                     {!collapsed[group.id] && (
                       <>
@@ -669,10 +667,10 @@ export default function DataTableTwo() {
                       </>
                     )}
                     {isMainGroup &&
-                      needsSpacingAfter(group.name) &&
-                      group.name !== 'Entradas' &&
+                      needsSpacingAfter(groupCanonical) &&
+                      !isEntradasGroup &&
                       !(
-                        group.name === 'Entradas Variáveis' &&
+                        groupCanonical === CANONICAL_GROUPS.ENTRADAS_VARIAVEIS &&
                         groupIndex < groups.length - 1 &&
                         !isReceitaGroupByType(groups[groupIndex + 1].type)
                       ) && <SpacingRow />}

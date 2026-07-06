@@ -4,6 +4,7 @@ import { TableRow, TableCell } from '@/components/ui/table';
 import { GroupHeader, AddRowForm, NewItemRow } from '@/components/cashflow';
 import { CashflowGroup, CashflowItem } from '@/types/cashflow';
 import { GroupRenderContext } from './dataTableTwoTypes';
+import { CANONICAL_GROUPS, canonicalName } from '@/services/cashflow/groupMatchers';
 
 interface GroupItemsRendererProps {
   group: CashflowGroup;
@@ -138,9 +139,9 @@ function SubSubGroupRendererComponent({
   ctx: GroupRenderContext;
 }) {
   const shouldSpaceSubSubBefore =
-    needsSpacingBefore(subsubgroup.name) &&
-    (subsubgroup.name === 'Habitação' ||
-      !(subsubgroupIndex === 0 && needsSpacingBefore(parentGroup.name)));
+    needsSpacingBefore(canonicalName(subsubgroup)) &&
+    (canonicalName(subsubgroup) === 'Habitação' ||
+      !(subsubgroupIndex === 0 && needsSpacingBefore(canonicalName(parentGroup))));
 
   return (
     <React.Fragment key={subsubgroup.id}>
@@ -150,7 +151,7 @@ function SubSubGroupRendererComponent({
       {!ctx.collapsed[subsubgroup.id] && renderItems(subsubgroup.items, subsubgroup, ctx)}
       {renderNewItems(subsubgroup, ctx)}
       {!ctx.collapsed[subsubgroup.id] && renderAddRowForm(subsubgroup, ctx)}
-      {needsSpacingAfter(subsubgroup.name) && <SpacingRow />}
+      {needsSpacingAfter(canonicalName(subsubgroup)) && <SpacingRow />}
     </React.Fragment>
   );
 }
@@ -169,13 +170,14 @@ function SubGroupRendererComponent({
   extraAfterItems?: React.ReactNode;
 }) {
   const previousSubgroup = subgroupIndex > 0 ? subgroups[subgroupIndex - 1] : null;
+  const subgroupCanonical = canonicalName(subgroup);
   const shouldSpaceBefore =
-    needsSpacingBefore(subgroup.name) &&
-    (subgroup.name === 'Despesas Fixas' ||
-      ((subgroup.name === 'Despesas Variáveis'
-        ? !(previousSubgroup && needsSpacingAfter(previousSubgroup.name))
+    needsSpacingBefore(subgroupCanonical) &&
+    (subgroupCanonical === CANONICAL_GROUPS.DESPESAS_FIXAS ||
+      ((subgroupCanonical === CANONICAL_GROUPS.DESPESAS_VARIAVEIS
+        ? !(previousSubgroup && needsSpacingAfter(canonicalName(previousSubgroup)))
         : true) &&
-        !(subgroupIndex === 0 && needsSpacingBefore(subgroup.name))));
+        !(subgroupIndex === 0 && needsSpacingBefore(subgroupCanonical))));
 
   return (
     <React.Fragment key={subgroup.id}>
@@ -199,7 +201,7 @@ function SubGroupRendererComponent({
           {extraAfterItems}
         </>
       )}
-      {needsSpacingAfter(subgroup.name) && <SpacingRow />}
+      {needsSpacingAfter(subgroupCanonical) && <SpacingRow />}
     </React.Fragment>
   );
 }

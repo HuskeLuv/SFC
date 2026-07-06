@@ -1,5 +1,6 @@
 import type { CashflowGroup, CashflowValue } from '@/types/cashflow';
 import { isReceitaGroupByType } from '@/utils/formatters';
+import { CANONICAL_GROUPS, isCanonical } from './groupMatchers';
 
 /**
  * Agregação pura e isomórfica do fluxo de caixa.
@@ -48,9 +49,6 @@ export interface CashflowAggregation {
   despesaFixaAnnual: number;
   averages: CashflowAverages;
 }
-
-/** Nome do grupo de despesas fixas no template (usado para reserva ideal). */
-const DESPESAS_FIXAS_GROUP_NAME = 'Despesas Fixas';
 
 const findGroupBy = (
   groups: CashflowGroup[],
@@ -182,8 +180,11 @@ export function aggregateCashflow(data: CashflowGroup[]): CashflowAggregation {
 
   const totalAnnual = totalByMonth.reduce((a, b) => a + b, 0);
 
-  // Despesas fixas (base da reserva de emergência ideal).
-  const despesasFixasGroup = findGroupBy(data, (g) => g.name === DESPESAS_FIXAS_GROUP_NAME);
+  // Despesas fixas (base da reserva de emergência ideal). Identificação pelo
+  // nome canônico do template — sobrevive a renomeações do usuário.
+  const despesasFixasGroup = findGroupBy(data, (g) =>
+    isCanonical(g, CANONICAL_GROUPS.DESPESAS_FIXAS),
+  );
   const despesaFixaByMonth = despesasFixasGroup
     ? (groupTotals[despesasFixasGroup.id] ?? Array(MONTHS).fill(0))
     : Array(MONTHS).fill(0);
