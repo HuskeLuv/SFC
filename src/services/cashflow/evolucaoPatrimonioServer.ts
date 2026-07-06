@@ -4,6 +4,7 @@ import { isNonBusinessDayB3 } from '@/utils/feriadosB3';
 import { getMergedCashflowGroups } from './getCashflowTree';
 import { aggregateCashflow } from './cashflowAggregation';
 import { buildFluxoLivreByMonth, computeEvolucaoSeries } from './evolucaoPatrimonioSeries';
+import { computeInvestimentosPorMes } from './investimentosPorMes';
 import type { CashflowGroup } from '@/types/cashflow';
 
 /**
@@ -38,42 +39,14 @@ export async function getBaseAplicadaAnterior(userId: string, year: number): Pro
   return Math.round(base * 100) / 100;
 }
 
-/** Detecta compra feita com provento reinvestido (não é capital novo do bolso). */
-const isReinvestimento = (notes: string | null): boolean => {
-  if (!notes) return false;
-  try {
-    const parsed = JSON.parse(notes);
-    return parsed?.operation?.action === 'reinvestimento';
-  } catch {
-    return false;
-  }
-};
-
 /**
  * Aportes (+) / resgates (−) por mês do ano, excluindo reinvestimentos de
- * proventos — mesma semântica de `GET /api/cashflow/investimentos`
- * (totaisPorMes), que alimenta a linha Aporte/Resgate da planilha.
+ * proventos — MESMA agregação da linha Aporte/Resgate da planilha
+ * (`services/cashflow/investimentosPorMes`).
  */
 export async function getAportesPorMes(userId: string, year: number): Promise<number[]> {
-  const transacoes = await prisma.stockTransaction.findMany({
-    where: {
-      userId,
-      type: { in: ['compra', 'venda'] },
-      date: {
-        gte: new Date(Date.UTC(year, 0, 1)),
-        lt: new Date(Date.UTC(year + 1, 0, 1)),
-      },
-    },
-    select: { date: true, type: true, total: true, fees: true, notes: true },
-  });
-
-  const totais = Array(12).fill(0);
-  for (const t of transacoes) {
-    if (isReinvestimento(t.notes)) continue;
-    const valor = (t.total + (t.fees || 0)) * (t.type === 'venda' ? -1 : 1);
-    totais[t.date.getMonth()] += valor;
-  }
-  return totais.map((v) => Math.round(v * 100) / 100);
+  const { totaisPorMes } = await computeInvestimentosPorMes(userId, year);
+  return totaisPorMes;
 }
 
 /** Saldo do bloco Conta Corrente (type='saldo') em dezembro de `year`. */
