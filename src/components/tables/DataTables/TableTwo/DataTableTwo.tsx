@@ -26,10 +26,15 @@ import {
   FinancialPeaceIndexRow,
   InflationPedroRow,
   InvestmentIncomeRow,
-  EvolutionRow,
   ExpenseRatioRow,
   SummaryRow,
 } from '@/components/cashflow';
+import {
+  buildSaldoContaCorrenteAnterior,
+  buildFluxoLivreByMonth,
+  computeEvolucaoSeries,
+  resolveRealUpTo,
+} from '@/services/cashflow/evolucaoPatrimonioSeries';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { createCashflowItem } from '@/utils/cashflowUpdate';
@@ -159,16 +164,6 @@ export default function DataTableTwo() {
     [processedData.despesasByMonth],
   );
 
-  const evolucaoPatrimonioByMonth = useMemo(
-    () =>
-      processedData.totalByMonth.map((value, index) => value + (investimentosByMonth[index] || 0)),
-    [processedData.totalByMonth, investimentosByMonth],
-  );
-  const evolucaoPatrimonioAnnual = useMemo(
-    () => evolucaoPatrimonioByMonth.reduce((sum, value) => sum + value, 0),
-    [evolucaoPatrimonioByMonth],
-  );
-
   // Bloco "Conta Corrente" (type='saldo'): o cliente informa manualmente o que
   // ficou parado em cada banco no fim de cada mês.
   const contaCorrenteGroup = useMemo(() => {
@@ -212,10 +207,7 @@ export default function DataTableTwo() {
   // meses puxam o bloco Conta Corrente do mês anterior. Não soma nas entradas —
   // só compõe o Fluxo de Caixa livre (regra Pedro Haddad).
   const saldoContaCorrenteAnteriorByMonth = useMemo(
-    () =>
-      Array.from({ length: 12 }, (_, index) =>
-        index === 0 ? saldoDezembroAnterior : contaCorrenteByMonth[index - 1] || 0,
-      ),
+    () => buildSaldoContaCorrenteAnterior(contaCorrenteByMonth, saldoDezembroAnterior),
     [saldoDezembroAnterior, contaCorrenteByMonth],
   );
 
@@ -224,22 +216,53 @@ export default function DataTableTwo() {
   // na conta entra no mês seguinte via Conta Corrente preenchida pelo cliente).
   const fluxoCaixaLivreByMonth = useMemo(
     () =>
-      Array.from({ length: 12 }, (_, index) => {
-        const saldoMes =
-          processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
-        return (
-          saldoMes +
-          (saldoContaCorrenteAnteriorByMonth[index] || 0) -
-          (investimentosByMonth[index] || 0)
-        );
+      buildFluxoLivreByMonth({
+        entradasByMonth: processedData.entradasByMonth,
+        despesasByMonth: processedData.despesasByMonth,
+        contaCorrenteByMonth,
+        saldoDezembroAnterior,
+        aportesByMonth: investimentosByMonth,
       }),
     [
       processedData.entradasByMonth,
       processedData.despesasByMonth,
-      saldoContaCorrenteAnteriorByMonth,
+      contaCorrenteByMonth,
+      saldoDezembroAnterior,
       investimentosByMonth,
     ],
   );
+
+  // Evolução do Patrimônio: aportes nominais + fluxo livre, sem marcação a
+  // mercado (simulação linear). Meses fechados usam o valor travado pelo cron
+  // do último dia útil (snapshot).
+  const { data: evolucaoData } = useQuery({
+    queryKey: queryKeys.cashflow.evolucaoPatrimonio(currentYear),
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/cashflow/evolucao-patrimonio?year=${currentYear}`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!response.ok) throw new Error('Erro ao buscar evolução do patrimônio');
+      return response.json() as Promise<{
+        baseAplicadaAnterior: number;
+        snapshots: { month: number; valor: number }[];
+      }>;
+    },
+  });
+
+  const evolucaoPatrimonioByMonth = useMemo(() => {
+    const snapshotByMonth: Partial<Record<number, number>> = {};
+    for (const snap of evolucaoData?.snapshots ?? []) {
+      snapshotByMonth[snap.month] = snap.valor;
+    }
+    return computeEvolucaoSeries({
+      baseAplicada: evolucaoData?.baseAplicadaAnterior ?? 0,
+      aportesByMonth: investimentosByMonth,
+      fluxoLivreByMonth: fluxoCaixaLivreByMonth,
+      snapshotByMonth,
+      realUpTo: resolveRealUpTo(currentYear),
+    });
+  }, [evolucaoData, investimentosByMonth, fluxoCaixaLivreByMonth, currentYear]);
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
@@ -866,9 +889,11 @@ export default function DataTableTwo() {
 
             <SpacingRow />
 
-            <EvolutionRow
-              valuesByMonth={evolucaoPatrimonioByMonth}
-              totalAnnual={evolucaoPatrimonioAnnual}
+            <SummaryRow
+              label="Evolução do Patrimônio"
+              cells={evolucaoPatrimonioByMonth}
+              annual={evolucaoPatrimonioByMonth[11] ?? null}
+              negativeRed
               showActionsColumn={anyGroupEditing}
             />
 

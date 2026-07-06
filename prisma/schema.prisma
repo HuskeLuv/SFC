@@ -112,6 +112,7 @@ model User {
   consents                      UserConsent[]
   loginEvents                   LoginEvent[]
   changeLogs                    UserChangeLog[]               @relation("UserChangeLogUser")
+  cashflowPatrimonioSnapshots   CashflowPatrimonioSnapshot[]  @relation("CashflowPatrimonioSnapshotUser")
 }
 
 /**
@@ -662,6 +663,27 @@ model UserChangeLog {
   @@index([userId, createdAt])
   @@index([userId, section, createdAt])
   @@map("user_change_logs")
+}
+
+/**
+ * Snapshot mensal da linha "Evolução do Patrimônio" do fluxo de caixa.
+ * Gravado pelo cron no último dia útil de cada mês (regra Pedro Haddad):
+ * trava o valor calculado (aportes nominais + fluxo livre) para que meses
+ * fechados fiquem estáticos no histórico, imunes a edições retroativas.
+ */
+model CashflowPatrimonioSnapshot {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("CashflowPatrimonioSnapshotUser", fields: [userId], references: [id], onDelete: Cascade)
+  year      Int
+  month     Int // 0 = janeiro ... 11 = dezembro
+  valor     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, year, month])
+  @@index([userId, year])
+  @@map("cashflow_patrimonio_snapshots")
 }
 
 // ===== ECONOMIC INDEXES MODULE =====
