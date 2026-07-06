@@ -687,40 +687,71 @@ export default function DataTableTwo() {
     ],
   );
 
+  // Contexto compartilhado dos renderers de grupo, memoizado: junto com o
+  // React.memo dos renderers/linhas, evita re-render das subtrees quando um
+  // estado não relacionado muda (ex.: modal de comentário, queries chegando).
+  const ctx: GroupRenderContext = useMemo(
+    () => ({
+      collapsed,
+      addingRow,
+      newRow,
+      newItems,
+      savingGroups,
+      processedData,
+      toggleCollapse,
+      startAddingRow,
+      cancelAddingRow,
+      updateNewRow,
+      handleSaveRow,
+      handleItemUpdate,
+      startEditing,
+      stopEditing,
+      isEditing,
+      isGroupEditing,
+      handleStartGroupEdit,
+      handleSaveGroup,
+      handleCancelGroupEdit,
+      selectedColor,
+      setSelectedColor,
+      isCommentModeActive,
+      handleCommentButtonClick,
+      handleCommentCellClick,
+      renderItemRowConditional,
+    }),
+    [
+      collapsed,
+      addingRow,
+      newRow,
+      newItems,
+      savingGroups,
+      processedData,
+      toggleCollapse,
+      startAddingRow,
+      cancelAddingRow,
+      updateNewRow,
+      handleSaveRow,
+      handleItemUpdate,
+      startEditing,
+      stopEditing,
+      isEditing,
+      isGroupEditing,
+      handleStartGroupEdit,
+      handleSaveGroup,
+      handleCancelGroupEdit,
+      selectedColor,
+      setSelectedColor,
+      isCommentModeActive,
+      handleCommentButtonClick,
+      handleCommentCellClick,
+      renderItemRowConditional,
+    ],
+  );
+
   if (loading) return <div className="py-8 text-center">Carregando...</div>;
   if (error) return <div className="py-8 text-center text-red-500">{error}</div>;
   if (!data?.length) return <div className="py-8 text-center text-red-500">Dados inválidos</div>;
 
   const anyGroupEditing = processedData.groups.some((g) => isGroupEditing(g.id));
-
-  // Build the shared context for group renderers
-  const ctx: GroupRenderContext = {
-    collapsed,
-    addingRow,
-    newRow,
-    newItems,
-    savingGroups,
-    processedData,
-    toggleCollapse,
-    startAddingRow,
-    cancelAddingRow,
-    updateNewRow,
-    handleSaveRow,
-    handleItemUpdate,
-    startEditing,
-    stopEditing,
-    isEditing,
-    isGroupEditing,
-    handleStartGroupEdit,
-    handleSaveGroup,
-    handleCancelGroupEdit,
-    selectedColor,
-    setSelectedColor,
-    isCommentModeActive,
-    handleCommentButtonClick,
-    handleCommentCellClick,
-    renderItemRowConditional,
-  };
 
   return (
     <div className="bg-white dark:bg-white/[0.03] flex-1 flex flex-col min-h-0">

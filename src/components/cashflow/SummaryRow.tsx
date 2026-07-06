@@ -29,7 +29,7 @@ const VARIANT = {
   gray: { bg: '#D9D9D9', text: 'text-black' },
 } as const;
 
-export const SummaryRow: React.FC<SummaryRowProps> = ({
+const SummaryRowComponent: React.FC<SummaryRowProps> = ({
   label,
   cells,
   annual,
@@ -95,3 +95,6 @@ export const SummaryRow: React.FC<SummaryRowProps> = ({
     </TableRow>
   );
 };
+
+// Memo: as linhas de resumo recebem arrays memoizados do DataTableTwo.
+export const SummaryRow = React.memo(SummaryRowComponent);

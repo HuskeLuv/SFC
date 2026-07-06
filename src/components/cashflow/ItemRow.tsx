@@ -19,7 +19,7 @@ interface ItemRowProps {
   isLastItem?: boolean;
 }
 
-export const ItemRow: React.FC<ItemRowProps> = ({
+const ItemRowComponent: React.FC<ItemRowProps> = ({
   item,
   itemTotals,
   itemAnnualTotal,
@@ -30,6 +30,12 @@ export const ItemRow: React.FC<ItemRowProps> = ({
   const getPercentageColorClass = () => {
     return 'text-black dark:text-gray-300';
   };
+
+  // Índice único por mês (evita 12 finds por linha a cada render).
+  const valuesByMonth: Record<number, NonNullable<CashflowItem['values']>[number]> = {};
+  for (const v of item.values ?? []) {
+    if (v.year === currentYear) valuesByMonth[v.month] = v;
+  }
 
   return (
     <TableRow
@@ -112,7 +118,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         // Obter cor do valor mensal se existir
         // Buscar em item.values que pode vir do banco
         // IMPORTANTE: Buscar por month (0-11) que corresponde ao índice
-        const monthlyValue = item.values?.find((v) => v.month === index && v.year === currentYear);
+        const monthlyValue = valuesByMonth[index];
         // Aporte/Resgate (grupo investimento, automático da carteira):
         // aporte em verde, resgate em vermelho (regra Pedro Haddad).
         const signColor =
@@ -156,3 +162,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
     </TableRow>
   );
 };
+
+// Memo: a planilha re-renderiza por estados globais (modo comentário, queries
+// de proventos/evolução chegando); linhas com props estáveis são puladas.
+export const ItemRow = React.memo(ItemRowComponent);

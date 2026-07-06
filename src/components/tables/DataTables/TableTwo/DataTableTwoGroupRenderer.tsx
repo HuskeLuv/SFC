@@ -126,7 +126,7 @@ function renderAddRowForm(group: CashflowGroup, ctx: GroupRenderContext) {
   );
 }
 
-export function SubSubGroupRenderer({
+function SubSubGroupRendererComponent({
   subsubgroup,
   parentGroup,
   subsubgroupIndex,
@@ -155,7 +155,7 @@ export function SubSubGroupRenderer({
   );
 }
 
-export function SubGroupRenderer({
+function SubGroupRendererComponent({
   subgroup,
   subgroupIndex,
   subgroups,
@@ -204,7 +204,7 @@ export function SubGroupRenderer({
   );
 }
 
-export default function DataTableTwoGroupRenderer({ group, ctx }: GroupItemsRendererProps) {
+function DataTableTwoGroupRendererComponent({ group, ctx }: GroupItemsRendererProps) {
   return (
     <>
       {renderItems(group.items, group, ctx)}
@@ -215,3 +215,10 @@ export default function DataTableTwoGroupRenderer({ group, ctx }: GroupItemsRend
 }
 
 export { needsSpacingBefore, needsSpacingAfter, renderGroupHeaderProps };
+
+// Memo nos renderers de grupo: quando o ctx (memoizado no DataTableTwo) e os
+// grupos não mudam, subtrees inteiras são puladas em re-renders globais.
+export const SubSubGroupRenderer = React.memo(SubSubGroupRendererComponent);
+export const SubGroupRenderer = React.memo(SubGroupRendererComponent);
+const DataTableTwoGroupRenderer = React.memo(DataTableTwoGroupRendererComponent);
+export default DataTableTwoGroupRenderer;
