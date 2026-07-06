@@ -104,7 +104,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
           borderRight: 'none',
         }}
       >
-        {group.name === 'Investimentos'
+        {group.type === 'investimento' || group.type === 'saldo'
           ? '-'
           : itemPercentage > 0
             ? formatPercent(itemPercentage)
@@ -115,7 +115,11 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         // Buscar em item.values que pode vir do banco
         // IMPORTANTE: Buscar por month (0-11) que corresponde ao índice
         const monthlyValue = item.values?.find((v) => v.month === index && v.year === currentYear);
-        const cellColor = monthlyValue?.color || null;
+        // Aporte/Resgate (grupo investimento, automático da carteira):
+        // aporte em verde, resgate em vermelho (regra Pedro Haddad).
+        const signColor =
+          group.type === 'investimento' && value ? (value > 0 ? '#16a34a' : '#dc2626') : null;
+        const cellColor = monthlyValue?.color || signColor;
         const cellComment = monthlyValue?.comment || null;
 
         return (
