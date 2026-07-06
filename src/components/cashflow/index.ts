@@ -10,7 +10,8 @@ export { SaveCancelButtons } from './SaveCancelButtons';
 export { DeleteItemButton } from './DeleteItemButton';
 export { CurrencyInput } from './CurrencyInput';
 export { AddRowForm } from './AddRowForm';
-export { TotalRow } from './TotalRow'; 
+export { SummaryRow } from './SummaryRow';
+export { TotalRow } from './TotalRow';
 export { SavingsIndexRow } from './SavingsIndexRow';
 export { FinancialPeaceIndexRow } from './FinancialPeaceIndexRow';
 export { PreviousMonthBalanceRow } from './PreviousMonthBalanceRow';
@@ -23,4 +24,4 @@ export { default as NewEditableDescriptionCell } from './NewEditableDescriptionC
 export { default as NewEditableTextCell } from './NewEditableTextCell';
 export { CommentButton } from './CommentButton';
 export { CommentModal } from './CommentModal';
-export { CommentIndicator } from './CommentIndicator'; 
+export { CommentIndicator } from './CommentIndicator';
