@@ -49,7 +49,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
           borderRight: 'none',
         }}
       >
-        <span className="cursor-default truncate block">
+        <span className="cursor-default truncate block" title={item.name || undefined}>
           {item.objetivoId ? (
             <span
               className="mr-1"
@@ -74,7 +74,9 @@ export const ItemRow: React.FC<ItemRowProps> = ({
           borderRight: 'none',
         }}
       >
-        <span className="cursor-default truncate block">{item.significado || '-'}</span>
+        <span className="cursor-default truncate block" title={item.significado || undefined}>
+          {item.significado || '-'}
+        </span>
       </TableCell>
       <TableCell
         className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 text-center h-6 leading-6 whitespace-nowrap"

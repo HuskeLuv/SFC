@@ -35,6 +35,7 @@ import {
   computeEvolucaoSeries,
   resolveRealUpTo,
 } from '@/services/cashflow/evolucaoPatrimonioSeries';
+import { FIXED_COLUMNS_TOTAL_WIDTH } from '@/components/cashflow/fixedColumns';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { createCashflowItem } from '@/utils/cashflowUpdate';
@@ -280,7 +281,7 @@ export default function DataTableTwo() {
 
         const firstMonthCell = container.querySelector('#first-month-cell') as HTMLElement;
         if (firstMonthCell) {
-          const fixedColumnsWidth = 416;
+          const fixedColumnsWidth = FIXED_COLUMNS_TOTAL_WIDTH;
           const containerWidth = container.clientWidth;
 
           if (containerWidth > 0 && containerWidth < fixedColumnsWidth + 48) {
@@ -729,9 +730,10 @@ export default function DataTableTwo() {
         </div>
       )}
 
+      {/* pb-24: garante que as últimas linhas rolem acima do banner de cookies */}
       <div
         ref={scrollContainerRef}
-        className="w-full h-full overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table"
+        className="w-full h-full overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table pb-24"
         style={{
           scrollBehavior: 'auto',
           position: 'relative',
@@ -851,7 +853,7 @@ export default function DataTableTwo() {
               .map((group) => (
                 <React.Fragment key={group.id}>
                   <GroupHeader
-                    group={{ ...group, name: 'Aporte/Resgate Investimentos' }}
+                    group={{ ...group, name: 'Aporte/Resgate' }}
                     isCollapsed={collapsed[group.id] || false}
                     groupTotals={processedData.groupTotals[group.id] || Array(12).fill(0)}
                     groupAnnualTotal={processedData.groupAnnualTotals[group.id] || 0}

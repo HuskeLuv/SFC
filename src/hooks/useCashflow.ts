@@ -51,6 +51,14 @@ export const useCashflowData = (year?: number) => {
 
         if (investimentosResponse.ok) {
           const investimentosData = await investimentosResponse.json();
+          // Oculta categorias sem movimento no ano — a planilha só mostra as
+          // classes em que o cliente de fato aportou/resgatou.
+          investimentosData.investimentos = (investimentosData.investimentos || []).filter(
+            (inv: InvestimentoItem & { totalAnual?: number }) =>
+              (inv.values || inv.valores || []).some(
+                (v: CashflowValue & { valor?: number }) => (v.value ?? v.valor ?? 0) !== 0,
+              ),
+          );
           let investimentosJaAdicionados = false;
 
           const findInvestmentGroup = (groupList: CashflowGroup[]): CashflowGroup | null => {

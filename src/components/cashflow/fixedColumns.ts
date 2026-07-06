@@ -2,17 +2,20 @@
 // Larguras fixas para evitar encolhimento durante scroll horizontal
 export const FIXED_COLUMN_WIDTHS = {
   ITEMS: '240px',
-  SIGNIFICADO: '240px',
+  SIGNIFICADO: '150px',
   RANK: '80px',
-  PERCENTAGE: '120px',
+  PERCENTAGE: '80px',
 } as const;
+
+/** Soma das 4 colunas fixas em px (usada pelo ajuste de scroll inicial). */
+export const FIXED_COLUMNS_TOTAL_WIDTH = 240 + 150 + 80 + 80;
 
 // Offsets left acumulados para position sticky
 export const FIXED_COLUMN_LEFT = {
   COL1: 0,
   COL2: '240px',
-  COL3: '480px', // 240 + 240
-  COL4: '560px', // 240 + 240 + 80
+  COL3: '390px', // 240 + 150
+  COL4: '470px', // 240 + 150 + 80
 } as const;
 
 // Z-index progressivo para evitar sobreposição
@@ -86,4 +89,3 @@ export const FIXED_COLUMN_BODY_STYLES = [
     maxWidth: FIXED_COLUMN_WIDTHS.PERCENTAGE,
   },
 ];
-
