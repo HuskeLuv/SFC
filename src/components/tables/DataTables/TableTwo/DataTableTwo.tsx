@@ -28,6 +28,7 @@ import {
   PreviousMonthBalanceRow,
   InvestmentIncomeRow,
   EvolutionRow,
+  ExpenseRatioRow,
 } from '@/components/cashflow';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
@@ -127,23 +128,10 @@ export default function DataTableTwo() {
     [proventosByMonth],
   );
 
-  const entradasByMonthWithProventos = useMemo(
-    () =>
-      processedData.entradasByMonth.map((value, index) => value + (proventosByMonth[index] || 0)),
-    [processedData.entradasByMonth, proventosByMonth],
-  );
-  const entradasAnnualWithProventos = useMemo(
-    () => processedData.entradasTotal + proventosAnnual,
-    [processedData.entradasTotal, proventosAnnual],
-  );
-  const totalByMonthWithProventos = useMemo(
-    () => processedData.totalByMonth.map((value, index) => value + (proventosByMonth[index] || 0)),
-    [processedData.totalByMonth, proventosByMonth],
-  );
-  const totalAnnualWithProventos = useMemo(
-    () => totalByMonthWithProventos.reduce((sum, value) => sum + value, 0),
-    [totalByMonthWithProventos],
-  );
+  // Regra Pedro Haddad: os proventos automáticos ("Rendimentos Recebidos")
+  // NÃO somam nas entradas nem no saldo do mês — rodam de forma independente
+  // no fim da planilha. Receitas de investimentos lançadas manualmente pelo
+  // cliente continuam entrando normalmente pelos itens de Entradas.
 
   const investimentosByMonth = useMemo(() => {
     const findInvestimentosGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
@@ -165,10 +153,17 @@ export default function DataTableTwo() {
       : Array(12).fill(0);
   }, [processedData.groups, processedData.groupTotals]);
 
+  // Total anual de despesas SEM o grupo de investimentos (despesasTotal da
+  // agregação inclui o anual de investimentos por quirk histórico).
+  const despesasAnnualSemInvestimentos = useMemo(
+    () => processedData.despesasByMonth.reduce((sum, value) => sum + value, 0),
+    [processedData.despesasByMonth],
+  );
+
   const evolucaoPatrimonioByMonth = useMemo(
     () =>
-      totalByMonthWithProventos.map((value, index) => value + (investimentosByMonth[index] || 0)),
-    [totalByMonthWithProventos, investimentosByMonth],
+      processedData.totalByMonth.map((value, index) => value + (investimentosByMonth[index] || 0)),
+    [processedData.totalByMonth, investimentosByMonth],
   );
   const evolucaoPatrimonioAnnual = useMemo(
     () => evolucaoPatrimonioByMonth.reduce((sum, value) => sum + value, 0),
@@ -181,7 +176,7 @@ export default function DataTableTwo() {
     const fluxoCaixaLivreAcumulado: number[] = [];
     for (let index = 0; index < 12; index++) {
       const saldoMesAtual =
-        entradasByMonthWithProventos[index] - processedData.despesasByMonth[index];
+        processedData.entradasByMonth[index] - processedData.despesasByMonth[index];
       const aportesResgates = investimentosByMonth[index] || 0;
       const saldoNaoInvestidoMesAnterior =
         index === 0 ? 0 : fluxoCaixaLivreAcumulado[index - 1] || 0;
@@ -190,7 +185,7 @@ export default function DataTableTwo() {
       saldo.push(saldoNaoInvestidoMesAnterior);
     }
     return saldo;
-  }, [entradasByMonthWithProventos, processedData.despesasByMonth, investimentosByMonth]);
+  }, [processedData.entradasByMonth, processedData.despesasByMonth, investimentosByMonth]);
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
@@ -715,15 +710,6 @@ export default function DataTableTwo() {
                             subgroupIndex={subgroupIndex}
                             subgroups={subgroups}
                             ctx={ctx}
-                            extraAfterItems={
-                              subgroup.name === 'Entradas Variáveis' ? (
-                                <InvestmentIncomeRow
-                                  valuesByMonth={proventosByMonth}
-                                  totalAnnual={proventosAnnual}
-                                  showActionsColumn={anyGroupEditing}
-                                />
-                              ) : undefined
-                            }
                           />
                         ))}
                         <DataTableTwoGroupRenderer group={group} ctx={ctx} />
@@ -742,42 +728,32 @@ export default function DataTableTwo() {
               })}
 
             <TotalRow
-              totalByMonth={totalByMonthWithProventos}
-              totalAnnual={totalAnnualWithProventos}
-              showActionsColumn={anyGroupEditing}
-            />
-
-            <SpacingRow />
-
-            <EvolutionRow
-              valuesByMonth={evolucaoPatrimonioByMonth}
-              totalAnnual={evolucaoPatrimonioAnnual}
+              totalByMonth={processedData.totalByMonth}
+              totalAnnual={processedData.totalAnnual}
               showActionsColumn={anyGroupEditing}
             />
 
             <SpacingRow />
 
             <SavingsIndexRow
-              totalByMonth={totalByMonthWithProventos}
-              entradasByMonth={entradasByMonthWithProventos}
-              totalAnnual={totalAnnualWithProventos}
-              entradasAnnual={entradasAnnualWithProventos}
+              totalByMonth={processedData.totalByMonth}
+              entradasByMonth={processedData.entradasByMonth}
+              totalAnnual={processedData.totalAnnual}
+              entradasAnnual={processedData.entradasTotal}
+              showActionsColumn={anyGroupEditing}
+            />
+
+            <ExpenseRatioRow
+              despesasByMonth={processedData.despesasByMonth}
+              entradasByMonth={processedData.entradasByMonth}
+              despesasAnnual={despesasAnnualSemInvestimentos}
+              entradasAnnual={processedData.entradasTotal}
               showActionsColumn={anyGroupEditing}
             />
 
             <SpacingRow />
 
-            <FinancialPeaceIndexRow
-              proventosByMonth={proventosByMonth}
-              despesasFixasByMonth={despesasFixasData.byMonth}
-              proventosAnnual={proventosAnnual}
-              despesasFixasAnnual={despesasFixasData.annual}
-              showActionsColumn={anyGroupEditing}
-            />
-
-            <SpacingRow />
-
-            {/* Investimentos group */}
+            {/* Aporte/Resgate (grupo Investimentos, automático da carteira) */}
             {processedData.groups
               .filter((group) => group.type === 'investimento')
               .map((group) => (
@@ -812,9 +788,34 @@ export default function DataTableTwo() {
             <SpacingRow />
 
             <DataTableTwoFreeCashflowRow
-              entradasByMonthWithProventos={entradasByMonthWithProventos}
+              entradasByMonth={processedData.entradasByMonth}
               despesasByMonth={processedData.despesasByMonth}
               investimentosByMonth={investimentosByMonth}
+              showActionsColumn={anyGroupEditing}
+            />
+
+            <SpacingRow />
+
+            <EvolutionRow
+              valuesByMonth={evolucaoPatrimonioByMonth}
+              totalAnnual={evolucaoPatrimonioAnnual}
+              showActionsColumn={anyGroupEditing}
+            />
+
+            <SpacingRow />
+
+            {/* Proventos automáticos da carteira — independentes, não somam nas entradas */}
+            <InvestmentIncomeRow
+              valuesByMonth={proventosByMonth}
+              totalAnnual={proventosAnnual}
+              showActionsColumn={anyGroupEditing}
+            />
+
+            <FinancialPeaceIndexRow
+              proventosByMonth={proventosByMonth}
+              despesasFixasByMonth={despesasFixasData.byMonth}
+              proventosAnnual={proventosAnnual}
+              despesasFixasAnnual={despesasFixasData.annual}
               showActionsColumn={anyGroupEditing}
             />
           </TableBody>

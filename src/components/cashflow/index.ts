@@ -11,6 +11,7 @@ export { DeleteItemButton } from './DeleteItemButton';
 export { CurrencyInput } from './CurrencyInput';
 export { AddRowForm } from './AddRowForm';
 export { SummaryRow } from './SummaryRow';
+export { ExpenseRatioRow } from './ExpenseRatioRow';
 export { TotalRow } from './TotalRow';
 export { SavingsIndexRow } from './SavingsIndexRow';
 export { FinancialPeaceIndexRow } from './FinancialPeaceIndexRow';
