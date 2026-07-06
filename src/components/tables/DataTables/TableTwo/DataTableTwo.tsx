@@ -721,7 +721,7 @@ export default function DataTableTwo() {
               .map((group) => (
                 <React.Fragment key={group.id}>
                   <GroupHeader
-                    group={{ ...group, name: 'Aporte/Resgate' }}
+                    group={group}
                     isCollapsed={collapsed[group.id] || false}
                     groupTotals={processedData.groupTotals[group.id] || Array(12).fill(0)}
                     groupAnnualTotal={processedData.groupAnnualTotals[group.id] || 0}
