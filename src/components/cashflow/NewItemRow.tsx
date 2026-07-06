@@ -87,16 +87,16 @@ export const NewItemRow: React.FC<NewItemRowProps> = ({ item, group: _group }) =
       {Array.from({ length: 12 }).map((_, index) => (
         <TableCell
           key={index}
-          className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right cursor-default h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+          className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right cursor-default h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900"
           style={{ minWidth: '3rem' }}
         >
           {formatCurrency(0)}
         </TableCell>
       ))}
       {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-white"></TableCell>
+      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-gray-900"></TableCell>
       <TableCell
-        className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] border-t border-b border-l border-r border-white"
+        className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900"
         style={{ minWidth: '4rem' }}
       >
         {formatCurrency(0)}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
+import { ensureContaCorrenteTemplate } from '@/utils/cashflowTemplates';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -38,6 +39,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   if (isNaN(year)) {
     return NextResponse.json({ error: 'Ano inválido' }, { status: 400 });
   }
+
+  // Upgrade lazy de template: bancos antigos não têm o grupo "Conta Corrente".
+  await ensureContaCorrenteTemplate();
 
   // Templates padrão + personalizações do usuário, mesclados (override layer).
   const mergedGroups = await getMergedCashflowGroups(targetUserId, year);

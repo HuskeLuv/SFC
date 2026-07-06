@@ -4,6 +4,7 @@ import { TableRow, TableCell } from '@/components/ui/table';
 import { GroupHeader, AddRowForm, NewItemRow } from '@/components/cashflow';
 import { CashflowGroup, CashflowItem } from '@/types/cashflow';
 import { GroupRenderContext } from './dataTableTwoTypes';
+import { CANONICAL_GROUPS, canonicalName } from '@/services/cashflow/groupMatchers';
 
 interface GroupItemsRendererProps {
   group: CashflowGroup;
@@ -126,7 +127,7 @@ function renderAddRowForm(group: CashflowGroup, ctx: GroupRenderContext) {
   );
 }
 
-export function SubSubGroupRenderer({
+function SubSubGroupRendererComponent({
   subsubgroup,
   parentGroup,
   subsubgroupIndex,
@@ -138,9 +139,9 @@ export function SubSubGroupRenderer({
   ctx: GroupRenderContext;
 }) {
   const shouldSpaceSubSubBefore =
-    needsSpacingBefore(subsubgroup.name) &&
-    (subsubgroup.name === 'Habitação' ||
-      !(subsubgroupIndex === 0 && needsSpacingBefore(parentGroup.name)));
+    needsSpacingBefore(canonicalName(subsubgroup)) &&
+    (canonicalName(subsubgroup) === 'Habitação' ||
+      !(subsubgroupIndex === 0 && needsSpacingBefore(canonicalName(parentGroup))));
 
   return (
     <React.Fragment key={subsubgroup.id}>
@@ -150,12 +151,12 @@ export function SubSubGroupRenderer({
       {!ctx.collapsed[subsubgroup.id] && renderItems(subsubgroup.items, subsubgroup, ctx)}
       {renderNewItems(subsubgroup, ctx)}
       {!ctx.collapsed[subsubgroup.id] && renderAddRowForm(subsubgroup, ctx)}
-      {needsSpacingAfter(subsubgroup.name) && <SpacingRow />}
+      {needsSpacingAfter(canonicalName(subsubgroup)) && <SpacingRow />}
     </React.Fragment>
   );
 }
 
-export function SubGroupRenderer({
+function SubGroupRendererComponent({
   subgroup,
   subgroupIndex,
   subgroups,
@@ -169,13 +170,14 @@ export function SubGroupRenderer({
   extraAfterItems?: React.ReactNode;
 }) {
   const previousSubgroup = subgroupIndex > 0 ? subgroups[subgroupIndex - 1] : null;
+  const subgroupCanonical = canonicalName(subgroup);
   const shouldSpaceBefore =
-    needsSpacingBefore(subgroup.name) &&
-    (subgroup.name === 'Despesas Fixas' ||
-      ((subgroup.name === 'Despesas Variáveis'
-        ? !(previousSubgroup && needsSpacingAfter(previousSubgroup.name))
+    needsSpacingBefore(subgroupCanonical) &&
+    (subgroupCanonical === CANONICAL_GROUPS.DESPESAS_FIXAS ||
+      ((subgroupCanonical === CANONICAL_GROUPS.DESPESAS_VARIAVEIS
+        ? !(previousSubgroup && needsSpacingAfter(canonicalName(previousSubgroup)))
         : true) &&
-        !(subgroupIndex === 0 && needsSpacingBefore(subgroup.name))));
+        !(subgroupIndex === 0 && needsSpacingBefore(subgroupCanonical))));
 
   return (
     <React.Fragment key={subgroup.id}>
@@ -199,12 +201,12 @@ export function SubGroupRenderer({
           {extraAfterItems}
         </>
       )}
-      {needsSpacingAfter(subgroup.name) && <SpacingRow />}
+      {needsSpacingAfter(subgroupCanonical) && <SpacingRow />}
     </React.Fragment>
   );
 }
 
-export default function DataTableTwoGroupRenderer({ group, ctx }: GroupItemsRendererProps) {
+function DataTableTwoGroupRendererComponent({ group, ctx }: GroupItemsRendererProps) {
   return (
     <>
       {renderItems(group.items, group, ctx)}
@@ -215,3 +217,10 @@ export default function DataTableTwoGroupRenderer({ group, ctx }: GroupItemsRend
 }
 
 export { needsSpacingBefore, needsSpacingAfter, renderGroupHeaderProps };
+
+// Memo nos renderers de grupo: quando o ctx (memoizado no DataTableTwo) e os
+// grupos não mudam, subtrees inteiras são puladas em re-renders globais.
+export const SubSubGroupRenderer = React.memo(SubSubGroupRendererComponent);
+export const SubGroupRenderer = React.memo(SubGroupRendererComponent);
+const DataTableTwoGroupRenderer = React.memo(DataTableTwoGroupRendererComponent);
+export default DataTableTwoGroupRenderer;

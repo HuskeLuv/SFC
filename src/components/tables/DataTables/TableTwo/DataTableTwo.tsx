@@ -3,7 +3,7 @@
 import { logger } from '@/lib/logger';
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import React from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import Alert from '@/components/ui/alert/Alert';
 import { Table, TableBody } from '@/components/ui/table';
@@ -25,16 +25,30 @@ import {
   SavingsIndexRow,
   FinancialPeaceIndexRow,
   InflationPedroRow,
-  PreviousMonthBalanceRow,
   InvestmentIncomeRow,
-  EvolutionRow,
+  ExpenseRatioRow,
+  SummaryRow,
 } from '@/components/cashflow';
+import {
+  buildSaldoContaCorrenteAnterior,
+  buildFluxoLivreByMonth,
+  computeEvolucaoSeries,
+  resolveRealUpTo,
+} from '@/services/cashflow/evolucaoPatrimonioSeries';
+import { FIXED_COLUMNS_TOTAL_WIDTH } from '@/components/cashflow/fixedColumns';
+import {
+  CANONICAL_GROUPS,
+  canonicalName,
+  isCanonical,
+  findGroupByCanonicalName,
+} from '@/services/cashflow/groupMatchers';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { createCashflowItem } from '@/utils/cashflowUpdate';
 import { useCellEditing } from '@/hooks/useCellEditing';
+import { useCommentModal } from '@/hooks/useCommentModal';
 import { useGroupEditMode } from '@/hooks/useGroupEditMode';
-import { getAllItemsInGroup, findItemById } from '@/utils/cashflowHelpers';
+import { getAllItemsInGroup } from '@/utils/cashflowHelpers';
 import { isReceitaGroupByType } from '@/utils/formatters';
 import { CommentModal } from '@/components/cashflow/CommentModal';
 import {
@@ -45,7 +59,6 @@ import {
   renderGroupHeaderProps,
 } from './DataTableTwoGroupRenderer';
 import DataTableTwoGroupRenderer from './DataTableTwoGroupRenderer';
-import DataTableTwoFreeCashflowRow from './DataTableTwoFreeCashflowRow';
 import { GroupRenderContext } from './dataTableTwoTypes';
 
 export default function DataTableTwo() {
@@ -74,22 +87,11 @@ export default function DataTableTwo() {
   const [savingGroups, setSavingGroups] = useState<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Função auxiliar para encontrar grupo "Despesas Fixas" recursivamente
-  const findDespesasFixasGroup = useMemo(() => {
-    const findGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
-      for (const group of groups) {
-        if (group.name === 'Despesas Fixas') {
-          return group;
-        }
-        if (group.children && group.children.length > 0) {
-          const found = findGroup(group.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    return findGroup(processedData.groups);
-  }, [processedData.groups]);
+  // Grupo "Despesas Fixas" pelo nome canônico do template (sobrevive a rename)
+  const findDespesasFixasGroup = useMemo(
+    () => findGroupByCanonicalName(processedData.groups, CANONICAL_GROUPS.DESPESAS_FIXAS),
+    [processedData.groups],
+  );
 
   // Calcular valores de Despesas Fixas por mês e anual
   const despesasFixasData = useMemo(() => {
@@ -127,23 +129,10 @@ export default function DataTableTwo() {
     [proventosByMonth],
   );
 
-  const entradasByMonthWithProventos = useMemo(
-    () =>
-      processedData.entradasByMonth.map((value, index) => value + (proventosByMonth[index] || 0)),
-    [processedData.entradasByMonth, proventosByMonth],
-  );
-  const entradasAnnualWithProventos = useMemo(
-    () => processedData.entradasTotal + proventosAnnual,
-    [processedData.entradasTotal, proventosAnnual],
-  );
-  const totalByMonthWithProventos = useMemo(
-    () => processedData.totalByMonth.map((value, index) => value + (proventosByMonth[index] || 0)),
-    [processedData.totalByMonth, proventosByMonth],
-  );
-  const totalAnnualWithProventos = useMemo(
-    () => totalByMonthWithProventos.reduce((sum, value) => sum + value, 0),
-    [totalByMonthWithProventos],
-  );
+  // Regra Pedro Haddad: os proventos automáticos ("Rendimentos Recebidos")
+  // NÃO somam nas entradas nem no saldo do mês — rodam de forma independente
+  // no fim da planilha. Receitas de investimentos lançadas manualmente pelo
+  // cliente continuam entrando normalmente pelos itens de Entradas.
 
   const investimentosByMonth = useMemo(() => {
     const findInvestimentosGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
@@ -165,32 +154,112 @@ export default function DataTableTwo() {
       : Array(12).fill(0);
   }, [processedData.groups, processedData.groupTotals]);
 
-  const evolucaoPatrimonioByMonth = useMemo(
-    () =>
-      totalByMonthWithProventos.map((value, index) => value + (investimentosByMonth[index] || 0)),
-    [totalByMonthWithProventos, investimentosByMonth],
-  );
-  const evolucaoPatrimonioAnnual = useMemo(
-    () => evolucaoPatrimonioByMonth.reduce((sum, value) => sum + value, 0),
-    [evolucaoPatrimonioByMonth],
+  // Total anual de despesas SEM o grupo de investimentos (despesasTotal da
+  // agregação inclui o anual de investimentos por quirk histórico).
+  const despesasAnnualSemInvestimentos = useMemo(
+    () => processedData.despesasByMonth.reduce((sum, value) => sum + value, 0),
+    [processedData.despesasByMonth],
   );
 
-  // Calcular Saldo Não Investido no Mês Anterior = Fluxo de caixa livre do mês anterior
-  const previousMonthBalance = useMemo(() => {
-    const saldo: number[] = [];
-    const fluxoCaixaLivreAcumulado: number[] = [];
-    for (let index = 0; index < 12; index++) {
-      const saldoMesAtual =
-        entradasByMonthWithProventos[index] - processedData.despesasByMonth[index];
-      const aportesResgates = investimentosByMonth[index] || 0;
-      const saldoNaoInvestidoMesAnterior =
-        index === 0 ? 0 : fluxoCaixaLivreAcumulado[index - 1] || 0;
-      const fluxoCaixaLivre = saldoMesAtual - aportesResgates + saldoNaoInvestidoMesAnterior;
-      fluxoCaixaLivreAcumulado.push(fluxoCaixaLivre);
-      saldo.push(saldoNaoInvestidoMesAnterior);
+  // Bloco "Conta Corrente" (type='saldo'): o cliente informa manualmente o que
+  // ficou parado em cada banco no fim de cada mês.
+  const contaCorrenteGroup = useMemo(() => {
+    const findSaldoGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
+      for (const group of groups) {
+        if (group.type === 'saldo') return group;
+        if (group.children) {
+          const found = findSaldoGroup(group.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    return findSaldoGroup(processedData.groups);
+  }, [processedData.groups]);
+
+  const contaCorrenteByMonth = useMemo(
+    () =>
+      contaCorrenteGroup
+        ? processedData.groupTotals[contaCorrenteGroup.id] || Array(12).fill(0)
+        : Array(12).fill(0),
+    [contaCorrenteGroup, processedData.groupTotals],
+  );
+
+  // Carry-over cross-year: saldo da Conta Corrente em dezembro do ano anterior
+  // entra como "Saldo Conta Corrente Mês Anterior" de janeiro.
+  const { data: saldoAnteriorData } = useQuery({
+    queryKey: queryKeys.cashflow.contaCorrenteAnterior(currentYear),
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/cashflow/conta-corrente-anterior?year=${currentYear}`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!response.ok) throw new Error('Erro ao buscar saldo do ano anterior');
+      return response.json() as Promise<{ saldoDezembroAnterior: number }>;
+    },
+  });
+  const saldoDezembroAnterior = saldoAnteriorData?.saldoDezembroAnterior ?? 0;
+
+  // Saldo Conta Corrente Mês Anterior: jan puxa dez do ano anterior; os demais
+  // meses puxam o bloco Conta Corrente do mês anterior. Não soma nas entradas —
+  // só compõe o Fluxo de Caixa livre (regra Pedro Haddad).
+  const saldoContaCorrenteAnteriorByMonth = useMemo(
+    () => buildSaldoContaCorrenteAnterior(contaCorrenteByMonth, saldoDezembroAnterior),
+    [saldoDezembroAnterior, contaCorrenteByMonth],
+  );
+
+  // Fluxo de Caixa livre = saldo do mês + saldo conta corrente do mês anterior
+  // − aportes/resgates (fórmula da planilha, não acumulado: a sobra que ficou
+  // na conta entra no mês seguinte via Conta Corrente preenchida pelo cliente).
+  const fluxoCaixaLivreByMonth = useMemo(
+    () =>
+      buildFluxoLivreByMonth({
+        entradasByMonth: processedData.entradasByMonth,
+        despesasByMonth: processedData.despesasByMonth,
+        contaCorrenteByMonth,
+        saldoDezembroAnterior,
+        aportesByMonth: investimentosByMonth,
+      }),
+    [
+      processedData.entradasByMonth,
+      processedData.despesasByMonth,
+      contaCorrenteByMonth,
+      saldoDezembroAnterior,
+      investimentosByMonth,
+    ],
+  );
+
+  // Evolução do Patrimônio: aportes nominais + fluxo livre, sem marcação a
+  // mercado (simulação linear). Meses fechados usam o valor travado pelo cron
+  // do último dia útil (snapshot).
+  const { data: evolucaoData } = useQuery({
+    queryKey: queryKeys.cashflow.evolucaoPatrimonio(currentYear),
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/cashflow/evolucao-patrimonio?year=${currentYear}`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!response.ok) throw new Error('Erro ao buscar evolução do patrimônio');
+      return response.json() as Promise<{
+        baseAplicadaAnterior: number;
+        snapshots: { month: number; valor: number }[];
+      }>;
+    },
+  });
+
+  const evolucaoPatrimonioByMonth = useMemo(() => {
+    const snapshotByMonth: Partial<Record<number, number>> = {};
+    for (const snap of evolucaoData?.snapshots ?? []) {
+      snapshotByMonth[snap.month] = snap.valor;
     }
-    return saldo;
-  }, [entradasByMonthWithProventos, processedData.despesasByMonth, investimentosByMonth]);
+    return computeEvolucaoSeries({
+      baseAplicada: evolucaoData?.baseAplicadaAnterior ?? 0,
+      aportesByMonth: investimentosByMonth,
+      fluxoLivreByMonth: fluxoCaixaLivreByMonth,
+      snapshotByMonth,
+      realUpTo: resolveRealUpTo(currentYear),
+    });
+  }, [evolucaoData, investimentosByMonth, fluxoCaixaLivreByMonth, currentYear]);
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
@@ -208,7 +277,7 @@ export default function DataTableTwo() {
 
         const firstMonthCell = container.querySelector('#first-month-cell') as HTMLElement;
         if (firstMonthCell) {
-          const fixedColumnsWidth = 416;
+          const fixedColumnsWidth = FIXED_COLUMNS_TOTAL_WIDTH;
           const containerWidth = container.clientWidth;
 
           if (containerWidth > 0 && containerWidth < fixedColumnsWidth + 48) {
@@ -253,184 +322,22 @@ export default function DataTableTwo() {
     setIsCommentModeActive,
   } = useGroupEditMode();
 
-  // Estado para modal de comentário
-  const [commentModal, setCommentModal] = useState<{
-    isOpen: boolean;
-    itemId: string | null;
-    itemName: string;
-    month: number;
-    year: number;
-    initialComment: string | null;
-    updatedAt: Date | null;
-  }>({
-    isOpen: false,
-    itemId: null,
-    itemName: '',
-    month: 0,
-    year: currentYear,
-    initialComment: null,
-    updatedAt: null,
+  // Modal de comentários por célula (estado + handlers extraídos p/ hook)
+  const {
+    commentModal,
+    closeCommentModal,
+    handleCommentButtonClick,
+    handleCommentCellClick,
+    handleSaveComment,
+  } = useCommentModal({
+    groups: processedData.groups,
+    currentYear,
+    isCommentModeActive,
+    setIsCommentModeActive,
+    showAlert,
+    refetch,
+    csrfFetch,
   });
-
-  // Reset comment modal on unmount
-  useEffect(() => {
-    return () => {
-      setCommentModal((prev) => ({ ...prev, isOpen: false }));
-    };
-  }, []);
-
-  // Função para buscar comentário
-  const fetchComment = useCallback(async (itemId: string, month: number, year: number) => {
-    try {
-      const response = await fetch(
-        `/api/cashflow/comments?itemId=${itemId}&month=${month}&year=${year}`,
-        {
-          credentials: 'include',
-          signal: AbortSignal.timeout(10000),
-        },
-      );
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: 'Erro ao buscar comentário' }));
-
-        if (response.status === 401) {
-          throw new Error('Sessão inválida');
-        }
-
-        throw new Error(errorData.error || 'Erro ao buscar comentário');
-      }
-      const data = await response.json();
-      return {
-        comment: data.comment || null,
-        updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
-      };
-    } catch (error: unknown) {
-      logger.error(
-        `Erro ao buscar comentário (item=${itemId}, month=${month}, year=${year}):`,
-        error,
-      );
-      throw error;
-    }
-  }, []);
-
-  // Handler para clicar no botão de comentário
-  // setIsCommentModeActive already clears color mode via unified UIMode
-  const handleCommentButtonClick = useCallback(() => {
-    setIsCommentModeActive((prev: boolean) => !prev);
-  }, [setIsCommentModeActive]);
-
-  // Handler para clicar em uma célula quando em modo de comentário
-  const handleCommentCellClick = useCallback(
-    async (itemId: string, monthIndex: number) => {
-      if (!isCommentModeActive) return;
-
-      try {
-        const item = findItemById(processedData.groups, itemId);
-        if (!item) {
-          logger.warn(`Item não encontrado: ${itemId}`);
-          showAlert(
-            'error',
-            'Item não encontrado',
-            'Não foi possível encontrar o item selecionado.',
-          );
-          return;
-        }
-
-        const { comment, updatedAt } = await fetchComment(itemId, monthIndex, currentYear);
-
-        setCommentModal({
-          isOpen: true,
-          itemId,
-          itemName: item.name,
-          month: monthIndex,
-          year: currentYear,
-          initialComment: comment,
-          updatedAt,
-        });
-
-        setIsCommentModeActive(false);
-      } catch (error: unknown) {
-        logger.error('Erro ao buscar comentário:', error);
-        if (error instanceof Error && error.message.includes('Sessão inválida')) {
-          showAlert(
-            'error',
-            'Sessão inválida',
-            'Sua sessão expirou ou está inválida. Por favor, faça logout e login novamente.',
-          );
-        } else {
-          showAlert('error', 'Erro', 'Erro ao abrir comentário. Tente novamente.');
-        }
-        setIsCommentModeActive(false);
-      }
-    },
-    [
-      isCommentModeActive,
-      processedData.groups,
-      fetchComment,
-      setIsCommentModeActive,
-      showAlert,
-      currentYear,
-    ],
-  );
-
-  // Handler para salvar comentário
-  const handleSaveComment = useCallback(
-    async (comment: string) => {
-      if (!commentModal.itemId) return;
-
-      try {
-        const response = await csrfFetch('/api/cashflow/comments', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            itemId: commentModal.itemId,
-            month: commentModal.month,
-            year: commentModal.year,
-            comment: comment.trim() || null,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response
-            .json()
-            .catch(() => ({ error: 'Erro ao salvar comentário' }));
-
-          if (response.status === 401) {
-            showAlert(
-              'error',
-              'Sessão inválida',
-              errorData.error ||
-                'Sua sessão expirou ou está inválida. Por favor, faça logout e login novamente.',
-            );
-            throw new Error('Sessão inválida');
-          }
-
-          throw new Error(errorData.error || 'Erro ao salvar comentário');
-        }
-
-        await refetch();
-        showAlert('success', 'Comentário salvo', 'O comentário foi salvo com sucesso.');
-      } catch (error: unknown) {
-        logger.error('Erro ao salvar comentário:', error);
-
-        if (error instanceof Error && error.message === 'Sessão inválida') {
-          throw error;
-        }
-
-        showAlert(
-          'error',
-          'Erro ao salvar',
-          (error instanceof Error ? error.message : undefined) ||
-            'Erro ao salvar o comentário. Tente novamente.',
-        );
-        throw error;
-      }
-    },
-    [commentModal, refetch, showAlert, csrfFetch],
-  );
 
   const handleSaveRow = useCallback(
     async (groupId: string) => {
@@ -614,40 +521,71 @@ export default function DataTableTwo() {
     ],
   );
 
+  // Contexto compartilhado dos renderers de grupo, memoizado: junto com o
+  // React.memo dos renderers/linhas, evita re-render das subtrees quando um
+  // estado não relacionado muda (ex.: modal de comentário, queries chegando).
+  const ctx: GroupRenderContext = useMemo(
+    () => ({
+      collapsed,
+      addingRow,
+      newRow,
+      newItems,
+      savingGroups,
+      processedData,
+      toggleCollapse,
+      startAddingRow,
+      cancelAddingRow,
+      updateNewRow,
+      handleSaveRow,
+      handleItemUpdate,
+      startEditing,
+      stopEditing,
+      isEditing,
+      isGroupEditing,
+      handleStartGroupEdit,
+      handleSaveGroup,
+      handleCancelGroupEdit,
+      selectedColor,
+      setSelectedColor,
+      isCommentModeActive,
+      handleCommentButtonClick,
+      handleCommentCellClick,
+      renderItemRowConditional,
+    }),
+    [
+      collapsed,
+      addingRow,
+      newRow,
+      newItems,
+      savingGroups,
+      processedData,
+      toggleCollapse,
+      startAddingRow,
+      cancelAddingRow,
+      updateNewRow,
+      handleSaveRow,
+      handleItemUpdate,
+      startEditing,
+      stopEditing,
+      isEditing,
+      isGroupEditing,
+      handleStartGroupEdit,
+      handleSaveGroup,
+      handleCancelGroupEdit,
+      selectedColor,
+      setSelectedColor,
+      isCommentModeActive,
+      handleCommentButtonClick,
+      handleCommentCellClick,
+      renderItemRowConditional,
+    ],
+  );
+
   if (loading) return <div className="py-8 text-center">Carregando...</div>;
   if (error) return <div className="py-8 text-center text-red-500">{error}</div>;
   if (!data?.length) return <div className="py-8 text-center text-red-500">Dados inválidos</div>;
 
   const anyGroupEditing = processedData.groups.some((g) => isGroupEditing(g.id));
-
-  // Build the shared context for group renderers
-  const ctx: GroupRenderContext = {
-    collapsed,
-    addingRow,
-    newRow,
-    newItems,
-    savingGroups,
-    processedData,
-    toggleCollapse,
-    startAddingRow,
-    cancelAddingRow,
-    updateNewRow,
-    handleSaveRow,
-    handleItemUpdate,
-    startEditing,
-    stopEditing,
-    isEditing,
-    isGroupEditing,
-    handleStartGroupEdit,
-    handleSaveGroup,
-    handleCancelGroupEdit,
-    selectedColor,
-    setSelectedColor,
-    isCommentModeActive,
-    handleCommentButtonClick,
-    handleCommentCellClick,
-    renderItemRowConditional,
-  };
 
   return (
     <div className="bg-white dark:bg-white/[0.03] flex-1 flex flex-col min-h-0">
@@ -657,9 +595,10 @@ export default function DataTableTwo() {
         </div>
       )}
 
+      {/* pb-24: garante que as últimas linhas rolem acima do banner de cookies */}
       <div
         ref={scrollContainerRef}
-        className="w-full h-full overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table"
+        className="w-full h-full overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table pb-24"
         style={{
           scrollBehavior: 'auto',
           position: 'relative',
@@ -672,25 +611,32 @@ export default function DataTableTwo() {
           <TableHeaderComponent showActionsColumn={anyGroupEditing} />
           <TableBody>
             {processedData.groups
-              .filter((group) => group.type !== 'investimento')
+              .filter((group) => group.type !== 'investimento' && group.type !== 'saldo')
               .map((group, groupIndex, groups) => {
+                const groupCanonical = canonicalName(group);
+                const isEntradasGroup = isCanonical(group, CANONICAL_GROUPS.ENTRADAS);
                 const isFirstDespesaGroup =
                   !isReceitaGroupByType(group.type) &&
                   groups.slice(0, groupIndex).every((g) => isReceitaGroupByType(g.type));
                 const isMainGroup = !group.parentId;
-                const isMainDespesasGroup = group.name === 'Despesas' && !group.parentId;
+                const isMainDespesasGroup =
+                  isCanonical(group, CANONICAL_GROUPS.DESPESAS) && !group.parentId;
 
                 return (
                   <React.Fragment key={group.id}>
-                    {group.name === 'Entradas' && !group.parentId && <SpacingRow />}
+                    {isEntradasGroup && !group.parentId && <SpacingRow />}
                     {isFirstDespesaGroup && (
-                      <PreviousMonthBalanceRow
-                        valuesByMonth={previousMonthBalance}
-                        totalAnnual={previousMonthBalance.reduce((sum, val) => sum + val, 0)}
+                      <SummaryRow
+                        label="Saldo Conta Corrente Mês Anterior"
+                        cells={saldoContaCorrenteAnteriorByMonth}
+                        annual={saldoContaCorrenteAnteriorByMonth.reduce(
+                          (sum, val) => sum + val,
+                          0,
+                        )}
                         showActionsColumn={anyGroupEditing}
                       />
                     )}
-                    {isMainGroup && needsSpacingBefore(group.name) && group.name !== 'Entradas' && (
+                    {isMainGroup && needsSpacingBefore(groupCanonical) && !isEntradasGroup && (
                       <SpacingRow />
                     )}
                     <GroupHeader {...renderGroupHeaderProps(group, ctx)} />
@@ -704,7 +650,7 @@ export default function DataTableTwo() {
                         />
                       </>
                     )}
-                    {group.name === 'Entradas' && !group.parentId && <SpacingRow />}
+                    {isEntradasGroup && !group.parentId && <SpacingRow />}
 
                     {!collapsed[group.id] && (
                       <>
@@ -715,25 +661,16 @@ export default function DataTableTwo() {
                             subgroupIndex={subgroupIndex}
                             subgroups={subgroups}
                             ctx={ctx}
-                            extraAfterItems={
-                              subgroup.name === 'Entradas Variáveis' ? (
-                                <InvestmentIncomeRow
-                                  valuesByMonth={proventosByMonth}
-                                  totalAnnual={proventosAnnual}
-                                  showActionsColumn={anyGroupEditing}
-                                />
-                              ) : undefined
-                            }
                           />
                         ))}
                         <DataTableTwoGroupRenderer group={group} ctx={ctx} />
                       </>
                     )}
                     {isMainGroup &&
-                      needsSpacingAfter(group.name) &&
-                      group.name !== 'Entradas' &&
+                      needsSpacingAfter(groupCanonical) &&
+                      !isEntradasGroup &&
                       !(
-                        group.name === 'Entradas Variáveis' &&
+                        groupCanonical === CANONICAL_GROUPS.ENTRADAS_VARIAVEIS &&
                         groupIndex < groups.length - 1 &&
                         !isReceitaGroupByType(groups[groupIndex + 1].type)
                       ) && <SpacingRow />}
@@ -742,42 +679,43 @@ export default function DataTableTwo() {
               })}
 
             <TotalRow
-              totalByMonth={totalByMonthWithProventos}
-              totalAnnual={totalAnnualWithProventos}
-              showActionsColumn={anyGroupEditing}
-            />
-
-            <SpacingRow />
-
-            <EvolutionRow
-              valuesByMonth={evolucaoPatrimonioByMonth}
-              totalAnnual={evolucaoPatrimonioAnnual}
+              totalByMonth={processedData.totalByMonth}
+              totalAnnual={processedData.totalAnnual}
               showActionsColumn={anyGroupEditing}
             />
 
             <SpacingRow />
 
             <SavingsIndexRow
-              totalByMonth={totalByMonthWithProventos}
-              entradasByMonth={entradasByMonthWithProventos}
-              totalAnnual={totalAnnualWithProventos}
-              entradasAnnual={entradasAnnualWithProventos}
+              totalByMonth={processedData.totalByMonth}
+              entradasByMonth={processedData.entradasByMonth}
+              totalAnnual={processedData.totalAnnual}
+              entradasAnnual={processedData.entradasTotal}
+              showActionsColumn={anyGroupEditing}
+            />
+
+            <ExpenseRatioRow
+              despesasByMonth={processedData.despesasByMonth}
+              entradasByMonth={processedData.entradasByMonth}
+              despesasAnnual={despesasAnnualSemInvestimentos}
+              entradasAnnual={processedData.entradasTotal}
               showActionsColumn={anyGroupEditing}
             />
 
             <SpacingRow />
 
-            <FinancialPeaceIndexRow
-              proventosByMonth={proventosByMonth}
-              despesasFixasByMonth={despesasFixasData.byMonth}
-              proventosAnnual={proventosAnnual}
-              despesasFixasAnnual={despesasFixasData.annual}
-              showActionsColumn={anyGroupEditing}
-            />
+            {/* Conta Corrente: saldo parado nos bancos, preenchido manualmente */}
+            {contaCorrenteGroup && (
+              <React.Fragment key={contaCorrenteGroup.id}>
+                <GroupHeader {...renderGroupHeaderProps(contaCorrenteGroup, ctx)} />
+                {!collapsed[contaCorrenteGroup.id] && (
+                  <DataTableTwoGroupRenderer group={contaCorrenteGroup} ctx={ctx} />
+                )}
+                <SpacingRow />
+              </React.Fragment>
+            )}
 
-            <SpacingRow />
-
-            {/* Investimentos group */}
+            {/* Aporte/Resgate (grupo Investimentos, automático da carteira) */}
             {processedData.groups
               .filter((group) => group.type === 'investimento')
               .map((group) => (
@@ -811,10 +749,38 @@ export default function DataTableTwo() {
 
             <SpacingRow />
 
-            <DataTableTwoFreeCashflowRow
-              entradasByMonthWithProventos={entradasByMonthWithProventos}
-              despesasByMonth={processedData.despesasByMonth}
-              investimentosByMonth={investimentosByMonth}
+            <SummaryRow
+              label="Fluxo de Caixa livre"
+              cells={fluxoCaixaLivreByMonth}
+              annual={fluxoCaixaLivreByMonth.reduce((sum, val) => sum + val, 0)}
+              negativeRed
+              showActionsColumn={anyGroupEditing}
+            />
+
+            <SpacingRow />
+
+            <SummaryRow
+              label="Evolução do Patrimônio"
+              cells={evolucaoPatrimonioByMonth}
+              annual={evolucaoPatrimonioByMonth[11] ?? null}
+              negativeRed
+              showActionsColumn={anyGroupEditing}
+            />
+
+            <SpacingRow />
+
+            {/* Proventos automáticos da carteira — independentes, não somam nas entradas */}
+            <InvestmentIncomeRow
+              valuesByMonth={proventosByMonth}
+              totalAnnual={proventosAnnual}
+              showActionsColumn={anyGroupEditing}
+            />
+
+            <FinancialPeaceIndexRow
+              proventosByMonth={proventosByMonth}
+              despesasFixasByMonth={despesasFixasData.byMonth}
+              proventosAnnual={proventosAnnual}
+              despesasFixasAnnual={despesasFixasData.annual}
               showActionsColumn={anyGroupEditing}
             />
           </TableBody>
@@ -823,7 +789,7 @@ export default function DataTableTwo() {
 
       <CommentModal
         isOpen={commentModal.isOpen}
-        onClose={() => setCommentModal({ ...commentModal, isOpen: false })}
+        onClose={closeCommentModal}
         onSave={handleSaveComment}
         initialComment={commentModal.initialComment}
         updatedAt={commentModal.updatedAt}

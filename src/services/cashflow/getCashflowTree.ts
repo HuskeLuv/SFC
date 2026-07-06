@@ -187,10 +187,11 @@ export function mergeTemplatesWithCustomizations(
           type: override.type,
           orderIndex: override.orderIndex,
           templateId: override.templateId ?? template.id,
+          templateName: template.name,
           hidden: false,
           isTemplate: false,
         }
-      : { ...template, isTemplate: true };
+      : { ...template, isTemplate: true, templateName: template.name };
 
     return { ...base, items: mergedItems, children: mergedChildren };
   };
@@ -217,6 +218,7 @@ function markTemplate(group: CashflowGroup): CashflowGroup {
   return {
     ...group,
     isTemplate: true,
+    templateName: group.name,
     items: (group.items ?? []).map((i) => ({ ...i, isTemplate: true })),
     children: (group.children ?? []).map((c) => markTemplate(c)),
   };

@@ -1,174 +1,68 @@
-import { logger } from '@/lib/logger';
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CashflowGroup, CashflowValue, AlertState, NewRowData } from '@/types/cashflow';
+import { CashflowGroup, AlertState, NewRowData } from '@/types/cashflow';
 import { queryKeys } from '@/lib/queryKeys';
 import { aggregateCashflow } from '@/services/cashflow/cashflowAggregation';
-
-interface InvestimentoItem {
-  id: string;
-  name?: string;
-  descricao?: string;
-  significado?: string | null;
-  order?: string | null;
-  rank?: string | null;
-  valores?: CashflowValue[];
-  values?: CashflowValue[];
-}
+import {
+  injectInvestimentosIntoGroups,
+  filterInvestimentosComMovimento,
+  type InvestimentoCalculado,
+} from '@/services/cashflow/injectInvestimentos';
 
 export const useCashflowData = (year?: number) => {
   const currentYear = year ?? new Date().getFullYear();
 
-  const {
-    data = [],
-    isLoading: loading,
-    error: queryError,
-    refetch: queryRefetch,
-  } = useQuery<CashflowGroup[]>({
+  // Duas queries em PARALELO (antes eram sequenciais dentro de um queryFn):
+  // árvore do fluxo de caixa + aportes/resgates calculados da carteira.
+  const groupsQuery = useQuery<CashflowGroup[]>({
     queryKey: queryKeys.cashflow.year(currentYear),
     queryFn: async ({ signal }) => {
-      const cashflowResponse = await fetch(`/api/cashflow?year=${currentYear}`, {
+      const response = await fetch(`/api/cashflow?year=${currentYear}`, {
         credentials: 'include',
         signal,
       });
-
-      if (!cashflowResponse.ok) {
-        throw new Error('Erro ao buscar dados do cashflow');
-      }
-
-      const responseData = await cashflowResponse.json();
-      const groups = responseData.groups || responseData;
-
-      // Fetch calculated investments
-      try {
-        const investimentosResponse = await fetch(
-          `/api/cashflow/investimentos?year=${currentYear}`,
-          {
-            credentials: 'include',
-            signal,
-          },
-        );
-
-        if (investimentosResponse.ok) {
-          const investimentosData = await investimentosResponse.json();
-          let investimentosJaAdicionados = false;
-
-          const findInvestmentGroup = (groupList: CashflowGroup[]): CashflowGroup | null => {
-            for (const group of groupList) {
-              if (group.type === 'investimento') return group;
-              if (group.children && group.children.length > 0) {
-                const found = findInvestmentGroup(group.children);
-                if (found) return found;
-              }
-            }
-            return null;
-          };
-
-          const findAndUpdateInvestmentGroup = (group: CashflowGroup): CashflowGroup => {
-            const isInvestment = group.type === 'investimento';
-
-            if (isInvestment && !investimentosJaAdicionados) {
-              investimentosJaAdicionados = true;
-
-              const itensCalculados = investimentosData.investimentos.map(
-                (inv: InvestimentoItem) => {
-                  const values = inv.values || inv.valores || [];
-                  return {
-                    id: inv.id,
-                    userId: null,
-                    groupId: group.id,
-                    name: inv.descricao || inv.name,
-                    significado: null,
-                    rank: null,
-                    values: values,
-                  };
-                },
-              );
-
-              return {
-                ...group,
-                items: itensCalculados,
-                children: group.children?.map((child) => findAndUpdateInvestmentGroup(child)) || [],
-              };
-            }
-
-            const updatedChildren =
-              group.children?.map((child) => findAndUpdateInvestmentGroup(child)) || [];
-
-            const filteredChildren =
-              group.type === 'despesa'
-                ? updatedChildren.filter(
-                    (child: CashflowGroup) =>
-                      !(child.name === 'Investimentos' && child.type === 'despesa'),
-                  )
-                : updatedChildren;
-
-            return { ...group, children: filteredChildren };
-          };
-
-          let gruposComInvestimentos = groups.map((group: CashflowGroup) =>
-            findAndUpdateInvestmentGroup(group),
-          );
-
-          if (!investimentosJaAdicionados && investimentosData.investimentos.length > 0) {
-            const investmentGroup = findInvestmentGroup(groups);
-
-            if (investmentGroup) {
-              gruposComInvestimentos = gruposComInvestimentos.map((group: CashflowGroup) => {
-                if (group.id === investmentGroup.id || group.type === 'investimento') {
-                  const itensCalculados = investimentosData.investimentos.map(
-                    (inv: InvestimentoItem) => ({
-                      id: inv.id,
-                      userId: null,
-                      groupId: group.id,
-                      name: inv.descricao || inv.name,
-                      significado: inv.significado || null,
-                      rank: inv.order || inv.rank || null,
-                      values: inv.valores || inv.values || [],
-                    }),
-                  );
-                  return { ...group, items: itensCalculados };
-                }
-                return group;
-              });
-            } else {
-              const novoGrupo: CashflowGroup = {
-                id: 'investimentos-calculados',
-                userId: null,
-                name: 'Investimentos',
-                type: 'investimento',
-                orderIndex: 999,
-                parentId: null,
-                items: investimentosData.investimentos.map((inv: InvestimentoItem) => ({
-                  id: inv.id,
-                  userId: null,
-                  groupId: 'investimentos-calculados',
-                  name: inv.descricao || inv.name,
-                  significado: inv.significado || null,
-                  rank: inv.order || inv.rank || null,
-                  values: inv.valores || inv.values || [],
-                })),
-                children: [],
-              };
-              gruposComInvestimentos.push(novoGrupo);
-            }
-          }
-
-          return gruposComInvestimentos;
-        }
-      } catch (invError) {
-        logger.warn('Erro ao buscar investimentos calculados:', invError);
-      }
-
-      return groups;
+      if (!response.ok) throw new Error('Erro ao buscar dados do cashflow');
+      const responseData = await response.json();
+      return responseData.groups || responseData;
     },
   });
 
-  const refetch = useCallback(async () => {
-    await queryRefetch();
-  }, [queryRefetch]);
+  const investimentosQuery = useQuery<InvestimentoCalculado[]>({
+    queryKey: queryKeys.cashflow.investimentos(currentYear),
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/cashflow/investimentos?year=${currentYear}`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!response.ok) throw new Error('Erro ao buscar investimentos calculados');
+      const responseData = await response.json();
+      return responseData.investimentos || [];
+    },
+  });
 
-  return { data, loading, error: queryError ? (queryError as Error).message : null, refetch };
+  // Composição pura: injeta os investimentos calculados na árvore. Se a query
+  // de investimentos falhar, a planilha renderiza sem o grupo automático
+  // (mesmo comportamento tolerante da versão anterior).
+  const data = useMemo(() => {
+    const groups = groupsQuery.data;
+    if (!groups) return [];
+    if (!investimentosQuery.data) return groups;
+    return injectInvestimentosIntoGroups(
+      groups,
+      filterInvestimentosComMovimento(investimentosQuery.data),
+    );
+  }, [groupsQuery.data, investimentosQuery.data]);
+
+  const refetch = useCallback(async () => {
+    await Promise.all([groupsQuery.refetch(), investimentosQuery.refetch()]);
+  }, [groupsQuery, investimentosQuery]);
+
+  return {
+    data,
+    loading: groupsQuery.isLoading || investimentosQuery.isLoading,
+    error: groupsQuery.error ? (groupsQuery.error as Error).message : null,
+    refetch,
+  };
 };
 
 export const useCollapsibleState = () => {
