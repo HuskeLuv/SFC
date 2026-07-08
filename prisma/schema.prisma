@@ -688,21 +688,6 @@ model CashflowPatrimonioSnapshot {
 
 // ===== ECONOMIC INDEXES MODULE =====
 
-// Rentabilidade acumulada (%) de benchmarks (CDI, IBOV, IPCA, Poupança) para a aba de análise
-model BenchmarkCumulativeReturn {
-  id               String   @id @default(uuid())
-  date             DateTime // Data de referência (início do dia)
-  benchmarkType    String // "CDI" | "IBOV" | "IPCA" | "POUPANCA"
-  cumulativeReturn Decimal  @db.Decimal(10, 4) // Rentabilidade acumulada em %
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@unique([benchmarkType, date])
-  @@index([benchmarkType])
-  @@index([date])
-  @@index([benchmarkType, date])
-  @@map("benchmark_cumulative_returns")
-}
 
 model EconomicIndex {
   id        String   @id @default(uuid())

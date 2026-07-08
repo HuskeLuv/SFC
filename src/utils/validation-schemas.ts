@@ -299,13 +299,6 @@ export const notificationsPatchSchema = z.object({
   ids: z.array(z.string().min(1)).min(1),
 });
 
-// ── Benchmark ingest (POST) schema ────────────────────────────────────
-
-export const benchmarkIngestSchema = z.object({
-  success: z.boolean().optional(),
-  data: z.record(z.string(), z.unknown()).optional(),
-});
-
 // ── Planejamento Sonhos (F3.2) schemas ────────────────────────────────
 
 // `months` 1..480 → 40 anos é o teto que cobre objetivos de longo prazo
