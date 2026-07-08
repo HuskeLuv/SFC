@@ -500,42 +500,6 @@ const getRangeDates = (range: string, startDateParam?: Date) => {
   return { startDate, endDate: end };
 };
 
-/**
- * Busca dados de benchmarks na tabela benchmark_cumulative_returns.
- * Retorna no formato { date, value }[] (value = rentabilidade acumulada %).
- */
-const toUtcStartOfDay = (d: Date): Date =>
-  new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0));
-
-const toUtcEndOfDay = (d: Date): Date =>
-  new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999));
-
-const fetchBenchmarkCumulativeReturns = async (
-  benchmarkType: string,
-  startDate?: Date,
-  endDate?: Date,
-): Promise<IndexData[]> => {
-  const where: { benchmarkType: string; date?: { gte?: Date; lte?: Date } } = {
-    benchmarkType,
-  };
-
-  if (startDate || endDate) {
-    where.date = {};
-    if (startDate) where.date.gte = toUtcStartOfDay(startDate);
-    if (endDate) where.date.lte = toUtcEndOfDay(endDate);
-  }
-
-  const records = await prisma.benchmarkCumulativeReturn.findMany({
-    where,
-    orderBy: { date: 'asc' },
-  });
-
-  return records.map((r) => ({
-    date: new Date(r.date).getTime(),
-    value: Number(r.cumulativeReturn),
-  }));
-};
-
 const validateIbovGaps = (data: IndexData[]) => {
   if (data.length < 2) return true;
   const sorted = [...data].sort((a, b) => a.date - b.date);
@@ -573,102 +537,57 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const { startDate: rangeStart, endDate: rangeEnd } = getRangeDates(range, startDate);
   const results: IndexResponse[] = [];
 
-  // Prioridade 1: Buscar em benchmark_cumulative_returns (dados ingeridos externamente)
-  const benchmarkTypes = ['CDI', 'IBOV', 'IPCA', 'POUPANCA'] as const;
-  const benchmarkResults = await Promise.all(
-    benchmarkTypes.map(async (benchmarkType) => {
-      try {
-        const data = await fetchBenchmarkCumulativeReturns(benchmarkType, rangeStart, rangeEnd);
-        if (data.length > 0) {
-          let filtered = data;
-          if (startDate) {
-            const startTs = startDate.getTime();
-            filtered = data.filter((item) => item.date >= startTs);
-          }
-          const hoje = new Date();
-          hoje.setHours(23, 59, 59, 999);
-          filtered = filtered.filter((item) => item.date <= hoje.getTime());
-          if (filtered.length > 0) {
-            logger.info(
-              `✅ ${benchmarkType}: ${filtered.length} pontos (benchmark_cumulative_returns)`,
-            );
-            return {
-              symbol: benchmarkType,
-              name: benchmarkType === 'POUPANCA' ? 'Poupança' : benchmarkType,
-              data: filtered,
-            } as IndexResponse;
-          }
-        }
-      } catch (err) {
-        logger.warn(`⚠️ ${benchmarkType} em benchmark_cumulative_returns:`, err);
+  // Fontes próprias, sempre: IBOV do banco (COTAHIST/BRAPI via getAssetHistory) e
+  // CDI/IPCA/POUPANCA de economic_indexes (BACEN, cron diário). A antiga "prioridade 1"
+  // (benchmark_cumulative_returns, série acumulada ingerida de captura do Kinvo) foi
+  // removida: dado de concorrente, sem rotina de atualização e ancorado na janela da
+  // captura — mascarava as nossas fontes.
+
+  // Buscar IBOV: banco primeiro, fallback BRAPI
+  for (const [name, symbol] of Object.entries(INDICES)) {
+    try {
+      const rawData = await getAssetHistory(symbol, rangeStart, rangeEnd);
+      let data: IndexData[] = rawData.map(({ date, value }) => ({ date, value }));
+
+      // Filtrar por startDate se fornecido
+      if (startDate) {
+        const startTimestamp = startDate.getTime();
+        data = data.filter((item) => item.date >= startTimestamp);
       }
-      return null;
-    }),
-  );
-  for (const result of benchmarkResults) {
-    if (result) results.push(result);
-  }
 
-  // Se já temos os 4 benchmarks, retornar
-  if (results.length >= 4) {
-    const validResults = results.filter(
-      (r) =>
-        r.data.length > 0 &&
-        r.data.every((item) => Number.isFinite(item.date) && Number.isFinite(item.value)),
-    );
-    return finalizeAndCache(cacheKey, validResults);
-  }
-
-  // Prioridade 2: Fallback para fontes originais (apenas para os que faltam)
-  const hasBenchmark = (name: string) => results.some((r) => r.name === name || r.symbol === name);
-
-  // Buscar IBOV: banco primeiro, fallback BRAPI (se não tiver em benchmark_cumulative_returns)
-  if (!hasBenchmark('IBOV')) {
-    for (const [name, symbol] of Object.entries(INDICES)) {
-      try {
-        const rawData = await getAssetHistory(symbol, rangeStart, rangeEnd);
-        let data: IndexData[] = rawData.map(({ date, value }) => ({ date, value }));
-
-        // Filtrar por startDate se fornecido
-        if (startDate) {
-          const startTimestamp = startDate.getTime();
-          data = data.filter((item) => item.date >= startTimestamp);
-        }
-
-        // Filtrar dados futuros
-        const hoje = new Date();
-        hoje.setHours(23, 59, 59, 999);
-        const hojeTimestamp = hoje.getTime();
-        data = data.filter((item) => item.date <= hojeTimestamp);
-        if (data.length > 0) {
-          if (!validateIbovGaps(data)) {
-            logger.error(`[${name}] Série ignorada por buracos excessivos.`);
-          } else {
-            const filled = fillMissingDaily(data, new Date());
-            if (!validateIndexSeries(filled, name)) {
-              logger.error(`[${name}] Série ignorada por validação.`);
-            } else {
-              logSeriesStats(filled, name);
-              const returns = normalizeToStartZero(filled, startDate);
-              results.push({
-                symbol,
-                name,
-                data: returns,
-              });
-            }
-          }
-          logger.info(`✅ ${name} (${symbol}): ${data.length} pontos de dados`);
+      // Filtrar dados futuros
+      const hoje = new Date();
+      hoje.setHours(23, 59, 59, 999);
+      const hojeTimestamp = hoje.getTime();
+      data = data.filter((item) => item.date <= hojeTimestamp);
+      if (data.length > 0) {
+        if (!validateIbovGaps(data)) {
+          logger.error(`[${name}] Série ignorada por buracos excessivos.`);
         } else {
-          logger.warn(`⚠️ ${name} (${symbol}): Nenhum dado retornado`);
+          const filled = fillMissingDaily(data, new Date());
+          if (!validateIndexSeries(filled, name)) {
+            logger.error(`[${name}] Série ignorada por validação.`);
+          } else {
+            logSeriesStats(filled, name);
+            const returns = normalizeToStartZero(filled, startDate);
+            results.push({
+              symbol,
+              name,
+              data: returns,
+            });
+          }
         }
-      } catch (error) {
-        logger.error(`❌ Erro ao buscar ${name} (${symbol}):`, error);
+        logger.info(`✅ ${name} (${symbol}): ${data.length} pontos de dados`);
+      } else {
+        logger.warn(`⚠️ ${name} (${symbol}): Nenhum dado retornado`);
       }
+    } catch (error) {
+      logger.error(`❌ Erro ao buscar ${name} (${symbol}):`, error);
     }
   }
 
-  // Buscar CDI do banco de dados (se não tiver em benchmark_cumulative_returns)
-  if (!hasBenchmark('CDI')) {
+  // Buscar CDI do banco de dados (economic_indexes/BACEN)
+  {
     try {
       const cdiData = await fetchCDIHistory(startDate);
       if (Array.isArray(cdiData) && cdiData.length > 0) {
@@ -695,8 +614,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  // Buscar IPCA do banco de dados (se não tiver em benchmark_cumulative_returns)
-  if (!hasBenchmark('IPCA')) {
+  // Buscar IPCA do banco de dados (economic_indexes/BACEN)
+  {
     try {
       const ipcaData = await fetchIPCAHistory(startDate);
       if (Array.isArray(ipcaData) && ipcaData.length > 0) {
@@ -726,11 +645,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  // Buscar POUPANCA do banco (se não veio em benchmark_cumulative_returns).
-  // Mesma engine do IPCA: taxa mensal em decimal → índice mensal base 100 →
-  // interpolação diária. Antes não havia fallback, então quando a tabela de
-  // cumulative_returns estava vazia a série ficava ausente sem aviso.
-  if (!hasBenchmark('POUPANCA') && !hasBenchmark('Poupança')) {
+  // Buscar POUPANCA do banco (economic_indexes/BACEN). Mesma engine do IPCA:
+  // taxa mensal em decimal → índice mensal base 100 → interpolação diária.
+  {
     try {
       const poupancaData = await fetchPoupancaHistory(startDate);
       if (Array.isArray(poupancaData) && poupancaData.length > 0) {
