@@ -762,6 +762,8 @@ export default function DataTableTwo() {
               showActionsColumn={anyGroupEditing}
             />
 
+            <SpacingRow />
+
             <FinancialPeaceIndexRow
               proventosByMonth={proventosByMonth}
               despesasFixasByMonth={despesasFixasData.byMonth}
