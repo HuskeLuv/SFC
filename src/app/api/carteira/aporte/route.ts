@@ -7,6 +7,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { isEquityAssetType } from '@/lib/assetClassification';
 import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -113,6 +114,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // o novo fluxo. Invalidar força o reader a cair no live builder até o cron
   // diário repopular.
   await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
+
+  // Ativo vinculado a um sonho: o aporte vira realizado da linha-espelho.
+  if (portfolio.assetId) {
+    await syncSonhoRealizadoBestEffort(targetUserId, { assetId: portfolio.assetId });
+  }
 
   await recordChange({
     request,

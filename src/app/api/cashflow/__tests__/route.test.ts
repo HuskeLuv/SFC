@@ -10,6 +10,8 @@ const mockPrisma = vi.hoisted(() => ({
     create: vi.fn(),
   },
   cashflowItem: { createMany: vi.fn() },
+  // Anotação objetivoAutoRealizado: sem sonhos com ativos vinculados por padrão
+  planejamentoObjetivo: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>

@@ -10,6 +10,7 @@ import {
 } from '@/services/portfolio/portfolioRecalculation';
 import { isEquityAssetType } from '@/lib/assetClassification';
 import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 
 const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
   const assetType = item.asset?.type || '';
@@ -248,6 +249,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       });
     }
     await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
+  }
+
+  // Ativo vinculado a um sonho: a venda abate o realizado (líquido) do mês.
+  if (portfolio.assetId) {
+    await syncSonhoRealizadoBestEffort(targetUserId, { assetId: portfolio.assetId });
   }
 
   await recordChange({
