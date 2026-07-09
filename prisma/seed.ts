@@ -104,8 +104,6 @@ async function seedCashflowMovements(
   incomes: Record<string, number[]>,
   expenses: Record<string, number[]>,
 ) {
-  await prisma.cashflow.deleteMany({ where: { userId } });
-
   const monthLabels = [
     'Jan',
     'Fev',
@@ -201,6 +199,12 @@ async function seedDemoUsers() {
 
   await cloneTemplatesForUser(demoUser.id);
 
+  // Dados demo relativos ao ano corrente: a planilha abre no ano atual e o
+  // grupo Aporte/Resgate só mostra transações do ano exibido. O ano anterior
+  // também recebe dados — serve de fixture para o seletor de anos dinâmico.
+  const currentYear = new Date().getFullYear();
+  const previousYear = currentYear - 1;
+
   const incomes: Record<string, number[]> = {
     Salário: Array(12).fill(9000),
     "Receita Proventos FII's": [420, 430, 440, 450, 460, 470, 480, 490, 500, 510, 520, 530],
@@ -218,14 +222,15 @@ async function seedDemoUsers() {
     'Escola/Faculdade': Array(12).fill(1500),
     Cinema: [80, 60, 70, 90, 85, 75, 95, 80, 70, 65, 60, 75],
     Roupas: [250, 0, 180, 0, 220, 0, 210, 0, 230, 0, 190, 0],
-    'Reserva Emergência': Array(12).fill(500),
   };
 
-  await seedCashflowValues(demoUser.id, incomes, 2025);
-  await seedCashflowValues(demoUser.id, expenses, 2025);
-  await seedCashflowMovements(demoUser.id, 2025, incomes, expenses);
+  for (const year of [previousYear, currentYear]) {
+    await seedCashflowValues(demoUser.id, incomes, year);
+    await seedCashflowValues(demoUser.id, expenses, year);
+    await seedCashflowMovements(demoUser.id, year, incomes, expenses);
+  }
 
-  const asset = await prisma.asset.upsert({
+  const itsa4 = await prisma.asset.upsert({
     where: { symbol: 'ITSA4' },
     update: {
       name: 'Itaúsa PN',
@@ -240,37 +245,100 @@ async function seedDemoUsers() {
     },
   });
 
-  await prisma.portfolio.create({
-    data: {
-      userId: demoUser.id,
-      assetId: asset.id,
-      quantity: 250,
-      avgPrice: 10.75,
-      totalInvested: 2687.5,
-      lastUpdate: new Date(2025, 10, 1),
+  const mxrf11 = await prisma.asset.upsert({
+    where: { symbol: 'MXRF11' },
+    update: {
+      name: 'Maxi Renda FII',
+      type: 'fii',
+      currency: 'BRL',
+    },
+    create: {
+      symbol: 'MXRF11',
+      name: 'Maxi Renda FII',
+      type: 'fii',
+      currency: 'BRL',
     },
   });
 
-  const stockTransactionsData = Array.from({ length: 12 }, (_, month) => {
-    const quantity = 10 + month;
-    const price = 10.5 + month * 0.2;
-    const total = Math.round(quantity * price * 100) / 100;
-    return {
-      userId: demoUser.id,
-      assetId: asset.id,
-      type: 'compra' as const,
-      quantity,
-      price,
-      total,
-      date: new Date(2025, month, 12),
-      fees: 2.5,
-      notes: `Compra mensal ${month + 1}/2025`,
-    };
-  });
+  // Aportes (compra) e resgates (venda) espalhados pelo ano anterior inteiro e
+  // pelo ano corrente até o mês atual — verde/vermelho no bloco Aporte/Resgate
+  // em duas categorias (Ações e FII's).
+  const currentMonth = new Date().getMonth();
+  const transactions: Array<{
+    userId: string;
+    assetId: string;
+    type: 'compra' | 'venda';
+    quantity: number;
+    price: number;
+    total: number;
+    date: Date;
+    fees: number;
+    notes: string;
+  }> = [];
 
-  await prisma.stockTransaction.createMany({
-    data: stockTransactionsData,
-  });
+  const pushMonthly = (year: number, lastMonth: number) => {
+    for (let month = 0; month <= lastMonth; month++) {
+      // ITSA4: compra mensal; em junho, um resgate parcial.
+      const isVenda = month === 5;
+      const quantity = isVenda ? 30 : 10 + month;
+      const price = 10.5 + month * 0.2;
+      transactions.push({
+        userId: demoUser.id,
+        assetId: itsa4.id,
+        type: isVenda ? 'venda' : 'compra',
+        quantity,
+        price,
+        total: Math.round(quantity * price * 100) / 100,
+        date: new Date(year, month, 12),
+        fees: 2.5,
+        notes: `${isVenda ? 'Venda' : 'Compra'} mensal ${month + 1}/${year}`,
+      });
+
+      // MXRF11: aporte trimestral.
+      if (month % 3 === 0) {
+        const fiiQuantity = 50;
+        const fiiPrice = 10.05 + month * 0.01;
+        transactions.push({
+          userId: demoUser.id,
+          assetId: mxrf11.id,
+          type: 'compra',
+          quantity: fiiQuantity,
+          price: fiiPrice,
+          total: Math.round(fiiQuantity * fiiPrice * 100) / 100,
+          date: new Date(year, month, 15),
+          fees: 1.5,
+          notes: `Aporte FII ${month + 1}/${year}`,
+        });
+      }
+    }
+  };
+
+  pushMonthly(previousYear, 11);
+  pushMonthly(currentYear, currentMonth);
+
+  await prisma.stockTransaction.createMany({ data: transactions });
+
+  const totals = new Map<string, { quantity: number; invested: number }>();
+  for (const tx of transactions) {
+    const acc = totals.get(tx.assetId) ?? { quantity: 0, invested: 0 };
+    const sign = tx.type === 'venda' ? -1 : 1;
+    acc.quantity += sign * tx.quantity;
+    acc.invested += sign * tx.total;
+    totals.set(tx.assetId, acc);
+  }
+
+  for (const [assetId, { quantity, invested }] of totals) {
+    await prisma.portfolio.create({
+      data: {
+        userId: demoUser.id,
+        assetId,
+        quantity,
+        avgPrice: quantity > 0 ? Math.round((invested / quantity) * 100) / 100 : 0,
+        totalInvested: Math.round(invested * 100) / 100,
+        lastUpdate: new Date(),
+      },
+    });
+  }
 
   console.log('👥 Configurando usuário consultor...');
 
