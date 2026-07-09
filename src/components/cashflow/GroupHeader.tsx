@@ -88,7 +88,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   // Cor sólida da planilha para grupos estruturais (mesma em light/dark, texto
   // branco); grupos genéricos usam classes com variante dark.
   const solidHex = isMainEntradasGroup
-    ? '#244062'
+    ? '#244061'
     : isMainDespesasGroup
       ? '#800000'
       : isEntradasFixasOrVariaveis
@@ -96,17 +96,17 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
         : isDespesasFixasOrVariaveis
           ? '#CC3300'
           : isTributacaoGroup
-            ? '#808080'
+            ? '#7F7F7F'
             : isDespesasEmpresa
-              ? '#16365C'
+              ? '#17365D'
               : isPlanejamentoFinanceiro
                 ? '#9E8A58'
                 : isInvestimentosGroup
-                  ? '#76933C'
+                  ? '#38761D'
                   : isContaCorrenteGroup
-                    ? '#16365C'
+                    ? '#002060'
                     : isDespesasFixasSubgroup
-                      ? '#404040'
+                      ? '#3F3F3F'
                       : null;
   const isSolid = solidHex !== null;
 

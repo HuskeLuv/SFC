@@ -17,16 +17,28 @@ export interface SummaryRowProps {
   /** Total anual; null renderiza '-'. */
   annual: number | null;
   format?: 'currency' | 'percent';
-  /** brown: fundo #998256 texto branco (padrão); gray: fundo #D9D9D9 texto preto. */
-  variant?: 'brown' | 'gray';
+  /** Cor da linha — hex exato da planilha do Pedro (mesma em light/dark). */
+  variant?: keyof typeof VARIANT;
   /** Pinta valores negativos de vermelho (Saldo do mês, Evolução). */
   negativeRed?: boolean;
   showActionsColumn?: boolean;
 }
 
 const VARIANT = {
+  /** Saldo do mês, Fluxo de Caixa livre */
   brown: { bg: '#998256', text: 'text-white' },
-  gray: { bg: '#D9D9D9', text: 'text-black' },
+  /** Inflação Pessoal */
+  gray: { bg: '#D8D8D8', text: 'text-black' },
+  /** Saldo Conta Corrente Mês Anterior */
+  amber: { bg: '#FFC000', text: 'text-black' },
+  /** Índice de Poupança Mensal */
+  khaki: { bg: '#947F53', text: 'text-white' },
+  /** Evolução do Patrimônio */
+  blueSoft: { bg: '#8DB3E2', text: 'text-black' },
+  /** Rendimentos Recebidos */
+  bluePale: { bg: '#C6D9F0', text: 'text-black' },
+  /** Índice paz financeira */
+  gold: { bg: '#CC9900', text: 'text-black' },
 } as const;
 
 const SummaryRowComponent: React.FC<SummaryRowProps> = ({

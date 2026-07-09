@@ -633,6 +633,7 @@ export default function DataTableTwo() {
                           (sum, val) => sum + val,
                           0,
                         )}
+                        variant="amber"
                         showActionsColumn={anyGroupEditing}
                       />
                     )}
@@ -763,6 +764,7 @@ export default function DataTableTwo() {
               label="Evolução do Patrimônio"
               cells={evolucaoPatrimonioByMonth}
               annual={evolucaoPatrimonioByMonth[11] ?? null}
+              variant="blueSoft"
               negativeRed
               showActionsColumn={anyGroupEditing}
             />
