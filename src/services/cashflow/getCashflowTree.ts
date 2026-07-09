@@ -193,7 +193,15 @@ export function mergeTemplatesWithCustomizations(
         }
       : { ...template, isTemplate: true, templateName: template.name };
 
-    return { ...base, items: mergedItems, children: mergedChildren };
+    // O id final do grupo pode ser o do override enquanto os itens vieram do
+    // template (ou vice-versa); normaliza o groupId de todos para o id final —
+    // o front agrupa mudanças por `item.groupId === group.id` e um mismatch
+    // descarta a edição silenciosamente.
+    return {
+      ...base,
+      items: mergedItems.map((i) => (i.groupId === base.id ? i : { ...i, groupId: base.id })),
+      children: mergedChildren,
+    };
   };
 
   const result: CashflowGroup[] = [];
