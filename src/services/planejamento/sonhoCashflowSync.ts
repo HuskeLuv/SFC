@@ -13,6 +13,13 @@ import { REALIZADO_COLOR } from './cashflowToSonhoSync';
 
 const PLANEJAMENTO_GROUP_NAME = 'Planejamento Financeiro';
 
+/**
+ * Sonho pausado ou em espera NÃO projeta gastos futuros no fluxo de caixa:
+ * o sync limpa o planejado da linha-espelho (os realizados ficam) e não
+ * reescreve a janela até o sonho voltar a "Iniciado".
+ */
+const STATUS_SEM_PROJECAO = new Set(['Pausado', 'Em espera']);
+
 export interface ObjetivoForSync {
   id: string;
   name: string;
@@ -21,6 +28,44 @@ export interface ObjetivoForSync {
   months: number;
   rate: number;
   startDate: string | null; // YYYY-MM — início da janela de aportes
+  status: string;
+}
+
+/** Decimal | number → number (Prisma serializa Decimal como objeto). */
+function toNum(v: unknown): number {
+  if (v == null) return 0;
+  if (typeof v === 'number') return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Mapeia um registro Prisma de PlanejamentoObjetivo (campos Decimal) para o
+ * input do sync e executa. Conveniência para os callers de rota.
+ */
+export async function syncObjetivoRecordToCashflow(
+  userId: string,
+  objetivo: {
+    id: string;
+    name: string;
+    target: unknown;
+    available: unknown;
+    months: number;
+    rate: unknown;
+    startDate: string | null;
+    status: string;
+  },
+): Promise<void> {
+  await syncObjetivoToCashflow(userId, {
+    id: objetivo.id,
+    name: objetivo.name,
+    target: toNum(objetivo.target),
+    available: toNum(objetivo.available),
+    months: objetivo.months,
+    rate: toNum(objetivo.rate),
+    startDate: objetivo.startDate,
+    status: objetivo.status,
+  });
 }
 
 /** Resolve (personalizando se preciso) o grupo "Planejamento Financeiro" do usuário. */
@@ -99,7 +144,9 @@ export async function syncObjetivoToCashflow(
   });
 
   // Reescreve o aporte planejado na janela, exceto nos meses já realizados.
-  if (aporte > 0) {
+  // Sonho pausado/em espera não projeta: o deleteMany acima já limpou o
+  // planejado e nada é reescrito até o status voltar a ativo.
+  if (aporte > 0 && !STATUS_SEM_PROJECAO.has(objetivo.status)) {
     const toCreate = janela.filter((w) => !realizedKey.has(`${w.year}-${w.month}`));
     if (toCreate.length > 0) {
       await prisma.cashflowValue.createMany({

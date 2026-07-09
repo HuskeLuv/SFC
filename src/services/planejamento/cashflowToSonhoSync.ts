@@ -45,9 +45,12 @@ export async function syncCashflowToObjetivo(userId: string, objetivoId: string)
     where: { id: objetivoId, userId },
     select: {
       id: true,
+      name: true,
       target: true,
       available: true,
+      months: true,
       rate: true,
+      startDate: true,
       status: true,
       cashflowItem: { select: { id: true } },
       entries: { select: { month: true, balance: true, source: true } },
@@ -119,6 +122,15 @@ export async function syncCashflowToObjetivo(userId: string, objetivoId: string)
       data: nextStatus !== objetivo.status ? { status: nextStatus } : {},
     }),
   ]);
+
+  // Transição de status vinda do caixa (ex.: 1ª célula vermelha promove
+  // "Em espera" → "Iniciado") liga/desliga a projeção da linha-espelho —
+  // re-executa o sync direto. Import dinâmico: sonhoCashflowSync importa
+  // REALIZADO_COLOR deste módulo (evita ciclo estático).
+  if (nextStatus !== objetivo.status) {
+    const { syncObjetivoRecordToCashflow } = await import('./sonhoCashflowSync');
+    await syncObjetivoRecordToCashflow(userId, { ...objetivo, status: nextStatus });
+  }
 }
 
 /**

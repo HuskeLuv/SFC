@@ -74,6 +74,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     months,
     rate,
     startDate: created.startDate,
+    status: created.status,
   });
 
   await recordChange({
