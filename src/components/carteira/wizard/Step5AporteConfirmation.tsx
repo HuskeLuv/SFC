@@ -1,8 +1,10 @@
 import React from 'react';
 import { WizardFormData } from '@/types/wizard';
+import PlanejamentoVinculoField from './shared/PlanejamentoVinculoField';
 
 interface Step5AporteConfirmationProps {
   formData: WizardFormData;
+  onFormDataChange: (data: Partial<WizardFormData>) => void;
 }
 
 const formatDateDisplay = (value: string) => {
@@ -14,7 +16,10 @@ const formatDateDisplay = (value: string) => {
   return value;
 };
 
-export default function Step5AporteConfirmation({ formData }: Step5AporteConfirmationProps) {
+export default function Step5AporteConfirmation({
+  formData,
+  onFormDataChange,
+}: Step5AporteConfirmationProps) {
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
@@ -33,6 +38,8 @@ export default function Step5AporteConfirmation({ formData }: Step5AporteConfirm
           {formData.valorAporte.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
         </p>
       </div>
+      <PlanejamentoVinculoField formData={formData} onFormDataChange={onFormDataChange} />
+
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Revise os dados antes de confirmar o aporte.
       </p>
