@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent, isReceitaGroupByType } from '@/utils/formatters';
@@ -164,12 +165,22 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
             onClick={onToggleCollapse}
             groupName={group.name}
           />
-          <span
-            className={`text-xs truncate flex-1 ${isSolid ? 'text-white' : genericNameColorClass}`}
-            title={getDisplayName()}
-          >
-            {getDisplayName()}
-          </span>
+          {isPlanejamentoFinanceiro ? (
+            <Link
+              href="/planejamento-financeiro"
+              className={`text-xs truncate flex-1 hover:underline ${isSolid ? 'text-white' : genericNameColorClass}`}
+              title="Abrir o Planejamento de Sonhos"
+            >
+              {getDisplayName()} <span aria-hidden>↗</span>
+            </Link>
+          ) : (
+            <span
+              className={`text-xs truncate flex-1 ${isSolid ? 'text-white' : genericNameColorClass}`}
+              title={getDisplayName()}
+            >
+              {getDisplayName()}
+            </span>
+          )}
           {canMutateRows && !isEditing && (
             <AddRowButton onClick={onAddRow} groupName={group.name} />
           )}

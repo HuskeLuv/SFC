@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
@@ -56,12 +57,13 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
       >
         <span className="cursor-default truncate block" title={item.name || undefined}>
           {item.objetivoId ? (
-            <span
+            <Link
+              href="/planejamento-financeiro"
               className="mr-1"
-              title="Linha vinculada a um sonho — edite no Planejamento de Sonhos"
+              title="Linha vinculada a um sonho — abrir o Planejamento de Sonhos"
             >
               🎯
-            </span>
+            </Link>
           ) : null}
           {item.name || ''}
         </span>
