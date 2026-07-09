@@ -96,7 +96,9 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
           borderRight: 'none',
         }}
       >
-        <span className="cursor-default">{item.rank || '-'}</span>
+        <span className="cursor-default">
+          {group.type === 'investimento' ? '-' : item.rank || '-'}
+        </span>
       </TableCell>
       <TableCell
         className={`px-2 font-normal text-xs text-right h-6 leading-6 whitespace-nowrap bg-white dark:bg-gray-900 ${getPercentageColorClass()}`}
