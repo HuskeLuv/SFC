@@ -19,6 +19,7 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
 import { aggregateCashflow, type CashflowAverages } from '@/services/cashflow/cashflowAggregation';
+import { isReinvestimentoTransaction } from '@/services/cashflow/investimentosPorMes';
 
 const DEFAULT_INFLACAO = 4.5; // % a.a. fallback (meta BCB) se não houver série IPCA.
 
@@ -71,7 +72,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const dozeMesesAtras = new Date(now);
   dozeMesesAtras.setFullYear(dozeMesesAtras.getFullYear() - 1);
 
-  const [portfolioAgg, reservaItems, comprasUlt12m, cdiAnualizado, inflacao12m, cashflowGroups] =
+  const [portfolioAgg, reservaItems, transacoesUlt12m, cdiAnualizado, inflacao12m, cashflowGroups] =
     await Promise.all([
       prisma.portfolio.aggregate({
         where: { userId: targetUserId },
@@ -83,12 +84,26 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           totalInvested: true,
           quantity: true,
           avgPrice: true,
+          assetId: true,
+          planejamentoObjetivoId: true,
+          vinculoAposentadoria: true,
           asset: { select: { type: true, symbol: true } },
         },
       }),
       prisma.stockTransaction.findMany({
-        where: { userId: targetUserId, type: 'compra', date: { gte: dozeMesesAtras } },
-        select: { total: true, price: true, quantity: true },
+        where: {
+          userId: targetUserId,
+          type: { in: ['compra', 'venda'] },
+          date: { gte: dozeMesesAtras },
+        },
+        select: {
+          assetId: true,
+          type: true,
+          total: true,
+          price: true,
+          quantity: true,
+          notes: true,
+        },
       }),
       getCdiAnualizado(),
       getInflacao12m(),
@@ -103,11 +118,39 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       .reduce((sum, p) => sum + Math.max(p.totalInvested, p.quantity * p.avgPrice), 0),
   );
 
-  const aporteUlt12mTotal = comprasUlt12m.reduce((sum, t) => {
+  // Vínculos de planejamento: assets de sonho saem da média geral (esse
+  // dinheiro pertence à meta do sonho); assets de aposentadoria têm média
+  // própria, que alimenta o `aporteM` automático do simulador.
+  const assetsDeSonho = new Set(
+    reservaItems.filter((p) => p.planejamentoObjetivoId && p.assetId).map((p) => p.assetId),
+  );
+  const assetsAposentadoria = new Set(
+    reservaItems.filter((p) => p.vinculoAposentadoria && p.assetId).map((p) => p.assetId),
+  );
+
+  const valorLiquido = (t: (typeof transacoesUlt12m)[number]) => {
+    if (isReinvestimentoTransaction(t.notes)) return 0;
     const total = Number(t.total);
-    return sum + (Number.isFinite(total) && total > 0 ? total : t.price * t.quantity);
-  }, 0);
+    const abs = Number.isFinite(total) && total > 0 ? total : t.price * t.quantity;
+    return t.type === 'venda' ? -abs : abs;
+  };
+
+  // Líquido 12m (compras − vendas, excl. reinvestimento e assets de sonho).
+  const aporteUlt12mTotal = transacoesUlt12m.reduce(
+    (sum, t) => (t.assetId && assetsDeSonho.has(t.assetId) ? sum : sum + valorLiquido(t)),
+    0,
+  );
   const aporteMensalRealizado = round2(aporteUlt12mTotal / 12);
+
+  // Média 12m dos assets vinculados à aposentadoria (null sem vínculo).
+  let aporteMensalAposentadoria: number | null = null;
+  if (assetsAposentadoria.size > 0) {
+    const totalAposentadoria = transacoesUlt12m.reduce(
+      (sum, t) => (t.assetId && assetsAposentadoria.has(t.assetId) ? sum + valorLiquido(t) : sum),
+      0,
+    );
+    aporteMensalAposentadoria = round2(totalAposentadoria / 12);
+  }
 
   // Agregação do fluxo de caixa do ano corrente. Se ainda não há meses
   // preenchidos (início do ano), recai no ano anterior para uma sugestão útil.
@@ -127,6 +170,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     patrimonio,
     reservaEmergenciaAtual,
     aporteMensalRealizado,
+    aporteMensalAposentadoria,
     cdiAnualizado,
     inflacao12m,
     inflacaoFallback: DEFAULT_INFLACAO,

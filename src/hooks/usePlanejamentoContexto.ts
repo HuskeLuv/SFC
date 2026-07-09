@@ -15,8 +15,10 @@ export interface PlanejamentoContexto {
   patrimonio: number;
   /** Reserva de emergência atual (aproximação por custo/valor manual). */
   reservaEmergenciaAtual: number;
-  /** Aporte médio mensal realizado (compras dos últimos 12 meses / 12). */
+  /** Aporte médio mensal realizado (compras − vendas dos últimos 12 meses / 12, sem ativos de sonho). */
   aporteMensalRealizado: number;
+  /** Aporte médio mensal dos ativos vinculados à aposentadoria, ou null sem vínculo. */
+  aporteMensalAposentadoria: number | null;
   /** CDI anualizado mais recente (% a.a.) ou null. */
   cdiAnualizado: number | null;
   /** Inflação acumulada 12m via IPCA (% a.a.) ou null. */

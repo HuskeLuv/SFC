@@ -93,18 +93,24 @@ beforeEach(() => {
       totalInvested: 10_000,
       quantity: 0,
       avgPrice: 0,
+      assetId: 'asset-emerg',
+      planejamentoObjetivoId: null,
+      vinculoAposentadoria: false,
       asset: { type: 'emergency', symbol: 'RESERVA-EMERG' },
     },
     {
       totalInvested: 40_000,
       quantity: 100,
       avgPrice: 30,
+      assetId: 'asset-petr4',
+      planejamentoObjetivoId: null,
+      vinculoAposentadoria: false,
       asset: { type: 'stock', symbol: 'PETR4' },
     },
   ]);
   mockPrisma.stockTransaction.findMany.mockResolvedValue([
-    { total: 6000, price: 0, quantity: 0 },
-    { total: 6000, price: 0, quantity: 0 },
+    { assetId: 'asset-petr4', type: 'compra', total: 6000, price: 0, quantity: 0, notes: null },
+    { assetId: 'asset-petr4', type: 'compra', total: 6000, price: 0, quantity: 0, notes: null },
   ]);
   mockPrisma.economicIndex.findFirst.mockResolvedValue({ value: 13.65 });
   mockPrisma.economicIndex.findMany.mockResolvedValue(
@@ -121,12 +127,69 @@ describe('GET /api/planejamento/contexto', () => {
     expect(data.patrimonio).toBe(50_000);
     expect(data.reservaEmergenciaAtual).toBe(10_000); // só o item de reserva
     expect(data.aporteMensalRealizado).toBe(1000); // (6000+6000)/12
+    expect(data.aporteMensalAposentadoria).toBeNull(); // sem ativos vinculados
     expect(data.cdiAnualizado).toBe(13.7); // arredondado 1 casa
     // (1.004)^12 - 1 ≈ 4.9%
     expect(data.inflacao12m).toBeCloseTo(4.9, 1);
     expect(data.cashflow.sobraMensalMedia).toBe(3000); // (5000-2000) por mês
     expect(data.cashflow.despesaFixaMensal).toBe(2000);
     expect(data.cashflow.year).toBe(new Date().getFullYear());
+  });
+
+  it('vendas subtraem e reinvestimentos ficam fora do aporte líquido', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { assetId: 'asset-petr4', type: 'compra', total: 12_000, price: 0, quantity: 0, notes: null },
+      { assetId: 'asset-petr4', type: 'venda', total: 3600, price: 0, quantity: 0, notes: null },
+      {
+        assetId: 'asset-petr4',
+        type: 'compra',
+        total: 5000,
+        price: 0,
+        quantity: 0,
+        notes: JSON.stringify({ operation: { action: 'reinvestimento' } }),
+      },
+    ]);
+
+    const res = await GET(req());
+    const data = await res.json();
+
+    expect(data.aporteMensalRealizado).toBe(700); // (12000 − 3600)/12, reinvest fora
+  });
+
+  it('exclui ativos de sonho da média geral e calcula a média da aposentadoria', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        totalInvested: 20_000,
+        quantity: 0,
+        avgPrice: 0,
+        assetId: 'asset-sonho',
+        planejamentoObjetivoId: 'obj-1',
+        vinculoAposentadoria: false,
+        asset: { type: 'stock', symbol: 'VALE3' },
+      },
+      {
+        totalInvested: 30_000,
+        quantity: 0,
+        avgPrice: 0,
+        assetId: 'asset-apos',
+        planejamentoObjetivoId: null,
+        vinculoAposentadoria: true,
+        asset: { type: 'etf', symbol: 'IVVB11' },
+      },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { assetId: 'asset-sonho', type: 'compra', total: 6000, price: 0, quantity: 0, notes: null },
+      { assetId: 'asset-apos', type: 'compra', total: 3600, price: 0, quantity: 0, notes: null },
+      { assetId: 'asset-apos', type: 'venda', total: 1200, price: 0, quantity: 0, notes: null },
+    ]);
+
+    const res = await GET(req());
+    const data = await res.json();
+
+    // Média geral sem o ativo de sonho: (3600 − 1200)/12.
+    expect(data.aporteMensalRealizado).toBe(200);
+    // Média dos vinculados à aposentadoria: mesmas transações do asset-apos.
+    expect(data.aporteMensalAposentadoria).toBe(200);
   });
 
   it('cai no ano anterior quando o ano corrente não tem meses preenchidos', async () => {
