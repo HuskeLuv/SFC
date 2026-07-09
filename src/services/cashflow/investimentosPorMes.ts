@@ -75,35 +75,54 @@ export const isReinvestimentoTransaction = (notes: string | null | undefined): b
 };
 
 export interface InvestimentosPorMes {
-  /** { tipoAtivo: { mes(0-11): valor } } — inclui bucket 'reinvestimento'. */
+  /** { tipoAtivo: { mes(0-11): valor } } — inclui buckets 'reinvestimento' e 'planejamento'. */
   porTipo: Record<string, Record<number, number>>;
-  /** Aportes (+) / resgates (−) somados por mês, SEM reinvestimentos. */
+  /** Aportes (+) / resgates (−) somados por mês, SEM reinvestimentos nem planejamento. */
   totaisPorMes: number[];
-  /** Tipos de ativo com movimento (inclui 'reinvestimento' quando houver). */
+  /**
+   * Líquido mensal dos ativos VINCULADOS A SONHO (Portfolio.planejamentoObjetivoId).
+   * Esses aportes viram o realizado da linha-espelho do sonho (despesa do grupo
+   * Planejamento Financeiro) — por isso saem de `totaisPorMes` (senão o mesmo
+   * dinheiro seria subtraído 2× do Fluxo de Caixa Livre). A Evolução do
+   * Patrimônio soma `totaisPorMes + planejamentoPorMes` (série cheia).
+   */
+  planejamentoPorMes: number[];
+  /** Tipos de ativo com movimento (inclui 'reinvestimento'/'planejamento' quando houver). */
   tipos: Set<string>;
 }
 
 /**
  * Agrega compra/venda (total + taxas, venda negativa) por tipo de ativo × mês
- * para um ano. Reinvestimentos vão para o bucket dedicado e ficam fora de
- * `totaisPorMes` (preserva a semântica Aporte/Resgate do fluxo de caixa).
+ * para um ano. Reinvestimentos e ativos vinculados a sonho vão para buckets
+ * dedicados e ficam fora de `totaisPorMes` (preserva a semântica Aporte/Resgate
+ * do fluxo de caixa e evita dupla contagem com a linha do sonho).
  */
 export async function computeInvestimentosPorMes(
   userId: string,
   year: number,
 ): Promise<InvestimentosPorMes> {
-  const transacoes = await prisma.stockTransaction.findMany({
-    where: {
-      userId,
-      type: { in: ['compra', 'venda'] },
-      date: {
-        gte: new Date(Date.UTC(year, 0, 1)),
-        lt: new Date(Date.UTC(year + 1, 0, 1)),
+  const [transacoes, vinculados] = await Promise.all([
+    prisma.stockTransaction.findMany({
+      where: {
+        userId,
+        type: { in: ['compra', 'venda'] },
+        date: {
+          gte: new Date(Date.UTC(year, 0, 1)),
+          lt: new Date(Date.UTC(year + 1, 0, 1)),
+        },
       },
-    },
-    include: { asset: true },
-    orderBy: { date: 'asc' },
-  });
+      include: { asset: true },
+      orderBy: { date: 'asc' },
+    }),
+    prisma.portfolio.findMany({
+      where: { userId, planejamentoObjetivoId: { not: null } },
+      select: { assetId: true },
+    }),
+  ]);
+
+  const assetsDeSonho = new Set(
+    vinculados.map((p) => p.assetId).filter((id): id is string => id != null),
+  );
 
   const porTipo: Record<string, Record<number, number>> = {};
   const tipos = new Set<string>();
@@ -115,20 +134,26 @@ export async function computeInvestimentosPorMes(
     const valor = (transacao.total + (transacao.fees || 0)) * (transacao.type === 'venda' ? -1 : 1);
     const tipoAtivo = isReinvestimentoTransaction(transacao.notes)
       ? 'reinvestimento'
-      : mapTransactionToTipo(transacao);
+      : transacao.assetId && assetsDeSonho.has(transacao.assetId)
+        ? 'planejamento'
+        : mapTransactionToTipo(transacao);
 
     tipos.add(tipoAtivo);
     porTipo[tipoAtivo] = porTipo[tipoAtivo] || {};
     porTipo[tipoAtivo][mes] = (porTipo[tipoAtivo][mes] || 0) + valor;
   }
 
-  const totaisPorMes = Array.from({ length: 12 }, (_, mes) => {
-    const total = Object.entries(porTipo).reduce((sum, [tipo, valores]) => {
-      if (tipo === 'reinvestimento') return sum;
-      return sum + (valores[mes] || 0);
-    }, 0);
-    return Math.round(total * 100) / 100;
-  });
+  const somaMes = (filtro: (tipo: string) => boolean) =>
+    Array.from({ length: 12 }, (_, mes) => {
+      const total = Object.entries(porTipo).reduce(
+        (sum, [tipo, valores]) => (filtro(tipo) ? sum + (valores[mes] || 0) : sum),
+        0,
+      );
+      return Math.round(total * 100) / 100;
+    });
 
-  return { porTipo, totaisPorMes, tipos };
+  const totaisPorMes = somaMes((tipo) => tipo !== 'reinvestimento' && tipo !== 'planejamento');
+  const planejamentoPorMes = somaMes((tipo) => tipo === 'planejamento');
+
+  return { porTipo, totaisPorMes, planejamentoPorMes, tipos };
 }

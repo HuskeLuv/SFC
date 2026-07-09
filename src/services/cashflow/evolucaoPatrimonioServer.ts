@@ -43,10 +43,21 @@ export async function getBaseAplicadaAnterior(userId: string, year: number): Pro
  * Aportes (+) / resgates (−) por mês do ano, excluindo reinvestimentos de
  * proventos — MESMA agregação da linha Aporte/Resgate da planilha
  * (`services/cashflow/investimentosPorMes`).
+ *
+ * Duas séries: `totaisPorMes` (ex-planejamento — usada na subtração do Fluxo
+ * de Caixa Livre, pois os aportes de sonho já descem como despesa da
+ * linha-espelho) e `aportesFullPorMes` (série CHEIA — usada na Evolução do
+ * Patrimônio, onde todo aporte nominal conta, vinculado ou não).
  */
-export async function getAportesPorMes(userId: string, year: number): Promise<number[]> {
-  const { totaisPorMes } = await computeInvestimentosPorMes(userId, year);
-  return totaisPorMes;
+export async function getAportesPorMes(
+  userId: string,
+  year: number,
+): Promise<{ totaisPorMes: number[]; aportesFullPorMes: number[] }> {
+  const { totaisPorMes, planejamentoPorMes } = await computeInvestimentosPorMes(userId, year);
+  const aportesFullPorMes = totaisPorMes.map(
+    (v, i) => Math.round((v + (planejamentoPorMes[i] || 0)) * 100) / 100,
+  );
+  return { totaisPorMes, aportesFullPorMes };
 }
 
 /** Saldo do bloco Conta Corrente (type='saldo') em dezembro de `year`. */
@@ -78,7 +89,7 @@ export async function computeEvolucaoDoMes(
   year: number,
   month: number,
 ): Promise<number> {
-  const [groups, aportesByMonth, saldoDezembroAnterior, baseAplicada] = await Promise.all([
+  const [groups, aportes, saldoDezembroAnterior, baseAplicada] = await Promise.all([
     getMergedCashflowGroups(userId, year),
     getAportesPorMes(userId, year),
     getSaldoContaCorrenteDezembro(userId, year - 1),
@@ -96,12 +107,15 @@ export async function computeEvolucaoDoMes(
     despesasByMonth: agg.despesasByMonth,
     contaCorrenteByMonth,
     saldoDezembroAnterior,
-    aportesByMonth,
+    // Ex-planejamento: os aportes de sonho já descem como despesa da
+    // linha-espelho; subtraí-los de novo aqui seria dupla contagem.
+    aportesByMonth: aportes.totaisPorMes,
   });
 
   const series = computeEvolucaoSeries({
     baseAplicada,
-    aportesByMonth,
+    // Série cheia: todo aporte nominal (vinculado ou não) vira patrimônio.
+    aportesByMonth: aportes.aportesFullPorMes,
     fluxoLivreByMonth,
     snapshotByMonth: {},
     realUpTo: month,

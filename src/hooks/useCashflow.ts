@@ -27,7 +27,10 @@ export const useCashflowData = (year?: number) => {
     },
   });
 
-  const investimentosQuery = useQuery<InvestimentoCalculado[]>({
+  const investimentosQuery = useQuery<{
+    investimentos: InvestimentoCalculado[];
+    totaisPlanejamentoPorMes: number[];
+  }>({
     queryKey: queryKeys.cashflow.investimentos(currentYear),
     queryFn: async ({ signal }) => {
       const response = await fetch(`/api/cashflow/investimentos?year=${currentYear}`, {
@@ -36,7 +39,10 @@ export const useCashflowData = (year?: number) => {
       });
       if (!response.ok) throw new Error('Erro ao buscar investimentos calculados');
       const responseData = await response.json();
-      return responseData.investimentos || [];
+      return {
+        investimentos: responseData.investimentos || [],
+        totaisPlanejamentoPorMes: responseData.totaisPlanejamentoPorMes || Array(12).fill(0),
+      };
     },
   });
 
@@ -49,7 +55,7 @@ export const useCashflowData = (year?: number) => {
     if (!investimentosQuery.data) return groups;
     return injectInvestimentosIntoGroups(
       groups,
-      filterInvestimentosComMovimento(investimentosQuery.data),
+      filterInvestimentosComMovimento(investimentosQuery.data.investimentos),
     );
   }, [groupsQuery.data, investimentosQuery.data]);
 
@@ -59,6 +65,9 @@ export const useCashflowData = (year?: number) => {
 
   return {
     data,
+    // Aportes de ativos vinculados a sonho (fora do Aporte/Resgate) — a
+    // Evolução do Patrimônio precisa da série cheia.
+    planejamentoPorMes: investimentosQuery.data?.totaisPlanejamentoPorMes,
     loading: groupsQuery.isLoading || investimentosQuery.isLoading,
     error: groupsQuery.error ? (groupsQuery.error as Error).message : null,
     refetch,

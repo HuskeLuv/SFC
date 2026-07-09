@@ -64,7 +64,7 @@ export default function DataTableTwo() {
   const { csrfFetch } = useCsrf();
   const queryClient = useQueryClient();
   const { year: currentYear } = useCashflowYear();
-  const { data, loading, error, refetch } = useCashflowData(currentYear);
+  const { data, planejamentoPorMes, loading, error, refetch } = useCashflowData(currentYear);
   const startDateISO = useMemo(() => new Date(currentYear, 0, 1).toISOString(), [currentYear]);
   const endDateISO = useMemo(
     () => new Date(currentYear, 11, 31, 23, 59, 59).toISOString(),
@@ -244,14 +244,20 @@ export default function DataTableTwo() {
     for (const snap of evolucaoData?.snapshots ?? []) {
       snapshotByMonth[snap.month] = snap.valor;
     }
+    // Série CHEIA de aportes: Aporte/Resgate (livres) + ativos vinculados a
+    // sonho. Estes últimos ficam fora do fluxo livre (já descem como despesa
+    // da linha-espelho), mas o aporte nominal vira patrimônio do mesmo jeito.
+    const aportesFullByMonth = investimentosByMonth.map(
+      (v: number, i: number) => v + (planejamentoPorMes?.[i] || 0),
+    );
     return computeEvolucaoSeries({
       baseAplicada: evolucaoData?.baseAplicadaAnterior ?? 0,
-      aportesByMonth: investimentosByMonth,
+      aportesByMonth: aportesFullByMonth,
       fluxoLivreByMonth: fluxoCaixaLivreByMonth,
       snapshotByMonth,
       realUpTo: resolveRealUpTo(currentYear),
     });
-  }, [evolucaoData, investimentosByMonth, fluxoCaixaLivreByMonth, currentYear]);
+  }, [evolucaoData, investimentosByMonth, planejamentoPorMes, fluxoCaixaLivreByMonth, currentYear]);
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
