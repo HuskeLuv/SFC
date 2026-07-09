@@ -126,6 +126,12 @@ export const GET = withErrorHandler(
       nome,
       instituicaoNome,
       instituicaoId,
+      // Vínculo com planejamento (Portfolio) — editável na página.
+      vinculoPlanejamento: portfolio.vinculoAposentadoria
+        ? { tipo: 'aposentadoria' as const, objetivoId: null }
+        : portfolio.planejamentoObjetivoId
+          ? { tipo: 'sonho' as const, objetivoId: portfolio.planejamentoObjetivoId }
+          : null,
       movimentacaoInicial,
       operacoes,
       proventos,
