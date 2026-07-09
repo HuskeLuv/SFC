@@ -19,6 +19,7 @@ export const queryKeys = {
     evolucaoPatrimonio: (year: number) =>
       [...queryKeys.cashflow.all, 'evolucao-patrimonio', year] as const,
     investimentos: (year: number) => [...queryKeys.cashflow.all, 'investimentos', year] as const,
+    anos: () => [...queryKeys.cashflow.all, 'anos'] as const,
   },
   planejamento: {
     all: ['planejamento'] as const,
