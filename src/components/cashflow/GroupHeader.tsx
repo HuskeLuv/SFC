@@ -129,6 +129,18 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
 
   const canMutateRows = !isCollapsed && !group.children?.length && !isInvestimentosGroup;
 
+  // Formatação condicional do % Receita da linha "Despesas Fixas e Variáveis" —
+  // faixas e cores da planilha do Pedro (regra da célula E58).
+  const despesasPercentStyle = (pct: number): React.CSSProperties => {
+    if (pct < 60) return { backgroundColor: '#0000FF', color: '#FFFFFF' };
+    if (pct < 80) return { backgroundColor: '#C6EFCE', color: '#006100' };
+    if (pct < 90) return { backgroundColor: '#FFEB9C', color: '#9C6500' };
+    if (pct <= 100) return { backgroundColor: '#FFC7CE', color: '#9C0006' };
+    return { backgroundColor: '#FF0000', color: '#FFFFFF' };
+  };
+  const percentConditionalStyle =
+    isMainDespesasGroup && groupPercentage > 0 ? despesasPercentStyle(groupPercentage) : undefined;
+
   return (
     <TableRow
       className={`h-6 w-full ${isSolid ? 'text-white' : genericBgClass}`}
@@ -215,6 +227,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
           overflow: 'hidden',
           flexShrink: 0,
           borderLeft: 'none',
+          ...percentConditionalStyle,
         }}
       >
         {isInvestimentosGroup || isContaCorrenteGroup
