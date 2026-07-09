@@ -6,8 +6,14 @@ const mockPrisma = vi.hoisted(() => ({
   cashflowValue: { findMany: vi.fn() },
   $transaction: vi.fn(),
 }));
+// Transição de status re-executa o sync direto (sonho → caixa) via import
+// dinâmico — mocka o módulo pra isolar este teste no sync reverso.
+const mockSyncRecord = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('../sonhoCashflowSync', () => ({
+  syncObjetivoRecordToCashflow: mockSyncRecord,
+}));
 
 import { syncCashflowToObjetivo, REALIZADO_COLOR } from '../cashflowToSonhoSync';
 
@@ -33,9 +39,12 @@ beforeEach(() => {
 
 const baseObjetivo = {
   id: 'obj-1',
+  name: 'Viagem',
   target: 24000,
   available: 0,
+  months: 12,
   rate: 0, // sem juros → saldo = soma dos aportes
+  startDate: '2026-01',
   status: 'Em espera',
   cashflowItem: { id: 'item-1' },
   entries: [],
@@ -147,6 +156,23 @@ describe('syncCashflowToObjetivo', () => {
       args: { data: { status?: string } };
     };
     expect(upd.args.data.status).toBe('Iniciado');
+    // Transição liga a projeção — o sync direto é re-executado com o novo status.
+    expect(mockSyncRecord).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ id: 'obj-1', status: 'Iniciado' }),
+    );
+  });
+
+  it('não re-executa o sync direto quando o status não muda', async () => {
+    mockPrisma.planejamentoObjetivo.findFirst.mockResolvedValue({
+      ...baseObjetivo,
+      status: 'Iniciado',
+    });
+    mockPrisma.cashflowValue.findMany.mockResolvedValue([{ year: 2026, month: 0, value: 2000 }]);
+
+    await syncCashflowToObjetivo('u1', 'obj-1');
+
+    expect(mockSyncRecord).not.toHaveBeenCalled();
   });
 
   it('marca "Concluído" quando o saldo atinge a meta', async () => {

@@ -179,6 +179,14 @@ function SubGroupRendererComponent({
         : true) &&
         !(subgroupIndex === 0 && needsSpacingBefore(subgroupCanonical))));
 
+  // Evita spacer duplo no fim do bloco: se o último filho expandido já emite o
+  // seu after-spacer (ex.: "Com Tributação" dentro de "Entradas Variáveis"),
+  // o do próprio subgrupo é suprimido — exatamente 1 spacer entre blocos.
+  const lastChild = subgroup.children?.at(-1);
+  const lastChildEmitsAfter =
+    !ctx.collapsed[subgroup.id] && !!lastChild && needsSpacingAfter(canonicalName(lastChild));
+  const shouldSpaceAfter = needsSpacingAfter(subgroupCanonical) && !lastChildEmitsAfter;
+
   return (
     <React.Fragment key={subgroup.id}>
       {shouldSpaceBefore && <SpacingRow />}
@@ -201,7 +209,7 @@ function SubGroupRendererComponent({
           {extraAfterItems}
         </>
       )}
-      {needsSpacingAfter(subgroupCanonical) && <SpacingRow />}
+      {shouldSpaceAfter && <SpacingRow />}
     </React.Fragment>
   );
 }

@@ -2,12 +2,18 @@
 
 import React, { useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { useCashflowYear } from '@/context/CashflowYearContext';
+import { queryKeys } from '@/lib/queryKeys';
 
 /**
  * Seletor de ano da planilha de Fluxo de Caixa, renderizado na sidebar sob o
  * item "Fluxo de Caixa" (observação 3 da reunião jun/2026). Muda o ano de
  * referência da planilha; se o usuário não estiver na planilha, navega pra lá.
+ *
+ * Anos disponíveis são dinâmicos: começam no menor ano com dados do usuário
+ * (aporte/resgate ou valor lançado — GET /api/cashflow/anos), com piso
+ * `ano atual - 2` como fallback.
  */
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -16,12 +22,23 @@ export default function CashflowYearSelect() {
   const router = useRouter();
   const pathname = usePathname();
 
+  const { data: anosData } = useQuery({
+    queryKey: queryKeys.cashflow.anos(),
+    queryFn: async (): Promise<{ minYear: number | null }> => {
+      const res = await fetch('/api/cashflow/anos', { credentials: 'include' });
+      if (!res.ok) throw new Error('Erro ao buscar anos do fluxo de caixa');
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const years = useMemo(() => {
+    const firstYear = Math.min(anosData?.minYear ?? CURRENT_YEAR - 2, CURRENT_YEAR - 2);
     const list: number[] = [];
-    for (let y = CURRENT_YEAR - 2; y <= CURRENT_YEAR + 8; y++) list.push(y);
+    for (let y = firstYear; y <= CURRENT_YEAR + 8; y++) list.push(y);
     if (!list.includes(year)) list.push(year);
     return list.sort((a, b) => a - b);
-  }, [year]);
+  }, [year, anosData?.minYear]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const y = Number(e.target.value);

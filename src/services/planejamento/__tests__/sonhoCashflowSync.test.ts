@@ -38,6 +38,7 @@ describe('syncObjetivoToCashflow', () => {
       months: 12,
       rate: 0,
       startDate: '2026-01',
+      status: 'Iniciado',
     });
 
     expect(mockPersonalizeGroup).toHaveBeenCalledWith('tpl-grp', 'u1');
@@ -69,6 +70,7 @@ describe('syncObjetivoToCashflow', () => {
       months: 12,
       rate: 0,
       startDate: '2026-01',
+      status: 'Iniciado',
     });
 
     expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalled();
@@ -88,6 +90,7 @@ describe('syncObjetivoToCashflow', () => {
       months: 12,
       rate: 0,
       startDate: '2026-01',
+      status: 'Iniciado',
     });
 
     expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith({
@@ -114,6 +117,7 @@ describe('syncObjetivoToCashflow', () => {
       months: 12,
       rate: 0,
       startDate: '2026-01',
+      status: 'Iniciado',
     });
 
     // deleteMany apaga o planejado (não-realizado) de qualquer ano, preservando o vermelho.
@@ -144,6 +148,7 @@ describe('syncObjetivoToCashflow', () => {
       months: 4,
       rate: 0,
       startDate: '2026-11',
+      status: 'Iniciado',
     });
 
     const createArg = mockPrisma.cashflowValue.createMany.mock.calls[0][0];
@@ -151,6 +156,53 @@ describe('syncObjetivoToCashflow', () => {
     expect(createArg.data).toHaveLength(4);
     expect(keys).toEqual(['2026-10', '2026-11', '2027-0', '2027-1']);
     expect(createArg.data.every((d: { value: number }) => d.value === 1000)).toBe(true);
+  });
+
+  it.each(['Pausado', 'Em espera'])(
+    'sonho "%s" limpa o planejado e NÃO reescreve a projeção',
+    async (status) => {
+      mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', name: 'Viagem' });
+
+      // target 24000, months 12 → pmt 2000, mas o status suspende a projeção.
+      await syncObjetivoToCashflow('u1', {
+        id: 'obj-1',
+        name: 'Viagem',
+        target: 24000,
+        available: 0,
+        months: 12,
+        rate: 0,
+        startDate: '2026-01',
+        status,
+      });
+
+      // O planejado existente é apagado (realizados preservados pelo filtro de cor)...
+      expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalledWith({
+        where: {
+          itemId: 'item-1',
+          userId: 'u1',
+          OR: [{ color: null }, { color: { not: REALIZADO_COLOR } }],
+        },
+      });
+      // ...e nada é reescrito.
+      expect(mockPrisma.cashflowValue.createMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('sonho "Iniciado" volta a projetar (retomada de pausa)', async () => {
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', name: 'Viagem' });
+
+    await syncObjetivoToCashflow('u1', {
+      id: 'obj-1',
+      name: 'Viagem',
+      target: 24000,
+      available: 0,
+      months: 12,
+      rate: 0,
+      startDate: '2026-01',
+      status: 'Iniciado',
+    });
+
+    expect(mockPrisma.cashflowValue.createMany).toHaveBeenCalled();
   });
 });
 

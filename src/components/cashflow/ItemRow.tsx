@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
@@ -56,12 +57,13 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
       >
         <span className="cursor-default truncate block" title={item.name || undefined}>
           {item.objetivoId ? (
-            <span
+            <Link
+              href="/planejamento-financeiro"
               className="mr-1"
-              title="Linha vinculada a um sonho — edite no Planejamento de Sonhos"
+              title="Linha vinculada a um sonho — abrir o Planejamento de Sonhos"
             >
               🎯
-            </span>
+            </Link>
           ) : null}
           {item.name || ''}
         </span>
@@ -94,7 +96,9 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
           borderRight: 'none',
         }}
       >
-        <span className="cursor-default">{item.rank || '-'}</span>
+        <span className="cursor-default">
+          {group.type === 'investimento' ? '-' : item.rank || '-'}
+        </span>
       </TableCell>
       <TableCell
         className={`px-2 font-normal text-xs text-right h-6 leading-6 whitespace-nowrap bg-white dark:bg-gray-900 ${getPercentageColorClass()}`}

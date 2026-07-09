@@ -23,8 +23,13 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
   }),
 );
 
+const mockSyncRecord = vi.hoisted(() => vi.fn());
+
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('@/services/planejamento/sonhoCashflowSync', () => ({
+  syncObjetivoRecordToCashflow: mockSyncRecord,
+}));
 
 import { POST } from '../route';
 

@@ -77,6 +77,7 @@ export async function provisionDefaultSonhos(userId: string): Promise<void> {
       months: created.months,
       rate: 0,
       startDate: created.startDate,
+      status: created.status,
     });
   }
 

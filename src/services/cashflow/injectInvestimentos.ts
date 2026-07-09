@@ -40,7 +40,9 @@ const toItems = (investimentos: InvestimentoCalculado[], groupId: string) =>
     groupId,
     name: inv.descricao || inv.name || '',
     significado: inv.significado ?? null,
-    rank: inv.order || inv.rank || null,
+    // Sem rank nas linhas de Aporte/Resgate (como na planilha) — `order` é só
+    // ordenação server-side e vazava aqui como se fosse rank.
+    rank: null,
     values: inv.values || inv.valores || [],
   }));
 

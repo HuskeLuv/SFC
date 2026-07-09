@@ -26,7 +26,6 @@ import {
   FinancialPeaceIndexRow,
   InflationPedroRow,
   InvestmentIncomeRow,
-  ExpenseRatioRow,
   SummaryRow,
 } from '@/components/cashflow';
 import {
@@ -153,13 +152,6 @@ export default function DataTableTwo() {
       ? processedData.groupTotals[investimentosGroup.id] || Array(12).fill(0)
       : Array(12).fill(0);
   }, [processedData.groups, processedData.groupTotals]);
-
-  // Total anual de despesas SEM o grupo de investimentos (despesasTotal da
-  // agregação inclui o anual de investimentos por quirk histórico).
-  const despesasAnnualSemInvestimentos = useMemo(
-    () => processedData.despesasByMonth.reduce((sum, value) => sum + value, 0),
-    [processedData.despesasByMonth],
-  );
 
   // Bloco "Conta Corrente" (type='saldo'): o cliente informa manualmente o que
   // ficou parado em cada banco no fim de cada mês.
@@ -633,6 +625,7 @@ export default function DataTableTwo() {
                           (sum, val) => sum + val,
                           0,
                         )}
+                        variant="amber"
                         showActionsColumn={anyGroupEditing}
                       />
                     )}
@@ -690,14 +683,6 @@ export default function DataTableTwo() {
               totalByMonth={processedData.totalByMonth}
               entradasByMonth={processedData.entradasByMonth}
               totalAnnual={processedData.totalAnnual}
-              entradasAnnual={processedData.entradasTotal}
-              showActionsColumn={anyGroupEditing}
-            />
-
-            <ExpenseRatioRow
-              despesasByMonth={processedData.despesasByMonth}
-              entradasByMonth={processedData.entradasByMonth}
-              despesasAnnual={despesasAnnualSemInvestimentos}
               entradasAnnual={processedData.entradasTotal}
               showActionsColumn={anyGroupEditing}
             />
@@ -763,6 +748,7 @@ export default function DataTableTwo() {
               label="Evolução do Patrimônio"
               cells={evolucaoPatrimonioByMonth}
               annual={evolucaoPatrimonioByMonth[11] ?? null}
+              variant="blueSoft"
               negativeRed
               showActionsColumn={anyGroupEditing}
             />
@@ -775,6 +761,8 @@ export default function DataTableTwo() {
               totalAnnual={proventosAnnual}
               showActionsColumn={anyGroupEditing}
             />
+
+            <SpacingRow />
 
             <FinancialPeaceIndexRow
               proventosByMonth={proventosByMonth}

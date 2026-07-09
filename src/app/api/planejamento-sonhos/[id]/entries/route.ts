@@ -18,6 +18,7 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { planejamentoEntryUpsertSchema, validationError } from '@/utils/validation-schemas';
 import { autoStatusOnEntry, type Status } from '@/services/planejamento/planejamentoSonhos';
+import { syncObjetivoRecordToCashflow } from '@/services/planejamento/sonhoCashflowSync';
 import { recordChange } from '@/services/changeHistory';
 import { decimalToNumber, serializeObjetivo } from '../../_lib/serializer';
 
@@ -61,6 +62,12 @@ export const POST = withErrorHandler(
         include: { entries: true },
       }),
     ]);
+
+    // Transição automática de status (ex.: "Em espera" → "Iniciado" no 1º
+    // lançamento) muda se o sonho projeta no fluxo de caixa — re-sincroniza.
+    if (updatedObjetivo.status !== objetivo.status) {
+      await syncObjetivoRecordToCashflow(targetUserId, updatedObjetivo);
+    }
 
     await recordChange({
       request,

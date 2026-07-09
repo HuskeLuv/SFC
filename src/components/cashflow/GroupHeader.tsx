@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent, isReceitaGroupByType } from '@/utils/formatters';
@@ -88,7 +89,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   // Cor sólida da planilha para grupos estruturais (mesma em light/dark, texto
   // branco); grupos genéricos usam classes com variante dark.
   const solidHex = isMainEntradasGroup
-    ? '#244062'
+    ? '#244061'
     : isMainDespesasGroup
       ? '#800000'
       : isEntradasFixasOrVariaveis
@@ -96,17 +97,17 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
         : isDespesasFixasOrVariaveis
           ? '#CC3300'
           : isTributacaoGroup
-            ? '#808080'
+            ? '#7F7F7F'
             : isDespesasEmpresa
-              ? '#16365C'
+              ? '#17365D'
               : isPlanejamentoFinanceiro
                 ? '#9E8A58'
                 : isInvestimentosGroup
-                  ? '#76933C'
+                  ? '#38761D'
                   : isContaCorrenteGroup
-                    ? '#16365C'
+                    ? '#002060'
                     : isDespesasFixasSubgroup
-                      ? '#404040'
+                      ? '#3F3F3F'
                       : null;
   const isSolid = solidHex !== null;
 
@@ -128,6 +129,18 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   const stickyBgStyle = solidHex ? { backgroundColor: solidHex } : undefined;
 
   const canMutateRows = !isCollapsed && !group.children?.length && !isInvestimentosGroup;
+
+  // Formatação condicional do % Receita da linha "Despesas Fixas e Variáveis" —
+  // faixas e cores da planilha do Pedro (regra da célula E58).
+  const despesasPercentStyle = (pct: number): React.CSSProperties => {
+    if (pct < 60) return { backgroundColor: '#0000FF', color: '#FFFFFF' };
+    if (pct < 80) return { backgroundColor: '#C6EFCE', color: '#006100' };
+    if (pct < 90) return { backgroundColor: '#FFEB9C', color: '#9C6500' };
+    if (pct <= 100) return { backgroundColor: '#FFC7CE', color: '#9C0006' };
+    return { backgroundColor: '#FF0000', color: '#FFFFFF' };
+  };
+  const percentConditionalStyle =
+    isMainDespesasGroup && groupPercentage > 0 ? despesasPercentStyle(groupPercentage) : undefined;
 
   return (
     <TableRow
@@ -152,12 +165,22 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
             onClick={onToggleCollapse}
             groupName={group.name}
           />
-          <span
-            className={`text-xs truncate flex-1 ${isSolid ? 'text-white' : genericNameColorClass}`}
-            title={getDisplayName()}
-          >
-            {getDisplayName()}
-          </span>
+          {isPlanejamentoFinanceiro ? (
+            <Link
+              href="/planejamento-financeiro"
+              className={`text-xs truncate flex-1 hover:underline ${isSolid ? 'text-white' : genericNameColorClass}`}
+              title="Abrir o Planejamento de Sonhos"
+            >
+              {getDisplayName()} <span aria-hidden>↗</span>
+            </Link>
+          ) : (
+            <span
+              className={`text-xs truncate flex-1 ${isSolid ? 'text-white' : genericNameColorClass}`}
+              title={getDisplayName()}
+            >
+              {getDisplayName()}
+            </span>
+          )}
           {canMutateRows && !isEditing && (
             <AddRowButton onClick={onAddRow} groupName={group.name} />
           )}
@@ -215,6 +238,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
           overflow: 'hidden',
           flexShrink: 0,
           borderLeft: 'none',
+          ...percentConditionalStyle,
         }}
       >
         {isInvestimentosGroup || isContaCorrenteGroup

@@ -19,6 +19,7 @@ import {
   deriveStatusAfterEntryDelete,
   type Status,
 } from '@/services/planejamento/planejamentoSonhos';
+import { syncObjetivoRecordToCashflow } from '@/services/planejamento/sonhoCashflowSync';
 import { recordChange } from '@/services/changeHistory';
 import { decimalToNumber } from '../../../_lib/serializer';
 
@@ -36,7 +37,6 @@ export const DELETE = withErrorHandler(
 
     const objetivo = await prisma.planejamentoObjetivo.findFirst({
       where: { id: objetivoId, userId: targetUserId },
-      select: { id: true, name: true, status: true, target: true },
     });
     if (!objetivo) {
       return NextResponse.json({ error: 'Objetivo não encontrado' }, { status: 404 });
@@ -68,6 +68,9 @@ export const DELETE = withErrorHandler(
         where: { id: objetivoId },
         data: { status: nextStatus },
       });
+      // Status mudou (ex.: "Concluído" → "Em espera" sem entries) — a projeção
+      // da linha-espelho no fluxo de caixa depende do status; re-sincroniza.
+      await syncObjetivoRecordToCashflow(targetUserId, { ...objetivo, status: nextStatus });
     }
 
     await recordChange({

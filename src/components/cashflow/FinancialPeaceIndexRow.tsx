@@ -28,6 +28,7 @@ export const FinancialPeaceIndexRow: React.FC<FinancialPeaceIndexRowProps> = ({
     )}
     annual={peaceIndex(proventosAnnual, despesasFixasAnnual)}
     format="percent"
+    variant="gold"
     showActionsColumn={showActionsColumn}
   />
 );

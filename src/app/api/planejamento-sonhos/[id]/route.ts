@@ -98,6 +98,7 @@ export const PATCH = withErrorHandler(
       months: updated.months,
       rate: decimalToNumber(updated.rate),
       startDate: updated.startDate,
+      status: updated.status,
     });
 
     await recordChange({

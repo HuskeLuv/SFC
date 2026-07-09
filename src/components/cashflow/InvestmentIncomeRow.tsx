@@ -20,6 +20,7 @@ export const InvestmentIncomeRow: React.FC<InvestmentIncomeRowProps> = ({
       label="Rendimentos Recebidos"
       cells={valuesByMonth.map((v) => v || 0)}
       annual={annualTotal}
+      variant="bluePale"
       showActionsColumn={showActionsColumn}
     />
   );

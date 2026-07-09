@@ -25,6 +25,7 @@ export const SavingsIndexRow: React.FC<SavingsIndexRowProps> = ({
     cells={totalByMonth.map((saldo, index) => savingsIndex(saldo, entradasByMonth[index] || 0))}
     annual={savingsIndex(totalAnnual, entradasAnnual)}
     format="percent"
+    variant="khaki"
     showActionsColumn={showActionsColumn}
   />
 );
