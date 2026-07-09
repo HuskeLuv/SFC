@@ -106,6 +106,10 @@ export const aporteSchema = z.object({
   valorAporte: zPositiveNumber,
   tipoAtivo: z.string().optional(),
   instituicaoId: z.string().optional(),
+  // Vínculo do ativo com planejamento (sonho | aposentadoria) — ver
+  // utils/planejamentoVinculo.ts
+  vinculoTipo: z.enum(['sonho', 'aposentadoria']).nullable().optional(),
+  vinculoObjetivoId: z.string().max(255).nullable().optional(),
 });
 
 // ── Resgate schema ────────────────────────────────────────────────────

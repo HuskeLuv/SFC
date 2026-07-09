@@ -2,6 +2,8 @@
 
 import { logger } from '@/lib/logger';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 import Sidebar from '@/components/ui/sidebar/Sidebar';
 import Button from '@/components/ui/button/Button';
 import { WizardFormData, WizardErrors, WizardStep } from '@/types/wizard';
@@ -81,6 +83,8 @@ const INITIAL_FORM_DATA: WizardFormData = {
   opcaoTipo: undefined,
   opcaoCompraVenda: undefined,
   isReinvestimento: false,
+  vinculoTipo: null,
+  vinculoObjetivoId: null,
   portfolioId: '',
   dataAporte: '',
   valorAporte: 0,
@@ -148,6 +152,15 @@ function getPriceCheckParams(
 
 export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetWizardProps) {
   const { csrfFetch } = useCsrf();
+  const queryClient = useQueryClient();
+
+  // A operação pode refletir no fluxo de caixa (Aporte/Resgate e, com vínculo
+  // de sonho, o realizado da linha-espelho) e no planejamento — invalida junto.
+  const invalidatePlanejamentoCaches = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.planejamento.all });
+    queryClient.invalidateQueries({ queryKey: ['planejamento-sonhos'] });
+  }, [queryClient]);
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_FORM_DATA);
   const [errors, setErrors] = useState<WizardErrors>({});
@@ -609,10 +622,13 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
             valorAporte: formData.valorAporte,
             tipoAtivo: formData.tipoAtivo,
             instituicaoId: formData.instituicaoId,
+            vinculoTipo: formData.vinculoTipo ?? null,
+            vinculoObjetivoId: formData.vinculoObjetivoId ?? null,
           }),
         });
 
         if (response.ok) {
+          invalidatePlanejamentoCaches();
           onSuccess();
           handleCancel();
         } else {
@@ -671,6 +687,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       });
 
       if (response.ok) {
+        invalidatePlanejamentoCaches();
         onSuccess();
         handleCancel();
       } else {

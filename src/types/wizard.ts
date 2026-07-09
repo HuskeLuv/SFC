@@ -149,6 +149,14 @@ export interface WizardFormData {
    */
   isReinvestimento?: boolean;
 
+  /**
+   * Vínculo do ativo com um planejamento (persistido no Portfolio, herdado
+   * por todos os aportes): 'sonho' exige vinculoObjetivoId; 'aposentadoria'
+   * usa o plano único do usuário. null = sem vínculo.
+   */
+  vinculoTipo?: 'sonho' | 'aposentadoria' | null;
+  vinculoObjetivoId?: string | null;
+
   // Aporte
   portfolioId: string;
   dataAporte: string;

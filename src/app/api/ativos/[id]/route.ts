@@ -4,6 +4,8 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { validationError } from '@/utils/validation-schemas';
 import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
+import { aplicarVinculoPlanejamento, vinculoPlanejamentoFields } from '@/utils/planejamentoVinculo';
 import { getAssetPrices, getAssetHistory } from '@/services/pricing/assetPriceService';
 import { getDividends } from '@/services/pricing/dividendService';
 import { getFundamentals } from '@/services/pricing/fundamentalsService';
@@ -69,6 +71,17 @@ const extractInstitutionIdFromNotes = (notes: string | null | undefined): string
     return null;
   }
 };
+
+/** Vínculo do ativo com planejamento, no formato consumido pela edição. */
+const vinculoPlanejamentoDTO = (p: {
+  planejamentoObjetivoId: string | null;
+  vinculoAposentadoria: boolean;
+}): { tipo: 'sonho' | 'aposentadoria'; objetivoId: string | null } | null =>
+  p.vinculoAposentadoria
+    ? { tipo: 'aposentadoria', objetivoId: null }
+    : p.planejamentoObjetivoId
+      ? { tipo: 'sonho', objetivoId: p.planejamentoObjetivoId }
+      : null;
 
 const resolveInstituicaoForPortfolio = async (
   userId: string,
@@ -210,6 +223,8 @@ type PortfolioForFI = {
   id: string;
   userId: string;
   assetId: string | null;
+  planejamentoObjetivoId: string | null;
+  vinculoAposentadoria: boolean;
   asset: { symbol: string; name: string; type?: string | null } | null;
 };
 
@@ -356,6 +371,7 @@ const buildFixedIncomeResponse = async (
       nome: portfolio.asset?.name || fi.description,
       ticker: portfolio.asset?.symbol || '',
       instituicao,
+      vinculoPlanejamento: vinculoPlanejamentoDTO(portfolio),
     },
     posicao: {
       quantidade: 1,
@@ -733,6 +749,7 @@ export const GET = withErrorHandler(
         nome,
         ticker,
         instituicao,
+        vinculoPlanejamento: vinculoPlanejamentoDTO(portfolio),
       },
       posicao: {
         quantidade: portfolio.quantity,
@@ -763,10 +780,19 @@ export const GET = withErrorHandler(
  * deletar e recriar (perdendo histórico). Atualiza `instituicaoId` em todas as
  * transações do portfolio. Como o campo vive dentro de `notes` (JSON serializado
  * em `operation.instituicaoId`), preservamos o resto do objeto original.
+ *
+ * Também aceita o vínculo com planejamento (vinculoTipo/vinculoObjetivoId) —
+ * gravado no Portfolio; mudar/remover o vínculo re-sincroniza as
+ * linhas-espelho dos sonhos afetados (antigo e novo).
  */
-const patchSchema = z.object({
-  instituicaoId: z.string().min(1).max(255),
-});
+const patchSchema = z
+  .object({
+    instituicaoId: z.string().min(1).max(255).optional(),
+    ...vinculoPlanejamentoFields,
+  })
+  .refine((data) => data.instituicaoId !== undefined || data.vinculoTipo !== undefined, {
+    message: 'Nenhum campo para atualizar',
+  });
 
 export const PATCH = withErrorHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -790,47 +816,74 @@ export const PATCH = withErrorHandler(
       return NextResponse.json({ error: 'Portfólio não encontrado' }, { status: 404 });
     }
 
-    const institution = await prisma.institution.findUnique({
-      where: { id: parsed.data.instituicaoId },
-      select: { id: true, nome: true },
-    });
-    if (!institution) {
-      return NextResponse.json({ error: 'Instituição não encontrada' }, { status: 404 });
-    }
-
     if (!portfolio.assetId) {
       return NextResponse.json({ error: 'Portfólio sem ativo vinculado' }, { status: 400 });
     }
 
-    const transactions = await prisma.stockTransaction.findMany({
-      where: { userId: targetUserId, assetId: portfolio.assetId },
-      select: { id: true, notes: true },
-    });
-
-    // Atualiza notes preservando o objeto original; cria operation={} se ausente.
-    const updates = transactions.map((tx) => {
-      let parsedNotes: Record<string, unknown> = {};
-      if (tx.notes) {
-        try {
-          const obj = JSON.parse(tx.notes);
-          if (obj && typeof obj === 'object') parsedNotes = obj as Record<string, unknown>;
-        } catch {
-          // notes não-JSON: preservamos no campo `raw` pra não perder o conteúdo original.
-          parsedNotes = { raw: tx.notes };
-        }
-      }
-      const operation = (parsedNotes.operation as Record<string, unknown> | undefined) ?? {};
-      parsedNotes.operation = {
-        ...operation,
-        instituicaoId: institution.id,
-      };
-      return prisma.stockTransaction.update({
-        where: { id: tx.id },
-        data: { notes: JSON.stringify(parsedNotes) },
+    let institution: { id: string; nome: string } | null = null;
+    if (parsed.data.instituicaoId !== undefined) {
+      institution = await prisma.institution.findUnique({
+        where: { id: parsed.data.instituicaoId },
+        select: { id: true, nome: true },
       });
-    });
+      if (!institution) {
+        return NextResponse.json({ error: 'Instituição não encontrada' }, { status: 404 });
+      }
 
-    await prisma.$transaction(updates);
+      const transactions = await prisma.stockTransaction.findMany({
+        where: { userId: targetUserId, assetId: portfolio.assetId },
+        select: { id: true, notes: true },
+      });
+
+      // Atualiza notes preservando o objeto original; cria operation={} se ausente.
+      const institutionId = institution.id;
+      const updates = transactions.map((tx) => {
+        let parsedNotes: Record<string, unknown> = {};
+        if (tx.notes) {
+          try {
+            const obj = JSON.parse(tx.notes);
+            if (obj && typeof obj === 'object') parsedNotes = obj as Record<string, unknown>;
+          } catch {
+            // notes não-JSON: preservamos no campo `raw` pra não perder o conteúdo original.
+            parsedNotes = { raw: tx.notes };
+          }
+        }
+        const operation = (parsedNotes.operation as Record<string, unknown> | undefined) ?? {};
+        parsedNotes.operation = {
+          ...operation,
+          instituicaoId: institutionId,
+        };
+        return prisma.stockTransaction.update({
+          where: { id: tx.id },
+          data: { notes: JSON.stringify(parsedNotes) },
+        });
+      });
+
+      await prisma.$transaction(updates);
+    }
+
+    // Vínculo com planejamento (retroativo): grava no Portfolio e
+    // re-sincroniza o realizado dos sonhos afetados.
+    if (parsed.data.vinculoTipo !== undefined) {
+      const vinculo = await aplicarVinculoPlanejamento({
+        userId: targetUserId,
+        assetId: portfolio.assetId,
+        vinculoTipo: parsed.data.vinculoTipo,
+        vinculoObjetivoId: parsed.data.vinculoObjetivoId,
+      });
+      if (!vinculo.ok) {
+        return NextResponse.json({ error: vinculo.error }, { status: 400 });
+      }
+      await syncSonhoRealizadoBestEffort(targetUserId, { assetId: portfolio.assetId });
+      if (
+        vinculo.previousObjetivoId &&
+        vinculo.previousObjetivoId !== parsed.data.vinculoObjetivoId
+      ) {
+        await syncSonhoRealizadoBestEffort(targetUserId, {
+          objetivoId: vinculo.previousObjetivoId,
+        });
+      }
+    }
 
     // Instituição anterior vive dentro do JSON `notes` de cada transação (pode
     // variar entre elas) — sem before-state único, registra sem diff.
@@ -846,7 +899,7 @@ export const PATCH = withErrorHandler(
 
     return NextResponse.json({
       success: true,
-      instituicao: { id: institution.id, nome: institution.nome },
+      ...(institution ? { instituicao: { id: institution.id, nome: institution.nome } } : {}),
     });
   },
 );

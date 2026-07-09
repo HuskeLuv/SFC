@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { transactionPatchSchema, validationError } from '@/utils/validation-schemas';
 import { recalculatePortfolioFromTransactions } from '@/services/portfolio/portfolioRecalculation';
+import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 import {
   recordChange,
   diffFields,
@@ -113,6 +114,9 @@ export const PATCH = withErrorHandler(
           recomputeSnapshotsFrom: snapshotCutoff,
         });
       }
+
+      // Ativo vinculado a um sonho: editar a transação re-deriva o realizado.
+      await syncSonhoRealizadoBestEffort(targetUserId, { assetId: transaction.assetId });
     }
 
     await recordChange({
@@ -164,6 +168,11 @@ export const DELETE = withErrorHandler(
         portfolioId: portfolio.id,
         recomputeSnapshotsFrom: snapshotCutoff,
       });
+    }
+
+    // Ativo vinculado a um sonho: excluir a transação re-deriva o realizado.
+    if (transaction.assetId) {
+      await syncSonhoRealizadoBestEffort(targetUserId, { assetId: transaction.assetId });
     }
 
     await recordChange({

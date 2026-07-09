@@ -16,6 +16,7 @@ import { DropdownItem } from '@/components/ui/dropdown/DropdownItem';
 import EditableField from '@/components/carteira/shared/EditableField';
 import InstitutionPicker from '@/components/carteira/wizard/shared/InstitutionPicker';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { useObjetivos } from '@/hooks/usePlanejamentoSonhos';
 import { formatWallClockDate, toDateInputValue } from '@/utils/formatDate';
 import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
 import { ArrowRightIcon, ChevronDownIcon, ChevronLeftIcon, PlusIcon, TrashBinIcon } from '@/icons';
@@ -134,6 +135,7 @@ interface EditarPayload {
   nome: string;
   instituicaoNome: string | null;
   instituicaoId: string | null;
+  vinculoPlanejamento: { tipo: 'sonho' | 'aposentadoria'; objetivoId: string | null } | null;
   movimentacaoInicial: {
     id: string;
     date: string;
@@ -145,6 +147,64 @@ interface EditarPayload {
   operacoes: OperacaoRow[];
   proventos: ProventoRow[];
 }
+
+/**
+ * Vínculo do ativo com planejamento (sonho | aposentadoria): select simples
+ * com as opções vivas do usuário; persiste via PATCH /api/ativos/[id]
+ * (vinculoTipo/vinculoObjetivoId). Alterar o vínculo re-deriva o realizado
+ * das linhas-espelho no fluxo de caixa.
+ */
+const VinculoPlanejamentoSelect: React.FC<{
+  current: { tipo: 'sonho' | 'aposentadoria'; objetivoId: string | null } | null;
+  onChange: (
+    vinculoTipo: 'sonho' | 'aposentadoria' | null,
+    vinculoObjetivoId: string | null,
+  ) => void | Promise<void>;
+}> = ({ current, onChange }) => {
+  const { objetivos } = useObjetivos();
+  const [saving, setSaving] = useState(false);
+  const sonhos = objetivos.filter((o) => o.status !== 'Concluído' || o.id === current?.objetivoId);
+
+  const value =
+    current?.tipo === 'aposentadoria'
+      ? 'aposentadoria'
+      : current?.tipo === 'sonho' && current.objetivoId
+        ? `sonho:${current.objetivoId}`
+        : '';
+
+  const handleChange = async (next: string) => {
+    setSaving(true);
+    try {
+      if (next === 'aposentadoria') {
+        await onChange('aposentadoria', null);
+      } else if (next.startsWith('sonho:')) {
+        await onChange('sonho', next.slice('sonho:'.length));
+      } else {
+        await onChange(null, null);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <select
+      value={value}
+      disabled={saving}
+      onChange={(e) => void handleChange(e.target.value)}
+      aria-label="Vínculo com planejamento"
+      className="w-full max-w-md rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-brand-400 focus:outline-none disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+    >
+      <option value="">Sem vínculo</option>
+      <option value="aposentadoria">Aposentadoria</option>
+      {sonhos.map((sonho) => (
+        <option key={sonho.id} value={`sonho:${sonho.id}`}>
+          Sonho: {sonho.name}
+        </option>
+      ))}
+    </select>
+  );
+};
 
 const defaultProventoDraft = (): ProventoDraft => {
   const today = new Date().toISOString().slice(0, 10);
@@ -333,6 +393,36 @@ const AtivoEditarContent = () => {
       } catch (err) {
         logger.error('Erro de rede ao atualizar instituição:', err);
         setError('Erro de rede ao salvar instituição');
+      }
+    },
+    [id, loadData, csrfFetch, queryClient],
+  );
+
+  /** Vínculo com planejamento (sonho/aposentadoria) — PATCH no mesmo endpoint. */
+  const handleUpdateVinculo = useCallback(
+    async (vinculoTipo: 'sonho' | 'aposentadoria' | null, vinculoObjetivoId: string | null) => {
+      if (!id) return;
+      try {
+        const res = await csrfFetch(`/api/ativos/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vinculoTipo, vinculoObjetivoId }),
+        });
+        if (res.ok) {
+          invalidatePortfolioDerivedQueries(queryClient);
+          queryClient.invalidateQueries({ queryKey: ['cashflow'] });
+          queryClient.invalidateQueries({ queryKey: ['planejamento-sonhos'] });
+          await loadData();
+        } else {
+          const errBody = await res.json().catch(() => ({}));
+          logger.error('Erro ao salvar vínculo:', res.status, errBody);
+          setError(
+            `Erro ao salvar vínculo: ${(errBody as { error?: string }).error || res.statusText}`,
+          );
+        }
+      } catch (err) {
+        logger.error('Erro de rede ao atualizar vínculo:', err);
+        setError('Erro de rede ao salvar vínculo');
       }
     },
     [id, loadData, csrfFetch, queryClient],
@@ -736,6 +826,20 @@ const AtivoEditarContent = () => {
                   currentNome={data.instituicaoNome}
                   onChange={handleUpdateInstituicao}
                 />
+              </div>
+
+              <div className="mt-4 space-y-1">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  Vínculo com planejamento
+                </p>
+                <VinculoPlanejamentoSelect
+                  current={data.vinculoPlanejamento}
+                  onChange={handleUpdateVinculo}
+                />
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  Sonho: os aportes deste ativo viram o realizado da linha no Fluxo de Caixa.
+                  Aposentadoria: alimentam o acompanhamento do simulador.
+                </p>
               </div>
 
               <div className="mt-6 border-t border-gray-200 pt-5 dark:border-gray-700">

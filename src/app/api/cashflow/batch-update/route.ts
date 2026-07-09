@@ -147,9 +147,24 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         // da fonte (o sonho) e não podem ser alterados aqui.
         const linked = await prisma.cashflowItem.findUnique({
           where: { id: finalItemId },
-          select: { objetivoId: true },
+          select: {
+            objetivoId: true,
+            objetivo: { select: { portfolios: { select: { id: true }, take: 1 } } },
+          },
         });
         const objetivoId = linked?.objetivoId ?? null;
+
+        // Sonho com ativos da carteira vinculados: o realizado é 100% derivado
+        // das transações — edição manual de valores aqui seria sobrescrita pelo
+        // sync e corromperia as entries até a próxima movimentação.
+        if (objetivoId && (linked?.objetivo?.portfolios.length ?? 0) > 0 && values?.length) {
+          results.push({
+            itemId,
+            success: false,
+            error: 'Sonho com ativos vinculados: o realizado vem da carteira',
+          });
+          continue;
+        }
 
         // Atualizar campos do item (somente em linhas livres)
         const itemUpdateData: {

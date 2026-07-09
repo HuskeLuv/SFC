@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect } from 'react';
+import PlanejamentoVinculoField from './shared/PlanejamentoVinculoField';
 import {
   WizardFormData,
   TIPOS_ATIVO,
@@ -10,6 +11,7 @@ import {
 
 interface Step5ConfirmationProps {
   formData: WizardFormData;
+  onFormDataChange: (data: Partial<WizardFormData>) => void;
   onSubmit: () => void;
   loading: boolean;
   autoSubmit?: boolean;
@@ -17,6 +19,7 @@ interface Step5ConfirmationProps {
 
 export default function Step5Confirmation({
   formData,
+  onFormDataChange,
   onSubmit,
   loading,
   autoSubmit = false,
@@ -554,6 +557,8 @@ export default function Step5Confirmation({
           </div>
         </div>
       </div>
+
+      <PlanejamentoVinculoField formData={formData} onFormDataChange={onFormDataChange} />
 
       <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-yellow-900 dark:text-yellow-100 mb-2">

@@ -24,6 +24,12 @@ export interface CashflowItem {
   isTemplate?: boolean;
   /** Quando setado, a linha espelha um sonho (somente-leitura no fluxo de caixa). */
   objetivoId?: string | null;
+  /**
+   * Sonho com ativos da carteira vinculados: o realizado (células vermelhas)
+   * é 100% derivado das transações e os valores/cores da linha ficam
+   * somente-leitura (anotado pelo GET /api/cashflow).
+   */
+  objetivoAutoRealizado?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

@@ -44,7 +44,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
-  const { porTipo, totaisPorMes, tipos } = await computeInvestimentosPorMes(
+  const { porTipo, totaisPorMes, planejamentoPorMes, tipos } = await computeInvestimentosPorMes(
     targetUserId,
     targetYear,
   );
@@ -159,6 +159,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   return NextResponse.json({
     investimentos: investimentosCalculados,
     totaisPorMes,
+    // Líquido mensal dos ativos vinculados a sonho — fora de totaisPorMes
+    // (vira o realizado da linha-espelho); a Evolução do Patrimônio soma
+    // totaisPorMes + totaisPlanejamentoPorMes no client.
+    totaisPlanejamentoPorMes: planejamentoPorMes,
     totalGeral: Math.round(totalGeral * 100) / 100,
     quantidadeTipos: tipos.size,
     reinvestimentos,

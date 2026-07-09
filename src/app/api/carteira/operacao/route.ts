@@ -16,6 +16,8 @@ import { FUNDO_TYPES_ALL, FUNDO_SUBTIPO_ORDER } from '@/lib/fundoTypes';
 import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
 import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
 import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
+import { aplicarVinculoPlanejamento, vinculoPlanejamentoFields } from '@/utils/planejamentoVinculo';
 
 /** Valores de fundoDestino que viram seções na aba "Fundos". */
 const FUNDO_SUBTIPO_DESTINOS: Set<string> = new Set(FUNDO_SUBTIPO_ORDER);
@@ -77,6 +79,9 @@ const operacaoBaseSchema = z
      * não de novo aporte.
      */
     isReinvestimento: z.boolean().optional(),
+    // Vínculo do ativo com planejamento (sonho | aposentadoria) — gravado no
+    // Portfolio após o registro. Ver utils/planejamentoVinculo.ts.
+    ...vinculoPlanejamentoFields,
   })
   .passthrough();
 
@@ -2081,6 +2086,33 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     // snapshots stale → MWR/TWR não recompunha. Invalidar força fallback ao
     // builder ao vivo até o cron diário repopular.
     await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
+  }
+
+  // Vínculo com planejamento (quando enviado): grava no Portfolio recém
+  // criado/atualizado, antes do sync do realizado do sonho.
+  let vinculoAnteriorObjetivoId: string | null = null;
+  if (asset?.id && parsed.data.vinculoTipo !== undefined) {
+    const vinculo = await aplicarVinculoPlanejamento({
+      userId: targetUserId,
+      assetId: asset.id,
+      vinculoTipo: parsed.data.vinculoTipo,
+      vinculoObjetivoId: parsed.data.vinculoObjetivoId,
+    });
+    if (vinculo.ok) {
+      vinculoAnteriorObjetivoId = vinculo.previousObjetivoId;
+    } else {
+      // Operação já persistida — vínculo inválido não derruba o registro.
+      logger.warn('[operacao] vínculo de planejamento não aplicado:', vinculo.error);
+    }
+  }
+
+  // Ativo vinculado a um sonho: a compra vira realizado da linha-espelho.
+  if (asset?.id) {
+    await syncSonhoRealizadoBestEffort(targetUserId, { assetId: asset.id });
+  }
+  // Vínculo mudou de sonho: re-sincroniza a linha-espelho do sonho anterior.
+  if (vinculoAnteriorObjetivoId && vinculoAnteriorObjetivoId !== parsed.data.vinculoObjetivoId) {
+    await syncSonhoRealizadoBestEffort(targetUserId, { objetivoId: vinculoAnteriorObjetivoId });
   }
 
   // Fundo CVM (tem CNPJ): dispara o sync de cotas em BACKGROUND (best-effort) pra

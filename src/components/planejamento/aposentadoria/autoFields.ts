@@ -37,8 +37,13 @@ export function deriveAutoValues(ctx: PlanejamentoContexto | null): AutoValues {
 
   const sobra = ctx.cashflow.sobraMensalMedia;
   const aporteReal = ctx.aporteMensalRealizado;
+  const aporteVinculado = ctx.aporteMensalAposentadoria;
   let aporte: AutoFieldInfo;
-  if (sobra > 0) {
+  if (aporteVinculado != null && aporteVinculado > 0) {
+    // Vínculo explícito do usuário (ativos marcados p/ aposentadoria) vence
+    // as heurísticas de sobra/aporte geral.
+    aporte = { autoValue: Math.round(aporteVinculado), label: 'dos ativos vinculados (12m)' };
+  } else if (sobra > 0) {
     aporte = { autoValue: Math.round(sobra), label: 'da sua sobra de caixa' };
   } else if (aporteReal > 0) {
     aporte = { autoValue: Math.round(aporteReal), label: 'dos seus aportes (12m)' };

@@ -7,6 +7,8 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { isEquityAssetType } from '@/lib/assetClassification';
 import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
+import { aplicarVinculoPlanejamento } from '@/utils/planejamentoVinculo';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -18,6 +20,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return validationError(parsed);
   }
   const { portfolioId, dataAporte, valorAporte, tipoAtivo, instituicaoId } = parsed.data;
+  const { vinculoTipo, vinculoObjetivoId } = parsed.data;
 
   const portfolio = await prisma.portfolio.findFirst({
     where: { id: portfolioId, userId: targetUserId },
@@ -26,6 +29,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (!portfolio) {
     return NextResponse.json({ error: 'Investimento não encontrado' }, { status: 404 });
+  }
+
+  // Vínculo com planejamento (quando enviado): grava no Portfolio antes de
+  // registrar o aporte — o sync do realizado do sonho já enxerga o vínculo.
+  let vinculoAnteriorObjetivoId: string | null = null;
+  if (vinculoTipo !== undefined && portfolio.assetId) {
+    const vinculo = await aplicarVinculoPlanejamento({
+      userId: targetUserId,
+      assetId: portfolio.assetId,
+      vinculoTipo,
+      vinculoObjetivoId,
+    });
+    if (!vinculo.ok) {
+      return NextResponse.json({ error: vinculo.error }, { status: 400 });
+    }
+    vinculoAnteriorObjetivoId = vinculo.previousObjetivoId;
   }
 
   // Opção 3: aporte é operação de VALOR (renda-fixa/reservas). Ativos share-based
@@ -113,6 +132,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // o novo fluxo. Invalidar força o reader a cair no live builder até o cron
   // diário repopular.
   await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
+
+  // Ativo vinculado a um sonho: o aporte vira realizado da linha-espelho.
+  if (portfolio.assetId) {
+    await syncSonhoRealizadoBestEffort(targetUserId, { assetId: portfolio.assetId });
+  }
+  // Vínculo mudou de sonho: re-sincroniza a linha-espelho do sonho anterior.
+  if (vinculoAnteriorObjetivoId && vinculoAnteriorObjetivoId !== vinculoObjetivoId) {
+    await syncSonhoRealizadoBestEffort(targetUserId, { objetivoId: vinculoAnteriorObjetivoId });
+  }
 
   await recordChange({
     request,

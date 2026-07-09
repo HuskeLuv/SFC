@@ -5,6 +5,8 @@ import { GET } from '../route';
 const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   stockTransaction: { findMany: vi.fn() },
+  // Segregação de ativos vinculados a sonho: sem vínculos por padrão
+  portfolio: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>

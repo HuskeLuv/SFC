@@ -55,8 +55,12 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   objetivoLocked = false,
 }) => {
   const isInvestmentItem = group.type === 'investimento' || item.id.startsWith('investimento-');
+  // Sonho com ativos da carteira vinculados: realizado é 100% derivado das
+  // transações — valores/cores ficam somente-leitura (o batch-update rejeita).
+  const autoRealizado = !!item.objetivoAutoRealizado;
   // Campos estruturais editáveis? (não em linha de investimento nem de sonho)
   const canEditStructure = isEditing && !isInvestmentItem && !objetivoLocked;
+  const canEditValues = isEditing && !isInvestmentItem && !autoRealizado;
   // Excluir é permitido também em linha de sonho (propaga pro Planejamento, com
   // confirmação); só não em linha de investimento (calculada).
   const canDelete = isEditing && !isInvestmentItem;
@@ -157,7 +161,11 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             {objetivoLocked ? (
               <span
                 className="mr-1"
-                title="Linha vinculada a um sonho — edite o nome no Planejamento de Sonhos"
+                title={
+                  autoRealizado
+                    ? 'Sonho com ativos vinculados — o realizado vem automaticamente da carteira'
+                    : 'Linha vinculada a um sonho — edite o nome no Planejamento de Sonhos'
+                }
               >
                 🎯
               </span>
@@ -239,7 +247,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             : '-'}
       </TableCell>
 
-      {isEditing && !isInvestmentItem
+      {canEditValues
         ? displayData.monthlyValues.map((value, index) => {
             const cellColor = monthlyColors[index] || null;
             // Buscar comentário do valor mensal

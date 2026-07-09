@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const mockPrisma = vi.hoisted(() => ({
   portfolioDailySnapshot: { findMany: vi.fn() },
   stockTransaction: { findMany: vi.fn() },
+  portfolio: { findMany: vi.fn() },
 }));
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
@@ -16,6 +17,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   // "Hoje" fixo: jun/2026 → offsets 1..5 (fev..jun).
   vi.setSystemTime(new Date(Date.UTC(2026, 5, 15)));
+  mockPrisma.portfolio.findMany.mockResolvedValue([]); // sem vínculos por padrão
 });
 
 afterEach(() => {
@@ -80,6 +82,68 @@ describe('deriveAcompanhamentoEntries', () => {
     });
     const mai = res[3];
     expect(mai).toMatchObject({ off: 4, patFinal: null, hasData: false });
+  });
+
+  it('com vínculo de aposentadoria, só transações dos ativos vinculados contam', async () => {
+    mockPrisma.portfolioDailySnapshot.findMany.mockResolvedValue([]);
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      { assetId: 'asset-apos', vinculoAposentadoria: true, planejamentoObjetivoId: null },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        assetId: 'asset-apos',
+        date: new Date(Date.UTC(2026, 2, 5)),
+        type: 'compra',
+        total: 500,
+        price: 0,
+        quantity: 0,
+        notes: null,
+      },
+      {
+        assetId: 'asset-outro',
+        date: new Date(Date.UTC(2026, 2, 10)),
+        type: 'compra',
+        total: 900,
+        price: 0,
+        quantity: 0,
+        notes: null,
+      },
+    ]);
+
+    const res = await deriveAcompanhamentoEntries('u1', plano);
+    const mar = res[1];
+    expect(mar.aporteReal).toBe(500); // só o ativo vinculado; asset-outro fora
+  });
+
+  it('sem vínculo de aposentadoria, exclui ativos de sonho da carteira toda', async () => {
+    mockPrisma.portfolioDailySnapshot.findMany.mockResolvedValue([]);
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      { assetId: 'asset-sonho', vinculoAposentadoria: false, planejamentoObjetivoId: 'obj-1' },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        assetId: 'asset-sonho',
+        date: new Date(Date.UTC(2026, 2, 5)),
+        type: 'compra',
+        total: 500,
+        price: 0,
+        quantity: 0,
+        notes: null,
+      },
+      {
+        assetId: 'asset-livre',
+        date: new Date(Date.UTC(2026, 2, 10)),
+        type: 'compra',
+        total: 900,
+        price: 0,
+        quantity: 0,
+        notes: null,
+      },
+    ]);
+
+    const res = await deriveAcompanhamentoEntries('u1', plano);
+    const mar = res[1];
+    expect(mar.aporteReal).toBe(900); // carteira toda menos o ativo do sonho
   });
 
   it('sem snapshots nem transações → meses sem dado', async () => {

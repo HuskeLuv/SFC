@@ -8,6 +8,7 @@ const ctx = (over: Partial<PlanejamentoContexto> = {}): PlanejamentoContexto => 
   patrimonio: 80_000,
   reservaEmergenciaAtual: 12_000,
   aporteMensalRealizado: 800,
+  aporteMensalAposentadoria: null,
   cdiAnualizado: 13.7,
   inflacao12m: 4.2,
   inflacaoFallback: 4.5,
@@ -49,6 +50,18 @@ describe('deriveAutoValues', () => {
     expect(a.rentNom.autoValue).toBe(13.7);
     expect(a.inflacao.autoValue).toBe(4.2);
     expect(a.inflacao.label).toBe('IPCA 12m');
+  });
+
+  it('aporte prioriza ativos vinculados à aposentadoria sobre a sobra', () => {
+    const a = deriveAutoValues(ctx({ aporteMensalAposentadoria: 1200.4 }));
+    expect(a.aporteM.autoValue).toBe(1200);
+    expect(a.aporteM.label).toBe('dos ativos vinculados (12m)');
+  });
+
+  it('aporte ignora vínculo com média ≤ 0 (só resgates) e cai na sobra', () => {
+    const a = deriveAutoValues(ctx({ aporteMensalAposentadoria: -300 }));
+    expect(a.aporteM.autoValue).toBe(2500);
+    expect(a.aporteM.label).toBe('da sua sobra de caixa');
   });
 
   it('aporte cai nos aportes realizados quando não há sobra', () => {
