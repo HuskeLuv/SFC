@@ -363,9 +363,18 @@ model Portfolio {
   lastUpdate    DateTime            @default(now())
   proventos     PortfolioProvento[]
 
+  // Vínculo com planejamento (mutuamente exclusivos — validado na API):
+  // sonho (FK) OU aposentadoria (flag; AposentadoriaPlano é 1 por usuário).
+  // Aportes/resgates do ativo alimentam o realizado do plano vinculado e saem
+  // das linhas automáticas do fluxo de caixa (evita dupla contagem).
+  planejamentoObjetivoId String?
+  planejamentoObjetivo   PlanejamentoObjetivo? @relation(fields: [planejamentoObjetivoId], references: [id], onDelete: SetNull)
+  vinculoAposentadoria   Boolean               @default(false)
+
   @@unique([userId, assetId])
   @@index([userId])
   @@index([userId, assetId])
+  @@index([userId, planejamentoObjetivoId])
   @@map("portfolios")
 }
 
@@ -856,6 +865,9 @@ model PlanejamentoObjetivo {
   // Linha espelhada no fluxo de caixa (grupo "Planejamento Financeiro"). O
   // sonho é a fonte: o aporte mensal (pmt) é gravado nessa linha.
   cashflowItem CashflowItem?
+
+  // Ativos da carteira vinculados a este sonho (realizado automático).
+  portfolios Portfolio[]
 
   @@index([userId])
   @@index([userId, category])
