@@ -15,7 +15,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { aposentadoriaPlanoUpsertSchema, validationError } from '@/utils/validation-schemas';
-import { recordChange } from '@/services/changeHistory';
+import { recordChange, diffFields, APOSENTADORIA_FIELD_LABELS } from '@/services/changeHistory';
 import { serializePlano } from './_lib/serializer';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -59,6 +59,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     fieldLocks,
   };
 
+  // Estado anterior: alimenta o diff do histórico (e o undo por restauração).
+  // eventos/fieldLocks (Json) ficam fora da allowlist — não entram no diff.
+  const before = await prisma.aposentadoriaPlano.findUnique({
+    where: { userId: targetUserId },
+  });
+
   const plano = await prisma.aposentadoriaPlano.upsert({
     where: { userId: targetUserId },
     create: { userId: targetUserId, ...data },
@@ -66,7 +72,6 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     include: { entries: true },
   });
 
-  // Upsert sem before-state carregado → registra a ação sem diff de campos.
   await recordChange({
     request,
     auth,
@@ -74,6 +79,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     action: 'aposentadoria.editar',
     entity: 'aposentadoria',
     entityId: plano.id,
+    changes: diffFields(before ?? {}, data, APOSENTADORIA_FIELD_LABELS),
   });
 
   return NextResponse.json({ plano: serializePlano(plano) });

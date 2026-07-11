@@ -7,7 +7,8 @@ const mockPrisma = vi.hoisted(() => ({
     update: vi.fn(),
   },
   planejamentoObjetivoEntry: {
-    deleteMany: vi.fn(),
+    findUnique: vi.fn(),
+    delete: vi.fn(),
     findMany: vi.fn(),
   },
   userChangeLog: { create: vi.fn() },
@@ -47,6 +48,15 @@ beforeEach(() => {
     actingClient: null,
   });
   mockPrisma.planejamentoObjetivoEntry.findMany.mockResolvedValue([]);
+  mockPrisma.planejamentoObjetivoEntry.findUnique.mockResolvedValue({
+    id: 'entry-1',
+    objetivoId: 'obj-1',
+    month: '2026-02',
+    aporte: 100,
+    balance: 500,
+    source: 'manual',
+  });
+  mockPrisma.planejamentoObjetivoEntry.delete.mockResolvedValue({});
 });
 
 describe('DELETE /api/planejamento-sonhos/[id]/entries/[month]', () => {
@@ -56,15 +66,19 @@ describe('DELETE /api/planejamento-sonhos/[id]/entries/[month]', () => {
       status: 'Iniciado',
       target: 1000,
     });
-    mockPrisma.planejamentoObjetivoEntry.deleteMany.mockResolvedValue({ count: 1 });
-
     const res = await callDELETE();
     const data = await res.json();
 
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(mockPrisma.planejamentoObjetivoEntry.deleteMany).toHaveBeenCalledWith({
-      where: { objetivoId: 'obj-1', month: '2026-02' },
+    expect(mockPrisma.planejamentoObjetivoEntry.delete).toHaveBeenCalledWith({
+      where: { id: 'entry-1' },
+    });
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'sonho-aporte.excluir',
+        snapshot: expect.objectContaining({ kind: 'sonho-entry-excluir' }),
+      }),
     });
   });
 
@@ -80,16 +94,16 @@ describe('DELETE /api/planejamento-sonhos/[id]/entries/[month]', () => {
     mockPrisma.planejamentoObjetivo.findFirst.mockResolvedValue(null);
     const res = await callDELETE();
     expect(res.status).toBe(404);
-    expect(mockPrisma.planejamentoObjetivoEntry.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.planejamentoObjetivoEntry.findUnique).not.toHaveBeenCalled();
   });
 
-  it('retorna 404 quando entry não existe (count=0)', async () => {
+  it('retorna 404 quando entry não existe', async () => {
     mockPrisma.planejamentoObjetivo.findFirst.mockResolvedValue({
       id: 'obj-1',
       status: 'Iniciado',
       target: 1000,
     });
-    mockPrisma.planejamentoObjetivoEntry.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.planejamentoObjetivoEntry.findUnique.mockResolvedValue(null);
     const res = await callDELETE();
     const data = await res.json();
     expect(res.status).toBe(404);
@@ -103,7 +117,6 @@ describe('DELETE /api/planejamento-sonhos/[id]/entries/[month]', () => {
         status: 'Concluído',
         target: 1000,
       });
-      mockPrisma.planejamentoObjetivoEntry.deleteMany.mockResolvedValue({ count: 1 });
       mockPrisma.planejamentoObjetivoEntry.findMany.mockResolvedValue([]);
 
       const res = await callDELETE();
@@ -120,7 +133,6 @@ describe('DELETE /api/planejamento-sonhos/[id]/entries/[month]', () => {
         status: 'Concluído',
         target: 1000,
       });
-      mockPrisma.planejamentoObjetivoEntry.deleteMany.mockResolvedValue({ count: 1 });
       mockPrisma.planejamentoObjetivoEntry.findMany.mockResolvedValue([
         { month: '2026-01', balance: 500 },
       ]);
@@ -139,7 +151,6 @@ describe('DELETE /api/planejamento-sonhos/[id]/entries/[month]', () => {
         status: 'Concluído',
         target: 1000,
       });
-      mockPrisma.planejamentoObjetivoEntry.deleteMany.mockResolvedValue({ count: 1 });
       mockPrisma.planejamentoObjetivoEntry.findMany.mockResolvedValue([
         { month: '2026-01', balance: 500 },
         { month: '2026-03', balance: 1200 },
@@ -156,7 +167,6 @@ describe('DELETE /api/planejamento-sonhos/[id]/entries/[month]', () => {
         status: 'Iniciado',
         target: 1000,
       });
-      mockPrisma.planejamentoObjetivoEntry.deleteMany.mockResolvedValue({ count: 1 });
       mockPrisma.planejamentoObjetivoEntry.findMany.mockResolvedValue([
         { month: '2026-01', balance: 500 },
       ]);

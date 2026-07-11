@@ -20,7 +20,11 @@ import {
   type Status,
 } from '@/services/planejamento/planejamentoSonhos';
 import { syncObjetivoRecordToCashflow } from '@/services/planejamento/sonhoCashflowSync';
-import { recordChange } from '@/services/changeHistory';
+import {
+  recordChange,
+  finalStateChanges,
+  SONHO_ENTRY_FIELD_LABELS,
+} from '@/services/changeHistory';
 import { decimalToNumber } from '../../../_lib/serializer';
 
 const yearMonthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -42,12 +46,15 @@ export const DELETE = withErrorHandler(
       return NextResponse.json({ error: 'Objetivo não encontrado' }, { status: 404 });
     }
 
-    const deleted = await prisma.planejamentoObjetivoEntry.deleteMany({
-      where: { objetivoId, month },
+    // Estado da entry pré-exclusão + status prévio do objetivo: snapshot pra desfazer.
+    const entryBefore = await prisma.planejamentoObjetivoEntry.findUnique({
+      where: { objetivoId_month: { objetivoId, month } },
     });
-    if (deleted.count === 0) {
+    if (!entryBefore) {
       return NextResponse.json({ error: 'Entry não encontrada' }, { status: 404 });
     }
+
+    await prisma.planejamentoObjetivoEntry.delete({ where: { id: entryBefore.id } });
 
     const remaining = await prisma.planejamentoObjetivoEntry.findMany({
       where: { objetivoId },
@@ -80,7 +87,24 @@ export const DELETE = withErrorHandler(
       action: 'sonho-aporte.excluir',
       entity: 'sonho',
       entityId: objetivoId,
-      entityLabel: objetivo.name,
+      entityLabel: `${objetivo.name} · ${month}`,
+      changes: finalStateChanges(
+        {
+          aporte: decimalToNumber(entryBefore.aporte),
+          balance: decimalToNumber(entryBefore.balance),
+        },
+        SONHO_ENTRY_FIELD_LABELS,
+      ),
+      snapshot: {
+        v: 1,
+        kind: 'sonho-entry-excluir',
+        data: {
+          aporte: decimalToNumber(entryBefore.aporte),
+          balance: decimalToNumber(entryBefore.balance),
+          source: entryBefore.source,
+        },
+        meta: { month, prevStatus: objetivo.status },
+      },
     });
 
     return NextResponse.json({ success: true });

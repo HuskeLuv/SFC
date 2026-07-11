@@ -174,7 +174,21 @@ describe('PATCH /api/planejamento-sonhos/[id]', () => {
 
 describe('DELETE /api/planejamento-sonhos/[id]', () => {
   it('remove objetivo (cascade nas entries)', async () => {
-    mockPrisma.planejamentoObjetivo.findFirst.mockResolvedValue({ id: 'obj-1' });
+    mockPrisma.planejamentoObjetivo.findFirst.mockResolvedValue({
+      id: 'obj-1',
+      name: 'Viagem',
+      target: 1000,
+      months: 12,
+      startDate: null,
+      available: 0,
+      rate: 0,
+      priority: 'Alta',
+      category: 'c',
+      status: 'Iniciado',
+      notes: null,
+      entries: [],
+      portfolios: [],
+    });
     mockPrisma.planejamentoObjetivo.delete.mockResolvedValue({});
 
     const res = await callDELETE();
