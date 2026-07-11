@@ -12,7 +12,13 @@
 
 import type { UndoDefinition } from './types';
 import { CARTEIRA_UNDO_HANDLERS } from './handlers/carteira';
+import { FLUXO_CAIXA_UNDO_HANDLERS } from './handlers/fluxoCaixa';
+import { PLANEJAMENTO_UNDO_HANDLERS } from './handlers/planejamento';
+import { PERFIL_UNDO_HANDLERS } from './handlers/perfil';
 
 export const UNDO_REGISTRY: Record<string, UndoDefinition> = {
   ...CARTEIRA_UNDO_HANDLERS,
+  ...FLUXO_CAIXA_UNDO_HANDLERS,
+  ...PLANEJAMENTO_UNDO_HANDLERS,
+  ...PERFIL_UNDO_HANDLERS,
 };
