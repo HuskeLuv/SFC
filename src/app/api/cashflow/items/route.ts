@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { personalizeGroup, getGroupForUser } from '@/utils/cashflowPersonalization';
 import { cashflowItemCreateSchema, validationError } from '@/utils/validation-schemas';
-import { recordChange } from '@/services/changeHistory';
+import { recordChange, diffFields, CASHFLOW_FIELD_LABELS } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
@@ -73,6 +73,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entity: 'item',
     entityId: newItem.id,
     entityLabel: newItem.name,
+    changes: diffFields({}, newItem, CASHFLOW_FIELD_LABELS),
   });
 
   return NextResponse.json(newItem);

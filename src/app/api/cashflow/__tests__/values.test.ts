@@ -179,7 +179,19 @@ describe('PATCH /api/cashflow/values', () => {
         action: 'valor.editar',
         entityId: 'item-1',
         entityLabel: `Salario · abr/${new Date().getFullYear()}`,
-        changes: [{ field: 'monthlyValue', label: 'Valor mensal', before: 3000, after: 5000 }],
+        changes: [
+          {
+            field: 'monthlyValue',
+            label: 'Valor mensal',
+            before: 3000,
+            after: 5000,
+            format: 'currency',
+          },
+        ],
+        snapshot: expect.objectContaining({
+          kind: 'cashflow-valor',
+          meta: expect.objectContaining({ itemId: 'item-1', month: 3 }),
+        }),
       }),
     });
   });

@@ -45,6 +45,23 @@ export const CASHFLOW_FIELD_LABELS: FieldLabelMap = {
   comment: 'Comentário',
 };
 
+/** CashflowGroup (grupos da planilha do fluxo de caixa) */
+export const CASHFLOW_GRUPO_FIELD_LABELS: FieldLabelMap = {
+  name: 'Nome',
+  type: 'Tipo',
+};
+
+/** Cashflow (lançamentos avulsos — modelo legado) */
+export const LANCAMENTO_FIELD_LABELS: FieldLabelMap = {
+  data: { label: 'Data', format: 'date' },
+  tipo: 'Tipo',
+  categoria: 'Categoria',
+  descricao: 'Descrição',
+  valor: { label: 'Valor', format: 'currency' },
+  forma_pagamento: 'Forma de pagamento',
+  pago: 'Pago',
+};
+
 /** PlanejamentoObjetivo (sonho) */
 export const SONHO_FIELD_LABELS: FieldLabelMap = {
   name: 'Nome',

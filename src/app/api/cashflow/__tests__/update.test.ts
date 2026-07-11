@@ -19,7 +19,7 @@ const mockPrisma = vi.hoisted(() => ({
     delete: vi.fn(),
     count: vi.fn(),
   },
-  cashflowValue: { deleteMany: vi.fn() },
+  cashflowValue: { deleteMany: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   userChangeLog: { create: vi.fn() },
   $transaction: vi.fn().mockResolvedValue([]),
 }));

@@ -217,6 +217,12 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       { comment: normalizedComment },
       CASHFLOW_FIELD_LABELS,
     ),
+    snapshot: {
+      v: 1,
+      kind: 'cashflow-comentario',
+      data: { comment: existingValue?.comment ?? null, valueExisted: Boolean(existingValue) },
+      meta: { itemId: finalItemId, year, month },
+    },
   });
 
   return NextResponse.json({

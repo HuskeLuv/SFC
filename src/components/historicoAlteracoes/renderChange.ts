@@ -77,6 +77,8 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     (l) => `Editou ${l} do fluxo de caixa`,
   ),
   'comentario.editar': withLabel('Editou um comentário', (l) => `Editou comentário de ${l}`),
+  'lancamento.editar': withLabel('Editou um lançamento', (l) => `Editou o lançamento ${l}`),
+  'lancamento.excluir': withLabel('Excluiu um lançamento', (l) => `Excluiu o lançamento ${l}`),
   'grupo.criar': withLabel('Criou um grupo no fluxo de caixa', (l) => `Criou o grupo ${l}`),
   'grupo.editar': withLabel('Editou um grupo do fluxo de caixa', (l) => `Editou o grupo ${l}`),
   'grupo.excluir': withLabel('Excluiu um grupo do fluxo de caixa', (l) => `Excluiu o grupo ${l}`),
