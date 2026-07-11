@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { diffFields } from '../diffFields';
+import { diffFields, finalStateChanges } from '../diffFields';
+import type { FieldLabelMap } from '../types';
 
 const LABELS = { quantity: 'Quantidade', price: 'Preço', date: 'Data' };
 
@@ -55,6 +56,57 @@ describe('diffFields', () => {
   it('normaliza null e undefined em before para null', () => {
     expect(diffFields({}, { quantity: 5 }, LABELS)).toEqual([
       { field: 'quantity', label: 'Quantidade', before: null, after: 5 },
+    ]);
+  });
+
+  it('emite format quando o label é { label, format }', () => {
+    const labels: FieldLabelMap = {
+      price: { label: 'Preço', format: 'currency' },
+      notes: 'Observações',
+    };
+    expect(diffFields({ price: 10, notes: 'a' }, { price: 12, notes: 'b' }, labels)).toEqual([
+      { field: 'price', label: 'Preço', before: 10, after: 12, format: 'currency' },
+      { field: 'notes', label: 'Observações', before: 'a', after: 'b' },
+    ]);
+  });
+});
+
+describe('finalStateChanges', () => {
+  const labels: FieldLabelMap = {
+    quantity: { label: 'Quantidade', format: 'number' },
+    price: { label: 'Preço', format: 'currency' },
+    notes: 'Observações',
+  };
+
+  it('converte o estado final em pares com after: null', () => {
+    expect(finalStateChanges({ quantity: 100, price: 10.5 }, labels)).toEqual([
+      { field: 'quantity', label: 'Quantidade', before: 100, after: null, format: 'number' },
+      { field: 'price', label: 'Preço', before: 10.5, after: null, format: 'currency' },
+    ]);
+  });
+
+  it('omite campos vazios (null/undefined/"") e ignora fora da allowlist', () => {
+    expect(finalStateChanges({ quantity: 5, notes: '', password: 'x' }, labels)).toEqual([
+      { field: 'quantity', label: 'Quantidade', before: 5, after: null, format: 'number' },
+    ]);
+  });
+
+  it('normaliza Decimal-like e Date como o diffFields', () => {
+    const decimal = (n: number) => ({ toNumber: () => n });
+    expect(
+      finalStateChanges(
+        { price: decimal(9.9), quantity: new Date('2026-01-01T00:00:00Z') },
+        labels,
+      ),
+    ).toEqual([
+      {
+        field: 'quantity',
+        label: 'Quantidade',
+        before: '2026-01-01T00:00:00.000Z',
+        after: null,
+        format: 'number',
+      },
+      { field: 'price', label: 'Preço', before: 9.9, after: null, format: 'currency' },
     ]);
   });
 });

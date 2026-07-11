@@ -1,4 +1,4 @@
-import type { FieldChange } from './types';
+import type { FieldChange, FieldLabelEntry, FieldLabelMap } from './types';
 
 /**
  * Normaliza valores para comparação e armazenamento em JSON:
@@ -26,6 +26,9 @@ const isEqual = (a: unknown, b: unknown): boolean => {
   return false;
 };
 
+const resolveLabel = (entry: FieldLabelEntry): { label: string; format?: FieldChange['format'] } =>
+  typeof entry === 'string' ? { label: entry } : entry;
+
 /**
  * Computa os pares antes/depois entre dois estados de um registro.
  *
@@ -35,23 +38,55 @@ const isEqual = (a: unknown, b: unknown): boolean => {
  *
  * `undefined` em `after` significa "campo não enviado na edição" e é tratado
  * como inalterado. Retorna `[]` quando nada mudou (edição no-op).
+ *
+ * Para registrar uma CRIAÇÃO com os valores iniciais, passe `{}` como
+ * `before` — cada campo presente vira um par com `before: null`.
  */
 export function diffFields(
   before: Record<string, unknown>,
   after: Record<string, unknown>,
-  fieldLabels: Record<string, string>,
+  fieldLabels: FieldLabelMap,
 ): FieldChange[] {
   const changes: FieldChange[] = [];
 
-  for (const [field, label] of Object.entries(fieldLabels)) {
+  for (const [field, entry] of Object.entries(fieldLabels)) {
     if (after[field] === undefined) continue;
 
     const normalizedBefore = normalize(before[field]);
     const normalizedAfter = normalize(after[field]);
 
     if (!isEqual(normalizedBefore, normalizedAfter)) {
-      changes.push({ field, label, before: normalizedBefore, after: normalizedAfter });
+      const { label, format } = resolveLabel(entry);
+      changes.push({
+        field,
+        label,
+        before: normalizedBefore,
+        after: normalizedAfter,
+        ...(format ? { format } : {}),
+      });
     }
+  }
+
+  return changes;
+}
+
+/**
+ * Converte o estado final de uma entidade em pares com `after: null` —
+ * usado em EXCLUSÕES para registrar "valores no momento da exclusão".
+ * Campos vazios (null/'') são omitidos. Mesma allowlist do diffFields.
+ */
+export function finalStateChanges(
+  entity: Record<string, unknown>,
+  fieldLabels: FieldLabelMap,
+): FieldChange[] {
+  const changes: FieldChange[] = [];
+
+  for (const [field, entry] of Object.entries(fieldLabels)) {
+    const value = normalize(entity[field]);
+    if (value === null || value === '') continue;
+
+    const { label, format } = resolveLabel(entry);
+    changes.push({ field, label, before: value, after: null, ...(format ? { format } : {}) });
   }
 
   return changes;
