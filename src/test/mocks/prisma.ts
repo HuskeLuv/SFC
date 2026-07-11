@@ -36,9 +36,13 @@ export function createMockPrisma() {
     consultantImpersonationLog: { create: vi.fn(), findMany: vi.fn() },
     userChangeLog: {
       create: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
       deleteMany: vi.fn(),
+      groupBy: vi.fn(),
     },
     consultant: { findFirst: vi.fn(), findUnique: vi.fn() },
     clientConsultant: { findFirst: vi.fn(), findMany: vi.fn() },

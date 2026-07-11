@@ -652,25 +652,36 @@ model ImpersonationSession {
  * por seção do app. `changes` guarda os pares antes/depois já filtrados por
  * allowlist — nunca senhas, hashes ou segredos TOTP. Retenção: 365 dias
  * (cron lgpd-retention).
+ *
+ * Undo: `snapshot` guarda o estado pré-mutação ({ v, kind, data, meta })
+ * allowlisted, gravado em exclusões/upserts para permitir reverter; nunca é
+ * exposto na API de listagem. Entrada desfeita ganha `undoneAt`/`undoneById`;
+ * o undo em si é uma nova entrada com `revertsId` apontando para a original
+ * (sem FK — a original pode ser purgada pela retenção antes da entrada de undo).
  */
 model UserChangeLog {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   userId        String
-  user          User     @relation("UserChangeLogUser", fields: [userId], references: [id], onDelete: Cascade)
+  user          User      @relation("UserChangeLogUser", fields: [userId], references: [id], onDelete: Cascade)
   actorId       String?
-  viaConsultant Boolean  @default(false)
+  viaConsultant Boolean   @default(false)
   section       String
   action        String
   entity        String?
   entityId      String?
   entityLabel   String?
   changes       Json?
+  snapshot      Json?
+  undoneAt      DateTime?
+  undoneById    String?
+  revertsId     String?
   ipAddress     String?
   userAgent     String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, section, createdAt])
+  @@index([userId, entityId, createdAt])
   @@map("user_change_logs")
 }
 
