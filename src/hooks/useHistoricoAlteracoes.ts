@@ -14,6 +14,12 @@ export interface HistoricoAlteracaoEntry {
   entityLabel: string | null;
   changes: FieldChange[] | null;
   createdAt: string;
+  /** Computado no servidor: entrada reversível e mais recente da entidade. */
+  canUndo: boolean;
+  /** Preenchido quando a entrada foi desfeita. */
+  undoneAt: string | null;
+  /** Preenchido quando ESTA entrada é um undo (id da entrada revertida). */
+  revertsId: string | null;
 }
 
 interface HistoricoAlteracoesResponse {

@@ -9,9 +9,13 @@ import {
   TableBody,
 } from '@/components/ui/table/StandardTable';
 import PaginationWithButton from '@/components/tables/DataTables/TableTwo/PaginationWithButton';
-import { useHistoricoAlteracoes } from '@/hooks/useHistoricoAlteracoes';
+import {
+  useHistoricoAlteracoes,
+  type HistoricoAlteracaoEntry,
+} from '@/hooks/useHistoricoAlteracoes';
+import { useUndoAlteracao } from '@/hooks/useUndoAlteracao';
 import { CHANGE_SECTIONS, type ChangeSection } from '@/services/changeHistory/types';
-import { SECTION_LABELS } from './renderChange';
+import { SECTION_LABELS, renderRichDescription } from './renderChange';
 import { HistoricoEntryRow, HistoricoEntryCard } from './HistoricoEntryRow';
 
 const SectionChips: React.FC<{
@@ -56,13 +60,24 @@ export default function HistoricoAlteracoesPage() {
   const [page, setPage] = useState(1);
   const [section, setSection] = useState<ChangeSection | undefined>(undefined);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [undoError, setUndoError] = useState<string | null>(null);
 
   const { entries, pagination, loading, error, refetch } = useHistoricoAlteracoes(page, section);
+  const undoMutation = useUndoAlteracao();
 
   const handleSectionChange = (next: ChangeSection | undefined) => {
     setSection(next);
     setPage(1);
     setExpandedId(null);
+  };
+
+  const handleUndo = (entry: HistoricoAlteracaoEntry) => {
+    const { title } = renderRichDescription(entry);
+    if (!window.confirm(`Desfazer esta alteração?\n\n${title}`)) return;
+    setUndoError(null);
+    undoMutation.mutate(entry.id, {
+      onError: (err) => setUndoError(err.message),
+    });
   };
 
   return (
@@ -78,6 +93,18 @@ export default function HistoricoAlteracoesPage() {
         </div>
         <SectionChips selected={section} onSelect={handleSectionChange} />
       </div>
+
+      {undoError && (
+        <div
+          className="rounded-lg border border-warning-300 bg-warning-50 p-3 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400"
+          role="alert"
+        >
+          Não foi possível desfazer: {undoError}{' '}
+          <button type="button" onClick={() => setUndoError(null)} className="underline">
+            fechar
+          </button>
+        </div>
+      )}
 
       {loading && <LoadingSkeleton />}
 
@@ -120,6 +147,8 @@ export default function HistoricoAlteracoesPage() {
                     entry={entry}
                     expanded={expandedId === entry.id}
                     onToggle={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
+                    onUndo={handleUndo}
+                    undoPending={undoMutation.isPending && undoMutation.variables === entry.id}
                   />
                 ))}
               </TableBody>
@@ -129,7 +158,12 @@ export default function HistoricoAlteracoesPage() {
           {/* Mobile */}
           <div className="space-y-3 sm:hidden">
             {entries.map((entry) => (
-              <HistoricoEntryCard key={entry.id} entry={entry} />
+              <HistoricoEntryCard
+                key={entry.id}
+                entry={entry}
+                onUndo={handleUndo}
+                undoPending={undoMutation.isPending && undoMutation.variables === entry.id}
+              />
             ))}
           </div>
 

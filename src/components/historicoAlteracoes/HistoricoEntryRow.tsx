@@ -35,15 +35,41 @@ const ViaConsultorBadge: React.FC = () => (
   </Badge>
 );
 
+const DesfeitaBadge: React.FC = () => (
+  <Badge variant="light" color="light" size="sm">
+    Desfeita
+  </Badge>
+);
+
+const UndoButton: React.FC<{ onClick: () => void; pending: boolean }> = ({ onClick, pending }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={pending}
+    className="text-xs text-warning-600 hover:text-warning-700 disabled:opacity-50 dark:text-warning-400 dark:hover:text-warning-300"
+  >
+    {pending ? 'Desfazendo…' : 'Desfazer'}
+  </button>
+);
+
 interface RowProps {
   entry: HistoricoAlteracaoEntry;
   expanded: boolean;
   onToggle: () => void;
+  onUndo: (entry: HistoricoAlteracaoEntry) => void;
+  undoPending: boolean;
 }
 
 /** Linha da tabela (desktop) com expansão para os detalhes antes/depois. */
-export const HistoricoEntryRow: React.FC<RowProps> = ({ entry, expanded, onToggle }) => {
+export const HistoricoEntryRow: React.FC<RowProps> = ({
+  entry,
+  expanded,
+  onToggle,
+  onUndo,
+  undoPending,
+}) => {
   const hasChanges = Boolean(entry.changes && entry.changes.length > 0);
+  const isUndone = Boolean(entry.undoneAt);
   const { title, summary } = renderRichDescription(entry);
 
   return (
@@ -58,23 +84,33 @@ export const HistoricoEntryRow: React.FC<RowProps> = ({ entry, expanded, onToggl
           </Badge>
         </StandardTableBodyCell>
         <StandardTableBodyCell>
-          <span className="inline-flex items-center gap-2">
+          <span className={`inline-flex items-center gap-2 ${isUndone ? 'opacity-60' : ''}`}>
             {title}
             {entry.viaConsultant && <ViaConsultorBadge />}
+            {isUndone && <DesfeitaBadge />}
           </span>
-          {summary && <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{summary}</p>}
+          {summary && (
+            <p
+              className={`mt-0.5 text-xs text-gray-500 dark:text-gray-400 ${isUndone ? 'opacity-60' : ''}`}
+            >
+              {summary}
+            </p>
+          )}
         </StandardTableBodyCell>
         <StandardTableBodyCell align="right">
-          {hasChanges && (
-            <button
-              type="button"
-              onClick={onToggle}
-              className="text-xs text-brand-500 hover:text-brand-600 dark:hover:text-brand-400"
-              aria-expanded={expanded}
-            >
-              {expanded ? 'Ocultar' : 'Detalhes'}
-            </button>
-          )}
+          <span className="inline-flex items-center gap-3">
+            {entry.canUndo && <UndoButton onClick={() => onUndo(entry)} pending={undoPending} />}
+            {hasChanges && (
+              <button
+                type="button"
+                onClick={onToggle}
+                className="text-xs text-brand-500 hover:text-brand-600 dark:hover:text-brand-400"
+                aria-expanded={expanded}
+              >
+                {expanded ? 'Ocultar' : 'Detalhes'}
+              </button>
+            )}
+          </span>
         </StandardTableBodyCell>
       </StandardTableRow>
       {expanded && hasChanges && (
@@ -90,8 +126,15 @@ export const HistoricoEntryRow: React.FC<RowProps> = ({ entry, expanded, onToggl
   );
 };
 
+interface CardProps {
+  entry: HistoricoAlteracaoEntry;
+  onUndo: (entry: HistoricoAlteracaoEntry) => void;
+  undoPending: boolean;
+}
+
 /** Card (mobile) com os mesmos dados da linha. */
-export const HistoricoEntryCard: React.FC<{ entry: HistoricoAlteracaoEntry }> = ({ entry }) => {
+export const HistoricoEntryCard: React.FC<CardProps> = ({ entry, onUndo, undoPending }) => {
+  const isUndone = Boolean(entry.undoneAt);
   const { title, summary } = renderRichDescription(entry);
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 space-y-2">
@@ -103,11 +146,16 @@ export const HistoricoEntryCard: React.FC<{ entry: HistoricoAlteracaoEntry }> = 
           {formatEntryDate(entry.createdAt)}
         </span>
       </div>
-      <p className="text-sm text-gray-800 dark:text-gray-200">
-        {title} {entry.viaConsultant && <ViaConsultorBadge />}
+      <p className={`text-sm text-gray-800 dark:text-gray-200 ${isUndone ? 'opacity-60' : ''}`}>
+        {title} {entry.viaConsultant && <ViaConsultorBadge />} {isUndone && <DesfeitaBadge />}
       </p>
-      {summary && <p className="text-xs text-gray-500 dark:text-gray-400">{summary}</p>}
+      {summary && (
+        <p className={`text-xs text-gray-500 dark:text-gray-400 ${isUndone ? 'opacity-60' : ''}`}>
+          {summary}
+        </p>
+      )}
       <ChangesList entry={entry} />
+      {entry.canUndo && <UndoButton onClick={() => onUndo(entry)} pending={undoPending} />}
     </div>
   );
 };
