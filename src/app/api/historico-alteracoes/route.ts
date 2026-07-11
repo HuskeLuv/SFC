@@ -4,6 +4,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { withErrorHandler, Errors } from '@/utils/apiErrorHandler';
 import { parsePaginationParams, paginatedResponse, DEFAULT_LIMIT } from '@/utils/pagination';
 import { CHANGE_SECTIONS, type ChangeSection } from '@/services/changeHistory';
+import { annotateCanUndo } from '@/services/changeHistory/undo';
 
 /**
  * GET /api/historico-alteracoes — histórico de alterações do usuário,
@@ -59,5 +60,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     prisma.userChangeLog.count({ where }),
   ]);
 
-  return NextResponse.json(paginatedResponse(entries, total, pagination.page, pagination.limit));
+  const canUndoById = await annotateCanUndo(entries, targetUserId);
+
+  // `snapshot` NUNCA sai na resposta: é payload interno do undo (estado
+  // pré-mutação) e pode carregar mais campos que o diff exibido.
+  const data = entries.map(({ snapshot: _snapshot, ...entry }) => ({
+    ...entry,
+    canUndo: canUndoById.get(entry.id) ?? false,
+  }));
+
+  return NextResponse.json(paginatedResponse(data, total, pagination.page, pagination.limit));
 });
