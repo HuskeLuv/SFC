@@ -1,5 +1,5 @@
 import type { HistoricoAlteracaoEntry } from '@/hooks/useHistoricoAlteracoes';
-import type { ChangeSection } from '@/services/changeHistory/types';
+import type { ChangeSection, ChangeValueFormat, FieldChange } from '@/services/changeHistory/types';
 
 export const SECTION_LABELS: Record<ChangeSection, string> = {
   carteira: 'Carteira',
@@ -101,8 +101,14 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
   '2fa.desativar': withLabel('Desativou a autenticação em duas etapas'),
 };
 
+const UNDO_SUFFIX = '.desfazer';
+
 /** Descrição em pt-BR de uma entrada; fallback legível para ações desconhecidas. */
 export function renderDescription(entry: HistoricoAlteracaoEntry): string {
+  if (entry.action.endsWith(UNDO_SUFFIX)) {
+    const original = { ...entry, action: entry.action.slice(0, -UNDO_SUFFIX.length) };
+    return `Desfez: ${renderDescription(original)}`;
+  }
   const renderer = ACTION_RENDERERS[entry.action];
   if (renderer) return renderer(entry);
   const readable = entry.action.replace(/[.-]/g, ' ');
@@ -111,11 +117,20 @@ export function renderDescription(entry: HistoricoAlteracaoEntry): string {
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/;
 
-/** Formata um valor antes/depois para exibição. */
-export function formatChangeValue(value: unknown): string {
+/**
+ * Formata um valor antes/depois para exibição. `format` é a dica gravada no
+ * diff (moeda, %, data); sem ela vale a heurística por tipo.
+ */
+export function formatChangeValue(value: unknown, format?: ChangeValueFormat): string {
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
   if (typeof value === 'number') {
+    if (format === 'currency') {
+      return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+    if (format === 'percent') {
+      return `${value.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}%`;
+    }
     return value.toLocaleString('pt-BR', { maximumFractionDigits: 6 });
   }
   if (typeof value === 'string' && ISO_DATE_RE.test(value)) {
@@ -126,6 +141,57 @@ export function formatChangeValue(value: unknown): string {
   }
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+export interface RichDescription {
+  title: string;
+  summary?: string;
+}
+
+const CREATION_VERBS = new Set(['criar', 'adicionar', 'registrar']);
+const DELETION_VERBS = new Set(['excluir', 'remover']);
+const MAX_SUMMARY_PAIRS = 2;
+
+const formatPair = (change: FieldChange, style: 'edit' | 'single-before' | 'single-after') => {
+  if (style === 'single-before')
+    return `${change.label}: ${formatChangeValue(change.before, change.format)}`;
+  if (style === 'single-after')
+    return `${change.label}: ${formatChangeValue(change.after, change.format)}`;
+  return `${change.label}: ${formatChangeValue(change.before, change.format)} → ${formatChangeValue(change.after, change.format)}`;
+};
+
+/**
+ * Descrição rica: título (frase da ação) + resumo com até 2 campos do diff.
+ * Edição mostra antes → depois; criação mostra os valores iniciais; exclusão
+ * mostra os valores no momento da exclusão. O expand "Detalhes" continua
+ * sendo o lugar da lista completa.
+ */
+export function renderRichDescription(entry: HistoricoAlteracaoEntry): RichDescription {
+  const title = renderDescription(entry);
+  const changes = entry.changes ?? [];
+  if (changes.length === 0) return { title };
+
+  const baseAction = entry.action.endsWith(UNDO_SUFFIX)
+    ? entry.action.slice(0, -UNDO_SUFFIX.length)
+    : entry.action;
+  const verb = baseAction.split('.').pop() ?? '';
+  const style = CREATION_VERBS.has(verb)
+    ? 'single-after'
+    : DELETION_VERBS.has(verb)
+      ? 'single-before'
+      : 'edit';
+
+  const shown = changes.slice(0, MAX_SUMMARY_PAIRS);
+  const rest = changes.length - shown.length;
+
+  const parts = shown.map((change) => formatPair(change, style));
+  if (rest > 0) parts.push(`+${rest} ${rest === 1 ? 'outro campo' : 'outros campos'}`);
+
+  const summary = parts.join(' · ');
+  return {
+    title,
+    summary: style === 'single-before' ? `Valores no momento da exclusão — ${summary}` : summary,
+  };
 }
 
 export function formatEntryDate(createdAt: string): string {

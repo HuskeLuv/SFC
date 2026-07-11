@@ -7,7 +7,7 @@ import type { HistoricoAlteracaoEntry } from '@/hooks/useHistoricoAlteracoes';
 import {
   SECTION_LABELS,
   SECTION_BADGE_COLORS,
-  renderDescription,
+  renderRichDescription,
   formatChangeValue,
   formatEntryDate,
 } from './renderChange';
@@ -20,9 +20,9 @@ const ChangesList: React.FC<{ entry: HistoricoAlteracaoEntry }> = ({ entry }) =>
         <li key={change.field} className="text-xs text-gray-600 dark:text-gray-300">
           <span className="font-medium">{change.label}:</span>{' '}
           <span className="line-through text-gray-400 dark:text-gray-500">
-            {formatChangeValue(change.before)}
+            {formatChangeValue(change.before, change.format)}
           </span>{' '}
-          <span aria-hidden>→</span> <span>{formatChangeValue(change.after)}</span>
+          <span aria-hidden>→</span> <span>{formatChangeValue(change.after, change.format)}</span>
         </li>
       ))}
     </ul>
@@ -44,6 +44,7 @@ interface RowProps {
 /** Linha da tabela (desktop) com expansão para os detalhes antes/depois. */
 export const HistoricoEntryRow: React.FC<RowProps> = ({ entry, expanded, onToggle }) => {
   const hasChanges = Boolean(entry.changes && entry.changes.length > 0);
+  const { title, summary } = renderRichDescription(entry);
 
   return (
     <>
@@ -58,9 +59,10 @@ export const HistoricoEntryRow: React.FC<RowProps> = ({ entry, expanded, onToggl
         </StandardTableBodyCell>
         <StandardTableBodyCell>
           <span className="inline-flex items-center gap-2">
-            {renderDescription(entry)}
+            {title}
             {entry.viaConsultant && <ViaConsultorBadge />}
           </span>
+          {summary && <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{summary}</p>}
         </StandardTableBodyCell>
         <StandardTableBodyCell align="right">
           {hasChanges && (
@@ -89,19 +91,23 @@ export const HistoricoEntryRow: React.FC<RowProps> = ({ entry, expanded, onToggl
 };
 
 /** Card (mobile) com os mesmos dados da linha. */
-export const HistoricoEntryCard: React.FC<{ entry: HistoricoAlteracaoEntry }> = ({ entry }) => (
-  <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 space-y-2">
-    <div className="flex items-center justify-between gap-2">
-      <Badge variant="light" color={SECTION_BADGE_COLORS[entry.section] ?? 'primary'} size="sm">
-        {SECTION_LABELS[entry.section] ?? entry.section}
-      </Badge>
-      <span className="text-xs text-gray-500 dark:text-gray-400">
-        {formatEntryDate(entry.createdAt)}
-      </span>
+export const HistoricoEntryCard: React.FC<{ entry: HistoricoAlteracaoEntry }> = ({ entry }) => {
+  const { title, summary } = renderRichDescription(entry);
+  return (
+    <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <Badge variant="light" color={SECTION_BADGE_COLORS[entry.section] ?? 'primary'} size="sm">
+          {SECTION_LABELS[entry.section] ?? entry.section}
+        </Badge>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {formatEntryDate(entry.createdAt)}
+        </span>
+      </div>
+      <p className="text-sm text-gray-800 dark:text-gray-200">
+        {title} {entry.viaConsultant && <ViaConsultorBadge />}
+      </p>
+      {summary && <p className="text-xs text-gray-500 dark:text-gray-400">{summary}</p>}
+      <ChangesList entry={entry} />
     </div>
-    <p className="text-sm text-gray-800 dark:text-gray-200">
-      {renderDescription(entry)} {entry.viaConsultant && <ViaConsultorBadge />}
-    </p>
-    <ChangesList entry={entry} />
-  </div>
-);
+  );
+};

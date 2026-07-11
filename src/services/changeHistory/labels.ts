@@ -52,7 +52,8 @@ export const SONHO_FIELD_LABELS: FieldLabelMap = {
   months: { label: 'Prazo (meses)', format: 'number' },
   startDate: 'Início',
   available: { label: 'Valor disponível', format: 'currency' },
-  rate: { label: 'Rentabilidade mensal', format: 'percent' },
+  // rate é fração (0.01 = 1% a.m.) — sem format pra não renderizar "0,01%"
+  rate: 'Rentabilidade mensal',
   priority: 'Prioridade',
   status: 'Status',
   notes: 'Observações',
