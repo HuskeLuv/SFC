@@ -251,6 +251,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     await recordCaixaParaInvestirAtualizado(request, auth, {
       classe: 'Moedas e Criptos',
+      metric: 'caixa_para_investir_moedas_criptos',
       valorAnterior: existingCaixa?.value,
       valor: caixaParaInvestir,
     });

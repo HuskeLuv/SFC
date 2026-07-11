@@ -12,9 +12,29 @@ import {
   hideTemplateItem,
 } from '@/utils/cashflowPersonalization';
 import { cashflowUpdateSchema, validationError } from '@/utils/validation-schemas';
-import { recordChange } from '@/services/changeHistory';
+import {
+  recordChange,
+  diffFields,
+  finalStateChanges,
+  CASHFLOW_FIELD_LABELS,
+  CASHFLOW_GRUPO_FIELD_LABELS,
+  type ChangeSnapshot,
+  type FieldChange,
+} from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+
+/**
+ * O que a operação efetivamente fez — alimenta o histórico de alterações com
+ * diff/snapshot fiéis à camada de override (template → override/tombstone),
+ * que o payload da requisição sozinho não revela.
+ */
+interface RecordOutcome {
+  entityId?: string;
+  entityLabel?: string;
+  changes?: FieldChange[];
+  snapshot?: ChangeSnapshot;
+}
 /**
  * PATCH /api/cashflow/update
  *
@@ -70,17 +90,27 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
 
   // Operações com grupos
   let result;
+  let outcome: RecordOutcome = {};
   if (type === 'group') {
-    result = await handleGroupOperation(operation, id, (data || {}) as GroupData, targetUserId);
+    ({ response: result, outcome } = await handleGroupOperation(
+      operation,
+      id,
+      (data || {}) as GroupData,
+      targetUserId,
+    ));
   } else if (type === 'item') {
-    result = await handleItemOperation(operation, id, (data || {}) as ItemData, targetUserId);
+    ({ response: result, outcome } = await handleItemOperation(
+      operation,
+      id,
+      (data || {}) as ItemData,
+      targetUserId,
+    ));
   } else {
     return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
   }
 
-  // Histórico de alterações — só após a mutação ter sucesso. O estado anterior
-  // fica encapsulado nos helpers, então não há diff; o rótulo usa o nome
-  // enviado no payload quando disponível.
+  // Histórico de alterações — só após a mutação ter sucesso, com o outcome
+  // real da camada de override (diff, snapshot e id final).
   if (result.status >= 200 && result.status < 300) {
     const verb = { create: 'criar', update: 'editar', delete: 'excluir' }[operation];
     const dataName = data && typeof data.name === 'string' ? data.name : undefined;
@@ -90,8 +120,10 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       section: 'fluxo-caixa',
       action: `${type === 'group' ? 'grupo' : 'item'}.${verb}`,
       entity: type === 'group' ? 'grupo' : 'item',
-      entityId: id,
-      entityLabel: dataName,
+      entityId: outcome.entityId ?? id,
+      entityLabel: outcome.entityLabel ?? dataName,
+      changes: outcome.changes,
+      snapshot: outcome.snapshot,
     });
   }
 
@@ -134,14 +166,17 @@ async function handleGroupOperation(
   id: string | undefined,
   data: GroupData,
   userId: string,
-) {
+): Promise<{ response: NextResponse; outcome: RecordOutcome }> {
   if (operation === 'create') {
     // Criar novo grupo personalizado puro (sem templateId)
     if (!data.name || !data.type) {
-      return NextResponse.json(
-        { error: 'name e type são obrigatórios para criar grupo' },
-        { status: 400 },
-      );
+      return {
+        response: NextResponse.json(
+          { error: 'name e type são obrigatórios para criar grupo' },
+          { status: 400 },
+        ),
+        outcome: {},
+      };
     }
 
     const newGroup = await prisma.cashflowGroup.create({
@@ -158,23 +193,37 @@ async function handleGroupOperation(
       },
     });
 
-    return NextResponse.json({ success: true, group: newGroup });
+    return {
+      response: NextResponse.json({ success: true, group: newGroup }),
+      outcome: {
+        entityId: newGroup.id,
+        entityLabel: newGroup.name,
+        changes: diffFields({}, newGroup, CASHFLOW_GRUPO_FIELD_LABELS),
+      },
+    };
   }
 
   if (operation === 'update') {
     if (!id) {
-      return NextResponse.json({ error: 'id é obrigatório para atualizar' }, { status: 400 });
+      return {
+        response: NextResponse.json({ error: 'id é obrigatório para atualizar' }, { status: 400 }),
+        outcome: {},
+      };
     }
 
     // Buscar grupo (pode ser template ou personalizado)
     const group = await getGroupForUser(id, userId);
     if (!group) {
-      return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
+      return {
+        response: NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 }),
+        outcome: {},
+      };
     }
 
     // Se é template, criar override (vinculado por templateId) e atualizar de forma atômica.
+    const wasTemplate = group.userId === null;
     let finalGroupId = group.id;
-    if (group.userId === null) {
+    if (wasTemplate) {
       finalGroupId = await personalizeGroup(group.id, userId);
     }
 
@@ -200,12 +249,30 @@ async function handleGroupOperation(
       },
     });
 
-    return NextResponse.json({ success: true, group: updatedGroup });
+    return {
+      response: NextResponse.json({ success: true, group: updatedGroup }),
+      outcome: {
+        entityId: finalGroupId,
+        entityLabel: updatedGroup.name,
+        changes: diffFields(group, updateData, CASHFLOW_GRUPO_FIELD_LABELS),
+        // wasTemplate: a edição CRIOU o override — desfazer = deletar o
+        // override (voltar ao template), não restaurar campos.
+        snapshot: {
+          v: 1,
+          kind: 'cashflow-grupo-editar',
+          data: { name: group.name, type: group.type },
+          meta: { finalGroupId, wasTemplate },
+        },
+      },
+    };
   }
 
   if (operation === 'delete') {
     if (!id) {
-      return NextResponse.json({ error: 'id é obrigatório para deletar' }, { status: 400 });
+      return {
+        response: NextResponse.json({ error: 'id é obrigatório para deletar' }, { status: 400 }),
+        outcome: {},
+      };
     }
 
     // Resolver linha alvo: pode ser template, override ou custom puro do usuário.
@@ -214,26 +281,46 @@ async function handleGroupOperation(
     });
 
     if (!target) {
-      return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
+      return {
+        response: NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 }),
+        outcome: {},
+      };
     }
 
     // Caso A: id aponta para um template (userId=null) → criar tombstone.
     if (target.userId === null) {
       const tombstoneId = await hideTemplateGroup(target.id, userId);
-      return NextResponse.json({
-        success: true,
-        message: 'Grupo template ocultado para o usuário',
-        tombstoneId,
-        hidden: true,
-      });
+      return {
+        response: NextResponse.json({
+          success: true,
+          message: 'Grupo template ocultado para o usuário',
+          tombstoneId,
+          hidden: true,
+        }),
+        outcome: {
+          entityId: target.id,
+          entityLabel: target.name,
+          changes: finalStateChanges(target, CASHFLOW_GRUPO_FIELD_LABELS),
+          // Ocultação de template: desfazer = deletar o tombstone.
+          snapshot: {
+            v: 1,
+            kind: 'cashflow-grupo-tombstone',
+            data: {},
+            meta: { tombstoneId },
+          },
+        },
+      };
     }
 
     // Caso B/C: id é uma linha do usuário (override ou custom puro).
     if (target.userId !== userId) {
-      return NextResponse.json(
-        { error: 'Grupo não encontrado ou não pertence ao usuário' },
-        { status: 404 },
-      );
+      return {
+        response: NextResponse.json(
+          { error: 'Grupo não encontrado ou não pertence ao usuário' },
+          { status: 404 },
+        ),
+        outcome: {},
+      };
     }
 
     // Verificar se tem filhos ou itens (recursivo)
@@ -252,10 +339,13 @@ async function handleGroupOperation(
 
     const childrenIds = await getAllChildren(id);
     if (childrenIds.length > 0) {
-      return NextResponse.json(
-        { error: 'Não é possível deletar grupo com subgrupos. Delete os subgrupos primeiro.' },
-        { status: 400 },
-      );
+      return {
+        response: NextResponse.json(
+          { error: 'Não é possível deletar grupo com subgrupos. Delete os subgrupos primeiro.' },
+          { status: 400 },
+        ),
+        outcome: {},
+      };
     }
 
     const itemsCount = await prisma.cashflowItem.count({
@@ -263,10 +353,13 @@ async function handleGroupOperation(
     });
 
     if (itemsCount > 0) {
-      return NextResponse.json(
-        { error: 'Não é possível deletar grupo com itens. Delete os itens primeiro.' },
-        { status: 400 },
-      );
+      return {
+        response: NextResponse.json(
+          { error: 'Não é possível deletar grupo com itens. Delete os itens primeiro.' },
+          { status: 400 },
+        ),
+        outcome: {},
+      };
     }
 
     // DELETE simples — independentemente de ser custom puro ou override
@@ -275,10 +368,34 @@ async function handleGroupOperation(
       where: { id },
     });
 
-    return NextResponse.json({ success: true, message: 'Grupo deletado com sucesso' });
+    return {
+      response: NextResponse.json({ success: true, message: 'Grupo deletado com sucesso' }),
+      outcome: {
+        entityId: target.id,
+        entityLabel: target.name,
+        changes: finalStateChanges(target, CASHFLOW_GRUPO_FIELD_LABELS),
+        // Row do usuário apagada (grupo sem itens/subgrupos) — recriável.
+        snapshot: {
+          v: 1,
+          kind: 'cashflow-grupo',
+          data: {
+            id: target.id,
+            name: target.name,
+            type: target.type,
+            orderIndex: target.orderIndex,
+            parentId: target.parentId,
+            templateId: target.templateId,
+            hidden: target.hidden,
+          },
+        },
+      },
+    };
   }
 
-  return NextResponse.json({ error: 'Operação não suportada' }, { status: 400 });
+  return {
+    response: NextResponse.json({ error: 'Operação não suportada' }, { status: 400 }),
+    outcome: {},
+  };
 }
 
 /**
@@ -289,20 +406,26 @@ async function handleItemOperation(
   id: string | undefined,
   data: ItemData,
   userId: string,
-) {
+): Promise<{ response: NextResponse; outcome: RecordOutcome }> {
   if (operation === 'create') {
     // Criar novo item personalizado puro (sem templateId)
     if (!data.groupId || !data.name) {
-      return NextResponse.json(
-        { error: 'groupId e name são obrigatórios para criar item' },
-        { status: 400 },
-      );
+      return {
+        response: NextResponse.json(
+          { error: 'groupId e name são obrigatórios para criar item' },
+          { status: 400 },
+        ),
+        outcome: {},
+      };
     }
 
     // Verificar se grupo existe (pode ser template ou personalizado)
     const group = await getGroupForUser(data.groupId, userId);
     if (!group) {
-      return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
+      return {
+        response: NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 }),
+        outcome: {},
+      };
     }
 
     // Se grupo é template, personalizar primeiro
@@ -330,23 +453,37 @@ async function handleItemOperation(
       },
     });
 
-    return NextResponse.json({ success: true, item: newItem });
+    return {
+      response: NextResponse.json({ success: true, item: newItem }),
+      outcome: {
+        entityId: newItem.id,
+        entityLabel: newItem.name,
+        changes: diffFields({}, newItem, CASHFLOW_FIELD_LABELS),
+      },
+    };
   }
 
   if (operation === 'update') {
     if (!id) {
-      return NextResponse.json({ error: 'id é obrigatório para atualizar' }, { status: 400 });
+      return {
+        response: NextResponse.json({ error: 'id é obrigatório para atualizar' }, { status: 400 }),
+        outcome: {},
+      };
     }
 
     // Buscar item (pode ser template ou personalizado)
     const item = await getItemForUser(id, userId);
     if (!item) {
-      return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
+      return {
+        response: NextResponse.json({ error: 'Item não encontrado' }, { status: 404 }),
+        outcome: {},
+      };
     }
 
     // Se é template, criar override (vinculado por templateId) e atualizar.
+    const wasTemplate = item.userId === null;
     let finalItemId = item.id;
-    if (item.userId === null) {
+    if (wasTemplate) {
       finalItemId = await personalizeItem(item.id, userId);
     }
 
@@ -371,12 +508,30 @@ async function handleItemOperation(
       },
     });
 
-    return NextResponse.json({ success: true, item: updatedItem });
+    return {
+      response: NextResponse.json({ success: true, item: updatedItem }),
+      outcome: {
+        entityId: finalItemId,
+        entityLabel: updatedItem.name,
+        changes: diffFields(item, data as Record<string, unknown>, CASHFLOW_FIELD_LABELS),
+        // wasTemplate: a edição CRIOU o override — desfazer = deletar o
+        // override (voltar ao template), não restaurar campos.
+        snapshot: {
+          v: 1,
+          kind: 'cashflow-item-editar',
+          data: { name: item.name, significado: item.significado, rank: item.rank },
+          meta: { finalItemId, wasTemplate },
+        },
+      },
+    };
   }
 
   if (operation === 'delete') {
     if (!id) {
-      return NextResponse.json({ error: 'id é obrigatório para deletar' }, { status: 400 });
+      return {
+        response: NextResponse.json({ error: 'id é obrigatório para deletar' }, { status: 400 }),
+        outcome: {},
+      };
     }
 
     // Resolver linha alvo
@@ -385,27 +540,53 @@ async function handleItemOperation(
     });
 
     if (!target) {
-      return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 });
+      return {
+        response: NextResponse.json({ error: 'Item não encontrado' }, { status: 404 }),
+        outcome: {},
+      };
     }
 
     // Caso A: id aponta para um item-template → tombstone.
     if (target.userId === null) {
       const tombstoneId = await hideTemplateItem(target.id, userId);
-      return NextResponse.json({
-        success: true,
-        message: 'Item template ocultado para o usuário',
-        tombstoneId,
-        hidden: true,
-      });
+      return {
+        response: NextResponse.json({
+          success: true,
+          message: 'Item template ocultado para o usuário',
+          tombstoneId,
+          hidden: true,
+        }),
+        outcome: {
+          entityId: target.id,
+          entityLabel: target.name,
+          changes: finalStateChanges(target, CASHFLOW_FIELD_LABELS),
+          // Ocultação de template: desfazer = deletar o tombstone.
+          snapshot: {
+            v: 1,
+            kind: 'cashflow-item-tombstone',
+            data: {},
+            meta: { tombstoneId },
+          },
+        },
+      };
     }
 
     // Caso B/C: linha do usuário (override ou custom puro).
     if (target.userId !== userId) {
-      return NextResponse.json(
-        { error: 'Item não encontrado ou não pertence ao usuário' },
-        { status: 404 },
-      );
+      return {
+        response: NextResponse.json(
+          { error: 'Item não encontrado ou não pertence ao usuário' },
+          { status: 404 },
+        ),
+        outcome: {},
+      };
     }
+
+    // Estado completo pré-exclusão (item + valores) — permite desfazer.
+    const values = await prisma.cashflowValue.findMany({
+      where: { itemId: id, userId },
+      select: { year: true, month: true, value: true, comment: true, color: true },
+    });
 
     // Deletar valores e item em uma única transação
     await prisma.$transaction([
@@ -413,8 +594,33 @@ async function handleItemOperation(
       prisma.cashflowItem.delete({ where: { id } }),
     ]);
 
-    return NextResponse.json({ success: true, message: 'Item deletado com sucesso' });
+    return {
+      response: NextResponse.json({ success: true, message: 'Item deletado com sucesso' }),
+      outcome: {
+        entityId: target.id,
+        entityLabel: target.name,
+        changes: finalStateChanges(target, CASHFLOW_FIELD_LABELS),
+        snapshot: {
+          v: 1,
+          kind: 'cashflow-item',
+          data: {
+            id: target.id,
+            groupId: target.groupId,
+            name: target.name,
+            significado: target.significado,
+            rank: target.rank,
+            templateId: target.templateId,
+            hidden: target.hidden,
+            objetivoId: target.objetivoId,
+          },
+          meta: { values: values.length > 480 ? [] : values, valuesTruncated: values.length > 480 },
+        },
+      },
+    };
   }
 
-  return NextResponse.json({ error: 'Operação não suportada' }, { status: 400 });
+  return {
+    response: NextResponse.json({ error: 'Operação não suportada' }, { status: 400 }),
+    outcome: {},
+  };
 }

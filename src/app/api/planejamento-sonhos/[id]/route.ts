@@ -19,7 +19,12 @@ import {
   syncObjetivoToCashflow,
   removeObjetivoCashflow,
 } from '@/services/planejamento/sonhoCashflowSync';
-import { recordChange, diffFields, SONHO_FIELD_LABELS } from '@/services/changeHistory';
+import {
+  recordChange,
+  diffFields,
+  finalStateChanges,
+  SONHO_FIELD_LABELS,
+} from '@/services/changeHistory';
 import { decimalToNumber, serializeObjetivo } from '../_lib/serializer';
 
 async function findOwned(id: string, userId: string) {
@@ -122,9 +127,11 @@ export const DELETE = withErrorHandler(
     const { targetUserId } = auth;
     const { id } = await params;
 
+    // Estado completo (objetivo + entries + ativos vinculados): alimenta o
+    // snapshot que permite desfazer a exclusão recriando tudo.
     const existing = await prisma.planejamentoObjetivo.findFirst({
       where: { id, userId: targetUserId },
-      select: { id: true, name: true },
+      include: { entries: true, portfolios: { select: { id: true } } },
     });
     if (!existing) {
       return NextResponse.json({ error: 'Objetivo não encontrado' }, { status: 404 });
@@ -144,6 +151,33 @@ export const DELETE = withErrorHandler(
       entity: 'sonho',
       entityId: id,
       entityLabel: existing.name,
+      changes: finalStateChanges(existing, SONHO_FIELD_LABELS),
+      snapshot: {
+        v: 1,
+        kind: 'sonho',
+        data: {
+          id: existing.id,
+          name: existing.name,
+          target: decimalToNumber(existing.target),
+          months: existing.months,
+          startDate: existing.startDate,
+          available: decimalToNumber(existing.available),
+          rate: decimalToNumber(existing.rate),
+          priority: existing.priority,
+          category: existing.category,
+          status: existing.status,
+          notes: existing.notes,
+        },
+        meta: {
+          entries: existing.entries.map((e) => ({
+            month: e.month,
+            aporte: decimalToNumber(e.aporte),
+            balance: decimalToNumber(e.balance),
+            source: e.source,
+          })),
+          portfolioIds: existing.portfolios.map((p) => p.id),
+        },
+      },
     });
 
     return NextResponse.json({ success: true });

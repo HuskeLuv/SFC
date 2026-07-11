@@ -5,6 +5,7 @@ import { proventoPatchSchema, validationError } from '@/utils/validation-schemas
 import {
   recordChange,
   diffFields,
+  finalStateChanges,
   assetEntityLabel,
   PROVENTO_FIELD_LABELS,
 } from '@/services/changeHistory';
@@ -152,6 +153,7 @@ export const DELETE = withErrorHandler(
       entity: 'provento',
       entityId: proventoId,
       entityLabel: assetEntityLabel(existing.portfolio?.asset),
+      changes: finalStateChanges(existing, PROVENTO_FIELD_LABELS),
     });
 
     return NextResponse.json({ success: true });

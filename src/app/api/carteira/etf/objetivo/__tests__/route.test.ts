@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 const mockPrisma = vi.hoisted(() => ({
   // Histórico de alterações (recordChange importa prisma como default export).
   userChangeLog: { create: vi.fn() },
-  portfolio: { updateMany: vi.fn() },
+  portfolio: { findFirst: vi.fn(), update: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -45,7 +45,12 @@ describe('POST /api/carteira/etf/objetivo', () => {
       targetUserId: 'user-1',
       actingClient: null,
     });
-    mockPrisma.portfolio.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.portfolio.findFirst.mockResolvedValue({
+      id: 'port-1',
+      objetivo: 10,
+      asset: { symbol: 'ATIVO1', name: 'Ativo Um', source: 'brapi' },
+    });
+    mockPrisma.portfolio.update.mockResolvedValue({});
   });
 
   it('atualiza objetivo com sucesso', async () => {
@@ -59,8 +64,12 @@ describe('POST /api/carteira/etf/objetivo', () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
     expect(data.message).toContain('Objetivo atualizado');
-    expect(mockPrisma.portfolio.updateMany).toHaveBeenCalledWith({
+    expect(mockPrisma.portfolio.findFirst).toHaveBeenCalledWith({
       where: { id: 'port-1', userId: 'user-1' },
+      include: { asset: { select: { symbol: true, name: true, source: true } } },
+    });
+    expect(mockPrisma.portfolio.update).toHaveBeenCalledWith({
+      where: { id: 'port-1' },
       data: { objetivo: 15 },
     });
   });
@@ -101,7 +110,7 @@ describe('POST /api/carteira/etf/objetivo', () => {
   });
 
   it('retorna 404 quando ativo não encontrado', async () => {
-    mockPrisma.portfolio.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
     const response = await POST(
       createRequest({
         ativoId: 'non-existent',

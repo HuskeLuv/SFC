@@ -6,6 +6,7 @@ const mockPrisma = vi.hoisted(() => ({
   userChangeLog: {
     findMany: vi.fn(),
     count: vi.fn(),
+    groupBy: vi.fn(),
   },
 }));
 
@@ -34,7 +35,28 @@ beforeEach(() => {
   mockRequireAuthWithActing.mockResolvedValue(mockAuthAsUser('user-1'));
   mockPrisma.userChangeLog.findMany.mockResolvedValue([]);
   mockPrisma.userChangeLog.count.mockResolvedValue(0);
+  mockPrisma.userChangeLog.groupBy.mockResolvedValue([]);
 });
+
+const baseEntry = {
+  id: 'log-1',
+  userId: 'user-1',
+  actorId: 'user-1',
+  viaConsultant: false,
+  section: 'carteira',
+  action: 'transacao.editar',
+  entity: 'transacao',
+  entityId: 'tx-1',
+  entityLabel: 'PETR4',
+  changes: [{ field: 'quantity', label: 'Quantidade', before: 100, after: 150 }],
+  snapshot: { v: 1, kind: 'transacao', data: { secreto: true } },
+  undoneAt: null,
+  undoneById: null,
+  revertsId: null,
+  ipAddress: null,
+  userAgent: null,
+  createdAt: new Date('2026-07-10T12:00:00Z'),
+};
 
 describe('GET /api/historico-alteracoes', () => {
   it('retorna 401 quando não autenticado', async () => {
@@ -97,6 +119,33 @@ describe('GET /api/historico-alteracoes', () => {
         }),
       }),
     );
+  });
+
+  it('anota canUndo e NUNCA expõe o snapshot na resposta', async () => {
+    mockPrisma.userChangeLog.findMany.mockResolvedValue([baseEntry]);
+    mockPrisma.userChangeLog.count.mockResolvedValue(1);
+    mockPrisma.userChangeLog.groupBy.mockResolvedValue([
+      { entityId: 'tx-1', _max: { createdAt: baseEntry.createdAt } },
+    ]);
+
+    const response = await GET(createRequest());
+    const body = await response.json();
+
+    expect(body.data[0].canUndo).toBe(true);
+    expect(body.data[0]).not.toHaveProperty('snapshot');
+    expect(body.data[0].undoneAt).toBeNull();
+  });
+
+  it('entrada desfeita vem com canUndo false e undoneAt preenchido', async () => {
+    const undone = { ...baseEntry, undoneAt: new Date('2026-07-10T13:00:00Z') };
+    mockPrisma.userChangeLog.findMany.mockResolvedValue([undone]);
+    mockPrisma.userChangeLog.count.mockResolvedValue(1);
+
+    const response = await GET(createRequest());
+    const body = await response.json();
+
+    expect(body.data[0].canUndo).toBe(false);
+    expect(body.data[0].undoneAt).toBeTruthy();
   });
 
   it('sob impersonation, filtra pelo cliente (targetUserId)', async () => {

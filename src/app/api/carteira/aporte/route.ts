@@ -6,7 +6,12 @@ import { aporteSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { isEquityAssetType } from '@/lib/assetClassification';
-import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import {
+  recordChange,
+  diffFields,
+  assetEntityLabel,
+  TRANSACTION_FIELD_LABELS,
+} from '@/services/changeHistory';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 import { aplicarVinculoPlanejamento } from '@/utils/planejamentoVinculo';
 
@@ -150,6 +155,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entity: 'aporte',
     entityId: transacao.id,
     entityLabel: assetEntityLabel(portfolio.asset),
+    changes: diffFields({}, transacao, TRANSACTION_FIELD_LABELS),
   });
 
   const result = NextResponse.json({ success: true, transacao }, { status: 201 });

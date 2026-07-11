@@ -7,7 +7,9 @@ import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraTo
 import {
   recordChange,
   diffFields,
+  finalStateChanges,
   assetEntityLabel,
+  buildTransacaoSnapshot,
   TRANSACTION_FIELD_LABELS,
 } from '@/services/changeHistory';
 
@@ -155,6 +157,12 @@ export const DELETE = withErrorHandler(
         })
       : null;
 
+    // O recálculo deleta Portfolio + FixedIncomeAsset quando a última transação
+    // some — o snapshot precisa dos dois pro undo recriar a posição inteira.
+    const fixedIncome = transaction.assetId
+      ? await prisma.fixedIncomeAsset.findUnique({ where: { assetId: transaction.assetId } })
+      : null;
+
     const snapshotCutoff = transaction.date;
 
     await prisma.stockTransaction.delete({
@@ -183,6 +191,8 @@ export const DELETE = withErrorHandler(
       entity: 'transacao',
       entityId: id,
       entityLabel: assetEntityLabel(transaction.asset),
+      changes: finalStateChanges(transaction, TRANSACTION_FIELD_LABELS),
+      snapshot: buildTransacaoSnapshot(transaction, { portfolio, fixedIncome }),
     });
 
     return NextResponse.json({ success: true });

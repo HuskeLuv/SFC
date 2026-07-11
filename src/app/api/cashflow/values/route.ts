@@ -8,6 +8,7 @@ import {
   recordChange,
   diffFields,
   CASHFLOW_FIELD_LABELS,
+  type ChangeSnapshot,
   type FieldChange,
 } from '@/services/changeHistory';
 
@@ -80,6 +81,8 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   // e referência de período para o rótulo ("mar/2026" ou "2026").
   let changes: FieldChange[] | undefined;
   let periodLabel: string | null = null;
+  // Locator da célula (item × ano × mês) + valor anterior — permite desfazer.
+  let snapshot: ChangeSnapshot | undefined;
 
   if (field === 'name' || field === 'descricao' || field === 'significado' || field === 'rank') {
     // Update item fields
@@ -157,6 +160,12 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
       CASHFLOW_FIELD_LABELS,
     );
     periodLabel = `${MESES_ABREV[monthIndex]}/${targetYear}`;
+    snapshot = {
+      v: 1,
+      kind: 'cashflow-valor',
+      data: { value: existingValue?.value ?? null },
+      meta: { itemId: finalItemId, year: targetYear, month: monthIndex },
+    };
   } else if (field === 'annualTotal') {
     const annualTotal = parseFloat(String(value));
     if (!Number.isFinite(annualTotal)) {
@@ -215,6 +224,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
     entityId: finalItemId,
     entityLabel: periodLabel ? `${updatedItem.name} · ${periodLabel}` : updatedItem.name,
     changes,
+    snapshot,
   });
 
   return NextResponse.json(updatedItem);

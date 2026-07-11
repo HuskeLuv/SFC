@@ -15,7 +15,12 @@ import {
 import { FUNDO_TYPES_ALL, FUNDO_SUBTIPO_ORDER } from '@/lib/fundoTypes';
 import { runCvmFundSync } from '@/services/pricing/cvmFundSync';
 import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
-import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import {
+  recordChange,
+  diffFields,
+  assetEntityLabel,
+  TRANSACTION_FIELD_LABELS,
+} from '@/services/changeHistory';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 import { aplicarVinculoPlanejamento, vinculoPlanejamentoFields } from '@/utils/planejamentoVinculo';
 
@@ -2141,6 +2146,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entity: 'operacao',
     entityId: transacao.id,
     entityLabel: assetEntityLabel(asset) ?? ativoNome ?? undefined,
+    changes: diffFields({}, transacao, TRANSACTION_FIELD_LABELS),
   });
 
   const result = NextResponse.json(

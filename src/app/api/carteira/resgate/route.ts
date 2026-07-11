@@ -9,7 +9,12 @@ import {
   recalculatePortfolioFromTransactions,
 } from '@/services/portfolio/portfolioRecalculation';
 import { isEquityAssetType } from '@/lib/assetClassification';
-import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import {
+  recordChange,
+  diffFields,
+  assetEntityLabel,
+  TRANSACTION_FIELD_LABELS,
+} from '@/services/changeHistory';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 
 const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
@@ -264,6 +269,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entity: 'resgate',
     entityId: transacao.id,
     entityLabel: assetEntityLabel(portfolio.asset),
+    changes: diffFields({}, transacao, TRANSACTION_FIELD_LABELS),
   });
 
   const result = NextResponse.json(

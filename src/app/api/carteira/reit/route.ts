@@ -330,6 +330,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     await recordCaixaParaInvestirAtualizado(request, auth, {
       classe: 'REITs',
+      metric: 'caixa_para_investir_reit',
       valorAnterior: existingCaixa?.value,
       valor: caixaParaInvestir,
     });

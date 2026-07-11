@@ -3,7 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { investimentoCreateSchema, validationError } from '@/utils/validation-schemas';
 import { parsePaginationParams, paginatedResponse } from '@/utils/pagination';
-import { recordChange } from '@/services/changeHistory';
+import { recordChange, diffFields, CASHFLOW_FIELD_LABELS } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // GET - Buscar investimentos categorizados do usuário
@@ -182,6 +182,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entity: 'investimento',
     entityId: investimento.id,
     entityLabel: itemName,
+    changes: diffFields({}, { name: itemName, value: valor }, CASHFLOW_FIELD_LABELS),
   });
 
   // Buscar o investimento criado com todos os dados

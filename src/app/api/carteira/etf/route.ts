@@ -262,6 +262,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     await recordCaixaParaInvestirAtualizado(request, auth, {
       classe: 'ETFs',
+      metric: 'caixa_para_investir_etf',
       valorAnterior: existingCaixa?.value,
       valor: caixaParaInvestir,
     });

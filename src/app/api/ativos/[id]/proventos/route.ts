@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { proventoCreateSchema, validationError } from '@/utils/validation-schemas';
-import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import {
+  recordChange,
+  diffFields,
+  assetEntityLabel,
+  PROVENTO_FIELD_LABELS,
+} from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 const serialize = (p: {
@@ -76,6 +81,7 @@ export const POST = withErrorHandler(
       entity: 'provento',
       entityId: created.id,
       entityLabel: assetEntityLabel(portfolio.asset),
+      changes: diffFields({}, created, PROVENTO_FIELD_LABELS),
     });
 
     return NextResponse.json({ provento: serialize(created) }, { status: 201 });

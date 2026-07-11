@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { getClientIp } from '@/lib/rateLimit';
-import type { ChangeSection, FieldChange } from './types';
+import type { ChangeSection, ChangeSnapshot, FieldChange } from './types';
 
 /**
  * Subconjunto estrutural de AuthWithActingResult (src/utils/auth.ts) —
@@ -26,6 +26,13 @@ export interface RecordChangeParams {
   entityLabel?: string;
   /** Pares antes/depois (via diffFields). `[]` = edição no-op → não grava. */
   changes?: FieldChange[];
+  /**
+   * Estado pré-mutação allowlisted p/ desfazer (exclusões/upserts). Nunca
+   * exposto na listagem; some junto com a entrada na retenção de 365d.
+   */
+  snapshot?: ChangeSnapshot;
+  /** Quando esta entrada É um undo: id da entrada de histórico revertida. */
+  revertsId?: string;
 }
 
 /**
@@ -45,6 +52,8 @@ export async function recordChange({
   entityId,
   entityLabel,
   changes,
+  snapshot,
+  revertsId,
 }: RecordChangeParams): Promise<void> {
   try {
     if (changes && changes.length === 0) return;
@@ -62,6 +71,8 @@ export async function recordChange({
         entityId: entityId ?? null,
         entityLabel: entityLabel ?? null,
         changes: changes ? (changes as unknown as object) : undefined,
+        snapshot: snapshot ? (snapshot as unknown as object) : undefined,
+        revertsId: revertsId ?? null,
         ipAddress: ip === 'unknown' ? null : ip,
         userAgent: request.headers.get('user-agent'),
       },

@@ -100,6 +100,39 @@ describe('recordChange', () => {
     expect(mockPrisma.userChangeLog.create).toHaveBeenCalledOnce();
   });
 
+  it('grava snapshot e revertsId quando fornecidos', async () => {
+    await recordChange({
+      request: makeRequest(),
+      auth: mockAuthAsUser('user-1'),
+      section: 'carteira',
+      action: 'transacao.excluir.desfazer',
+      entityId: 'tx-1',
+      snapshot: { v: 1, kind: 'transacao', data: { quantity: 100 } },
+      revertsId: 'log-original',
+    });
+
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        snapshot: { v: 1, kind: 'transacao', data: { quantity: 100 } },
+        revertsId: 'log-original',
+      }),
+    });
+  });
+
+  it('grava snapshot undefined e revertsId null por padrão', async () => {
+    await recordChange({
+      request: makeRequest(),
+      auth: mockAuthAsUser(),
+      section: 'perfil',
+      action: 'perfil.editar',
+      changes: [{ field: 'name', label: 'Nome', before: 'A', after: 'B' }],
+    });
+
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ snapshot: undefined, revertsId: null }),
+    });
+  });
+
   it('nunca propaga erro do Prisma (best-effort)', async () => {
     mockPrisma.userChangeLog.create.mockRejectedValueOnce(new Error('db down'));
 

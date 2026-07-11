@@ -9,6 +9,7 @@ const mockPrisma = vi.hoisted(() => ({
   },
   planejamentoObjetivoEntry: {
     upsert: vi.fn(),
+    findUnique: vi.fn(),
   },
   // $transaction recebe um array e devolve outro array de resultados.
   $transaction: vi.fn(),

@@ -19,7 +19,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { planejamentoEntryUpsertSchema, validationError } from '@/utils/validation-schemas';
 import { autoStatusOnEntry, type Status } from '@/services/planejamento/planejamentoSonhos';
 import { syncObjetivoRecordToCashflow } from '@/services/planejamento/sonhoCashflowSync';
-import { recordChange } from '@/services/changeHistory';
+import { recordChange, diffFields, SONHO_ENTRY_FIELD_LABELS } from '@/services/changeHistory';
 import { decimalToNumber, serializeObjetivo } from '../../_lib/serializer';
 
 export const POST = withErrorHandler(
@@ -45,6 +45,12 @@ export const POST = withErrorHandler(
 
     const target = decimalToNumber(objetivo.target);
     const nextStatus = autoStatusOnEntry(objetivo.status as Status, balance, target);
+
+    // Entry anterior (o upsert pode sobrescrever) + status prévio: alimentam
+    // o snapshot que permite desfazer o registro do mês.
+    const prevEntry = await prisma.planejamentoObjetivoEntry.findUnique({
+      where: { objetivoId_month: { objetivoId, month } },
+    });
 
     const [, , updatedObjetivo] = await prisma.$transaction([
       prisma.planejamentoObjetivoEntry.upsert({
@@ -76,7 +82,29 @@ export const POST = withErrorHandler(
       action: 'sonho-aporte.registrar',
       entity: 'sonho',
       entityId: objetivoId,
-      entityLabel: objetivo.name,
+      entityLabel: `${objetivo.name} · ${month}`,
+      changes: diffFields(
+        {
+          aporte: prevEntry ? decimalToNumber(prevEntry.aporte) : null,
+          balance: prevEntry ? decimalToNumber(prevEntry.balance) : null,
+        },
+        { aporte, balance },
+        SONHO_ENTRY_FIELD_LABELS,
+      ),
+      snapshot: {
+        v: 1,
+        kind: 'sonho-entry',
+        data: {
+          prevEntry: prevEntry
+            ? {
+                aporte: decimalToNumber(prevEntry.aporte),
+                balance: decimalToNumber(prevEntry.balance),
+                source: prevEntry.source,
+              }
+            : null,
+        },
+        meta: { month, prevStatus: objetivo.status },
+      },
     });
 
     return NextResponse.json({ objetivo: serializeObjetivo(updatedObjetivo) }, { status: 201 });

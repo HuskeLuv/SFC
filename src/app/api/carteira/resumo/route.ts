@@ -13,7 +13,12 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import { filterInvestmentsExclReservas } from '@/utils/cashflowFilters';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { recordChange, diffFields, RESUMO_FIELD_LABELS } from '@/services/changeHistory';
+import {
+  recordChange,
+  diffFields,
+  buildDashboardMetricSnapshot,
+  RESUMO_FIELD_LABELS,
+} from '@/services/changeHistory';
 import { parseRangeMonths } from '@/utils/rangeQuery';
 import { loadProventosByDay } from '@/services/portfolio/proventosByDay';
 const resumoCache = getTtlCache<Record<string, unknown>>('carteiraResumo');
@@ -947,10 +952,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       section: 'carteira',
       action: 'resumo.atualizar',
       entity: 'resumo',
+      entityId: 'caixa_para_investir_consolidado',
       changes: diffFields(
         { caixaParaInvestir: existingCaixa?.value ?? null },
         { caixaParaInvestir },
         RESUMO_FIELD_LABELS,
+      ),
+      snapshot: buildDashboardMetricSnapshot(
+        'caixa_para_investir_consolidado',
+        existingCaixa?.value,
       ),
     });
 
@@ -1002,11 +1012,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       section: 'carteira',
       action: 'resumo.atualizar',
       entity: 'resumo',
+      entityId: 'meta_patrimonio',
       changes: diffFields(
         { metaPatrimonio: existingMeta?.value ?? null },
         { metaPatrimonio },
         RESUMO_FIELD_LABELS,
       ),
+      snapshot: buildDashboardMetricSnapshot('meta_patrimonio', existingMeta?.value),
     });
 
     return NextResponse.json({ success: true, metaPatrimonio });

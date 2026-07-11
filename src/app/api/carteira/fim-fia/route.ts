@@ -390,7 +390,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         request,
         auth,
         section: 'carteira',
-        action: 'ativo.editar',
+        action: 'fundo.atualizar-valor',
         entity: 'ativo',
         entityId: ativoId,
         entityLabel: assetEntityLabel(portfolio.asset),
@@ -443,6 +443,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     await recordCaixaParaInvestirAtualizado(request, auth, {
       classe: 'FIM/FIA',
+      metric: 'caixa_para_investir_fim_fia',
       valorAnterior: existingCaixa?.value,
       valor: caixaParaInvestir,
     });

@@ -13,7 +13,7 @@ import { planejamentoObjetivoCreateSchema, validationError } from '@/utils/valid
 import { categoryFromMonths } from '@/services/planejamento/planejamentoSonhos';
 import { provisionDefaultSonhos } from '@/services/planejamento/sonhosDefaults';
 import { syncObjetivoToCashflow } from '@/services/planejamento/sonhoCashflowSync';
-import { recordChange } from '@/services/changeHistory';
+import { recordChange, diffFields, SONHO_FIELD_LABELS } from '@/services/changeHistory';
 import { serializeObjetivo } from './_lib/serializer';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -85,6 +85,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entity: 'sonho',
     entityId: created.id,
     entityLabel: name,
+    changes: diffFields({}, created, SONHO_FIELD_LABELS),
   });
 
   return NextResponse.json({ objetivo: serializeObjetivo(created) }, { status: 201 });

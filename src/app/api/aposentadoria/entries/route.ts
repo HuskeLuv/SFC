@@ -14,8 +14,27 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { aposentadoriaEntryUpsertSchema, validationError } from '@/utils/validation-schemas';
 import { off2date } from '@/services/planejamento/aposentadoria';
-import { recordChange } from '@/services/changeHistory';
+import {
+  recordChange,
+  diffFields,
+  APOSENTADORIA_ENTRY_FIELD_LABELS,
+} from '@/services/changeHistory';
 import { serializePlano } from '../_lib/serializer';
+
+const MESES_ABREV = [
+  'jan',
+  'fev',
+  'mar',
+  'abr',
+  'mai',
+  'jun',
+  'jul',
+  'ago',
+  'set',
+  'out',
+  'nov',
+  'dez',
+];
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -41,6 +60,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const { off, aporteReal, patFinal } = parsed.data;
   const { year, month } = off2date(plano, off);
 
+  // Entry anterior (o upsert pode sobrescrever): snapshot pra desfazer.
+  const prevEntry = await prisma.aposentadoriaPlanoEntry.findUnique({
+    where: { planoId_off: { planoId: plano.id, off } },
+  });
+
   await prisma.aposentadoriaPlanoEntry.upsert({
     where: { planoId_off: { planoId: plano.id, off } },
     create: { planoId: plano.id, off, year, month, aporteReal, patFinal },
@@ -54,6 +78,25 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     action: 'aposentadoria-aporte.registrar',
     entity: 'aposentadoria',
     entityId: plano.id,
+    entityLabel: `${MESES_ABREV[month - 1]}/${year}`,
+    changes: diffFields(
+      {
+        aporteReal: prevEntry ? Number(prevEntry.aporteReal) : null,
+        patFinal: prevEntry ? Number(prevEntry.patFinal) : null,
+      },
+      { aporteReal, patFinal },
+      APOSENTADORIA_ENTRY_FIELD_LABELS,
+    ),
+    snapshot: {
+      v: 1,
+      kind: 'aposentadoria-entry',
+      data: {
+        prevEntry: prevEntry
+          ? { aporteReal: Number(prevEntry.aporteReal), patFinal: Number(prevEntry.patFinal) }
+          : null,
+      },
+      meta: { off },
+    },
   });
 
   const updated = await prisma.aposentadoriaPlano.findUniqueOrThrow({
