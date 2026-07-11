@@ -389,6 +389,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     await recordCaixaParaInvestirAtualizado(request, auth, {
       classe: 'Renda Fixa',
+      metric: 'caixa_para_investir_renda_fixa',
       valorAnterior: existingCaixa?.value,
       valor: caixaParaInvestir,
     });

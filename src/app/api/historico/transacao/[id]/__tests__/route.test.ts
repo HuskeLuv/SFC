@@ -9,7 +9,12 @@ const mockPrisma = vi.hoisted(() => ({
     delete: vi.fn(),
   },
   portfolio: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  fixedIncomeAsset: { updateMany: vi.fn(), deleteMany: vi.fn() },
+  fixedIncomeAsset: {
+    updateMany: vi.fn(),
+    deleteMany: vi.fn(),
+    // DELETE captura o FixedIncomeAsset pro snapshot de undo.
+    findUnique: vi.fn().mockResolvedValue(null),
+  },
   // Bug #04: recalc consulta Asset pra eventualmente regenerar o name de RF.
   asset: { findUnique: vi.fn().mockResolvedValue(null), update: vi.fn().mockResolvedValue({}) },
   // Bug #02: recalc apaga snapshots/performance quando recomputeSnapshotsFrom é passado.

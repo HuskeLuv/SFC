@@ -12,3 +12,4 @@ export type {
 } from './types';
 export * from './labels';
 export * from './carteiraHelpers';
+export * from './snapshots';

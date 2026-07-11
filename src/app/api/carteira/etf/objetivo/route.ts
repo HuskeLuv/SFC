@@ -3,7 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { objetivoSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { recordObjetivoClasseDefinido } from '@/services/changeHistory';
+import { assetEntityLabel, recordObjetivoClasseDefinido } from '@/services/changeHistory';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -15,16 +15,25 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
   const { ativoId, objetivo } = parsed.data;
 
-  const updateResult = await prisma.portfolio.updateMany({
+  // Carrega o estado anterior + ticker: alimenta o diff e o rótulo do histórico.
+  const portfolio = await prisma.portfolio.findFirst({
     where: { id: ativoId, userId: targetUserId },
-    data: { objetivo },
+    include: { asset: { select: { symbol: true, name: true, source: true } } },
   });
 
-  if (updateResult.count === 0) {
+  if (!portfolio) {
     return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
   }
 
-  await recordObjetivoClasseDefinido(request, auth, { classe: 'ETFs', ativoId });
+  await prisma.portfolio.update({ where: { id: portfolio.id }, data: { objetivo } });
+
+  await recordObjetivoClasseDefinido(request, auth, {
+    classe: 'ETFs',
+    ativoId,
+    ticker: assetEntityLabel(portfolio.asset),
+    objetivoAnterior: portfolio.objetivo,
+    objetivo,
+  });
 
   return NextResponse.json({
     success: true,

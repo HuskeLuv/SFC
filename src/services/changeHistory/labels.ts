@@ -122,3 +122,10 @@ export const ATIVO_VALOR_FIELD_LABELS: FieldLabelMap = {
 export const OBJETIVO_CLASSE_FIELD_LABELS: FieldLabelMap = {
   objetivo: { label: 'Objetivo', format: 'percent' },
 };
+
+/** Posição consolidada de um Portfolio (resumo gravado na remoção do ativo) */
+export const ATIVO_POSICAO_FIELD_LABELS: FieldLabelMap = {
+  quantity: { label: 'Quantidade', format: 'number' },
+  avgPrice: { label: 'Preço médio', format: 'currency' },
+  totalInvested: { label: 'Total investido', format: 'currency' },
+};

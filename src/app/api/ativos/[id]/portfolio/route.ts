@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
-import { recordChange, assetEntityLabel } from '@/services/changeHistory';
+import {
+  recordChange,
+  finalStateChanges,
+  assetEntityLabel,
+  buildAtivoSnapshot,
+  ATIVO_POSICAO_FIELD_LABELS,
+} from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 export const DELETE = withErrorHandler(
@@ -36,6 +42,13 @@ export const DELETE = withErrorHandler(
       select: { date: true },
     });
 
+    // Estado completo pré-exclusão: alimenta o snapshot que permite desfazer
+    // (recriar Portfolio + transações). Acima do cap, sem snapshot = sem undo.
+    const transactions = await prisma.stockTransaction.findMany({
+      where: { userId: targetUserId, assetId: portfolio.assetId },
+      orderBy: { date: 'asc' },
+    });
+
     await prisma.stockTransaction.deleteMany({
       where: { userId: targetUserId, assetId: portfolio.assetId },
     });
@@ -53,6 +66,8 @@ export const DELETE = withErrorHandler(
       entity: 'ativo',
       entityId: portfolioId,
       entityLabel: assetEntityLabel(portfolio.asset),
+      changes: finalStateChanges(portfolio, ATIVO_POSICAO_FIELD_LABELS),
+      snapshot: buildAtivoSnapshot(portfolio, transactions),
     });
 
     return NextResponse.json({ success: true });

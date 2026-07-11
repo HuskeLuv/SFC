@@ -238,6 +238,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     await recordCaixaParaInvestirAtualizado(request, auth, {
       classe: 'Previdência e Seguros',
+      metric: 'caixa_para_investir_previdencia_seguros',
       valorAnterior: existingCaixa?.value,
       valor: caixaParaInvestir,
     });

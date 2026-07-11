@@ -46,6 +46,10 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Atualizou o valor de um imóvel/bem',
     (l) => `Atualizou o valor de ${l}`,
   ),
+  'fundo.atualizar-valor': withLabel(
+    'Atualizou o valor de um fundo',
+    (l) => `Atualizou o valor do fundo ${l}`,
+  ),
   'investimento.registrar': withLabel(
     'Registrou um investimento',
     (l) => `Registrou investimento em ${l}`,
