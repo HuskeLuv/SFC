@@ -76,6 +76,7 @@ vi.mock('@/services/portfolio/patrimonioHistoricoBuilder', () => ({
 }));
 
 import { GET } from '../route';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
 
 const createGetRequest = (params = '') =>
   new NextRequest(`http://localhost/api/carteira/resumo${params}`, {
@@ -107,6 +108,141 @@ describe('GET /api/carteira/resumo', () => {
     expect(response.status).toBe(200);
     // The response should contain portfolio summary data
     expect(data).toBeDefined();
+  });
+
+  it('imóvel/personalizado fica fora de saldoBruto E valorAplicado, mas entra na distribuição', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-1',
+        assetId: 'a-imovel',
+        quantity: 1,
+        avgPrice: 500000,
+        totalInvested: 500000,
+        asset: { symbol: 'PERSONALIZADO-1', type: 'personalizado', currency: 'BRL', name: 'Apto' },
+      },
+      {
+        id: 'p-2',
+        assetId: 'a-petr',
+        quantity: 100,
+        avgPrice: 25,
+        totalInvested: 2500,
+        asset: { symbol: 'PETR4', type: 'stock', currency: 'BRL', name: 'Petrobras' },
+      },
+    ]);
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map([['PETR4', 41.16]]));
+
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    // Antes: valorAplicado=502500 e saldoBruto=4116 → rentabilidade -94%.
+    expect(data.saldoBruto).toBeCloseTo(4116);
+    expect(data.valorAplicado).toBeCloseTo(2500);
+    expect(data.distribuicao.imoveisBens.valor).toBeCloseTo(500000);
+    expect(data.distribuicao.acoes.valor).toBeCloseTo(4116);
+    expect(data.rentabilidade).toBeCloseTo(((4116 - 2500) / 2500) * 100, 1);
+  });
+
+  it('BDR soma na categoria acoes (mesma categoria da aba Ações)', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-1',
+        assetId: 'a-bdr',
+        quantity: 10,
+        avgPrice: 50,
+        totalInvested: 500,
+        asset: { symbol: 'K1EY34', type: 'bdr', currency: 'BRL', name: 'BDR Teste' },
+      },
+    ]);
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map([['K1EY34', 119.04]]));
+
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    expect(data.distribuicao.acoes.valor).toBeCloseTo(1190.4);
+    expect(data.distribuicao.rendaFixaFundos.valor).toBe(0);
+  });
+
+  it('fundo com subtipo (multimercado/fia/fidc) soma em fimFia, não em rendaFixaFundos', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-1',
+        assetId: 'a-fundo',
+        quantity: 1,
+        avgPrice: 5000,
+        totalInvested: 5000,
+        asset: { symbol: 'CVM-123', type: 'multimercado', currency: 'BRL', name: 'FIM Teste' },
+      },
+    ]);
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map());
+
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    expect(data.distribuicao.fimFia.valor).toBeCloseTo(5000);
+    expect(data.distribuicao.rendaFixaFundos.valor).toBe(0);
+  });
+
+  it('reserva editada vale o MESMO no saldoBruto e na distribuição (avgPrice-first)', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-1',
+        assetId: 'a-res',
+        quantity: 1,
+        avgPrice: 8000,
+        totalInvested: 10000,
+        asset: { symbol: 'RESERVA-EMERG-1', type: 'emergency', currency: 'BRL', name: 'Reserva' },
+      },
+    ]);
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map());
+
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    // Antes: saldoBruto usava totalInvested (10000) e a distribuição avgPrice*qty (8000).
+    expect(data.saldoBruto).toBeCloseTo(8000);
+    expect(data.distribuicao.reservaEmergencia.valor).toBeCloseTo(8000);
+  });
+
+  it('expõe totais e percentuais sobre denominador único (dinheiro sem imóveis)', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-1',
+        assetId: 'a-imovel',
+        quantity: 1,
+        avgPrice: 500000,
+        totalInvested: 500000,
+        asset: { symbol: 'PERSONALIZADO-1', type: 'personalizado', currency: 'BRL', name: 'Apto' },
+      },
+      {
+        id: 'p-2',
+        assetId: 'a-petr',
+        quantity: 100,
+        avgPrice: 25,
+        totalInvested: 2500,
+        asset: { symbol: 'PETR4', type: 'stock', currency: 'BRL', name: 'Petrobras' },
+      },
+      {
+        id: 'p-3',
+        assetId: 'a-res',
+        quantity: 1,
+        avgPrice: 6000,
+        totalInvested: 6000,
+        asset: { symbol: 'RESERVA-EMERG-1', type: 'emergency', currency: 'BRL', name: 'Reserva' },
+      },
+    ]);
+    // caixa consolidado (500) + caixa por aba de ações (1000)
+    mockPrisma.dashboardData.findMany.mockResolvedValue([
+      { metric: 'caixa_para_investir_consolidado', value: 500 },
+      { metric: 'caixa_para_investir_acoes', value: 1000 },
+    ]);
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map([['PETR4', 40]]));
+
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    // dinheiro = ações (4000 + caixa aba 1000) + reserva 6000 + consolidado 500
+    expect(data.totais.dinheiro).toBeCloseTo(11500);
+    expect(data.totais.dinheiroMaisBens).toBeCloseTo(511500);
+    // percentuais das categorias líquidas usam `dinheiro`; imóveis usa dinheiroMaisBens
+    expect(data.distribuicao.acoes.percentual).toBeCloseTo((5000 / 11500) * 100, 1);
+    expect(data.distribuicao.reservaEmergencia.percentual).toBeCloseTo((6000 / 11500) * 100, 1);
+    expect(data.distribuicao.imoveisBens.percentual).toBeCloseTo((500000 / 511500) * 100, 1);
   });
 
   it('retorna 401 quando não autenticado', async () => {

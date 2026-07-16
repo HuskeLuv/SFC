@@ -73,6 +73,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const portfolio = allUserPortfolio.filter((item) => {
     if (!item.asset) return false;
     if (item.asset.type === 'opportunity') return true;
+    // 'cash' soma em reservaOportunidade na distribuição do resumo — sem ele
+    // aqui, o ativo aparecia na pizza mas em aba nenhuma.
+    if (item.asset.type === 'cash') return true;
     if (item.asset.symbol?.startsWith('RESERVA-OPORT')) return true;
     if (item.assetId && tesouroReservaOportunidadeAssetIds.has(item.assetId)) return true;
     return false;

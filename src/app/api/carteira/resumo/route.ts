@@ -10,6 +10,9 @@ import { applyChartAggregation } from '@/services/portfolio/portfolioSeriesAggre
 import { loadHistoricoFromSnapshots } from '@/services/portfolio/portfolioSnapshotReader';
 import { triggerLazyBackfill } from '@/services/portfolio/portfolioSnapshotPersistence';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
+import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
+import { isFundoType } from '@/lib/fundoTypes';
+import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { filterInvestmentsExclReservas } from '@/utils/cashflowFilters';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -22,48 +25,6 @@ import {
 import { parseRangeMonths } from '@/utils/rangeQuery';
 import { loadProventosByDay } from '@/services/portfolio/proventosByDay';
 const resumoCache = getTtlCache<Record<string, unknown>>('carteiraResumo');
-
-type FixedIncomeAssetWithAsset = {
-  id: string;
-  userId: string;
-  assetId: string;
-  type: string;
-  description: string;
-  startDate: Date;
-  maturityDate: Date;
-  investedAmount: number;
-  annualRate: number;
-  indexer: string | null;
-  indexerPercent: number | null;
-  liquidityType: string | null;
-  taxExempt: boolean;
-  asset: { symbol: string; name: string; type?: string | null } | null;
-};
-
-/**
- * Valor atual de renda fixa, com a mesma prioridade da aba Renda Fixa:
- *   1. Marcação na curva (CDI/IPCA/Tesouro PU) quando produz valor > investedAmount,
- *      indicando rendimento real acumulado. Senão a curva é descartada.
- *   2. Edição manual (avgPrice * quantity), se informada.
- *   3. Fallback para o valor calculado (pode ser igual a investedAmount).
- *
- * Apenas comparar `avgPrice > 0` não basta: na criação, avgPrice é setado para
- * valorAplicado e quantity=1 — sem este predicado a curva nunca seria usada.
- */
-const getFixedIncomeCurrentValue = (
-  fixedIncome: FixedIncomeAssetWithAsset | null,
-  portfolioItem: { avgPrice: number; quantity: number },
-  pricerGetCurrentValue: (fi: FixedIncomeAssetWithAsset) => number,
-): number => {
-  if (!fixedIncome) return 0;
-  const valorCalculado = pricerGetCurrentValue(fixedIncome);
-  if (valorCalculado > fixedIncome.investedAmount) return valorCalculado;
-  const valorEditado =
-    portfolioItem.avgPrice > 0 && portfolioItem.quantity > 0
-      ? portfolioItem.avgPrice * portfolioItem.quantity
-      : 0;
-  return valorEditado > 0 ? valorEditado : valorCalculado;
-};
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   if (process.env.NODE_ENV !== 'production') {
@@ -224,7 +185,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (item.asset && (item.asset.type === 'imovel' || item.asset.type === 'personalizado')) {
         return null;
       }
-      if (item.assetId && fixedIncomeByAssetId.has(item.assetId)) {
+      // Renda fixa é precificada pela curva do FI — exceto fundos: um fundo
+      // com FI E cota CVM (Asset.currentPrice) vale a cota, como na aba Fundos,
+      // então o símbolo precisa entrar na busca de cotações.
+      if (
+        item.assetId &&
+        fixedIncomeByAssetId.has(item.assetId) &&
+        !isFundoType(item.asset?.type)
+      ) {
         return null;
       }
       if (item.asset) {
@@ -252,13 +220,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const quotes = quotesResult;
   const cotacaoDolar = dolarIndicator?.price ?? null;
 
-  const toBRL = (valor: number, currency: string | null | undefined): number => {
-    if (currency === 'USD' && cotacaoDolar != null && cotacaoDolar > 0) {
-      return valor * cotacaoDolar;
-    }
-    return valor;
-  };
-
   // Inicializar contadores para cada categoria (antes do loop)
   const categorias = {
     reservaEmergencia: 0,
@@ -276,61 +237,48 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     imoveisBens: 0,
   };
 
-  // Calcular totais do portfolio de ações
-  const stocksTotalInvested = portfolio.reduce((sum, item) => sum + item.totalInvested, 0);
+  // Catalog Tesouro Direto compartilha asset.type='tesouro-direto' entre usuários;
+  // a intenção de colocá-lo numa reserva fica registrada em transaction.notes.tesouroDestino.
+  const tesouroReservaDestinoByAssetId = new Map<string, 'emergencia' | 'oportunidade'>();
+  for (const tx of stockTransactions) {
+    if (tx.type !== 'compra' || !tx.assetId || !tx.notes) continue;
+    if (tesouroReservaDestinoByAssetId.has(tx.assetId)) continue;
+    try {
+      const parsed = JSON.parse(tx.notes);
+      if (parsed?.tesouroDestino === 'reserva-oportunidade') {
+        tesouroReservaDestinoByAssetId.set(tx.assetId, 'oportunidade');
+      } else if (parsed?.tesouroDestino === 'reserva-emergencia') {
+        tesouroReservaDestinoByAssetId.set(tx.assetId, 'emergencia');
+      }
+    } catch {
+      // ignora notas malformadas
+    }
+  }
 
-  // Calcular valor atual usando cotações da brapi.dev
+  // Loop ÚNICO de valoração + categorização (itemValuation). Antes eram dois
+  // loops com prioridades divergentes — a mesma posição valia um número no
+  // saldoBruto e outro na distribuição. Imóveis/personalizados ficam fora de
+  // saldoBruto E de valorAplicado (contaNoSaldoBruto=false): contá-los só no
+  // aplicado fazia a rentabilidade desabar (ex.: -94% com um imóvel de 500k).
+  let stocksTotalInvested = 0;
   let stocksCurrentValue = 0;
   for (const item of portfolio) {
     const symbol = item.asset?.symbol;
-    const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
-    const isReserva =
-      item.asset?.type === 'emergency' ||
-      item.asset?.type === 'opportunity' ||
-      item.asset?.symbol?.startsWith('RESERVA-EMERG') ||
-      item.asset?.symbol?.startsWith('RESERVA-OPORT');
-    const isImovelBem = item.asset?.type === 'imovel';
-    const isPersonalizado =
-      item.asset?.type === 'personalizado' || item.asset?.symbol?.startsWith('PERSONALIZADO');
-
-    // Para reservas, não buscar cotação na brapi
-    // Usar totalInvested (atualizado quando usuário edita) ou quantity*avgPrice como fallback
-    if (isReserva) {
-      const valorReserva =
-        item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
-      stocksCurrentValue += valorReserva;
-      // Categorias são preenchidas no loop "Categorizar portfolio" abaixo - não duplicar aqui
-    } else if (fixedIncome) {
-      stocksCurrentValue += getFixedIncomeCurrentValue(fixedIncome, item, fiPricer.getCurrentValue);
-    } else if (isImovelBem || isPersonalizado) {
-      // Imóveis e bens + Personalizados: usar totalInvested (valor atualizado manualmente) ou quantity * avgPrice
-      const valorImovel =
-        item.totalInvested > 0 ? item.totalInvested : item.quantity * item.avgPrice;
-      // Não adicionar ao stocksCurrentValue (será contabilizado separadamente)
-      categorias.imoveisBens += valorImovel;
-    } else if (symbol) {
-      const currentPrice = quotes.get(symbol);
-      const currency = item.asset?.currency ?? 'BRL';
-      const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
-      let valorItem: number;
-      if (currentPrice != null) {
-        // currentPrice vem da brapi/getAssetPrices na moeda nativa do asset.
-        valorItem = item.quantity * currentPrice;
-        const valorJaEmBRL = tiposPrecoEmBRL.includes(item.asset?.type || '');
-        if (!valorJaEmBRL) {
-          valorItem = toBRL(valorItem, currency);
-        }
-      } else {
-        // Sem cotação live: cai pro avgPrice. /api/carteira/operacao grava
-        // avgPrice já em BRL (preço × cotacaoMoeda na compra), então NÃO
-        // aplicar toBRL aqui senão fica dupla conversão (ex.: USD avgPrice=2448
-        // BRL × cotação atual = R$24k pra um VOO de R$5k).
-        valorItem = item.quantity * item.avgPrice;
-      }
-      stocksCurrentValue += valorItem;
-    } else {
-      // Para outros casos, usar quantity * avgPrice
-      stocksCurrentValue += item.quantity * item.avgPrice;
+    const valuation = valuatePortfolioItem({
+      item,
+      asset: item.asset,
+      fixedIncome: item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null,
+      quote: symbol ? quotes.get(symbol) : null,
+      cotacaoDolar,
+      tesouroReservaDestino: item.assetId
+        ? tesouroReservaDestinoByAssetId.get(item.assetId)
+        : undefined,
+      fiGetCurrentValue: fiPricer.getCurrentValue,
+    });
+    categorias[valuation.categoria] += valuation.valorAtualBRL;
+    if (valuation.contaNoSaldoBruto) {
+      stocksCurrentValue += valuation.valorAtualBRL;
+      stocksTotalInvested += item.totalInvested;
     }
   }
 
@@ -381,6 +329,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     [];
   const historicoTWR: Array<{ data: number; value: number }> = [];
   let historicoTWRPeriodo: Array<{ data: number; value: number }> = [];
+  // Proventos acumulados por dia (snapshots ou builder) — o MWR precisa deles
+  // pra computar retorno total agora que a série exibida é só mercado.
+  let proventosAcumuladosByDayForMwr: Map<number, number> | undefined;
 
   const hasHistoricoData =
     stockTransactions.length > 0 || cashflowInvestments.length > 0 || portfolio.length > 0;
@@ -439,6 +390,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       });
       snapCoverageReason = snap.coverageReason;
       if (snap.coverageOk && snap.historicoPatrimonio.length > 0) {
+        proventosAcumuladosByDayForMwr = snap.proventosAcumuladosByDay;
         const startMs = snap.historicoPatrimonio[0]?.data ?? rawTimelineStart.getTime();
         const endMs =
           snap.historicoPatrimonio[snap.historicoPatrimonio.length - 1]?.data ?? hoje.getTime();
@@ -493,6 +445,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         historicoTWR.push(...built.historicoTWR);
       }
       historicoTWRPeriodo = built.historicoTWRPeriodo;
+      proventosAcumuladosByDayForMwr = built.proventosAcumuladosByDay;
 
       // Lazy backfill: quando a falta de cobertura foi por gap histórico (snapshots
       // recentes mas nada cobrindo as transações antigas), dispara em background a
@@ -530,12 +483,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       cashflowInvestments,
       dailyTimeline,
     );
-    historicoMWR.push(...buildMwrSeries({ historicoPatrimonio, cashFlowsByDay }));
+    historicoMWR.push(
+      ...buildMwrSeries({
+        historicoPatrimonio,
+        cashFlowsByDay,
+        proventosAcumuladosByDay: proventosAcumuladosByDayForMwr,
+      }),
+    );
     if (typeof twrStartDate === 'number' && Number.isFinite(twrStartDate)) {
       historicoMWRPeriodo = buildMwrSeries({
         historicoPatrimonio,
         cashFlowsByDay,
         startMs: twrStartDate,
+        proventosAcumuladosByDay: proventosAcumuladosByDayForMwr,
       });
     }
   }
@@ -556,208 +516,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     historicoTWR.push(
       ...historicoPatrimonio.map((item, i) => ({ data: item.data, value: i === 0 ? 0 : 0 })),
     );
-  }
-
-  // categorias já foi inicializado antes do loop do portfolio
-
-  // Após consolidação Stock → Asset, todo portfolio.asset está populado.
-  // O batch lookup legado deixou de ser necessário.
-
-  // Catalog Tesouro Direto compartilha asset.type='tesouro-direto' entre usuários;
-  // a intenção de colocá-lo numa reserva fica registrada em transaction.notes.tesouroDestino.
-  const tesouroReservaDestinoByAssetId = new Map<string, 'emergencia' | 'oportunidade'>();
-  for (const tx of stockTransactions) {
-    if (tx.type !== 'compra' || !tx.assetId || !tx.notes) continue;
-    if (tesouroReservaDestinoByAssetId.has(tx.assetId)) continue;
-    try {
-      const parsed = JSON.parse(tx.notes);
-      if (parsed?.tesouroDestino === 'reserva-oportunidade') {
-        tesouroReservaDestinoByAssetId.set(tx.assetId, 'oportunidade');
-      } else if (parsed?.tesouroDestino === 'reserva-emergencia') {
-        tesouroReservaDestinoByAssetId.set(tx.assetId, 'emergencia');
-      }
-    } catch {
-      // ignora notas malformadas
-    }
-  }
-
-  // Categorizar portfolio baseado no tipo do ativo
-  for (const item of portfolio) {
-    const symbol = item.asset?.symbol;
-    if (!symbol) continue;
-
-    const asset = item.asset ?? null;
-    const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
-    const tesouroReservaDestino = item.assetId
-      ? tesouroReservaDestinoByAssetId.get(item.assetId)
-      : undefined;
-
-    // Calcular valor atual com cotação
-    const isReserva =
-      asset?.type === 'emergency' ||
-      asset?.type === 'opportunity' ||
-      symbol?.startsWith('RESERVA-EMERG') ||
-      symbol?.startsWith('RESERVA-OPORT') ||
-      tesouroReservaDestino !== undefined;
-    const currentPrice = quotes.get(symbol);
-    const valorAtual = fixedIncome
-      ? getFixedIncomeCurrentValue(fixedIncome, item, fiPricer.getCurrentValue)
-      : currentPrice && !isReserva
-        ? item.quantity * currentPrice
-        : isReserva && item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-          ? item.quantity * item.avgPrice
-          : item.totalInvested > 0
-            ? item.totalInvested
-            : item.quantity * item.avgPrice; // Reservas: alinhado com reserva-oportunidade (avgPrice*quantity quando editado)
-
-    // Converter USD → BRL (tabela de alocação exibe tudo em R$).
-    // Crypto/currency/metal/commodity: getAssetPrices já devolve em BRL.
-    // Quando cai no fallback (sem currentPrice ou FI ou reserva), valorAtual
-    // já está em BRL — avgPrice/totalInvested são gravados em BRL pela
-    // /api/carteira/operacao. Só converte quando veio de currentPrice (USD).
-    const currency = asset?.currency ?? 'BRL';
-    const tiposPrecoEmBRL = ['crypto', 'currency', 'metal', 'commodity'];
-    const usouCurrentPriceUSD =
-      currentPrice != null &&
-      !isReserva &&
-      !fixedIncome &&
-      !tiposPrecoEmBRL.includes(asset?.type || '');
-    const valorAtualBRL = usouCurrentPriceUSD ? toBRL(valorAtual, currency) : valorAtual;
-
-    if (asset) {
-      const tipo = asset.type?.toLowerCase() || '';
-
-      // Verificar se é reserva antes de categorizar
-      if (isReserva) {
-        if (tesouroReservaDestino === 'oportunidade') {
-          categorias.reservaOportunidade += valorAtualBRL;
-        } else if (tesouroReservaDestino === 'emergencia') {
-          categorias.reservaEmergencia += valorAtualBRL;
-        } else if (tipo === 'opportunity' || symbol?.startsWith('RESERVA-OPORT')) {
-          categorias.reservaOportunidade += valorAtualBRL;
-        } else if (tipo === 'emergency' || symbol?.startsWith('RESERVA-EMERG')) {
-          categorias.reservaEmergencia += valorAtualBRL;
-        }
-      } else {
-        // Após consolidação Stock → Asset: aba Ações filtra por Asset.type='stock'
-        // e ticker no padrão B3 (4 letras + 1 dígito, ex.: PETR4). Ações US também
-        // são type='stock' mas têm currency='USD' e ticker fora do padrão B3.
-        const isB3StockTicker = /^[A-Z][A-Z0-9]{3}[0-9]$/.test(symbol.toUpperCase());
-        const isAcaoTabItem = asset.type === 'stock' && isB3StockTicker;
-        switch (tipo) {
-          case 'ação':
-          case 'acao':
-          case 'stock': {
-            if (asset.currency === 'BRL') {
-              if (isAcaoTabItem) {
-                categorias.acoes += valorAtualBRL;
-              } else {
-                categorias.rendaFixaFundos += valorAtualBRL; // ação BRL fora do padrão B3: evita valor fantasma
-              }
-            } else {
-              categorias.stocks += valorAtualBRL;
-            }
-            break;
-          }
-          case 'bdr':
-          case 'brd':
-            if (isAcaoTabItem) {
-              categorias.acoes += valorAtualBRL;
-            } else {
-              categorias.rendaFixaFundos += valorAtualBRL;
-            }
-            break;
-          case 'fii':
-            categorias.fiis += valorAtualBRL;
-            break;
-          case 'fund':
-          case 'funds': {
-            const symbolUpper = symbol.toUpperCase();
-            const nameLower = (asset.name || '').toLowerCase();
-            if (
-              symbolUpper.endsWith('11') ||
-              nameLower.includes('fii') ||
-              nameLower.includes('imobili')
-            ) {
-              categorias.fiis += valorAtualBRL;
-            } else {
-              categorias.fimFia += valorAtualBRL;
-            }
-            break;
-          }
-          case 'etf':
-            categorias.etfs += valorAtualBRL;
-            break;
-          case 'reit':
-            categorias.reits += valorAtualBRL;
-            break;
-          case 'crypto':
-            categorias.moedasCriptos += valorAtualBRL;
-            break;
-          case 'bond':
-            categorias.rendaFixaFundos += valorAtualBRL;
-            break;
-          case 'insurance':
-            categorias.previdenciaSeguros += valorAtualBRL;
-            break;
-          case 'currency':
-            categorias.moedasCriptos += valorAtualBRL;
-            break;
-          case 'cash':
-            categorias.reservaOportunidade += valorAtualBRL;
-            break;
-          case 'emergency':
-            categorias.reservaEmergencia += valorAtualBRL;
-            break;
-          case 'opportunity':
-            categorias.reservaOportunidade += valorAtualBRL;
-            break;
-          case 'custom':
-          case 'personalizado':
-            // Personalizado não deve aparecer no gráfico de tipos de investimento (vai para Imóveis e Bens)
-            break;
-          case 'imovel':
-            // Imóveis e bens não devem aparecer no gráfico de tipos de investimento
-            break;
-          case 'metal':
-          case 'commodity':
-            categorias.moedasCriptos += valorAtualBRL;
-            break;
-          case 'previdencia':
-            categorias.previdenciaSeguros += valorAtualBRL;
-            break;
-          case 'opcao':
-            categorias.opcoes += valorAtualBRL;
-            break;
-          default:
-            // Tipos desconhecidos NÃO devem ir para acoes (evita valores fantasmas)
-            // Verificar reserva pelo símbolo; demais vão para renda fixa (conservador)
-            if (symbol?.startsWith('RESERVA-OPORT')) {
-              categorias.reservaOportunidade += valorAtualBRL;
-            } else if (symbol?.startsWith('RESERVA-EMERG')) {
-              categorias.reservaEmergencia += valorAtualBRL;
-            } else if (symbol?.toUpperCase().endsWith('11')) {
-              categorias.fiis += valorAtualBRL;
-            } else {
-              // Antes: acoes (causava 8787 e outros fantasmas). Agora: renda fixa
-              categorias.rendaFixaFundos += valorAtualBRL;
-            }
-        }
-      }
-    } else {
-      // Defensive fallback: portfolios sem asset populado (não deveria ocorrer
-      // pós-consolidação Stock → Asset). Categoriza pelo padrão do ticker.
-      const tickerUpper = symbol?.toUpperCase() ?? '';
-      if (symbol?.startsWith('RESERVA-OPORT')) {
-        categorias.reservaOportunidade += valorAtualBRL;
-      } else if (symbol?.startsWith('RESERVA-EMERG')) {
-        categorias.reservaEmergencia += valorAtualBRL;
-      } else if (tickerUpper.endsWith('11')) {
-        categorias.fiis += valorAtualBRL;
-      } else {
-        categorias.acoes += valorAtualBRL;
-      }
-    }
   }
 
   // Não incluir investimentos de cashflow na distribuição de alocação - evita valores fantasmas
@@ -801,72 +559,45 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   categorias.fimFia += caixaFimFia;
   categorias.rendaFixaFundos += caixaRendaFixa;
 
-  // Calcular total para percentuais
-  const totalCategorizado = Object.values(categorias).reduce((sum, valor) => sum + valor, 0);
+  // Denominador ÚNICO dos percentuais (decisão de produto, jul/2026):
+  //   totais.dinheiro = Σ categorias líquidas (caixas por aba já embutidos)
+  //                     + caixa consolidado, contado UMA vez.
+  //   Imóveis/bens ficam FORA do denominador das categorias líquidas; o % de
+  //   imoveisBens usa dinheiroMaisBens. O frontend (pizza, tabela de alocação,
+  //   necessidade de aporte) consome estes números prontos — antes cada tela
+  //   recalculava com uma base diferente (0,96% vs 15,65% pra mesma categoria).
+  const totalDinheiro =
+    Object.entries(categorias).reduce(
+      (sum, [key, valor]) => (key === 'imoveisBens' ? sum : sum + valor),
+      0,
+    ) + (caixaParaInvestir || 0);
+  const totalDinheiroMaisBens = totalDinheiro + categorias.imoveisBens;
 
-  // Se não há investimentos categorizados, usar valor bruto como base
-  const baseValue = totalCategorizado > 0 ? totalCategorizado : saldoBruto;
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  const pctOf = (valor: number, base: number) => (base > 0 ? round2((valor / base) * 100) : 0);
+  const distribuicaoEntry = (key: keyof typeof categorias) => ({
+    valor: round2(categorias[key]),
+    percentual: pctOf(
+      categorias[key],
+      key === 'imoveisBens' ? totalDinheiroMaisBens : totalDinheiro,
+    ),
+  });
 
   // Distribuição por tipo de investimento com dados reais
   const distribuicao = {
-    reservaEmergencia: {
-      valor: Math.round(categorias.reservaEmergencia * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.reservaEmergencia / baseValue) * 10000) / 100 : 0,
-    },
-    reservaOportunidade: {
-      valor: Math.round(categorias.reservaOportunidade * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.reservaOportunidade / baseValue) * 10000) / 100 : 0,
-    },
-    rendaFixaFundos: {
-      valor: Math.round(categorias.rendaFixaFundos * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.rendaFixaFundos / baseValue) * 10000) / 100 : 0,
-    },
-    fimFia: {
-      valor: Math.round(categorias.fimFia * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.fimFia / baseValue) * 10000) / 100 : 0,
-    },
-    fiis: {
-      valor: Math.round(categorias.fiis * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.fiis / baseValue) * 10000) / 100 : 0,
-    },
-    acoes: {
-      valor: Math.round(categorias.acoes * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.acoes / baseValue) * 10000) / 100 : 0,
-    },
-    stocks: {
-      valor: Math.round(categorias.stocks * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.stocks / baseValue) * 10000) / 100 : 0,
-    },
-    reits: {
-      valor: Math.round(categorias.reits * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.reits / baseValue) * 10000) / 100 : 0,
-    },
-    etfs: {
-      valor: Math.round(categorias.etfs * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.etfs / baseValue) * 10000) / 100 : 0,
-    },
-    moedasCriptos: {
-      valor: Math.round(categorias.moedasCriptos * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.moedasCriptos / baseValue) * 10000) / 100 : 0,
-    },
-    previdenciaSeguros: {
-      valor: Math.round(categorias.previdenciaSeguros * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.previdenciaSeguros / baseValue) * 10000) / 100 : 0,
-    },
-    opcoes: {
-      valor: Math.round(categorias.opcoes * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.opcoes / baseValue) * 10000) / 100 : 0,
-    },
-    imoveisBens: {
-      valor: Math.round(categorias.imoveisBens * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.imoveisBens / baseValue) * 10000) / 100 : 0,
-    },
+    reservaEmergencia: distribuicaoEntry('reservaEmergencia'),
+    reservaOportunidade: distribuicaoEntry('reservaOportunidade'),
+    rendaFixaFundos: distribuicaoEntry('rendaFixaFundos'),
+    fimFia: distribuicaoEntry('fimFia'),
+    fiis: distribuicaoEntry('fiis'),
+    acoes: distribuicaoEntry('acoes'),
+    stocks: distribuicaoEntry('stocks'),
+    reits: distribuicaoEntry('reits'),
+    etfs: distribuicaoEntry('etfs'),
+    moedasCriptos: distribuicaoEntry('moedasCriptos'),
+    previdenciaSeguros: distribuicaoEntry('previdenciaSeguros'),
+    opcoes: distribuicaoEntry('opcoes'),
+    imoveisBens: distribuicaoEntry('imoveisBens'),
   };
 
   const resumo: Record<string, unknown> = {
@@ -875,6 +606,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     rentabilidade: Math.round(rentabilidade * 100) / 100,
     metaPatrimonio: metaPatrimonio?.value || 0,
     caixaParaInvestir: caixaParaInvestir || 0,
+    totais: {
+      dinheiro: round2(totalDinheiro),
+      dinheiroMaisBens: round2(totalDinheiroMaisBens),
+    },
     historicoPatrimonio,
     historicoTWR,
     historicoMWR,

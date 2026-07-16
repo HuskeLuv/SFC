@@ -71,10 +71,16 @@ export default function CarteiraTabs() {
 
   const necessidadeAporteMap = useMemo<NecessidadeAporteMap>(() => {
     if (!resumo) return {};
-    const totalCarteira = Object.values(resumo.distribuicao).reduce(
-      (sum, item) => sum + item.valor,
-      0,
-    );
+    // Denominador único do backend (dinheiro, sem imóveis) — o mesmo da tabela
+    // de alocação e da pizza. A soma local antiga incluía imóveis, então o
+    // card da aba e a coluna da tabela pediam aportes diferentes. Fallback
+    // local só para resposta cacheada antiga sem `totais`.
+    const totalCarteira =
+      resumo.totais?.dinheiro ??
+      Object.entries(resumo.distribuicao).reduce(
+        (sum, [key, item]) => (key === 'imoveisBens' ? sum : sum + item.valor),
+        0,
+      );
     if (totalCarteira <= 0) return {};
     const targetMap = alocacaoConfig.configuracoes.reduce<Record<string, number>>((acc, config) => {
       acc[config.categoria] = config.target;

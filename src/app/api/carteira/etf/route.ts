@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
+import { getAssetPrices } from '@/services/pricing/assetPriceService';
+import { getIndicator } from '@/services/market/marketIndicatorService';
+import {
+  valuatePortfolioItem,
+  CATEGORIA_ASSET_TYPE_FILTERS,
+} from '@/services/portfolio/itemValuation';
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
   const colors = [
@@ -46,13 +52,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     where: {
       userId: user.id,
       asset: {
-        type: 'etf',
+        type: { in: [...CATEGORIA_ASSET_TYPE_FILTERS.etfs] },
       },
     },
     include: {
       asset: true,
     },
   });
+
+  // Cotações live + dólar: a aba exibia valorAtualizado = totalInvested
+  // (congelado no valor de compra) enquanto o resumo usava cotação — o mesmo
+  // ETF valia números diferentes por tela.
+  const symbols = portfolio
+    .map((item) => item.asset?.symbol)
+    .filter((s): s is string => Boolean(s));
+  const [quotes, dolarIndicator] = await Promise.all([
+    getAssetPrices(symbols, { useBrapiFallback: true }),
+    getIndicator('USD-BRL', { useBrapiFallback: true }).catch(() => null),
+  ]);
+  const cotacaoDolar = dolarIndicator?.price ?? null;
 
   // Converter portfolio para formato esperado
   const etfAtivos = portfolio
@@ -62,6 +80,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         (item.asset!.currency === 'USD' ? 'estados_unidos' : 'brasil')) as
         | 'brasil'
         | 'estados_unidos';
+      const valuation = valuatePortfolioItem({
+        item,
+        asset: item.asset,
+        quote: quotes.get(item.asset!.symbol),
+        cotacaoDolar,
+      });
+      const valorAtualizado = valuation.valorAtualBRL;
+      const cotacaoAtual = item.quantity > 0 ? valorAtualizado / item.quantity : item.avgPrice;
       return {
         id: item.id,
         ticker: item.asset!.symbol,
@@ -72,14 +98,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         quantidade: item.quantity,
         precoAquisicao: item.avgPrice,
         valorTotal: item.totalInvested,
-        cotacaoAtual: item.avgPrice, // Usar preço médio como cotação atual
-        valorAtualizado: item.totalInvested,
+        cotacaoAtual,
+        valorAtualizado,
         riscoPorAtivo: 0, // Calcular depois
         percentualCarteira: 0, // Calcular depois
         objetivo: item.objetivo ?? 0,
         quantoFalta: 0, // Calcular depois
         necessidadeAporte: 0, // Calcular depois
-        rentabilidade: 0, // Sem variação por enquanto
+        rentabilidade:
+          item.totalInvested > 0
+            ? round2(((valorAtualizado - item.totalInvested) / item.totalInvested) * 100)
+            : 0,
         observacoes: undefined,
         dataUltimaAtualizacao: item.lastUpdate,
       };

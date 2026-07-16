@@ -13,6 +13,8 @@ export type SnapshotHistoricoBundle = {
   historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }>;
   historicoTWR: Array<{ data: number; value: number }>;
   historicoTWRPeriodo: Array<{ data: number; value: number }>;
+  /** Proventos acumulados por dia (totalEarnings dos snapshots) — p/ MWR de retorno total. */
+  proventosAcumuladosByDay: Map<number, number>;
   coverageOk: boolean;
   coverageReason: SnapshotCoverageReason;
 };
@@ -57,7 +59,7 @@ export const loadHistoricoFromSnapshots = async (
     prisma.portfolioDailySnapshot.findMany({
       where: { userId, date: { gte: start, lte: end } },
       orderBy: { date: 'asc' },
-      select: { date: true, totalValue: true, totalInvested: true },
+      select: { date: true, totalValue: true, totalInvested: true, totalEarnings: true },
     }),
     prisma.portfolioPerformance.findMany({
       where: { userId, date: { gte: start, lte: end } },
@@ -71,6 +73,14 @@ export const loadHistoricoFromSnapshots = async (
     valorAplicado: Number(r.totalInvested),
     saldoBruto: Number(r.totalValue),
   }));
+
+  // totalEarnings = proventos acumulados até o dia (gravado pelo cron desde o
+  // fix que tirou proventos da série exibida). Snapshots antigos têm 0 — o
+  // deploy exige invalidate-all-snapshots pra não misturar convenções.
+  const proventosAcumuladosByDay = new Map<number, number>();
+  rows.forEach((r) => {
+    proventosAcumuladosByDay.set(normalizeDateStart(r.date).getTime(), Number(r.totalEarnings));
+  });
 
   const perfByDay = new Map<number, number>();
   perfRows.forEach((p) => {
@@ -113,12 +123,18 @@ export const loadHistoricoFromSnapshots = async (
         timeline,
       );
 
-      const beforePeriod = historicoPatrimonio.filter((p) => p.data < periodStart);
+      // TWR de período sobre RETORNO TOTAL: saldo de mercado + proventos
+      // acumulados (totalEarnings) — mesma convenção da série-sombra do builder.
+      const totalReturnSeries = historicoPatrimonio.map((p) => ({
+        ...p,
+        saldoBruto: p.saldoBruto + (proventosAcumuladosByDay.get(p.data) ?? 0),
+      }));
+      const beforePeriod = totalReturnSeries.filter((p) => p.data < periodStart);
       const patrimonyAtStart =
         beforePeriod.length > 0
           ? beforePeriod[beforePeriod.length - 1]!.saldoBruto
-          : historicoPatrimonio[0]!.saldoBruto;
-      const periodPatrimonio = historicoPatrimonio.filter((p) => p.data >= periodStart);
+          : totalReturnSeries[0]!.saldoBruto;
+      const periodPatrimonio = totalReturnSeries.filter((p) => p.data >= periodStart);
       if (periodPatrimonio.length > 0) {
         const periodPatrimonioSeries = [
           { data: periodStart, valorAplicado: 0, saldoBruto: patrimonyAtStart },
@@ -155,6 +171,7 @@ export const loadHistoricoFromSnapshots = async (
     historicoPatrimonio,
     historicoTWR,
     historicoTWRPeriodo,
+    proventosAcumuladosByDay,
     coverageOk,
     coverageReason,
   };

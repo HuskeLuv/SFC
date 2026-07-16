@@ -506,6 +506,13 @@ export type BuildPatrimonioHistoricoResult = {
   historicoTWRPeriodo: Array<{ data: number; value: number }>;
   /** Fluxo de caixa por dia para TWR (aportes/resgates + cashflow manual); útil com snapshots pré-carregados. */
   cashFlowsByDay: Map<number, number>;
+  /**
+   * Proventos acumulados até cada dia da timeline. A série de patrimônio
+   * exibida (historicoPatrimonio) NÃO embute proventos — este map permite aos
+   * consumidores (TWR/MWR, persistência de snapshots) reconstruir a série de
+   * retorno total (patrimônio + proventos) quando precisarem.
+   */
+  proventosAcumuladosByDay: Map<number, number>;
 };
 
 // Re-export do util leve para preservar back-compat de consumers que importam
@@ -546,7 +553,13 @@ export const buildPatrimonioHistorico = async (
     stockTransactions.length > 0 || investmentsExclReservas.length > 0 || portfolio.length > 0;
 
   if (!hasHistoricoData) {
-    return { historicoPatrimonio, historicoTWR, historicoTWRPeriodo, cashFlowsByDay: new Map() };
+    return {
+      historicoPatrimonio,
+      historicoTWR,
+      historicoTWRPeriodo,
+      cashFlowsByDay: new Map(),
+      proventosAcumuladosByDay: new Map(),
+    };
   }
 
   const hoje = normalizeDateStart(timelineEndDate ?? new Date());
@@ -908,7 +921,14 @@ export const buildPatrimonioHistorico = async (
   let proventosAcumulados = 0;
   let manualInvestmentsValue = 0;
   let valorAplicadoDia = 0;
+  // Série EXIBIDA: só valor de mercado (patrimônio de fato, bate com o card
+  // Saldo Bruto). Proventos ficam fora — iam pra série e o gráfico terminava
+  // acima do card (ex.: +23% no QA).
   const patrimonioSeries: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
+  // Série-SOMBRA de retorno total (patrimônio + proventos acumulados): input
+  // exclusivo de TWR/MWR, preservando a metodologia de retorno total (Kinvo).
+  const totalReturnSeries: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
+  const proventosAcumuladosByDay = new Map<number, number>();
 
   // Pre-seed valorAplicado and cashBalance from transactions before the timeline.
   // Without this, assets bought years ago but with maxHistoricoMonths truncation
@@ -988,17 +1008,20 @@ export const buildPatrimonioHistorico = async (
     });
 
     const saldoBrutoDia =
-      valorMercadoAtivos +
-      manualInvestmentsValue +
-      cashBalance +
-      rendimentosAcumulados +
-      proventosAcumulados;
+      valorMercadoAtivos + manualInvestmentsValue + cashBalance + rendimentosAcumulados;
 
+    const valorAplicadoRounded2 = Math.round(valorAplicadoDia * 100) / 100;
     patrimonioSeries.push({
       data: day,
-      valorAplicado: Math.round(valorAplicadoDia * 100) / 100,
+      valorAplicado: valorAplicadoRounded2,
       saldoBruto: Math.round(saldoBrutoDia * 100) / 100,
     });
+    totalReturnSeries.push({
+      data: day,
+      valorAplicado: valorAplicadoRounded2,
+      saldoBruto: Math.round((saldoBrutoDia + proventosAcumulados) * 100) / 100,
+    });
+    proventosAcumuladosByDay.set(day, Math.round(proventosAcumulados * 100) / 100);
   }
 
   // Backfill: se todos os saldoBruto são 0 mas o valor atual é > 0 (sem histórico de preços no DB),
@@ -1010,6 +1033,10 @@ export const buildPatrimonioHistorico = async (
     patrimonioSeries.forEach((p) => {
       p.saldoBruto = rounded;
     });
+    totalReturnSeries.forEach((p) => {
+      const acum = proventosAcumuladosByDay.get(p.data) ?? 0;
+      p.saldoBruto = Math.round((saldoBrutoAtual + acum) * 100) / 100;
+    });
   }
 
   const saldoBrutoRounded =
@@ -1017,15 +1044,26 @@ export const buildPatrimonioHistorico = async (
   const valorAplicadoRounded = Math.round(valorAplicadoAtual * 100) / 100;
   if (patrimonioSeries.length > 0) {
     if (patchLastDayWithLiveTotals) {
-      patrimonioSeries[patrimonioSeries.length - 1].saldoBruto = saldoBrutoRounded;
-      patrimonioSeries[patrimonioSeries.length - 1].valorAplicado = valorAplicadoRounded;
+      const last = patrimonioSeries.length - 1;
+      patrimonioSeries[last].saldoBruto = saldoBrutoRounded;
+      patrimonioSeries[last].valorAplicado = valorAplicadoRounded;
+      const acumUltimo = proventosAcumuladosByDay.get(totalReturnSeries[last].data) ?? 0;
+      totalReturnSeries[last].saldoBruto = Math.round((saldoBrutoRounded + acumUltimo) * 100) / 100;
+      totalReturnSeries[last].valorAplicado = valorAplicadoRounded;
     }
   } else {
+    const acumFinal = Math.round(proventosAcumulados * 100) / 100;
     patrimonioSeries.push({
       data: hoje.getTime(),
       valorAplicado: valorAplicadoRounded,
       saldoBruto: saldoBrutoRounded,
     });
+    totalReturnSeries.push({
+      data: hoje.getTime(),
+      valorAplicado: valorAplicadoRounded,
+      saldoBruto: Math.round((saldoBrutoRounded + acumFinal) * 100) / 100,
+    });
+    proventosAcumuladosByDay.set(hoje.getTime(), acumFinal);
   }
 
   historicoPatrimonio.push(...patrimonioSeries);
@@ -1040,18 +1078,21 @@ export const buildPatrimonioHistorico = async (
     cashFlowsByDay.set(day, -externalCashDelta + manualVal);
   });
 
-  historicoTWR.push(...calculateHistoricoTWR(patrimonioSeries, cashFlowsByDay));
+  // TWR consome a série-SOMBRA de retorno total (patrimônio + proventos) —
+  // proventos são retorno interno, não fluxo de caixa. A série exibida
+  // (historicoPatrimonio) fica só com o valor de mercado.
+  historicoTWR.push(...calculateHistoricoTWR(totalReturnSeries, cashFlowsByDay));
 
   if (typeof twrStartDate === 'number' && Number.isFinite(twrStartDate) && twrStartDate > 0) {
     const periodStart = normalizeDateStart(new Date(twrStartDate)).getTime();
     const periodEnd = hoje.getTime();
     if (periodStart <= periodEnd) {
-      const beforePeriod = patrimonioSeries.filter((p) => p.data < periodStart);
+      const beforePeriod = totalReturnSeries.filter((p) => p.data < periodStart);
       const patrimonyAtStart =
         beforePeriod.length > 0
           ? beforePeriod[beforePeriod.length - 1].saldoBruto
-          : (patrimonioSeries[0]?.saldoBruto ?? 0);
-      const periodPatrimonio = patrimonioSeries.filter((p) => p.data >= periodStart);
+          : (totalReturnSeries[0]?.saldoBruto ?? 0);
+      const periodPatrimonio = totalReturnSeries.filter((p) => p.data >= periodStart);
       if (periodPatrimonio.length > 0) {
         const periodPatrimonioSeries = [
           { data: periodStart, valorAplicado: 0, saldoBruto: patrimonyAtStart },
@@ -1067,7 +1108,13 @@ export const buildPatrimonioHistorico = async (
     }
   }
 
-  return { historicoPatrimonio, historicoTWR, historicoTWRPeriodo, cashFlowsByDay };
+  return {
+    historicoPatrimonio,
+    historicoTWR,
+    historicoTWRPeriodo,
+    cashFlowsByDay,
+    proventosAcumuladosByDay,
+  };
 };
 
 /**

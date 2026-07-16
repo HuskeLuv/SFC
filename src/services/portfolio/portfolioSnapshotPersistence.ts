@@ -33,20 +33,21 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
   // Proventos recebidos entram no retorno (série = retorno total, igual ao card).
   const { proventosByDay } = await loadProventosByDay(userId);
 
-  const { historicoPatrimonio, historicoTWR } = await buildPatrimonioHistorico({
-    portfolio,
-    fixedIncomeAssets,
-    stockTransactions,
-    investmentsExclReservas,
-    saldoBrutoAtual: 0,
-    valorAplicadoAtual: 0,
-    maxHistoricoMonths: null,
-    patchLastDayWithLiveTotals: false,
-    timelineEndDate,
-    fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
-    implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
-    proventosByDay,
-  });
+  const { historicoPatrimonio, historicoTWR, proventosAcumuladosByDay } =
+    await buildPatrimonioHistorico({
+      portfolio,
+      fixedIncomeAssets,
+      stockTransactions,
+      investmentsExclReservas,
+      saldoBrutoAtual: 0,
+      valorAplicadoAtual: 0,
+      maxHistoricoMonths: null,
+      patchLastDayWithLiveTotals: false,
+      timelineEndDate,
+      fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
+      implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
+      proventosByDay,
+    });
 
   if (historicoPatrimonio.length === 0) {
     return { snapshotsWritten: 0, performancesWritten: 0 };
@@ -73,12 +74,12 @@ export const persistPatrimonioSnapshotsForUser = async (userId: string, timeline
             date: day,
             totalValue: row.saldoBruto,
             totalInvested: row.valorAplicado,
-            totalEarnings: 0,
+            totalEarnings: proventosAcumuladosByDay.get(row.data) ?? 0,
           },
           update: {
             totalValue: row.saldoBruto,
             totalInvested: row.valorAplicado,
-            totalEarnings: 0,
+            totalEarnings: proventosAcumuladosByDay.get(row.data) ?? 0,
           },
         });
       }),
@@ -159,20 +160,21 @@ export const persistFullHistoryForUser = async (userId: string, timelineEndDate:
   // Proventos recebidos entram no retorno (série = retorno total, igual ao card).
   const { proventosByDay } = await loadProventosByDay(userId);
 
-  const { historicoPatrimonio, historicoTWR } = await buildPatrimonioHistorico({
-    portfolio,
-    fixedIncomeAssets,
-    stockTransactions,
-    investmentsExclReservas,
-    saldoBrutoAtual: 0,
-    valorAplicadoAtual: 0,
-    maxHistoricoMonths: null,
-    patchLastDayWithLiveTotals: false,
-    timelineEndDate,
-    fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
-    implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
-    proventosByDay,
-  });
+  const { historicoPatrimonio, historicoTWR, proventosAcumuladosByDay } =
+    await buildPatrimonioHistorico({
+      portfolio,
+      fixedIncomeAssets,
+      stockTransactions,
+      investmentsExclReservas,
+      saldoBrutoAtual: 0,
+      valorAplicadoAtual: 0,
+      maxHistoricoMonths: null,
+      patchLastDayWithLiveTotals: false,
+      timelineEndDate,
+      fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
+      implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
+      proventosByDay,
+    });
 
   if (historicoPatrimonio.length === 0) {
     return { snapshotsWritten: 0, performancesWritten: 0 };
@@ -193,12 +195,12 @@ export const persistFullHistoryForUser = async (userId: string, timelineEndDate:
             date: day,
             totalValue: row.saldoBruto,
             totalInvested: row.valorAplicado,
-            totalEarnings: 0,
+            totalEarnings: proventosAcumuladosByDay.get(row.data) ?? 0,
           },
           update: {
             totalValue: row.saldoBruto,
             totalInvested: row.valorAplicado,
-            totalEarnings: 0,
+            totalEarnings: proventosAcumuladosByDay.get(row.data) ?? 0,
           },
         });
       }),

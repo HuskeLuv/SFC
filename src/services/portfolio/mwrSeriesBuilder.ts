@@ -40,6 +40,13 @@ export interface BuildMwrSeriesParams {
    * filtrados. Se omitido, usa o primeiro ponto do histórico.
    */
   startMs?: number;
+  /**
+   * Proventos acumulados até cada dia (do builder/snapshots). Quando presente,
+   * o MWR é calculado sobre RETORNO TOTAL: saldo de mercado + proventos
+   * recebidos — a série de patrimônio exibida não embute mais os proventos,
+   * mas a rentabilidade continua contando dividendo como retorno interno.
+   */
+  proventosAcumuladosByDay?: Map<number, number>;
 }
 
 /**
@@ -67,6 +74,7 @@ export const buildMwrSeries = ({
   historicoPatrimonio,
   cashFlowsByDay,
   startMs,
+  proventosAcumuladosByDay,
 }: BuildMwrSeriesParams): MwrSeriesPoint[] => {
   if (historicoPatrimonio.length === 0) return [];
 
@@ -80,9 +88,28 @@ export const buildMwrSeries = ({
     amount,
   }));
 
+  // Retorno total: soma os proventos acumulados ao saldo de mercado de cada
+  // ponto (equivale à série antiga, que embutia proventos no saldoBruto —
+  // proventos pré-janela ficam no capital inicial, como antes). Carry-forward
+  // pra pontos agregados do gráfico que não caiam num dia exato do map.
+  const acumByPoint = new Map<number, number>();
+  if (proventosAcumuladosByDay && proventosAcumuladosByDay.size > 0) {
+    const entries = Array.from(proventosAcumuladosByDay.entries()).sort((a, b) => a[0] - b[0]);
+    let i = 0;
+    let carry = 0;
+    for (const p of filtered) {
+      while (i < entries.length && entries[i][0] <= p.data) {
+        carry = entries[i][1];
+        i += 1;
+      }
+      acumByPoint.set(p.data, carry);
+    }
+  }
+  const acumAt = (day: number): number => acumByPoint.get(day) ?? 0;
+
   const startPoint = filtered[0];
   const flowOnStart = flowsMap.get(startPoint.data) ?? 0;
-  const initialSaldoEnd = startPoint.saldoBruto;
+  const initialSaldoEnd = startPoint.saldoBruto + acumAt(startPoint.data);
   // Saldo PRÉ-janela: subtrai aportes do dia 0 do saldo end-of-day pra evitar
   // dupla contagem (mesma lógica do route rentabilidade-janelas).
   const initialSaldoPre = Math.max(0, initialSaldoEnd - Math.max(0, flowOnStart));
@@ -96,7 +123,7 @@ export const buildMwrSeries = ({
     const result = computeMwr({
       initialValue: initialSaldoPre,
       initialDate: effectiveStart,
-      terminalValue: point.saldoBruto,
+      terminalValue: point.saldoBruto + acumAt(point.data),
       terminalDate: point.data,
       cashFlows: allFlows,
     });

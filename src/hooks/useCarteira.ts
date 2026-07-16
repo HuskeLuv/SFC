@@ -11,6 +11,8 @@ export interface CarteiraResumo {
   rentabilidade: number;
   metaPatrimonio: number;
   caixaParaInvestir: number;
+  /** Denominadores únicos calculados no backend (dinheiro exclui imóveis). */
+  totais?: { dinheiro: number; dinheiroMaisBens: number };
   historicoPatrimonio: Array<{
     data: number;
     valorAplicado: number;

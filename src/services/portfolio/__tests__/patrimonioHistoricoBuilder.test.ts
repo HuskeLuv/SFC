@@ -870,13 +870,25 @@ describe('buildPatrimonioHistorico', () => {
     const semProv = await buildPatrimonioHistorico(base);
     const lastSem = semProv.historicoPatrimonio[semProv.historicoPatrimonio.length - 1].saldoBruto;
 
-    // com R$ 50 de provento recebido em 10/01: saldoBruto final ~1050
+    // com R$ 50 de provento recebido em 10/01
     const proventosByDay = new Map<number, number>([[Date.UTC(2025, 0, 10), 50]]);
     const comProv = await buildPatrimonioHistorico({ ...base, proventosByDay });
     const lastCom = comProv.historicoPatrimonio[comProv.historicoPatrimonio.length - 1].saldoBruto;
 
+    // Série EXIBIDA = só valor de mercado (bate com o card Saldo Bruto):
+    // proventos NÃO entram no patrimônio do gráfico.
     expect(lastSem).toBeCloseTo(1000, 0);
-    expect(lastCom).toBeCloseTo(1050, 0); // 1000 preço + 50 provento
-    expect(lastCom - lastSem).toBeCloseTo(50, 0);
+    expect(lastCom).toBeCloseTo(1000, 0);
+
+    // ...mas o acumulado fica exposto para os consumidores de retorno total.
+    const lastDay = comProv.historicoPatrimonio[comProv.historicoPatrimonio.length - 1].data;
+    expect(comProv.proventosAcumuladosByDay.get(lastDay)).toBeCloseTo(50, 0);
+
+    // TWR continua RETORNO TOTAL: com preço plano, +50 de provento sobre 1000
+    // investidos = +5% de rentabilidade (idêntico ao comportamento anterior).
+    const lastTwrCom = comProv.historicoTWR[comProv.historicoTWR.length - 1].value;
+    const lastTwrSem = semProv.historicoTWR[semProv.historicoTWR.length - 1].value;
+    expect(lastTwrSem).toBeCloseTo(0, 1);
+    expect(lastTwrCom).toBeCloseTo(5, 1);
   });
 });
