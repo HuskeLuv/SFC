@@ -4,11 +4,57 @@ import ComponentCard from '@/components/common/ComponentCard';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import { useIndices } from '@/hooks/useIndices';
 import { useCarteiraHistorico } from '@/hooks/useCarteiraHistorico';
+import { inicioUltimosNMeses } from '@/utils/periodWindow';
 import dynamic from 'next/dynamic';
 import { ApexOptions } from 'apexcharts';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
+
+/**
+ * Remove o ponto do dia corrente (parcial) — mesma regra do gráfico em
+ * RentabilidadeGeral, para card e gráfico fecharem no mesmo ponto.
+ */
+export const dropCurrentDay = <T extends { date: number }>(series: T[]): T[] => {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const hojeTs = hoje.getTime();
+  const drop = series.filter((item) => item.date < hojeTs);
+  return drop.length > 0 ? drop : series;
+};
+
+/** Último valor com date <= ref (mesma semântica do twrAt do backend). */
+export const valorEm = (
+  data: Array<{ date: number; value: number }>,
+  ref: number,
+): number | null => {
+  let v: number | null = null;
+  for (const item of data) {
+    if (item.date > ref) break;
+    v = item.value;
+  }
+  return v;
+};
+
+/**
+ * Retorno acumulado da janela [dataInicio, dataFim] sobre uma série de
+ * acumulados em %: (1+fim)/(1+inicio)-1. Usa o último ponto <= cada borda
+ * (janela que começa entre dois pontos herda o anterior — antes exigia
+ * pontos DENTRO da janela e devolvia 0% ou pegava um ponto tardio).
+ */
+export const calcularRentabilidade = (
+  data: Array<{ date: number; value: number }>,
+  dataInicio: number,
+  dataFim: number,
+): number => {
+  if (data.length === 0) return 0;
+  const valorInicio = valorEm(data, dataInicio) ?? data[0]?.value ?? 0;
+  const valorFim = valorEm(data, dataFim);
+  if (valorFim === null) return 0;
+  const cumInicio = 1 + valorInicio / 100;
+  if (cumInicio <= 0) return 0;
+  return ((1 + valorFim / 100) / cumInicio - 1) * 100;
+};
 
 interface RentabilidadeResumoProps {
   /** Início do período selecionado (ms). undefined/igual ao 1º investimento = desde o início. */
@@ -38,14 +84,24 @@ export default function RentabilidadeResumo({
   }, [resumo?.historicoPatrimonio]);
 
   const hasHistoricoTWR = Array.isArray(resumo?.historicoTWR) && resumo.historicoTWR.length > 0;
-  const { indices: indices1d } = useIndices('1y', firstInvestmentDate);
-  const { indices: indices1mo } = useIndices('1mo', firstInvestmentDate);
-  const { indices: indices1y } = useIndices('1y');
+  // Série de benchmarks EXPANDIDA desde o 1º investimento — é a única usada:
+  // tanto a tabela quanto os cards de resumo precisam do acumulado completo.
+  // (Antes os cards usavam useIndices('1y') sem startDate: CDI/IPCA de só 12
+  // meses no denominador inflavam "% sobre CDI" e "% Real" p/ carteira >1 ano.)
+  const { indices: indicesDesdeInicio } = useIndices('1y', firstInvestmentDate);
   const { data: carteiraHistoricoDiario } = useCarteiraHistorico(firstInvestmentDate, {
     enabled: !hasHistoricoTWR,
   });
 
-  // Calcular rentabilidades por período
+  // Série TWR da carteira (mesma fonte do gráfico), sem o dia corrente parcial.
+  const carteiraData = useMemo(() => {
+    const serie = hasHistoricoTWR
+      ? (resumo?.historicoTWR ?? []).map((t) => ({ date: t.data, value: t.value }))
+      : (carteiraHistoricoDiario ?? []);
+    return dropCurrentDay(serie);
+  }, [hasHistoricoTWR, resumo?.historicoTWR, carteiraHistoricoDiario]);
+
+  // Calcular rentabilidades por período (janelas mês-calendário, padrão do app)
   const rentabilidades = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -57,148 +113,59 @@ export default function RentabilidadeResumo({
     const ontemTimestamp = ontem.getTime();
 
     // Primeiro dia do mês
-    const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    const primeiroDiaMesTimestamp = primeiroDiaMes.getTime();
+    const primeiroDiaMesTimestamp = new Date(hoje.getFullYear(), hoje.getMonth(), 1).getTime();
 
     // Primeiro dia do ano
-    const primeiroDiaAno = new Date(hoje.getFullYear(), 0, 1);
-    const primeiroDiaAnoTimestamp = primeiroDiaAno.getTime();
+    const primeiroDiaAnoTimestamp = new Date(hoje.getFullYear(), 0, 1).getTime();
 
-    // 12 meses atrás
-    const dozeMesesAtras = new Date(hoje);
-    dozeMesesAtras.setMonth(dozeMesesAtras.getMonth() - 12);
-    const dozeMesesAtrasTimestamp = dozeMesesAtras.getTime();
+    // 12 meses: mês-calendário (dia 1º), como periodWindow/rentabilidade-janelas —
+    // antes era janela rolante dia-a-dia, divergindo do resto do sistema.
+    const dozeMesesAtrasTimestamp = inicioUltimosNMeses(12, hoje).getTime();
 
-    const calcularRentabilidade = (
-      data: Array<{ date: number; value: number }>,
-      dataInicio: number,
-      dataFim: number,
-    ) => {
-      const dadosFiltrados = data.filter((item) => item.date >= dataInicio && item.date <= dataFim);
-      if (dadosFiltrados.length === 0) return 0;
+    const cdiData = dropCurrentDay(indicesDesdeInicio.find((i) => i.name === 'CDI')?.data ?? []);
+    const ibovData = dropCurrentDay(indicesDesdeInicio.find((i) => i.name === 'IBOV')?.data ?? []);
 
-      const valorInicio = dadosFiltrados[0]?.value ?? 0;
-      const valorFim = dadosFiltrados[dadosFiltrados.length - 1]?.value ?? 0;
-
-      if (valorInicio === 0) return 0;
-      const cumInicio = 1 + valorInicio / 100;
-      const cumFim = 1 + valorFim / 100;
-      return (cumFim / cumInicio - 1) * 100;
-    };
-
-    const carteiraData = hasHistoricoTWR
-      ? (resumo?.historicoTWR ?? []).map((t) => ({ date: t.data, value: t.value }))
-      : (carteiraHistoricoDiario ?? []);
-    const carteiraUltimoDia = calcularRentabilidade(carteiraData, ontemTimestamp, hojeTimestamp);
-    const carteiraMes = calcularRentabilidade(carteiraData, primeiroDiaMesTimestamp, hojeTimestamp);
-    const carteiraAno = calcularRentabilidade(carteiraData, primeiroDiaAnoTimestamp, hojeTimestamp);
-    const carteira12Meses = calcularRentabilidade(
-      carteiraData,
-      dozeMesesAtrasTimestamp,
-      hojeTimestamp,
-    );
-
-    const cdi1d = indices1d.find((i) => i.name === 'CDI');
-    const cdi1mo = indices1mo.find((i) => i.name === 'CDI');
-    const cdi1y = indices1y.find((i) => i.name === 'CDI');
-
-    const ibov1d = indices1d.find((i) => i.name === 'IBOV');
-    const ibov1mo = indices1mo.find((i) => i.name === 'IBOV');
-    const ibov1y = indices1y.find((i) => i.name === 'IBOV');
-
-    const cdiUltimoDia =
-      cdi1d?.data && cdi1d.data.length > 0
-        ? calcularRentabilidade(cdi1d.data, ontemTimestamp, hojeTimestamp)
-        : 0;
-    const cdiMes =
-      cdi1mo?.data && cdi1mo.data.length > 0
-        ? calcularRentabilidade(cdi1mo.data, primeiroDiaMesTimestamp, hojeTimestamp)
-        : 0;
-    const cdiAno =
-      cdi1y?.data && cdi1y.data.length > 0
-        ? calcularRentabilidade(cdi1y.data, primeiroDiaAnoTimestamp, hojeTimestamp)
-        : 0;
-    const cdi12Meses =
-      cdi1y?.data && cdi1y.data.length > 0
-        ? calcularRentabilidade(cdi1y.data, dozeMesesAtrasTimestamp, hojeTimestamp)
-        : 0;
-
-    const ibovUltimoDia =
-      ibov1d?.data && ibov1d.data.length > 0
-        ? calcularRentabilidade(ibov1d.data, ontemTimestamp, hojeTimestamp)
-        : 0;
-    const ibovMes =
-      ibov1mo?.data && ibov1mo.data.length > 0
-        ? calcularRentabilidade(ibov1mo.data, primeiroDiaMesTimestamp, hojeTimestamp)
-        : 0;
-    const ibovAno =
-      ibov1y?.data && ibov1y.data.length > 0
-        ? calcularRentabilidade(ibov1y.data, primeiroDiaAnoTimestamp, hojeTimestamp)
-        : 0;
-    const ibov12Meses =
-      ibov1y?.data && ibov1y.data.length > 0
-        ? calcularRentabilidade(ibov1y.data, dozeMesesAtrasTimestamp, hojeTimestamp)
-        : 0;
+    const janela = (data: Array<{ date: number; value: number }>) => ({
+      ultimoDia: calcularRentabilidade(data, ontemTimestamp, hojeTimestamp),
+      mes: calcularRentabilidade(data, primeiroDiaMesTimestamp, hojeTimestamp),
+      ano: calcularRentabilidade(data, primeiroDiaAnoTimestamp, hojeTimestamp),
+      dozeMeses: calcularRentabilidade(data, dozeMesesAtrasTimestamp, hojeTimestamp),
+    });
 
     return {
-      carteira: {
-        ultimoDia: carteiraUltimoDia,
-        mes: carteiraMes,
-        ano: carteiraAno,
-        dozeMeses: carteira12Meses,
-      },
-      cdi: {
-        ultimoDia: cdiUltimoDia,
-        mes: cdiMes,
-        ano: cdiAno,
-        dozeMeses: cdi12Meses,
-      },
-      ibov: {
-        ultimoDia: ibovUltimoDia,
-        mes: ibovMes,
-        ano: ibovAno,
-        dozeMeses: ibov12Meses,
-      },
+      carteira: janela(carteiraData),
+      cdi: janela(cdiData),
+      ibov: janela(ibovData),
     };
-  }, [
-    carteiraHistoricoDiario,
-    indices1d,
-    indices1mo,
-    indices1y,
-    hasHistoricoTWR,
-    resumo?.historicoTWR,
-  ]);
+  }, [carteiraData, indicesDesdeInicio]);
 
-  // Cards de resumo refletem rentabilidade ACUMULADA desde o início da
-  // carteira (mesmo critério do Kinvo). CDI de comparação também é calculado
-  // desde firstInvestmentDate para que % SOBRE CDI e % REAL fiquem coerentes.
-  // O filtro por firstInvestmentDate é aplicado em indices1y na busca, então
-  // calcularRentabilidade(cdi1y, firstInvestmentDate, hoje) devolve o
-  // acumulado do período.
+  // Cards de resumo refletem rentabilidade ACUMULADA no período selecionado
+  // (ou desde o início da carteira) — SEMPRE em TWR, a mesma metodologia da
+  // tabela ao lado e do gráfico. Antes, "Do início" caía no retorno simples
+  // do dashboard (resumo.rentabilidade), então o card mudava de metodologia
+  // conforme o seletor e "% sobre CDI" comparava retorno simples com CDI
+  // composto. O benchmark usa a série expandida desde o 1º investimento.
   const valoresResumo = useMemo(() => {
+    const hojeTs = (() => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })();
     // Início efetivo: o período selecionado (ou desde o 1º investimento).
-    const startTs = periodStart ?? firstInvestmentDate;
-    // Carteira NO período: usa o retorno já recalculado pelo gráfico (com
-    // proventos); cai pro acumulado total quando não há período selecionado.
-    const carteiraTotal = periodReturn ?? resumo?.rentabilidade ?? 0;
+    const startTs = periodStart ?? firstInvestmentDate ?? 0;
+    // Carteira NO período: o retorno já recalculado pelo gráfico quando há
+    // seletor; senão o TWR acumulado desde o início (mesma série da tabela).
+    const twrDesdeInicio =
+      carteiraData.length > 0 ? calcularRentabilidade(carteiraData, startTs, hojeTs) : undefined;
+    const carteiraTotal = periodReturn ?? twrDesdeInicio ?? resumo?.rentabilidade ?? 0;
 
-    // Acumulado de um benchmark (CDI/IPCA) no período (a partir de startTs).
+    // Acumulado de um benchmark (CDI/IPCA/IBOV) no período, sobre a série
+    // completa (não a de 1 ano — CDI truncado inflava "% sobre CDI").
     const acumuladoNoPeriodo = (nome: string): number => {
       if (!startTs) return 0;
-      const serie = indices1y.find((i) => i.name === nome);
-      if (!serie?.data || serie.data.length === 0) return 0;
-      const hojeTs = (() => {
-        const d = new Date();
-        d.setHours(0, 0, 0, 0);
-        return d.getTime();
-      })();
-      const filtrados = serie.data.filter((item) => item.date >= startTs && item.date <= hojeTs);
-      if (filtrados.length === 0) return 0;
-      const inicio = filtrados[0]?.value ?? 0;
-      const fim = filtrados[filtrados.length - 1]?.value ?? 0;
-      const cumInicio = 1 + inicio / 100;
-      if (cumInicio <= 0) return 0;
-      return ((1 + fim / 100) / cumInicio - 1) * 100;
+      const serie = dropCurrentDay(indicesDesdeInicio.find((i) => i.name === nome)?.data ?? []);
+      if (serie.length === 0) return 0;
+      return calcularRentabilidade(serie, startTs, hojeTs);
     };
 
     const cdiAcumulado = acumuladoNoPeriodo('CDI');
@@ -219,7 +186,14 @@ export default function RentabilidadeResumo({
       cdiPeriodo: cdiAcumulado,
       ibovPeriodo: ibovAcumulado,
     };
-  }, [resumo?.rentabilidade, firstInvestmentDate, indices1y, periodStart, periodReturn]);
+  }, [
+    resumo?.rentabilidade,
+    firstInvestmentDate,
+    indicesDesdeInicio,
+    carteiraData,
+    periodStart,
+    periodReturn,
+  ]);
 
   // Dados para o gráfico donut (Carteira, CDI, IBOV baseado na rentabilidade de 12 meses)
   const donutData = useMemo(() => {

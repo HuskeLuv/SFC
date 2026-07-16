@@ -49,6 +49,10 @@ vi.mock('@/services/portfolio/portfolioLiveTotals', () => ({
   computePortfolioLiveTotals: mockComputeLiveTotals,
 }));
 
+vi.mock('@/services/portfolio/proventosByDay', () => ({
+  loadProventosByDay: vi.fn().mockResolvedValue({ proventosByDay: new Map(), total: 0 }),
+}));
+
 vi.mock('@/services/pricing/assetPriceService', () => ({
   getAssetHistory: mockGetAssetHistory,
 }));
@@ -76,6 +80,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
 
   it('retorna janelas zeradas quando não há histórico', async () => {
     mockBuildPatrimonio.mockResolvedValue({
+      proventosAcumuladosByDay: new Map(),
       historicoPatrimonio: [],
       historicoTWR: [],
       historicoTWRPeriodo: [],
@@ -101,6 +106,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     // 12m: (1.10 / 1.0) - 1 = 10%
     // fromBegin = 12m (mesmo ponto inicial)
     mockBuildPatrimonio.mockResolvedValue({
+      proventosAcumuladosByDay: new Map(),
       historicoPatrimonio: [],
       historicoTWR: [
         { data: um_ano_atras, value: 0 },
@@ -140,6 +146,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     // Apenas 2 meses de histórico — janela de 36m deve cair no primeiro ponto.
     const dois_meses = now.getTime() - 60 * 86400000;
     mockBuildPatrimonio.mockResolvedValue({
+      proventosAcumuladosByDay: new Map(),
       historicoPatrimonio: [],
       historicoTWR: [
         { data: dois_meses, value: 0 },
@@ -167,6 +174,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     now.setHours(0, 0, 0, 0);
     const ontem = now.getTime() - 86400000;
     mockBuildPatrimonio.mockResolvedValue({
+      proventosAcumuladosByDay: new Map(),
       historicoPatrimonio: [],
       historicoTWR: [
         { data: now.getTime() - 30 * 86400000, value: 0 },
@@ -195,6 +203,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     now.setHours(0, 0, 0, 0);
     const um_ano_atras = now.getTime() - 365 * 86400000;
     mockBuildPatrimonio.mockResolvedValue({
+      proventosAcumuladosByDay: new Map(),
       historicoPatrimonio: [],
       historicoTWR: [
         { data: um_ano_atras, value: 0 },
@@ -244,6 +253,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     now.setHours(0, 0, 0, 0);
     const antesDaJanela = now.getTime() - 400 * 86400000;
     mockBuildPatrimonio.mockResolvedValue({
+      proventosAcumuladosByDay: new Map(),
       historicoPatrimonio: [
         { data: antesDaJanela, valorAplicado: 10000, saldoBruto: 10000 },
         { data: now.getTime(), valorAplicado: 10000, saldoBruto: 11000 },
@@ -280,6 +290,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
       // Série atravessa 01/01: TWR vai 0% → 8% (em 01/01) → 12% (hoje).
       // YTD esperado: (1.12 / 1.08 - 1) * 100 ≈ 3.7%
       mockBuildPatrimonio.mockResolvedValue({
+        proventosAcumuladosByDay: new Map(),
         historicoPatrimonio: [],
         historicoTWR: [
           { data: before, value: 0 },
@@ -304,6 +315,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
       const midJan = new Date(now.getFullYear(), 0, 15).getTime();
 
       mockBuildPatrimonio.mockResolvedValue({
+        proventosAcumuladosByDay: new Map(),
         historicoPatrimonio: [],
         historicoTWR: [
           { data: midJan, value: 0 },
@@ -326,6 +338,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
       const before = startOfYear - 60 * 86400000;
       // Série contaminada: TWR flat em 0 apesar do tempo passar
       mockBuildPatrimonio.mockResolvedValue({
+        proventosAcumuladosByDay: new Map(),
         historicoPatrimonio: [],
         historicoTWR: [
           { data: before, value: 0 },
@@ -360,6 +373,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
       const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
 
       mockBuildPatrimonio.mockResolvedValue({
+        proventosAcumuladosByDay: new Map(),
         historicoPatrimonio: [],
         historicoTWR: [
           { data: startOfYear, value: 0 },
@@ -384,6 +398,7 @@ describe('GET /api/analises/rentabilidade-janelas', () => {
     now.setHours(0, 0, 0, 0);
     const um_ano_atras = now.getTime() - 365 * 86400000;
     mockBuildPatrimonio.mockResolvedValue({
+      proventosAcumuladosByDay: new Map(),
       historicoPatrimonio: [],
       historicoTWR: [
         { data: um_ano_atras, value: 0 },
