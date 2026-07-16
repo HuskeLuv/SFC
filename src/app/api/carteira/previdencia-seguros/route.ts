@@ -50,7 +50,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     where: {
       userId: targetUserId,
       asset: {
-        type: 'previdencia',
+        // 'insurance' soma em previdenciaSeguros na distribuição do resumo —
+        // sem ele aqui, o ativo aparecia na pizza mas em aba nenhuma.
+        type: { in: ['previdencia', 'insurance'] },
       },
     },
     include: {

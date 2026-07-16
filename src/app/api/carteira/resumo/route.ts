@@ -11,6 +11,7 @@ import { loadHistoricoFromSnapshots } from '@/services/portfolio/portfolioSnapsh
 import { triggerLazyBackfill } from '@/services/portfolio/portfolioSnapshotPersistence';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
+import { isFundoType } from '@/lib/fundoTypes';
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { filterInvestmentsExclReservas } from '@/utils/cashflowFilters';
 
@@ -184,7 +185,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (item.asset && (item.asset.type === 'imovel' || item.asset.type === 'personalizado')) {
         return null;
       }
-      if (item.assetId && fixedIncomeByAssetId.has(item.assetId)) {
+      // Renda fixa é precificada pela curva do FI — exceto fundos: um fundo
+      // com FI E cota CVM (Asset.currentPrice) vale a cota, como na aba Fundos,
+      // então o símbolo precisa entrar na busca de cotações.
+      if (
+        item.assetId &&
+        fixedIncomeByAssetId.has(item.assetId) &&
+        !isFundoType(item.asset?.type)
+      ) {
         return null;
       }
       if (item.asset) {

@@ -10,7 +10,7 @@
  * Toda tela que precise do valor atual ou da categoria de um item deve passar
  * por `valuatePortfolioItem`/`categorizarAsset` — não reimplementar.
  */
-import { FUNDO_TYPES_AGRUPADOS } from '@/lib/fundoTypes';
+import { FUNDO_TYPES_AGRUPADOS, isFundoType } from '@/lib/fundoTypes';
 import type { FixedIncomeAssetWithAsset } from './patrimonioHistoricoBuilder';
 
 export type CategoriaCarteira =
@@ -270,7 +270,12 @@ export const valuatePortfolioItem = (input: ItemValuationInput): ItemValuation =
 
   const base = { categoria, valorAplicadoBRL, contaNoSaldoBruto: !isImovelBem };
 
-  if (fixedIncome && fiGetCurrentValue) {
+  // Fundo com cota CVM publicada vale qtd × cota (como ação) — a marcação na
+  // curva do FI é só fallback pra fundo sem cota. Mesma prioridade da aba
+  // Fundos; sem isso um fundo de verdade era marcado como CDB no resumo.
+  const fundoComCota = isFundoType(asset?.type) && quote != null && quote > 0;
+
+  if (fixedIncome && fiGetCurrentValue && !fundoComCota) {
     const { valor, fonte } = getFixedIncomeCurrentValue(
       fixedIncome,
       item,

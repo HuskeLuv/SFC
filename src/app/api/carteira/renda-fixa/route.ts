@@ -3,6 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
+import { getFixedIncomeCurrentValue } from '@/services/portfolio/itemValuation';
 import { calcularIRRendaFixa } from '@/services/ir/fixedIncomeIR';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -127,46 +128,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (!fixedIncome) {
         return null;
       }
-      // Prioridade do valor atualizado:
-      //   1. PU Tesouro Direto (Asset.currentPrice mantido por bridgeTesouroToAssetPrices)
-      //   2. Marcação na curva via CDI/IPCA/taxa pré, quando o cálculo de fato
-      //      acumulou rendimento (calc > investido) — evita travar valor manual
-      //      legítimo quando faltam dados de série
-      //   3. Edição manual (avgPrice * quantidade)
-      //   4. Fallback: o próprio valor calculado (mesmo que igual ao investido)
-      const valorAtualizadoCalculado = calculateFixedIncomeValue(fixedIncome);
-      const isTesouroCatalogo = item.asset?.type === 'tesouro-direto';
-      const tesouroCurrentPrice = isTesouroCatalogo
-        ? (item.asset?.currentPrice?.toNumber() ?? null)
-        : null;
-      const isTesouroAutoPriced = Boolean(
-        tesouroCurrentPrice && tesouroCurrentPrice > 0 && item.quantity > 0,
+      // Valoração via serviço compartilhado (itemValuation): PU Tesouro →
+      // marcação na curva (Tesouro aceita abaixo do par; emissão bancária
+      // exige > investido) → edição manual → valor calculado. Mesma prioridade
+      // usada pelo resumo/distribuição — não reimplementar aqui.
+      const { valor: valorAtualizado, fonte } = getFixedIncomeCurrentValue(
+        fixedIncome,
+        item,
+        item.asset,
+        calculateFixedIncomeValue,
       );
-      const hasIndexerOrRate =
-        fixedIncome.indexer === 'CDI' ||
-        fixedIncome.indexer === 'IPCA' ||
-        fixedIncome.annualRate > 0;
-      // Para Tesouro Direto via FixedIncomeAsset (com tesouroBondType), o
-      // valorCalculado é PU/PU0 — pode ficar abaixo do investido em janelas de
-      // alta de juros. CDB/LCI/LCA na curva (CDI/IPCA/PRE) só compõem juros, então
-      // a comparação > investedAmount continua sendo um sanity check válido para
-      // emissão bancária (evita exibir valor degenerado quando a série de taxa
-      // ainda não rodou).
-      const isFiTesouro = Boolean(fixedIncome.tesouroBondType);
-      const isCurveAutoPriced =
-        !isTesouroAutoPriced &&
-        hasIndexerOrRate &&
-        (isFiTesouro
-          ? valorAtualizadoCalculado > 0
-          : valorAtualizadoCalculado > fixedIncome.investedAmount);
-      const isAutoUpdated = isTesouroAutoPriced || isCurveAutoPriced;
-      const valorAtualizado = isTesouroAutoPriced
-        ? tesouroCurrentPrice! * item.quantity
-        : isCurveAutoPriced
-          ? valorAtualizadoCalculado
-          : item.avgPrice && item.avgPrice > 0 && item.quantity > 0
-            ? item.avgPrice * item.quantity
-            : valorAtualizadoCalculado;
+      const isAutoUpdated = fonte === 'tesouro-pu' || fonte === 'fixed-income';
       const valorInicial = fixedIncome.investedAmount;
       const rentabilidade =
         valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0;
@@ -181,7 +153,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
       // IR projetado se resgatar hoje. Tesouro identifica-se pelo bondType setado
       // pelo /operacao quando o ativo veio do catálogo Tesouro.
-      const isTesouro = Boolean(fixedIncome.tesouroBondType) || isTesouroAutoPriced;
+      const isTesouro = Boolean(fixedIncome.tesouroBondType) || fonte === 'tesouro-pu';
       const ir = calcularIRRendaFixa({
         type: fixedIncome.type,
         isTesouro,
