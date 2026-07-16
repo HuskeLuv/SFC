@@ -14,6 +14,7 @@ import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { parseRangeMonths } from '@/utils/rangeQuery';
 import { inicioUltimosNMeses, inicioDoAno, inicioDoMes } from '@/utils/periodWindow';
+import { loadProventosByDay } from '@/services/portfolio/proventosByDay';
 
 const IBOV_SYMBOL = '^BVSP';
 
@@ -167,6 +168,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     fiPricer,
   });
 
+  // Proventos recebidos entram no RETORNO das janelas (retorno total, mesma
+  // metodologia do dashboard/Kinvo). Sem isso as janelas mostravam só a
+  // variação de preço — um FII que caiu 14% no preço mas pagou 20% de
+  // dividendo aparecia como -14% aqui e +5% no card do dashboard.
+  const { proventosByDay } = await loadProventosByDay(targetUserId);
+
   const built = await buildPatrimonioHistorico({
     portfolio,
     fixedIncomeAssets,
@@ -175,9 +182,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     saldoBrutoAtual: saldoBruto,
     valorAplicadoAtual: valorAplicado,
     maxHistoricoMonths: rangeMonths,
-    patchLastDayWithLiveTotals: true,
+    // Patch desligado (mesma decisão do carteira/resumo): sobrescrever o último
+    // dia com totais live (BRAPI atual + FI pricer live) diverge da engine que
+    // precifica os dias anteriores (assetPriceHistory + curva diária) e
+    // produzia retorno fantasma nas janelas curtas (lastDay/inTheMonth).
+    patchLastDayWithLiveTotals: false,
     fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
     implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
+    proventosByDay,
   });
 
   const serie = built.historicoTWR;
@@ -209,25 +221,27 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     } as RentabilidadeJanelasResponse);
   }
 
-  // Benchmarks dos últimos 36 meses. CDI/IPCA vêm como fator diário em economicIndex;
-  // IBOV é série de preço (cotação) em assetPriceHistory.
+  const lastPoint = serie[serie.length - 1];
+  const firstPoint = serie[0];
+
+  // Benchmarks desde o início da série (não 36m fixos: a janela fromBegin de
+  // carteira >3 anos ficava com CDI/IBOV truncados, subestimando o benchmark).
+  // CDI/IPCA vêm como fator diário em economicIndex; IBOV é série de preço.
   const trintaSeisMesesAtras = new Date();
   trintaSeisMesesAtras.setFullYear(trintaSeisMesesAtras.getFullYear() - 3);
   trintaSeisMesesAtras.setHours(0, 0, 0, 0);
+  const benchmarkStart = new Date(Math.min(trintaSeisMesesAtras.getTime(), firstPoint.data));
   const [cdiRecords, ipcaRecords, ibovHistory] = await Promise.all([
     prisma.economicIndex.findMany({
-      where: { indexType: 'CDI', date: { gte: trintaSeisMesesAtras } },
+      where: { indexType: 'CDI', date: { gte: benchmarkStart } },
       orderBy: { date: 'asc' },
     }),
     prisma.economicIndex.findMany({
-      where: { indexType: 'IPCA', date: { gte: trintaSeisMesesAtras } },
+      where: { indexType: 'IPCA', date: { gte: benchmarkStart } },
       orderBy: { date: 'asc' },
     }),
-    getAssetHistory(IBOV_SYMBOL, trintaSeisMesesAtras, new Date()).catch(() => []),
+    getAssetHistory(IBOV_SYMBOL, benchmarkStart, new Date()).catch(() => []),
   ]);
-
-  const lastPoint = serie[serie.length - 1];
-  const firstPoint = serie[0];
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const hojeMs = hoje.getTime();
@@ -247,6 +261,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       amount,
     }),
   );
+
+  // MWR sobre RETORNO TOTAL: a série de patrimônio exibida não embute mais
+  // proventos, então os saldos inicial/terminal do computeMwr precisam somar o
+  // acumulado (mesma reconstrução do mwrSeriesBuilder — dividendo é retorno
+  // interno, não fluxo de caixa).
+  const totalReturnPatrimonio = (() => {
+    const entries = Array.from(built.proventosAcumuladosByDay.entries()).sort(
+      (a, b) => a[0] - b[0],
+    );
+    let i = 0;
+    let carry = 0;
+    return built.historicoPatrimonio.map((p) => {
+      while (i < entries.length && entries[i][0] <= p.data) {
+        carry = entries[i][1];
+        i += 1;
+      }
+      return { ...p, saldoBruto: p.saldoBruto + carry };
+    });
+  })();
 
   const round = (n: number) => Math.round(n * 100) / 100;
   const buildWindow = (fromMs: number, toMs: number): WindowMetric => {
@@ -277,10 +310,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     // clampedFrom pra deixar o aporte daquele dia ser contado dentro de cashFlows
     // (sem duplicar). Quando a janela começa no primeiro ponto da série e o saldo
     // pré-janela é zero, isso devolve 0 e o cashflow do dia 0 funda a carteira.
-    const initialSaldoEnd = saldoBrutoAt(built.historicoPatrimonio, clampedFrom) ?? 0;
+    const initialSaldoEnd = saldoBrutoAt(totalReturnPatrimonio, clampedFrom) ?? 0;
     const flowOnStart = built.cashFlowsByDay.get(clampedFrom) ?? 0;
     const initialSaldoPre = Math.max(0, initialSaldoEnd - Math.max(0, flowOnStart));
-    const terminalSaldo = saldoBrutoAt(built.historicoPatrimonio, clampedTo) ?? 0;
+    const terminalSaldo = saldoBrutoAt(totalReturnPatrimonio, clampedTo) ?? 0;
     const mwr = computeMwr({
       initialValue: initialSaldoPre,
       initialDate: clampedFrom,
