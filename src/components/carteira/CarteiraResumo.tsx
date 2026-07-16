@@ -188,6 +188,7 @@ export default function CarteiraResumo() {
                 distribuicao={resumo.distribuicao}
                 alocacaoConfig={alocacaoConfig}
                 caixaParaInvestir={resumo.caixaParaInvestir ?? 0}
+                totais={resumo.totais}
                 onNavigateToTab={setActiveTab}
               />
             </div>

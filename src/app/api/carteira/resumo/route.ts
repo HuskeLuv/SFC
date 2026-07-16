@@ -547,72 +547,45 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   categorias.fimFia += caixaFimFia;
   categorias.rendaFixaFundos += caixaRendaFixa;
 
-  // Calcular total para percentuais
-  const totalCategorizado = Object.values(categorias).reduce((sum, valor) => sum + valor, 0);
+  // Denominador ÚNICO dos percentuais (decisão de produto, jul/2026):
+  //   totais.dinheiro = Σ categorias líquidas (caixas por aba já embutidos)
+  //                     + caixa consolidado, contado UMA vez.
+  //   Imóveis/bens ficam FORA do denominador das categorias líquidas; o % de
+  //   imoveisBens usa dinheiroMaisBens. O frontend (pizza, tabela de alocação,
+  //   necessidade de aporte) consome estes números prontos — antes cada tela
+  //   recalculava com uma base diferente (0,96% vs 15,65% pra mesma categoria).
+  const totalDinheiro =
+    Object.entries(categorias).reduce(
+      (sum, [key, valor]) => (key === 'imoveisBens' ? sum : sum + valor),
+      0,
+    ) + (caixaParaInvestir || 0);
+  const totalDinheiroMaisBens = totalDinheiro + categorias.imoveisBens;
 
-  // Se não há investimentos categorizados, usar valor bruto como base
-  const baseValue = totalCategorizado > 0 ? totalCategorizado : saldoBruto;
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  const pctOf = (valor: number, base: number) => (base > 0 ? round2((valor / base) * 100) : 0);
+  const distribuicaoEntry = (key: keyof typeof categorias) => ({
+    valor: round2(categorias[key]),
+    percentual: pctOf(
+      categorias[key],
+      key === 'imoveisBens' ? totalDinheiroMaisBens : totalDinheiro,
+    ),
+  });
 
   // Distribuição por tipo de investimento com dados reais
   const distribuicao = {
-    reservaEmergencia: {
-      valor: Math.round(categorias.reservaEmergencia * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.reservaEmergencia / baseValue) * 10000) / 100 : 0,
-    },
-    reservaOportunidade: {
-      valor: Math.round(categorias.reservaOportunidade * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.reservaOportunidade / baseValue) * 10000) / 100 : 0,
-    },
-    rendaFixaFundos: {
-      valor: Math.round(categorias.rendaFixaFundos * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.rendaFixaFundos / baseValue) * 10000) / 100 : 0,
-    },
-    fimFia: {
-      valor: Math.round(categorias.fimFia * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.fimFia / baseValue) * 10000) / 100 : 0,
-    },
-    fiis: {
-      valor: Math.round(categorias.fiis * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.fiis / baseValue) * 10000) / 100 : 0,
-    },
-    acoes: {
-      valor: Math.round(categorias.acoes * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.acoes / baseValue) * 10000) / 100 : 0,
-    },
-    stocks: {
-      valor: Math.round(categorias.stocks * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.stocks / baseValue) * 10000) / 100 : 0,
-    },
-    reits: {
-      valor: Math.round(categorias.reits * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.reits / baseValue) * 10000) / 100 : 0,
-    },
-    etfs: {
-      valor: Math.round(categorias.etfs * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.etfs / baseValue) * 10000) / 100 : 0,
-    },
-    moedasCriptos: {
-      valor: Math.round(categorias.moedasCriptos * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.moedasCriptos / baseValue) * 10000) / 100 : 0,
-    },
-    previdenciaSeguros: {
-      valor: Math.round(categorias.previdenciaSeguros * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.previdenciaSeguros / baseValue) * 10000) / 100 : 0,
-    },
-    opcoes: {
-      valor: Math.round(categorias.opcoes * 100) / 100,
-      percentual: baseValue > 0 ? Math.round((categorias.opcoes / baseValue) * 10000) / 100 : 0,
-    },
-    imoveisBens: {
-      valor: Math.round(categorias.imoveisBens * 100) / 100,
-      percentual:
-        baseValue > 0 ? Math.round((categorias.imoveisBens / baseValue) * 10000) / 100 : 0,
-    },
+    reservaEmergencia: distribuicaoEntry('reservaEmergencia'),
+    reservaOportunidade: distribuicaoEntry('reservaOportunidade'),
+    rendaFixaFundos: distribuicaoEntry('rendaFixaFundos'),
+    fimFia: distribuicaoEntry('fimFia'),
+    fiis: distribuicaoEntry('fiis'),
+    acoes: distribuicaoEntry('acoes'),
+    stocks: distribuicaoEntry('stocks'),
+    reits: distribuicaoEntry('reits'),
+    etfs: distribuicaoEntry('etfs'),
+    moedasCriptos: distribuicaoEntry('moedasCriptos'),
+    previdenciaSeguros: distribuicaoEntry('previdenciaSeguros'),
+    opcoes: distribuicaoEntry('opcoes'),
+    imoveisBens: distribuicaoEntry('imoveisBens'),
   };
 
   const resumo: Record<string, unknown> = {
@@ -621,6 +594,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     rentabilidade: Math.round(rentabilidade * 100) / 100,
     metaPatrimonio: metaPatrimonio?.value || 0,
     caixaParaInvestir: caixaParaInvestir || 0,
+    totais: {
+      dinheiro: round2(totalDinheiro),
+      dinheiroMaisBens: round2(totalDinheiroMaisBens),
+    },
     historicoPatrimonio,
     historicoTWR,
     historicoMWR,

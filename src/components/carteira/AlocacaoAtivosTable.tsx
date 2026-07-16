@@ -54,6 +54,7 @@ interface AlocacaoAtivosTableProps {
   };
   alocacaoConfig: UseAlocacaoConfigReturn;
   caixaParaInvestir?: number;
+  totais?: { dinheiro: number; dinheiroMaisBens: number };
   onNavigateToTab?: (tabId: string) => void;
 }
 
@@ -61,17 +62,21 @@ export default function AlocacaoAtivosTable({
   distribuicao,
   alocacaoConfig,
   caixaParaInvestir = 0,
+  totais,
   onNavigateToTab,
 }: AlocacaoAtivosTableProps) {
-  // Total Dinheiro: exclui Imóveis e Bens
+  // Totais vêm PRONTOS do backend (denominador único do resumo). O fallback
+  // local existe só para resposta cacheada antiga sem `totais` (TTL 60s
+  // pós-deploy) — a soma local antiga contava o caixa consolidado em cima dos
+  // caixas por aba já embutidos nas categorias (dupla contagem).
   const totalDinheiro =
+    totais?.dinheiro ??
     Object.entries(distribuicao)
       .filter(([key]) => key !== 'imoveisBens')
       .reduce((sum, [, item]) => sum + item.valor, 0) + caixaParaInvestir;
 
-  // Total Dinheiro + Bens: inclui tudo (dinheiro + imóveis e bens)
-  const valorImoveisBens = distribuicao.imoveisBens?.valor || 0;
-  const totalDinheiroMaisBens = totalDinheiro + valorImoveisBens;
+  const totalDinheiroMaisBens =
+    totais?.dinheiroMaisBens ?? totalDinheiro + (distribuicao.imoveisBens?.valor || 0);
 
   // Total Carteira para cálculos de percentuais (exclui Imóveis e Bens)
   const totalCarteira = totalDinheiro;
@@ -130,10 +135,12 @@ export default function AlocacaoAtivosTable({
     Object.entries(distribuicao).forEach(([key, value]) => {
       const config = targetConfigMap[key] || { min: 0, max: 0, target: 0, descricao: '' };
 
-      // Para Imóveis e Bens, usar totalDinheiroMaisBens para percentual
-      // Para outros, usar totalCarteira (totalDinheiro)
+      // % Atual vem pronto do backend (mesma base da pizza — antes as duas
+      // telas mostravam percentuais diferentes para a mesma categoria).
+      // Fallback local com as mesmas bases para resposta cacheada antiga.
       const baseTotal = key === 'imoveisBens' ? totalDinheiroMaisBens : totalCarteira;
-      const percentualAtual = baseTotal > 0 ? (value.valor / baseTotal) * 100 : 0;
+      const percentualAtual =
+        value.percentual ?? (baseTotal > 0 ? (value.valor / baseTotal) * 100 : 0);
 
       // Para Imóveis e Bens, não calcular diferença e necessidade de aporte
       // (não faz sentido ter target para imóveis na alocação de dinheiro)

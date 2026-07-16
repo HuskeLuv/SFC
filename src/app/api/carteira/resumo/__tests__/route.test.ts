@@ -200,6 +200,51 @@ describe('GET /api/carteira/resumo', () => {
     expect(data.distribuicao.reservaEmergencia.valor).toBeCloseTo(8000);
   });
 
+  it('expõe totais e percentuais sobre denominador único (dinheiro sem imóveis)', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-1',
+        assetId: 'a-imovel',
+        quantity: 1,
+        avgPrice: 500000,
+        totalInvested: 500000,
+        asset: { symbol: 'PERSONALIZADO-1', type: 'personalizado', currency: 'BRL', name: 'Apto' },
+      },
+      {
+        id: 'p-2',
+        assetId: 'a-petr',
+        quantity: 100,
+        avgPrice: 25,
+        totalInvested: 2500,
+        asset: { symbol: 'PETR4', type: 'stock', currency: 'BRL', name: 'Petrobras' },
+      },
+      {
+        id: 'p-3',
+        assetId: 'a-res',
+        quantity: 1,
+        avgPrice: 6000,
+        totalInvested: 6000,
+        asset: { symbol: 'RESERVA-EMERG-1', type: 'emergency', currency: 'BRL', name: 'Reserva' },
+      },
+    ]);
+    // caixa consolidado (500) + caixa por aba de ações (1000)
+    mockPrisma.dashboardData.findMany.mockResolvedValue([
+      { metric: 'caixa_para_investir_consolidado', value: 500 },
+      { metric: 'caixa_para_investir_acoes', value: 1000 },
+    ]);
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map([['PETR4', 40]]));
+
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    // dinheiro = ações (4000 + caixa aba 1000) + reserva 6000 + consolidado 500
+    expect(data.totais.dinheiro).toBeCloseTo(11500);
+    expect(data.totais.dinheiroMaisBens).toBeCloseTo(511500);
+    // percentuais das categorias líquidas usam `dinheiro`; imóveis usa dinheiroMaisBens
+    expect(data.distribuicao.acoes.percentual).toBeCloseTo((5000 / 11500) * 100, 1);
+    expect(data.distribuicao.reservaEmergencia.percentual).toBeCloseTo((6000 / 11500) * 100, 1);
+    expect(data.distribuicao.imoveisBens.percentual).toBeCloseTo((500000 / 511500) * 100, 1);
+  });
+
   it('retorna 401 quando não autenticado', async () => {
     mockRequireAuthWithActing.mockRejectedValueOnce(new Error('Não autorizado'));
     const response = await GET(createGetRequest());
