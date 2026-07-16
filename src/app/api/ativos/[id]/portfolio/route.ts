@@ -43,19 +43,39 @@ export const DELETE = withErrorHandler(
     });
 
     // Estado completo pré-exclusão: alimenta o snapshot que permite desfazer
-    // (recriar Portfolio + transações). Acima do cap, sem snapshot = sem undo.
+    // (recriar Portfolio + transações + renda fixa). Acima do cap, sem
+    // snapshot = sem undo.
     const transactions = await prisma.stockTransaction.findMany({
       where: { userId: targetUserId, assetId: portfolio.assetId },
       orderBy: { date: 'asc' },
     });
-
-    await prisma.stockTransaction.deleteMany({
+    const fixedIncome = await prisma.fixedIncomeAsset.findFirst({
       where: { userId: targetUserId, assetId: portfolio.assetId },
     });
-    await prisma.portfolio.delete({ where: { id: portfolioId } });
 
-    if (firstTransaction) {
-      await invalidatePortfolioSnapshots(targetUserId, firstTransaction.date);
+    await prisma.$transaction([
+      prisma.stockTransaction.deleteMany({
+        where: { userId: targetUserId, assetId: portfolio.assetId },
+      }),
+      // Renda fixa carrega um FixedIncomeAsset além do Portfolio. Sem esta
+      // linha a exclusão deixava a row órfã: invisível na carteira mas ainda
+      // contada como cash flow no MWR e nas análises que leem FI direto.
+      prisma.fixedIncomeAsset.deleteMany({
+        where: { userId: targetUserId, assetId: portfolio.assetId },
+      }),
+      prisma.portfolio.delete({ where: { id: portfolioId } }),
+    ]);
+
+    // Renda fixa pode não ter transação — o cutoff considera também o
+    // startDate do FI, senão os snapshots antigos seguem carregando o ativo.
+    const cutoffCandidates = [firstTransaction?.date, fixedIncome?.startDate].filter(
+      (d): d is Date => d != null,
+    );
+    if (cutoffCandidates.length > 0) {
+      await invalidatePortfolioSnapshots(
+        targetUserId,
+        new Date(Math.min(...cutoffCandidates.map((d) => d.getTime()))),
+      );
     }
 
     await recordChange({
@@ -67,7 +87,7 @@ export const DELETE = withErrorHandler(
       entityId: portfolioId,
       entityLabel: assetEntityLabel(portfolio.asset),
       changes: finalStateChanges(portfolio, ATIVO_POSICAO_FIELD_LABELS),
-      snapshot: buildAtivoSnapshot(portfolio, transactions),
+      snapshot: buildAtivoSnapshot(portfolio, transactions, fixedIncome),
     });
 
     return NextResponse.json({ success: true });
