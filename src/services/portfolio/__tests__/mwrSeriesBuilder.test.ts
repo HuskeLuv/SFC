@@ -93,6 +93,43 @@ describe('buildMwrSeries', () => {
     expect(fixed[2].value).toBeGreaterThan(buggy[2].value);
   });
 
+  it('proventosAcumuladosByDay: MWR vira retorno total (série exibida só mercado)', () => {
+    // Preço plano: mercado constante em 100k. R$ 5k de proventos recebidos no
+    // meio da janela. A série exibida não embute proventos; o map devolve o
+    // retorno total ao MWR → ~+5%.
+    const historicoPatrimonio = [
+      { data: day(2025, 1, 1), valorAplicado: 100_000, saldoBruto: 100_000 },
+      { data: day(2025, 6, 1), valorAplicado: 100_000, saldoBruto: 100_000 },
+      { data: day(2026, 1, 1), valorAplicado: 100_000, saldoBruto: 100_000 },
+    ];
+    const flows = new Map([[day(2025, 1, 1), 100_000]]);
+    const proventos = new Map([
+      [day(2025, 1, 1), 0],
+      [day(2025, 6, 1), 5_000],
+      [day(2026, 1, 1), 5_000],
+    ]);
+
+    const semProv = buildMwrSeries({ historicoPatrimonio, cashFlowsByDay: flows });
+    expect(semProv[2].value).toBeCloseTo(0, 1);
+
+    const comProv = buildMwrSeries({
+      historicoPatrimonio,
+      cashFlowsByDay: flows,
+      proventosAcumuladosByDay: proventos,
+    });
+    expect(comProv[2].value).toBeCloseTo(5, 0);
+    // carry-forward: ponto agregado sem entrada exata no map herda o acumulado anterior
+    const comCarry = buildMwrSeries({
+      historicoPatrimonio: [
+        ...historicoPatrimonio,
+        { data: day(2026, 1, 15), valorAplicado: 100_000, saldoBruto: 100_000 },
+      ],
+      cashFlowsByDay: flows,
+      proventosAcumuladosByDay: proventos,
+    });
+    expect(comCarry[3].value).toBeCloseTo(5, 0);
+  });
+
   it('DCA: MWR cresce monotonicamente com retorno positivo', () => {
     const flows = new Map<number, number>();
     const historicoPatrimonio = [];

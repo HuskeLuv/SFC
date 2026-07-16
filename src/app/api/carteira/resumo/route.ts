@@ -329,6 +329,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     [];
   const historicoTWR: Array<{ data: number; value: number }> = [];
   let historicoTWRPeriodo: Array<{ data: number; value: number }> = [];
+  // Proventos acumulados por dia (snapshots ou builder) — o MWR precisa deles
+  // pra computar retorno total agora que a série exibida é só mercado.
+  let proventosAcumuladosByDayForMwr: Map<number, number> | undefined;
 
   const hasHistoricoData =
     stockTransactions.length > 0 || cashflowInvestments.length > 0 || portfolio.length > 0;
@@ -387,6 +390,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       });
       snapCoverageReason = snap.coverageReason;
       if (snap.coverageOk && snap.historicoPatrimonio.length > 0) {
+        proventosAcumuladosByDayForMwr = snap.proventosAcumuladosByDay;
         const startMs = snap.historicoPatrimonio[0]?.data ?? rawTimelineStart.getTime();
         const endMs =
           snap.historicoPatrimonio[snap.historicoPatrimonio.length - 1]?.data ?? hoje.getTime();
@@ -441,6 +445,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         historicoTWR.push(...built.historicoTWR);
       }
       historicoTWRPeriodo = built.historicoTWRPeriodo;
+      proventosAcumuladosByDayForMwr = built.proventosAcumuladosByDay;
 
       // Lazy backfill: quando a falta de cobertura foi por gap histórico (snapshots
       // recentes mas nada cobrindo as transações antigas), dispara em background a
@@ -478,12 +483,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       cashflowInvestments,
       dailyTimeline,
     );
-    historicoMWR.push(...buildMwrSeries({ historicoPatrimonio, cashFlowsByDay }));
+    historicoMWR.push(
+      ...buildMwrSeries({
+        historicoPatrimonio,
+        cashFlowsByDay,
+        proventosAcumuladosByDay: proventosAcumuladosByDayForMwr,
+      }),
+    );
     if (typeof twrStartDate === 'number' && Number.isFinite(twrStartDate)) {
       historicoMWRPeriodo = buildMwrSeries({
         historicoPatrimonio,
         cashFlowsByDay,
         startMs: twrStartDate,
+        proventosAcumuladosByDay: proventosAcumuladosByDayForMwr,
       });
     }
   }
