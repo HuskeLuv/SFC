@@ -4,6 +4,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
 import { isTipoAtivoPermitido } from '@/types/wizard';
+import { FixedIncomeType } from '@prisma/client';
 import { z } from 'zod';
 import { validationError } from '@/utils/validation-schemas';
 
@@ -53,7 +54,13 @@ const operacaoBaseSchema = z
     periodo: z.string().max(100).optional(),
     taxaJurosAnual: z.number().finite().optional(),
     taxaFixaAnual: z.number().finite().optional(),
-    rendaFixaTipo: z.string().max(100).optional(),
+    // Valida contra o enum do Prisma: valor fora do FixedIncomeType chegava ao
+    // fixedIncomeAsset.create e estourava 500. O wizard envia '' ao limpar a
+    // seleção — preprocess normaliza para undefined antes do nativeEnum.
+    rendaFixaTipo: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.nativeEnum(FixedIncomeType).optional(),
+    ),
     rendaFixaIndexer: z.string().max(50).optional(),
     rendaFixaIndexerPercent: z.number().finite().optional(),
     percentualCDI: z.number().finite().optional(),
@@ -1943,9 +1950,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     fixedIncomeCreateData = {
       userId: targetUserId,
       assetId: asset.id,
-      type: rendaFixaTipoForAsset as Parameters<
-        typeof prisma.fixedIncomeAsset.create
-      >[0]['data']['type'],
+      type: rendaFixaTipoForAsset as FixedIncomeType,
       description: descriptionForFi,
       startDate: new Date(startDateForFi),
       maturityDate: new Date(maturityDateForFi),
