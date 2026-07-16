@@ -140,6 +140,46 @@ describe('POST /api/carteira/operacao', () => {
       expect(data.error).toContain('tipo desconhecido');
     });
 
+    it('retorna 400 (não 500) quando rendaFixaTipo está fora do enum FixedIncomeType', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'renda-fixa-posfixada',
+          instituicaoId: 'inst-1',
+          rendaFixaTipo: 'CDB',
+          dataInicio: '2025-07-01',
+          dataVencimento: '2027-07-01',
+          valorAplicado: 10000,
+          descricao: 'CDB Teste 110% CDI',
+          taxaJurosAnual: 110,
+          rendaFixaIndexer: 'CDI',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(mockPrisma.fixedIncomeAsset.create).not.toHaveBeenCalled();
+      expect(JSON.stringify(data)).toContain('rendaFixaTipo');
+    });
+
+    it('trata rendaFixaTipo vazio como ausente (cai na validação de campos obrigatórios)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'renda-fixa-posfixada',
+          instituicaoId: 'inst-1',
+          rendaFixaTipo: '',
+          dataInicio: '2025-07-01',
+          dataVencimento: '2027-07-01',
+          valorAplicado: 10000,
+          descricao: 'CDB Teste',
+          taxaJurosAnual: 110,
+          rendaFixaIndexer: 'CDI',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('rendaFixaTipo');
+    });
+
     it('retorna 404 quando usuário não existe', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       const response = await POST(
