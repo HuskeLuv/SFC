@@ -233,7 +233,8 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
         {formatPercentageSimple(ativo.percentualCarteira)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
-        {formatPercentage(ativo.riscoPorAtivo)}
+        {/* razão (participação), não variação — sem sinal "+" */}
+        {formatPercentageSimple(ativo.riscoPorAtivo)}
       </td>
       <td className="px-2 py-2 text-xs text-right text-black">
         {formatPercentage(ativo.rentabilidade)}
