@@ -58,6 +58,14 @@ export const calcularRentabilidade = (
   return ((1 + valorFim / 100) / cumInicio - 1) * 100;
 };
 
+/**
+ * "% sobre CDI" é uma RAZÃO (carteira rendeu X% do CDI), não um delta — acima
+ * de 100% já significa "acima do CDI", então não leva o prefixo "+" do
+ * formatPercentage (ex.: 110% do CDI = rendeu 10% a mais que o CDI).
+ */
+const formatRatio = (value: number): string =>
+  Number.isFinite(value) ? `${value.toFixed(2)}%` : '0.00%';
+
 interface RentabilidadeResumoProps {
   /** Início do período selecionado (ms). undefined/igual ao 1º investimento = desde o início. */
   periodStart?: number;
@@ -343,7 +351,7 @@ export default function RentabilidadeResumo({
           <div className="text-center">
             <div className="text-sm text-gray-500 dark:text-gray-400">% SOBRE CDI</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {formatPercentage(valoresResumo.sobreCDI)}
+              {formatRatio(valoresResumo.sobreCDI)}
             </div>
           </div>
         </div>
