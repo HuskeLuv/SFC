@@ -19,8 +19,11 @@ const PERIOD_OPTIONS: Array<{ value: PeriodPill; label: string }> = [
   { value: 'inicio', label: 'Do início' },
 ];
 
+// Acessores UTC: as datas formatadas aqui são UTC-midnight (ISO 'YYYY-MM-DD'
+// dos filtros e datas de provento da API) — acessores locais em UTC-3
+// renderizavam "30/06/2024" onde o rótulo correto é "01/07/2024".
 const formatDateBR = (d: Date) =>
-  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
 
 const formatCurrency = (value: number) =>
   `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

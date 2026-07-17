@@ -34,8 +34,10 @@ export default function ProventosAgenda() {
     const grouped: Record<string, typeof filtered> = {};
 
     filtered.forEach((provento) => {
+      // provento.data é ISO UTC da API (meia-noite UTC) — acessores locais em
+      // UTC-3 jogariam proventos do dia 1º pro mês anterior.
       const date = new Date(provento.data);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 
       if (!grouped[monthKey]) {
         grouped[monthKey] = [];
@@ -92,7 +94,9 @@ export default function ProventosAgenda() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR');
+    // timeZone UTC: a data vem como meia-noite UTC; sem isso, em UTC-3 o
+    // rótulo renderiza o dia anterior (padrão já usado em CoberturaFgc).
+    return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
   };
 
   return (
