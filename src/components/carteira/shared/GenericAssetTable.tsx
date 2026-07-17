@@ -41,11 +41,26 @@ export interface Formatters {
 // Metric card configuration
 // ---------------------------------------------------------------------------
 
+export type MetricCardColor = 'primary' | 'success' | 'warning' | 'error';
+
 export interface MetricCardConfig {
   title: string;
   getValue: (resumo: Record<string, unknown>, necessidadeAporte?: number) => string;
-  color?: 'primary' | 'success' | 'warning' | 'error';
+  color?: MetricCardColor;
+  /**
+   * Cor derivada do dado (ex.: rendimento negativo → 'error'). Quando
+   * definida, tem precedência sobre `color`.
+   */
+  getColor?: (resumo: Record<string, unknown>, necessidadeAporte?: number) => MetricCardColor;
 }
+
+/**
+ * 2.13 (auditoria jul/2026): cards Rendimento/Rentabilidade tinham
+ * `color: 'success'` fixo — prejuízo aparecia em card verde. Helper único
+ * para derivar a cor pelo sinal do valor.
+ */
+export const metricColorBySign = (value: number): MetricCardColor =>
+  value < 0 ? 'error' : 'success';
 
 // ---------------------------------------------------------------------------
 // Props for the generic table
@@ -448,7 +463,9 @@ export default function GenericAssetTable<TAtivo, TSecao>({
               key={idx}
               title={card.title}
               value={card.getValue(resumo, necessidadeAporteTotalCalculada)}
-              color={card.color}
+              color={
+                card.getColor ? card.getColor(resumo, necessidadeAporteTotalCalculada) : card.color
+              }
             />
           );
         })}

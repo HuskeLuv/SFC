@@ -12,7 +12,7 @@ import {
   StandardTableRow,
 } from '@/components/ui/table/StandardTable';
 import { TableBody } from '@/components/ui/table';
-import { StandardTablePlaceholderRows } from '@/components/carteira/shared';
+import { StandardTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const MIN_PLACEHOLDER_ROWS = 4;
@@ -181,12 +181,12 @@ export default function ReservaOportunidadeTable({
         <ReservaOportunidadeMetricCard
           title="Rendimento"
           value={formatCurrency(data?.rendimento ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.rendimento ?? 0)}
         />
         <ReservaOportunidadeMetricCard
           title="Rentabilidade"
           value={formatPercentage(data?.rentabilidade ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.rentabilidade ?? 0)}
         />
       </div>
 

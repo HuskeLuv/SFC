@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table';
 import ComponentCard from '../common/ComponentCard';
-import { UiTablePlaceholderRows } from '@/components/carteira/shared';
+import { UiTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const MIN_PLACEHOLDER_ROWS = 4;
@@ -177,12 +177,12 @@ export default function ReservaEmergenciaTable({
         <ReservaEmergenciaMetricCard
           title="Rendimento"
           value={formatCurrency(rendimento)}
-          color="success"
+          color={metricColorBySign(rendimento)}
         />
         <ReservaEmergenciaMetricCard
           title="Rentabilidade"
           value={formatPercentage(rentabilidade)}
-          color="success"
+          color={metricColorBySign(rentabilidade)}
         />
       </div>
 

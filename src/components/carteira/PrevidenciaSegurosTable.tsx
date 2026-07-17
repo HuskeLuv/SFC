@@ -5,7 +5,7 @@ import { PrevidenciaSegurosAtivo } from '@/types/previdencia-seguros';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
-import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
@@ -249,12 +249,12 @@ export default function PrevidenciaSegurosTable({
         <PrevidenciaSegurosMetricCard
           title="Rendimento"
           value={formatCurrency(data?.resumo?.rendimento ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.resumo?.rendimento ?? 0)}
         />
         <PrevidenciaSegurosMetricCard
           title="Rentabilidade"
           value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.resumo?.rentabilidade ?? 0)}
         />
       </div>
 

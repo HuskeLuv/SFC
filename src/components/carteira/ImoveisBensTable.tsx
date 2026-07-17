@@ -6,7 +6,7 @@ import { useImoveisBens } from '@/hooks/useImoveisBens';
 import { ImovelBemAtivo } from '@/types/imoveis-bens';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
-import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const MIN_PLACEHOLDER_ROWS = 4;
@@ -230,12 +230,12 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
         <ImoveisBensMetricCard
           title="Rendimento"
           value={formatCurrency(data?.resumo?.rendimento ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.resumo?.rendimento ?? 0)}
         />
         <ImoveisBensMetricCard
           title="Rentabilidade"
           value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.resumo?.rentabilidade ?? 0)}
         />
       </div>
 

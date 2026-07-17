@@ -14,11 +14,12 @@ export {
   BasicTablePlaceholderRows,
   UiTablePlaceholderRows,
 } from './PlaceholderRows';
-export { default as GenericAssetTable } from './GenericAssetTable';
+export { default as GenericAssetTable, metricColorBySign } from './GenericAssetTable';
 export type {
   ColumnDef,
   Formatters,
   MetricCardConfig,
+  MetricCardColor,
   GenericAssetTableProps,
 } from './GenericAssetTable';
 export { default as EditableObjetivoCell } from './EditableObjetivoCell';

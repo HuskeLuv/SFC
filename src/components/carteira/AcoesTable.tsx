@@ -7,6 +7,7 @@ import {
   ColumnDef,
   MetricCardConfig,
   EditableObjetivoCell,
+  metricColorBySign,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
@@ -192,12 +193,12 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     {
       title: 'Rendimento',
       getValue: (r) => formatCurrency((r?.rendimento as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rendimento as number) ?? 0),
     },
     {
       title: 'Rentabilidade',
       getValue: (r) => formatPercentage((r?.rentabilidade as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rentabilidade as number) ?? 0),
     },
   ];
 

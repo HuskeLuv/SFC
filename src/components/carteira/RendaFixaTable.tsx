@@ -5,7 +5,11 @@ import { RendaFixaSecao, RendaFixaAtivo, TipoRendaFixa } from '@/types/rendaFixa
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
-import { BasicTablePlaceholderRows, MetricCard } from '@/components/carteira/shared';
+import {
+  BasicTablePlaceholderRows,
+  MetricCard,
+  metricColorBySign,
+} from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
@@ -484,12 +488,12 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
         <MetricCard
           title="Rendimento"
           value={formatCurrency(data?.resumo?.rendimento ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.resumo?.rendimento ?? 0)}
         />
         <MetricCard
           title="Rentabilidade"
           value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.resumo?.rentabilidade ?? 0)}
         />
       </div>
 

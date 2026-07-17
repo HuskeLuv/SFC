@@ -8,6 +8,7 @@ import {
   MetricCardConfig,
   EditableObjetivoCell,
   BasicTablePlaceholderRows,
+  metricColorBySign,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
@@ -210,12 +211,12 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     {
       title: 'Rendimento',
       getValue: (r) => formatCurrency((r?.rendimento as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rendimento as number) ?? 0),
     },
     {
       title: 'Rentabilidade',
       getValue: (r) => formatPercentage((r?.rentabilidade as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rentabilidade as number) ?? 0),
     },
   ];
 

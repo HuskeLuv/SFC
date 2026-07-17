@@ -8,6 +8,7 @@ import {
   MetricCardConfig,
   EditableObjetivoCell,
   BasicTablePlaceholderRows,
+  metricColorBySign,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
@@ -206,12 +207,12 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     {
       title: 'Rendimento',
       getValue: (r) => formatCurrency((r?.rendimento as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rendimento as number) ?? 0),
     },
     {
       title: 'Rentabilidade',
       getValue: (r) => formatPercentage((r?.rentabilidade as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rentabilidade as number) ?? 0),
     },
   ];
 

@@ -8,6 +8,7 @@ import {
   MetricCardConfig,
   EditableObjetivoCell,
   EditableValorCell,
+  metricColorBySign,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
@@ -216,12 +217,12 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     {
       title: 'Rendimento',
       getValue: (r) => formatCurrency((r?.rendimento as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rendimento as number) ?? 0),
     },
     {
       title: 'Rentabilidade',
       getValue: (r) => formatPercentage((r?.rentabilidade as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rentabilidade as number) ?? 0),
     },
   ];
 
