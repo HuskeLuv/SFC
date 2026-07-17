@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import ApexChartWrapper from '../ApexChartWrapper';
+import { useTheme } from '@/context/ThemeContext';
 
 interface PieChartCarteiraInvestimentosProps {
   distribuicao: {
@@ -59,11 +60,13 @@ interface PieChartCarteiraInvestimentosProps {
 export default function PieChartCarteiraInvestimentos({
   distribuicao,
 }: PieChartCarteiraInvestimentosProps) {
-  // Mocked dark mode state (replace with actual context/state if applicable)
-  const isDarkMode = true; // Change this to your dark mode logic
+  // 1.11 (auditoria jul/2026): antes era `const isDarkMode = true` hardcoded —
+  // legenda/labels brancos ficavam ilegíveis no tema claro.
+  const { theme } = useTheme();
+  const isDarkMode = theme === 'dark';
 
-  // Calcular total aplicado uma vez para reutilizar e formatar
-  const totalAplicadoFormatado = useMemo(() => {
+  // Total ATUALIZADO (a distribuição soma valores atuais + caixas por aba)
+  const totalAtualizadoFormatado = useMemo(() => {
     const total =
       (distribuicao.reservaEmergencia.valor || 0) +
       (distribuicao.reservaOportunidade.valor || 0) +
@@ -100,7 +103,8 @@ export default function PieChartCarteiraInvestimentos({
         '#B9CDE5', // FIM/FIA
         '#9E8A58', // FII's
         '#FFC000', // Ações
-        '#9E8A58', // STOCKS
+        // 1.11: era #9E8A58, mesma cor dos FII's — fatias indistinguíveis.
+        '#7030A0', // STOCKS
         '#FFFF00', // REIT's
         '#E46C0A', // ETF's
         '#C4BD97', // Moedas, Criptomoedas & Outros
@@ -160,11 +164,13 @@ export default function PieChartCarteiraInvestimentos({
               },
               total: {
                 show: true,
-                label: 'Total Aplicado',
+                // 1.11: soma exibida é de valores ATUALIZADOS — "Total
+                // Aplicado" sugeria custo de aquisição.
+                label: 'Total Atualizado',
                 color: isDarkMode ? '#ffffff' : '#000000',
                 fontSize: '16px',
                 fontWeight: 'bold',
-                formatter: () => totalAplicadoFormatado,
+                formatter: () => totalAtualizadoFormatado,
               },
             },
           },
@@ -243,7 +249,7 @@ export default function PieChartCarteiraInvestimentos({
         },
       ],
     }),
-    [isDarkMode, totalAplicadoFormatado],
+    [isDarkMode, totalAtualizadoFormatado],
   );
 
   const series = useMemo(
