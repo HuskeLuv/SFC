@@ -142,6 +142,12 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     });
   }, [ativosComRisco]);
 
+  // Moeda: TODOS os valores monetários do payload chegam em BRL — a rota
+  // converte moedas/metais cotados em USD pela cotação do dólar e criptos são
+  // precificadas em reais por convenção (Asset.currency 'USD' em cripto é
+  // metadado de catálogo, não a moeda dos valores). Por isso NÃO se usa
+  // `regiao` para escolher o símbolo da moeda: exibir US$ aqui rotularia
+  // valores em reais como dólares, e os totais (que somam tudo) são BRL.
   const columns: ColumnDef<MoedaCriptoAtivo, MoedaCriptoSecao>[] = [
     {
       key: 'nome',
@@ -178,10 +184,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       key: 'precoAquisicao',
       header: 'Preco Aquisicao',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(a.precoAquisicao, currency);
-      },
+      render: (a, f) => f.formatCurrency(a.precoAquisicao),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
@@ -189,24 +192,15 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       key: 'valorTotal',
       header: 'Valor Total',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(a.valorTotal, currency);
-      },
-      renderSectionTotal: (s, f) => {
-        const currency = s.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(s.totalValorAplicado, currency);
-      },
+      render: (a, f) => f.formatCurrency(a.valorTotal),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAplicado),
       renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAplicado as number) || 0),
     },
     {
       key: 'cotacaoAtual',
       header: 'Cotacao em Tempo Real',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return <span className="text-black">{f.formatCurrency(a.cotacaoAtual, currency)}</span>;
-      },
+      render: (a, f) => <span className="text-black">{f.formatCurrency(a.cotacaoAtual)}</span>,
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
@@ -214,14 +208,8 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       key: 'valorAtualizado',
       header: 'Valor Atualizado',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(a.valorAtualizado, currency);
-      },
-      renderSectionTotal: (s, f) => {
-        const currency = s.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(s.totalValorAtualizado, currency);
-      },
+      render: (a, f) => f.formatCurrency(a.valorAtualizado),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalValorAtualizado),
       renderGrandTotal: (t, f) => f.formatCurrency((t?.valorAtualizado as number) || 0),
     },
     {
@@ -273,14 +261,8 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       key: 'necessidadeAporte',
       header: 'Nec. Aporte $',
       align: 'right',
-      render: (a, f) => {
-        const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(a.necessidadeAporte, currency);
-      },
-      renderSectionTotal: (s, f) => {
-        const currency = s.regiao === 'estados_unidos' ? 'USD' : 'BRL';
-        return f.formatCurrency(s.totalNecessidadeAporte, currency);
-      },
+      render: (a, f) => f.formatCurrency(a.necessidadeAporte),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalNecessidadeAporte),
       renderGrandTotal: (t, f) => f.formatCurrency((t?.necessidadeAporte as number) || 0),
     },
     {
