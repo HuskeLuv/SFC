@@ -149,6 +149,37 @@ describe('/api/carteira/moedas-criptos', () => {
       expect(ativo.precoAquisicao).toBe(30000);
       expect(ativo.valorAtualizado).toBe(15000);
     });
+
+    it('totalGeral reflects computed risco/quantoFalta instead of hardcoded 0', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          userId: 'user-1',
+          quantity: 0.5,
+          totalInvested: 15000,
+          avgPrice: 30000,
+          objetivo: 5,
+          assetId: 'a1',
+          stockId: null,
+          stock: null,
+          asset: { symbol: 'BTC', name: 'Bitcoin', type: 'crypto', currency: 'USD' },
+          lastUpdate: new Date(),
+        },
+      ]);
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      // Ativo único: riscoPorAtivo = percentualCarteira = 100
+      expect(data.totalGeral.risco).toBe(100);
+      // objetivo 5 − percentual 100 = −95
+      expect(data.totalGeral.quantoFalta).toBe(-95);
+      expect(data.totalGeral.necessidadeAporte).toBe(0);
+      // Consistente com a soma das seções
+      const totalRiscoSecoes = data.secoes.reduce(
+        (s: number, sec: { totalRisco: number }) => s + sec.totalRisco,
+        0,
+      );
+      expect(data.totalGeral.risco).toBe(totalRiscoSecoes);
+    });
   });
 
   describe('POST', () => {

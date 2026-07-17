@@ -186,10 +186,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       valorAplicado: totalValorAplicado,
       valorAtualizado: valorAtualizadoComCaixa,
       percentualCarteira: 0,
-      risco: 0,
+      // Soma dos valores calculados por ativo — antes hardcoded em 0,
+      // contradizendo os totais das seções logo abaixo (auditoria 2.5).
+      risco: ativos.reduce((s, a) => s + a.riscoPorAtivo, 0),
       objetivo: ativos.reduce((s, a) => s + a.objetivo, 0),
-      quantoFalta: 0,
-      necessidadeAporte: 0,
+      quantoFalta: ativos.reduce((s, a) => s + a.quantoFalta, 0),
+      necessidadeAporte: ativos.reduce((s, a) => s + a.necessidadeAporte, 0),
       rentabilidade: ativos.length
         ? ativos.reduce((s, a) => s + a.rentabilidade, 0) / ativos.length
         : 0,

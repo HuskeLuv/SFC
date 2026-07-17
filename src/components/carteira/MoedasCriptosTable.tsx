@@ -65,6 +65,23 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
     });
   }, [data, totalCarteira]);
 
+  // TOTAL GERAL alinhado com as seções: risco/quantoFalta/necessidadeAporte
+  // do payload seguem outra base (percentual da aba); aqui o grand total soma
+  // os valores recalculados por ativo (mesma base das seções acima), como as
+  // demais abas fazem no dataComRiscoDefault do GenericAssetTable.
+  const dataComRisco = useMemo(() => {
+    if (!data) return null;
+    return {
+      ...data,
+      totalGeral: {
+        ...data.totalGeral,
+        risco: ativosComRisco.reduce((s, a) => s + a.riscoPorAtivo, 0),
+        quantoFalta: ativosComRisco.reduce((s, a) => s + a.quantoFalta, 0),
+        necessidadeAporte: ativosComRisco.reduce((s, a) => s + a.necessidadeAporte, 0),
+      },
+    };
+  }, [data, ativosComRisco]);
+
   const normalizedSections = useMemo(() => {
     const resolveSectionRegion = (ativos: MoedaCriptoAtivo[]) => {
       const hasUs = ativos.some((ativo) => ativo.regiao === 'estados_unidos');
@@ -326,7 +343,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
       normalizedSections={normalizedSections}
-      dataComRisco={data as unknown as Record<string, unknown>}
+      dataComRisco={dataComRisco as unknown as Record<string, unknown>}
     />
   );
 }
