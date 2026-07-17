@@ -165,10 +165,12 @@ export default function ReservaOportunidadeTable({
     { valorInicial: 0, aporte: 0, resgate: 0, valorAtualizado: 0 },
   );
 
-  const rentabilidadeTotal =
-    totais.valorInicial > 0
-      ? ((totais.valorAtualizado - totais.valorInicial) / totais.valorInicial) * 100
-      : 0;
+  // 2.16 (auditoria jul/2026): a linha TOTAL exibia (atual − inicial)/inicial,
+  // ignorando os aportes/resgates que a própria tabela mostra (aporte contava
+  // como lucro). Exibe a MESMA fonte do card "Rentabilidade" acima:
+  // data.rentabilidade do backend, que desconta fluxos
+  // (atual − (inicial + aportes − resgates)) / (inicial + aportes).
+  const rentabilidadeTotal = data?.rentabilidade ?? 0;
 
   return (
     <div className="space-y-4">
