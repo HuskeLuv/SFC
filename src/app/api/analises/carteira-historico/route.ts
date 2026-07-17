@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import {
   buildDailyTimeline,
+  calculateHistoricoTWR,
   normalizeDateStart,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { nextBusinessDayB3 } from '@/utils/feriadosB3';
@@ -82,43 +83,13 @@ const getDayKey = (ts: number): number => {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 };
 
-const calculateTwrSeries = (portfolioValues: IndexData[], cashFlowsByDay: Map<number, number>) => {
-  if (portfolioValues.length === 0) return [];
-
-  const returns: IndexData[] = [];
-  let cumulative = 1;
-
-  portfolioValues.forEach((item, index) => {
-    if (index === 0) {
-      returns.push({ date: item.date, value: 0 });
-      return;
-    }
-
-    const previousValue = portfolioValues[index - 1]?.value || 0;
-    const currentValue = item.value;
-    const dayKey = getDayKey(item.date);
-    const cashFlow = cashFlowsByDay.get(dayKey) ?? cashFlowsByDay.get(item.date) ?? 0;
-
-    let dailyReturn = 0;
-    if (previousValue > 0) {
-      const valueFromInvestments = currentValue - cashFlow;
-      dailyReturn = valueFromInvestments / previousValue - 1;
-      if (!Number.isFinite(dailyReturn) || dailyReturn > 0.5 || dailyReturn < -0.5) {
-        dailyReturn = 0;
-      }
-    } else if (currentValue > 0 && cashFlow > 0) {
-      dailyReturn = 0;
-    }
-
-    cumulative *= 1 + dailyReturn;
-    returns.push({
-      date: item.date,
-      value: (cumulative - 1) * 100,
-    });
-  });
-
-  return returns;
-};
+// TWR delegado ao calculateHistoricoTWR do builder (mesma implementação do
+// /api/carteira/resumo). A cópia local que vivia aqui divergia do primário em
+// DUAS semânticas: forçava 0 no 1º ponto (descartava o ganho instantâneo
+// preço-pago vs mercado que o padrão Kinvo inclui) e, combinada com o lookup
+// de quantidade por timestamp cru (ver portfolioValues abaixo), gerava pares
+// de retorno fantasma ±10-40% nos dias de aporte — fallback fechava +16,9%
+// enquanto o primário fechava -16,9% pro mesmo usuário.
 
 const fetchAssetHistoryFromDb = async (symbol: string, startDate?: Date): Promise<IndexData[]> => {
   const start = startDate
@@ -348,7 +319,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
     pricesBySymbol.forEach((priceMap, symbol) => {
       const qtyTimeline = quantityTimelineBySymbol.get(symbol);
-      const actualQty = qtyTimeline ? quantityAtDate(qtyTimeline, day) : 0;
+      // Lookup por FIM do dia UTC: tx gravada com hora (ex.: 03:00Z = meia-noite
+      // BRT) tem timestamp > day (00:00Z) e ficava fora do próprio dia — a
+      // quantidade só entrava no dia seguinte enquanto o cashflow (normalizado
+      // por day-key) já tinha saído, criando o par de retornos fantasma.
+      const actualQty = qtyTimeline ? quantityAtDate(qtyTimeline, day + DAY_MS - 1) : 0;
       if (actualQty <= 0) return;
 
       // quantityAtDate dá a quantidade REAL na data (100 antes do split, 1000
@@ -378,7 +353,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     logSeriesStats(portfolioValues, 'Carteira-Valor');
   }
 
-  const twrSeries = calculateTwrSeries(portfolioValues, cashFlowsByDay);
+  const twrSeries = calculateHistoricoTWR(
+    portfolioValues.map((p) => ({ data: p.date, saldoBruto: p.value })),
+    cashFlowsByDay,
+  ).map((p) => ({ date: p.data, value: p.value }));
 
   // Série MWR cumulativa em paralelo ao TWR. portfolioValues tem
   // {date, value=saldoBruto}; reconstruímos valorAplicado acumulando os
