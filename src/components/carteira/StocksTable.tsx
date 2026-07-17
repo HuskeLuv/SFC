@@ -276,6 +276,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
+      cotacaoParaBRL={cotacaoDolar}
       extraTotalRows={extraTotalRows}
     >
       {/* Charts and aux table */}

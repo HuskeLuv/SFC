@@ -92,6 +92,16 @@ export interface GenericAssetTableProps<TAtivo, TSecao> {
   // Risk calculation
   totalCarteira?: number;
 
+  /**
+   * Cotação para converter valorAtualizado (moeda da aba, ex.: USD em
+   * Stocks/REIT) para BRL SÓ no cálculo do risco, cujo denominador
+   * (totalCarteira = resumo.saldoBruto) é em BRL. Não afeta
+   * percentualCarteira/necessidadeAporte, que são relativos à própria aba.
+   * Se null/ausente (cotação indisponível), mantém o comportamento anterior
+   * (sem conversão).
+   */
+  cotacaoParaBRL?: number | null;
+
   // normalizedSections override — some tables need custom section normalization
   normalizedSections?: TSecao[];
 
@@ -236,6 +246,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
   formatPercentage,
   formatNumber,
   totalCarteira = 0,
+  cotacaoParaBRL = null,
   normalizedSections: normalizedSectionsProp,
   dataComRisco: dataComRiscoProp,
   extraTotalRows,
@@ -274,8 +285,13 @@ export default function GenericAssetTable<TAtivo, TSecao>({
 
         return {
           ...a,
+          // totalCarteira é BRL; valorAtualizado pode estar em USD (Stocks/REIT)
+          // — converte via cotacaoParaBRL quando disponível.
           riscoPorAtivo: shouldCalculateRisco
-            ? Math.min(100, ((a.valorAtualizado as number) / totalCarteira) * 100)
+            ? Math.min(
+                100,
+                (((a.valorAtualizado as number) * (cotacaoParaBRL ?? 1)) / totalCarteira) * 100,
+              )
             : 0,
           percentualCarteira,
           quantoFalta,
@@ -335,7 +351,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
         necessidadeAporte: totalNecessidadeAporte,
       },
     };
-  }, [data, totalCarteira, getTotalGeral, getSecoes, getSectionAtivos]);
+  }, [data, totalCarteira, cotacaoParaBRL, getTotalGeral, getSecoes, getSectionAtivos]);
 
   const effectiveData = (dataComRiscoProp ?? dataComRiscoDefault) as Record<string, unknown> | null;
 

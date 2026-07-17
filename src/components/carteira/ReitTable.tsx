@@ -260,6 +260,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
+      cotacaoParaBRL={cotacaoDolar}
       extraTotalRows={extraTotalRows}
     >
       {/* Charts and aux table */}
