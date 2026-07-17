@@ -59,6 +59,22 @@ export const calcularRentabilidade = (
 };
 
 /**
+ * Retorno do último dia FECHADO: último ponto da série vs o anterior.
+ * (A janela [ontem, hoje] quebrou quando dropCurrentDay passou a cortar o dia
+ * corrente: a série termina ontem, as duas bordas resolvem pro MESMO ponto e o
+ * resultado era sempre 0,00%. Ancorar nos dois últimos pontos também cobre
+ * fim de semana/feriado: mostra o retorno do último pregão.)
+ */
+export const retornoUltimoDia = (data: Array<{ date: number; value: number }>): number => {
+  if (data.length < 2) return 0;
+  const prev = data[data.length - 2];
+  const last = data[data.length - 1];
+  const cumPrev = 1 + prev.value / 100;
+  if (cumPrev <= 0) return 0;
+  return ((1 + last.value / 100) / cumPrev - 1) * 100;
+};
+
+/**
  * "% sobre CDI" é uma RAZÃO (carteira rendeu X% do CDI), não um delta — acima
  * de 100% já significa "acima do CDI", então não leva o prefixo "+" do
  * formatPercentage (ex.: 110% do CDI = rendeu 10% a mais que o CDI).
@@ -117,11 +133,6 @@ export default function RentabilidadeResumo({
     hoje.setHours(0, 0, 0, 0);
     const hojeTimestamp = hoje.getTime();
 
-    // Último dia
-    const ontem = new Date(hoje);
-    ontem.setDate(ontem.getDate() - 1);
-    const ontemTimestamp = ontem.getTime();
-
     // Primeiro dia do mês
     const primeiroDiaMesTimestamp = new Date(hoje.getFullYear(), hoje.getMonth(), 1).getTime();
 
@@ -136,7 +147,7 @@ export default function RentabilidadeResumo({
     const ibovData = dropCurrentDay(indicesDesdeInicio.find((i) => i.name === 'IBOV')?.data ?? []);
 
     const janela = (data: Array<{ date: number; value: number }>) => ({
-      ultimoDia: calcularRentabilidade(data, ontemTimestamp, hojeTimestamp),
+      ultimoDia: retornoUltimoDia(data),
       mes: calcularRentabilidade(data, primeiroDiaMesTimestamp, hojeTimestamp),
       ano: calcularRentabilidade(data, primeiroDiaAnoTimestamp, hojeTimestamp),
       dozeMeses: calcularRentabilidade(data, dozeMesesAtrasTimestamp, hojeTimestamp),

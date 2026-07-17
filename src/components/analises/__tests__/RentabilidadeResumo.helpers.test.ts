@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { calcularRentabilidade, valorEm, dropCurrentDay } from '../RentabilidadeResumo';
+import {
+  calcularRentabilidade,
+  valorEm,
+  dropCurrentDay,
+  retornoUltimoDia,
+} from '../RentabilidadeResumo';
 
 const day = (offsetDias: number): number => {
   const d = new Date();
@@ -91,5 +96,33 @@ describe('dropCurrentDay', () => {
   it('mantém a série quando só existe o dia corrente (não zera o card)', () => {
     const serie = [{ date: dayUtc(0), value: 3 }];
     expect(dropCurrentDay(serie)).toHaveLength(1);
+  });
+});
+
+describe('retornoUltimoDia — último ponto fechado vs o anterior', () => {
+  it('compõe os dois últimos pontos da série', () => {
+    const serie = [
+      { date: dayUtc(-3), value: 0 },
+      { date: dayUtc(-2), value: 5 },
+      { date: dayUtc(-1), value: 10 },
+    ];
+    // (1.10/1.05 - 1) = 4.7619%
+    expect(retornoUltimoDia(serie)).toBeCloseTo(4.7619, 3);
+  });
+
+  it('não devolve 0 fixo em série já sem o dia corrente (regressão: janela [ontem, hoje] resolvia pro mesmo ponto)', () => {
+    // Série pós-dropCurrentDay termina ontem; o retorno do último dia fechado
+    // deve vir dos DOIS últimos pontos, não da janela [ontem, hoje].
+    const serie = [
+      { date: dayUtc(-2), value: 2 },
+      { date: dayUtc(-1), value: 3 },
+    ];
+    expect(retornoUltimoDia(serie)).not.toBe(0);
+    expect(retornoUltimoDia(serie)).toBeCloseTo((1.03 / 1.02 - 1) * 100, 4);
+  });
+
+  it('série com menos de 2 pontos devolve 0', () => {
+    expect(retornoUltimoDia([])).toBe(0);
+    expect(retornoUltimoDia([{ date: dayUtc(-1), value: 5 }])).toBe(0);
   });
 });
