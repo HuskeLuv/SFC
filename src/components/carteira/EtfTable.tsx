@@ -54,7 +54,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     },
     {
       key: 'indiceRastreado',
-      header: 'Indice Rastreado',
+      header: 'Índice Rastreado',
       align: 'center',
       render: (a) =>
         a.indiceRastreado.charAt(0).toUpperCase() + a.indiceRastreado.slice(1).replace('_', ' '),
@@ -71,7 +71,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     },
     {
       key: 'precoAquisicao',
-      header: 'Preco Medio',
+      header: 'Preço Médio',
       align: 'right',
       render: (a, f) => {
         const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
@@ -96,7 +96,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     },
     {
       key: 'cotacaoAtual',
-      header: 'Cotacao Atual',
+      header: 'Cotação Atual',
       align: 'right',
       render: (a, f) => {
         const currency = a.regiao === 'estados_unidos' ? 'USD' : 'BRL';
@@ -196,7 +196,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
     {
-      title: 'Saldo Inicio do Mes',
+      title: 'Saldo Início do Mês',
       getValue: (r) => formatCurrency((r?.saldoInicioMes as number) ?? 0),
     },
     {
@@ -251,7 +251,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                       Nome Ativo
                     </th>
                     <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Cotacao Atual
+                      Cotação Atual
                     </th>
                     <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Necessidade Aporte

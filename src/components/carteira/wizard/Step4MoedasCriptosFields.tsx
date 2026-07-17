@@ -44,7 +44,7 @@ export default function Step4MoedasCriptosFields({
           />
         </div>
         <div>
-          <Label htmlFor="cotacaoCompra">Cotacao de Compra (R$) *</Label>
+          <Label htmlFor="cotacaoCompra">Cotação de Compra (R$) *</Label>
           <Input
             id="cotacaoCompra"
             {...decimalInputProps}
@@ -99,7 +99,7 @@ export default function Step4MoedasCriptosFields({
         {errors.quantidade && <p className="mt-1 text-sm text-red-500">{errors.quantidade}</p>}
       </div>
       <div>
-        <Label htmlFor="cotacaoCompra">Preco de aquisicao por unidade (R$) *</Label>
+        <Label htmlFor="cotacaoCompra">Preço de aquisição por unidade (R$) *</Label>
         <Input
           id="cotacaoCompra"
           {...decimalInputProps}

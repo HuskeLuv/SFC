@@ -134,7 +134,7 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
         <ErrorBoundary
           fallback={
             <div className="flex h-[320px] items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-              Erro ao carregar o grafico de desempenho
+              Erro ao carregar o gráfico de desempenho
             </div>
           }
         >

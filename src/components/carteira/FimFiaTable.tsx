@@ -75,7 +75,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     },
     {
       key: 'categoriaNivel1',
-      header: 'Cat. Nivel 1',
+      header: 'Cat. Nível 1',
       align: 'center',
       render: (a) => a.categoriaNivel1,
       renderSectionTotal: () => '-',
@@ -83,7 +83,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     },
     {
       key: 'subcategoriaNivel2',
-      header: 'Subcat. Nivel 2',
+      header: 'Subcat. Nível 2',
       align: 'center',
       render: (a) => a.subcategoriaNivel2,
       renderSectionTotal: () => '-',
@@ -206,7 +206,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
     {
-      title: 'Saldo Inicio do Mes',
+      title: 'Saldo Início do Mês',
       getValue: (r) => formatCurrency((r?.saldoInicioMes as number) ?? 0),
     },
     {

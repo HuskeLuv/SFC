@@ -52,7 +52,7 @@ export default function Step4PersonalizadoFields({
         />
       </div>
       <div>
-        <Label htmlFor="precoUnitario">Preco Unitario (R$) *</Label>
+        <Label htmlFor="precoUnitario">Preço Unitário (R$) *</Label>
         <Input
           id="precoUnitario"
           {...decimalInputProps}

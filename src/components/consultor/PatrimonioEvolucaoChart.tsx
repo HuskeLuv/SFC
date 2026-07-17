@@ -193,7 +193,7 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
         <ErrorBoundary
           fallback={
             <div className="flex h-[350px] items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-              Erro ao carregar o grafico de patrimonio
+              Erro ao carregar o gráfico de patrimônio
             </div>
           }
         >

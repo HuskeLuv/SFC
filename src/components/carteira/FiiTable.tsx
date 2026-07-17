@@ -101,7 +101,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     },
     {
       key: 'precoAquisicao',
-      header: 'Preco Medio',
+      header: 'Preço Médio',
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
       renderSectionTotal: () => '-',
@@ -117,7 +117,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     },
     {
       key: 'cotacaoAtual',
-      header: 'Cotacao Atual',
+      header: 'Cotação Atual',
       align: 'right',
       render: (a, f) => <span>{f.formatCurrency(a.cotacaoAtual)}</span>,
       renderSectionTotal: () => '-',
@@ -204,7 +204,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
     {
-      title: 'Saldo Inicio do Mes',
+      title: 'Saldo Início do Mês',
       getValue: (r) => formatCurrency((r?.saldoInicioMes as number) ?? 0),
     },
     {
@@ -273,7 +273,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
                 Nome
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
-                Cotacao Atual
+                Cotação Atual
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
                 Necessidade Aporte

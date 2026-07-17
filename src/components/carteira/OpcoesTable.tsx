@@ -98,7 +98,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     },
     {
       key: 'precoAquisicao',
-      header: 'Preco Aquisicao',
+      header: 'Preço Aquisição',
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
       renderSectionTotal: () => '-',
@@ -114,7 +114,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     },
     {
       key: 'cotacaoAtual',
-      header: 'Cotacao em Tempo Real',
+      header: 'Cotação em Tempo Real',
       align: 'right',
       render: (a, f) => <span className="text-black">{f.formatCurrency(a.cotacaoAtual)}</span>,
       renderSectionTotal: () => '-',
@@ -199,7 +199,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
     {
-      title: 'Saldo Inicio do Mes',
+      title: 'Saldo Início do Mês',
       getValue: (r) => formatCurrency((r?.saldoInicioMes as number) ?? 0),
     },
     {
@@ -223,7 +223,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       data={data as unknown as Record<string, unknown>}
       loading={loading}
       error={error}
-      loadingText="Carregando dados de opcoes..."
+      loadingText="Carregando dados de opções..."
       columns={columns}
       getSecoes={(d) => (d.secoes as OpcaoSecao[]) ?? []}
       getSectionAtivos={(s) => s.ativos}
@@ -236,7 +236,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       onUpdateCaixaParaInvestir={updateCaixaParaInvestir}
       sectionOrder={SECTION_ORDER}
       sectionNames={SECTION_NAMES}
-      tableTitle="Opcoes - Detalhamento"
+      tableTitle="Opções - Detalhamento"
       formatCurrency={formatCurrency}
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}
