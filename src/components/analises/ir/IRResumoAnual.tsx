@@ -4,7 +4,7 @@ import { useIRResumoAnual } from '@/hooks/useIR';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
-import { formatBRL } from './irFormatters';
+import { formatBRL, jcpIrrfRateLabel } from './irFormatters';
 
 function buildYearOptions(): number[] {
   const current = new Date().getFullYear();
@@ -108,7 +108,7 @@ export default function IRResumoAnual() {
             <IRSummaryCard
               label="JCP recebido"
               value={formatBRL(data.rendimentos.tributacaoExclusiva.jcp)}
-              subtext="Tributação exclusiva — 15% retidos na fonte"
+              subtext={`Tributação exclusiva — ${jcpIrrfRateLabel(year)} retidos na fonte`}
             />
           </div>
 
@@ -132,7 +132,9 @@ export default function IRResumoAnual() {
                 </dd>
               </div>
               <div className="flex justify-between border-b border-gray-100 py-1.5 dark:border-gray-800">
-                <dt className="text-gray-500 dark:text-gray-400">JCP (tributação exclusiva 15%)</dt>
+                <dt className="text-gray-500 dark:text-gray-400">
+                  JCP (tributação exclusiva {jcpIrrfRateLabel(year)})
+                </dt>
                 <dd className="font-medium text-gray-900 dark:text-white">
                   {formatBRL(data.rendimentos.tributacaoExclusiva.jcp)}
                 </dd>
