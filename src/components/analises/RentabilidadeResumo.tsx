@@ -87,7 +87,9 @@ export const retornoUltimoDia = (data: Array<{ date: number; value: number }>): 
  * formatPercentage (ex.: 110% do CDI = rendeu 10% a mais que o CDI).
  */
 const formatRatio = (value: number): string =>
-  Number.isFinite(value) ? `${value.toFixed(2)}%` : '0.00%';
+  Number.isFinite(value)
+    ? `${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
+    : '0,00%';
 
 interface RentabilidadeResumoProps {
   /** Início do período selecionado (ms). undefined/igual ao 1º investimento = desde o início. */
