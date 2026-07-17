@@ -217,7 +217,7 @@ function GenericSection<TAtivo, TSecao>({
               return (
                 <td
                   key={col.key}
-                  className={`px-2 py-2 text-xs text-black ${alignClass} ${col.cellClassName ?? ''}`}
+                  className={`px-2 py-2 text-xs text-gray-900 dark:text-white ${alignClass} ${col.cellClassName ?? ''}`}
                 >
                   {col.render(ativo, formatters)}
                 </td>

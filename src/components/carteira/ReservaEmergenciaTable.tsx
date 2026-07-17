@@ -73,38 +73,40 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
 }) => {
   return (
     <TableRow className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.02]">
-      <TableCell className="px-2 py-2 text-xs text-black">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white">
         <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-center">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
         {ativo.cotizacaoResgate}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-center">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
         {ativo.liquidacaoResgate}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-center">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
         {formatDate(ativo.vencimento)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-center">{ativo.benchmark}</TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
+        {ativo.benchmark}
+      </TableCell>
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
         {formatCurrency(ativo.valorInicial)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
         {formatCurrency(ativo.aporte)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
         {formatCurrency(ativo.resgate)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-right font-mono">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
         {formatCurrency(ativo.valorAtualizado)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-center">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
         {formatPercentage(ativo.percentualCarteira)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-black text-center">
+      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
         {formatPercentage(ativo.riscoAtivo)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-center font-medium text-black">
+      <TableCell className="px-2 py-2 text-xs text-center font-medium text-gray-900 dark:text-white">
         {formatPercentage(ativo.rentabilidade)}
       </TableCell>
     </TableRow>

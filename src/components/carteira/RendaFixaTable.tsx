@@ -120,14 +120,14 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs text-black">
+      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
         <AssetNameLink
           portfolioId={ativo.id}
           ticker={formatAssetDisplayTitle({ ticker: ativo.nome, nome: null }, 'Renda Fixa').full}
           nomeComoPrincipal
         />
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
+      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
         {isEditingCotizacao ? (
           <input
             type="text"
@@ -147,7 +147,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
+      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
         {isEditingLiquidacao ? (
           <input
             type="text"
@@ -167,10 +167,10 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
+      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
         {ativo.vencimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">
+      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
         {isEditingBenchmark ? (
           <input
             type="text"
@@ -190,12 +190,16 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatCurrency(ativo.valorInicialAplicado)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">{formatCurrency(ativo.aporte)}</td>
-      <td className="px-2 py-2 text-xs text-right text-black">{formatCurrency(ativo.resgate)}</td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+        {formatCurrency(ativo.aporte)}
+      </td>
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+        {formatCurrency(ativo.resgate)}
+      </td>
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {ativo.isAutoUpdated ? (
           <div title="Sincronizado automaticamente (PU Tesouro Direto)" className="px-1 py-0.5">
             {formatCurrency(ativo.valorAtualizado)}
@@ -233,17 +237,17 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatPercentageSimple(ativo.percentualCarteira)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {/* razão (participação), não variação — sem sinal "+" */}
         {formatPercentageSimple(ativo.riscoPorAtivo)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatPercentage(ativo.rentabilidade)}
       </td>
-      <td className="px-2 py-2 text-xs text-black">
+      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
         {isEditingObservacoes ? (
           <input
             type="text"
@@ -459,7 +463,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
           <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
             Erro ao carregar dados
           </h3>
-          <p className="text-xs text-black">{error}</p>
+          <p className="text-xs text-gray-900 dark:text-white">{error}</p>
         </div>
       </div>
     );

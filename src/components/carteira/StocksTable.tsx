@@ -122,7 +122,9 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       key: 'cotacaoAtual',
       header: 'Cotacao Atual',
       align: 'right',
-      render: (a, f) => <span className="text-black">{f.formatCurrency(a.cotacaoAtual)}</span>,
+      render: (a, f) => (
+        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+      ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
@@ -316,17 +318,19 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                       key={index}
                       className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
                     >
-                      <td className="px-2 py-2 text-xs text-black">{item.nome}</td>
-                      <td className="px-2 py-2 text-xs text-black">
+                      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
+                        {item.nome}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
                         {item.dataCompra ? formatWallClockDate(item.dataCompra) : '-'}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right text-black">
+                      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
                         {formatCurrency(item.cotacaoAtual)}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right text-black">
+                      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
                         {formatCurrency(item.necessidadeAporte)}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right text-black">
+                      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
                         {formatNumber(item.loteAproximado)}
                       </td>
                     </tr>

@@ -174,7 +174,9 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       render: (a) => (
         <div>
           <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} />
-          {a.observacoes && <div className="text-xs text-black mt-1">{a.observacoes}</div>}
+          {a.observacoes && (
+            <div className="text-xs text-gray-900 dark:text-white mt-1">{a.observacoes}</div>
+          )}
         </div>
       ),
     },
@@ -218,7 +220,9 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       key: 'cotacaoAtual',
       header: 'Cotacao em Tempo Real',
       align: 'right',
-      render: (a, f) => <span className="text-black">{f.formatCurrency(a.cotacaoAtual)}</span>,
+      render: (a, f) => (
+        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+      ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },

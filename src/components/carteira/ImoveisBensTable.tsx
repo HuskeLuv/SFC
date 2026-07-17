@@ -91,20 +91,30 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs font-medium text-black">
+      <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
         <div>
           <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
-          {ativo.observacoes && <div className="text-xs text-black mt-1">{ativo.observacoes}</div>}
+          {ativo.observacoes && (
+            <div className="text-xs text-gray-900 dark:text-white mt-1">{ativo.observacoes}</div>
+          )}
         </div>
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">{ativo.cidade}</td>
-      <td className="px-2 py-2 text-xs text-center text-black">{ativo.mandato}</td>
-      <td className="px-2 py-2 text-xs text-right text-black">{formatNumber(ativo.quantidade)}</td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
+        {ativo.cidade}
+      </td>
+      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
+        {ativo.mandato}
+      </td>
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+        {formatNumber(ativo.quantidade)}
+      </td>
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatCurrency(ativo.precoAquisicao)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">{formatCurrency(ativo.melhorias)}</td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+        {formatCurrency(ativo.melhorias)}
+      </td>
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatCurrency(ativo.valorTotal)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
@@ -126,17 +136,19 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingValor(true)}
           >
-            <span className="text-black">{formatCurrency(ativo.valorAtualizado)}</span>
+            <span className="text-gray-900 dark:text-white">
+              {formatCurrency(ativo.valorAtualizado)}
+            </span>
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatPercentage(ativo.percentualCarteira)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatPercentage(ativo.rentabilidade)}
       </td>
     </tr>

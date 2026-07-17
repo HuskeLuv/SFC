@@ -55,7 +55,9 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       render: (a) => (
         <div>
           <AssetNameLink portfolioId={a.id} ticker={a.nome} nomeComoPrincipal />
-          {a.observacoes && <div className="text-xs text-black mt-1">{a.observacoes}</div>}
+          {a.observacoes && (
+            <div className="text-xs text-gray-900 dark:text-white mt-1">{a.observacoes}</div>
+          )}
         </div>
       ),
       renderSectionTotal: (s) => (
@@ -84,7 +86,9 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       header: 'Vencimento',
       align: 'center',
       render: (a) => (
-        <span className="font-medium text-black">{formatVencimento(a.vencimento)}</span>
+        <span className="font-medium text-gray-900 dark:text-white">
+          {formatVencimento(a.vencimento)}
+        </span>
       ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
@@ -117,7 +121,9 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       key: 'cotacaoAtual',
       header: 'Cotacao em Tempo Real',
       align: 'right',
-      render: (a, f) => <span className="text-black">{f.formatCurrency(a.cotacaoAtual)}</span>,
+      render: (a, f) => (
+        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+      ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
