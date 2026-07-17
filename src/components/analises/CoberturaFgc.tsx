@@ -400,7 +400,13 @@ export default function CoberturaFgc() {
                                 : '—'}
                             </td>
                             <td className="whitespace-nowrap px-5 py-3 text-center">
-                              {ativo.coberto && ativo.valorAtual > inst.limiteFgc ? (
+                              {/* 2.7 (auditoria jul/2026): o limite FGC é por INSTITUIÇÃO,
+                                  não por ativo. Se a soma dos ativos cobertos da instituição
+                                  excede o limite (mesma condição do header "R$ X acima do
+                                  limite"), TODOS os ativos cobertos dela estão parcialmente
+                                  expostos — antes o badge só acusava quando o ativo SOZINHO
+                                  passava de 250k, contradizendo o header. */}
+                              {ativo.coberto && inst.excedente > 0 ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                                   <svg
                                     width="12"
