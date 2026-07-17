@@ -18,11 +18,17 @@ export type TesouroIndexer = 'CDI' | 'IPCA' | 'PRE';
 
 export const inferIndexerFromDescricao = (descricao: string): TesouroIndexer | null => {
   if (!descricao) return null;
-  const lower = descricao.toLowerCase();
+  // Remove acentos (NFD + strip combining marks) ANTES dos regex: o \b do JS é
+  // ASCII, então /\bpré\b/ nunca casa "pré" em NFC ("é" não é word-char e
+  // é→espaço não forma boundary) — "Tesouro Pré 2030" caía no null.
+  const lower = descricao
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
   if (/\bselic\b/.test(lower)) return 'CDI';
   if (/\bipca\b/.test(lower)) return 'IPCA';
   // Renda+ e Educa+ são produtos do Tesouro híbridos atrelados ao IPCA.
   if (/\brenda\s*\+/.test(lower) || /\beduca\s*\+/.test(lower)) return 'IPCA';
-  if (/\bprefixado\b/.test(lower) || /\bpr[eé]\b/.test(lower)) return 'PRE';
+  if (/\bprefixado\b/.test(lower) || /\bpre\b/.test(lower)) return 'PRE';
   return null;
 };
