@@ -49,6 +49,10 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
           currency: 'BRL',
         })
       : formatCurrency(valueUSD);
+  // Para valores que JÁ estão em BRL (ex.: necessidade de aporte, calculada
+  // sobre a carteira total em reais) — não converter por cotacaoDolar.
+  const formatBRL = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const columns: ColumnDef<ReitAtivo, ReitSecao>[] = [
     {
@@ -208,7 +212,8 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
   const metricCards: MetricCardConfig[] = [
     {
       title: 'Necessidade de Aporte Total',
-      getValue: (_r, nec) => formatCurrencyBRL(nec ?? 0),
+      // nec vem do necessidadeAporteMap (base carteira, já em BRL) — sem conversão.
+      getValue: (_r, nec) => formatBRL(nec ?? 0),
       color: 'warning',
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
