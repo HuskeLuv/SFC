@@ -344,7 +344,7 @@ export default function PrevidenciaSegurosTable({
                   className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  % da Carteira
+                  % da Aba
                 </th>
                 <th
                   className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"

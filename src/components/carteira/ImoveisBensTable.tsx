@@ -307,7 +307,7 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
                   className="px-2 py-2 font-bold text-black text-xs text-right"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  % da Carteira Total
+                  % da Aba
                 </th>
                 <th
                   className="px-2 py-2 font-bold text-black text-xs text-right"

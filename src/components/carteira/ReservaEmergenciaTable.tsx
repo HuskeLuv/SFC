@@ -262,7 +262,7 @@ export default function ReservaEmergenciaTable({
                   className="px-2 py-2 font-bold text-black text-xs text-center"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  % Carteira
+                  % da Aba
                 </TableCell>
                 <TableCell
                   isHeader

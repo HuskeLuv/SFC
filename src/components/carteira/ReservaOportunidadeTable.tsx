@@ -223,7 +223,7 @@ export default function ReservaOportunidadeTable({
                 Valor Atual
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
-                % Carteira
+                % da Aba
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
                 <span className="block">Risco Por Ativo</span>
