@@ -43,6 +43,13 @@ export const valorEm = (
  * acumulados em %: (1+fim)/(1+inicio)-1. Usa o último ponto <= cada borda
  * (janela que começa entre dois pontos herda o anterior — antes exigia
  * pontos DENTRO da janela e devolvia 0% ou pegava um ponto tardio).
+ *
+ * Janela que começa NA primeira data da série (ou antes) usa base 0, não o
+ * valor do 1º ponto: o TWR do backend carrega no 1º ponto o "ganho
+ * instantâneo" do dia da compra (preço pago vs mercado, padrão Kinvo —
+ * calculateHistoricoTWR). Rebasear no 1º ponto descartava esse ganho e o
+ * card "Do início" divergia do último ponto plotado no gráfico (que exibe a
+ * série bruta): card -1,35% vs gráfico -16,44% no cenário auditado.
  */
 export const calcularRentabilidade = (
   data: Array<{ date: number; value: number }>,
@@ -50,7 +57,7 @@ export const calcularRentabilidade = (
   dataFim: number,
 ): number => {
   if (data.length === 0) return 0;
-  const valorInicio = valorEm(data, dataInicio) ?? data[0]?.value ?? 0;
+  const valorInicio = dataInicio <= data[0].date ? 0 : (valorEm(data, dataInicio) ?? 0);
   const valorFim = valorEm(data, dataFim);
   if (valorFim === null) return 0;
   const cumInicio = 1 + valorInicio / 100;

@@ -50,8 +50,28 @@ describe('calcularRentabilidade — janela sobre série de acumulados', () => {
     expect(calcularRentabilidade(serie, day(-90), day(0))).toBeCloseTo(4.7619, 3);
   });
 
-  it('início antes da série clampa no primeiro ponto', () => {
+  it('início antes da série usa base 0 (retorno total, incluindo o 1º ponto)', () => {
     expect(calcularRentabilidade(serie, day(-9999), day(0))).toBeCloseTo(10, 3);
+  });
+
+  it('início NA primeira data usa base 0 — não rebaseia fora o ganho instantâneo do dia 1', () => {
+    // Série cujo 1º ponto já carrega -15,3% (ganho/perda instantânea da compra,
+    // padrão do calculateHistoricoTWR). "Do início" deve devolver o último valor
+    // bruto (-16,44%), igual ao último ponto plotado no gráfico — não
+    // (1-0,1644)/(1-0,153)-1 = -1,35%.
+    const serieComGanhoInstantaneo = [
+      { date: day(-30), value: -15.3 },
+      { date: day(-15), value: -16.0 },
+      { date: day(-1), value: -16.44 },
+    ];
+    expect(calcularRentabilidade(serieComGanhoInstantaneo, day(-30), day(0))).toBeCloseTo(
+      -16.44,
+      3,
+    );
+  });
+
+  it('início em ponto intermediário mantém a base no último ponto <= borda', () => {
+    expect(calcularRentabilidade(serie, day(-180), day(0))).toBeCloseTo(4.7619, 3);
   });
 
   it('valorInicio 0% não zera o resultado (bug antigo: if(valorInicio===0) return 0)', () => {
