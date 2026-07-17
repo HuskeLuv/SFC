@@ -58,20 +58,38 @@ describe('calcularRentabilidade — janela sobre série de acumulados', () => {
   });
 });
 
+// Datas das séries reais são meia-noite UTC (normalizeDateStart no backend) —
+// o helper de teste precisa espelhar isso, não a meia-noite local.
+const dayUtc = (offsetDias: number): number => {
+  const now = new Date();
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offsetDias);
+};
+
 describe('dropCurrentDay', () => {
   it('remove o ponto do dia corrente (parcial)', () => {
     const serie = [
-      { date: day(-2), value: 1 },
-      { date: day(-1), value: 2 },
-      { date: day(0), value: 3 },
+      { date: dayUtc(-2), value: 1 },
+      { date: dayUtc(-1), value: 2 },
+      { date: dayUtc(0), value: 3 },
     ];
     const out = dropCurrentDay(serie);
     expect(out).toHaveLength(2);
     expect(out[out.length - 1].value).toBe(2);
   });
 
+  it('corta o dia corrente em UTC, não local (em UTC-3 o ponto de hoje 00:00 UTC escapava e o card fechava 1 dia à frente do gráfico)', () => {
+    // 00:00 UTC de hoje é ANTES da meia-noite local em UTC-3 (03:00 UTC) —
+    // o corte local mantinha esse ponto parcial.
+    const serie = [
+      { date: dayUtc(-1), value: 2 },
+      { date: dayUtc(0), value: 3 },
+    ];
+    const out = dropCurrentDay(serie);
+    expect(out.map((p) => p.value)).toEqual([2]);
+  });
+
   it('mantém a série quando só existe o dia corrente (não zera o card)', () => {
-    const serie = [{ date: day(0), value: 3 }];
+    const serie = [{ date: dayUtc(0), value: 3 }];
     expect(dropCurrentDay(serie)).toHaveLength(1);
   });
 });

@@ -14,12 +14,14 @@ const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false })
 /**
  * Remove o ponto do dia corrente (parcial) — mesma regra do gráfico em
  * RentabilidadeGeral, para card e gráfico fecharem no mesmo ponto.
+ * As datas da série são meia-noite UTC (normalizeDateStart no backend), então o
+ * corte é contra a meia-noite UTC de hoje — meia-noite LOCAL em UTC-3 cai às
+ * 03:00 UTC e deixava o ponto parcial de hoje passar (card 1 dia à frente).
  */
 export const dropCurrentDay = <T extends { date: number }>(series: T[]): T[] => {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const hojeTs = hoje.getTime();
-  const drop = series.filter((item) => item.date < hojeTs);
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const drop = series.filter((item) => item.date < todayUtc);
   return drop.length > 0 ? drop : series;
 };
 
