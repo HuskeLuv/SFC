@@ -158,7 +158,10 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
     updateValorAtualizado,
   } = useImoveisBens();
 
-  // Calcular risco (carteira total) e percentual da carteira da aba
+  // Calcular risco e percentual da aba. `totalCarteira` aqui é o
+  // dinheiroMaisBens (carteira líquida + imóveis/bens) passado por
+  // CarteiraResumo — incluir os próprios imóveis no denominador evita a
+  // saturação em 100% quando um imóvel vale mais que a carteira líquida.
   const dataComRisco = useMemo(() => {
     if (!data) return data;
 

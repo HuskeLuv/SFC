@@ -107,6 +107,20 @@ export default function CarteiraResumo() {
   const [_metaErrorMessage, _setMetaErrorMessage] = useState<string | null>(null);
   const { data: reservaEmergenciaData, refetch: refetchReservaEmergencia } = useReservaEmergencia();
 
+  // Denominador ÚNICO de "Carteira Total" (decisão jul/2026): usar
+  // `resumo.totais.dinheiro` do backend — patrimônio líquido investível
+  // (posições valoradas + caixas por aba + caixa consolidado, SEM
+  // imóveis/bens) — a MESMA base da tabela de alocação, da pizza e da
+  // necessidade de aporte (CarteiraTabs). Antes as colunas "Risco por Ativo
+  // (Carteira Total)" usavam `resumo.saldoBruto` (sem caixas), então "% Atual"
+  // e "Risco (Carteira Total)" nunca fechavam na mesma tela.
+  // Para Imóveis & Bens o risco usa `totais.dinheiroMaisBens` (base COM os
+  // próprios imóveis, igual ao % da linha imoveisBens na alocação) — com a
+  // base líquida um imóvel maior que a carteira saturava em 100%.
+  // Fallback para payload cacheado antigo sem `totais`.
+  const carteiraTotal = resumo?.totais?.dinheiro ?? resumo?.saldoBruto ?? 0;
+  const carteiraTotalComBens = resumo?.totais?.dinheiroMaisBens ?? carteiraTotal;
+
   return (
     <div>
       {/* Header com botão de adicionar investimento */}
@@ -201,68 +215,68 @@ export default function CarteiraResumo() {
               saldoInicioMes={reservaEmergenciaData.saldoInicioMes}
               rendimento={reservaEmergenciaData.rendimento}
               rentabilidade={reservaEmergenciaData.rentabilidade}
-              totalCarteira={resumo?.saldoBruto || 0}
+              totalCarteira={carteiraTotal}
             />
           </TabContent>
 
           {/* Reserva de Oportunidade */}
           <TabContent id="reserva-oportunidade" isActive={activeTab === 'reserva-oportunidade'}>
-            <ReservaOportunidadeTable totalCarteira={resumo?.saldoBruto || 0} />
+            <ReservaOportunidadeTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* Renda Fixa */}
           <TabContent id="renda-fixa" isActive={activeTab === 'renda-fixa'}>
-            <RendaFixaTable totalCarteira={resumo?.saldoBruto || 0} />
+            <RendaFixaTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* FIM/FIA */}
           <TabContent id="fim-fia" isActive={activeTab === 'fim-fia'}>
-            <FimFiaTable totalCarteira={resumo?.saldoBruto || 0} />
+            <FimFiaTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* FIIs */}
           <TabContent id="fiis" isActive={activeTab === 'fiis'}>
-            <FiiTable totalCarteira={resumo?.saldoBruto || 0} />
+            <FiiTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* Ações */}
           <TabContent id="acoes" isActive={activeTab === 'acoes'}>
-            <AcoesTable totalCarteira={resumo?.saldoBruto || 0} />
+            <AcoesTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* Stocks */}
           <TabContent id="stocks" isActive={activeTab === 'stocks'}>
-            <StocksTable totalCarteira={resumo?.saldoBruto || 0} />
+            <StocksTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* REIT */}
           <TabContent id="reit" isActive={activeTab === 'reit'}>
-            <ReitTable totalCarteira={resumo?.saldoBruto || 0} />
+            <ReitTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* ETF's */}
           <TabContent id="etf" isActive={activeTab === 'etf'}>
-            <EtfTable totalCarteira={resumo?.saldoBruto || 0} />
+            <EtfTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* Moedas, Criptomoedas & Outros */}
           <TabContent id="moedas-criptos" isActive={activeTab === 'moedas-criptos'}>
-            <MoedasCriptosTable totalCarteira={resumo?.saldoBruto || 0} />
+            <MoedasCriptosTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* Previdência e Seguros */}
           <TabContent id="previdencia" isActive={activeTab === 'previdencia'}>
-            <PrevidenciaSegurosTable totalCarteira={resumo?.saldoBruto || 0} />
+            <PrevidenciaSegurosTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* Opções */}
           <TabContent id="opcoes" isActive={activeTab === 'opcoes'}>
-            <OpcoesTable totalCarteira={resumo?.saldoBruto || 0} />
+            <OpcoesTable totalCarteira={carteiraTotal} />
           </TabContent>
 
           {/* Imóveis & Bens */}
           <TabContent id="imoveis" isActive={activeTab === 'imoveis'}>
-            <ImoveisBensTable totalCarteira={resumo?.saldoBruto || 0} />
+            <ImoveisBensTable totalCarteira={carteiraTotalComBens} />
           </TabContent>
 
           {/* Outras tabs - páginas em branco */}

@@ -95,7 +95,7 @@ export interface GenericAssetTableProps<TAtivo, TSecao> {
   /**
    * Cotação para converter valorAtualizado (moeda da aba, ex.: USD em
    * Stocks/REIT) para BRL SÓ no cálculo do risco, cujo denominador
-   * (totalCarteira = resumo.saldoBruto) é em BRL. Não afeta
+   * (totalCarteira = resumo.totais.dinheiro) é em BRL. Não afeta
    * percentualCarteira/necessidadeAporte, que são relativos à própria aba.
    * Se null/ausente (cotação indisponível), mantém o comportamento anterior
    * (sem conversão).
