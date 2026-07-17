@@ -1,5 +1,6 @@
 'use client';
 import React, { useMemo } from 'react';
+import { formatPct } from '@/utils/format';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table';
 import ComponentCard from '../common/ComponentCard';
 import { UiTablePlaceholderRows } from '@/components/carteira/shared';
@@ -303,7 +304,7 @@ export default function ReservaEmergenciaTable({
                   {formatCurrency(totais.valorAtualizado)}
                 </TableCell>
                 <TableCell className="px-2 py-2 text-xs text-white font-bold text-center">
-                  100,00%
+                  {sortedAtivos.length > 0 ? formatPct(100) : '—'}
                 </TableCell>
                 <TableCell className="px-2 py-2 text-xs text-white font-bold text-center">
                   {formatPercentage(totais.risco)}

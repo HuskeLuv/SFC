@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
+import { formatPct } from '@/utils/format';
 import { usePrevidenciaSeguros } from '@/hooks/usePrevidenciaSeguros';
 import { PrevidenciaSegurosAtivo } from '@/types/previdencia-seguros';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -395,7 +396,9 @@ export default function PrevidenciaSegurosTable({
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(data?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
+                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                  {ativosComRisco.length > 0 ? formatPct(100) : '—'}
+                </td>
                 <td className="px-2 py-2 text-xs text-right text-white font-bold">
                   {formatPercentage(data?.totalGeral?.objetivo || 0)}
                 </td>

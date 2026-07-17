@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { formatPct } from '@/utils/format';
 import { useAcoes } from '@/hooks/useAcoes';
 import { AcaoAtivo, AcaoSecao } from '@/types/acoes';
 import {
@@ -36,6 +37,9 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
   };
+
+  // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
+  const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
 
   const columns: ColumnDef<AcaoAtivo, AcaoSecao>[] = [
     {
@@ -128,7 +132,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
-      renderGrandTotal: () => '100.00%',
+      renderGrandTotal: () => (temAtivos ? formatPct(100) : '—'),
     },
     {
       key: 'objetivo',

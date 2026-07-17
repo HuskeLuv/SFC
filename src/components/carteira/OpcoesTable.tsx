@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { formatPct } from '@/utils/format';
 import { useOpcoes } from '@/hooks/useOpcoes';
 import { OpcaoAtivo, OpcaoSecao } from '@/types/opcoes';
 import {
@@ -45,6 +46,9 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
   };
+
+  // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
+  const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
 
   const columns: ColumnDef<OpcaoAtivo, OpcaoSecao>[] = [
     {
@@ -147,7 +151,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
-      renderGrandTotal: () => '100.00%',
+      renderGrandTotal: () => (temAtivos ? formatPct(100) : '—'),
     },
     {
       key: 'objetivo',

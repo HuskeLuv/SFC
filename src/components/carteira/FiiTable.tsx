@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { formatPct } from '@/utils/format';
 import { useFii } from '@/hooks/useFii';
 import { FiiAtivo, FiiSecao, TipoFii } from '@/types/fii';
 import {
@@ -58,6 +59,9 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     if (tipo === 'tvm') return 'tvm';
     return null;
   };
+
+  // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
+  const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
 
   const columns: ColumnDef<FiiAtivo, FiiSecao>[] = [
     {
@@ -150,7 +154,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
-      renderGrandTotal: () => '100.00%',
+      renderGrandTotal: () => (temAtivos ? formatPct(100) : '—'),
     },
     {
       key: 'objetivo',

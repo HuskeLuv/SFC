@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { formatPct } from '@/utils/format';
 import { useEtf } from '@/hooks/useEtf';
 import { EtfAtivo, EtfSecao } from '@/types/etf';
 import {
@@ -39,6 +40,9 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
   };
+
+  // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
+  const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
 
   const columns: ColumnDef<EtfAtivo, EtfSecao>[] = [
     {
@@ -138,7 +142,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
-      renderGrandTotal: () => '100.00%',
+      renderGrandTotal: () => (temAtivos ? formatPct(100) : '—'),
     },
     {
       key: 'objetivo',

@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { formatPct } from '@/utils/format';
 import { useFimFia } from '@/hooks/useFimFia';
 import { FimFiaAtivo, FimFiaSecao } from '@/types/fimFia';
 import {
@@ -39,6 +40,9 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
   const handleUpdateValorAtualizado = async (ativoId: string, novoValor: number) => {
     await updateValorAtualizado(ativoId, novoValor);
   };
+
+  // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
+  const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
 
   const columns: ColumnDef<FimFiaAtivo, FimFiaSecao>[] = [
     {
@@ -141,7 +145,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
-      renderGrandTotal: () => '100.00%',
+      renderGrandTotal: () => (temAtivos ? formatPct(100) : '—'),
     },
     {
       key: 'riscoPorAtivo',
