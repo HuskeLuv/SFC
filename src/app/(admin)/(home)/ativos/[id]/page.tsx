@@ -22,6 +22,7 @@ import RentabilidadeChart from '@/components/analises/RentabilidadeChart';
 import { useIndices } from '@/hooks/useIndices';
 import { ChevronDownIcon } from '@/icons';
 import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
+import { utcMidnight } from '@/utils/utcDay';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -158,17 +159,17 @@ function AtivoDetalheContent() {
 
   const rentabilidadeStartDate = useMemo(() => {
     if (!data?.historicoTWR?.length) return undefined;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
     const firstDate = Math.min(...data.historicoTWR.map((h) => h.date));
     if (rentabilidadeRange === 'MAX') return firstDate;
-    const start = new Date(now);
+    const start = new Date();
     if (rentabilidadeRange === '12M') start.setMonth(start.getMonth() - 12);
     else if (rentabilidadeRange === '2A') start.setFullYear(start.getFullYear() - 2);
     else if (rentabilidadeRange === '5A') start.setFullYear(start.getFullYear() - 5);
     else if (rentabilidadeRange === '10A') start.setFullYear(start.getFullYear() - 10);
-    start.setHours(0, 0, 0, 0);
-    return Math.max(firstDate, start.getTime());
+    // Borda em meia-noite UTC do dia-calendário: a série TWR é UTC-midnight e a
+    // borda local (setHours(0,0,0,0) = 03:00Z em UTC-3) + filtro >= excluía o
+    // ponto do dia-borda da janela.
+    return Math.max(firstDate, utcMidnight(start));
   }, [data?.historicoTWR, rentabilidadeRange]);
 
   const filteredHistoricoTWR = useMemo(() => {
