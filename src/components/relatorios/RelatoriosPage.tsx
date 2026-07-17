@@ -18,6 +18,7 @@ import ProventosDistribuicaoChart from '@/components/analises/ProventosDistribui
 import PieChartCarteiraInvestimentos from '@/components/charts/pie/PieChartCarteiraInvestimentos';
 import LineChartCarteiraHistorico from '@/components/charts/line/LineChartCarteiraHistorico';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { utcMidnight, dropCurrentDayUtc } from '@/utils/utcDay';
 
 const formatDateLabel = (date: Date | null) => (date ? date.toLocaleDateString('pt-BR') : '--');
 
@@ -35,8 +36,12 @@ export default function RelatoriosPage() {
     setCustomStart,
     setCustomEnd,
   } = useReportPeriod();
-  const startTimestamp = startDate ? startDate.getTime() : undefined;
-  const endTimestamp = endDate ? endDate.getTime() : undefined;
+  // Bordas em meia-noite UTC do dia-calendário selecionado: as séries
+  // (carteira-historico, índices, patrimônio) têm pontos UTC-midnight. Borda
+  // local (03:00Z em UTC-3) + filtro >= excluía o dia 1º da janela, e a borda
+  // final 23:59:59 local (dia+1 02:59Z) vazava o ponto do dia seguinte.
+  const startTimestamp = startDate ? utcMidnight(startDate) : undefined;
+  const endTimestamp = endDate ? utcMidnight(endDate) : undefined;
 
   const { resumo, loading: carteiraLoading } = useCarteira();
   const { data: carteiraHistorico, loading: loadingCarteiraHistorico } =
@@ -77,8 +82,10 @@ export default function RelatoriosPage() {
     [endTimestamp],
   );
 
+  // dropCurrentDayUtc: remove o ponto parcial de hoje, alinhando com a regra
+  // das Análises ("fecha no último dia útil").
   const filteredCarteiraHistorico = useMemo(
-    () => filterCarteiraByRange(carteiraHistorico),
+    () => dropCurrentDayUtc(filterCarteiraByRange(carteiraHistorico)),
     [carteiraHistorico, filterCarteiraByRange],
   );
 
