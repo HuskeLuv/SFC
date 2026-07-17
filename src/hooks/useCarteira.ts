@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { formatBRL, formatPctSigned } from '@/utils/format';
 
 export interface CarteiraResumo {
   saldoBruto: number;
@@ -145,22 +146,13 @@ export const useCarteira = () => {
     [resumo, csrfFetch, queryClient, queryKey],
   );
 
-  const formatCurrency = (value: number | undefined | null): string => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return 'R$ 0,00';
-    }
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
+  const formatCurrency = (value: number | undefined | null): string => formatBRL(value);
 
-  const formatPercentage = (value: number | undefined | null): string => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return '0,00%';
-    }
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-  };
+  // Único consumidor real hoje: RentabilidadeResumo (via CarteiraResumoContext),
+  // que exibe deltas de rentabilidade — sinal "+" é a convenção correta ali.
+  // TODO: se um consumidor novo for percentual não-delta (alocação/risco), use
+  // formatPct direto em vez desta função.
+  const formatPercentage = (value: number | undefined | null): string => formatPctSigned(value);
 
   const refetch = useCallback(() => {
     return queryRefetch().then(() => undefined);

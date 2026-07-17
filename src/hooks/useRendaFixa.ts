@@ -7,6 +7,7 @@ import { RendaFixaData, RendaFixaSecao, RendaFixaAtivo } from '@/types/rendaFixa
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { formatBRL, formatPctSigned } from '@/utils/format';
 
 export const useRendaFixa = () => {
   const { csrfFetch } = useCsrf();
@@ -46,22 +47,14 @@ export const useRendaFixa = () => {
     },
   });
 
-  const formatCurrency = (value: number | undefined | null): string => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return 'R$ 0,00';
-    }
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
+  const formatCurrency = (value: number | undefined | null): string => formatBRL(value);
 
-  const formatPercentage = (value: number | undefined | null): string => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return '0,00%';
-    }
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-  };
+  // Comportamento com sinal preservado: os consumidores em RendaFixaTable são
+  // majoritariamente deltas (rentabilidade, rentabilidade média).
+  // TODO(auditoria 2.9): a coluna "Risco por ativo" (RendaFixaTable:236) NÃO é
+  // delta e não deveria ganhar "+" — quando aquele arquivo for liberado, trocar
+  // aquele call site para formatPct.
+  const formatPercentage = (value: number | undefined | null): string => formatPctSigned(value);
 
   const updateCaixaParaInvestir = useCallback(
     async (novoCaixa: number) => {
