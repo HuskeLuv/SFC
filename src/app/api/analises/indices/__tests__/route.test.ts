@@ -105,6 +105,36 @@ describe('GET /api/analises/indices', () => {
     expect(data.indices).toBeDefined();
   });
 
+  it('startDate meia-noite LOCAL (03:00Z) nao perde o mes de abertura do IPCA', async () => {
+    // IPCA/POUPANCA sao rows MENSAIS datadas no dia 1o 00:00Z. Antes do fix, o
+    // startDate vinha CRU do cliente (meia-noite local = 03:00Z em UTC-3) direto
+    // no Prisma gte — o row de 01/01 00:00Z ficava fora e o mes inteiro de
+    // abertura sumia da serie. A rota agora normaliza pra 00:00Z antes de usar.
+    const monthlyRows = Array.from({ length: 8 }, (_, i) => ({
+      indexType: 'IPCA',
+      date: new Date(Date.UTC(2025, i, 1)),
+      value: 0.004, // 0,4%/mes em decimal
+    }));
+    mockPrisma.economicIndex.findMany.mockImplementation(({ where }: never) => {
+      const w = where as { indexType?: string; date?: { gte?: Date } };
+      if (w?.indexType !== 'IPCA') return Promise.resolve([]);
+      const gte = w?.date?.gte;
+      return Promise.resolve(gte ? monthlyRows.filter((r) => r.date >= gte) : monthlyRows);
+    });
+
+    // Cliente antigo (cache/URL): 01/01/2025 00:00 local em UTC-3 = 03:00Z
+    const localMidnight = String(Date.UTC(2025, 0, 1) + 3 * 60 * 60 * 1000);
+    const response = await GET(createRequest({ range: '10y', startDate: localMidnight }));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    const ipca = data.indices.find((s: { symbol: string }) => s.symbol === 'IPCA');
+    expect(ipca).toBeDefined();
+    // Ancora exatamente no dia-borda (01/01 00:00Z), rebaseada em 0
+    expect(ipca.data[0].date).toBe(Date.UTC(2025, 0, 1));
+    expect(ipca.data[0].value).toBe(0);
+  });
+
   it('aceita parametro startDate', async () => {
     const startDate = String(Date.now() - 86400000 * 60);
     const response = await GET(createRequest({ startDate }));
