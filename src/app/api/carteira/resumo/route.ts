@@ -500,8 +500,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  // Placeholder quando não há dados ou includeHistorico=false (carregamento rápido)
-  if (historicoPatrimonio.length === 0) {
+  // Placeholder SÓ quando o usuário realmente não tem histórico (baseline flat
+  // pro gráfico de usuário novo). O fast path includeHistorico=false devolve
+  // séries VAZIAS: o placeholder de 12 pontos flat + TWR zerado era tratado
+  // pelo front como dado real (gráfico de patrimônio achatado numa race e
+  // hasHistoricoTWR=true com 12 zeros na Análise), e ainda corrompia a
+  // derivação de firstInvestmentDate (1º ponto com saldo>0 = 11 meses atrás).
+  if (historicoPatrimonio.length === 0 && includeHistorico) {
     const hoje = new Date();
     const saldo = Math.round(saldoBruto * 100) / 100;
     const aplicado = Math.round(valorAplicado * 100) / 100;
