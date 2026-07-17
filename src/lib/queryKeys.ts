@@ -2,7 +2,10 @@ export const queryKeys = {
   carteira: {
     all: ['carteira'] as const,
     resumo: () => [...queryKeys.carteira.all, 'resumo'] as const,
-    historico: () => [...queryKeys.carteira.all, 'historico'] as const,
+    // startDate entra na key: o servidor REBASEIA a série na janela pedida,
+    // então respostas de janelas diferentes não são intercambiáveis no cache.
+    historico: (startDate?: number) =>
+      [...queryKeys.carteira.all, 'historico', startDate ?? 'inicio'] as const,
     rentabilidade: (startDate?: string) =>
       [...queryKeys.carteira.all, 'rentabilidade', startDate] as const,
     janelas: () => [...queryKeys.carteira.all, 'janelas'] as const,

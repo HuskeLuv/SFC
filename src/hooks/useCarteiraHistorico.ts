@@ -22,7 +22,7 @@ export const useCarteiraHistorico = (
     isLoading: loading,
     error: queryError,
   } = useQuery<{ twr: IndexData[]; mwr: IndexData[] }>({
-    queryKey: queryKeys.carteira.historico(),
+    queryKey: queryKeys.carteira.historico(startDate),
     queryFn: async ({ signal }) => {
       let url = '/api/analises/carteira-historico';
       if (startDate) {
