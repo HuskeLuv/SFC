@@ -14,12 +14,14 @@ const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false })
 /**
  * Remove o ponto do dia corrente (parcial) — mesma regra do gráfico em
  * RentabilidadeGeral, para card e gráfico fecharem no mesmo ponto.
+ * As datas da série são meia-noite UTC (normalizeDateStart no backend), então o
+ * corte é contra a meia-noite UTC de hoje — meia-noite LOCAL em UTC-3 cai às
+ * 03:00 UTC e deixava o ponto parcial de hoje passar (card 1 dia à frente).
  */
 export const dropCurrentDay = <T extends { date: number }>(series: T[]): T[] => {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const hojeTs = hoje.getTime();
-  const drop = series.filter((item) => item.date < hojeTs);
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const drop = series.filter((item) => item.date < todayUtc);
   return drop.length > 0 ? drop : series;
 };
 
@@ -41,6 +43,13 @@ export const valorEm = (
  * acumulados em %: (1+fim)/(1+inicio)-1. Usa o último ponto <= cada borda
  * (janela que começa entre dois pontos herda o anterior — antes exigia
  * pontos DENTRO da janela e devolvia 0% ou pegava um ponto tardio).
+ *
+ * Janela que começa NA primeira data da série (ou antes) usa base 0, não o
+ * valor do 1º ponto: o TWR do backend carrega no 1º ponto o "ganho
+ * instantâneo" do dia da compra (preço pago vs mercado, padrão Kinvo —
+ * calculateHistoricoTWR). Rebasear no 1º ponto descartava esse ganho e o
+ * card "Do início" divergia do último ponto plotado no gráfico (que exibe a
+ * série bruta): card -1,35% vs gráfico -16,44% no cenário auditado.
  */
 export const calcularRentabilidade = (
   data: Array<{ date: number; value: number }>,
@@ -48,13 +57,39 @@ export const calcularRentabilidade = (
   dataFim: number,
 ): number => {
   if (data.length === 0) return 0;
-  const valorInicio = valorEm(data, dataInicio) ?? data[0]?.value ?? 0;
+  const valorInicio = dataInicio <= data[0].date ? 0 : (valorEm(data, dataInicio) ?? 0);
   const valorFim = valorEm(data, dataFim);
   if (valorFim === null) return 0;
   const cumInicio = 1 + valorInicio / 100;
   if (cumInicio <= 0) return 0;
   return ((1 + valorFim / 100) / cumInicio - 1) * 100;
 };
+
+/**
+ * Retorno do último dia FECHADO: último ponto da série vs o anterior.
+ * (A janela [ontem, hoje] quebrou quando dropCurrentDay passou a cortar o dia
+ * corrente: a série termina ontem, as duas bordas resolvem pro MESMO ponto e o
+ * resultado era sempre 0,00%. Ancorar nos dois últimos pontos também cobre
+ * fim de semana/feriado: mostra o retorno do último pregão.)
+ */
+export const retornoUltimoDia = (data: Array<{ date: number; value: number }>): number => {
+  if (data.length < 2) return 0;
+  const prev = data[data.length - 2];
+  const last = data[data.length - 1];
+  const cumPrev = 1 + prev.value / 100;
+  if (cumPrev <= 0) return 0;
+  return ((1 + last.value / 100) / cumPrev - 1) * 100;
+};
+
+/**
+ * "% sobre CDI" é uma RAZÃO (carteira rendeu X% do CDI), não um delta — acima
+ * de 100% já significa "acima do CDI", então não leva o prefixo "+" do
+ * formatPercentage (ex.: 110% do CDI = rendeu 10% a mais que o CDI).
+ */
+const formatRatio = (value: number): string =>
+  Number.isFinite(value)
+    ? `${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
+    : '0,00%';
 
 interface RentabilidadeResumoProps {
   /** Início do período selecionado (ms). undefined/igual ao 1º investimento = desde o início. */
@@ -101,16 +136,18 @@ export default function RentabilidadeResumo({
     return dropCurrentDay(serie);
   }, [hasHistoricoTWR, resumo?.historicoTWR, carteiraHistoricoDiario]);
 
+  // Data de referência exibida no card: último dia fechado da série da carteira.
+  const dataReferencia = useMemo(() => {
+    const last = carteiraData[carteiraData.length - 1];
+    if (!last) return null;
+    return new Date(last.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  }, [carteiraData]);
+
   // Calcular rentabilidades por período (janelas mês-calendário, padrão do app)
   const rentabilidades = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const hojeTimestamp = hoje.getTime();
-
-    // Último dia
-    const ontem = new Date(hoje);
-    ontem.setDate(ontem.getDate() - 1);
-    const ontemTimestamp = ontem.getTime();
 
     // Primeiro dia do mês
     const primeiroDiaMesTimestamp = new Date(hoje.getFullYear(), hoje.getMonth(), 1).getTime();
@@ -126,7 +163,7 @@ export default function RentabilidadeResumo({
     const ibovData = dropCurrentDay(indicesDesdeInicio.find((i) => i.name === 'IBOV')?.data ?? []);
 
     const janela = (data: Array<{ date: number; value: number }>) => ({
-      ultimoDia: calcularRentabilidade(data, ontemTimestamp, hojeTimestamp),
+      ultimoDia: retornoUltimoDia(data),
       mes: calcularRentabilidade(data, primeiroDiaMesTimestamp, hojeTimestamp),
       ano: calcularRentabilidade(data, primeiroDiaAnoTimestamp, hojeTimestamp),
       dozeMeses: calcularRentabilidade(data, dozeMesesAtrasTimestamp, hojeTimestamp),
@@ -319,10 +356,13 @@ export default function RentabilidadeResumo({
           </div>
         </div>
 
-        {/* Valores de Resumo (acompanham o filtro de período) */}
-        {periodLabel ? (
+        {/* Valores de Resumo (acompanham o filtro de período). A data de
+            referência é o último dia FECHADO da série (dropCurrentDay) — o
+            mesmo último ponto do gráfico — pra não restar dúvida de corte. */}
+        {periodLabel || dataReferencia ? (
           <div className="text-center text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-            Acumulado · {periodLabel}
+            {periodLabel ? `Acumulado · ${periodLabel}` : 'Acumulado'}
+            {dataReferencia ? ` · em ${dataReferencia}` : ''}
           </div>
         ) : null}
         <div className="grid grid-cols-3 gap-4">
@@ -339,9 +379,9 @@ export default function RentabilidadeResumo({
             </div>
           </div>
           <div className="text-center">
-            <div className="text-sm text-gray-500 dark:text-gray-400">% SOBRE CDI</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">% DO CDI</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {formatPercentage(valoresResumo.sobreCDI)}
+              {formatRatio(valoresResumo.sobreCDI)}
             </div>
           </div>
         </div>
