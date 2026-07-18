@@ -8,6 +8,7 @@ import {
   MetricCardConfig,
   EditableObjetivoCell,
   BasicTablePlaceholderRows,
+  metricColorBySign,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
@@ -62,7 +63,9 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       render: (a) => (
         <div>
           <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} />
-          {a.observacoes && <div className="text-xs text-black mt-1">{a.observacoes}</div>}
+          {a.observacoes && (
+            <div className="text-xs text-gray-900 dark:text-white mt-1">{a.observacoes}</div>
+          )}
         </div>
       ),
     },
@@ -106,7 +109,9 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       key: 'cotacaoAtual',
       header: 'Cotacao Atual',
       align: 'right',
-      render: (a, f) => <span className="text-black">{f.formatCurrency(a.cotacaoAtual)}</span>,
+      render: (a, f) => (
+        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+      ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
@@ -133,7 +138,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     },
     {
       key: 'percentualCarteira',
-      header: '% da Carteira',
+      header: '% da Aba',
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
@@ -228,12 +233,12 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     {
       title: 'Rendimento',
       getValue: (r) => formatCurrencyBRL((r?.rendimento as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rendimento as number) ?? 0),
     },
     {
       title: 'Rentabilidade',
       getValue: (r) => formatPercentage((r?.rentabilidade as number) ?? 0),
-      color: 'success',
+      getColor: (r) => metricColorBySign((r?.rentabilidade as number) ?? 0),
     },
   ];
 
@@ -291,14 +296,16 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                       key={index}
                       className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
                     >
-                      <td className="px-2 py-2 text-xs font-medium text-black">{item.nome}</td>
-                      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+                      <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
+                        {item.nome}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
                         {formatCurrency(item.cotacaoAtual)}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+                      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
                         {formatCurrency(item.necessidadeAporte)}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right font-medium text-black">
+                      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
                         {formatNumber(item.loteAproximado)}
                       </td>
                     </tr>

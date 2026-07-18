@@ -229,9 +229,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     // Calcular percentual da carteira
     const percentualCarteira = saldoBrutoTotal > 0 ? (valorAtualizado / saldoBrutoTotal) * 100 : 0;
 
-    // Calcular rentabilidade por ativo: ((valorAtualizado - valorInicial) / valorInicial) * 100
-    const rentabilidade =
-      valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0;
+    // 2.16 (auditoria jul/2026): rentabilidade descontando fluxos — aporte não é
+    // rendimento e resgate não é perda. Ganho = atual − (inicial + aportes −
+    // resgates); base = capital investido (inicial + aportes). A fórmula antiga
+    // ((atual − inicial) / inicial) contava aporte como lucro.
+    const capitalInvestido = valorInicial + aporte;
+    const ganho = valorAtualizado - (valorInicial + aporte - resgate);
+    const rentabilidade = capitalInvestido > 0 ? (ganho / capitalInvestido) * 100 : 0;
 
     // Buscar metadata do mapa ou usar valores padrão
     const metadata = item.assetId ? metadataMap.get(item.assetId) : null;
@@ -253,12 +257,18 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     };
   });
 
-  // Calcular totais
+  // Calcular totais — mesma convenção de fluxos da rentabilidade por ativo
+  // (2.16): rendimento = atual − (inicial + aportes − resgates); base =
+  // inicial + aportes. Este resumo é a FONTE ÚNICA exibida no card e na
+  // linha TOTAL GERAL da tabela (ReservaOportunidadeTable).
   const totalValorInicial = ativos.reduce((sum, ativo) => sum + ativo.valorInicial, 0);
+  const totalAporte = ativos.reduce((sum, ativo) => sum + ativo.aporte, 0);
+  const totalResgate = ativos.reduce((sum, ativo) => sum + ativo.resgate, 0);
   const totalValorAtualizado = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
   const saldoInicioMes = totalValorInicial; // Assumindo que é o saldo inicial
-  const rendimento = totalValorAtualizado - totalValorInicial;
-  const rentabilidade = totalValorInicial > 0 ? (rendimento / totalValorInicial) * 100 : 0;
+  const rendimento = totalValorAtualizado - (totalValorInicial + totalAporte - totalResgate);
+  const totalCapitalInvestido = totalValorInicial + totalAporte;
+  const rentabilidade = totalCapitalInvestido > 0 ? (rendimento / totalCapitalInvestido) * 100 : 0;
 
   return NextResponse.json({
     ativos,

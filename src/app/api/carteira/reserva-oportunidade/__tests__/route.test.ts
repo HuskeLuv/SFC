@@ -95,6 +95,51 @@ describe('GET /api/carteira/reserva-oportunidade', () => {
     expect(data.rentabilidade).toBeDefined();
   });
 
+  it('rentabilidade desconta aportes/resgates (2.16 — aporte não é lucro)', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    const portfolioItem = {
+      id: 'port-1',
+      userId: 'user-1',
+      quantity: 0,
+      avgPrice: 0,
+      totalInvested: 1000,
+      assetId: 'asset-1',
+      asset: {
+        id: 'asset-1',
+        name: 'Reserva Oportunidade CDB',
+        type: 'opportunity',
+        symbol: 'RESERVA-OPORT-1',
+      },
+    };
+    mockPrisma.portfolio.findMany
+      .mockResolvedValueOnce([portfolioItem])
+      .mockResolvedValueOnce([{ ...portfolioItem, stock: null }]);
+    // compra inicial de 1.000 + aporte de 500 → valorAtualizado calculado = 1.500.
+    // Sem ganho de mercado a rentabilidade deve ser 0% — a fórmula antiga
+    // ((atual − inicial)/inicial) devolvia +50% contando o aporte como lucro.
+    mockPrisma.stockTransaction.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { assetId: 'asset-1', type: 'compra', total: 1000, notes: null },
+      {
+        assetId: 'asset-1',
+        type: 'compra',
+        total: 500,
+        notes: JSON.stringify({ operation: { action: 'aporte' } }),
+      },
+    ]);
+
+    const response = await GET(createGetRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.ativos).toHaveLength(1);
+    expect(data.ativos[0].valorInicial).toBe(1000);
+    expect(data.ativos[0].aporte).toBe(500);
+    expect(data.ativos[0].valorAtualizado).toBe(1500);
+    expect(data.ativos[0].rentabilidade).toBe(0);
+    expect(data.rendimento).toBe(0);
+    expect(data.rentabilidade).toBe(0);
+  });
+
   it('retorna lista vazia quando não há reservas de oportunidade', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
     mockPrisma.portfolio.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);

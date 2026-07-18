@@ -12,7 +12,12 @@ interface SensibilidadeAtivosProps {
   data: SensibilidadeItem[];
 }
 
+// 2.8 (auditoria jul/2026): beta NEGATIVO é hedge — antes virava barra mínima
+// verde (Math.max(5, beta/max) com cor da faixa "< 0.5"), indistinguível de um
+// ativo neutro. Agora a barra é proporcional a |beta| e o hedge ganha cor e
+// rótulo próprios; as faixas positivas seguem inalteradas.
 function betaColor(beta: number): string {
+  if (beta < 0) return 'bg-blue-light-500';
   if (beta > 1.5) return 'bg-error-500';
   if (beta > 1) return 'bg-warning-500';
   if (beta > 0.5) return 'bg-brand-500';
@@ -20,7 +25,7 @@ function betaColor(beta: number): string {
 }
 
 export default function SensibilidadeAtivos({ data }: SensibilidadeAtivosProps) {
-  const maxBeta = data.length > 0 ? Math.max(...data.map((d) => d.beta), 1) : 1;
+  const maxAbsBeta = data.length > 0 ? Math.max(...data.map((d) => Math.abs(d.beta)), 1) : 1;
 
   return (
     <ComponentCard title="Sensibilidade ao Mercado (Beta)">
@@ -34,13 +39,18 @@ export default function SensibilidadeAtivos({ data }: SensibilidadeAtivosProps) 
           ) : (
             <div className="space-y-4">
               {data.map((item) => {
-                const barWidth = Math.max(5, (item.beta / maxBeta) * 100);
+                const barWidth = Math.max(5, (Math.abs(item.beta) / maxAbsBeta) * 100);
                 return (
                   <div key={item.ticker}>
                     {/* Asset name + beta value */}
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
                         {item.ticker} - {item.nome}
+                        {item.beta < 0 && (
+                          <span className="ml-2 rounded-full bg-blue-light-50 px-2 py-0.5 text-xs font-medium text-blue-light-600 dark:bg-blue-light-900/30 dark:text-blue-light-400">
+                            Hedge (β negativo)
+                          </span>
+                        )}
                       </span>
                       <span className="text-sm font-semibold text-[#465FFF]">
                         {item.beta.toFixed(2).replace('.', ',')}

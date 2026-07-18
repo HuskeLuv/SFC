@@ -35,6 +35,18 @@ export function formatDate(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString('pt-BR');
 }
 
+/**
+ * Alíquota de IRRF sobre JCP por ano-calendário (fato gerador = data de pagamento).
+ * Espelha `getJcpIrrfRate` (src/services/pricing/dividendService.ts), que não pode
+ * ser importado em componente client por depender do Prisma. O marco da LC 224/2025
+ * é 01/01/2026 (alinhado ao ano-calendário), então derivar do ano é exato:
+ * - até 2025: 15% (Lei 9.249/95, art. 9º §2º)
+ * - 2026 em diante: 17,5% (LC 224/2025)
+ */
+export function jcpIrrfRateLabel(year: number): string {
+  return year >= 2026 ? '17,5%' : '15%';
+}
+
 export const CATEGORIA_LABEL: Record<'acao_br' | 'fii' | 'etf_br', string> = {
   acao_br: 'Ações BR',
   fii: 'FII',

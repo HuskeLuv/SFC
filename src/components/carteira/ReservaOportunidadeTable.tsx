@@ -12,7 +12,7 @@ import {
   StandardTableRow,
 } from '@/components/ui/table/StandardTable';
 import { TableBody } from '@/components/ui/table';
-import { StandardTablePlaceholderRows } from '@/components/carteira/shared';
+import { StandardTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
 const MIN_PLACEHOLDER_ROWS = 4;
@@ -165,10 +165,12 @@ export default function ReservaOportunidadeTable({
     { valorInicial: 0, aporte: 0, resgate: 0, valorAtualizado: 0 },
   );
 
-  const rentabilidadeTotal =
-    totais.valorInicial > 0
-      ? ((totais.valorAtualizado - totais.valorInicial) / totais.valorInicial) * 100
-      : 0;
+  // 2.16 (auditoria jul/2026): a linha TOTAL exibia (atual − inicial)/inicial,
+  // ignorando os aportes/resgates que a própria tabela mostra (aporte contava
+  // como lucro). Exibe a MESMA fonte do card "Rentabilidade" acima:
+  // data.rentabilidade do backend, que desconta fluxos
+  // (atual − (inicial + aportes − resgates)) / (inicial + aportes).
+  const rentabilidadeTotal = data?.rentabilidade ?? 0;
 
   return (
     <div className="space-y-4">
@@ -181,12 +183,12 @@ export default function ReservaOportunidadeTable({
         <ReservaOportunidadeMetricCard
           title="Rendimento"
           value={formatCurrency(data?.rendimento ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.rendimento ?? 0)}
         />
         <ReservaOportunidadeMetricCard
           title="Rentabilidade"
           value={formatPercentage(data?.rentabilidade ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.rentabilidade ?? 0)}
         />
       </div>
 
@@ -223,7 +225,7 @@ export default function ReservaOportunidadeTable({
                 Valor Atual
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
-                % Carteira
+                % da Aba
               </StandardTableHeaderCell>
               <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
                 <span className="block">Risco Por Ativo</span>
