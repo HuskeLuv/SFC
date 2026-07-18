@@ -136,6 +136,13 @@ export default function RentabilidadeResumo({
     return dropCurrentDay(serie);
   }, [hasHistoricoTWR, resumo?.historicoTWR, carteiraHistoricoDiario]);
 
+  // Data de referência exibida no card: último dia fechado da série da carteira.
+  const dataReferencia = useMemo(() => {
+    const last = carteiraData[carteiraData.length - 1];
+    if (!last) return null;
+    return new Date(last.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  }, [carteiraData]);
+
   // Calcular rentabilidades por período (janelas mês-calendário, padrão do app)
   const rentabilidades = useMemo(() => {
     const hoje = new Date();
@@ -349,10 +356,13 @@ export default function RentabilidadeResumo({
           </div>
         </div>
 
-        {/* Valores de Resumo (acompanham o filtro de período) */}
-        {periodLabel ? (
+        {/* Valores de Resumo (acompanham o filtro de período). A data de
+            referência é o último dia FECHADO da série (dropCurrentDay) — o
+            mesmo último ponto do gráfico — pra não restar dúvida de corte. */}
+        {periodLabel || dataReferencia ? (
           <div className="text-center text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-            Acumulado · {periodLabel}
+            {periodLabel ? `Acumulado · ${periodLabel}` : 'Acumulado'}
+            {dataReferencia ? ` · em ${dataReferencia}` : ''}
           </div>
         ) : null}
         <div className="grid grid-cols-3 gap-4">
