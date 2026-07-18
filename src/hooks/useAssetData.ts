@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { formatBRL, formatUSD, formatPct } from '@/utils/format';
 
 /**
  * Minimal shape that all asset data types share.
@@ -101,24 +102,11 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
     overrideCurrency?: 'BRL' | 'USD',
   ): string => {
     const cur = overrideCurrency ?? currency;
-    const loc = cur === 'BRL' ? 'pt-BR' : 'en-US';
-
-    if (value === undefined || value === null || isNaN(value)) {
-      return cur === 'BRL' ? 'R$ 0,00' : '$0.00';
-    }
-
-    return value.toLocaleString(loc, {
-      style: 'currency',
-      currency: cur,
-    });
+    // Dólar também é exibido no padrão pt-BR ("US$ 1.234,56") — ver utils/format.
+    return cur === 'BRL' ? formatBRL(value) : formatUSD(value);
   };
 
-  const formatPercentage = (value: number | undefined | null): string => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return currency === 'BRL' ? '0,00%' : '0.00%';
-    }
-    return `${value.toFixed(2)}%`;
-  };
+  const formatPercentage = (value: number | undefined | null): string => formatPct(value);
 
   const formatNumber = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) {

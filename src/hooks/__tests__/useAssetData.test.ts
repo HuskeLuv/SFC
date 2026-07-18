@@ -249,9 +249,10 @@ describe('useAssetData', () => {
 
       await waitFor(() => expect(result.current.loading).toBe(false));
 
+      // Dólar no padrão pt-BR: "US$ 1.234,56"
       const formatted = result.current.formatCurrency(1234.56);
-      expect(formatted).toContain('$');
-      expect(formatted).toContain('1,234.56');
+      expect(formatted).toContain('US$');
+      expect(formatted).toContain('1.234,56');
     });
 
     it('formatPercentage handles null/undefined', async () => {
@@ -262,7 +263,8 @@ describe('useAssetData', () => {
 
       expect(result.current.formatPercentage(null)).toBe('0,00%');
       expect(result.current.formatPercentage(undefined)).toBe('0,00%');
-      expect(result.current.formatPercentage(12.345)).toBe('12.35%');
+      // Convenção pt-BR (vírgula decimal) via formatPct de @/utils/format
+      expect(result.current.formatPercentage(12.345)).toBe('12,35%');
     });
 
     it('formatNumber handles null', async () => {

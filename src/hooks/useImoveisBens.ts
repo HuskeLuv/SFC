@@ -7,6 +7,7 @@ import { ImovelBemData } from '@/types/imoveis-bens';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { formatBRL, formatUSD, formatPct } from '@/utils/format';
 
 interface UseImoveisBensReturn {
   data: ImovelBemData | null;
@@ -41,19 +42,10 @@ export const useImoveisBens = (): UseImoveisBensReturn => {
     },
   });
 
-  const formatCurrency = (value: number, currency: 'BRL' | 'USD' = 'BRL'): string => {
-    const formatter = new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    return formatter.format(value);
-  };
+  const formatCurrency = (value: number, currency: 'BRL' | 'USD' = 'BRL'): string =>
+    currency === 'BRL' ? formatBRL(value) : formatUSD(value);
 
-  const formatPercentage = (value: number): string => {
-    return `${value.toFixed(2)}%`;
-  };
+  const formatPercentage = (value: number): string => formatPct(value);
 
   const formatNumber = (value: number): string => {
     return new Intl.NumberFormat('pt-BR', {

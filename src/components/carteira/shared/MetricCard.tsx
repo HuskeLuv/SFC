@@ -6,23 +6,27 @@
 interface MetricCardProps {
   title: string;
   value: string;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
   change?: string;
-  changeDirection?: "up" | "down";
+  /**
+   * "up" → verde, "down" → vermelho, "neutral" → cinza (sem conotação de alta).
+   * Use "neutral" quando a variação é nula/zero/indisponível.
+   */
+  changeDirection?: 'up' | 'down' | 'neutral';
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({
   title,
   value,
-  color = "primary",
+  color = 'primary',
   change,
   changeDirection,
 }) => {
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -32,7 +36,11 @@ const MetricCard: React.FC<MetricCardProps> = ({
       {change ? (
         <p
           className={`mt-1 text-xs font-semibold ${
-            changeDirection === "down" ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400"
+            changeDirection === 'down'
+              ? 'text-red-600 dark:text-red-400'
+              : changeDirection === 'neutral'
+                ? 'text-gray-500 dark:text-gray-400'
+                : 'text-green-700 dark:text-green-400'
           }`}
         >
           {change}
@@ -43,4 +51,3 @@ const MetricCard: React.FC<MetricCardProps> = ({
 };
 
 export default MetricCard;
-

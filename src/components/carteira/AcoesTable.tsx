@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { formatPct } from '@/utils/format';
 import { useAcoes } from '@/hooks/useAcoes';
 import { AcaoAtivo, AcaoSecao } from '@/types/acoes';
 import {
@@ -37,6 +38,9 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
   };
+
+  // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
+  const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
 
   const columns: ColumnDef<AcaoAtivo, AcaoSecao>[] = [
     {
@@ -80,7 +84,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     },
     {
       key: 'precoAquisicao',
-      header: 'Preco Medio',
+      header: 'Preço Médio',
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
       renderSectionTotal: () => '-',
@@ -96,7 +100,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     },
     {
       key: 'cotacaoAtual',
-      header: 'Cotacao Atual',
+      header: 'Cotação Atual',
       align: 'right',
       render: (a, f) => <span>{f.formatCurrency(a.cotacaoAtual)}</span>,
       renderSectionTotal: () => '-',
@@ -129,7 +133,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
-      renderGrandTotal: () => '100.00%',
+      renderGrandTotal: () => (temAtivos ? formatPct(100) : '—'),
     },
     {
       key: 'objetivo',
@@ -183,7 +187,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
     {
-      title: 'Saldo Inicio do Mes',
+      title: 'Saldo Início do Mês',
       getValue: (r) => formatCurrency((r?.saldoInicioMes as number) ?? 0),
     },
     {
@@ -207,7 +211,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       data={data as unknown as Record<string, unknown>}
       loading={loading}
       error={error}
-      loadingText="Carregando dados Acoes..."
+      loadingText="Carregando dados de Ações..."
       columns={columns}
       getSecoes={(d) => (d.secoes as AcaoSecao[]) ?? []}
       getSectionAtivos={(s) => s.ativos}
@@ -220,7 +224,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       onUpdateCaixaParaInvestir={updateCaixaParaInvestir}
       sectionOrder={SECTION_ORDER}
       sectionNames={SECTION_NAMES}
-      tableTitle="Acoes - Detalhamento"
+      tableTitle="Ações - Detalhamento"
       formatCurrency={formatCurrency}
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}

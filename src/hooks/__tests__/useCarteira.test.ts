@@ -246,9 +246,10 @@ describe('useCarteira', () => {
       const { result } = renderHookWithClient(() => useCarteira());
 
       // formatCurrency is available immediately (no async dependency)
+      // Intl pt-BR usa NBSP ( ) entre "R$" e o valor
       expect(result.current.formatCurrency(1234.56)).toMatch(/R\$\s*1\.234,56/);
-      expect(result.current.formatCurrency(null)).toBe('R$ 0,00');
-      expect(result.current.formatCurrency(undefined)).toBe('R$ 0,00');
+      expect(result.current.formatCurrency(null)).toBe('R$ 0,00');
+      expect(result.current.formatCurrency(undefined)).toBe('R$ 0,00');
     });
   });
 
@@ -259,9 +260,10 @@ describe('useCarteira', () => {
 
       const { result } = renderHookWithClient(() => useCarteira());
 
-      expect(result.current.formatPercentage(25)).toBe('+25.00%');
-      expect(result.current.formatPercentage(-10.5)).toBe('-10.50%');
-      expect(result.current.formatPercentage(0)).toBe('+0.00%');
+      // Convenção pt-BR (vírgula decimal) via formatPctSigned de @/utils/format
+      expect(result.current.formatPercentage(25)).toBe('+25,00%');
+      expect(result.current.formatPercentage(-10.5)).toBe('-10,50%');
+      expect(result.current.formatPercentage(0)).toBe('+0,00%');
       expect(result.current.formatPercentage(null)).toBe('0,00%');
     });
   });

@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { formatPct } from '@/utils/format';
 import { useFimFia } from '@/hooks/useFimFia';
 import { FimFiaAtivo, FimFiaSecao } from '@/types/fimFia';
 import {
@@ -41,6 +42,9 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     await updateValorAtualizado(ativoId, novoValor);
   };
 
+  // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
+  const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
+
   const columns: ColumnDef<FimFiaAtivo, FimFiaSecao>[] = [
     {
       key: 'nome',
@@ -76,7 +80,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     },
     {
       key: 'categoriaNivel1',
-      header: 'Cat. Nivel 1',
+      header: 'Cat. Nível 1',
       align: 'center',
       render: (a) => a.categoriaNivel1,
       renderSectionTotal: () => '-',
@@ -84,7 +88,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     },
     {
       key: 'subcategoriaNivel2',
-      header: 'Subcat. Nivel 2',
+      header: 'Subcat. Nível 2',
       align: 'center',
       render: (a) => a.subcategoriaNivel2,
       renderSectionTotal: () => '-',
@@ -142,7 +146,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
-      renderGrandTotal: () => '100.00%',
+      renderGrandTotal: () => (temAtivos ? formatPct(100) : '—'),
     },
     {
       key: 'riscoPorAtivo',
@@ -207,7 +211,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
     {
-      title: 'Saldo Inicio do Mes',
+      title: 'Saldo Início do Mês',
       getValue: (r) => formatCurrency((r?.saldoInicioMes as number) ?? 0),
     },
     {

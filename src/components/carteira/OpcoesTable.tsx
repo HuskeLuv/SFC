@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { formatPct } from '@/utils/format';
 import { useOpcoes } from '@/hooks/useOpcoes';
 import { OpcaoAtivo, OpcaoSecao } from '@/types/opcoes';
 import {
@@ -46,6 +47,9 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
   };
+
+  // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
+  const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
 
   const columns: ColumnDef<OpcaoAtivo, OpcaoSecao>[] = [
     {
@@ -103,7 +107,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     },
     {
       key: 'precoAquisicao',
-      header: 'Preco Aquisicao',
+      header: 'Preço Aquisição',
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
       renderSectionTotal: () => '-',
@@ -119,7 +123,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     },
     {
       key: 'cotacaoAtual',
-      header: 'Cotacao em Tempo Real',
+      header: 'Cotação em Tempo Real',
       align: 'right',
       render: (a, f) => (
         <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
@@ -154,7 +158,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
-      renderGrandTotal: () => '100.00%',
+      renderGrandTotal: () => (temAtivos ? formatPct(100) : '—'),
     },
     {
       key: 'objetivo',
@@ -206,7 +210,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
     {
-      title: 'Saldo Inicio do Mes',
+      title: 'Saldo Início do Mês',
       getValue: (r) => formatCurrency((r?.saldoInicioMes as number) ?? 0),
     },
     {
@@ -230,7 +234,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       data={data as unknown as Record<string, unknown>}
       loading={loading}
       error={error}
-      loadingText="Carregando dados de opcoes..."
+      loadingText="Carregando dados de opções..."
       columns={columns}
       getSecoes={(d) => (d.secoes as OpcaoSecao[]) ?? []}
       getSectionAtivos={(s) => s.ativos}
@@ -243,7 +247,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
       onUpdateCaixaParaInvestir={updateCaixaParaInvestir}
       sectionOrder={SECTION_ORDER}
       sectionNames={SECTION_NAMES}
-      tableTitle="Opcoes - Detalhamento"
+      tableTitle="Opções - Detalhamento"
       formatCurrency={formatCurrency}
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}

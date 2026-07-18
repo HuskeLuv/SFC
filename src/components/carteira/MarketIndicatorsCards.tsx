@@ -1,6 +1,7 @@
 import { logger } from '@/lib/logger';
 import React, { useEffect, useMemo, useState } from 'react';
 import MetricCard from './shared/MetricCard';
+import { formatPct, formatPctSigned } from '@/utils/format';
 
 type IndicatorValue = {
   price: number | null;
@@ -40,8 +41,16 @@ const formatChange = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) {
     return '--';
   }
-  const sign = value > 0 ? '+' : '';
-  return `${sign}${value.toFixed(2)}%`;
+  // Zero é neutro: sem "+" forçado.
+  return value === 0 ? formatPct(0) : formatPctSigned(value);
+};
+
+/** null/indisponível/zero são neutros — só variação real ganha cor/sinal. */
+const changeDirectionOf = (value: number | null): 'up' | 'down' | 'neutral' => {
+  if (value === null || !Number.isFinite(value) || value === 0) {
+    return 'neutral';
+  }
+  return value > 0 ? 'up' : 'down';
 };
 
 type MarketIndicatorsCardsProps = {
@@ -94,35 +103,35 @@ export default function MarketIndicatorsCards({ extraCards }: MarketIndicatorsCa
         title: 'IBOV',
         value: loading ? '--' : formatIbov(indicators?.ibov.price ?? null),
         change: loading ? '--' : formatChange(ibovChange),
-        changeDirection: (ibovChange ?? 0) < 0 ? 'down' : 'up',
+        changeDirection: loading ? 'neutral' : changeDirectionOf(ibovChange),
         color: 'primary' as const,
       },
       {
         title: 'Dólar Comercial',
         value: loading ? '--' : formatCurrency(indicators?.dolar.price ?? null),
         change: loading ? '--' : formatChange(dolarChange),
-        changeDirection: (dolarChange ?? 0) < 0 ? 'down' : 'up',
+        changeDirection: loading ? 'neutral' : changeDirectionOf(dolarChange),
         color: 'warning' as const,
       },
       {
         title: 'Bitcoin',
         value: loading ? '--' : formatCurrency(indicators?.bitcoin.price ?? null),
         change: loading ? '--' : formatChange(bitcoinChange),
-        changeDirection: (bitcoinChange ?? 0) < 0 ? 'down' : 'up',
+        changeDirection: loading ? 'neutral' : changeDirectionOf(bitcoinChange),
         color: 'success' as const,
       },
       {
         title: 'Ethereum',
         value: loading ? '--' : formatCurrency(indicators?.ethereum.price ?? null),
         change: loading ? '--' : formatChange(ethereumChange),
-        changeDirection: (ethereumChange ?? 0) < 0 ? 'down' : 'up',
+        changeDirection: loading ? 'neutral' : changeDirectionOf(ethereumChange),
         color: 'primary' as const,
       },
     ] as Array<{
       title: string;
       value: string;
       change: string;
-      changeDirection: 'up' | 'down';
+      changeDirection: 'up' | 'down' | 'neutral';
       color: 'primary' | 'success' | 'warning' | 'error';
     }>;
   }, [data, loading]);
