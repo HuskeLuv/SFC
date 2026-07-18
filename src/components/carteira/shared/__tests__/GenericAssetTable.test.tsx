@@ -252,6 +252,64 @@ describe('GenericAssetTable', () => {
     expect(screen.queryByText('PETR4')).not.toBeInTheDocument();
   });
 
+  describe('riscoPorAtivo (cotacaoParaBRL)', () => {
+    const riscoColumns: ColumnDef<TestAtivo, TestSecao>[] = [
+      ...testColumns,
+      {
+        key: 'risco',
+        header: 'Risco',
+        align: 'right',
+        render: (ativo, fmt) =>
+          fmt.formatPercentage((ativo as unknown as { riscoPorAtivo: number }).riscoPorAtivo ?? 0),
+        renderSectionTotal: () => '-',
+        renderGrandTotal: () => '-',
+      },
+    ];
+
+    it('computes risk without conversion when cotacaoParaBRL is absent', () => {
+      // valorAtualizado 1000 / totalCarteira 20000 = 5.00%
+      render(
+        <GenericAssetTable
+          {...buildDefaultProps({ columns: riscoColumns, totalCarteira: 20000 })}
+        />,
+        { wrapper: TestWrapper },
+      );
+
+      expect(screen.getByText('5.00%')).toBeInTheDocument();
+    });
+
+    it('converts valorAtualizado to BRL in risk when cotacaoParaBRL is set', () => {
+      // (1000 USD * 5.5) / totalCarteira 20000 BRL = 27.50%
+      render(
+        <GenericAssetTable
+          {...buildDefaultProps({
+            columns: riscoColumns,
+            totalCarteira: 20000,
+            cotacaoParaBRL: 5.5,
+          })}
+        />,
+        { wrapper: TestWrapper },
+      );
+
+      expect(screen.getByText('27.50%')).toBeInTheDocument();
+    });
+
+    it('keeps previous behavior when cotacaoParaBRL is null (fallback)', () => {
+      render(
+        <GenericAssetTable
+          {...buildDefaultProps({
+            columns: riscoColumns,
+            totalCarteira: 20000,
+            cotacaoParaBRL: null,
+          })}
+        />,
+        { wrapper: TestWrapper },
+      );
+
+      expect(screen.getByText('5.00%')).toBeInTheDocument();
+    });
+  });
+
   it('expands section again when header is clicked twice', () => {
     render(<GenericAssetTable {...buildDefaultProps()} />, { wrapper: TestWrapper });
 

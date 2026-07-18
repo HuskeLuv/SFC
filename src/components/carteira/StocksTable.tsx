@@ -50,6 +50,10 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
           currency: 'BRL',
         })
       : formatCurrency(valueUSD);
+  // Para valores que JÁ estão em BRL (ex.: necessidade de aporte, calculada
+  // sobre a carteira total em reais) — não converter por cotacaoDolar.
+  const formatBRL = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const columns: ColumnDef<CarteiraStockAtivo, CarteiraStockSecao>[] = [
     {
@@ -195,7 +199,8 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
   const metricCards: MetricCardConfig[] = [
     {
       title: 'Necessidade de Aporte Total',
-      getValue: (_r, nec) => formatCurrencyBRL(nec ?? 0),
+      // nec vem do necessidadeAporteMap (base carteira, já em BRL) — sem conversão.
+      getValue: (_r, nec) => formatBRL(nec ?? 0),
       color: 'warning',
     },
     { title: '__CAIXA_PARA_INVESTIR__', getValue: () => '', color: 'success' },
@@ -271,6 +276,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
+      cotacaoParaBRL={cotacaoDolar}
       extraTotalRows={extraTotalRows}
     >
       {/* Charts and aux table */}
