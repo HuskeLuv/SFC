@@ -6,6 +6,7 @@ import EditableCell from './EditableCell';
 import EditableTextCell from './EditableTextCell';
 import Alert from '../ui/alert/Alert';
 import ComponentCard from '../common/ComponentCard';
+import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
 
 interface AlocacaoAtivo {
   categoria: string;
@@ -215,14 +216,8 @@ export default function AlocacaoAtivosTable({
   };
 
   const parseValorReserva = (rawValue: string): number => {
-    const cleanedValue = rawValue
-      .trim()
-      .replace(/\s/g, '')
-      .replace(/\./g, '')
-      .replace(',', '.')
-      .replace(/[^0-9.-]/g, '');
-    const parsedValue = Number.parseFloat(cleanedValue);
-    if (!Number.isFinite(parsedValue)) {
+    const parsedValue = parseCurrencyInput(rawValue);
+    if (parsedValue === null) {
       return Number.NaN;
     }
     return totalCarteira > 0 ? (parsedValue / totalCarteira) * 100 : 0;

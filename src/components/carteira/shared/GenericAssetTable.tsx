@@ -41,11 +41,26 @@ export interface Formatters {
 // Metric card configuration
 // ---------------------------------------------------------------------------
 
+export type MetricCardColor = 'primary' | 'success' | 'warning' | 'error';
+
 export interface MetricCardConfig {
   title: string;
   getValue: (resumo: Record<string, unknown>, necessidadeAporte?: number) => string;
-  color?: 'primary' | 'success' | 'warning' | 'error';
+  color?: MetricCardColor;
+  /**
+   * Cor derivada do dado (ex.: rendimento negativo → 'error'). Quando
+   * definida, tem precedência sobre `color`.
+   */
+  getColor?: (resumo: Record<string, unknown>, necessidadeAporte?: number) => MetricCardColor;
 }
+
+/**
+ * 2.13 (auditoria jul/2026): cards Rendimento/Rentabilidade tinham
+ * `color: 'success'` fixo — prejuízo aparecia em card verde. Helper único
+ * para derivar a cor pelo sinal do valor.
+ */
+export const metricColorBySign = (value: number): MetricCardColor =>
+  value < 0 ? 'error' : 'success';
 
 // ---------------------------------------------------------------------------
 // Props for the generic table
@@ -95,7 +110,7 @@ export interface GenericAssetTableProps<TAtivo, TSecao> {
   /**
    * Cotação para converter valorAtualizado (moeda da aba, ex.: USD em
    * Stocks/REIT) para BRL SÓ no cálculo do risco, cujo denominador
-   * (totalCarteira = resumo.saldoBruto) é em BRL. Não afeta
+   * (totalCarteira = resumo.totais.dinheiro) é em BRL. Não afeta
    * percentualCarteira/necessidadeAporte, que são relativos à própria aba.
    * Se null/ausente (cotação indisponível), mantém o comportamento anterior
    * (sem conversão).
@@ -202,7 +217,7 @@ function GenericSection<TAtivo, TSecao>({
               return (
                 <td
                   key={col.key}
-                  className={`px-2 py-2 text-xs text-black ${alignClass} ${col.cellClassName ?? ''}`}
+                  className={`px-2 py-2 text-xs text-gray-900 dark:text-white ${alignClass} ${col.cellClassName ?? ''}`}
                 >
                   {col.render(ativo, formatters)}
                 </td>
@@ -448,7 +463,9 @@ export default function GenericAssetTable<TAtivo, TSecao>({
               key={idx}
               title={card.title}
               value={card.getValue(resumo, necessidadeAporteTotalCalculada)}
-              color={card.color}
+              color={
+                card.getColor ? card.getColor(resumo, necessidadeAporteTotalCalculada) : card.color
+              }
             />
           );
         })}

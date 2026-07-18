@@ -1,39 +1,26 @@
-import React, { useEffect, useMemo, useState } from "react";
-import Input from "@/components/form/input/InputField";
+import React, { useEffect, useMemo, useState } from 'react';
+import Input from '@/components/form/input/InputField';
+import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
 
 type CaixaParaInvestirCardProps = {
   title?: string;
   value: number;
   formatCurrency: (value: number | null | undefined) => string;
   onSave?: (value: number) => Promise<boolean>;
-  color?: "primary" | "success" | "warning" | "error";
+  color?: 'primary' | 'success' | 'warning' | 'error';
   readOnly?: boolean;
 };
 
-const parseCurrencyToNumber = (rawValue: string): number | null => {
-  const trimmedValue = rawValue.trim();
-  if (!trimmedValue) {
-    return null;
-  }
-  const normalizedValue = trimmedValue
-    .replace(/\s/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".")
-    .replace(/[^0-9.-]/g, "");
-  const parsedValue = Number.parseFloat(normalizedValue);
-  return Number.isFinite(parsedValue) ? parsedValue : null;
-};
-
 const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
-  title = "Caixa para Investir",
+  title = 'Caixa para Investir',
   value,
   formatCurrency,
   onSave,
-  color = "success",
+  color = 'success',
   readOnly = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -58,9 +45,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
   };
 
   const handleSaveValue = async () => {
-    const parsedValue = parseCurrencyToNumber(inputValue);
+    const parsedValue = parseCurrencyInput(inputValue);
     if (parsedValue === null || parsedValue < 0) {
-      setErrorMessage("Informe um valor válido.");
+      setErrorMessage('Informe um valor válido.');
       return;
     }
     setIsSaving(true);
@@ -71,26 +58,26 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
       setErrorMessage(null);
       return;
     }
-    setErrorMessage("Não foi possível salvar o valor.");
+    setErrorMessage('Não foi possível salvar o valor.');
   };
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
+    if (event.key === 'Enter') {
       event.preventDefault();
       void handleSaveValue();
       return;
     }
-    if (event.key === "Escape") {
+    if (event.key === 'Escape') {
       event.preventDefault();
       handleCancelEditing();
     }
   };
 
   const colorClasses = {
-    primary: "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100",
-    success: "bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
-    warning: "bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
-    error: "bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100",
+    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
+    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
+    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 
   return (
@@ -123,7 +110,7 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
                 disabled={isSaving}
                 aria-label="Salvar caixa para investir"
               >
-                {isSaving ? "Salvando..." : "Salvar"}
+                {isSaving ? 'Salvando...' : 'Salvar'}
               </button>
               <button
                 type="button"

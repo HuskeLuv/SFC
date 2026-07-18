@@ -47,7 +47,7 @@ const EditableObjetivoCell: React.FC<EditableObjetivoCellProps> = ({
           className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           autoFocus
         />
-        <span className="text-xs text-black">%</span>
+        <span className="text-xs text-gray-900 dark:text-white">%</span>
       </div>
     );
   }
@@ -57,7 +57,7 @@ const EditableObjetivoCell: React.FC<EditableObjetivoCellProps> = ({
       className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
       onClick={() => setIsEditing(true)}
     >
-      <span className="text-black">{formatPercentage(objetivo)}</span>
+      <span className="text-gray-900 dark:text-white">{formatPercentage(objetivo)}</span>
     </div>
   );
 };

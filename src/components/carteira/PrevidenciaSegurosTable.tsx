@@ -5,7 +5,7 @@ import { PrevidenciaSegurosAtivo } from '@/types/previdencia-seguros';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
-import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
@@ -75,17 +75,23 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs text-black">
+      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
         <div>
           <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
-          {ativo.observacoes && <div className="text-xs text-black mt-1">{ativo.observacoes}</div>}
+          {ativo.observacoes && (
+            <div className="text-xs text-gray-900 dark:text-white mt-1">{ativo.observacoes}</div>
+          )}
         </div>
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">{ativo.carencia} meses</td>
-      <td className="px-2 py-2 text-xs text-center text-black">
+      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
+        {ativo.carencia} meses
+      </td>
+      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
         {formatPercentage(ativo.cotacaoResgate * 100)}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-black">{ativo.liquidacaoResgate} dias</td>
+      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
+        {ativo.liquidacaoResgate} dias
+      </td>
       <td className="px-2 py-2 text-xs text-center">
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
           {ativo.modalidade.charAt(0).toUpperCase() + ativo.modalidade.slice(1)}
@@ -96,23 +102,25 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
           {ativo.subclasse.charAt(0).toUpperCase() + ativo.subclasse.slice(1).replace('_', ' ')}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">{formatNumber(ativo.quantidade)}</td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+        {formatNumber(ativo.quantidade)}
+      </td>
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatCurrency(ativo.precoAquisicao)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatCurrency(ativo.valorTotal)}
       </td>
       <td className="px-2 py-2 text-xs text-right">
-        <span className="text-black">{formatCurrency(ativo.cotacaoAtual)}</span>
+        <span className="text-gray-900 dark:text-white">{formatCurrency(ativo.cotacaoAtual)}</span>
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatCurrency(ativo.valorAtualizado)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatPercentage(ativo.percentualCarteira)}
       </td>
       <td className="px-2 py-2 text-xs text-right border border-black">
@@ -128,24 +136,26 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
               className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               autoFocus
             />
-            <span className="text-xs text-black">%</span>
+            <span className="text-xs text-gray-900 dark:text-white">%</span>
           </div>
         ) : (
           <div
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingObjetivo(true)}
           >
-            <span className="text-black">{formatPercentage(ativo.objetivo)}</span>
+            <span className="text-gray-900 dark:text-white">
+              {formatPercentage(ativo.objetivo)}
+            </span>
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatPercentage(ativo.quantoFalta)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatCurrency(ativo.necessidadeAporte)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-black">
+      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
         {formatPercentage(ativo.rentabilidade)}
       </td>
     </tr>
@@ -249,12 +259,12 @@ export default function PrevidenciaSegurosTable({
         <PrevidenciaSegurosMetricCard
           title="Rendimento"
           value={formatCurrency(data?.resumo?.rendimento ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.resumo?.rendimento ?? 0)}
         />
         <PrevidenciaSegurosMetricCard
           title="Rentabilidade"
           value={formatPercentage(data?.resumo?.rentabilidade ?? 0)}
-          color="success"
+          color={metricColorBySign(data?.resumo?.rentabilidade ?? 0)}
         />
       </div>
 
@@ -344,7 +354,7 @@ export default function PrevidenciaSegurosTable({
                   className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
                   style={{ backgroundColor: '#9E8A58' }}
                 >
-                  % da Carteira
+                  % da Aba
                 </th>
                 <th
                   className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"

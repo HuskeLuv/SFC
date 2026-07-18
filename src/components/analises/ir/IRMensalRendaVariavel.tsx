@@ -46,10 +46,13 @@ export default function IRMensalRendaVariavel() {
           value={mesesComIR.toString()}
           subtext="DARF emitido por categoria"
         />
+        {/* 2.18 (auditoria jul/2026): os cards ficam verdes quando o prejuízo
+            acumulado é MAIOR — sem contexto, lia-se invertido. O subtext
+            explicita que é crédito compensável (abate lucros futuros). */}
         <IRSummaryCard
           label="Prejuízo — RV Comum"
           value={formatBRL(data.saldosPrejuizoAtual.rvComum)}
-          subtext="Pool compartilhado de ações + ETF"
+          subtext="Crédito compensável em lucros futuros — pool ações + ETF"
           color={
             data.saldosPrejuizoAtual.rvComum > 0
               ? 'text-emerald-600 dark:text-emerald-400'
@@ -59,7 +62,7 @@ export default function IRMensalRendaVariavel() {
         <IRSummaryCard
           label="Prejuízo — FII"
           value={formatBRL(data.saldosPrejuizoAtual.fii)}
-          subtext="Pool separado (regra própria)"
+          subtext="Crédito compensável em lucros futuros — pool separado de FII"
           color={
             data.saldosPrejuizoAtual.fii > 0 ? 'text-emerald-600 dark:text-emerald-400' : undefined
           }

@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { ProventoData } from '@/hooks/useProventos';
+import { useTheme } from '@/context/ThemeContext';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') {
@@ -119,6 +120,12 @@ const isValidProventoDate = (date: Date): boolean => {
 };
 
 export default function ProventosHistoricoChart({ proventos }: ProventosHistoricoChartProps) {
+  // 2.17 (auditoria jul/2026): tooltip custom tinha #111827/#E5E7EB fixos —
+  // texto escuro sobre o wrapper claro do Apex ficava ilegível em dark mode.
+  // Cores derivadas do ThemeContext + tooltip.theme para o wrapper acompanhar.
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const { series, colors, xMin, xMax } = useMemo(() => {
     const monthlyMap = new Map<string, Map<string, number>>();
     const ativosSet = new Set<string>();
@@ -300,7 +307,10 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
       tooltip: {
         shared: true,
         intersect: false,
+        theme: isDark ? 'dark' : 'light',
         custom: ({ series, dataPointIndex, w }) => {
+          const textColor = isDark ? '#F9FAFB' : '#111827';
+          const dividerColor = isDark ? '#374151' : '#E5E7EB';
           const seriesNames = w.globals.seriesNames || [];
           const colorsList = w.globals.colors || [];
           const seriesX = w.globals.seriesX || [];
@@ -351,9 +361,9 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                 <div style="display:flex;align-items:center;gap:8px;">
                   <span style="width:8px;height:8px;border-radius:9999px;background:${item.color};display:inline-block;"></span>
-                  <span style="font-size:12px;color:#111827;">${item.name}</span>
+                  <span style="font-size:12px;color:${textColor};">${item.name}</span>
                 </div>
-                <span style="font-size:12px;color:#111827;">
+                <span style="font-size:12px;color:${textColor};">
                   ${formatCurrency(item.value)} (${formattedPercentage}%)
                 </span>
               </div>
@@ -363,14 +373,14 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
 
           return `
           <div style="padding:12px 14px;min-width:220px;">
-            <div style="font-size:12px;color:#111827;margin-bottom:10px;">${title}</div>
-            ${rows || '<div style="font-size:12px;color:#111827;">Sem dados</div>'}
-            <div style="height:1px;background:#E5E7EB;margin:10px 0;"></div>
+            <div style="font-size:12px;color:${textColor};margin-bottom:10px;">${title}</div>
+            ${rows || `<div style="font-size:12px;color:${textColor};">Sem dados</div>`}
+            <div style="height:1px;background:${dividerColor};margin:10px 0;"></div>
             <div style="display:flex;align-items:center;justify-content:space-between;">
-              <span style="font-size:12px;color:#111827;">Total recebido:</span>
-              <span style="font-size:12px;color:#111827;font-weight:600;">${formatCurrency(total)}</span>
+              <span style="font-size:12px;color:${textColor};">Total recebido:</span>
+              <span style="font-size:12px;color:${textColor};font-weight:600;">${formatCurrency(total)}</span>
             </div>
-            <div style="font-size:11px;color:#111827;margin-top:8px;">Toque no gráfico para o detalhamento</div>
+            <div style="font-size:11px;color:${textColor};margin-top:8px;">Clique no gráfico para o detalhamento</div>
           </div>
         `;
         },
@@ -392,7 +402,7 @@ export default function ProventosHistoricoChart({ proventos }: ProventosHistoric
         opacity: 1,
       },
     }),
-    [colors, xMin, xMax],
+    [colors, xMin, xMax, isDark],
   );
 
   if (!hasData) {

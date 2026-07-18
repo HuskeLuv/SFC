@@ -36,7 +36,7 @@ export default function IRCripto() {
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <IRSummaryCard
-          label="IR total (15% sobre lucro)"
+          label="IR devido sobre lucro"
           value={formatBRL(totalIR)}
           subtext={`${data.meses.length} meses com vendas`}
           highlight
