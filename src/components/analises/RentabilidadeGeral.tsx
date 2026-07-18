@@ -9,6 +9,7 @@ import { useRentabilidadePeriodo } from '@/hooks/useRentabilidadePeriodo';
 import RentabilidadeChart from './RentabilidadeChart';
 import RentabilidadeResumo from './RentabilidadeResumo';
 import { inicioUltimosNMeses, inicioDoAno } from '@/utils/periodWindow';
+import { utcMidnight } from '@/utils/utcDay';
 
 type RentabilidadeRangeValue = 'inicio' | 'ano' | '12m' | '2y' | '3y' | '5y' | '10y';
 type RentabilidadeMetric = 'mwr' | 'twr';
@@ -23,11 +24,11 @@ const RENTABILIDADE_RANGE_OPTIONS: Array<{ value: RentabilidadeRangeValue; label
   { value: '10y', label: 'Últimos 10 anos' },
 ];
 
-const normalizeStartDate = (date: Date): number => {
-  const normalized = new Date(date);
-  normalized.setHours(0, 0, 0, 0);
-  return normalized.getTime();
-};
+// Meia-noite UTC do dia-calendário selecionado: as séries de benchmark têm
+// pontos UTC-midnight, e a borda local (03:00Z em UTC-3) + filtro >= excluía
+// o ponto-âncora do dia 1º (filterDataByStart) e desalinhava o Math.max com
+// firstInvestmentDate (também UTC).
+const normalizeStartDate = (date: Date): number => utcMidnight(date);
 
 const getRangeStartDate = (range: RentabilidadeRangeValue, firstDate?: number) => {
   const now = new Date();

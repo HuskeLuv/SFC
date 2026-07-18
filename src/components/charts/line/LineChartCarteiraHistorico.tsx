@@ -3,6 +3,7 @@
 import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
+import { yearKeyUtc } from '@/utils/utcDay';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') {
@@ -121,7 +122,10 @@ const periodoStart = (id: PeriodoId, latestTs: number): number | null => {
       d.setMonth(d.getMonth() - 6);
       return d.getTime();
     case 'YTD':
-      return new Date(d.getFullYear(), 0, 1).getTime();
+      // Série é UTC-midnight: 1º/jan em UTC (não local). getFullYear() local do
+      // último ponto (00:00Z = 21:00 do dia anterior em UTC-3) podia devolver o
+      // ano anterior, e a borda local 03:00Z + filtro >= excluía o ponto de 1º/jan.
+      return yearKeyUtc(latestTs);
     case '1A':
       d.setFullYear(d.getFullYear() - 1);
       return d.getTime();

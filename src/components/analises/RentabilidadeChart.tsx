@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { IndexData, IndexResponse } from '@/hooks/useIndices';
+import { monthKeyUtc, yearKeyUtc } from '@/utils/utcDay';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') return true;
@@ -190,8 +191,10 @@ const KINVO_COLOR_BY_NAME: Record<string, string> = {
 const CARTEIRA_COLOR = '#06B6D4'; // ciano (como no Kinvo)
 const FALLBACK_SERIES_COLOR = '#94A3B8';
 
-// Função para agrupar dados por mês (pega o último valor de cada mês)
-const groupByMonth = (data: IndexData[]): IndexData[] => {
+// Função para agrupar dados por mês (pega o último valor CUMULATIVO de cada mês).
+// Bucket via monthKeyUtc: os pontos das séries são meia-noite UTC — acessores
+// locais em UTC-3 jogavam o ponto de 01/06 00:00Z pra maio.
+export const groupByMonth = (data: IndexData[]): IndexData[] => {
   if (!Array.isArray(data) || data.length === 0) return [];
 
   const monthlyMap = new Map<number, IndexData>();
@@ -200,9 +203,7 @@ const groupByMonth = (data: IndexData[]): IndexData[] => {
     if (!item || typeof item.date !== 'number' || typeof item.value !== 'number') {
       return; // Ignorar itens inválidos
     }
-    const date = new Date(item.date);
-    // Criar chave para o mês (primeiro dia do mês)
-    const monthKey = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
+    const monthKey = monthKeyUtc(item.date);
 
     // Sempre pegar o último valor do mês (sobrescrever se já existir)
     monthlyMap.set(monthKey, {
@@ -214,8 +215,10 @@ const groupByMonth = (data: IndexData[]): IndexData[] => {
   return Array.from(monthlyMap.values()).sort((a, b) => a.date - b.date);
 };
 
-// Função para agrupar dados por ano (pega o último valor de cada ano)
-const groupByYear = (data: IndexData[]): IndexData[] => {
+// Função para agrupar dados por ano (pega o último valor CUMULATIVO de cada ano).
+// Bucket via yearKeyUtc: getFullYear() local sobre 01/01 00:00Z devolvia o ano
+// anterior em UTC-3 (sintoma real: eixo anual com "2025" duplicado).
+export const groupByYear = (data: IndexData[]): IndexData[] => {
   if (!Array.isArray(data) || data.length === 0) return [];
 
   const yearlyMap = new Map<number, IndexData>();
@@ -224,9 +227,7 @@ const groupByYear = (data: IndexData[]): IndexData[] => {
     if (!item || typeof item.date !== 'number' || typeof item.value !== 'number') {
       return; // Ignorar itens inválidos
     }
-    const date = new Date(item.date);
-    // Criar chave para o ano (primeiro dia do ano)
-    const yearKey = new Date(date.getFullYear(), 0, 1).getTime();
+    const yearKey = yearKeyUtc(item.date);
 
     // Sempre pegar o último valor do ano (sobrescrever se já existir)
     yearlyMap.set(yearKey, {
@@ -236,6 +237,30 @@ const groupByYear = (data: IndexData[]): IndexData[] => {
   });
 
   return Array.from(yearlyMap.values()).sort((a, b) => a.date - b.date);
+};
+
+/**
+ * Converte uma série de acumulados (já agrupada por bucket) em RETORNO DO
+ * PERÍODO de cada bucket: (1+atual/100)/(1+anterior/100)-1. O primeiro bucket
+ * usa base 0 — a série de período já vem rebaseada em 0 no início da janela,
+ * então o retorno dele é o próprio acumulado.
+ *
+ * Sem isso, os gráficos "Por Mês"/"Por Ano" plotavam o ACUMULADO com eixo
+ * "% por mês"/"% por ano" — a barra de dezembro mostrava o acumulado do ano.
+ */
+export const toPeriodReturns = (cumulative: IndexData[]): IndexData[] => {
+  if (!Array.isArray(cumulative) || cumulative.length === 0) return [];
+
+  const sorted = [...cumulative].sort((a, b) => a.date - b.date);
+  let prevFactor = 1; // base 0% antes do primeiro bucket
+  return sorted.map((item) => {
+    const factor = 1 + item.value / 100;
+    const value = prevFactor > 0 ? (factor / prevFactor - 1) * 100 : 0;
+    if (factor > 0) {
+      prevFactor = factor;
+    }
+    return { date: item.date, value };
+  });
 };
 
 export default function RentabilidadeChart({
@@ -263,12 +288,12 @@ export default function RentabilidadeChart({
       return seriesData;
     }
 
-    // Agrupar dados conforme o período
+    // Agrupar dados conforme o período e converter acumulado → retorno do bucket
     let processedCarteiraData: IndexData[];
     if (period === '1mo') {
-      processedCarteiraData = groupByMonth(carteiraData);
+      processedCarteiraData = toPeriodReturns(groupByMonth(carteiraData));
     } else if (period === '1y') {
-      processedCarteiraData = groupByYear(carteiraData);
+      processedCarteiraData = toPeriodReturns(groupByYear(carteiraData));
     } else {
       processedCarteiraData = carteiraData;
     }
@@ -321,9 +346,9 @@ export default function RentabilidadeChart({
       let processedIndexData: IndexData[];
       try {
         if (period === '1mo') {
-          processedIndexData = groupByMonth(index.data);
+          processedIndexData = toPeriodReturns(groupByMonth(index.data));
         } else if (period === '1y') {
-          processedIndexData = groupByYear(index.data);
+          processedIndexData = toPeriodReturns(groupByYear(index.data));
         } else {
           processedIndexData = index.data;
         }
@@ -383,7 +408,7 @@ export default function RentabilidadeChart({
       return [];
     }
 
-    // Coletar todas as datas (normalizadas para meia-noite local) para alinhar timezones
+    // Coletar todas as datas (normalizadas para meia-noite UTC via toDayKey) para alinhar timezones
     const allDatesSet = new Set<number>();
     validSeries.forEach((serie) => {
       serie.data.forEach((point) => {
@@ -573,7 +598,9 @@ export default function RentabilidadeChart({
       }
     });
 
-    const uniqueYears = new Set(allDates.map((date) => new Date(date).getFullYear()));
+    // Chaves de bucket são UTC-midnight de 1º/jan — getFullYear() local em UTC-3
+    // devolveria o ano anterior e duplicaria rótulos no eixo.
+    const uniqueYears = new Set(allDates.map((date) => new Date(date).getUTCFullYear()));
     return uniqueYears.size > 0 ? uniqueYears.size : undefined;
   }, [period, carteiraData, indicesData]);
 

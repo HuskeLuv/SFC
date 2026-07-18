@@ -531,7 +531,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   let startDate: Date | undefined;
   if (startDateParam) {
-    startDate = new Date(parseInt(startDateParam, 10));
+    // Normalizar pra meia-noite UTC ANTES de qualquer uso: o param era usado CRU
+    // no filtro >= do IBOV e nos Prisma gte (CDI/IPCA/POUPANCA). Clientes antigos
+    // (cache/URLs) mandam meia-noite LOCAL (03:00Z em UTC-3) e o gte perdia o
+    // ponto do dia-borda — pior no IPCA/POUPANCA, rows mensais datadas no dia 1º
+    // 00:00Z: a borda 03:00Z descartava o mês inteiro de abertura.
+    const parsed = new Date(parseInt(startDateParam, 10));
+    if (!Number.isNaN(parsed.getTime())) {
+      startDate = normalizeDateStart(parsed);
+    }
   }
 
   const { startDate: rangeStart, endDate: rangeEnd } = getRangeDates(range, startDate);
