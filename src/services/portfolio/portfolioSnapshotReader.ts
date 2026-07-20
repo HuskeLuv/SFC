@@ -123,18 +123,22 @@ export const loadHistoricoFromSnapshots = async (
         timeline,
       );
 
-      // TWR de período sobre RETORNO TOTAL: saldo de mercado + proventos
-      // acumulados (totalEarnings) — mesma convenção da série-sombra do builder.
-      const totalReturnSeries = historicoPatrimonio.map((p) => ({
-        ...p,
-        saldoBruto: p.saldoBruto + (proventosAcumuladosByDay.get(p.data) ?? 0),
-      }));
-      const beforePeriod = totalReturnSeries.filter((p) => p.data < periodStart);
+      // TWR de período com provento como RENDA do dia (mesma metodologia do
+      // builder): a renda diária vem do delta de totalEarnings (acumulado)
+      // entre snapshots consecutivos. O acumulado NÃO entra na base.
+      const incomeByDay = new Map<number, number>();
+      for (let i = 1; i < historicoPatrimonio.length; i++) {
+        const prev = proventosAcumuladosByDay.get(historicoPatrimonio[i - 1]!.data) ?? 0;
+        const curr = proventosAcumuladosByDay.get(historicoPatrimonio[i]!.data) ?? 0;
+        const delta = curr - prev;
+        if (delta > 0) incomeByDay.set(historicoPatrimonio[i]!.data, delta);
+      }
+      const beforePeriod = historicoPatrimonio.filter((p) => p.data < periodStart);
       const patrimonyAtStart =
         beforePeriod.length > 0
           ? beforePeriod[beforePeriod.length - 1]!.saldoBruto
-          : totalReturnSeries[0]!.saldoBruto;
-      const periodPatrimonio = totalReturnSeries.filter((p) => p.data >= periodStart);
+          : historicoPatrimonio[0]!.saldoBruto;
+      const periodPatrimonio = historicoPatrimonio.filter((p) => p.data >= periodStart);
       if (periodPatrimonio.length > 0) {
         const periodPatrimonioSeries = [
           { data: periodStart, valorAplicado: 0, saldoBruto: patrimonyAtStart },
@@ -145,7 +149,11 @@ export const loadHistoricoFromSnapshots = async (
           const cfv = cashFlowsByDay.get(p.data);
           if (cfv !== undefined && cfv !== 0) periodCashFlows.set(p.data, cfv);
         });
-        historicoTWRPeriodo = calculateHistoricoTWR(periodPatrimonioSeries, periodCashFlows);
+        historicoTWRPeriodo = calculateHistoricoTWR(
+          periodPatrimonioSeries,
+          periodCashFlows,
+          incomeByDay,
+        );
       }
     }
   }
