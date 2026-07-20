@@ -13,8 +13,12 @@
  * ignorados (factor da BRAPI não é multiplicador simples de quantidade).
  *
  * Idempotência: cada evento gera no máximo uma linha de auditoria, detectada
- * por `notes.corporateActionId`. Re-runs só recomputam o Portfolio (no-op se
- * nada mudou).
+ * por `notes.corporateActionId` OU pela identidade do evento (tipo + dia) —
+ * o segundo critério cobre CA deletada/recriada com id novo (caso real: duas
+ * auditorias de DESDOBRAMENTO idênticas no mesmo dia apontando para ids
+ * distintos). Auditorias órfãs (evento que não existe mais / duplicatas) são
+ * removidas no mesmo passe. Re-runs só recomputam o Portfolio (no-op se nada
+ * mudou).
  */
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
@@ -96,6 +100,34 @@ export async function applyCorporateActionsToUserPositions(
     const hasApplicable = allActions.some((c) => APPLICABLE_CORPORATE_ACTION_TYPES.has(c.type));
     if (!hasApplicable) continue;
 
+    // Auditorias existentes da posição, com notes parseado — base do matching
+    // por id OU por identidade do evento (tipo + dia), e da limpeza de órfãs.
+    const existingAuditRows = await prisma.stockTransaction.findMany({
+      where: {
+        userId,
+        assetId: p.assetId,
+        notes: { contains: CORPORATE_ACTION_NOTE_MARKER },
+      },
+      select: { id: true, quantity: true, date: true, notes: true },
+    });
+    const parsedAudits = existingAuditRows.map((row) => {
+      let corporateActionId: string | null = null;
+      let corporateActionType: string | null = null;
+      try {
+        const parsed = JSON.parse(row.notes ?? '');
+        corporateActionId = parsed?.corporateActionId ?? null;
+        corporateActionType = parsed?.corporateActionType ?? null;
+      } catch {
+        // notes malformado → só matcheia por nada, vira órfã e é removida
+      }
+      return { row, corporateActionId, corporateActionType };
+    });
+    const sameDay = (x: Date, y: Date) =>
+      x.getUTCFullYear() === y.getUTCFullYear() &&
+      x.getUTCMonth() === y.getUTCMonth() &&
+      x.getUTCDate() === y.getUTCDate();
+    const claimedIds = new Set<string>();
+
     // Quantidade antes/depois de cada evento aplicável (computeCorporateActionAudit
     // filtra os tipos tratáveis); só os que incidem sobre papéis detidos.
     const audit = computeCorporateActionAudit(txs, allActions);
@@ -118,23 +150,29 @@ export async function applyCorporateActionsToUserPositions(
       });
 
       try {
-        const existing = await prisma.stockTransaction.findFirst({
-          where: {
-            userId,
-            assetId: p.assetId,
-            notes: { contains: `"corporateActionId":"${a.id}"` },
-          },
-          select: { id: true, quantity: true },
-        });
+        // Match primário por id da CA; fallback pela identidade do evento
+        // (tipo + dia) — cobre CA deletada/recriada com id novo, que antes
+        // gerava uma SEGUNDA auditoria idêntica.
+        const existing =
+          parsedAudits.find((e) => !claimedIds.has(e.row.id) && e.corporateActionId === a.id) ??
+          parsedAudits.find(
+            (e) =>
+              !claimedIds.has(e.row.id) &&
+              e.corporateActionType === a.type &&
+              sameDay(e.row.date, a.date),
+          );
 
         if (existing) {
-          // Reconciliação auto-curável: a linha de auditoria pode ter um delta
-          // defasado (gravado pela lógica antiga, ou após edição das compras).
-          // Se divergir do delta recomputado, atualiza pra manter o histórico
+          claimedIds.add(existing.row.id);
+          // Reconciliação auto-curável: delta defasado (lógica antiga, edição
+          // das compras) ou id de CA antigo → atualiza pra manter o histórico
           // fiel. O recálculo não depende disto — usa o fator.
-          if (Math.abs(Number(existing.quantity) - desiredDelta) > 1e-6) {
+          const needsUpdate =
+            Math.abs(Number(existing.row.quantity) - desiredDelta) > 1e-6 ||
+            existing.corporateActionId !== a.id;
+          if (needsUpdate) {
             await prisma.stockTransaction.update({
-              where: { id: existing.id },
+              where: { id: existing.row.id },
               data: { quantity: desiredDelta, date: a.date, notes: desiredNotes },
             });
             result.applied++;
@@ -161,6 +199,25 @@ export async function applyCorporateActionsToUserPositions(
         result.applied++;
       } catch (err) {
         logger.warn(`[applyCorporateActions] erro ao gravar auditoria ${a.id}:`, err);
+        result.errors++;
+      }
+    }
+
+    // Órfãs: auditorias não reivindicadas por nenhum evento atual (CA deletada,
+    // duplicata de recriação, evento que deixou de se aplicar). Display-only —
+    // remover não afeta posição (o replay ignora auditorias), só limpa o histórico.
+    const orphans = parsedAudits.filter((e) => !claimedIds.has(e.row.id));
+    if (orphans.length > 0) {
+      try {
+        await prisma.stockTransaction.deleteMany({
+          where: { id: { in: orphans.map((o) => o.row.id) } },
+        });
+        logger.warn(
+          `[applyCorporateActions] ${p.asset.symbol}: ${orphans.length} auditoria(s) órfã(s) removida(s)`,
+        );
+        result.applied++;
+      } catch (err) {
+        logger.warn(`[applyCorporateActions] erro ao remover auditorias órfãs:`, err);
         result.errors++;
       }
     }

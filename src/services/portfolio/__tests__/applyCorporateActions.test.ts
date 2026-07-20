@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockPrisma = vi.hoisted(() => ({
   portfolio: { findMany: vi.fn() },
-  stockTransaction: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+  stockTransaction: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    deleteMany: vi.fn(),
+  },
   assetCorporateAction: { findMany: vi.fn() },
 }));
 
@@ -34,15 +40,40 @@ const mockAction = (overrides: Record<string, unknown> = {}) => ({
 // Compra de 100 ações em 2023, antes de qualquer evento.
 const firstBuy = { date: new Date('2023-06-14T00:00:00Z'), type: 'compra', quantity: 100 };
 
+// Linha de auditoria existente no formato do banco (retornada pelo findMany
+// de auditorias — where.notes contém o marker).
+const mockAuditRow = (overrides: Record<string, unknown> = {}) => ({
+  id: 'audit-existing',
+  quantity: 10,
+  date: new Date('2025-03-17T00:00:00Z'),
+  notes: JSON.stringify({
+    operation: { action: 'ajuste-corporativo' },
+    corporateActionId: 'action-1',
+    corporateActionType: 'BONIFICACAO',
+    factor: 1.1,
+    quantidadeAntes: 100,
+    quantidadeDepois: 110,
+  }),
+  ...overrides,
+});
+
+// O serviço faz dois findMany distintos: txs reais (NOT notes contains) e
+// auditorias existentes (notes contains). Roteia pelo shape do where.
+const setAuditRows = (rows: unknown[]) => {
+  mockPrisma.stockTransaction.findMany.mockImplementation((args: { where?: { notes?: unknown } }) =>
+    Promise.resolve(args?.where && 'notes' in args.where ? rows : [firstBuy]),
+  );
+};
+
 describe('applyCorporateActionsToUserPositions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.portfolio.findMany.mockResolvedValue([mockPortfolio()]);
-    mockPrisma.stockTransaction.findMany.mockResolvedValue([firstBuy]);
+    setAuditRows([]); // sem auditoria ainda
     mockPrisma.assetCorporateAction.findMany.mockResolvedValue([mockAction()]);
-    mockPrisma.stockTransaction.findFirst.mockResolvedValue(null); // sem auditoria ainda
     mockPrisma.stockTransaction.create.mockResolvedValue({});
     mockPrisma.stockTransaction.update.mockResolvedValue({});
+    mockPrisma.stockTransaction.deleteMany.mockResolvedValue({ count: 0 });
     mockRecalc.mockResolvedValue(undefined);
   });
 
@@ -104,18 +135,19 @@ describe('applyCorporateActionsToUserPositions', () => {
 
   it('é idempotente quando a linha de auditoria já tem o delta correto', async () => {
     // delta correto da bonificação 1.1 sobre 100 = +10
-    mockPrisma.stockTransaction.findFirst.mockResolvedValue({ id: 'audit-existing', quantity: 10 });
+    setAuditRows([mockAuditRow()]);
     const result = await applyCorporateActionsToUserPositions('user-1');
     expect(result).toEqual({ scanned: 1, applied: 0, skipped: 1, errors: 0 });
     expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
     expect(mockPrisma.stockTransaction.update).not.toHaveBeenCalled();
+    expect(mockPrisma.stockTransaction.deleteMany).not.toHaveBeenCalled();
     // Mesmo idempotente, recomputa pra garantir consistência.
     expect(mockRecalc).toHaveBeenCalledTimes(1);
   });
 
   it('reconcilia (atualiza) linha de auditoria com delta defasado', async () => {
     // delta velho errado (+5) — o correto é +10
-    mockPrisma.stockTransaction.findFirst.mockResolvedValue({ id: 'audit-old', quantity: 5 });
+    setAuditRows([mockAuditRow({ id: 'audit-old', quantity: 5 })]);
     const result = await applyCorporateActionsToUserPositions('user-1');
     expect(result).toEqual({ scanned: 1, applied: 1, skipped: 0, errors: 0 });
     expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
@@ -124,6 +156,58 @@ describe('applyCorporateActionsToUserPositions', () => {
     expect(upd.data.quantity).toBeCloseTo(10, 6);
     const notes = JSON.parse(upd.data.notes);
     expect(notes.quantidadeDepois).toBeCloseTo(110, 6);
+  });
+
+  it('adota auditoria existente quando a CA foi recriada com id novo (sem duplicar)', async () => {
+    // Auditoria antiga aponta pra CA deletada ('action-OLD'); evento atual é
+    // 'action-1' no mesmo dia/tipo → deve ATUALIZAR a linha (adotando o id
+    // novo), não criar uma segunda. Regressão do caso real (2 auditorias de
+    // DESDOBRAMENTO idênticas em prod).
+    setAuditRows([
+      mockAuditRow({
+        id: 'audit-stale-id',
+        notes: JSON.stringify({
+          operation: { action: 'ajuste-corporativo' },
+          corporateActionId: 'action-OLD',
+          corporateActionType: 'BONIFICACAO',
+          factor: 1.1,
+          quantidadeAntes: 100,
+          quantidadeDepois: 110,
+        }),
+      }),
+    ]);
+    const result = await applyCorporateActionsToUserPositions('user-1');
+    expect(result).toEqual({ scanned: 1, applied: 1, skipped: 0, errors: 0 });
+    expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    expect(mockPrisma.stockTransaction.deleteMany).not.toHaveBeenCalled();
+    const upd = mockPrisma.stockTransaction.update.mock.calls[0][0];
+    expect(upd.where).toEqual({ id: 'audit-stale-id' });
+    const notes = JSON.parse(upd.data.notes);
+    expect(notes.corporateActionId).toBe('action-1');
+  });
+
+  it('remove auditoria órfã duplicada (segunda linha do mesmo evento)', async () => {
+    // Duas auditorias do mesmo split: a primeira é reivindicada pelo evento,
+    // a segunda (duplicata da recriação de CA) vira órfã e é deletada.
+    setAuditRows([
+      mockAuditRow(),
+      mockAuditRow({
+        id: 'audit-dupe',
+        notes: JSON.stringify({
+          operation: { action: 'ajuste-corporativo' },
+          corporateActionId: 'action-OLD',
+          corporateActionType: 'BONIFICACAO',
+          factor: 1.1,
+          quantidadeAntes: 100,
+          quantidadeDepois: 110,
+        }),
+      }),
+    ]);
+    const result = await applyCorporateActionsToUserPositions('user-1');
+    expect(result.errors).toBe(0);
+    expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    const del = mockPrisma.stockTransaction.deleteMany.mock.calls[0][0];
+    expect(del.where.id.in).toEqual(['audit-dupe']);
   });
 
   it('loga evento complexo (não tratável) e não recalcula quando não há aplicável', async () => {
