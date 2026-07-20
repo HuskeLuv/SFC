@@ -20,6 +20,8 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 interface IndexData {
   date: number;
   value: number;
+  /** Valor de mercado dos ativos SEM o caixa de proventos (input do TWR). */
+  marketValue?: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -340,12 +342,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       }
     });
 
-    // Caixa de proventos acumulada até o dia (persiste após recebida).
+    // Caixa de proventos acumulada até o dia — usada só na série do MWR
+    // (retorno total money-weighted inclui o caixa recebido no terminal).
     proventosAcumulados += proventosByDay.get(day) ?? 0;
 
     portfolioValues.push({
       date: day,
       value: Math.round((portfolioTotal + proventosAcumulados) * 100) / 100,
+      marketValue: Math.round(portfolioTotal * 100) / 100,
     });
   }
 
@@ -353,9 +357,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     logSeriesStats(portfolioValues, 'Carteira-Valor');
   }
 
+  // TWR: valor de mercado + provento do dia como renda (padrão do builder pós
+  // metodologia renda-do-período) — o acumulado NÃO fica na base diluindo.
   const twrSeries = calculateHistoricoTWR(
-    portfolioValues.map((p) => ({ data: p.date, saldoBruto: p.value })),
+    portfolioValues.map((p) => ({ data: p.date, saldoBruto: p.marketValue ?? p.value })),
     cashFlowsByDay,
+    proventosByDay,
   ).map((p) => ({ date: p.data, value: p.value }));
 
   // Série MWR cumulativa em paralelo ao TWR. portfolioValues tem

@@ -386,6 +386,15 @@ export const buildFixedIncomeFactorSeries = (
 export const calculateHistoricoTWR = (
   patrimonioSeries: Array<{ data: number; saldoBruto: number }>,
   cashFlowsByDay: Map<number, number>,
+  /**
+   * Renda (proventos líquidos) POR DIA — entra no retorno do dia em que foi
+   * recebida e NÃO permanece na base dos dias seguintes. Metodologia padrão
+   * de retorno total (Gorila/Kinvo/GIPS): antes o builder somava o acumulado
+   * de proventos ao saldo de TODOS os dias (série-sombra), o que diluía cada
+   * retorno diário pelo fator V/(V+C) — numa carteira pagadora de dividendos
+   * o TWR de 5 anos saía ~12pp abaixo do padrão da indústria.
+   */
+  incomeByDay?: Map<number, number>,
 ): Array<{ data: number; value: number }> => {
   if (patrimonioSeries.length === 0) return [];
 
@@ -396,6 +405,7 @@ export const calculateHistoricoTWR = (
     const valorFinal = patrimonioSeries[i].saldoBruto;
     const dayKey = getDayKey(patrimonioSeries[i].data);
     const fluxo = cashFlowsByDay.get(dayKey) ?? cashFlowsByDay.get(patrimonioSeries[i].data) ?? 0;
+    const renda = incomeByDay?.get(dayKey) ?? incomeByDay?.get(patrimonioSeries[i].data) ?? 0;
 
     let retornoDia = 0;
     if (i === 0) {
@@ -404,7 +414,7 @@ export const calculateHistoricoTWR = (
       // dia. Sem isso, o TWR forçava 0 no início e descartava a diferença —
       // padrão Kinvo/B3 inclui esse ganho na rentabilidade do período.
       if (fluxo > 0) {
-        retornoDia = (valorFinal - fluxo) / fluxo;
+        retornoDia = (valorFinal + renda - fluxo) / fluxo;
         // Clamp mais largo no primeiro ponto: ganho instantâneo de até ±100%
         // pode acontecer quando o preço pago foge muito do preço de mercado
         // (CSVs de teste, doações, herança, retomada de posição antiga sem PU).
@@ -423,7 +433,7 @@ export const calculateHistoricoTWR = (
     } else {
       const valorInicial = patrimonioSeries[i - 1].saldoBruto;
       if (valorInicial > 0) {
-        retornoDia = (valorFinal - valorInicial - fluxo) / valorInicial;
+        retornoDia = (valorFinal + renda - valorInicial - fluxo) / valorInicial;
         if (!Number.isFinite(retornoDia) || retornoDia > 0.5 || retornoDia < -0.5) {
           retornoDia = 0;
         }
@@ -491,11 +501,11 @@ export type BuildPatrimonioHistoricoParams = {
   timelineEndDate?: Date;
   /**
    * Proventos recebidos (líquidos de IRRF) por dia (chave = dia normalizado UTC,
-   * valor = soma do dia). Entram no RETORNO (somados ao saldoBruto, acumulados),
-   * NÃO como fluxo de caixa — dividendo é retorno interno, não aporte. Sem isso a
+   * valor = soma do dia). Entram no RETORNO como renda DO DIA do booking
+   * (incomeByDay do calculateHistoricoTWR), NÃO como fluxo de caixa nem como
+   * caixa acumulado na base — dividendo é retorno interno do período. Sem isso a
    * série de rentabilidade fica só com o preço (ex.: FII que caiu 11% mas pagou
-   * 18% de dividendo aparecia como -11% no gráfico, batendo com o card só após o
-   * fix do card). Casa o gráfico com o número do card e com o Kinvo.
+   * 18% de dividendo aparecia como -11% no gráfico). Padrão Gorila/Kinvo.
    */
   proventosByDay?: Map<number, number>;
 };
@@ -925,9 +935,9 @@ export const buildPatrimonioHistorico = async (
   // Saldo Bruto). Proventos ficam fora — iam pra série e o gráfico terminava
   // acima do card (ex.: +23% no QA).
   const patrimonioSeries: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
-  // Série-SOMBRA de retorno total (patrimônio + proventos acumulados): input
-  // exclusivo de TWR/MWR, preservando a metodologia de retorno total (Kinvo).
-  const totalReturnSeries: Array<{ data: number; valorAplicado: number; saldoBruto: number }> = [];
+  // Acumulado por dia continua exposto (MWR de retorno total + persistência de
+  // snapshots). O TWR NÃO usa mais o acumulado: consome a série de patrimônio
+  // com o provento do dia como renda (ver calculateHistoricoTWR/incomeByDay).
   const proventosAcumuladosByDay = new Map<number, number>();
 
   // Pre-seed valorAplicado and cashBalance from transactions before the timeline.
@@ -1016,11 +1026,6 @@ export const buildPatrimonioHistorico = async (
       valorAplicado: valorAplicadoRounded2,
       saldoBruto: Math.round(saldoBrutoDia * 100) / 100,
     });
-    totalReturnSeries.push({
-      data: day,
-      valorAplicado: valorAplicadoRounded2,
-      saldoBruto: Math.round((saldoBrutoDia + proventosAcumulados) * 100) / 100,
-    });
     proventosAcumuladosByDay.set(day, Math.round(proventosAcumulados * 100) / 100);
   }
 
@@ -1033,10 +1038,6 @@ export const buildPatrimonioHistorico = async (
     patrimonioSeries.forEach((p) => {
       p.saldoBruto = rounded;
     });
-    totalReturnSeries.forEach((p) => {
-      const acum = proventosAcumuladosByDay.get(p.data) ?? 0;
-      p.saldoBruto = Math.round((saldoBrutoAtual + acum) * 100) / 100;
-    });
   }
 
   const saldoBrutoRounded =
@@ -1047,9 +1048,6 @@ export const buildPatrimonioHistorico = async (
       const last = patrimonioSeries.length - 1;
       patrimonioSeries[last].saldoBruto = saldoBrutoRounded;
       patrimonioSeries[last].valorAplicado = valorAplicadoRounded;
-      const acumUltimo = proventosAcumuladosByDay.get(totalReturnSeries[last].data) ?? 0;
-      totalReturnSeries[last].saldoBruto = Math.round((saldoBrutoRounded + acumUltimo) * 100) / 100;
-      totalReturnSeries[last].valorAplicado = valorAplicadoRounded;
     }
   } else {
     const acumFinal = Math.round(proventosAcumulados * 100) / 100;
@@ -1057,11 +1055,6 @@ export const buildPatrimonioHistorico = async (
       data: hoje.getTime(),
       valorAplicado: valorAplicadoRounded,
       saldoBruto: saldoBrutoRounded,
-    });
-    totalReturnSeries.push({
-      data: hoje.getTime(),
-      valorAplicado: valorAplicadoRounded,
-      saldoBruto: Math.round((saldoBrutoRounded + acumFinal) * 100) / 100,
     });
     proventosAcumuladosByDay.set(hoje.getTime(), acumFinal);
   }
@@ -1078,21 +1071,22 @@ export const buildPatrimonioHistorico = async (
     cashFlowsByDay.set(day, -externalCashDelta + manualVal);
   });
 
-  // TWR consome a série-SOMBRA de retorno total (patrimônio + proventos) —
-  // proventos são retorno interno, não fluxo de caixa. A série exibida
-  // (historicoPatrimonio) fica só com o valor de mercado.
-  historicoTWR.push(...calculateHistoricoTWR(totalReturnSeries, cashFlowsByDay));
+  // TWR: série de patrimônio (valor de mercado) + provento do dia como RENDA
+  // (incomeByDay). O provento entra no retorno do dia do booking e sai da base
+  // nos dias seguintes — retorno total padrão Gorila/Kinvo, sem a diluição do
+  // caixa acumulado que a série-sombra antiga (patrimônio + acumulado) causava.
+  historicoTWR.push(...calculateHistoricoTWR(patrimonioSeries, cashFlowsByDay, proventosByDay));
 
   if (typeof twrStartDate === 'number' && Number.isFinite(twrStartDate) && twrStartDate > 0) {
     const periodStart = normalizeDateStart(new Date(twrStartDate)).getTime();
     const periodEnd = hoje.getTime();
     if (periodStart <= periodEnd) {
-      const beforePeriod = totalReturnSeries.filter((p) => p.data < periodStart);
+      const beforePeriod = patrimonioSeries.filter((p) => p.data < periodStart);
       const patrimonyAtStart =
         beforePeriod.length > 0
           ? beforePeriod[beforePeriod.length - 1].saldoBruto
-          : (totalReturnSeries[0]?.saldoBruto ?? 0);
-      const periodPatrimonio = totalReturnSeries.filter((p) => p.data >= periodStart);
+          : (patrimonioSeries[0]?.saldoBruto ?? 0);
+      const periodPatrimonio = patrimonioSeries.filter((p) => p.data >= periodStart);
       if (periodPatrimonio.length > 0) {
         const periodPatrimonioSeries = [
           { data: periodStart, valorAplicado: 0, saldoBruto: patrimonyAtStart },
@@ -1103,7 +1097,11 @@ export const buildPatrimonioHistorico = async (
           const cf = cashFlowsByDay.get(p.data);
           if (cf !== undefined && cf !== 0) periodCashFlows.set(p.data, cf);
         });
-        historicoTWRPeriodo = calculateHistoricoTWR(periodPatrimonioSeries, periodCashFlows);
+        historicoTWRPeriodo = calculateHistoricoTWR(
+          periodPatrimonioSeries,
+          periodCashFlows,
+          proventosByDay,
+        );
       }
     }
   }

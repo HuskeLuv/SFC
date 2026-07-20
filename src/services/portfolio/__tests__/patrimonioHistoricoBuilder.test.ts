@@ -891,4 +891,47 @@ describe('buildPatrimonioHistorico', () => {
     expect(lastTwrSem).toBeCloseTo(0, 1);
     expect(lastTwrCom).toBeCloseTo(5, 1);
   });
+
+  it('provento é renda do período — NÃO dilui os retornos seguintes (padrão Gorila/Kinvo)', async () => {
+    // Regressão da metodologia antiga (série-sombra): o provento ficava como
+    // caixa acumulado na base e cada retorno seguinte saía diluído por V/(V+C).
+    // Cenário: 10 cotas @ 100 (1000); provento de 100 no dia 10 (+10%); preço
+    // sobe 100→110 a partir do dia 13 (+10%). Retorno total correto composto:
+    // 1,10 × 1,10 − 1 = +21%. A convenção antiga dava 1,10 × (1200/1100) = +20%.
+    mockCaFindMany.mockResolvedValue([]);
+    const buyDate = new Date(Date.UTC(2025, 0, 2));
+    const hist: Array<{ date: number; value: number }> = [];
+    for (let d = 2; d <= 20; d++) {
+      hist.push({ date: Date.UTC(2025, 0, d), value: d >= 13 ? 110 : 100 });
+    }
+    mockGetAssetHistory.mockResolvedValue(hist);
+
+    const tx = {
+      id: 'tx-prov-2',
+      date: buyDate,
+      type: 'compra',
+      quantity: 10,
+      price: 100,
+      total: 1000,
+      asset: { symbol: 'ITUB4', name: 'Itau', type: 'stock' },
+      stockId: 'stk',
+      assetId: null,
+      userId: 'u1',
+      portfolioId: 'p1',
+    } as unknown as StockTransactionWithRelations;
+
+    const proventosByDay = new Map<number, number>([[Date.UTC(2025, 0, 10), 100]]);
+    const built = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [tx],
+      saldoBrutoAtual: 1100,
+      valorAplicadoAtual: 1000,
+      patchLastDayWithLiveTotals: false,
+      timelineEndDate: new Date(Date.UTC(2025, 0, 20)),
+      proventosByDay,
+    });
+
+    const lastTwr = built.historicoTWR[built.historicoTWR.length - 1].value;
+    expect(lastTwr).toBeCloseTo(21, 1);
+  });
 });
