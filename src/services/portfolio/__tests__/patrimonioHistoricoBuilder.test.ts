@@ -375,8 +375,8 @@ describe('calculateHistoricoTWR', () => {
     ];
     const cashFlows = new Map([[day2, 500]]);
     const result = calculateHistoricoTWR(series, cashFlows);
-    // retorno = (1600 - 1000 - 500) / 1000 = 0.1 = 10%
-    expect(result[1].value).toBeCloseTo(10.0, 1);
+    // Aporte pondera no início do dia: retorno = (1600 - 1000 - 500) / (1000 + 500) ≈ 6,67%
+    expect(result[1].value).toBeCloseTo(6.67, 1);
   });
 
   it('clampa retornos extremos (>50% ou <-50%) para 0', () => {
@@ -933,5 +933,44 @@ describe('buildPatrimonioHistorico', () => {
 
     const lastTwr = built.historicoTWR[built.historicoTWR.length - 1].value;
     expect(lastTwr).toBeCloseTo(21, 1);
+  });
+
+  it('aporte no meio da série pondera no início do dia (base inclui o fluxo)', async () => {
+    // 10 cotas @ 100 (1000); dia 10 compra +10 cotas a 150 com mercado em 100:
+    // perda instantânea de -500 sobre a base COM o aporte (1000+1500) = -20%.
+    // A convenção antiga dividia só pelo capital antigo (-500/1000 = -50%),
+    // exagerando o ganho/perda instantânea de aportes grandes (caso Gorila:
+    // HFOF11 a 99,45 com mercado ~76 saía -17,8% no dia vs -10,2% corretos).
+    mockCaFindMany.mockResolvedValue([]);
+    const hist: Array<{ date: number; value: number }> = [];
+    for (let d = 2; d <= 20; d++) hist.push({ date: Date.UTC(2025, 0, d), value: 100 });
+    mockGetAssetHistory.mockResolvedValue(hist);
+
+    const mkTx = (id: string, day: number, qty: number, price: number) =>
+      ({
+        id,
+        date: new Date(Date.UTC(2025, 0, day)),
+        type: 'compra',
+        quantity: qty,
+        price,
+        total: qty * price,
+        asset: { symbol: 'ITUB4', name: 'Itau', type: 'stock' },
+        stockId: 'stk',
+        assetId: null,
+        userId: 'u1',
+        portfolioId: 'p1',
+      }) as unknown as StockTransactionWithRelations;
+
+    const built = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [mkTx('tx-a', 2, 10, 100), mkTx('tx-b', 10, 10, 150)],
+      saldoBrutoAtual: 2000,
+      valorAplicadoAtual: 2500,
+      patchLastDayWithLiveTotals: false,
+      timelineEndDate: new Date(Date.UTC(2025, 0, 20)),
+    });
+
+    const lastTwr = built.historicoTWR[built.historicoTWR.length - 1].value;
+    expect(lastTwr).toBeCloseTo(-20, 1);
   });
 });
