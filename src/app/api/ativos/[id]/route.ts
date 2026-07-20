@@ -164,8 +164,11 @@ const calculateHistoricoTWR = (
     const dayKey = getDayKey(patrimonioSeries[i].data);
     const fluxo = cashFlowsByDay.get(dayKey) ?? cashFlowsByDay.get(patrimonioSeries[i].data) ?? 0;
     let retornoDia = 0;
-    if (valorInicial > 0) {
-      retornoDia = (valorFinal - valorInicial - fluxo) / valorInicial;
+    // Aporte pondera no início do dia (base inclui o fluxo positivo) — mesma
+    // convenção do builder da carteira; resgate segue fim-do-dia.
+    const base = valorInicial + Math.max(fluxo, 0);
+    if (base > 0 && valorInicial > 0) {
+      retornoDia = (valorFinal - valorInicial - fluxo) / base;
       if (!Number.isFinite(retornoDia) || retornoDia > 0.5 || retornoDia < -0.5) retornoDia = 0;
     } else if (valorFinal > 0 && fluxo > 0) {
       retornoDia = 0;

@@ -432,8 +432,16 @@ export const calculateHistoricoTWR = (
       }
     } else {
       const valorInicial = patrimonioSeries[i - 1].saldoBruto;
-      if (valorInicial > 0) {
-        retornoDia = (valorFinal + renda - valorInicial - fluxo) / valorInicial;
+      // Aporte pondera no INÍCIO do dia: o denominador inclui o fluxo positivo
+      // (mesma convenção do primeiro ponto e do padrão Gorila/Kinvo). Sem isso,
+      // um aporte comparável ao tamanho da carteira comprado acima/abaixo do
+      // mercado tinha o ganho instantâneo dividido só pelo capital antigo —
+      // no backtest Gorila a compra de HFOF11 a 99,45 (mercado ~76) saía como
+      // -17,8% no dia contra -10,2% da mesma conta com o fluxo na base.
+      // Resgate (fluxo < 0) segue fim-do-dia: base = valorInicial.
+      const base = valorInicial + Math.max(fluxo, 0);
+      if (base > 0 && valorInicial > 0) {
+        retornoDia = (valorFinal + renda - valorInicial - fluxo) / base;
         if (!Number.isFinite(retornoDia) || retornoDia > 0.5 || retornoDia < -0.5) {
           retornoDia = 0;
         }
