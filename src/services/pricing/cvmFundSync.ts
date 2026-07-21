@@ -9,6 +9,17 @@ import prisma from '@/lib/prisma';
 const CVM_DAILY_URL = (yyyymm: string) =>
   `https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_${yyyymm}.zip`;
 
+// A CVM só mantém ZIPs MENSAIS de 2021-01 em diante; 2000-2020 ficam arquivados
+// por ANO em DADOS/HIST (um ZIP anual com um CSV por mês dentro). Verificado
+// em 2026-07: mensal 202012 → 404; HIST 2000..2020 → 200; HIST 1999 → 404.
+const CVM_HIST_URL = (yyyy: string) =>
+  `https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/HIST/inf_diario_fi_${yyyy}.zip`;
+
+export const CVM_MONTHLY_SINCE = '202101';
+
+/** ZIPs anuais do HIST são ~10× o mensal — timeout próprio, mais folgado. */
+const CVM_HIST_TIMEOUT_MS = 300_000;
+
 // RCVM 175 — fonte primária do catálogo. Inclui FIDC, FIP, FII, Fiagro, FIIM
 // que NÃO publicam INF_DIARIO (fundos fechados / com reporte mensal/trimestral).
 // ~88k entries totais, ~33k em funcionamento normal.
@@ -116,6 +127,62 @@ const parseNum = (val: unknown): number | null => {
   return isNaN(n) ? null : n;
 };
 
+/**
+ * Particiona os meses pedidos entre o formato mensal (>= 2021-01) e os anos do
+ * arquivo HIST (< 2021-01, um ZIP anual). Exportado para teste.
+ */
+export const splitMonthsForCvmFetch = (
+  months: string[],
+): { monthly: string[]; histYears: string[]; histMonths: Set<string> } => {
+  const monthly = months.filter((m) => m >= CVM_MONTHLY_SINCE);
+  const hist = months.filter((m) => m < CVM_MONTHLY_SINCE);
+  return {
+    monthly,
+    histYears: [...new Set(hist.map((m) => m.slice(0, 4)))].sort().reverse(),
+    histMonths: new Set(hist),
+  };
+};
+
+/**
+ * Mapeia linhas cruas do CSV INF_DIARIO para CvmDailyRow, filtrando pelos
+ * CNPJs alvo e (opcionalmente) pelos meses pedidos — o ZIP anual do HIST traz
+ * o ano inteiro mesmo quando a janela só alcança parte dele.
+ */
+const collectDailyRows = (
+  csvRows: Record<string, string>[],
+  targetCnpjs: Set<string>,
+  wantedMonths: Set<string> | null,
+  sink: CvmDailyRow[],
+): void => {
+  for (const row of csvRows) {
+    // CVM uses CNPJ_FUNDO or CNPJ_FUNDO_CLASSE depending on version
+    const rawCnpj = String(row['CNPJ_FUNDO_CLASSE'] ?? row['CNPJ_FUNDO'] ?? '');
+    const cnpj = normalizeCnpj(rawCnpj);
+    if (!targetCnpjs.has(cnpj)) continue;
+
+    const dateStr = String(row['DT_COMPTC'] ?? '');
+    if (!dateStr) continue;
+    if (wantedMonths && !wantedMonths.has(dateStr.slice(0, 7).replace('-', ''))) continue;
+
+    const quotaValue = parseNum(row['VL_QUOTA']);
+    if (quotaValue === null || quotaValue === 0) continue;
+
+    sink.push({
+      cnpj,
+      date: new Date(dateStr),
+      quotaValue,
+      netWorth: parseNum(row['VL_PATRIM_LIQ']),
+      totalValue: parseNum(row['VL_TOTAL']),
+      shareholders: (() => {
+        const n = parseNum(row['NR_COTST']);
+        return n !== null ? Math.round(n) : null;
+      })(),
+      dailyInflow: parseNum(row['CAPTC_DIA']),
+      dailyOutflow: parseNum(row['RESG_DIA']),
+    });
+  }
+};
+
 // ================== CORE SYNC ==================
 
 /**
@@ -163,7 +230,8 @@ export async function runCvmFundSync(opts?: { monthsBack?: number }): Promise<Cv
   // 2. Baixar os últimos `monthsBack` meses de INF_DIARIO e acumular.
   //    Daily cron usa 2 (mês atual + anterior — pega cotas publicadas com
   //    atraso); o registro de fundo e o backfill de histórico pedem mais meses
-  //    pra alimentar o gráfico longo. Cada mês é um ZIP separado da CVM.
+  //    pra alimentar o gráfico longo. Meses >= 2021-01 são um ZIP mensal cada;
+  //    anteriores caem no fallback HIST (ZIP anual, disponível até 2000).
   const monthsBack = Math.max(1, opts?.monthsBack ?? 2);
   const now = new Date();
   const monthsToFetch: string[] = [];
@@ -174,7 +242,9 @@ export async function runCvmFundSync(opts?: { monthsBack?: number }): Promise<Cv
   const filteredRows: CvmDailyRow[] = [];
   let anyMonthOk = false;
 
-  for (const month of monthsToFetch) {
+  const { monthly, histYears, histMonths } = splitMonthsForCvmFetch(monthsToFetch);
+
+  for (const month of monthly) {
     const url = CVM_DAILY_URL(month);
     try {
       logger.info(`📥 Tentando baixar: ${url}`);
@@ -187,35 +257,40 @@ export async function runCvmFundSync(opts?: { monthsBack?: number }): Promise<Cv
       logger.info(`✅ ZIP ${month}: ${(zipBuffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
 
       const csvRows = extractCsvFromZip(Buffer.from(zipBuffer));
-      for (const row of csvRows) {
-        // CVM uses CNPJ_FUNDO or CNPJ_FUNDO_CLASSE depending on version
-        const rawCnpj = String(row['CNPJ_FUNDO_CLASSE'] ?? row['CNPJ_FUNDO'] ?? '');
-        const cnpj = normalizeCnpj(rawCnpj);
-        if (!targetCnpjs.has(cnpj)) continue;
-
-        const dateStr = String(row['DT_COMPTC'] ?? '');
-        if (!dateStr) continue;
-
-        const quotaValue = parseNum(row['VL_QUOTA']);
-        if (quotaValue === null || quotaValue === 0) continue;
-
-        filteredRows.push({
-          cnpj,
-          date: new Date(dateStr),
-          quotaValue,
-          netWorth: parseNum(row['VL_PATRIM_LIQ']),
-          totalValue: parseNum(row['VL_TOTAL']),
-          shareholders: (() => {
-            const n = parseNum(row['NR_COTST']);
-            return n !== null ? Math.round(n) : null;
-          })(),
-          dailyInflow: parseNum(row['CAPTC_DIA']),
-          dailyOutflow: parseNum(row['RESG_DIA']),
-        });
-      }
+      collectDailyRows(csvRows, targetCnpjs, null, filteredRows);
     } catch (err) {
       const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
       logger.warn(`⚠️  Falha ao baixar/processar mês ${month} (status: ${status})`);
+    }
+  }
+
+  // Fallback HIST: meses < 2021-01 vêm do ZIP ANUAL (2000-2020). Cada ZIP traz
+  // um CSV por mês — processamos entrada a entrada (pula meses fora da janela
+  // pelo nome do arquivo) pra não segurar o ano inteiro em memória.
+  for (const year of histYears) {
+    const url = CVM_HIST_URL(year);
+    try {
+      logger.info(`📥 Tentando baixar (HIST anual): ${url}`);
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: CVM_HIST_TIMEOUT_MS,
+      });
+      const zipBuffer: ArrayBuffer = response.data;
+      anyMonthOk = true;
+      logger.info(`✅ ZIP HIST ${year}: ${(zipBuffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
+
+      const zip = new AdmZip(Buffer.from(zipBuffer));
+      for (const entry of zip.getEntries()) {
+        if (!entry.entryName.endsWith('.csv')) continue;
+        const monthMatch = entry.entryName.match(/(\d{6})\.csv$/);
+        if (monthMatch && !histMonths.has(monthMatch[1])) continue;
+        const csvRows = parseCsvText(entry.getData().toString('latin1'));
+        // Filtro por mês também nas linhas: cobre entradas sem YYYYMM no nome.
+        collectDailyRows(csvRows, targetCnpjs, histMonths, filteredRows);
+      }
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
+      logger.warn(`⚠️  Falha ao baixar/processar HIST ${year} (status: ${status})`);
     }
   }
 
