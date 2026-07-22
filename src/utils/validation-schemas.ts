@@ -203,18 +203,6 @@ export const cashflowCommentSchema = z.object({
   comment: z.string().max(1000).nullable().optional(),
 });
 
-// ── Cashflow [id] PATCH schema ────────────────────────────────────────
-
-export const cashflowIdPatchSchema = z.object({
-  data: z.string().optional(),
-  tipo: z.string().max(100).optional(),
-  categoria: z.string().max(100).optional(),
-  descricao: z.string().max(1000).optional(),
-  valor: z.number().finite().optional(),
-  forma_pagamento: z.string().max(100).optional(),
-  pago: z.boolean().optional(),
-});
-
 // ── Carteira investimento (POST) schema ───────────────────────────────
 
 export const investimentoCreateSchema = z.object({
