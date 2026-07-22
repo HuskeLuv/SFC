@@ -76,7 +76,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     },
     cashflow: {
       items: cashflowItems,
-      values: cashflowValues,
+      // Decimal → number para o JSON do export ficar legível/numérico.
+      values: cashflowValues.map((v) => ({ ...v, value: Number(v.value) })),
       groups: cashflowGroups,
     },
     planejamento: planejamentoObjetivos,

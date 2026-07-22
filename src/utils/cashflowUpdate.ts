@@ -1,40 +1,8 @@
-import { CashflowItem } from '@/types/cashflow';
 import { getCsrfToken } from '@/hooks/useCsrf';
 
 function csrfHeaders(): Record<string, string> {
   const token = getCsrfToken();
   return token ? { 'X-CSRF-Token': token } : {};
-}
-
-export async function updateCashflowValue(
-  itemId: string,
-  field: string,
-  value: string | number,
-  monthIndex?: number,
-  year?: number,
-): Promise<CashflowItem> {
-  const response = await fetch('/api/cashflow/values', {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      ...csrfHeaders(),
-    },
-    credentials: 'include',
-    body: JSON.stringify({
-      itemId,
-      field,
-      value,
-      monthIndex,
-      year,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error);
-  }
-
-  return response.json();
 }
 
 export async function createCashflowItem(

@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { TableRow, TableCell } from '@/components/ui/table';
+import { TableCell } from '@/components/ui/table';
 import { GroupHeader, AddRowForm, NewItemRow } from '@/components/cashflow';
 import { CashflowGroup, CashflowItem } from '@/types/cashflow';
 import { GroupRenderContext } from './dataTableTwoTypes';
@@ -45,9 +45,9 @@ function needsSpacingAfter(groupName: string) {
 
 export function SpacingRow() {
   return (
-    <TableRow>
+    <tr aria-hidden="true">
       <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
-    </TableRow>
+    </tr>
   );
 }
 

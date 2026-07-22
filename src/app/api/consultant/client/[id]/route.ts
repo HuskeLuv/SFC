@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getClientSummary } from '@/services/consultantService';
+import { getCashBalances, getMonthlyFlows } from '@/services/cashflow/clientCashflowSummary';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { logConsultantAction } from '@/services/impersonationLogger';
 import { authenticateConsultant, assertClientOwnership } from '@/utils/consultantAuth';
@@ -13,49 +14,24 @@ const getClientBalances = async (clientId: string) => {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const [overall, monthly] = await Promise.all([
-    prisma.cashflow.groupBy({
-      by: ['tipo'],
-      where: { userId: clientId },
-      _sum: { valor: true },
+  // Entradas/despesas vêm da planilha; "investimentos" vem das compras reais
+  // da carteira (o grupo de investimentos da planilha é derivado das mesmas
+  // transações, injetado só no client).
+  const [balances, totalAportes, monthAportes] = await Promise.all([
+    getCashBalances(clientId),
+    prisma.stockTransaction.aggregate({
+      where: { userId: clientId, type: 'compra' },
+      _sum: { total: true },
     }),
-    prisma.cashflow.groupBy({
-      by: ['tipo'],
-      where: {
-        userId: clientId,
-        data: {
-          gte: monthStart,
-          lt: nextMonthStart,
-        },
-      },
-      _sum: { valor: true },
+    prisma.stockTransaction.aggregate({
+      where: { userId: clientId, type: 'compra', date: { gte: monthStart, lt: nextMonthStart } },
+      _sum: { total: true },
     }),
   ]);
 
-  const summarize = (entries: { tipo: string; _sum: { valor: number | null } }[]) => {
-    const income = entries
-      .filter((entry) => entry.tipo.toLowerCase() === 'receita')
-      .reduce((acc, entry) => acc + (entry._sum.valor ?? 0), 0);
-
-    const expenses = entries
-      .filter((entry) => entry.tipo.toLowerCase() === 'despesa')
-      .reduce((acc, entry) => acc + (entry._sum.valor ?? 0), 0);
-
-    const investments = entries
-      .filter((entry) => entry.tipo.toLowerCase() === 'investimento')
-      .reduce((acc, entry) => acc + (entry._sum.valor ?? 0), 0);
-
-    return {
-      income,
-      expenses,
-      investments,
-      net: income - expenses,
-    };
-  };
-
   return {
-    total: summarize(overall),
-    monthly: summarize(monthly),
+    total: { ...balances.total, investments: totalAportes._sum.total ?? 0 },
+    monthly: { ...balances.monthly, investments: monthAportes._sum.total ?? 0 },
   };
 };
 
@@ -117,81 +93,37 @@ const getClientPortfolio = async (clientId: string) => {
 };
 
 const getClientRecentCashflows = async (clientId: string) => {
-  const movements = await prisma.cashflow.findMany({
+  // Movimentações recentes = aportes/resgates reais da carteira (o modelo
+  // legado de lançamentos avulsos não tem mais UI e ficava sempre vazio).
+  const movements = await prisma.stockTransaction.findMany({
     where: { userId: clientId },
-    orderBy: { data: 'desc' },
+    orderBy: { date: 'desc' },
     take: 5,
+    select: {
+      id: true,
+      type: true,
+      total: true,
+      date: true,
+      asset: { select: { symbol: true, name: true, type: true } },
+    },
   });
 
   return movements.map((movement) => ({
     id: movement.id,
-    type: movement.tipo,
-    category: movement.categoria,
-    description: movement.descricao,
-    value: movement.valor,
-    date: movement.data,
-    paid: movement.pago,
+    type: movement.type.toLowerCase() === 'compra' ? 'Aporte' : 'Resgate',
+    category: movement.asset?.type ?? 'carteira',
+    description: movement.asset?.name ?? movement.asset?.symbol ?? 'Movimentação de carteira',
+    value: movement.total,
+    date: movement.date,
+    paid: true,
   }));
 };
 
 const getClientMonthlyNetHistory = async (clientId: string, months = 12) => {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-
-  const movements = await prisma.cashflow.findMany({
-    where: {
-      userId: clientId,
-      data: {
-        gte: start,
-      },
-    },
-    select: {
-      data: true,
-      valor: true,
-      tipo: true,
-    },
-    orderBy: {
-      data: 'asc',
-    },
-  });
-
-  const monthMap = new Map<
-    string,
-    {
-      date: Date;
-      net: number;
-    }
-  >();
-
-  movements.forEach((movement) => {
-    const monthDate = new Date(movement.data.getFullYear(), movement.data.getMonth(), 1);
-    const key = monthDate.toISOString();
-    const normalizedType = movement.tipo?.toLowerCase?.() ?? '';
-    const isExpense = normalizedType.includes('desp') || normalizedType.includes('saida');
-    const signedValue = isExpense ? -movement.valor : movement.valor;
-    const entry = monthMap.get(key);
-    if (entry) {
-      entry.net += signedValue;
-    } else {
-      monthMap.set(key, {
-        date: monthDate,
-        net: signedValue,
-      });
-    }
-  });
-
-  for (let offset = 0; offset < months; offset += 1) {
-    const monthDate = new Date(start.getFullYear(), start.getMonth() + offset, 1);
-    const key = monthDate.toISOString();
-    if (!monthMap.has(key)) {
-      monthMap.set(key, { date: monthDate, net: 0 });
-    }
-  }
-
-  const ordered = Array.from(monthMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+  const flows = await getMonthlyFlows(clientId, months);
 
   let cumulative = 0;
-  return ordered.map(({ date, net }) => {
+  return flows.map(({ date, net }) => {
     cumulative += net;
     return {
       month: date.toISOString(),

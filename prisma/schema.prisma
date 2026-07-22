@@ -85,7 +85,6 @@ model User {
   totpEnabled                   Boolean                       @default(false)
   events                        Event[]
   dashboard                     DashboardData[]
-  cashflows                     Cashflow[]
   cashflowGroups                CashflowGroup[]
   cashflowItems                 CashflowItem[]
   cashflowValues                CashflowValue[]
@@ -234,23 +233,6 @@ model AlocacaoConfig {
   @@map("alocacao_configs")
 }
 
-model Cashflow {
-  id              String   @id @default(uuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id])
-  data            DateTime
-  tipo            String // "Receita" ou "Despesa"
-  categoria       String
-  descricao       String
-  valor           Float
-  forma_pagamento String
-  pago            Boolean
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([userId])
-}
-
 model CashflowGroup {
   id         String          @id @default(uuid())
   userId     String? // null se for grupo padrão (template)
@@ -317,7 +299,7 @@ model CashflowValue {
   user      User         @relation(fields: [userId], references: [id])
   year      Int
   month     Int // 0 = Jan, 11 = Dez
-  value     Float
+  value     Decimal      @db.Decimal(15, 2)
   color     String? // Cor do texto (formato CSS: #000000, green, red, etc.)
   comment   String? // Comentário da célula
   createdAt DateTime     @default(now())

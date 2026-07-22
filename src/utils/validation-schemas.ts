@@ -194,17 +194,6 @@ export const cashflowItemCreateSchema = z.object({
   significado: z.string().max(1000).optional(),
 });
 
-// ── Cashflow values (PATCH) schema ────────────────────────────────────
-
-export const cashflowValuePatchSchema = z.object({
-  itemId: zString(255),
-  field: z.string().min(1).max(50),
-  value: z.unknown(),
-  monthIndex: z.number().int().min(0).max(11).optional(),
-  // Ano da planilha; opcional p/ retrocompat (default = ano atual no handler).
-  year: z.number().int().min(2000).max(2100).optional(),
-});
-
 // ── Cashflow comments (PATCH) schema ──────────────────────────────────
 
 export const cashflowCommentSchema = z.object({
@@ -212,18 +201,6 @@ export const cashflowCommentSchema = z.object({
   month: z.number().int().min(0).max(11),
   year: z.number().int().min(2000).max(2100),
   comment: z.string().max(1000).nullable().optional(),
-});
-
-// ── Cashflow [id] PATCH schema ────────────────────────────────────────
-
-export const cashflowIdPatchSchema = z.object({
-  data: z.string().optional(),
-  tipo: z.string().max(100).optional(),
-  categoria: z.string().max(100).optional(),
-  descricao: z.string().max(1000).optional(),
-  valor: z.number().finite().optional(),
-  forma_pagamento: z.string().max(100).optional(),
-  pago: z.boolean().optional(),
 });
 
 // ── Carteira investimento (POST) schema ───────────────────────────────

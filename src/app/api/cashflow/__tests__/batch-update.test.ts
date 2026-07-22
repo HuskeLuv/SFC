@@ -69,6 +69,13 @@ vi.mock('@/utils/cashflowPersonalization', () => ({
   ensurePersonalizedItem: mockEnsurePersonalizedItem,
 }));
 
+// A rota devolve a árvore mesclada pós-mutação; aqui basta uma árvore vazia.
+const mockGetMergedCashflowGroups = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+
+vi.mock('@/services/cashflow/getCashflowTree', () => ({
+  getMergedCashflowGroups: mockGetMergedCashflowGroups,
+}));
+
 vi.mock('jsonwebtoken', () => ({
   default: {
     verify: () => ({ id: 'user-123', email: 'test@test.com' }),

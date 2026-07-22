@@ -1,10 +1,11 @@
-import React, { ReactNode, forwardRef } from "react";
+import React, { ReactNode, forwardRef } from 'react';
 
 // Props for Table
 interface TableProps {
   children: ReactNode; // Table content (thead, tbody, etc.)
   className?: string; // Optional className for styling
   style?: React.CSSProperties; // Optional inline styles
+  'aria-label'?: string; // Accessible name announced by screen readers
 }
 
 // Props for TableHeader
@@ -37,16 +38,29 @@ interface TableCellProps {
   rowSpan?: number; // Row span
   style?: React.CSSProperties; // Optional inline styles
   id?: string; // Optional id attribute
+  scope?: 'col' | 'row' | 'colgroup' | 'rowgroup'; // Header scope (th only)
 }
 
 // Table Component
-const Table: React.FC<TableProps> = ({ children, className, style }) => {
-  return <table className={`min-w-full border-collapse ${className}`} style={style}>{children}</table>;
+const Table: React.FC<TableProps> = ({ children, className, style, 'aria-label': ariaLabel }) => {
+  return (
+    <table
+      className={`min-w-full border-collapse ${className}`}
+      style={style}
+      aria-label={ariaLabel}
+    >
+      {children}
+    </table>
+  );
 };
 
 // TableHeader Component
 const TableHeader: React.FC<TableHeaderProps> = ({ children, className, style }) => {
-  return <thead className={className} style={style}>{children}</thead>;
+  return (
+    <thead className={className} style={style}>
+      {children}
+    </thead>
+  );
 };
 
 // TableBody Component
@@ -56,34 +70,33 @@ const TableBody: React.FC<TableBodyProps> = ({ children, className }) => {
 
 // TableRow Component
 const TableRow: React.FC<TableRowProps> = ({ children, className, style, onClick }) => {
-  return <tr className={className} style={style} onClick={onClick}>{children}</tr>;
+  return (
+    <tr className={className} style={style} onClick={onClick}>
+      {children}
+    </tr>
+  );
 };
 
 // TableCell Component
-const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(({
-  children,
-  isHeader = false,
-  className,
-  colSpan,
-  rowSpan,
-  style,
-  id,
-}, ref) => {
-  const CellTag = isHeader ? "th" : "td";
-  return (
-    <CellTag
-      ref={ref}
-      id={id}
-      className={` ${className}`}
-      colSpan={colSpan}
-      rowSpan={rowSpan}
-      style={style}
-    >
-      {children}
-    </CellTag>
-  );
-});
+const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(
+  ({ children, isHeader = false, className, colSpan, rowSpan, style, id, scope }, ref) => {
+    const CellTag = isHeader ? 'th' : 'td';
+    return (
+      <CellTag
+        ref={ref}
+        id={id}
+        className={` ${className}`}
+        colSpan={colSpan}
+        rowSpan={rowSpan}
+        style={style}
+        scope={isHeader ? (scope ?? 'col') : undefined}
+      >
+        {children}
+      </CellTag>
+    );
+  },
+);
 
-TableCell.displayName = "TableCell";
+TableCell.displayName = 'TableCell';
 
 export { Table, TableHeader, TableBody, TableRow, TableCell };

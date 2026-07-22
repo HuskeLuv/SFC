@@ -7,6 +7,7 @@ import {
   filterInvestmentsExclReservas,
   type FixedIncomeAssetWithAsset,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { normalizeInvestmentItemValues } from '@/utils/cashflowFilters';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTotals';
 import { computeMwr, saldoBrutoAt, type CashFlow } from '@/services/portfolio/mwrCalculator';
@@ -154,7 +155,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }),
   ]);
 
-  const allInvestments = investmentGroups.flatMap((g) => g.items || []);
+  const allInvestments = normalizeInvestmentItemValues(
+    investmentGroups.flatMap((g) => g.items || []),
+  );
   const cashflowInvestments = filterInvestmentsExclReservas(allInvestments);
 
   const fiPricer = await createFixedIncomePricer(targetUserId, {

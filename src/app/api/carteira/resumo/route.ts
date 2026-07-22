@@ -13,7 +13,10 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
 import { isFundoType } from '@/lib/fundoTypes';
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
-import { filterInvestmentsExclReservas } from '@/utils/cashflowFilters';
+import {
+  filterInvestmentsExclReservas,
+  normalizeInvestmentItemValues,
+} from '@/utils/cashflowFilters';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import {
@@ -172,7 +175,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   allInvestmentGroups.push(...Array.from(templateMap.values()));
 
   // Coletar todos os itens de investimento
-  const investments = allInvestmentGroups.flatMap((group) => group.items || []);
+  const investments = normalizeInvestmentItemValues(
+    allInvestmentGroups.flatMap((group) => group.items || []),
+  );
 
   // Itens de reserva no cashflow não devem ser somados - já estão no portfolio (evita duplicação)
   const investmentsExclReservas = filterInvestmentsExclReservas(investments);

@@ -96,78 +96,6 @@ async function seedCashflowValues(userId: string, entries: Record<string, number
   }
 }
 
-// ===== SEED CASHFLOW MOVEMENTS =====
-
-async function seedCashflowMovements(
-  userId: string,
-  year: number,
-  incomes: Record<string, number[]>,
-  expenses: Record<string, number[]>,
-) {
-  const monthLabels = [
-    'Jan',
-    'Fev',
-    'Mar',
-    'Abr',
-    'Mai',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Set',
-    'Out',
-    'Nov',
-    'Dez',
-  ];
-
-  const entries: Array<{
-    userId: string;
-    data: Date;
-    tipo: string;
-    categoria: string;
-    descricao: string;
-    valor: number;
-    forma_pagamento: string;
-    pago: boolean;
-  }> = [];
-
-  const appendEntries = (
-    registry: Record<string, number[]>,
-    tipo: 'receita' | 'despesa',
-    paymentMethod: string,
-  ) => {
-    for (const [category, values] of Object.entries(registry)) {
-      values.forEach((value, monthIndex) => {
-        if (!value || Math.abs(value) < 0.01) {
-          return;
-        }
-        const referenceDay = tipo === 'receita' ? 1 : 5;
-        entries.push({
-          userId,
-          data: new Date(year, monthIndex, referenceDay),
-          tipo,
-          categoria: category,
-          descricao: `${category} - ${monthLabels[monthIndex]}/${year}`,
-          valor: Math.round(value * 100) / 100,
-          forma_pagamento: paymentMethod,
-          pago: true,
-        });
-      });
-    }
-  };
-
-  appendEntries(incomes, 'receita', 'transferencia');
-  appendEntries(expenses, 'despesa', 'cartao_credito');
-
-  if (entries.length === 0) {
-    console.warn('⚠️  Nenhum lançamento de fluxo de caixa foi gerado.');
-    return;
-  }
-
-  await prisma.cashflow.createMany({
-    data: entries,
-  });
-}
-
 // ===== SEED DEMO USERS =====
 
 async function seedDemoUsers() {
@@ -191,7 +119,6 @@ async function seedDemoUsers() {
   });
 
   await prisma.cashflowValue.deleteMany({ where: { userId: demoUser.id } });
-  await prisma.cashflow.deleteMany({ where: { userId: demoUser.id } });
   await prisma.cashflowItem.deleteMany({ where: { userId: demoUser.id } });
   await prisma.cashflowGroup.deleteMany({ where: { userId: demoUser.id } });
   await prisma.portfolio.deleteMany({ where: { userId: demoUser.id } });
@@ -227,7 +154,6 @@ async function seedDemoUsers() {
   for (const year of [previousYear, currentYear]) {
     await seedCashflowValues(demoUser.id, incomes, year);
     await seedCashflowValues(demoUser.id, expenses, year);
-    await seedCashflowMovements(demoUser.id, year, incomes, expenses);
   }
 
   const itsa4 = await prisma.asset.upsert({

@@ -7,6 +7,7 @@ import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { cashflowBatchUpdateSchema, validationError } from '@/utils/validation-schemas';
 import { syncCashflowToObjetivo } from '@/services/planejamento/cashflowToSonhoSync';
 import { removeObjetivoCashflow } from '@/services/planejamento/sonhoCashflowSync';
+import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
 import { recordChange } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -266,9 +267,15 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     });
   }
 
+  // Árvore mesclada pós-mutação: o client grava direto no cache do React
+  // Query e dispensa o refetch bloqueante (a personalização pode trocar ids
+  // de itens, então devolver só os results não basta para atualizar a UI).
+  const groups = await getMergedCashflowGroups(targetUserId, targetYear);
+
   return NextResponse.json({
     success: true,
     results,
+    groups,
     message: 'Alterações salvas com sucesso',
   });
 });

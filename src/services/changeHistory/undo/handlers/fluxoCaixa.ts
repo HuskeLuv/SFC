@@ -21,7 +21,6 @@ import {
 
 const ITEM_FIELDS = new Set(['name', 'significado', 'rank']);
 const GRUPO_FIELDS = new Set(['name', 'type']);
-const LANCAMENTO_DATE_FIELDS = new Set(['data']);
 
 interface CellLocator {
   itemId: string;
@@ -63,7 +62,7 @@ const valorEditar: UndoDefinition = {
         where: { itemId, userId: targetUserId, year, month },
       });
       assertCurrentMatchesAfter(
-        { monthlyValue: current?.value ?? null },
+        { monthlyValue: current ? Number(current.value) : null },
         changes.filter((c) => c.field === 'monthlyValue'),
       );
 
@@ -356,61 +355,9 @@ const grupoExcluir: UndoDefinition = {
   },
 };
 
-const lancamentoEditar: UndoDefinition = {
-  strategy: 'restore-fields',
-  requires: { entityId: true, changes: true },
-  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
-    const changes = getChanges(entry);
-    const lancamento = await prisma.cashflow.findFirst({
-      where: { id: entry.entityId!, userId: auth.targetUserId },
-    });
-    if (!lancamento) throw new UndoError(409, 'O lançamento não existe mais');
-    assertCurrentMatchesAfter(lancamento as unknown as Record<string, unknown>, changes);
-    await prisma.cashflow.update({
-      where: { id: lancamento.id },
-      data: restoreData(changes, LANCAMENTO_DATE_FIELDS),
-    });
-    return { changes: invertChanges(changes) };
-  },
-};
-
-const lancamentoExcluir: UndoDefinition = {
-  strategy: 'recreate-from-snapshot',
-  requires: { entityId: true, snapshot: true },
-  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
-    const snap = getSnapshot(entry)!;
-    const data = snap.data as unknown as {
-      id: string;
-      data: string;
-      tipo: string;
-      categoria: string;
-      descricao: string;
-      valor: number;
-      forma_pagamento: string;
-      pago: boolean;
-    };
-    try {
-      await prisma.cashflow.create({
-        data: {
-          id: data.id,
-          userId: auth.targetUserId,
-          data: new Date(data.data),
-          tipo: data.tipo,
-          categoria: data.categoria,
-          descricao: data.descricao,
-          valor: data.valor,
-          forma_pagamento: data.forma_pagamento,
-          pago: data.pago,
-        },
-      });
-    } catch (error: unknown) {
-      if (isUniqueViolation(error)) throw new UndoError(409, 'O lançamento já foi restaurado');
-      throw error;
-    }
-    return { changes: invertChanges(getChanges(entry)) };
-  },
-};
-
+// 'lancamento.*' (modelo legado Cashflow) saiu do registry quando o modelo foi
+// dropado: entradas antigas seguem visíveis no histórico (labels em
+// renderChange), apenas sem Desfazer.
 export const FLUXO_CAIXA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'valor.editar': valorEditar,
   'comentario.editar': comentarioEditar,
@@ -420,6 +367,4 @@ export const FLUXO_CAIXA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'grupo.criar': grupoCriar,
   'grupo.editar': grupoEditar,
   'grupo.excluir': grupoExcluir,
-  'lancamento.editar': lancamentoEditar,
-  'lancamento.excluir': lancamentoExcluir,
 };
