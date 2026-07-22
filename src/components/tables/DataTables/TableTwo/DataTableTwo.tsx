@@ -412,7 +412,17 @@ export default function DataTableTwo() {
           throw new Error('Erro ao salvar alterações');
         }
 
-        await refetch();
+        // A resposta traz a árvore mesclada pós-mutação: grava direto no cache
+        // em vez de refetch bloqueante. Investimentos atualizam em background.
+        const saved = await response.json().catch(() => null);
+        if (saved?.groups) {
+          queryClient.setQueryData(queryKeys.cashflow.year(currentYear), saved.groups);
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.cashflow.investimentos(currentYear),
+          });
+        } else {
+          await refetch();
+        }
         // Editar a linha-espelho de um sonho re-deriva o "Realizado" no backend;
         // invalida a query de sonhos pra a tela de Planejamento refletir na hora.
         queryClient.invalidateQueries({ queryKey: queryKeys.planejamento.all });
