@@ -194,17 +194,6 @@ export const cashflowItemCreateSchema = z.object({
   significado: z.string().max(1000).optional(),
 });
 
-// ── Cashflow values (PATCH) schema ────────────────────────────────────
-
-export const cashflowValuePatchSchema = z.object({
-  itemId: zString(255),
-  field: z.string().min(1).max(50),
-  value: z.unknown(),
-  monthIndex: z.number().int().min(0).max(11).optional(),
-  // Ano da planilha; opcional p/ retrocompat (default = ano atual no handler).
-  year: z.number().int().min(2000).max(2100).optional(),
-});
-
 // ── Cashflow comments (PATCH) schema ──────────────────────────────────
 
 export const cashflowCommentSchema = z.object({
