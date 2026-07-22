@@ -6,6 +6,7 @@ import {
   filterInvestmentsExclReservas,
   type FixedIncomeAssetWithAsset,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { normalizeInvestmentItemValues } from '@/utils/cashflowFilters';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTotals';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -57,7 +58,7 @@ async function computeCurrentEquity(targetUserId: string): Promise<number> {
   ]);
 
   const cashflowInvestments = filterInvestmentsExclReservas(
-    investmentGroups.flatMap((g) => g.items || []),
+    normalizeInvestmentItemValues(investmentGroups.flatMap((g) => g.items || [])),
   );
   const fiPricer = await createFixedIncomePricer(targetUserId, {
     preloadedAssets: fixedIncomeAssets as unknown as FixedIncomeAssetWithAsset[],

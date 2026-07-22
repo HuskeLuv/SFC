@@ -34,5 +34,5 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
-  return NextResponse.json({ year, saldoDezembroAnterior: result._sum.value ?? 0 });
+  return NextResponse.json({ year, saldoDezembroAnterior: Number(result._sum.value ?? 0) });
 });

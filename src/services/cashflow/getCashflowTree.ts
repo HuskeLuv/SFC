@@ -56,10 +56,26 @@ export async function getMergedCashflowGroups(
     }),
   ]);
 
-  return mergeTemplatesWithCustomizations(
+  const merged = mergeTemplatesWithCustomizations(
     templates as unknown as CashflowGroup[],
     customizations as unknown as CashflowGroup[],
   );
+  return normalizeDecimalValues(merged);
+}
+
+/**
+ * `CashflowValue.value` é Decimal no banco; o contrato do tree (e do JSON que
+ * chega ao client) é number. Converte na fronteira única de leitura.
+ */
+function normalizeDecimalValues(groups: CashflowGroup[]): CashflowGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    items: group.items?.map((item) => ({
+      ...item,
+      values: item.values?.map((value) => ({ ...value, value: Number(value.value) })),
+    })),
+    children: group.children ? normalizeDecimalValues(group.children) : group.children,
+  }));
 }
 
 /**

@@ -317,7 +317,7 @@ model CashflowValue {
   user      User         @relation(fields: [userId], references: [id])
   year      Int
   month     Int // 0 = Jan, 11 = Dez
-  value     Float
+  value     Decimal      @db.Decimal(15, 2)
   color     String? // Cor do texto (formato CSS: #000000, green, red, etc.)
   comment   String? // Comentário da célula
   createdAt DateTime     @default(now())

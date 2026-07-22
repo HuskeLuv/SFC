@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { filterInvestmentsExclReservas } from './patrimonioHistoricoBuilder';
+import { normalizeInvestmentItemValues } from '@/utils/cashflowFilters';
 import type {
   FixedIncomeAssetWithAsset,
   PortfolioWithRelations,
@@ -71,7 +72,9 @@ export const loadCarteiraHistoricoData = async (targetUserId: string) => {
   investmentGroupsCustom.forEach((custom) => templateMap.delete(custom.name));
   allInvestmentGroups.push(...Array.from(templateMap.values()));
 
-  const investments = allInvestmentGroups.flatMap((group) => group.items || []);
+  const investments = normalizeInvestmentItemValues(
+    allInvestmentGroups.flatMap((group) => group.items || []),
+  );
   const investmentsExclReservas = filterInvestmentsExclReservas(investments);
 
   return {

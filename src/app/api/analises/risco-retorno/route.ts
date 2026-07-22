@@ -8,6 +8,7 @@ import {
   buildPatrimonioHistorico,
   filterInvestmentsExclReservas,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { normalizeInvestmentItemValues } from '@/utils/cashflowFilters';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { computePortfolioLiveTotals } from '@/services/portfolio/portfolioLiveTotals';
@@ -286,7 +287,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  const allInvestments = investmentGroups.flatMap((g) => g.items || []);
+  const allInvestments = normalizeInvestmentItemValues(
+    investmentGroups.flatMap((g) => g.items || []),
+  );
   const cashflowInvestments = filterInvestmentsExclReservas(allInvestments);
 
   // Pricer compartilhado: marcação na curva (CDI/IPCA/Tesouro PU) para FI no histórico.

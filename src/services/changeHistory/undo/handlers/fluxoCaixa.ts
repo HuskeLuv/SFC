@@ -63,7 +63,7 @@ const valorEditar: UndoDefinition = {
         where: { itemId, userId: targetUserId, year, month },
       });
       assertCurrentMatchesAfter(
-        { monthlyValue: current?.value ?? null },
+        { monthlyValue: current ? Number(current.value) : null },
         changes.filter((c) => c.field === 'monthlyValue'),
       );
 

@@ -66,7 +66,7 @@ export async function getSaldoContaCorrenteDezembro(userId: string, year: number
     _sum: { value: true },
     where: { userId, year, month: 11, item: { group: { type: 'saldo' } } },
   });
-  return result._sum.value ?? 0;
+  return Number(result._sum.value ?? 0);
 }
 
 const findSaldoGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
