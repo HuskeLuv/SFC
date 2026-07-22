@@ -605,6 +605,7 @@ export default function DataTableTwo() {
         <Table
           className="relative table-fixed"
           style={{ minWidth: 'max-content', borderCollapse: 'separate', borderSpacing: 0 }}
+          aria-label="Planilha de fluxo de caixa"
         >
           <TableHeaderComponent showActionsColumn={anyGroupEditing} />
           <TableBody>
