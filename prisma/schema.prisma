@@ -85,7 +85,6 @@ model User {
   totpEnabled                   Boolean                       @default(false)
   events                        Event[]
   dashboard                     DashboardData[]
-  cashflows                     Cashflow[]
   cashflowGroups                CashflowGroup[]
   cashflowItems                 CashflowItem[]
   cashflowValues                CashflowValue[]
@@ -232,23 +231,6 @@ model AlocacaoConfig {
   @@unique([userId, categoria])
   @@index([userId])
   @@map("alocacao_configs")
-}
-
-model Cashflow {
-  id              String   @id @default(uuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id])
-  data            DateTime
-  tipo            String // "Receita" ou "Despesa"
-  categoria       String
-  descricao       String
-  valor           Float
-  forma_pagamento String
-  pago            Boolean
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([userId])
 }
 
 model CashflowGroup {
