@@ -2,6 +2,8 @@ import { logger } from '@/lib/logger';
 import { ConsultantClientStatus, UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
+import { getCashBalances, getMonthlyFlows } from '@/services/cashflow/clientCashflowSummary';
+import { resolveProventoEvents } from '@/services/portfolio/resolveProventos';
 
 export interface ConsultantClientDescriptor {
   id: string;
@@ -107,49 +109,7 @@ const calculatePortfolioSnapshot = async (clientId: string) => {
   };
 };
 
-const calculateCashBalances = async (clientId: string) => {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-  const [totalCashflow, monthlyCashflow] = await Promise.all([
-    prisma.cashflow.groupBy({
-      by: ['tipo'],
-      where: { userId: clientId },
-      _sum: { valor: true },
-    }),
-    prisma.cashflow.groupBy({
-      by: ['tipo'],
-      where: {
-        userId: clientId,
-        data: {
-          gte: monthStart,
-          lt: nextMonthStart,
-        },
-      },
-      _sum: { valor: true },
-    }),
-  ]);
-
-  const resolveTotals = (entries: { tipo: string; _sum: { valor: number | null } }[]) => {
-    const income = entries
-      .filter((entry) => entry.tipo.toLowerCase() === 'receita')
-      .reduce((total, entry) => total + (entry._sum.valor ?? 0), 0);
-    const expenses = entries
-      .filter((entry) => entry.tipo.toLowerCase() === 'despesa')
-      .reduce((total, entry) => total + (entry._sum.valor ?? 0), 0);
-    return {
-      income,
-      expenses,
-      net: income - expenses,
-    };
-  };
-
-  return {
-    total: resolveTotals(totalCashflow),
-    monthly: resolveTotals(monthlyCashflow),
-  };
-};
+const calculateCashBalances = (clientId: string) => getCashBalances(clientId);
 
 export const getClientsByConsultant = async (
   consultantId: string,
@@ -341,48 +301,8 @@ export interface PatrimonyEvolution {
 }
 
 const getClientMonthlySavingRates = async (clientId: string, months = 12): Promise<number[]> => {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-
-  const cashflows = await prisma.cashflow.findMany({
-    where: {
-      userId: clientId,
-      data: { gte: start },
-    },
-    select: {
-      data: true,
-      valor: true,
-      tipo: true,
-    },
-  });
-
-  const monthMap = new Map<string, { income: number; expenses: number }>();
-
-  cashflows.forEach((flow) => {
-    const monthKey = `${flow.data.getFullYear()}-${flow.data.getMonth()}`;
-    const entry = monthMap.get(monthKey) || { income: 0, expenses: 0 };
-
-    if (flow.tipo.toLowerCase().includes('receita')) {
-      entry.income += flow.valor;
-    } else if (flow.tipo.toLowerCase().includes('despesa')) {
-      entry.expenses += flow.valor;
-    }
-
-    monthMap.set(monthKey, entry);
-  });
-
-  const rates: number[] = [];
-  for (let i = 0; i < months; i++) {
-    const monthDate = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i), 1);
-    const monthKey = `${monthDate.getFullYear()}-${monthDate.getMonth()}`;
-    const entry = monthMap.get(monthKey) || { income: 0, expenses: 0 };
-
-    const savingRate =
-      entry.income > 0 ? ((entry.income - entry.expenses) / entry.income) * 100 : 0;
-    rates.push(savingRate);
-  }
-
-  return rates;
+  const flows = await getMonthlyFlows(clientId, months);
+  return flows.map(({ income, net }) => (income > 0 ? (net / income) * 100 : 0));
 };
 
 const getClientTotalReturn = async (clientId: string): Promise<number> => {
@@ -405,32 +325,17 @@ const getClientTotalReturn = async (clientId: string): Promise<number> => {
 
 const getClientDividends = async (clientId: string, year?: number): Promise<number> => {
   const targetYear = year || new Date().getFullYear();
-  const yearStart = new Date(targetYear, 0, 1);
-  const yearEnd = new Date(targetYear, 11, 31, 23, 59, 59);
+  const todayMs = Date.now();
 
-  const dividendCashflows = await prisma.cashflow.findMany({
-    where: {
-      userId: clientId,
-      tipo: 'Receita',
-      data: {
-        gte: yearStart,
-        lte: yearEnd,
-      },
-      OR: [
-        { categoria: { contains: 'dividendo', mode: 'insensitive' } },
-        { categoria: { contains: 'provento', mode: 'insensitive' } },
-        { categoria: { contains: 'jcp', mode: 'insensitive' } },
-        { descricao: { contains: 'dividendo', mode: 'insensitive' } },
-        { descricao: { contains: 'provento', mode: 'insensitive' } },
-        { descricao: { contains: 'jcp', mode: 'insensitive' } },
-      ],
-    },
-    select: {
-      valor: true,
-    },
-  });
-
-  return dividendCashflows.reduce((sum, flow) => sum + flow.valor, 0);
+  // Proventos efetivamente recebidos (líquidos), da mesma fonte usada pela
+  // série de rentabilidade e pelos "Rendimentos Recebidos" da planilha.
+  const { events } = await resolveProventoEvents(clientId);
+  return events
+    .filter(
+      (event) =>
+        event.paymentDay <= todayMs && new Date(event.paymentDay).getUTCFullYear() === targetYear,
+    )
+    .reduce((sum, event) => sum + event.net, 0);
 };
 
 const getClientAportesResgates = async (
@@ -515,42 +420,8 @@ const getClientPortfolioConcentration = async (clientId: string): Promise<number
 };
 
 const getClientNegativeFlowMonths = async (clientId: string, months = 3): Promise<number> => {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-
-  const cashflows = await prisma.cashflow.findMany({
-    where: {
-      userId: clientId,
-      data: { gte: start },
-    },
-    select: {
-      data: true,
-      valor: true,
-      tipo: true,
-    },
-  });
-
-  const monthMap = new Map<string, number>();
-
-  cashflows.forEach((flow) => {
-    const monthKey = `${flow.data.getFullYear()}-${flow.data.getMonth()}`;
-    const current = monthMap.get(monthKey) || 0;
-
-    if (flow.tipo.toLowerCase().includes('receita')) {
-      monthMap.set(monthKey, current + flow.valor);
-    } else if (flow.tipo.toLowerCase().includes('despesa')) {
-      monthMap.set(monthKey, current - flow.valor);
-    }
-  });
-
-  let negativeCount = 0;
-  monthMap.forEach((net) => {
-    if (net < 0) {
-      negativeCount++;
-    }
-  });
-
-  return negativeCount;
+  const flows = await getMonthlyFlows(clientId, months);
+  return flows.filter(({ net }) => net < 0).length;
 };
 
 const getClientLastAporteDate = async (clientId: string): Promise<Date | null> => {
