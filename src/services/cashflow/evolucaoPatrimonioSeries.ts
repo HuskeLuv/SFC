@@ -60,50 +60,51 @@ export interface EvolucaoSeriesInputs {
   baseAplicada: number;
   aportesByMonth: number[];
   fluxoLivreByMonth: number[];
+  /**
+   * Série "Saldo Conta Corrente Mês Anterior" (jan = dez do ano anterior;
+   * demais = bloco Conta Corrente do mês anterior). Descontada do fluxo livre
+   * de fev em diante: a sobra que ela representa já está dentro do valor
+   * encadeado do mês anterior — mantê-la contaria o mesmo dinheiro duas vezes.
+   */
+  saldoAnteriorByMonth: number[];
   /** Valores travados pelo cron mensal; têm precedência sobre o cálculo. */
   snapshotByMonth: Partial<Record<number, number>>;
-  /**
-   * Último mês (0-11) com dados reais: ano passado → 11; ano corrente → mês
-   * atual; ano futuro → -1 (tudo projeção encadeada a partir da base).
-   */
-  realUpTo: number;
 }
 
 /**
- * Série mensal da Evolução do Patrimônio:
+ * Série mensal da Evolução do Patrimônio — modelo ENCADEADO (decisão do Pedro,
+ * 24/07/2026: substituiu a re-ancoragem mensal em Σ aportes acumulados):
  * - mês travado (snapshot): usa o valor congelado no último dia útil;
- * - mês com dados reais: base + aportes acumulados + fluxo livre do mês
- *   (a Conta Corrente manual carrega as sobras entre meses);
- * - mês futuro: mês anterior + fluxo livre projetado (simulação linear).
+ * - janeiro: base aplicada + aportes do mês + fluxo livre do mês (o carry de
+ *   dez do ano anterior fica DENTRO do fluxo livre de jan — o caixa parado na
+ *   virada do ano é patrimônio da âncora anual);
+ * - fev em diante (real ou projeção, mesma recorrência): mês anterior +
+ *   aportes do mês + fluxo livre do mês SEM o carry da Conta Corrente. A sobra
+ *   de meses anteriores permanece no encadeamento mesmo que o cliente não a
+ *   registre na Conta Corrente; quando registra, o desconto do carry evita a
+ *   dupla contagem. Meses futuros têm aportes 0 e viram a projeção linear.
  */
 export function computeEvolucaoSeries(inputs: EvolucaoSeriesInputs): number[] {
-  const { baseAplicada, aportesByMonth, fluxoLivreByMonth, snapshotByMonth, realUpTo } = inputs;
+  const { baseAplicada, aportesByMonth, fluxoLivreByMonth, saldoAnteriorByMonth, snapshotByMonth } =
+    inputs;
   const series: number[] = [];
-  let aportesAcumulados = 0;
   let previous = baseAplicada;
 
   for (let month = 0; month < MONTHS; month++) {
-    aportesAcumulados += aportesByMonth[month] || 0;
     const snapshot = snapshotByMonth[month];
+    const aporte = aportesByMonth[month] || 0;
+    const fluxoLivre = fluxoLivreByMonth[month] || 0;
     let value: number;
     if (snapshot !== undefined) {
       value = snapshot;
-    } else if (month <= realUpTo) {
-      value = baseAplicada + aportesAcumulados + (fluxoLivreByMonth[month] || 0);
+    } else if (month === 0) {
+      value = baseAplicada + aporte + fluxoLivre;
     } else {
-      value = previous + (fluxoLivreByMonth[month] || 0);
+      value = previous + aporte + (fluxoLivre - (saldoAnteriorByMonth[month] || 0));
     }
     series.push(value);
     previous = value;
   }
 
   return series;
-}
-
-/** Último mês com dados reais para o ano exibido (ver EvolucaoSeriesInputs). */
-export function resolveRealUpTo(displayYear: number, now: Date = new Date()): number {
-  const currentYear = now.getFullYear();
-  if (displayYear < currentYear) return 11;
-  if (displayYear > currentYear) return -1;
-  return now.getMonth();
 }

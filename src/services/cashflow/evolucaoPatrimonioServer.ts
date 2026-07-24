@@ -3,7 +3,11 @@ import { logger } from '@/lib/logger';
 import { isNonBusinessDayB3 } from '@/utils/feriadosB3';
 import { getMergedCashflowGroups } from './getCashflowTree';
 import { aggregateCashflow } from './cashflowAggregation';
-import { buildFluxoLivreByMonth, computeEvolucaoSeries } from './evolucaoPatrimonioSeries';
+import {
+  buildFluxoLivreByMonth,
+  buildSaldoContaCorrenteAnterior,
+  computeEvolucaoSeries,
+} from './evolucaoPatrimonioSeries';
 import { computeInvestimentosPorMes } from './investimentosPorMes';
 import type { CashflowGroup } from '@/types/cashflow';
 
@@ -117,8 +121,11 @@ export async function computeEvolucaoDoMes(
     // Série cheia: todo aporte nominal (vinculado ou não) vira patrimônio.
     aportesByMonth: aportes.aportesFullPorMes,
     fluxoLivreByMonth,
+    saldoAnteriorByMonth: buildSaldoContaCorrenteAnterior(
+      contaCorrenteByMonth,
+      saldoDezembroAnterior,
+    ),
     snapshotByMonth: {},
-    realUpTo: month,
   });
 
   return Math.round(series[month] * 100) / 100;
