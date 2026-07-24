@@ -32,7 +32,6 @@ import {
   buildSaldoContaCorrenteAnterior,
   buildFluxoLivreByMonth,
   computeEvolucaoSeries,
-  resolveRealUpTo,
 } from '@/services/cashflow/evolucaoPatrimonioSeries';
 import { FIXED_COLUMNS_TOTAL_WIDTH } from '@/components/cashflow/fixedColumns';
 import {
@@ -221,9 +220,9 @@ export default function DataTableTwo() {
     ],
   );
 
-  // Evolução do Patrimônio: aportes nominais + fluxo livre, sem marcação a
-  // mercado (simulação linear). Meses fechados usam o valor travado pelo cron
-  // do último dia útil (snapshot).
+  // Evolução do Patrimônio: modelo encadeado (anterior + aportes do mês +
+  // fluxo livre sem o carry da Conta Corrente), sem marcação a mercado.
+  // Meses fechados usam o valor travado pelo cron do último dia útil (snapshot).
   const { data: evolucaoData } = useQuery({
     queryKey: queryKeys.cashflow.evolucaoPatrimonio(currentYear),
     queryFn: async ({ signal }) => {
@@ -254,10 +253,16 @@ export default function DataTableTwo() {
       baseAplicada: evolucaoData?.baseAplicadaAnterior ?? 0,
       aportesByMonth: aportesFullByMonth,
       fluxoLivreByMonth: fluxoCaixaLivreByMonth,
+      saldoAnteriorByMonth: saldoContaCorrenteAnteriorByMonth,
       snapshotByMonth,
-      realUpTo: resolveRealUpTo(currentYear),
     });
-  }, [evolucaoData, investimentosByMonth, planejamentoPorMes, fluxoCaixaLivreByMonth, currentYear]);
+  }, [
+    evolucaoData,
+    investimentosByMonth,
+    planejamentoPorMes,
+    fluxoCaixaLivreByMonth,
+    saldoContaCorrenteAnteriorByMonth,
+  ]);
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {

@@ -3,7 +3,6 @@ import {
   buildSaldoContaCorrenteAnterior,
   buildFluxoLivreByMonth,
   computeEvolucaoSeries,
-  resolveRealUpTo,
 } from '../evolucaoPatrimonioSeries';
 
 const fill = (value: number) => Array(12).fill(value);
@@ -38,54 +37,75 @@ describe('buildFluxoLivreByMonth', () => {
 });
 
 describe('computeEvolucaoSeries', () => {
-  it('mês real = base + aportes acumulados + fluxo livre; futuro encadeia', () => {
+  it('cenário do vídeo do Pedro (Conta Corrente disciplinada) — série idêntica ao modelo antigo', () => {
+    // Jan aplica 2.000 e reporta a sobra 639,90 na CC; fev aplica tudo (3.539,90).
     const series = computeEvolucaoSeries({
       baseAplicada: 865514.62,
       aportesByMonth: [2000, 3539.9, ...fill(0).slice(2)],
       fluxoLivreByMonth: [639.9, 0, ...fill(3700).slice(2)],
+      saldoAnteriorByMonth: [639.9, 639.9, 0, ...fill(0).slice(3)],
       snapshotByMonth: {},
-      realUpTo: 1,
     });
-    // Jan (real): base + 2000 + 639,90
+    // Jan (âncora anual): base + 2000 + 639,90 (carry de dez fica no fluxo de jan)
     expect(series[0]).toBeCloseTo(868154.52);
-    // Fev (real): base + 5539,90 + 0
+    // Fev: anterior + 3539,90 + (0 − 639,90) — o carry sai para não contar dobrado
     expect(series[1]).toBeCloseTo(871054.52);
     // Mar em diante (projeção): anterior + 3700
     expect(series[2]).toBeCloseTo(874754.52);
     expect(series[11]).toBeCloseTo(874754.52 + 9 * 3700);
   });
 
-  it('snapshot travado tem precedência e ancora a projeção seguinte', () => {
+  it('encadeado: sobra de mês anterior permanece mesmo sem registro na Conta Corrente', () => {
+    // Exemplo do Pedro: jan 30k aportes + 5k FCL = 35k; fev aporta 10k e sobra 5k de novo.
+    const series = computeEvolucaoSeries({
+      baseAplicada: 0,
+      aportesByMonth: [30000, 10000, ...fill(0).slice(2)],
+      fluxoLivreByMonth: fill(5000),
+      saldoAnteriorByMonth: fill(0),
+      snapshotByMonth: {},
+    });
+    expect(series[0]).toBe(35000);
+    // Fev = 35k + 10k + 5k — a sobra de jan segue dentro do valor (modelo antigo daria 45k)
+    expect(series[1]).toBe(50000);
+    // Mar (projeção, sem aportes): anterior + 5k
+    expect(series[2]).toBe(55000);
+  });
+
+  it('Conta Corrente preenchida não conta a mesma sobra duas vezes', () => {
+    // Mesmo cenário, mas o cliente registrou a sobra de jan (5k) na CC:
+    // o fluxo livre de fev sobe para 10k e o carry (5k) é descontado.
+    const series = computeEvolucaoSeries({
+      baseAplicada: 0,
+      aportesByMonth: [30000, 10000, ...fill(0).slice(2)],
+      fluxoLivreByMonth: [5000, 10000, ...fill(5000).slice(2)],
+      saldoAnteriorByMonth: [0, 5000, ...fill(0).slice(2)],
+      snapshotByMonth: {},
+    });
+    expect(series[0]).toBe(35000);
+    expect(series[1]).toBe(50000); // idêntico ao cenário sem disciplina de CC
+  });
+
+  it('snapshot travado tem precedência e ancora o encadeamento seguinte', () => {
     const series = computeEvolucaoSeries({
       baseAplicada: 100000,
       aportesByMonth: fill(0),
       fluxoLivreByMonth: fill(1000),
+      saldoAnteriorByMonth: fill(0),
       snapshotByMonth: { 0: 105000 },
-      realUpTo: 0,
     });
     expect(series[0]).toBe(105000); // valor congelado, não o calculado (101000)
-    expect(series[1]).toBe(106000); // projeção parte do snapshot
+    expect(series[1]).toBe(106000); // mês seguinte encadeia a partir do snapshot
   });
 
-  it('ano futuro (realUpTo = -1) projeta tudo a partir da base', () => {
+  it('ano futuro projeta tudo a partir da base (aportes zerados)', () => {
     const series = computeEvolucaoSeries({
       baseAplicada: 50000,
       aportesByMonth: fill(0),
       fluxoLivreByMonth: fill(2000),
+      saldoAnteriorByMonth: fill(0),
       snapshotByMonth: {},
-      realUpTo: -1,
     });
     expect(series[0]).toBe(52000);
     expect(series[11]).toBe(50000 + 12 * 2000);
-  });
-});
-
-describe('resolveRealUpTo', () => {
-  const now = new Date(2026, 6, 6); // 06/jul/2026
-
-  it('ano passado → 11, ano corrente → mês atual, ano futuro → -1', () => {
-    expect(resolveRealUpTo(2025, now)).toBe(11);
-    expect(resolveRealUpTo(2026, now)).toBe(6);
-    expect(resolveRealUpTo(2027, now)).toBe(-1);
   });
 });
