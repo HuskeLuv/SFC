@@ -83,7 +83,6 @@ async function main() {
       id: true,
       symbol: true,
       portfolios: { select: { userId: true, user: { select: { email: true } } } },
-      stockTransactions: { select: { id: true }, take: 1 },
     },
   });
   for (const a of legadas) {
