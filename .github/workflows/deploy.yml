@@ -1,0 +1,83 @@
+# Deploy contínuo em produção (EC2, sa-east-1).
+#
+# Gatilhos: push na main (merge de PR) ou manual (workflow_dispatch).
+# O job assume a role myfinance-prod-github-deploy via OIDC (sem secrets
+# estáticos — ver infra/github-deploy.tf) e dispara o deploy atômico já
+# existente no host: infra/bootstrap-deploy.sh (clone da main em
+# releases/<stamp>-<sha> → build → health-check na 3001 → migrate → flip do
+# symlink → restart → health na 3000 → rollback automático se falhar).
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Um deploy por vez; um novo push espera o anterior terminar (não cancela:
+# abortar um deploy no meio deixaria release pendente no host).
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: sa-east-1
+      INSTANCE_ID: i-09099b2b041adcdb6
+    steps:
+      - name: Assumir role AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::824353504847:role/myfinance-prod-github-deploy
+          aws-region: sa-east-1
+
+      - name: Disparar deploy atômico via SSM e acompanhar
+        run: |
+          set -euo pipefail
+
+          CID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy ${GITHUB_SHA::7} via GitHub Actions (${GITHUB_ACTOR})" \
+            --parameters '{"commands":[
+              "set -o pipefail",
+              "cd /opt/myfinance/app && bash infra/bootstrap-deploy.sh 2>&1 | tail -60",
+              "echo \"--- release ativa:\"; readlink -f /opt/myfinance/current",
+              "echo \"--- health:\"; curl -s -o /dev/null -w \"%{http_code}\\n\" http://localhost:3000/api/health"
+            ],"executionTimeout":["1800"]}' \
+            --query Command.CommandId --output text)
+          echo "CommandId: $CID"
+
+          STATUS=InProgress
+          for i in $(seq 1 120); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$CID" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in Success|Failed|Cancelled|TimedOut) break ;; esac
+            sleep 10
+          done
+
+          echo "Status final: $STATUS"
+          echo "--- stdout (últimos 24KB) ---"
+          aws ssm get-command-invocation --command-id "$CID" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          ERR=$(aws ssm get-command-invocation --command-id "$CID" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text)
+          if [ -n "$ERR" ] && [ "$ERR" != "None" ]; then
+            echo "--- stderr ---"
+            echo "$ERR"
+          fi
+
+          test "$STATUS" = "Success"
+
+      - name: Verificar site público
+        run: |
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' https://appmyfinance.com.br/api/health)
+          echo "https://appmyfinance.com.br/api/health → $CODE"
+          test "$CODE" = "200"
