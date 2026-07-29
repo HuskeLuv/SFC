@@ -213,6 +213,17 @@ export default function PrevidenciaSegurosTable({
     });
   }, [data, totalCarteira]);
 
+  // Seções da API (Previdência = fundos marcados, automático; Seguros =
+  // adições manuais) com os ativos enriquecidos pelo cálculo de risco acima.
+  const secoesComRisco = useMemo(() => {
+    if (!data) return [];
+    const enrichedById = new Map(ativosComRisco.map((a) => [a.id, a]));
+    return data.secoes.map((secao) => ({
+      ...secao,
+      ativos: secao.ativos.map((a) => enrichedById.get(a.id) ?? a),
+    }));
+  }, [data, ativosComRisco]);
+
   const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
     await updateObjetivo(ativoId, novoObjetivo);
   };
@@ -423,20 +434,67 @@ export default function PrevidenciaSegurosTable({
                 </td>
               </tr>
 
-              {ativosComRisco.map((ativo) => (
-                <PrevidenciaSegurosTableRow
-                  key={ativo.id}
-                  ativo={ativo}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                />
+              {/* Seções separadas por divisória: Previdência (automática, dos
+                  fundos marcados) e Seguros (manuais) — 4 placeholders cada,
+                  mesmo padrão das demais abas. */}
+              {secoesComRisco.map((secao) => (
+                <React.Fragment key={secao.tipo}>
+                  <tr className="bg-[#808080] border-t-4 border-gray-300 dark:border-gray-600">
+                    <td className="px-2 py-2 text-xs text-white font-bold">{secao.nome}</td>
+                    <td className="px-2 py-2 text-xs text-center text-white font-bold" colSpan={5}>
+                      -
+                    </td>
+                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                      {formatNumber(secao.ativos.reduce((s, a) => s + a.quantidade, 0))}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                      {formatCurrency(secao.ativos.reduce((s, a) => s + a.valorTotal, 0))}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                      {formatCurrency(secao.ativos.reduce((s, a) => s + a.valorAtualizado, 0))}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                      {formatPercentage(secao.ativos.reduce((s, a) => s + a.riscoPorAtivo, 0))}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                      {formatPercentage(secao.ativos.reduce((s, a) => s + a.percentualCarteira, 0))}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                      {formatPercentage(secao.ativos.reduce((s, a) => s + a.objetivo, 0))}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                      {formatPercentage(secao.ativos.reduce((s, a) => s + a.quantoFalta, 0))}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                      {formatCurrency(secao.ativos.reduce((s, a) => s + a.necessidadeAporte, 0))}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                      {secao.ativos.length > 0
+                        ? formatPercentage(
+                            secao.ativos.reduce((s, a) => s + a.rentabilidade, 0) /
+                              secao.ativos.length,
+                          )
+                        : '-'}
+                    </td>
+                  </tr>
+                  {secao.ativos.map((ativo) => (
+                    <PrevidenciaSegurosTableRow
+                      key={ativo.id}
+                      ativo={ativo}
+                      formatCurrency={formatCurrency}
+                      formatPercentage={formatPercentage}
+                      formatNumber={formatNumber}
+                      onUpdateObjetivo={handleUpdateObjetivo}
+                    />
+                  ))}
+                  <BasicTablePlaceholderRows
+                    count={Math.max(0, MIN_PLACEHOLDER_ROWS - secao.ativos.length)}
+                    colSpan={PREVIDENCIA_SEGUROS_COLUMN_COUNT}
+                  />
+                </React.Fragment>
               ))}
-              <BasicTablePlaceholderRows
-                count={Math.max(0, MIN_PLACEHOLDER_ROWS - ativosComRisco.length)}
-                colSpan={PREVIDENCIA_SEGUROS_COLUMN_COUNT}
-              />
             </tbody>
           </table>
         </div>
