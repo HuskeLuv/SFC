@@ -5,7 +5,6 @@ import { queryKeys } from '@/lib/queryKeys';
 import { aggregateCashflow } from '@/services/cashflow/cashflowAggregation';
 import {
   injectInvestimentosIntoGroups,
-  filterInvestimentosComMovimento,
   type InvestimentoCalculado,
 } from '@/services/cashflow/injectInvestimentos';
 
@@ -53,10 +52,9 @@ export const useCashflowData = (year?: number) => {
     const groups = groupsQuery.data;
     if (!groups) return [];
     if (!investimentosQuery.data) return groups;
-    return injectInvestimentosIntoGroups(
-      groups,
-      filterInvestimentosComMovimento(investimentosQuery.data.investimentos),
-    );
+    // Todas as categorias aparecem sempre, mesmo zeradas (decisão 29/07/2026 —
+    // o usuário recém-criado já vê a estrutura completa do Aporte/Resgate).
+    return injectInvestimentosIntoGroups(groups, investimentosQuery.data.investimentos);
   }, [groupsQuery.data, investimentosQuery.data]);
 
   const refetch = useCallback(async () => {

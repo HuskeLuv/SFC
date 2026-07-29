@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  injectInvestimentosIntoGroups,
-  filterInvestimentosComMovimento,
-} from '../injectInvestimentos';
+import { injectInvestimentosIntoGroups } from '../injectInvestimentos';
 import type { CashflowGroup } from '@/types/cashflow';
 
 const group = (id: string, type: string, name: string): CashflowGroup => ({
@@ -22,14 +19,17 @@ const inv = (id: string, name: string, jan: number) => ({
   values: [{ id: `${id}-0`, itemId: id, userId: 'u', year: 2026, month: 0, value: jan }],
 });
 
-describe('filterInvestimentosComMovimento', () => {
-  it('remove categorias com todos os meses zerados', () => {
-    const result = filterInvestimentosComMovimento([inv('a', 'Ações', 100), inv('b', 'ETFs', 0)]);
-    expect(result.map((i) => i.id)).toEqual(['a']);
-  });
-});
-
 describe('injectInvestimentosIntoGroups', () => {
+  it('mantém categorias zeradas (todas as categorias aparecem sempre)', () => {
+    const tree = [group('inv', 'investimento', 'Investimentos')];
+    const result = injectInvestimentosIntoGroups(tree, [
+      inv('a', 'Ações', 100),
+      inv('b', 'ETFs', 0),
+    ]);
+    const invGroup = result.find((g) => g.type === 'investimento')!;
+    expect(invGroup.items.map((i) => i.id)).toEqual(['a', 'b']);
+  });
+
   it('substitui os itens do grupo investimento pelos calculados', () => {
     const tree = [
       group('entradas', 'entrada', 'Entradas'),
