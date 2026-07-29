@@ -12,6 +12,8 @@ import { FIXED_COLUMN_BODY_STYLES } from './fixedColumns';
 
 export interface SummaryRowProps {
   label: string;
+  /** Explicação da fórmula, exibida no hover do rótulo (title nativo). */
+  tooltip?: string;
   /** 12 valores mensais; null renderiza '-'. */
   cells: (number | null)[];
   /** Total anual; null renderiza '-'. */
@@ -43,6 +45,7 @@ const VARIANT = {
 
 const SummaryRowComponent: React.FC<SummaryRowProps> = ({
   label,
+  tooltip,
   cells,
   annual,
   format = 'currency',
@@ -78,7 +81,17 @@ const SummaryRowComponent: React.FC<SummaryRowProps> = ({
       className="h-6 w-full"
       style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px', backgroundColor: bg }}
     >
-      {stickyCell(0, label, 'text-left border-l')}
+      {stickyCell(
+        0,
+        tooltip ? (
+          <span title={tooltip} className="cursor-help">
+            {label}
+          </span>
+        ) : (
+          label
+        ),
+        'text-left border-l',
+      )}
       {stickyCell(1, '-')}
       {stickyCell(2, '-', 'text-center')}
       {stickyCell(3, '-', 'text-right border-r border-gray-300')}

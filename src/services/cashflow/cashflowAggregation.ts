@@ -13,8 +13,8 @@ import { CANONICAL_GROUPS, isCanonical } from './groupMatchers';
  *
  * Convenções preservadas do cálculo original (`useProcessedData`):
  * - `entradasByMonth`/`despesasByMonth` somam os itens por mês; o grupo de
- *   investimentos é EXCLUÍDO de `despesasByMonth` (mas seu anual entra em
- *   `despesasTotal`, quirk histórico mantido por compatibilidade).
+ *   investimentos é EXCLUÍDO das despesas (mensal e anual — aporte não é
+ *   despesa; `despesasTotal` = Σ `despesasByMonth`).
  * - `totalByMonth` = receitas − despesas dos grupos de topo, ignorando o grupo
  *   `investimento` (a "sobra"/capacidade de poupança do mês).
  */
@@ -112,13 +112,14 @@ export function aggregateCashflow(data: CashflowGroup[]): CashflowAggregation {
           itemValues.forEach((value, month) => {
             entradasByMonth[month] += value;
           });
-        } else {
+        } else if (!isInvestment) {
+          // Aporte não é despesa: o grupo investimento fica fora do mensal E do
+          // anual (o quirk que somava o anual dele em despesasTotal inflava as
+          // despesas dos Relatórios com os aportes do usuário).
           despesasTotal += annualTotal;
-          if (!isInvestment) {
-            itemValues.forEach((value, month) => {
-              despesasByMonth[month] += value;
-            });
-          }
+          itemValues.forEach((value, month) => {
+            despesasByMonth[month] += value;
+          });
         }
       });
     }
