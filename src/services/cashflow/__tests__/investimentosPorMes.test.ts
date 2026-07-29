@@ -79,6 +79,60 @@ describe('computeInvestimentosPorMes', () => {
     expect(totaisPorMes[0]).toBe(0);
   });
 
+  it('REIT (total gravado em USD) converte para BRL com o câmbio de notes.cotacaoMoeda', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({
+        assetId: 'asset-reit',
+        total: 300,
+        notes: JSON.stringify({ cotacaoMoeda: 5.2 }),
+        asset: { type: 'reit', currency: 'USD', symbol: 'O-QA' },
+      }),
+    ]);
+
+    const { totaisPorMes, porTipo } = await computeInvestimentosPorMes('u1', 2026);
+
+    expect(totaisPorMes[0]).toBeCloseTo(1560, 2);
+    expect(porTipo.reit[0]).toBeCloseTo(1560, 2);
+  });
+
+  it('venda de REIT sem câmbio gravado reusa o câmbio da compra anterior do mesmo ativo', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({
+        assetId: 'asset-reit',
+        total: 300,
+        notes: JSON.stringify({ cotacaoMoeda: 5.2 }),
+        asset: { type: 'reit', currency: 'USD', symbol: 'O-QA' },
+      }),
+      tx({
+        assetId: 'asset-reit',
+        type: 'venda',
+        total: 100,
+        notes: null,
+        date: new Date(Date.UTC(2026, 1, 10, 12)),
+        asset: { type: 'reit', currency: 'USD', symbol: 'O-QA' },
+      }),
+    ]);
+
+    const { totaisPorMes } = await computeInvestimentosPorMes('u1', 2026);
+
+    expect(totaisPorMes[0]).toBeCloseTo(1560, 2);
+    expect(totaisPorMes[1]).toBeCloseTo(-520, 2);
+  });
+
+  it('stock em USD NÃO converte (total já é gravado em BRL na escrita)', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({
+        total: 936,
+        notes: JSON.stringify({ cotacaoMoeda: 5.2 }),
+        asset: { type: 'stock', currency: 'USD', symbol: 'AAPL-QA' },
+      }),
+    ]);
+
+    const { totaisPorMes } = await computeInvestimentosPorMes('u1', 2026);
+
+    expect(totaisPorMes[0]).toBeCloseTo(936, 2);
+  });
+
   it('reinvestimento tem precedência: fica no bucket reinvestimento mesmo se o ativo é vinculado', async () => {
     mockPrisma.portfolio.findMany.mockResolvedValue([{ assetId: 'asset-sonho' }]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
