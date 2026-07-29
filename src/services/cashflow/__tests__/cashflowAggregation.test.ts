@@ -67,10 +67,10 @@ describe('aggregateCashflow', () => {
     expect(agg.totalAnnual).toBe(5200);
   });
 
-  it('preserva o quirk: despesasTotal anual inclui o investimento', () => {
+  it('despesasTotal anual exclui o investimento (aporte não é despesa)', () => {
     const agg = aggregateCashflow(sampleTree());
-    // fixas(4000) + variáveis(800) + investimento(1000)
-    expect(agg.despesasTotal).toBe(5800);
+    // fixas(4000) + variáveis(800); investimento(1000) fica fora
+    expect(agg.despesasTotal).toBe(4800);
   });
 
   it('isola a despesa fixa pelo grupo "Despesas Fixas"', () => {
@@ -109,7 +109,7 @@ describe('aggregateCashflow', () => {
     expect(agg.entradasByMonth[0]).toBe(5000);
     expect(agg.despesasByMonth[0]).toBe(2500);
     expect(agg.totalByMonth[0]).toBe(2500);
-    expect(agg.despesasTotal).toBe(5800); // 4800 despesas + 1000 investimento (quirk)
+    expect(agg.despesasTotal).toBe(4800); // investimento fora do anual de despesas
     // Mas os totais do próprio grupo continuam disponíveis para a UI
     expect(agg.groupTotals['cc'][0]).toBeCloseTo(639.9);
     expect(agg.groupTotals['cc'][1]).toBe(1800);
