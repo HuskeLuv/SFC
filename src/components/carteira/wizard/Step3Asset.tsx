@@ -287,21 +287,18 @@ export default function Step3Asset({
     );
   }
 
-  // Previdência
+  // Previdência e Seguros: previdência busca os fundos do catálogo CVM
+  // classificados como previdência (cota automática); a entrada manual deste
+  // fluxo é o SEGURO (aporte por valor ou por cotas no próximo passo).
   if (formData.tipoAtivo === 'previdencia') {
     return (
-      <Step3SimpleManual
+      <Step3SearchWithManualFallback
         {...stepProps}
-        title="💡 Como adicionar previdência manualmente"
-        instructions={[
-          'Informe o nome do plano de previdência (ex: Vida Gerador, XP Previdência)',
-          'Use o nome como aparece no extrato ou aplicativo',
-          'No próximo passo você escolherá o tipo de adição (valor ou cotas) e informará a data da compra',
-        ]}
-        inputLabel="Nome do plano de previdência *"
-        inputPlaceholder="Ex: Vida Gerador, XP Previdência"
-        assetIdPrefix="PREVIDENCIA"
-        confirmLabel="Plano informado"
+        tipoAtivo="previdencia"
+        searchPlaceholder="Busque o fundo de previdência (nome ou CNPJ) — ex: Brasilprev, Icatu"
+        manualTitle="É um seguro? Adicione manualmente"
+        manualPrefix="SEGURO"
+        manualPlaceholder="Ex: Seguro de Vida Resgatável"
       />
     );
   }

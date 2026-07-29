@@ -398,7 +398,7 @@ async function buildBody(row: Row): Promise<OpBody> {
     case 'Previdência':
       return {
         tipoAtivo: 'previdencia',
-        assetId: 'PREVIDENCIA-MANUAL',
+        assetId: 'SEGURO-MANUAL',
         ativo: row.produto,
         nomePersonalizado: row.nome_completo,
         dataCompra: row.data,

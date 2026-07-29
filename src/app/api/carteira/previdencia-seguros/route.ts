@@ -60,18 +60,26 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
-  // Previdência: valores atualizados apenas via edição manual.
-  // valorAtualizado = avgPrice * quantity (avgPrice atualiza quando o usuário edita).
+  // Previdência = fundos (catálogo CVM ou manuais com destino previdência):
+  // quando o Asset tem cota CVM sincronizada (currentPrice), o valor
+  // atualizado acompanha a cota. Seguros e fundos manuais: avgPrice*quantity
+  // (avgPrice atualiza quando o usuário edita).
   const ativos: PrevidenciaSegurosAtivo[] = portfolio
     .filter((item) => item.asset)
     .map((item) => {
+      const cvmPrice = item.asset!.currentPrice?.toNumber() ?? 0;
       const valorAtualizado =
-        item.avgPrice > 0 && item.quantity > 0 ? item.avgPrice * item.quantity : item.totalInvested;
+        cvmPrice > 0 && item.quantity > 0
+          ? cvmPrice * item.quantity
+          : item.avgPrice > 0 && item.quantity > 0
+            ? item.avgPrice * item.quantity
+            : item.totalInvested;
       const cotacaoAtual = item.quantity > 0 ? valorAtualizado / item.quantity : item.avgPrice || 0;
       const rentabilidade =
         item.totalInvested > 0
           ? ((valorAtualizado - item.totalInvested) / item.totalInvested) * 100
           : 0;
+      const isSeguro = item.asset!.type === 'insurance';
 
       return {
         id: item.id,
@@ -90,12 +98,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         rentabilidade,
         observacoes: undefined,
         dataUltimaAtualizacao: item.lastUpdate,
-        // Campos específicos de previdência — ainda não persistidos, defaults neutros
+        // Campos específicos — carência/resgate ainda não persistidos.
+        // modalidade deriva da origem: seguro (manual) × previdência (fundo).
         carencia: 0,
         cotacaoResgate: 0,
         liquidacaoResgate: 0,
-        modalidade: 'outro',
-        subclasse: 'outro',
+        modalidade: isSeguro ? 'vida' : 'previdencia',
+        subclasse: isSeguro ? 'outro' : 'fundo_prev',
       };
     });
 
@@ -110,8 +119,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const rentabilidadeMedia =
     ativos.length > 0 ? ativos.reduce((sum, a) => sum + a.rentabilidade, 0) / ativos.length : 0;
 
-  // Agrupar por tipo: seguros (modalidade='vida') e fundos de previdência (demais)
-  const secoes: PrevidenciaSegurosSecao[] = (['seguro', 'growth_fundos_prev'] as const).map(
+  // Agrupar por ORIGEM: Previdência = fundos marcados (Asset.type='previdencia',
+  // automático via CVM ou fundo manual com destino previdência); Seguros =
+  // adições manuais de seguro (Asset.type='insurance'). Previdência primeiro.
+  const secoes: PrevidenciaSegurosSecao[] = (['growth_fundos_prev', 'seguro'] as const).map(
     (tipo) => {
       const filtro =
         tipo === 'seguro'

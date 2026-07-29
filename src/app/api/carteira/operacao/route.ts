@@ -218,7 +218,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const isFundoManual = tipoAtivo === 'fundo' && assetId === 'FUNDO-MANUAL';
   const isReitManual = tipoAtivo === 'reit' && assetId === 'REIT-MANUAL';
   const isStockManual = tipoAtivo === 'stock' && assetId === 'STOCK-MANUAL';
-  const isPrevidenciaManual = tipoAtivo === 'previdencia' && assetId === 'PREVIDENCIA-MANUAL';
+  // Fluxo "Previdência e Seguros": previdência agora é FUNDO (catálogo CVM ou
+  // fundo manual com destino previdencia-seguros); a entrada manual deste
+  // fluxo é o SEGURO (Asset.type='insurance').
+  const isSeguroManual = tipoAtivo === 'previdencia' && assetId === 'SEGURO-MANUAL';
   const isTesouroManual = tipoAtivo === 'tesouro-direto' && assetId === 'TESOURO-MANUAL';
   const isOpcaoManual = tipoAtivo === 'opcoes' && assetId === 'OPCAO-MANUAL';
   const isTesouroReserva =
@@ -247,7 +250,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     !isFundoManual &&
     !isReitManual &&
     !isStockManual &&
-    !isPrevidenciaManual &&
+    !isSeguroManual &&
     !isTesouroManual &&
     !isOpcaoManual &&
     !assetId
@@ -1164,6 +1167,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     } else if (dest === 'reserva-oportunidade') {
       assetType = 'opportunity';
       assetSymbol = `FUNDO-${safeSymbol}-RESERVA-OPORT-${timestamp}-${uniqueId}`;
+    } else if (dest === 'previdencia-seguros') {
+      // Fundo de previdência manual → seção Previdência da aba Previdência e Seguros
+      assetType = 'previdencia';
+      assetSymbol = `FUNDO-${safeSymbol}-PREV-${timestamp}-${uniqueId}`;
     } else if (dest === 'renda-fixa') {
       assetType = 'bond';
       assetSymbol = `FUNDO-${safeSymbol}-${timestamp}-${uniqueId}`;
@@ -1323,27 +1330,26 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         source: 'manual',
       },
     });
-  } else if (tipoAtivo === 'previdencia' && assetId === 'PREVIDENCIA-MANUAL') {
-    const nomePrevidencia = (requestBody.ativo || '').trim();
-    if (!nomePrevidencia) {
-      return NextResponse.json(
-        { error: 'Nome do plano de previdência é obrigatório' },
-        { status: 400 },
-      );
+  } else if (tipoAtivo === 'previdencia' && assetId === 'SEGURO-MANUAL') {
+    // Seguro manual (o único caminho manual do fluxo Previdência e Seguros —
+    // previdência entra como fundo). Aceita aporte por valor OU por cotas.
+    const nomeSeguro = (requestBody.ativo || '').trim();
+    if (!nomeSeguro) {
+      return NextResponse.json({ error: 'Nome do seguro é obrigatório' }, { status: 400 });
     }
-    const metodoCotasPrev = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';
+    const metodoCotasSeguro = requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual';
     const valorParaNome =
-      metodoCotasPrev && quantidade > 0 && cotacaoUnitaria > 0
+      metodoCotasSeguro && quantidade > 0 && cotacaoUnitaria > 0
         ? quantidade * cotacaoUnitaria
         : valorInvestido;
     const timestamp = Date.now();
     const uniqueId = Math.random().toString(36).substring(2, 9);
     const safeSymbol =
-      nomePrevidencia
+      nomeSeguro
         .replace(/[^a-zA-Z0-9]/g, '-')
         .substring(0, 20)
-        .toUpperCase() || 'PREV';
-    const assetSymbol = `PREVIDENCIA-${safeSymbol}-${timestamp}-${uniqueId}`;
+        .toUpperCase() || 'SEGURO';
+    const assetSymbol = `SEGURO-${safeSymbol}-${timestamp}-${uniqueId}`;
     const dataFormatada = new Date(dataCompra || new Date()).toLocaleDateString('pt-BR');
     const valorFormatado = valorParaNome
       ? new Intl.NumberFormat('pt-BR', {
@@ -1353,13 +1359,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           maximumFractionDigits: 0,
         }).format(valorParaNome)
       : '';
-    const assetName = `${nomePrevidencia}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+    const assetName = `${nomeSeguro}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
 
     asset = await prisma.asset.create({
       data: {
         symbol: assetSymbol,
         name: assetName,
-        type: 'previdencia',
+        type: 'insurance',
         currency: 'BRL',
         source: 'manual',
       },
@@ -1605,7 +1611,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     // posição qty=1 que não acompanha a cota (não se comporta como ação). Fundo
     // manual (sem CNPJ) continua aceitando valor. Guard servidor + wizard.
     if (
-      tipoAtivo === 'fundo' &&
+      (tipoAtivo === 'fundo' || tipoAtivo === 'previdencia') &&
       asset?.cnpj &&
       !(metodoCotas && quantidade > 0 && cotacaoUnitaria > 0)
     ) {

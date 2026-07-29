@@ -60,13 +60,13 @@ describe('/api/carteira/previdencia-seguros', () => {
       expect(data.totalGeral.valorAplicado).toBe(0);
     });
 
-    it('filters portfolio by asset.type = previdencia', async () => {
+    it('filters portfolio by asset.type in (previdencia, insurance)', async () => {
       await GET(createGetRequest());
       expect(mockPrisma.portfolio.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             userId: 'user-1',
-            asset: { type: 'previdencia' },
+            asset: { type: { in: ['previdencia', 'insurance'] } },
           }),
         }),
       );
@@ -107,6 +107,95 @@ describe('/api/carteira/previdencia-seguros', () => {
       expect(allAtivos[0].id).toBe('p1');
       expect(allAtivos[0].nome).toBe('Minha Previdência VGBL');
       expect(data.totalGeral.valorAplicado).toBe(1500);
+    });
+
+    it('classifica por origem: previdência (fundos) primeiro, seguros (insurance) depois', async () => {
+      const base = {
+        userId: 'user-1',
+        quantity: 1,
+        avgPrice: 1000,
+        totalInvested: 1000,
+        objetivo: 0,
+        lastUpdate: new Date(),
+      };
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          ...base,
+          id: 'p-prev',
+          assetId: 'a-prev',
+          asset: {
+            id: 'a-prev',
+            symbol: 'BRASILPREV-XYZ',
+            name: 'Brasilprev RT FIX',
+            type: 'previdencia',
+            currency: 'BRL',
+            source: 'cvm',
+            currentPrice: null,
+          },
+        },
+        {
+          ...base,
+          id: 'p-seg',
+          assetId: 'a-seg',
+          asset: {
+            id: 'a-seg',
+            symbol: 'SEGURO-VIDA-123',
+            name: 'Seguro de Vida Resgatável',
+            type: 'insurance',
+            currency: 'BRL',
+            source: 'manual',
+            currentPrice: null,
+          },
+        },
+      ]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+
+      expect(data.secoes.map((s: { tipo: string }) => s.tipo)).toEqual([
+        'growth_fundos_prev',
+        'seguro',
+      ]);
+      const [prev, seg] = data.secoes;
+      expect(prev.ativos.map((a: { id: string }) => a.id)).toEqual(['p-prev']);
+      expect(prev.ativos[0].modalidade).toBe('previdencia');
+      expect(seg.ativos.map((a: { id: string }) => a.id)).toEqual(['p-seg']);
+      expect(seg.ativos[0].modalidade).toBe('vida');
+    });
+
+    it('fundo de previdência com cota CVM sincronizada usa currentPrice no valor atualizado', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p-cvm',
+          userId: 'user-1',
+          quantity: 100,
+          avgPrice: 10,
+          totalInvested: 1000,
+          objetivo: 0,
+          assetId: 'a-cvm',
+          lastUpdate: new Date(),
+          asset: {
+            id: 'a-cvm',
+            symbol: 'PREV-CVM-1',
+            name: 'XP Icatu Prev FIM',
+            type: 'previdencia',
+            currency: 'BRL',
+            source: 'cvm',
+            currentPrice: { toNumber: () => 12.5 },
+          },
+        },
+      ]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      const ativo = data.secoes.flatMap((s: { ativos: unknown[] }) => s.ativos)[0] as {
+        valorAtualizado: number;
+        cotacaoAtual: number;
+        rentabilidade: number;
+      };
+      expect(ativo.valorAtualizado).toBeCloseTo(1250, 2);
+      expect(ativo.cotacaoAtual).toBeCloseTo(12.5, 2);
+      expect(ativo.rentabilidade).toBeCloseTo(25, 2);
     });
 
     it('includes caixa para investir in valorAtualizado', async () => {
