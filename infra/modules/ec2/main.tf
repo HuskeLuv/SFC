@@ -134,6 +134,13 @@ resource "aws_instance" "this" {
     delete_on_termination = true
   }
 
+  # A AMI vem de um data source "mais recente": cada release da AL2023 mudaria
+  # o id e forçaria REPLACEMENT da instância de prod (host tem estado manual —
+  # Caddy/systemd/crontab). Ignorar: troca de AMI só via recriação deliberada.
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   tags = merge(var.tags, { Name = "${var.name}-app" })
 }
 
