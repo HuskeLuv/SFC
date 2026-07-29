@@ -309,7 +309,7 @@ async function seed() {
   await op('previdencia manual', {
     tipoAtivo: 'previdencia',
     instituicaoId: itau,
-    assetId: 'PREVIDENCIA-MANUAL',
+    assetId: 'SEGURO-MANUAL',
     ativo: 'Brasilprev PGBL QA',
     nomePersonalizado: 'Brasilprev PGBL QA',
     dataCompra: MONTHS[0],

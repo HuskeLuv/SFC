@@ -508,7 +508,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               } else if (formData.tipoAtivo === 'acoes-brasil') {
                 isValid = !!(formData.assetId && formData.acoesBrasilTipo);
               } else if (formData.tipoAtivo === 'previdencia') {
-                isValid = !!(formData.ativo?.trim() && formData.assetId === 'PREVIDENCIA-MANUAL');
+                // Fundo de previdência do catálogo (assetId real) OU seguro manual
+                isValid = !!(formData.ativo?.trim() && formData.assetId);
               } else if (formData.tipoAtivo === 'tesouro-direto') {
                 isValid = !!(formData.ativo?.trim() && formData.assetId);
               } else if (formData.tipoAtivo === 'opcoes') {

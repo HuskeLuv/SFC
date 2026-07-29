@@ -302,6 +302,7 @@ export default function Step5Confirmation({
                   'reserva-emergencia': 'Reserva de Emergência',
                   'reserva-oportunidade': 'Reserva de Oportunidade',
                   'renda-fixa': 'Renda Fixa',
+                  'previdencia-seguros': 'Previdência e Seguros',
                   fim: 'FIM (Fundo Multimercado)',
                   fia: 'FIA (Fundo de Ações)',
                   fip: 'FIP (Fundo de Participações)',

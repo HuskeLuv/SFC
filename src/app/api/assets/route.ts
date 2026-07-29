@@ -142,11 +142,48 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // ──────────────────────────────────────────────────────────────────────
   // Tipos sem catálogo (adicionados manualmente)
   // ──────────────────────────────────────────────────────────────────────
-  if (tipo === 'stock' || tipo === 'previdencia') {
+  if (tipo === 'stock') {
     return NextResponse.json({
       success: true,
       assets: [],
       count: 0,
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Previdência: fundos do catálogo CVM classificados como 'previdencia'
+  // (RCVM 175). A entrada manual deste fluxo é o SEGURO (SEGURO-MANUAL).
+  // ──────────────────────────────────────────────────────────────────────
+  if (tipo === 'previdencia') {
+    const assets = await prisma.asset.findMany({
+      where: {
+        type: 'previdencia',
+        ...(search
+          ? {
+              OR: [
+                { symbol: { contains: search, mode: 'insensitive' } },
+                { name: { contains: search, mode: 'insensitive' } },
+                { cnpj: { contains: search } },
+              ],
+            }
+          : {}),
+      },
+      take: limit,
+      orderBy: [{ name: 'asc' }],
+    });
+
+    return NextResponse.json({
+      success: true,
+      assets: assets.map((asset) => ({
+        id: asset.id,
+        symbol: asset.symbol,
+        name: asset.name,
+        type: asset.type,
+        currency: asset.currency,
+        source: asset.source,
+        currentPrice: asset.currentPrice?.toNumber() ?? null,
+      })),
+      count: assets.length,
     });
   }
 

@@ -22,7 +22,10 @@ export default function Step4FundoDebenturePrevidenciaFields({
   onFormDataChange,
 }: Step4FieldsProps) {
   const isCvmFund =
-    formData.tipoAtivo === 'fundo' && formData.assetId && formData.assetId !== 'FUNDO-MANUAL';
+    (formData.tipoAtivo === 'fundo' && formData.assetId && formData.assetId !== 'FUNDO-MANUAL') ||
+    (formData.tipoAtivo === 'previdencia' &&
+      formData.assetId &&
+      formData.assetId !== 'SEGURO-MANUAL');
 
   // Quando o ativo selecionado é um fundo classificado pela CVM (FIDC/FIP/etc),
   // resolvemos o subtipo automaticamente — o destino na aba "Fundos" deixa de
@@ -111,6 +114,7 @@ export default function Step4FundoDebenturePrevidenciaFields({
               { value: 'reserva-emergencia', label: 'Reserva de Emergência' },
               { value: 'reserva-oportunidade', label: 'Reserva de Oportunidade' },
               { value: 'renda-fixa', label: 'Renda Fixa' },
+              { value: 'previdencia-seguros', label: 'Previdência e Seguros' },
               { value: 'fim', label: 'FIM (Fundo Multimercado)' },
               { value: 'fia', label: 'FIA (Fundo de Ações)' },
               { value: 'fip', label: 'FIP (Fundo de Participações)' },
