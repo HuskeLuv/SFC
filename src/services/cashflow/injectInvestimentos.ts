@@ -21,18 +21,6 @@ export interface InvestimentoCalculado {
   values?: CashflowValue[];
 }
 
-const hasMovimento = (inv: InvestimentoCalculado): boolean =>
-  (inv.values || inv.valores || []).some(
-    (v: CashflowValue & { valor?: number }) => (v.value ?? v.valor ?? 0) !== 0,
-  );
-
-/** Categorias sem movimento no ano ficam ocultas (a planilha só mostra onde houve aporte/resgate). */
-export function filterInvestimentosComMovimento(
-  investimentos: InvestimentoCalculado[],
-): InvestimentoCalculado[] {
-  return (investimentos || []).filter(hasMovimento);
-}
-
 const toItems = (investimentos: InvestimentoCalculado[], groupId: string) =>
   investimentos.map((inv) => ({
     id: inv.id,
