@@ -74,6 +74,55 @@ export const isReinvestimentoTransaction = (notes: string | null | undefined): b
   }
 };
 
+/**
+ * Conversão USD→BRL dos totais de transação para a planilha (100% BRL).
+ *
+ * Convenção de gravação HOJE (rota operacao): stocks convertem na ESCRITA
+ * (total/price já em BRL); REIT grava total na moeda de origem (USD) — a aba
+ * REIT converte no display — e o câmbio da compra fica em notes.cotacaoMoeda.
+ * Sem esta conversão, um aporte de US$ 300 entrava como R$ 300 no
+ * Aporte/Resgate, na Evolução do Patrimônio e na base aplicada.
+ *
+ * Vendas (rota resgate) não gravam câmbio: usa o último câmbio conhecido do
+ * mesmo ativo (compra anterior, iterando em ordem cronológica); sem nenhum,
+ * mantém o valor bruto (melhor aproximação disponível).
+ */
+export interface TransacaoParaConversao {
+  total: number;
+  fees?: number | null;
+  notes?: string | null;
+  assetId?: string | null;
+  asset?: { type?: string | null; currency?: string | null } | null;
+}
+
+const cotacaoMoedaFromNotes = (notes: string | null | undefined): number | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const rate = Number(parsed?.cotacaoMoeda ?? parsed?.operation?.cotacaoMoeda);
+    return Number.isFinite(rate) && rate > 0 ? rate : null;
+  } catch {
+    return null;
+  }
+};
+
+const isUsdStoredTransaction = (t: TransacaoParaConversao): boolean =>
+  t.asset?.type === 'reit' && t.asset?.currency === 'USD';
+
+/** Total + taxas da transação em BRL. Atualiza `lastRateByAsset` quando a
+ * transação carrega câmbio próprio (compras), para reuso nas vendas. */
+export function totalBRLTransacao(
+  t: TransacaoParaConversao,
+  lastRateByAsset: Map<string, number>,
+): number {
+  const bruto = t.total + (t.fees || 0);
+  if (!isUsdStoredTransaction(t)) return bruto;
+  const rateFromNotes = cotacaoMoedaFromNotes(t.notes);
+  if (rateFromNotes && t.assetId) lastRateByAsset.set(t.assetId, rateFromNotes);
+  const rate = rateFromNotes ?? (t.assetId ? lastRateByAsset.get(t.assetId) : undefined);
+  return rate ? bruto * rate : bruto;
+}
+
 export interface InvestimentosPorMes {
   /** { tipoAtivo: { mes(0-11): valor } } — inclui buckets 'reinvestimento' e 'planejamento'. */
   porTipo: Record<string, Record<number, number>>;
@@ -126,12 +175,14 @@ export async function computeInvestimentosPorMes(
 
   const porTipo: Record<string, Record<number, number>> = {};
   const tipos = new Set<string>();
+  const lastRateByAsset = new Map<string, number>();
 
   for (const transacao of transacoes) {
     if (!transacao.asset) continue;
 
     const mes = transacao.date.getMonth();
-    const valor = (transacao.total + (transacao.fees || 0)) * (transacao.type === 'venda' ? -1 : 1);
+    const valor =
+      totalBRLTransacao(transacao, lastRateByAsset) * (transacao.type === 'venda' ? -1 : 1);
     const tipoAtivo = isReinvestimentoTransaction(transacao.notes)
       ? 'reinvestimento'
       : transacao.assetId && assetsDeSonho.has(transacao.assetId)

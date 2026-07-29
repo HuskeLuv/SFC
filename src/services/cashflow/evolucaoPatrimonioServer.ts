@@ -8,7 +8,7 @@ import {
   buildSaldoContaCorrenteAnterior,
   computeEvolucaoSeries,
 } from './evolucaoPatrimonioSeries';
-import { computeInvestimentosPorMes } from './investimentosPorMes';
+import { computeInvestimentosPorMes, totalBRLTransacao } from './investimentosPorMes';
 import type { CashflowGroup } from '@/types/cashflow';
 
 /**
@@ -21,24 +21,35 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Total nominal aplicado até 31/dez do ano anterior: Σ (total + fees) das
- * compras − Σ (total + fees) das vendas. É a "aplicação inicial" da planilha —
- * sem marcação a mercado.
+ * compras − Σ (total + fees) das vendas, em BRL. É a "aplicação inicial" da
+ * planilha — sem marcação a mercado.
+ *
+ * Por transação (não groupBy): totais de REIT são gravados em USD e precisam
+ * do câmbio de notes.cotacaoMoeda (`totalBRLTransacao`).
  */
 export async function getBaseAplicadaAnterior(userId: string, year: number): Promise<number> {
-  const grouped = await prisma.stockTransaction.groupBy({
-    by: ['type'],
+  const transacoes = await prisma.stockTransaction.findMany({
     where: {
       userId,
       type: { in: ['compra', 'venda'] },
       date: { lt: new Date(Date.UTC(year, 0, 1)) },
     },
-    _sum: { total: true, fees: true },
+    select: {
+      type: true,
+      total: true,
+      fees: true,
+      notes: true,
+      assetId: true,
+      asset: { select: { type: true, currency: true } },
+    },
+    orderBy: { date: 'asc' },
   });
 
   let base = 0;
-  for (const row of grouped) {
-    const valor = (row._sum.total ?? 0) + (row._sum.fees ?? 0);
-    base += row.type === 'venda' ? -valor : valor;
+  const lastRateByAsset = new Map<string, number>();
+  for (const transacao of transacoes) {
+    const valor = totalBRLTransacao(transacao, lastRateByAsset);
+    base += transacao.type === 'venda' ? -valor : valor;
   }
   return Math.round(base * 100) / 100;
 }
