@@ -107,7 +107,9 @@ export default function DataTableTwo() {
     };
   }, [findDespesasFixasGroup, processedData.groupTotals, processedData.groupAnnualTotals]);
 
-  // Proventos recebidos (apenas realizados no ano atual)
+  // Proventos recebidos (apenas realizados no ano atual). Mês/ano em UTC:
+  // datas de pagamento são gravadas em meia-noite UTC — getMonth() local (BRT
+  // −3h) jogaria um pagamento de dia 1º para o mês anterior.
   const proventosByMonth = useMemo(() => {
     const totals = Array(12).fill(0);
     proventos.forEach((provento) => {
@@ -115,10 +117,10 @@ export default function DataTableTwo() {
         return;
       }
       const date = new Date(provento.data);
-      if (Number.isNaN(date.getTime()) || date.getFullYear() !== currentYear) {
+      if (Number.isNaN(date.getTime()) || date.getUTCFullYear() !== currentYear) {
         return;
       }
-      totals[date.getMonth()] += provento.valor;
+      totals[date.getUTCMonth()] += provento.valor;
     });
     return totals;
   }, [proventos, currentYear]);
@@ -642,11 +644,11 @@ export default function DataTableTwo() {
                     {isFirstDespesaGroup && (
                       <SummaryRow
                         label="Saldo Conta Corrente Mês Anterior"
+                        tooltip="Janeiro puxa a Conta Corrente de dezembro do ano anterior; os demais meses puxam o bloco Conta Corrente do mês anterior. Não soma nas entradas — só compõe o Fluxo de Caixa livre."
                         cells={saldoContaCorrenteAnteriorByMonth}
-                        annual={saldoContaCorrenteAnteriorByMonth.reduce(
-                          (sum, val) => sum + val,
-                          0,
-                        )}
+                        // Anual em branco: somar saldos (estoque) mês a mês não
+                        // tem significado econômico — não é um fluxo do ano.
+                        annual={null}
                         variant="amber"
                         showActionsColumn={anyGroupEditing}
                       />
@@ -758,6 +760,7 @@ export default function DataTableTwo() {
 
             <SummaryRow
               label="Fluxo de Caixa livre"
+              tooltip="Saldo do mês + Saldo Conta Corrente do mês anterior − aportes/resgates do mês. Mês com aporte grande fica negativo: o dinheiro saiu do caixa livre e virou patrimônio investido."
               cells={fluxoCaixaLivreByMonth}
               annual={fluxoCaixaLivreByMonth.reduce((sum, val) => sum + val, 0)}
               negativeRed
