@@ -55,9 +55,10 @@
 - **Planejamento Financeiro (233–239, "Objetivo (...)")** — no app essas linhas são
   espelho de sonhos (objetivoId, somente leitura). Ignorar no v1 e reportar; criar
   sonhos a partir delas é candidato a fase futura (§7).
-- **Inflação Pessoal (60)** — no app é linha própria (`InflationPedroRow`); na planilha
-  só jan é literal e o resto é fórmula. Confirmar na F1 como o app persiste esse campo
-  hoje; se for input manual mensal, importar; senão ignorar e reportar.
+- **Inflação Pessoal (60)** — ✅ resolvido na F1: no app NÃO é persistida — é 100%
+  derivada client-side (`InflationPedroRow.tsx` calcula a variação mensal das despesas
+  agregadas). Ignorar e reportar ("calculada automaticamente no app a partir das
+  despesas").
 
 ## 3. Regras de importação
 
@@ -114,10 +115,13 @@ de UM ano por arquivo; cliente com histórico de vários anos importa um arquivo
 ## 5. Arquitetura
 
 ```
-parseFlcXlsx(buffer)               → IR { secoes: [{ nome, itens: [{ label, significado,
-  (puro, sem prisma)                  rank, valores[12] }] }], avisos[] }
-mapFlcToCashflow(IR, árvore user)  → plano { escritas[], criacoesItem[], criacoesGrupo[],
-  (puro, recebe tree do usuário)      conflitos[], ignorados[{linha, motivo}] }
+parseFlcXlsx(buffer)               → IR { secoes: [{ chave, nome, itens: [{ label,
+  (puro, sem prisma)                  significado, rank, valores[12] }] }],
+                                     ignorados[], avisos[] }
+mapFlcToCashflow(IR, árvore user)  → plano ANINHADO por seção: { grupos: [{ chave,
+  (puro, recebe tree do usuário       destino existente|criar, itens: [{ destino
+   já filtrada pelo ano-alvo)         existente|criar, escritas[], conflitos[],
+                                      jaIguais[] }] }], ignorados[], avisos[], resumo }
 POST /api/cashflow/import/preview  → multipart (.xlsx) + ano → roda parse+map, NÃO grava,
                                      devolve plano serializado + resumo
 POST /api/cashflow/import/commit   → mesmo upload + ano + opções (política de conflito,
@@ -156,12 +160,21 @@ UI: modal wizard em /fluxodecaixa  → 3 passos: upload → preview (ano, confli
   conhecidas (Saldo mês anterior, Inflação Pessoal, Evolução, Rendimentos Recebidos)
   precisam de lista própria de ignore por rótulo.
 
-### F1 — Mapeamento + preview
+### F1 — Mapeamento + preview — ✅ código concluído em 2026-07-31
 
-- `mapFlcToCashflow` puro + testes (match normalizado, custom items, grupos §4.1,
-  conflitos, ignorados com motivo).
-- `POST /api/cashflow/import/preview` (auth acting, multipart, zod, rate limit).
-- Confirmar persistência da Inflação Pessoal e fechar §4.1/§7 com Pedro/Wellington.
+- ✅ `mapFlcToCashflow` puro + 14 testes (match normalizado via nome canônico
+  `templateName`, criação de itens custom c/ significado/rank→string, grupos §4.1
+  sob o pai correto com reuso idempotente no reimport, conflito×jaIgual×escrita
+  célula a célula arredondado a 2 casas, objetivoId somente-leitura, tombstones
+  não casam, seção duplicada/ausente vira aviso).
+- ✅ `POST /api/cashflow/import/preview` (auth acting + log de impersonation,
+  multipart em memória, zod no ano, 413 acima de 10 MB, FlcParseError→400) +
+  6 testes de rota + tier de rate limit `/api/cashflow/import` (10/min).
+- ✅ Inflação Pessoal confirmada como derivada client-side (`InflationPedroRow.tsx`)
+  — não importa; motivo atualizado no parser.
+- ✅ Prova com o arquivo real: 17/17 seções com destino (3 criações §4.1),
+  185 células, 0 avisos, 177 ignorados todos com motivo.
+- ⏳ Pendência humana (bloqueia F2): fechar §4.1 e §7 com Pedro/Wellington.
 
 ### F2 — Commit + UI
 

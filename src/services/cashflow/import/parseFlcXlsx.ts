@@ -120,7 +120,7 @@ const ANCORAS_ESTRUTURAIS = new Set([
 /** linhas avulsas conhecidas que não importam, onde quer que apareçam */
 const LINHAS_IGNORADAS: Record<string, string> = {
   'saldo conta corrente mes anterior': 'calculado automaticamente no app (carry-over)',
-  'inflacao pessoal': 'linha própria do app (decisão de import pendente)',
+  'inflacao pessoal': 'calculada automaticamente no app a partir das despesas',
   'evolucao do patrimonio': 'calculado automaticamente no app',
   'rendimentos recebidos': 'automático no app (proventos da carteira)',
 };
