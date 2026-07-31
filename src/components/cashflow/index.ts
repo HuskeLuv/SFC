@@ -22,4 +22,5 @@ export { default as NewEditableDescriptionCell } from './NewEditableDescriptionC
 export { default as NewEditableTextCell } from './NewEditableTextCell';
 export { CommentButton } from './CommentButton';
 export { CommentModal } from './CommentModal';
+export { ImportPlanilhaModal } from './ImportPlanilhaModal';
 export { CommentIndicator } from './CommentIndicator';

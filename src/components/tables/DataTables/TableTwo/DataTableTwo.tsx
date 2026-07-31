@@ -49,6 +49,7 @@ import { useGroupEditMode } from '@/hooks/useGroupEditMode';
 import { getAllItemsInGroup } from '@/utils/cashflowHelpers';
 import { isReceitaGroupByType } from '@/utils/formatters';
 import { CommentModal } from '@/components/cashflow/CommentModal';
+import { ImportPlanilhaModal } from '@/components/cashflow/ImportPlanilhaModal';
 import {
   SubGroupRenderer,
   SpacingRow,
@@ -63,6 +64,7 @@ export default function DataTableTwo() {
   const { csrfFetch } = useCsrf();
   const queryClient = useQueryClient();
   const { year: currentYear } = useCashflowYear();
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const { data, planejamentoPorMes, loading, error, refetch } = useCashflowData(currentYear);
   const startDateISO = useMemo(() => new Date(currentYear, 0, 1).toISOString(), [currentYear]);
   const endDateISO = useMemo(
@@ -610,6 +612,15 @@ export default function DataTableTwo() {
         </div>
       )}
 
+      <div className="mb-3 flex flex-shrink-0 justify-end">
+        <button
+          onClick={() => setImportModalOpen(true)}
+          className="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-600"
+        >
+          Importar planilha
+        </button>
+      </div>
+
       {/* pb-24: garante que as últimas linhas rolem acima do banner de cookies */}
       <div
         ref={scrollContainerRef}
@@ -799,6 +810,12 @@ export default function DataTableTwo() {
           </TableBody>
         </Table>
       </div>
+
+      <ImportPlanilhaModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        year={currentYear}
+      />
 
       <CommentModal
         isOpen={commentModal.isOpen}
