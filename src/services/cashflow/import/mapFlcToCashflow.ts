@@ -351,8 +351,30 @@ export const mapFlcToCashflow = (
       continue;
     }
 
-    const itensPlano: FlcItemPlano[] = [];
+    // Itens homônimos na mesma seção (ex.: 3 linhas "Banco" na Conta Corrente,
+    // vários "Outros"): no app viram UM item, então os meses são SOMADOS —
+    // upsert por nome sobrescreveria o primeiro valor silenciosamente.
+    const itensMesclados: FlcItem[] = [];
+    const posPorLabel = new Map<string, number>();
     for (const item of secao.itens) {
+      const norm = normalizeLabel(item.label);
+      const pos = posPorLabel.get(norm);
+      if (pos === undefined) {
+        posPorLabel.set(norm, itensMesclados.length);
+        itensMesclados.push(item);
+        continue;
+      }
+      const base = itensMesclados[pos];
+      itensMesclados[pos] = { ...base, valores: somarValores(base.valores, item.valores) };
+      if (item.valores.some((v) => v !== null)) {
+        avisos.push(
+          `linha ${item.linha} ("${item.label}") somada à linha ${base.linha} — itens homônimos em "${secao.nome}"`,
+        );
+      }
+    }
+
+    const itensPlano: FlcItemPlano[] = [];
+    for (const item of itensMesclados) {
       const temValor = item.valores.some((v) => v !== null);
       const itemApp =
         grupoApp.items.find(
