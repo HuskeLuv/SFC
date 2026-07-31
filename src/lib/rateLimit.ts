@@ -148,6 +148,11 @@ export const RATE_LIMIT_TIERS: RateLimitTier[] = [
     config: { limit: 10, windowMs: 60_000 },
   },
   {
+    // Import de planilha (upload + parse pesados)
+    match: (p) => p.startsWith('/api/cashflow/import'),
+    config: { limit: 10, windowMs: 60_000 },
+  },
+  {
     // General API
     match: (p) => p.startsWith('/api/'),
     config: { limit: 60, windowMs: 60_000 },
