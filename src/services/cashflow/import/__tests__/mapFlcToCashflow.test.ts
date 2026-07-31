@@ -44,7 +44,10 @@ const grupo = (name: string, overrides: Partial<CashflowGroup> = {}): CashflowGr
 
 /** árvore mínima com os grupos estruturais que o mapper procura */
 const arvorePadrao = () => {
-  const entradasFixas = grupo('Entradas Fixas', { type: 'entrada', items: [item('Salário')] });
+  const entradasFixas = grupo('Entradas Fixas', {
+    type: 'entrada',
+    items: [item('Salário'), item("Receita Proventos FII's")],
+  });
   const semTributacao = grupo('Sem Tributação', { type: 'entrada' });
   const comTributacao = grupo('Com Tributação', { type: 'entrada' });
   const entradasVariaveis = grupo('Entradas Variáveis', {
@@ -57,7 +60,10 @@ const arvorePadrao = () => {
   });
 
   const habitacao = grupo('Habitação', { items: [item('Aluguel'), item('Condomínio')] });
-  const despesasFixas = grupo('Despesas Fixas', { children: [habitacao] });
+  const educacao = grupo('Educação', {
+    items: [item('Escola/Faculdade'), item('Cursos'), item('Material escolar')],
+  });
+  const despesasFixas = grupo('Despesas Fixas', { children: [habitacao, educacao] });
   const despesasVariaveis = grupo('Despesas Variáveis');
   const despesas = grupo('Despesas', { children: [despesasFixas, despesasVariaveis] });
 
@@ -69,6 +75,7 @@ const arvorePadrao = () => {
     entradasVariaveis,
     semTributacao,
     habitacao,
+    educacao,
     despesasFixas,
     despesasVariaveis,
     contaCorrente,
@@ -118,11 +125,7 @@ describe('mapFlcToCashflow', () => {
     );
 
     expect(plan.grupos).toHaveLength(1);
-    expect(plan.grupos[0].destino).toEqual({
-      tipo: 'existente',
-      groupId: habitacao.id,
-      nome: 'Habitação',
-    });
+    expect(plan.grupos[0].destino).toEqual({ groupId: habitacao.id, nome: 'Habitação' });
     const itemPlano = plan.grupos[0].itens[0];
     expect(itemPlano.destino).toEqual({
       tipo: 'existente',
@@ -130,7 +133,7 @@ describe('mapFlcToCashflow', () => {
       nome: 'Aluguel',
     });
     expect(itemPlano.escritas).toEqual([{ mes: 0, valor: 1500 }]);
-    expect(plan.resumo).toMatchObject({ gruposNovos: 0, itensNovos: 0, celulas: 1, conflitos: 0 });
+    expect(plan.resumo).toMatchObject({ itensNovos: 0, celulas: 1, conflitos: 0 });
   });
 
   it('acha grupo renomeado pelo usuário via templateName', () => {
@@ -142,7 +145,7 @@ describe('mapFlcToCashflow', () => {
       parseResult([secao('habitacao', 'Habitação', [flcItem('Aluguel', meses({ 0: 100 }))])]),
       tree,
     );
-    expect(plan.grupos[0].destino).toMatchObject({ tipo: 'existente', groupId: habitacao.id });
+    expect(plan.grupos[0].destino).toMatchObject({ groupId: habitacao.id });
   });
 
   it('item sem match vira criação com significado e rank convertido para string', () => {
@@ -167,50 +170,108 @@ describe('mapFlcToCashflow', () => {
     expect(plan.resumo.itensNovos).toBe(1);
   });
 
-  it('seções §4.1 sem grupo no app viram criação de grupo custom sob o pai correto', () => {
-    const { tree, despesasFixas, entradasVariaveis } = arvorePadrao();
+  it('§4.1: Despesas Financeiras é descartada inteira com motivo', () => {
+    const { tree } = arvorePadrao();
     const plan = mapFlcToCashflow(
       parseResult([
         secao('despesas-financeiras', 'Despesas Financeiras', [
-          flcItem('Juros cheque especial', meses({ 0: 50 })),
-        ]),
-        secao('receita-investimentos', 'Receita Investimentos', [
-          flcItem('Dividendos', meses({ 0: 10 })),
+          flcItem('Taxas Bancárias', meses({ 0: 50 })),
+          flcItem('Cheque Especial', meses()),
         ]),
       ]),
       tree,
     );
 
-    expect(plan.grupos[0].destino).toEqual({
-      tipo: 'criar',
-      nome: 'Despesas Financeiras',
-      type: 'despesa',
-      paiGroupId: despesasFixas.id,
-      paiNome: 'Despesas Fixas',
-    });
-    expect(plan.grupos[1].destino).toEqual({
-      tipo: 'criar',
-      nome: 'Receita Investimentos',
-      type: 'entrada',
-      paiGroupId: entradasVariaveis.id,
-      paiNome: 'Entradas Variáveis',
-    });
-    expect(plan.resumo.gruposNovos).toBe(2);
+    expect(plan.grupos).toHaveLength(0);
+    expect(plan.ignorados).toHaveLength(2);
+    for (const ig of plan.ignorados) {
+      expect(ig.motivo).toContain('descartada');
+    }
   });
 
-  it('reimport: grupo custom criado por import anterior é reusado (idempotência)', () => {
-    const { tree, despesasFixas } = arvorePadrao();
-    const jaCriado = grupo('Despesas Financeiras', { parentId: despesasFixas.id });
-    despesasFixas.children.push(jaCriado);
-
+  it('§4.1: Proventos Fii\'s é realocado para "Receita Proventos FII\'s" em Entradas Fixas', () => {
+    const { tree, entradasFixas } = arvorePadrao();
     const plan = mapFlcToCashflow(
       parseResult([
-        secao('despesas-financeiras', 'Despesas Financeiras', [flcItem('Juros', meses({ 0: 5 }))]),
+        secao('receita-investimentos', 'Receita Investimentos', [
+          flcItem("Proventos Fii's", meses({ 0: 320 })),
+        ]),
       ]),
       tree,
     );
-    expect(plan.grupos[0].destino).toMatchObject({ tipo: 'existente', groupId: jaCriado.id });
-    expect(plan.resumo.gruposNovos).toBe(0);
+
+    // seção sintética de Entradas Fixas criada só para receber o item realocado
+    expect(plan.grupos).toHaveLength(1);
+    expect(plan.grupos[0].chave).toBe('entradas-fixas');
+    expect(plan.grupos[0].destino).toMatchObject({ groupId: entradasFixas.id });
+    expect(plan.grupos[0].itens[0].destino).toEqual({
+      tipo: 'existente',
+      itemId: entradasFixas.items[1].id,
+      nome: "Receita Proventos FII's",
+    });
+    expect(plan.grupos[0].itens[0].escritas).toEqual([{ mes: 0, valor: 320 }]);
+    expect(plan.avisos.some((a) => a.includes('realocada'))).toBe(true);
+  });
+
+  it('§4.1: itens sem correspondência direta são ignorados com motivo específico', () => {
+    const { tree } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('receita-investimentos', 'Receita Investimentos', [
+          flcItem('Dividendos / JCP', meses({ 0: 120 })),
+          flcItem('Juros Renda Fixa', meses({ 1: 80 })),
+          flcItem('Amortização', meses({ 2: 40 })),
+        ]),
+        secao('despesas-dependentes', 'Despesas com dependentes', [
+          flcItem('Pensão', meses({ 0: 900 })),
+          flcItem('Vestuário', meses({ 1: 150 })),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos).toHaveLength(0);
+    const porLabel = (l: string) => plan.ignorados.find((i) => i.label === l);
+    expect(porLabel('Dividendos / JCP')?.motivo).toContain('automático');
+    expect(porLabel('Juros Renda Fixa')?.motivo).toContain('Pré/Pós/Híbridos');
+    expect(porLabel('Amortização')?.motivo).toContain('sem correspondência direta');
+    expect(porLabel('Pensão')?.motivo).toContain('sem correspondência direta');
+    expect(porLabel('Vestuário')?.motivo).toContain('sem correspondência direta');
+  });
+
+  it('§4.1: dependentes realocados para Educação somam com a própria seção Educação da planilha', () => {
+    const { tree, educacao } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('educacao', 'Educação', [flcItem('Cursos', meses({ 0: 100, 2: 30 }))]),
+        secao('despesas-dependentes', 'Despesas com dependentes', [
+          flcItem('Cursos', meses({ 0: 50, 1: 20 })),
+          flcItem('Escola / Faculdade', meses({ 0: 800 })),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos).toHaveLength(1);
+    const grupoEducacao = plan.grupos[0];
+    expect(grupoEducacao.destino).toMatchObject({ groupId: educacao.id });
+
+    const cursos = grupoEducacao.itens.find((i) => i.label === 'Cursos');
+    // jan somado (100+50), fev só dos dependentes, mar só da seção própria
+    expect(cursos?.escritas).toEqual([
+      { mes: 0, valor: 150 },
+      { mes: 1, valor: 20 },
+      { mes: 2, valor: 30 },
+    ]);
+    expect(plan.avisos.some((a) => a.includes('somada'))).toBe(true);
+
+    const escola = grupoEducacao.itens.find((i) => i.label === 'Escola/Faculdade');
+    expect(escola?.destino).toEqual({
+      tipo: 'existente',
+      itemId: educacao.items[0].id,
+      nome: 'Escola/Faculdade',
+    });
+    expect(escola?.escritas).toEqual([{ mes: 0, valor: 800 }]);
   });
 
   it('classifica célula a célula: escrita, já igual e conflito', () => {
@@ -312,7 +373,7 @@ describe('mapFlcToCashflow', () => {
       tree,
     );
 
-    expect(plan.grupos[0].destino).toMatchObject({ tipo: 'existente', groupId: contaCorrente.id });
+    expect(plan.grupos[0].destino).toMatchObject({ groupId: contaCorrente.id });
     expect(plan.grupos[0].itens[0].destino).toMatchObject({
       tipo: 'existente',
       itemId: contaCorrente.items[0].id,
@@ -344,7 +405,7 @@ describe('mapFlcToCashflow', () => {
       tree,
     );
     expect(plan.grupos).toHaveLength(2);
-    expect(plan.grupos[1].destino).toMatchObject({ tipo: 'existente', groupId: habitacao.id });
+    expect(plan.grupos[1].destino).toMatchObject({ groupId: habitacao.id });
     expect(plan.avisos.some((a) => a.includes('mais de uma vez'))).toBe(true);
   });
 });

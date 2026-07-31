@@ -98,11 +98,16 @@ describe('POST /api/cashflow/import/preview', () => {
     expect(body.arquivo).toBe('flc.xlsx');
     expect(body.plan.grupos.length).toBeGreaterThan(0);
     expect(body.plan.resumo.celulas).toBeGreaterThan(0);
-    // fixture: Receita Investimentos não existe na árvore → criação sob Entradas Variáveis
-    const receitaInv = body.plan.grupos.find(
-      (g: { chave: string }) => g.chave === 'receita-investimentos',
+    // §4.1: seções sem correspondente no template nunca viram grupo no plano
+    const chaves = body.plan.grupos.map((g: { chave: string }) => g.chave);
+    expect(chaves).not.toContain('receita-investimentos');
+    expect(chaves).not.toContain('despesas-financeiras');
+    expect(chaves).not.toContain('despesas-dependentes');
+    // item sem correspondência direta da Receita Investimentos → ignorado com motivo
+    const dividendos = body.plan.ignorados.find(
+      (i: { label: string }) => i.label === 'Dividendos / JCP',
     );
-    expect(receitaInv.destino).toMatchObject({ tipo: 'criar', paiGroupId: 'g-ent-var' });
+    expect(dividendos.motivo).toContain('automático');
     // árvore buscada para o usuário-alvo e o ano pedido
     expect(mockGetMergedCashflowGroups).toHaveBeenCalledWith('user-123', 2026);
   });

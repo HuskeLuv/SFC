@@ -3,7 +3,9 @@ import { canonicalName } from '@/services/cashflow/groupMatchers';
 import {
   normalizeLabel,
   type FlcIgnorado,
+  type FlcItem,
   type FlcParseResult,
+  type FlcSecao,
   type FlcSecaoChave,
 } from './parseFlcXlsx';
 
@@ -14,9 +16,10 @@ import {
  *
  * Regras (docs/plano-importacao-planilha-flc.md §3-§4):
  * - Grupo destino identificado por nome canônico (templateName, estável a
- *   renomes) normalizado; seções sem correspondente no template (§4.1) viram
- *   grupos custom sob o pai correto — a menos que já existam de um import
- *   anterior (idempotência).
+ *   renomes) normalizado. O import NUNCA cria grupos: as três seções da
+ *   planilha sem correspondente no template (§4.1, decisão 31/07/2026) são
+ *   descartadas ou realocadas item a item — só correspondência DIRETA aloca;
+ *   o resto é ignorado com motivo.
  * - Item casa por nome normalizado dentro do grupo; sem match → criação de
  *   item custom (leva significado/rank); com match → só grava valores, sem
  *   sobrescrever significado/rank pré-existentes.
@@ -24,20 +27,6 @@ import {
  *   fazer; diferente → conflito (política escolhida no commit).
  * - Linha-espelho de sonho (objetivoId) é somente-leitura → ignorada.
  */
-
-export interface FlcDestinoGrupoExistente {
-  tipo: 'existente';
-  groupId: string;
-  nome: string;
-}
-
-export interface FlcDestinoGrupoCriar {
-  tipo: 'criar';
-  nome: string;
-  type: string;
-  paiGroupId: string;
-  paiNome: string;
-}
 
 export interface FlcEscrita {
   /** 0 = jan */
@@ -66,12 +55,11 @@ export interface FlcItemPlano {
 export interface FlcGrupoPlano {
   chave: FlcSecaoChave;
   nomePlanilha: string;
-  destino: FlcDestinoGrupoExistente | FlcDestinoGrupoCriar;
+  destino: { groupId: string; nome: string };
   itens: FlcItemPlano[];
 }
 
 export interface FlcImportResumo {
-  gruposNovos: number;
   itensNovos: number;
   celulas: number;
   conflitos: number;
@@ -86,45 +74,179 @@ export interface FlcImportPlan {
   resumo: FlcImportResumo;
 }
 
-type DestinoSpec =
-  | { tipo: 'template'; nome: string }
-  | { tipo: 'criar'; nome: string; pai: string; type: 'entrada' | 'despesa' };
-
 /** seção da planilha → grupo do app (nomes canônicos do template/seed) */
-const DESTINOS: Record<FlcSecaoChave, DestinoSpec> = {
-  'entradas-fixas': { tipo: 'template', nome: 'Entradas Fixas' },
-  'sem-tributacao': { tipo: 'template', nome: 'Sem Tributação' },
-  'receita-investimentos': {
-    tipo: 'criar',
-    nome: 'Receita Investimentos',
-    pai: 'Entradas Variáveis',
-    type: 'entrada',
-  },
-  'com-tributacao': { tipo: 'template', nome: 'Com Tributação' },
-  habitacao: { tipo: 'template', nome: 'Habitação' },
-  transporte: { tipo: 'template', nome: 'Transporte' },
-  saude: { tipo: 'template', nome: 'Saúde' },
-  'despesas-pessoais': { tipo: 'template', nome: 'Despesas Pessoais' },
-  lazer: { tipo: 'template', nome: 'Lazer' },
-  educacao: { tipo: 'template', nome: 'Educação' },
-  'animais-estimacao': { tipo: 'template', nome: 'Animais de Estimação' },
-  'despesas-financeiras': {
-    tipo: 'criar',
-    nome: 'Despesas Financeiras',
-    pai: 'Despesas Fixas',
-    type: 'despesa',
-  },
-  impostos: { tipo: 'template', nome: 'Impostos' },
-  'despesas-dependentes': {
-    tipo: 'criar',
-    nome: 'Despesas com Dependentes',
-    pai: 'Despesas Fixas',
-    type: 'despesa',
-  },
-  'despesas-empresa': { tipo: 'template', nome: 'Despesas Empresa' },
-  'despesas-temporarias': { tipo: 'template', nome: 'Despesas Variáveis' },
-  'conta-corrente': { tipo: 'template', nome: 'Conta Corrente' },
+const DESTINOS: Partial<Record<FlcSecaoChave, string>> = {
+  'entradas-fixas': 'Entradas Fixas',
+  'sem-tributacao': 'Sem Tributação',
+  'com-tributacao': 'Com Tributação',
+  habitacao: 'Habitação',
+  transporte: 'Transporte',
+  saude: 'Saúde',
+  'despesas-pessoais': 'Despesas Pessoais',
+  lazer: 'Lazer',
+  educacao: 'Educação',
+  'animais-estimacao': 'Animais de Estimação',
+  impostos: 'Impostos',
+  'despesas-empresa': 'Despesas Empresa',
+  'despesas-temporarias': 'Despesas Variáveis',
+  'conta-corrente': 'Conta Corrente',
 };
+
+// ---------------------------------------------------------------------------
+// §4.1 — seções da planilha sem correspondente no template (decisão 31/07/2026):
+// nada de grupo custom. "Despesas Financeiras" é descartada inteira;
+// "Receita Investimentos" e "Despesas com dependentes" realocam APENAS os
+// itens com correspondência direta no template, renomeando para o nome do
+// item de destino; o resto é ignorado com motivo.
+// ---------------------------------------------------------------------------
+
+const SECAO_DESCARTADA: Partial<Record<FlcSecaoChave, string>> = {
+  'despesas-financeiras':
+    'seção "Despesas Financeiras" descartada no import (sem correspondente no app; decisão 31/07/2026)',
+};
+
+interface RemapAlvo {
+  /** seção-destino (chave do parser) cujo grupo do app receberá o item */
+  secao: FlcSecaoChave;
+  /** nome do item no template — o item é renomeado para casar com ele */
+  item: string;
+}
+
+const REMAP_ITENS: Partial<Record<FlcSecaoChave, Record<string, RemapAlvo>>> = {
+  'receita-investimentos': {
+    'proventos fii s': { secao: 'entradas-fixas', item: "Receita Proventos FII's" },
+  },
+  'despesas-dependentes': {
+    'escola faculdade': { secao: 'educacao', item: 'Escola/Faculdade' },
+    cursos: { secao: 'educacao', item: 'Cursos' },
+    'material escolar': { secao: 'educacao', item: 'Material escolar' },
+  },
+};
+
+/** motivos específicos por item (normalizado) para os não-realocados */
+const MOTIVOS_ITEM: Partial<Record<FlcSecaoChave, Record<string, string>>> = {
+  'receita-investimentos': {
+    'dividendos jcp': 'automático no app (proventos da carteira)',
+    'juros renda fixa':
+      'sem correspondência direta (o app separa Receita Renda Fixa em Pré/Pós/Híbridos)',
+  },
+};
+
+/** rótulo exibido quando a seção-destino não existe na planilha do cliente */
+const NOME_SECAO_SINTETICA: Partial<Record<FlcSecaoChave, string>> = {
+  'entradas-fixas': 'Entradas Fixas',
+  educacao: 'Educação',
+};
+
+const somarValores = (a: (number | null)[], b: (number | null)[]): (number | null)[] =>
+  a.map((v, m) => {
+    const o = b[m] ?? null;
+    if (o === null) return v;
+    return (v ?? 0) + o;
+  });
+
+/**
+ * Pré-passe puro: aplica as decisões §4.1 sobre o IR antes do mapeamento —
+ * descarta/realoca as seções sem correspondente no template. Não muta a entrada.
+ */
+const aplicarDecisoes411 = (parse: FlcParseResult): FlcParseResult => {
+  const secoes: FlcSecao[] = [];
+  const ignorados: FlcIgnorado[] = [...parse.ignorados];
+  const avisos: string[] = [...parse.avisos];
+  const realocados: {
+    item: FlcItem;
+    labelOriginal: string;
+    secaoOriginal: string;
+    alvo: RemapAlvo;
+  }[] = [];
+
+  for (const secao of parse.secoes) {
+    const motivoDescarte = SECAO_DESCARTADA[secao.chave];
+    if (motivoDescarte) {
+      for (const item of secao.itens) {
+        ignorados.push({
+          linha: item.linha,
+          label: item.label,
+          motivo: motivoDescarte,
+          valores: item.valores,
+        });
+      }
+      continue;
+    }
+
+    const remap = REMAP_ITENS[secao.chave];
+    if (remap) {
+      const motivos = MOTIVOS_ITEM[secao.chave] ?? {};
+      for (const item of secao.itens) {
+        const norm = normalizeLabel(item.label);
+        const alvo = remap[norm];
+        if (alvo) {
+          realocados.push({
+            item: { ...item, label: alvo.item },
+            labelOriginal: item.label,
+            secaoOriginal: secao.nome,
+            alvo,
+          });
+        } else {
+          ignorados.push({
+            linha: item.linha,
+            label: item.label,
+            motivo:
+              motivos[norm] ??
+              `seção "${secao.nome}" não existe no app — item sem correspondência direta`,
+            valores: item.valores,
+          });
+        }
+      }
+      continue;
+    }
+
+    secoes.push({ ...secao, itens: [...secao.itens] });
+  }
+
+  for (const r of realocados) {
+    let alvoSecao = secoes.find((s) => s.chave === r.alvo.secao);
+    if (!alvoSecao) {
+      alvoSecao = {
+        chave: r.alvo.secao,
+        nome: NOME_SECAO_SINTETICA[r.alvo.secao] ?? r.alvo.item,
+        linha: r.item.linha,
+        itens: [],
+      };
+      secoes.push(alvoSecao);
+    }
+    const idx = alvoSecao.itens.findIndex(
+      (i) => normalizeLabel(i.label) === normalizeLabel(r.alvo.item),
+    );
+    if (idx >= 0) {
+      // a planilha também preenche o item na seção-destino: soma mês a mês
+      // (alocação sem perda) e avisa no preview
+      const existente = alvoSecao.itens[idx];
+      alvoSecao.itens[idx] = {
+        ...existente,
+        valores: somarValores(existente.valores, r.item.valores),
+      };
+      if (r.item.valores.some((v) => v !== null)) {
+        avisos.push(
+          `linha ${r.item.linha} ("${r.labelOriginal}", seção "${r.secaoOriginal}") somada a "${existente.label}" em ${alvoSecao.nome} — mesmo destino no app`,
+        );
+      }
+    } else {
+      alvoSecao.itens.push(r.item);
+      if (r.item.valores.some((v) => v !== null)) {
+        avisos.push(
+          `linha ${r.item.linha} ("${r.labelOriginal}", seção "${r.secaoOriginal}") realocada para "${r.alvo.item}" em ${alvoSecao.nome}`,
+        );
+      }
+    }
+  }
+
+  return { secoes, ignorados, avisos };
+};
+
+// ---------------------------------------------------------------------------
+// mapeamento
+// ---------------------------------------------------------------------------
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -143,23 +265,14 @@ const flattenGroups = (groups: CashflowGroup[], out: GrupoIndexado[] = []): Grup
   return out;
 };
 
-/** busca por nome canônico normalizado; nome exibido cobre grupos custom de import anterior */
+/** busca por nome canônico normalizado; nome exibido cobre grupos custom */
 const findGroup = (index: GrupoIndexado[], nome: string): CashflowGroup | null => {
   const alvo = normalizeLabel(nome);
   const hit = index.find((e) => e.norm === alvo || normalizeLabel(e.group.name) === alvo);
   return hit ? hit.group : null;
 };
 
-const planejarItem = (
-  item: {
-    linha: number;
-    label: string;
-    significado: string | null;
-    rank: number | null;
-    valores: (number | null)[];
-  },
-  existente: CashflowItem | null,
-): FlcItemPlano => {
+const planejarItem = (item: FlcItem, existente: CashflowItem | null): FlcItemPlano => {
   const escritas: FlcEscrita[] = [];
   const conflitos: FlcConflito[] = [];
   const jaIguais: number[] = [];
@@ -200,7 +313,12 @@ const planejarItem = (
   };
 };
 
-export const mapFlcToCashflow = (parse: FlcParseResult, arvore: CashflowGroup[]): FlcImportPlan => {
+export const mapFlcToCashflow = (
+  parseOriginal: FlcParseResult,
+  arvore: CashflowGroup[],
+): FlcImportPlan => {
+  const parse = aplicarDecisoes411(parseOriginal);
+
   const grupos: FlcGrupoPlano[] = [];
   const ignorados: FlcIgnorado[] = [...parse.ignorados];
   const avisos: string[] = [...parse.avisos];
@@ -216,44 +334,17 @@ export const mapFlcToCashflow = (parse: FlcParseResult, arvore: CashflowGroup[])
     }
     chavesVistas.add(secao.chave);
 
-    const spec = DESTINOS[secao.chave];
-    const grupoApp = findGroup(index, spec.nome);
-
-    let destino: FlcDestinoGrupoExistente | FlcDestinoGrupoCriar;
-    if (grupoApp) {
-      destino = { tipo: 'existente', groupId: grupoApp.id, nome: grupoApp.name };
-    } else if (spec.tipo === 'criar') {
-      const pai = findGroup(index, spec.pai);
-      if (!pai) {
-        avisos.push(
-          `seção "${secao.nome}": grupo-pai "${spec.pai}" não encontrado no fluxo de caixa — seção ignorada`,
-        );
-        for (const item of secao.itens) {
-          ignorados.push({
-            linha: item.linha,
-            label: item.label,
-            motivo: `sem destino no app (grupo-pai "${spec.pai}" ausente)`,
-            valores: item.valores,
-          });
-        }
-        continue;
-      }
-      destino = {
-        tipo: 'criar',
-        nome: spec.nome,
-        type: spec.type,
-        paiGroupId: pai.id,
-        paiNome: pai.name,
-      };
-    } else {
+    const nomeGrupo = DESTINOS[secao.chave];
+    const grupoApp = nomeGrupo ? findGroup(index, nomeGrupo) : null;
+    if (!grupoApp) {
       avisos.push(
-        `seção "${secao.nome}": grupo "${spec.nome}" não encontrado no fluxo de caixa — seção ignorada`,
+        `seção "${secao.nome}": grupo "${nomeGrupo ?? secao.nome}" não encontrado no fluxo de caixa — seção ignorada`,
       );
       for (const item of secao.itens) {
         ignorados.push({
           linha: item.linha,
           label: item.label,
-          motivo: `sem destino no app (grupo "${spec.nome}" ausente)`,
+          motivo: `sem destino no app (grupo "${nomeGrupo ?? secao.nome}" ausente)`,
           valores: item.valores,
         });
       }
@@ -264,11 +355,9 @@ export const mapFlcToCashflow = (parse: FlcParseResult, arvore: CashflowGroup[])
     for (const item of secao.itens) {
       const temValor = item.valores.some((v) => v !== null);
       const itemApp =
-        destino.tipo === 'existente'
-          ? ((grupoApp as CashflowGroup).items.find(
-              (i) => !i.hidden && normalizeLabel(i.name) === normalizeLabel(item.label),
-            ) ?? null)
-          : null;
+        grupoApp.items.find(
+          (i) => !i.hidden && normalizeLabel(i.name) === normalizeLabel(item.label),
+        ) ?? null;
 
       if (itemApp?.objetivoId) {
         ignorados.push({
@@ -292,11 +381,15 @@ export const mapFlcToCashflow = (parse: FlcParseResult, arvore: CashflowGroup[])
       itensPlano.push(planejarItem(item, itemApp));
     }
 
-    grupos.push({ chave: secao.chave, nomePlanilha: secao.nome, destino, itens: itensPlano });
+    grupos.push({
+      chave: secao.chave,
+      nomePlanilha: secao.nome,
+      destino: { groupId: grupoApp.id, nome: grupoApp.name },
+      itens: itensPlano,
+    });
   }
 
   const resumo: FlcImportResumo = {
-    gruposNovos: grupos.filter((g) => g.destino.tipo === 'criar').length,
     itensNovos: grupos.reduce(
       (n, g) => n + g.itens.filter((i) => i.destino.tipo === 'criar').length,
       0,
