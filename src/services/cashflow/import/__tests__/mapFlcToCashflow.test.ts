@@ -381,6 +381,28 @@ describe('mapFlcToCashflow', () => {
     expect(plan.grupos[0].itens[1].destino).toMatchObject({ tipo: 'criar' });
   });
 
+  it('itens homônimos na mesma seção são somados mês a mês (linhas "Banco")', () => {
+    const { tree } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('conta-corrente', 'Conta Corrente', [
+          flcItem('Banco', meses({ 0: 100 }), { linha: 267 }),
+          flcItem('Banco', meses({ 0: 50, 1: 30 }), { linha: 268 }),
+          flcItem('Banco', meses(), { linha: 269 }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens).toHaveLength(1);
+    expect(plan.grupos[0].itens[0].escritas).toEqual([
+      { mes: 0, valor: 150 },
+      { mes: 1, valor: 30 },
+    ]);
+    expect(plan.resumo.itensNovos).toBe(1);
+    expect(plan.avisos.some((a) => a.includes('homônimos'))).toBe(true);
+  });
+
   it('propaga ignorados e avisos do parser e soma no resumo', () => {
     const { tree } = arvorePadrao();
     const plan = mapFlcToCashflow(

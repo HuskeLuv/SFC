@@ -1,0 +1,136 @@
+import prisma from '@/lib/prisma';
+import { logger } from '@/lib/logger';
+import { ensurePersonalizedItem, personalizeGroup } from '@/utils/cashflowPersonalization';
+import { normalizeLabel } from './parseFlcXlsx';
+import type { FlcImportPlan, FlcItemPlano } from './mapFlcToCashflow';
+
+/**
+ * Executor do plano de importação (F2). Percorre o plano produzido pelo
+ * mapFlcToCashflow e grava no banco:
+ * - grupo template → personalizeGroup (mesma infra do batch-update);
+ * - item destino 'existente' → ensurePersonalizedItem + upsert de valores;
+ * - item destino 'criar' → cria item custom no grupo do usuário;
+ * - conflito → política 'sobrescrever' grava o valor da planilha, 'manter' pula.
+ *
+ * Como o batch-update, a execução é por item com try/catch (não é uma
+ * transação única): falha em um item entra no relatório de erros e não
+ * derruba o restante. Reexecutar é seguro — upsert na chave composta
+ * `(itemId, userId, year, month)` e o re-map casa itens criados por nome.
+ */
+
+export type FlcPoliticaConflito = 'sobrescrever' | 'manter';
+
+export interface FlcImportRelatorio {
+  itensCriados: number;
+  celulasGravadas: number;
+  conflitosSobrescritos: number;
+  conflitosMantidos: number;
+  erros: { label: string; erro: string }[];
+}
+
+export const executeFlcImportPlan = async (
+  plan: FlcImportPlan,
+  targetUserId: string,
+  ano: number,
+  politica: FlcPoliticaConflito,
+): Promise<FlcImportRelatorio> => {
+  const relatorio: FlcImportRelatorio = {
+    itensCriados: 0,
+    celulasGravadas: 0,
+    conflitosSobrescritos: 0,
+    conflitosMantidos: 0,
+    erros: [],
+  };
+
+  // grupo do plano → grupo final do usuário (personalizado sob demanda)
+  const grupoFinal = new Map<string, string>();
+  const resolverGrupo = async (groupId: string): Promise<string> => {
+    const cached = grupoFinal.get(groupId);
+    if (cached) return cached;
+    const g = await prisma.cashflowGroup.findUnique({ where: { id: groupId } });
+    if (!g) throw new Error('Grupo do plano não existe mais');
+    const finalId = g.userId === null ? await personalizeGroup(g.id, targetUserId) : g.id;
+    grupoFinal.set(groupId, finalId);
+    return finalId;
+  };
+
+  // dedupe intra-execução (seção duplicada na planilha → mesmo item criado 1x)
+  const itemCriado = new Map<string, string>();
+
+  const upsertValores = async (
+    itemId: string,
+    escritas: { mes: number; valor: number }[],
+  ): Promise<void> => {
+    await Promise.all(
+      escritas.map(({ mes, valor }) =>
+        prisma.cashflowValue.upsert({
+          where: {
+            itemId_userId_year_month: { itemId, userId: targetUserId, year: ano, month: mes },
+          },
+          update: { value: valor },
+          // import grava valores "planejados" sem cor (plano §3.6)
+          create: { itemId, userId: targetUserId, year: ano, month: mes, value: valor },
+        }),
+      ),
+    );
+  };
+
+  const executarItem = async (planGroupId: string, itemPlano: FlcItemPlano): Promise<void> => {
+    const escritas = [...itemPlano.escritas];
+    if (politica === 'sobrescrever') {
+      escritas.push(...itemPlano.conflitos.map((c) => ({ mes: c.mes, valor: c.valorPlanilha })));
+      relatorio.conflitosSobrescritos += itemPlano.conflitos.length;
+    } else {
+      relatorio.conflitosMantidos += itemPlano.conflitos.length;
+    }
+    if (escritas.length === 0) return;
+
+    let finalItemId: string;
+    if (itemPlano.destino.tipo === 'existente') {
+      const { itemId, item } = await ensurePersonalizedItem(itemPlano.destino.itemId, targetUserId);
+      // defensivo: o mapper já exclui linhas-espelho de sonho, mas o plano é
+      // recalculado do banco e um vínculo pode ter surgido entre map e execução
+      if (item.objetivoId) return;
+      finalItemId = itemId;
+    } else {
+      const finalGroupId = await resolverGrupo(planGroupId);
+      const chave = `${finalGroupId}:${normalizeLabel(itemPlano.label)}`;
+      const jaCriado = itemCriado.get(chave);
+      if (jaCriado) {
+        finalItemId = jaCriado;
+      } else {
+        const criado = await prisma.cashflowItem.create({
+          data: {
+            userId: targetUserId,
+            groupId: finalGroupId,
+            name: itemPlano.label,
+            significado: itemPlano.destino.significado,
+            rank: itemPlano.destino.rank,
+          },
+        });
+        itemCriado.set(chave, criado.id);
+        relatorio.itensCriados += 1;
+        finalItemId = criado.id;
+      }
+    }
+
+    await upsertValores(finalItemId, escritas);
+    relatorio.celulasGravadas += escritas.length;
+  };
+
+  for (const grupo of plan.grupos) {
+    for (const itemPlano of grupo.itens) {
+      try {
+        await executarItem(grupo.destino.groupId, itemPlano);
+      } catch (error) {
+        logger.error(`Import FLC: erro no item "${itemPlano.label}":`, error);
+        relatorio.erros.push({
+          label: itemPlano.label,
+          erro: error instanceof Error ? error.message : 'Erro ao gravar item',
+        });
+      }
+    }
+  }
+
+  return relatorio;
+};

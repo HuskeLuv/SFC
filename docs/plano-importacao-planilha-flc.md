@@ -186,11 +186,24 @@ UI: modal wizard em /fluxodecaixa  → 3 passos: upload → preview (ano, confli
 - ✅ §4.1 decidido em 31/07 (Wellington) — ver seção 4.1. §7 segue aberto, mas
   as questões têm default v1 definido (não bloqueiam F2 mínima).
 
-### F2 — Commit + UI
+### F2 — Commit + UI — ✅ concluída em 2026-07-31
 
-- `POST /api/cashflow/import/commit` (transação, idempotente, recordChange).
-- Wizard na página /fluxodecaixa (upload → preview → resultado) + invalidação.
-- Testes de rota (padrão do repo: mock prisma + requireAuthWithActing) e de componente.
+- ✅ `POST /api/cashflow/import/commit`: recalcula o plano no servidor (client não
+  manda plano serializado), executa via `executeFlcImportPlan` (personalizeGroup/
+  ensurePersonalizedItem + upsert na chave `itemId_userId_year_month`; por item com
+  try/catch, como o batch-update — não é transação única), `politicaConflito`
+  sobrescrever|manter, `recordChange` action `fluxo.importar-planilha` (rótulo em
+  renderChange.ts; undo fora do registry até F3), devolve árvore pós-import.
+  Multipart compartilhado com o preview em `importRequest.ts`.
+- ✅ Wizard `ImportPlanilhaModal` (upload → prévia → resultado) com botão
+  "Importar planilha" na DataTableTwo; pós-commit grava `groups` no cache do ano
+  e invalida cashflow.all + planejamento (padrão batch-update).
+- ✅ Fix no mapper: itens homônimos na mesma seção (3× "Banco", vários "Outros")
+  são SOMADOS mês a mês com aviso — upsert por nome sobrescreveria silencioso.
+- ✅ Testes: 6 executor + 5 rota commit + 4 componente (total do importador: 61).
+- ✅ Verificação runtime (dev + usuário demo + arquivo real): preview 137 células/
+  10 novos/24 conflitos, commit 161 gravadas, reimport 100% idempotente (0 gravadas,
+  161 já iguais), wizard dirigido via Playwright de ponta a ponta.
 
 ### F3 — Polimento
 
