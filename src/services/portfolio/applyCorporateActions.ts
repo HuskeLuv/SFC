@@ -128,6 +128,16 @@ export async function applyCorporateActionsToUserPositions(
       x.getUTCDate() === y.getUTCDate();
     const claimedIds = new Set<string>();
 
+    // Data mais antiga efetivamente MUTADA nesta posição (auditoria criada/
+    // corrigida/removida). Alimenta o recomputeSnapshotsFrom do recálculo:
+    // um split aplicado pelo cron muda a posição retroativamente e, sem isso,
+    // os snapshots diários seguiam com a quantidade pré-evento. Re-runs
+    // idempotentes (nada mudou) ficam null e não invalidam nada.
+    let minChangedDate: Date | null = null;
+    const markChanged = (d: Date) => {
+      if (!minChangedDate || d < minChangedDate) minChangedDate = d;
+    };
+
     // Quantidade antes/depois de cada evento aplicável (computeCorporateActionAudit
     // filtra os tipos tratáveis); só os que incidem sobre papéis detidos.
     const audit = computeCorporateActionAudit(txs, allActions);
@@ -175,6 +185,7 @@ export async function applyCorporateActionsToUserPositions(
               where: { id: existing.row.id },
               data: { quantity: desiredDelta, date: a.date, notes: desiredNotes },
             });
+            markChanged(existing.row.date < a.date ? existing.row.date : a.date);
             result.applied++;
           } else {
             result.skipped++;
@@ -182,6 +193,7 @@ export async function applyCorporateActionsToUserPositions(
           continue;
         }
 
+        markChanged(a.date);
         await prisma.stockTransaction.create({
           data: {
             userId,
@@ -212,6 +224,7 @@ export async function applyCorporateActionsToUserPositions(
         await prisma.stockTransaction.deleteMany({
           where: { id: { in: orphans.map((o) => o.row.id) } },
         });
+        orphans.forEach((o) => markChanged(o.row.date));
         logger.warn(
           `[applyCorporateActions] ${p.asset.symbol}: ${orphans.length} auditoria(s) órfã(s) removida(s)`,
         );
@@ -229,6 +242,10 @@ export async function applyCorporateActionsToUserPositions(
         targetUserId: userId,
         assetId: p.assetId,
         portfolioId: p.id,
+        // Só invalida snapshots quando algo mudou nesta rodada (evento novo,
+        // reconciliação ou órfã removida) — re-runs idempotentes não pagam o
+        // custo nem apagam a série à toa.
+        recomputeSnapshotsFrom: minChangedDate ?? undefined,
       });
     } catch (err) {
       logger.warn(`[applyCorporateActions] erro ao recalcular portfolio ${p.id}:`, err);

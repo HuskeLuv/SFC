@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { investimentoCreateSchema, validationError } from '@/utils/validation-schemas';
 import { parsePaginationParams, paginatedResponse } from '@/utils/pagination';
 import { recordChange, diffFields, CASHFLOW_FIELD_LABELS } from '@/services/changeHistory';
+import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
+import { logger } from '@/lib/logger';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // GET - Buscar investimentos categorizados do usuário
@@ -173,6 +175,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       value: valor,
     },
   });
+
+  // Valor de grupo 'investimento' entra como fluxo na série da carteira e o
+  // mês corrente pode já ter snapshot da Evolução (cron do último dia útil) —
+  // invalida do início do mês. Best-effort: não derruba o registro.
+  try {
+    await invalidatePortfolioSnapshots(targetUserId, new Date(currentYear, monthAtual, 1));
+  } catch (error) {
+    logger.error('[investimento] invalidação de snapshots falhou:', error);
+  }
 
   await recordChange({
     request,

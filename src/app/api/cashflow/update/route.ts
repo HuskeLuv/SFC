@@ -13,6 +13,7 @@ import {
 } from '@/utils/cashflowPersonalization';
 import { cashflowUpdateSchema, validationError } from '@/utils/validation-schemas';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
+import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import {
   recordChange,
   diffFields,
@@ -89,6 +90,13 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   }
   const { operation, type, id, data } = parsed.data;
 
+  // Checado ANTES da mutação: a exclusão apaga a linha e depois não dá mais
+  // para saber a que grupo ela pertencia.
+  const investimentoTouched =
+    operation !== 'create'
+      ? await touchesInvestimentoGroup(type, id, data as { groupId?: string; type?: string })
+      : false;
+
   // Operações com grupos
   let result;
   let outcome: RecordOutcome = {};
@@ -114,8 +122,19 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
   // ressuscitar tombstone, mover item de grupo ou trocar o type do grupo) →
   // os agregados de meses passados mudam e os snapshots travados da Evolução
   // do Patrimônio ficam obsoletos. Criação de linha vazia não afeta valores.
+  // Quando a linha pertence a (ou vira) grupo 'investimento', os valores
+  // alimentam a série da carteira → invalida também os snapshots diários.
   if (result.status >= 200 && result.status < 300 && operation !== 'create') {
-    await recomputeEvolucaoSnapshotsSafe(targetUserId, new Date(0));
+    if (investimentoTouched) {
+      try {
+        // Também recomputa a Evolução internamente.
+        await invalidatePortfolioSnapshots(targetUserId, new Date(0));
+      } catch {
+        await recomputeEvolucaoSnapshotsSafe(targetUserId, new Date(0));
+      }
+    } else {
+      await recomputeEvolucaoSnapshotsSafe(targetUserId, new Date(0));
+    }
   }
 
   // Histórico de alterações — só após a mutação ter sucesso, com o outcome
@@ -152,6 +171,47 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
 
   return result;
 });
+
+/**
+ * A operação toca em grupo type='investimento' (a linha em si, o grupo de
+ * origem do item ou o grupo destino de um move)? Esses valores alimentam a
+ * série da carteira, então a mutação exige invalidar os snapshots diários.
+ */
+async function touchesInvestimentoGroup(
+  type: string,
+  id: string | undefined,
+  data: { groupId?: string; type?: string } | undefined,
+): Promise<boolean> {
+  try {
+    if (type === 'group') {
+      if (data?.type === 'investimento') return true;
+      if (!id) return false;
+      const group = await prisma.cashflowGroup.findUnique({
+        where: { id },
+        select: { type: true },
+      });
+      return group?.type === 'investimento';
+    }
+    const checks: Array<Promise<boolean>> = [];
+    if (id) {
+      checks.push(
+        prisma.cashflowItem
+          .findUnique({ where: { id }, select: { group: { select: { type: true } } } })
+          .then((item) => item?.group?.type === 'investimento'),
+      );
+    }
+    if (data?.groupId) {
+      checks.push(
+        prisma.cashflowGroup
+          .findUnique({ where: { id: data.groupId }, select: { type: true } })
+          .then((g) => g?.type === 'investimento'),
+      );
+    }
+    return (await Promise.all(checks)).some(Boolean);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Processa operações com grupos

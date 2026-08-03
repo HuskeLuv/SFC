@@ -35,6 +35,11 @@ vi.mock('@/utils/cashflowPersonalization', () => ({
   personalizeGroup: vi.fn().mockResolvedValue('group-personalized'),
 }));
 
+const mockInvalidatePortfolio = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
+  invalidatePortfolioSnapshots: mockInvalidatePortfolio,
+}));
+
 import { GET, POST } from '../route';
 
 const createGetRequest = (params?: Record<string, string>) => {

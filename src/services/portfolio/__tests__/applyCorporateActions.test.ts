@@ -101,7 +101,20 @@ describe('applyCorporateActionsToUserPositions', () => {
       targetUserId: 'user-1',
       assetId: 'asset-1',
       portfolioId: 'port-1',
+      // Auditoria criada nesta rodada → snapshots invalidados da data do evento
+      recomputeSnapshotsFrom: new Date('2025-03-17T00:00:00Z'),
     });
+  });
+
+  it('re-run idempotente (auditoria já existe, sem drift) não invalida snapshots', async () => {
+    setAuditRows([mockAuditRow()]);
+
+    await applyCorporateActionsToUserPositions('user-1');
+
+    expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    expect(mockRecalc).toHaveBeenCalledWith(
+      expect.objectContaining({ recomputeSnapshotsFrom: undefined }),
+    );
   });
 
   it('DESDOBRAMENTO 2:1 gera delta +100 (100 → 200)', async () => {
