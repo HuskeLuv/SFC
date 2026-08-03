@@ -7,8 +7,13 @@ const mockPrisma = vi.hoisted(() => ({
 }));
 const mockPersonalizeGroup = vi.hoisted(() => vi.fn());
 
+const mockRecomputeEvolucao = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/utils/cashflowPersonalization', () => ({ personalizeGroup: mockPersonalizeGroup }));
+vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
+  recomputeEvolucaoSnapshotsSafe: mockRecomputeEvolucao,
+}));
 
 import { syncObjetivoToCashflow, removeObjetivoCashflow } from '../sonhoCashflowSync';
 import { REALIZADO_COLOR } from '../cashflowToSonhoSync';
@@ -55,6 +60,9 @@ describe('syncObjetivoToCashflow', () => {
       month: 0,
       value: 2000,
     });
+    // A janela pode cobrir meses passados → snapshots travados da Evolução
+    // do Patrimônio são recomputados após o sync.
+    expect(mockRecomputeEvolucao).toHaveBeenCalledWith('u1', new Date(0));
   });
 
   it('aporte 0 (meta não definida) → cria a linha mas não grava valores', async () => {
@@ -207,8 +215,8 @@ describe('syncObjetivoToCashflow', () => {
 });
 
 describe('removeObjetivoCashflow', () => {
-  it('remove valores e a linha vinculada', async () => {
-    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1' });
+  it('remove valores e a linha vinculada, recomputando a Evolução', async () => {
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', userId: 'u1' });
     mockPrisma.cashflowItem.delete.mockResolvedValue({ id: 'item-1' });
 
     await removeObjetivoCashflow('obj-1');
@@ -217,6 +225,7 @@ describe('removeObjetivoCashflow', () => {
       where: { itemId: 'item-1' },
     });
     expect(mockPrisma.cashflowItem.delete).toHaveBeenCalledWith({ where: { id: 'item-1' } });
+    expect(mockRecomputeEvolucao).toHaveBeenCalledWith('u1', new Date(0));
   });
 
   it('no-op quando não há linha vinculada', async () => {
