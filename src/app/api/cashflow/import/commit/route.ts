@@ -9,6 +9,7 @@ import {
   executeFlcImportPlan,
   type FlcPoliticaConflito,
 } from '@/services/cashflow/import/executeFlcImportPlan';
+import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import { recordChange } from '@/services/changeHistory';
 
 /**
@@ -52,6 +53,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const relatorio = await executeFlcImportPlan(plan, targetUserId, ano, politica);
 
   if (relatorio.celulasGravadas > 0 || relatorio.itensCriados > 0) {
+    // Import grava valores do ano inteiro (meses passados incluídos) →
+    // snapshots travados da Evolução do Patrimônio do ano em diante precisam
+    // ser recomputados.
+    await recomputeEvolucaoSnapshotsSafe(targetUserId, new Date(Date.UTC(ano, 0, 1)));
     await recordChange({
       request,
       auth,

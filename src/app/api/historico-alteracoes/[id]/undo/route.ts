@@ -4,6 +4,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordChange } from '@/services/changeHistory';
 import { assertUndoable, UndoError } from '@/services/changeHistory/undo';
+import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 
 /**
  * POST /api/historico-alteracoes/:id/undo — desfaz uma alteração do histórico.
@@ -71,6 +72,13 @@ export const POST = withErrorHandler(
         );
       }
       throw error;
+    }
+
+    // Undo de fluxo de caixa restaura/apaga valores possivelmente de meses já
+    // travados pelo cron → recomputa os snapshots da Evolução do Patrimônio.
+    // (Undo de carteira já recomputa via recalculatePortfolioFromTransactions.)
+    if (entry.section === 'fluxo-caixa') {
+      await recomputeEvolucaoSnapshotsSafe(targetUserId, new Date(0));
     }
 
     await recordChange({

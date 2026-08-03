@@ -10,6 +10,7 @@ const mockPrisma = vi.hoisted(() => ({
   },
   stockTransaction: { findFirst: vi.fn(), update: vi.fn() },
   portfolio: { findFirst: vi.fn() },
+  cashflowValue: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn(), create: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());
@@ -29,6 +30,10 @@ vi.mock('@/services/planejamento/sonhoCashflowSync', () => ({
   syncObjetivoToCashflow: vi.fn(),
   syncObjetivoRecordToCashflow: vi.fn(),
   removeObjetivoCashflow: vi.fn(),
+}));
+const mockRecomputeEvolucao = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
+  recomputeEvolucaoSnapshotsSafe: mockRecomputeEvolucao,
 }));
 
 import { POST } from '../route';
@@ -154,6 +159,40 @@ describe('POST /api/historico-alteracoes/[id]/undo', () => {
         changes: [{ field: 'quantity', label: 'Quantidade', before: 150, after: 100 }],
       }),
     });
+    // Carteira já recomputa a Evolução via recalculatePortfolioFromTransactions
+    expect(mockRecomputeEvolucao).not.toHaveBeenCalled();
+  });
+
+  it('undo de fluxo-caixa recomputa snapshots da Evolução do Patrimônio', async () => {
+    setupEntry(
+      baseEntry({
+        section: 'fluxo-caixa',
+        action: 'valor.editar',
+        entity: 'valores',
+        entityId: 'item-1',
+        entityLabel: 'Salário',
+        changes: [{ field: 'monthlyValue', label: 'Valor', before: 100, after: 200 }],
+        snapshot: {
+          v: 1,
+          kind: 'cashflow-valor',
+          data: { value: 100 },
+          meta: { itemId: 'item-1', year: 2026, month: 3 },
+        },
+      }),
+    );
+    mockPrisma.cashflowValue.findFirst.mockResolvedValue({ id: 'v1', value: 200 });
+    mockPrisma.cashflowValue.update.mockResolvedValue({});
+
+    const response = await callPOST();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where: { id: 'v1' },
+      data: { value: 100 },
+    });
+    expect(mockRecomputeEvolucao).toHaveBeenCalledWith('user-1', new Date(0));
   });
 
   it('rollback do claim quando o handler falha (estado divergente → 409)', async () => {

@@ -56,6 +56,11 @@ vi.mock('jsonwebtoken', () => ({
   default: { verify: () => ({ id: 'user-123', email: 'test@test.com', role: 'user' }) },
 }));
 
+const mockRecomputeEvolucao = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
+  recomputeEvolucaoSnapshotsSafe: mockRecomputeEvolucao,
+}));
+
 import { PATCH } from '../update/route';
 
 const createRequest = (body: object) => {
@@ -421,5 +426,49 @@ describe('PATCH /api/cashflow/update — override layer (templateId + tombstones
     );
     // personalizeItem nao deve ser chamado — ja eh override do usuario
     expect(mockPersonalizeItem).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/cashflow/update — recompute da Evolução do Patrimônio', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('delete de item recomputa snapshots (valores somem de meses travados)', async () => {
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({
+      id: 'user-item-1',
+      userId: 'user-123',
+      name: 'Extra',
+    });
+    mockPrisma.cashflowValue.findMany.mockResolvedValue([]);
+    mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 2 });
+    mockPrisma.cashflowItem.delete.mockResolvedValue({});
+
+    const response = await PATCH(
+      createRequest({ operation: 'delete', type: 'item', id: 'user-item-1' }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockRecomputeEvolucao).toHaveBeenCalledWith('user-123', new Date(0));
+  });
+
+  it('create de grupo não recomputa snapshots (linha nova não tem valores)', async () => {
+    mockPrisma.cashflowGroup.create.mockResolvedValue({
+      id: 'g-new',
+      name: 'Novo Grupo',
+      items: [],
+      children: [],
+    });
+
+    const response = await PATCH(
+      createRequest({
+        operation: 'create',
+        type: 'group',
+        data: { name: 'Novo Grupo', type: 'despesa' },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockRecomputeEvolucao).not.toHaveBeenCalled();
   });
 });

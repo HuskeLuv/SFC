@@ -8,6 +8,7 @@ import { cashflowBatchUpdateSchema, validationError } from '@/utils/validation-s
 import { syncCashflowToObjetivo } from '@/services/planejamento/cashflowToSonhoSync';
 import { removeObjetivoCashflow } from '@/services/planejamento/sonhoCashflowSync';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
+import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import { recordChange } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -51,6 +52,14 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   const targetYear = year ?? new Date().getFullYear();
   const results: Array<{ itemId: string; success: boolean; error?: string }> = [];
 
+  // Alcance retroativo da mutação, para recomputar os snapshots travados da
+  // Evolução do Patrimônio ao final. Exclusões apagam valores de todos os
+  // anos → new Date(0); edição de valores → mês mais antigo editado.
+  let recomputeFrom: Date | null = null;
+  const markRecompute = (candidate: Date) => {
+    if (!recomputeFrom || candidate < recomputeFrom) recomputeFrom = candidate;
+  };
+
   // Processar deletados. Linhas livres: bulk delete em transação. Linhas
   // vinculadas a um sonho: excluir AQUI propaga a exclusão pro Planejamento
   // (remove o objetivo + entries + linha-espelho) — liberado na reunião
@@ -79,6 +88,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           results.push({ itemId: id, success: true });
           handled.add(id);
         }
+        markRecompute(new Date(0));
       } catch (error) {
         logger.error('Erro ao deletar items:', error);
         for (const id of ownedFree) {
@@ -105,6 +115,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         await removeObjetivoCashflow(objetivoId);
         await prisma.planejamentoObjetivo.delete({ where: { id: objetivoId } });
         results.push({ itemId, success: true });
+        markRecompute(new Date(0));
       } catch (error) {
         logger.error(`Erro ao excluir sonho vinculado ao item ${itemId}:`, error);
         results.push({ itemId, success: false, error: 'Erro ao excluir sonho' });
@@ -203,6 +214,11 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
             validValues.push({ month, numericValue, color });
           }
 
+          if (validValues.length > 0) {
+            const minMonth = Math.min(...validValues.map((v) => v.month));
+            markRecompute(new Date(Date.UTC(targetYear, minMonth, 1)));
+          }
+
           await Promise.all(
             validValues.map(({ month, numericValue, color }) => {
               const colorOverride = color !== undefined ? { color } : {};
@@ -250,6 +266,13 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
     } catch (error) {
       logger.error(`Erro ao sincronizar sonho ${objetivoId} a partir do caixa:`, error);
     }
+  }
+
+  // Valores de meses já travados pelo cron (snapshot da Evolução do
+  // Patrimônio) mudaram → recomputa os snapshots afetados, senão a série
+  // exibida ganha degrau (meses sem snapshot enxergam a edição, travados não).
+  if (recomputeFrom) {
+    await recomputeEvolucaoSnapshotsSafe(targetUserId, recomputeFrom);
   }
 
   // Histórico de alterações: UMA linha agregada por request. O caminho de

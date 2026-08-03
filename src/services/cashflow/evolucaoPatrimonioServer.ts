@@ -164,6 +164,24 @@ export async function computeEvolucaoDoMes(
  * cadeia) E todos os de anos seguintes (a transação muda a base aplicada da
  * virada do ano). Mantém a semântica do cron: recomputa a cadeia pura do ano.
  */
+/**
+ * Variante best-effort de `recomputeEvolucaoSnapshots` para rotas de fluxo de
+ * caixa: falha no recompute loga e não derruba a mutação principal. Use
+ * `new Date(0)` como fromDate quando o alcance retroativo é desconhecido
+ * (exclusão de item com valores, tombstone, undo) — recomputa todos os
+ * snapshots do usuário, que são poucos (1/mês desde jul/2026).
+ */
+export async function recomputeEvolucaoSnapshotsSafe(
+  userId: string,
+  fromDate: Date,
+): Promise<void> {
+  try {
+    await recomputeEvolucaoSnapshots(userId, fromDate);
+  } catch (error) {
+    logger.error('[recomputeEvolucaoSnapshotsSafe] recompute falhou:', { userId, error });
+  }
+}
+
 export async function recomputeEvolucaoSnapshots(userId: string, fromDate: Date): Promise<void> {
   const fromYear = fromDate.getUTCFullYear();
   const fromMonth = fromDate.getUTCMonth();
