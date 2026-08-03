@@ -96,14 +96,11 @@ const findSaldoGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
 };
 
 /**
- * Calcula o valor da Evolução do Patrimônio de um mês para um usuário,
- * server-side, com os mesmos módulos puros usados pela planilha.
+ * Série anual (12 meses) da Evolução do Patrimônio de um usuário, server-side,
+ * com os mesmos módulos puros usados pela planilha. Cadeia PURA (ignora
+ * snapshots travados) — mesma semântica que o cron usa ao congelar um mês.
  */
-export async function computeEvolucaoDoMes(
-  userId: string,
-  year: number,
-  month: number,
-): Promise<number> {
+export async function computeEvolucaoSeriesDoAno(userId: string, year: number): Promise<number[]> {
   const [groups, aportes, saldoDezembroAnterior, baseAplicada] = await Promise.all([
     getMergedCashflowGroups(userId, year),
     getAportesPorMes(userId, year),
@@ -127,7 +124,7 @@ export async function computeEvolucaoDoMes(
     aportesByMonth: aportes.totaisPorMes,
   });
 
-  const series = computeEvolucaoSeries({
+  return computeEvolucaoSeries({
     baseAplicada,
     // Série cheia: todo aporte nominal (vinculado ou não) vira patrimônio.
     aportesByMonth: aportes.aportesFullPorMes,
@@ -138,8 +135,60 @@ export async function computeEvolucaoDoMes(
     ),
     snapshotByMonth: {},
   });
+}
 
+/**
+ * Calcula o valor da Evolução do Patrimônio de um mês para um usuário,
+ * server-side, com os mesmos módulos puros usados pela planilha.
+ */
+export async function computeEvolucaoDoMes(
+  userId: string,
+  year: number,
+  month: number,
+): Promise<number> {
+  const series = await computeEvolucaoSeriesDoAno(userId, year);
   return Math.round(series[month] * 100) / 100;
+}
+
+/**
+ * Recalcula os snapshots mensais travados afetados por uma mutação retroativa
+ * de transação (criação/edição/exclusão/undo com data no passado).
+ *
+ * Sem isto, um aporte retroativo entra nos meses SEM snapshot (recalculados ao
+ * vivo) mas os meses já travados pelo cron ficam com o valor antigo — a série
+ * exibida ganha um degrau (ex.: reserva de R$ 25k datada de ago/2025 criada em
+ * ago/2026 aparecia em jan–jun/2026 mas sumia de jul/2026 em diante, porque
+ * jul estava congelado com a base antiga).
+ *
+ * Afetados: snapshots do mês da transação em diante no mesmo ano (efeito em
+ * cadeia) E todos os de anos seguintes (a transação muda a base aplicada da
+ * virada do ano). Mantém a semântica do cron: recomputa a cadeia pura do ano.
+ */
+export async function recomputeEvolucaoSnapshots(userId: string, fromDate: Date): Promise<void> {
+  const fromYear = fromDate.getUTCFullYear();
+  const fromMonth = fromDate.getUTCMonth();
+
+  const snapshots = await prisma.cashflowPatrimonioSnapshot.findMany({
+    where: {
+      userId,
+      OR: [{ year: { gt: fromYear } }, { year: fromYear, month: { gte: fromMonth } }],
+    },
+    orderBy: [{ year: 'asc' }, { month: 'asc' }],
+  });
+  if (snapshots.length === 0) return;
+
+  const years = [...new Set(snapshots.map((s) => s.year))];
+  for (const year of years) {
+    const series = await computeEvolucaoSeriesDoAno(userId, year);
+    for (const snapshot of snapshots.filter((s) => s.year === year)) {
+      const valor = Math.round(series[snapshot.month] * 100) / 100;
+      if (valor === snapshot.valor) continue;
+      await prisma.cashflowPatrimonioSnapshot.update({
+        where: { id: snapshot.id },
+        data: { valor },
+      });
+    }
+  }
 }
 
 /** Data civil em horário de Brasília (UTC−3, sem horário de verão desde 2019). */

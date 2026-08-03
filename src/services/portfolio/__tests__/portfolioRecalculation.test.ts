@@ -12,11 +12,15 @@ const mockPrisma = vi.hoisted(() => ({
 
 const mockDeleteTtlCache = vi.hoisted(() => vi.fn());
 const mockEnsureCA = vi.hoisted(() => vi.fn());
+const mockRecomputeEvolucao = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/simpleTtlCache', () => ({ deleteTtlCacheKeyPrefix: mockDeleteTtlCache }));
 vi.mock('@/services/pricing/dividendService', () => ({
   ensureCorporateActionsSynced: mockEnsureCA,
+}));
+vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
+  recomputeEvolucaoSnapshots: mockRecomputeEvolucao,
 }));
 
 import { recalculatePortfolioFromTransactions } from '../portfolioRecalculation';
@@ -167,6 +171,7 @@ describe('recalculatePortfolioFromTransactions', () => {
       expect(mockPrisma.portfolioDailySnapshot.deleteMany).not.toHaveBeenCalled();
       expect(mockPrisma.portfolioPerformance.deleteMany).not.toHaveBeenCalled();
       expect(mockDeleteTtlCache).not.toHaveBeenCalled();
+      expect(mockRecomputeEvolucao).not.toHaveBeenCalled();
     });
 
     it('apaga snapshots e performance >= cutoff quando recomputeSnapshotsFrom passa', async () => {
@@ -192,6 +197,34 @@ describe('recalculatePortfolioFromTransactions', () => {
       expect(gteDate.getUTCHours()).toBe(0);
       expect(gteDate.getUTCMinutes()).toBe(0);
       expect(gteDate.toISOString().slice(0, 10)).toBe('2025-06-15');
+    });
+
+    it('recalcula snapshots da Evolução do Patrimônio (fluxo de caixa) a partir do cutoff', async () => {
+      const cutoff = new Date('2025-06-15T14:00:00Z');
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        stockId: null,
+        portfolioId,
+        recomputeSnapshotsFrom: cutoff,
+      });
+
+      expect(mockRecomputeEvolucao).toHaveBeenCalledWith(userId, cutoff);
+    });
+
+    it('falha no recompute da Evolução não derruba a mutação (best-effort)', async () => {
+      mockRecomputeEvolucao.mockRejectedValueOnce(new Error('boom'));
+
+      await expect(
+        recalculatePortfolioFromTransactions({
+          targetUserId: userId,
+          assetId: 'asset-1',
+          stockId: null,
+          portfolioId,
+          recomputeSnapshotsFrom: new Date('2025-06-15T14:00:00Z'),
+        }),
+      ).resolves.toBeUndefined();
     });
 
     it('invalida cache TTL carteiraResumo do usuário', async () => {
