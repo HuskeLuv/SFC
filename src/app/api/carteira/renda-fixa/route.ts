@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { getFixedIncomeCurrentValue } from '@/services/portfolio/itemValuation';
+import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { calcularIRRendaFixa } from '@/services/ir/fixedIncomeIR';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -398,6 +399,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       orderBy: { date: 'desc' },
     });
 
+    // Data a partir da qual os snapshots derivados (série diária da carteira e
+    // Evolução do Patrimônio) ficam obsoletos com esta edição. Preenchida em
+    // cada ramo; null = nada mutado.
+    let snapshotCutoff: Date | null = null;
+
     if (campo === 'valorAtualizado') {
       // Tesouro do catálogo é precificado pelo PU oficial — bloquear sobrescrita manual.
       if (portfolio.asset?.type === 'tesouro-direto') {
@@ -417,6 +423,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           lastUpdate: new Date(),
         },
       });
+      snapshotCutoff = transaction?.date ?? new Date(0);
     } else {
       // Para outros campos, atualizar metadados na transação
       if (transaction) {
@@ -437,6 +444,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             notes: JSON.stringify(notes),
           },
         });
+        snapshotCutoff = transaction.date;
       } else if (portfolio.assetId) {
         // Se não houver transação, buscar a primeira transação de compra ou criar uma nova
         const firstTransaction = await prisma.stockTransaction.findFirst({
@@ -466,12 +474,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               notes: JSON.stringify(notes),
             },
           });
+          snapshotCutoff = firstTransaction.date;
         } else {
           // Criar uma nova transação apenas para armazenar os metadados
           const notes = {
             [campo]: valor,
           };
 
+          const dataSintetica = portfolio.lastUpdate || new Date();
           await prisma.stockTransaction.create({
             data: {
               userId: targetUserId,
@@ -479,13 +489,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               type: 'compra',
               quantity: portfolio.quantity,
               price: portfolio.avgPrice,
-              date: portfolio.lastUpdate || new Date(),
+              date: dataSintetica,
               total: portfolio.totalInvested || portfolio.avgPrice * portfolio.quantity,
               notes: JSON.stringify(notes),
             },
           });
+          snapshotCutoff = dataSintetica;
         }
       }
+    }
+
+    // A edição muda a curva de precificação (taxa/indexador/vencimento nas
+    // notes), o valor da posição (avgPrice) ou cria compra sintética
+    // retroativa — sem invalidar, série diária e Evolução do Patrimônio
+    // continuam com o estado antigo.
+    if (snapshotCutoff) {
+      await invalidatePortfolioSnapshots(targetUserId, snapshotCutoff);
     }
 
     // Estado anterior sem query extra: valorAtualizado deriva do próprio
