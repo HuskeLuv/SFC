@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { transactionPatchSchema, validationError } from '@/utils/validation-schemas';
-import { recalculatePortfolioFromTransactions } from '@/services/portfolio/portfolioRecalculation';
+import {
+  recalculatePortfolioFromTransactions,
+  invalidatePortfolioSnapshots,
+} from '@/services/portfolio/portfolioRecalculation';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 import {
   recordChange,
@@ -115,6 +118,10 @@ export const PATCH = withErrorHandler(
           portfolioId: portfolio.id,
           recomputeSnapshotsFrom: snapshotCutoff,
         });
+      } else {
+        // Transação órfã de Portfolio: sem recálculo possível, mas a edição
+        // ainda muda a série — invalida direto.
+        await invalidatePortfolioSnapshots(targetUserId, snapshotCutoff);
       }
 
       // Ativo vinculado a um sonho: editar a transação re-deriva o realizado.
@@ -176,6 +183,10 @@ export const DELETE = withErrorHandler(
         portfolioId: portfolio.id,
         recomputeSnapshotsFrom: snapshotCutoff,
       });
+    } else {
+      // Transação órfã de Portfolio: sem recálculo possível, mas a exclusão
+      // ainda muda a série — invalida direto.
+      await invalidatePortfolioSnapshots(targetUserId, snapshotCutoff);
     }
 
     // Ativo vinculado a um sonho: excluir a transação re-deriva o realizado.

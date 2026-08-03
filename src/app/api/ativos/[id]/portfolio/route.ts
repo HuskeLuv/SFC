@@ -71,12 +71,14 @@ export const DELETE = withErrorHandler(
     const cutoffCandidates = [firstTransaction?.date, fixedIncome?.startDate].filter(
       (d): d is Date => d != null,
     );
-    if (cutoffCandidates.length > 0) {
-      await invalidatePortfolioSnapshots(
-        targetUserId,
-        new Date(Math.min(...cutoffCandidates.map((d) => d.getTime()))),
-      );
-    }
+    // Sem transação nem FI (posição manual): não há data de referência, mas o
+    // Portfolio deletado contribuía para a série — invalida do epoch.
+    await invalidatePortfolioSnapshots(
+      targetUserId,
+      cutoffCandidates.length > 0
+        ? new Date(Math.min(...cutoffCandidates.map((d) => d.getTime())))
+        : new Date(0),
+    );
 
     await recordChange({
       request,
