@@ -12,6 +12,7 @@ import {
   hideTemplateItem,
 } from '@/utils/cashflowPersonalization';
 import { cashflowUpdateSchema, validationError } from '@/utils/validation-schemas';
+import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import {
   recordChange,
   diffFields,
@@ -107,6 +108,14 @@ export const PATCH = withErrorHandler(async (request: NextRequest) => {
     ));
   } else {
     return NextResponse.json({ error: 'Tipo não suportado' }, { status: 400 });
+  }
+
+  // Estrutura mudou (exclusão/tombstone apaga ou oculta valores; update pode
+  // ressuscitar tombstone, mover item de grupo ou trocar o type do grupo) →
+  // os agregados de meses passados mudam e os snapshots travados da Evolução
+  // do Patrimônio ficam obsoletos. Criação de linha vazia não afeta valores.
+  if (result.status >= 200 && result.status < 300 && operation !== 'create') {
+    await recomputeEvolucaoSnapshotsSafe(targetUserId, new Date(0));
   }
 
   // Histórico de alterações — só após a mutação ter sucesso, com o outcome

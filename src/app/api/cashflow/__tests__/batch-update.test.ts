@@ -76,6 +76,12 @@ vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMergedCashflowGroups,
 }));
 
+const mockRecomputeEvolucao = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
+  recomputeEvolucaoSnapshotsSafe: mockRecomputeEvolucao,
+}));
+
 vi.mock('jsonwebtoken', () => ({
   default: {
     verify: () => ({ id: 'user-123', email: 'test@test.com' }),
@@ -294,5 +300,57 @@ describe('PUT /api/cashflow/batch-update', () => {
 
     expect(response.status).toBe(200);
     expect(mockEnsurePersonalizedItem).toHaveBeenCalledWith('tpl-item-1', 'user-123');
+  });
+
+  // Edição retroativa de valores deixa snapshots travados da Evolução do
+  // Patrimônio obsoletos — a rota recomputa a partir do mês mais antigo editado.
+  it('edição de valores recomputa snapshots da Evolução a partir do mês mais antigo', async () => {
+    mockEnsurePersonalizedItem.mockResolvedValue({ itemId: 'item-1', item: {} });
+    mockPrisma.cashflowValue.upsert.mockResolvedValue({});
+
+    const response = await PUT(
+      createRequest({
+        groupId: 'g1',
+        year: 2026,
+        updates: [
+          {
+            itemId: 'item-1',
+            values: [
+              { month: 7, value: 100 },
+              { month: 3, value: 2000 },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockRecomputeEvolucao).toHaveBeenCalledWith('user-123', new Date(Date.UTC(2026, 3, 1)));
+  });
+
+  it('exclusão de item recomputa snapshots da Evolução desde o início (valores de todos os anos)', async () => {
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([{ id: 'item-1', objetivoId: null }]);
+    mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 3 });
+    mockPrisma.cashflowItem.deleteMany.mockResolvedValue({ count: 1 });
+
+    const response = await PUT(createRequest({ groupId: 'g1', deletes: ['item-1'] }));
+
+    expect(response.status).toBe(200);
+    expect(mockRecomputeEvolucao).toHaveBeenCalledWith('user-123', new Date(0));
+  });
+
+  it('edição só de metadados (sem valores) não recomputa snapshots', async () => {
+    mockEnsurePersonalizedItem.mockResolvedValue({ itemId: 'item-1', item: {} });
+    mockPrisma.cashflowItem.update.mockResolvedValue({});
+
+    const response = await PUT(
+      createRequest({
+        groupId: 'g1',
+        updates: [{ itemId: 'item-1', name: 'Novo nome' }],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockRecomputeEvolucao).not.toHaveBeenCalled();
   });
 });

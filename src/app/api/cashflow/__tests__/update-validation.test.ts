@@ -51,6 +51,9 @@ vi.mock('@/services/impersonationLogger', () => ({
 vi.mock('jsonwebtoken', () => ({
   default: { verify: () => ({ id: 'user-123', email: 'test@test.com', role: 'user' }) },
 }));
+vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
+  recomputeEvolucaoSnapshotsSafe: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { PATCH } from '../update/route';
 import { requireAuthWithActing } from '@/utils/auth';

@@ -26,6 +26,10 @@ vi.mock('@/services/cashflow/import/executeFlcImportPlan', () => ({
   executeFlcImportPlan: mockExecute,
 }));
 vi.mock('@/services/changeHistory', () => ({ recordChange: mockRecordChange }));
+const mockRecomputeEvolucao = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
+  recomputeEvolucaoSnapshotsSafe: mockRecomputeEvolucao,
+}));
 
 const grupo = (id: string, name: string, type = 'despesa'): CashflowGroup => ({
   id,
@@ -99,6 +103,8 @@ describe('POST /api/cashflow/import/commit', () => {
     );
     // árvore buscada antes (map) e depois (resposta) da execução
     expect(mockGetMergedCashflowGroups).toHaveBeenCalledTimes(2);
+    // import grava o ano inteiro → snapshots da Evolução recomputados do ano
+    expect(mockRecomputeEvolucao).toHaveBeenCalledWith('user-123', new Date(Date.UTC(2026, 0, 1)));
   });
 
   it('repassa politicaConflito=manter e rejeita valor inválido', async () => {
@@ -116,6 +122,7 @@ describe('POST /api/cashflow/import/commit', () => {
     const response = await POST(createRequest({ file: xlsxFile(), ano: '2026' }));
     expect(response.status).toBe(200);
     expect(mockRecordChange).not.toHaveBeenCalled();
+    expect(mockRecomputeEvolucao).not.toHaveBeenCalled();
   });
 
   it('success=false quando o relatório tem erros', async () => {

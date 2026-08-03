@@ -17,7 +17,11 @@ vi.mock('../investimentosPorMes', async (importOriginal) => ({
   computeInvestimentosPorMes: mockComputeInvestimentos,
 }));
 
-import { getBaseAplicadaAnterior, recomputeEvolucaoSnapshots } from '../evolucaoPatrimonioServer';
+import {
+  getBaseAplicadaAnterior,
+  recomputeEvolucaoSnapshots,
+  recomputeEvolucaoSnapshotsSafe,
+} from '../evolucaoPatrimonioServer';
 
 const tx = (overrides: Record<string, unknown>) => ({
   type: 'compra',
@@ -144,6 +148,14 @@ describe('recomputeEvolucaoSnapshots', () => {
 
     expect(mockGetMergedGroups).not.toHaveBeenCalled();
     expect(mockPrisma.cashflowPatrimonioSnapshot.update).not.toHaveBeenCalled();
+  });
+
+  it('variante Safe engole erro do recompute (não pode derrubar a mutação)', async () => {
+    mockPrisma.cashflowPatrimonioSnapshot.findMany.mockRejectedValue(new Error('db down'));
+
+    await expect(
+      recomputeEvolucaoSnapshotsSafe('u1', new Date(Date.UTC(2025, 7, 13))),
+    ).resolves.toBeUndefined();
   });
 
   it('recomputa a série uma vez por ano afetado (transação muda a base da virada)', async () => {
