@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 import { normalizeDateStart } from './patrimonioHistoricoBuilder';
 import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
+import { recomputeEvolucaoSnapshots } from '@/services/cashflow/evolucaoPatrimonioServer';
 import {
   replayPosition,
   isCorporateActionAuditTx,
@@ -209,4 +211,18 @@ export async function invalidatePortfolioSnapshots(userId: string, fromDate: Dat
     }),
   ]);
   deleteTtlCacheKeyPrefix('carteiraResumo', `${userId}:`);
+
+  // Evolução do Patrimônio (fluxo de caixa): os snapshots mensais travados pelo
+  // cron não são deletados (o cron só reescreve o mês corrente) — são
+  // recalculados no ato, senão uma transação retroativa cria um degrau na série
+  // (meses sem snapshot ganham o aporte, meses travados ficam com a base
+  // antiga). Best-effort: falha aqui não pode derrubar a mutação da carteira.
+  try {
+    await recomputeEvolucaoSnapshots(userId, fromDate);
+  } catch (error) {
+    logger.error('[invalidatePortfolioSnapshots] recompute da Evolução do Patrimônio falhou:', {
+      userId,
+      error,
+    });
+  }
 }
