@@ -27,6 +27,11 @@ vi.mock('@/services/impersonationLogger', () => ({
   logSensitiveEndpointAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
+const mockInvalidatePortfolio = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
+  invalidatePortfolioSnapshots: mockInvalidatePortfolio,
+}));
+
 import { GET, POST } from '../route';
 
 const createGetRequest = () =>
@@ -325,6 +330,34 @@ describe('/api/carteira/renda-fixa', () => {
       const data = await res.json();
       expect(res.status).toBe(400);
       expect(data.error).toMatch(/Tesouro Direto/);
+      expect(mockInvalidatePortfolio).not.toHaveBeenCalled();
+    });
+
+    it('edição de campo invalida snapshots derivados a partir da data da compra', async () => {
+      const dataCompra = new Date('2025-08-13T00:00:00Z');
+      mockPrisma.portfolio.findUnique.mockResolvedValue({
+        id: 'pf-1',
+        userId: 'user-1',
+        assetId: 'asset-cdb-1',
+        quantity: 1,
+        avgPrice: 25000,
+        asset: { type: 'emergency', name: 'CDB' },
+      });
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+        id: 'tx-1',
+        date: dataCompra,
+        notes: null,
+      });
+      mockPrisma.stockTransaction.update.mockResolvedValue({});
+
+      const res = await POST(
+        createPostRequest({ ativoId: 'pf-1', campo: 'percentualCDI', valor: 110 }),
+      );
+
+      expect(res.status).toBe(200);
+      // Taxa muda a curva de precificação → série diária e Evolução ficam
+      // obsoletas da compra em diante.
+      expect(mockInvalidatePortfolio).toHaveBeenCalledWith('user-1', dataCompra);
     });
   });
 });

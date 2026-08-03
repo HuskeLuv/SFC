@@ -61,6 +61,11 @@ vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
   recomputeEvolucaoSnapshotsSafe: mockRecomputeEvolucao,
 }));
 
+const mockInvalidatePortfolio = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
+  invalidatePortfolioSnapshots: mockInvalidatePortfolio,
+}));
+
 import { PATCH } from '../update/route';
 
 const createRequest = (body: object) => {
@@ -450,6 +455,26 @@ describe('PATCH /api/cashflow/update — recompute da Evolução do Patrimônio'
 
     expect(response.status).toBe(200);
     expect(mockRecomputeEvolucao).toHaveBeenCalledWith('user-123', new Date(0));
+  });
+
+  it('delete de item de grupo investimento invalida também os snapshots diários', async () => {
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({
+      id: 'user-item-inv',
+      userId: 'user-123',
+      name: 'Aporte manual',
+      group: { type: 'investimento' },
+    });
+    mockPrisma.cashflowValue.findMany.mockResolvedValue([]);
+    mockPrisma.cashflowValue.deleteMany.mockResolvedValue({ count: 1 });
+    mockPrisma.cashflowItem.delete.mockResolvedValue({});
+
+    const response = await PATCH(
+      createRequest({ operation: 'delete', type: 'item', id: 'user-item-inv' }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockInvalidatePortfolio).toHaveBeenCalledWith('user-123', new Date(0));
+    expect(mockRecomputeEvolucao).not.toHaveBeenCalled();
   });
 
   it('create de grupo não recomputa snapshots (linha nova não tem valores)', async () => {

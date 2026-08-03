@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger';
 import { REALIZADO_COLOR, syncCashflowToObjetivo } from './cashflowToSonhoSync';
 import { syncObjetivoRecordToCashflow } from './sonhoCashflowSync';
 import { isReinvestimentoTransaction } from '@/services/cashflow/investimentosPorMes';
+import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 
 /**
  * Sync carteira → sonho: quando um sonho tem ATIVOS VINCULADOS
@@ -56,6 +57,14 @@ export async function syncSonhoRealizadoFromCarteira(
 
   for (const objetivoId of objetivoIds) {
     await syncOne(userId, objetivoId);
+  }
+
+  // As células vermelhas (realizado) reescritas acima cobrem qualquer ano, e
+  // nas rotas de carteira este sync roda DEPOIS do recompute disparado por
+  // invalidatePortfolioSnapshots — sem este recompute final, o snapshot da
+  // Evolução do Patrimônio fica travado sem o espelho novo (bug de ordem).
+  if (objetivoIds.length > 0) {
+    await recomputeEvolucaoSnapshotsSafe(userId, new Date(0));
   }
 }
 

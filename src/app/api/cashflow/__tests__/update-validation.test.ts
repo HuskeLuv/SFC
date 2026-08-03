@@ -54,6 +54,9 @@ vi.mock('jsonwebtoken', () => ({
 vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
   recomputeEvolucaoSnapshotsSafe: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
+  invalidatePortfolioSnapshots: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { PATCH } from '../update/route';
 import { requireAuthWithActing } from '@/utils/auth';

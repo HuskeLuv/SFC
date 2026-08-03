@@ -10,12 +10,16 @@ const mockPrisma = vi.hoisted(() => ({
 }));
 const mockSyncRecord = vi.hoisted(() => vi.fn());
 const mockSyncReverse = vi.hoisted(() => vi.fn());
+const mockRecomputeEvolucao = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('../sonhoCashflowSync', () => ({ syncObjetivoRecordToCashflow: mockSyncRecord }));
 vi.mock('../cashflowToSonhoSync', () => ({
   REALIZADO_COLOR: '#FF0000',
   syncCashflowToObjetivo: mockSyncReverse,
+}));
+vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
+  recomputeEvolucaoSnapshotsSafe: mockRecomputeEvolucao,
 }));
 
 import { syncSonhoRealizadoFromCarteira } from '../carteiraToSonhoRealizado';
@@ -79,6 +83,9 @@ describe('syncSonhoRealizadoFromCarteira', () => {
 
     // Reprojeta o planejado e re-deriva entries/status
     expect(mockSyncRecord).toHaveBeenCalledWith('u1', expect.objectContaining({ id: 'obj-1' }));
+    // Células realizadas cobrem qualquer ano e este sync roda depois do
+    // recompute das rotas de carteira → recomputa a Evolução ao final.
+    expect(mockRecomputeEvolucao).toHaveBeenCalledWith('u1', new Date(0));
     expect(mockSyncReverse).toHaveBeenCalledWith('u1', 'obj-1');
   });
 
@@ -124,6 +131,7 @@ describe('syncSonhoRealizadoFromCarteira', () => {
     await syncSonhoRealizadoFromCarteira('u1', { assetId: 'asset-livre' });
 
     expect(mockPrisma.planejamentoObjetivo.findFirst).not.toHaveBeenCalled();
+    expect(mockRecomputeEvolucao).not.toHaveBeenCalled();
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
 

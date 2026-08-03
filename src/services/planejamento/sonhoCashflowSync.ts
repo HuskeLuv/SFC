@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { personalizeGroup } from '@/utils/cashflowPersonalization';
+import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import { addMonths, pmt } from './planejamentoSonhos';
 import { REALIZADO_COLOR } from './cashflowToSonhoSync';
 
@@ -103,6 +104,17 @@ export async function syncObjetivoToCashflow(
   userId: string,
   objetivo: ObjetivoForSync,
 ): Promise<void> {
+  await syncObjetivoToCashflowInner(userId, objetivo);
+  // A linha-espelho é despesa e a janela pode cobrir meses passados (startDate
+  // no passado, planejado órfão limpo de qualquer ano) — snapshots travados da
+  // Evolução do Patrimônio precisam ser recomputados.
+  await recomputeEvolucaoSnapshotsSafe(userId, new Date(0));
+}
+
+async function syncObjetivoToCashflowInner(
+  userId: string,
+  objetivo: ObjetivoForSync,
+): Promise<void> {
   const aporte = Math.round(pmt(objetivo) * 100) / 100;
 
   let item = await prisma.cashflowItem.findUnique({ where: { objetivoId: objetivo.id } });
@@ -167,9 +179,14 @@ export async function syncObjetivoToCashflow(
 export async function removeObjetivoCashflow(objetivoId: string): Promise<void> {
   const item = await prisma.cashflowItem.findUnique({
     where: { objetivoId },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
   if (!item) return;
   await prisma.cashflowValue.deleteMany({ where: { itemId: item.id } });
   await prisma.cashflowItem.delete({ where: { id: item.id } });
+  // Valores (planejados e realizados) de qualquer ano sumiram — recomputa os
+  // snapshots travados da Evolução do Patrimônio.
+  if (item.userId) {
+    await recomputeEvolucaoSnapshotsSafe(item.userId, new Date(0));
+  }
 }

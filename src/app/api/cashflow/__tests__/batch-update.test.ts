@@ -11,6 +11,7 @@ const mockPrisma = vi.hoisted(() => ({
     update: vi.fn(),
     delete: vi.fn(),
     deleteMany: vi.fn(),
+    count: vi.fn().mockResolvedValue(0),
   },
   cashflowValue: {
     findFirst: vi.fn(),
@@ -80,6 +81,12 @@ const mockRecomputeEvolucao = vi.hoisted(() => vi.fn().mockResolvedValue(undefin
 
 vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
   recomputeEvolucaoSnapshotsSafe: mockRecomputeEvolucao,
+}));
+
+const mockInvalidatePortfolio = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
+  invalidatePortfolioSnapshots: mockInvalidatePortfolio,
 }));
 
 vi.mock('jsonwebtoken', () => ({
@@ -337,6 +344,28 @@ describe('PUT /api/cashflow/batch-update', () => {
 
     expect(response.status).toBe(200);
     expect(mockRecomputeEvolucao).toHaveBeenCalledWith('user-123', new Date(0));
+  });
+
+  it('valores de item de grupo investimento invalidam também os snapshots diários da carteira', async () => {
+    mockEnsurePersonalizedItem.mockResolvedValue({ itemId: 'item-inv', item: {} });
+    mockPrisma.cashflowValue.upsert.mockResolvedValue({});
+    mockPrisma.cashflowItem.count.mockResolvedValue(1); // item pertence a grupo 'investimento'
+
+    const response = await PUT(
+      createRequest({
+        groupId: 'g-inv',
+        year: 2026,
+        updates: [{ itemId: 'item-inv', values: [{ month: 2, value: 500 }] }],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    // invalidatePortfolioSnapshots já recomputa a Evolução internamente
+    expect(mockInvalidatePortfolio).toHaveBeenCalledWith(
+      'user-123',
+      new Date(Date.UTC(2026, 2, 1)),
+    );
+    expect(mockRecomputeEvolucao).not.toHaveBeenCalled();
   });
 
   it('edição só de metadados (sem valores) não recomputa snapshots', async () => {

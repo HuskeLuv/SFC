@@ -177,6 +177,10 @@ const transacaoEditar: UndoDefinition = {
           portfolioId: portfolio.id,
           recomputeSnapshotsFrom: cutoff,
         });
+      } else {
+        // Transação órfã de Portfolio: sem recálculo possível, mas a edição
+        // ainda muda a série — invalida direto.
+        await invalidatePortfolioSnapshots(targetUserId, cutoff);
       }
       await syncSonhoRealizadoBestEffort(targetUserId, { assetId: tx.assetId });
     }
@@ -263,13 +267,14 @@ const ativoRemover: UndoDefinition = {
     const firstDate = data.transactions
       .map((t) => new Date(t.date))
       .sort((a, b) => a.getTime() - b.getTime())[0];
-    if (firstDate) {
-      await invalidatePortfolioSnapshots(targetUserId, firstDate);
-    }
+    // A invalidação roda DENTRO do recálculo (depois do replay) — invalidar
+    // antes recomputava a Evolução com o stub recriado, não com a posição
+    // final. Sem transações no snapshot, cai no epoch (posição manual).
     await recalculatePortfolioFromTransactions({
       targetUserId,
       assetId,
       portfolioId: portfolio.id,
+      recomputeSnapshotsFrom: firstDate ?? new Date(0),
     });
     await syncSonhoRealizadoBestEffort(targetUserId, { assetId });
 

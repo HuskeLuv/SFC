@@ -9,6 +9,7 @@ import { syncCashflowToObjetivo } from '@/services/planejamento/cashflowToSonhoS
 import { removeObjetivoCashflow } from '@/services/planejamento/sonhoCashflowSync';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
+import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { recordChange } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -59,6 +60,11 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   const markRecompute = (candidate: Date) => {
     if (!recomputeFrom || candidate < recomputeFrom) recomputeFrom = candidate;
   };
+  // Itens de grupos type='investimento' alimentam a SÉRIE DA CARTEIRA
+  // (carteiraHistoricoDataLoader → buildPatrimonioHistorico) — mutação neles
+  // exige invalidar também os snapshots diários, não só a Evolução.
+  let touchedInvestimento = false;
+  const valueItemIds = new Set<string>();
 
   // Processar deletados. Linhas livres: bulk delete em transação. Linhas
   // vinculadas a um sonho: excluir AQUI propaga a exclusão pro Planejamento
@@ -67,11 +73,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   if (deletes && Array.isArray(deletes) && deletes.length > 0) {
     const owned = await prisma.cashflowItem.findMany({
       where: { id: { in: deletes }, userId: targetUserId },
-      select: { id: true, objetivoId: true },
+      select: { id: true, objetivoId: true, group: { select: { type: true } } },
     });
+    if (owned.some((i) => i.group?.type === 'investimento')) touchedInvestimento = true;
     const ownedFree = owned.filter((i) => !i.objetivoId).map((i) => i.id);
     const ownedLinked = owned.filter(
-      (i): i is { id: string; objetivoId: string } => i.objetivoId != null,
+      (i): i is (typeof owned)[number] & { objetivoId: string } => i.objetivoId != null,
     );
     const handled = new Set<string>();
 
@@ -217,6 +224,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           if (validValues.length > 0) {
             const minMonth = Math.min(...validValues.map((v) => v.month));
             markRecompute(new Date(Date.UTC(targetYear, minMonth, 1)));
+            valueItemIds.add(finalItemId);
           }
 
           await Promise.all(
@@ -271,8 +279,30 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   // Valores de meses já travados pelo cron (snapshot da Evolução do
   // Patrimônio) mudaram → recomputa os snapshots afetados, senão a série
   // exibida ganha degrau (meses sem snapshot enxergam a edição, travados não).
+  // Se o mutado inclui item de grupo 'investimento', invalida também os
+  // snapshots DIÁRIOS da carteira (que consomem esses valores como fluxo).
   if (recomputeFrom) {
-    await recomputeEvolucaoSnapshotsSafe(targetUserId, recomputeFrom);
+    if (!touchedInvestimento && valueItemIds.size > 0) {
+      try {
+        const count = await prisma.cashflowItem.count({
+          where: { id: { in: [...valueItemIds] }, group: { type: 'investimento' } },
+        });
+        touchedInvestimento = count > 0;
+      } catch {
+        touchedInvestimento = false;
+      }
+    }
+    if (touchedInvestimento) {
+      try {
+        // Também recomputa a Evolução internamente.
+        await invalidatePortfolioSnapshots(targetUserId, recomputeFrom);
+      } catch (error) {
+        logger.error('[batch-update] invalidação de snapshots da carteira falhou:', error);
+        await recomputeEvolucaoSnapshotsSafe(targetUserId, recomputeFrom);
+      }
+    } else {
+      await recomputeEvolucaoSnapshotsSafe(targetUserId, recomputeFrom);
+    }
   }
 
   // Histórico de alterações: UMA linha agregada por request. O caminho de

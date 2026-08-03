@@ -301,13 +301,16 @@ describe('ativo.remover (recreate-from-snapshot)', () => {
     await CARTEIRA_UNDO_HANDLERS['ativo.remover'].execute({ request, auth, entry: entry() });
 
     expect(mockPrisma.stockTransaction.create).toHaveBeenCalledTimes(2);
-    expect(mockInvalidateSnapshots).toHaveBeenCalledWith(
-      'user-1',
-      new Date('2026-05-01T00:00:00.000Z'),
-    );
+    // Invalidação vai DENTRO do recálculo (recomputeSnapshotsFrom), depois do
+    // replay — invalidar antes recomputava a Evolução com o stub recriado.
     expect(mockRecalc).toHaveBeenCalledWith(
-      expect.objectContaining({ assetId: 'asset-1', portfolioId: 'port-1' }),
+      expect.objectContaining({
+        assetId: 'asset-1',
+        portfolioId: 'port-1',
+        recomputeSnapshotsFrom: new Date('2026-05-01T00:00:00.000Z'),
+      }),
     );
+    expect(mockInvalidateSnapshots).not.toHaveBeenCalled();
   });
 
   it('409 quando o ativo já voltou pra carteira (unique userId+assetId)', async () => {
