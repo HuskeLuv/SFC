@@ -25,25 +25,25 @@
 
 ### Seções manuais (importar)
 
-| Planilha (linhas)                          | Grupo no app (template)                 | Observação                                        |
-| ------------------------------------------ | --------------------------------------- | ------------------------------------------------- |
-| Entradas Fixas (15–21)                     | `Entradas > Entradas Fixas`             |                                                   |
-| Sem Tributação (27–36)                     | `Entradas Variáveis > Sem Tributação`   |                                                   |
-| **Receita Investimentos (40–46)**          | **não existe no template**              | realoca só itens c/ correspondência direta — §4.1 |
-| Com Tributação (50–53)                     | `Entradas Variáveis > Com Tributação`   | "Empresa 1..4"                                    |
-| Habitação (66–83)                          | `Despesas Fixas > Habitação`            |                                                   |
-| Transporte (88–108)                        | `Despesas Fixas > Transporte`           |                                                   |
-| Saúde (113–122)                            | `Despesas Fixas > Saúde`                |                                                   |
-| Despesas Pessoais (127–143)                | `Despesas Fixas > Despesas Pessoais`    |                                                   |
-| Lazer (148–157)                            | `Despesas Fixas > Lazer`                |                                                   |
-| Educação (162–168)                         | `Despesas Fixas > Educação`             |                                                   |
-| Animais de Estimação (173–177)             | `Despesas Fixas > Animais de Estimação` |                                                   |
-| **Despesas Financeiras (182–194)**         | **não existe no template**              | DESCARTADA inteira — §4.1                         |
-| Impostos (199–204)                         | `Despesas Fixas > Impostos`             |                                                   |
-| **Despesas com dependentes (209–214)**     | **não existe no template**              | realoca só itens c/ correspondência direta — §4.1 |
-| Despesas Empresa (219–228)                 | `Despesas Fixas > Despesas Empresa`     |                                                   |
-| Despesas Temporárias / Variáveis (244–257) | `Despesas > Despesas Variáveis`         | nome difere, mapeamento fixo                      |
-| Conta Corrente (267–271, linhas "Banco")   | `Conta Corrente` (type `saldo`)         | alimenta carry-over                               |
+| Planilha (linhas)                          | Grupo no app (template)                     | Observação                                        |
+| ------------------------------------------ | ------------------------------------------- | ------------------------------------------------- |
+| Entradas Fixas (15–21)                     | `Entradas > Entradas Fixas`                 |                                                   |
+| Sem Tributação (27–36)                     | `Entradas Variáveis > Sem Tributação`       |                                                   |
+| **Receita Investimentos (40–46)**          | **não existe no template**                  | realoca só itens c/ correspondência direta — §4.1 |
+| Com Tributação (50–53)                     | `Entradas Variáveis > Com Tributação`       | "Empresa 1..4"                                    |
+| Habitação (66–83)                          | `Despesas Fixas > Habitação`                |                                                   |
+| Transporte (88–108)                        | `Despesas Fixas > Transporte`               |                                                   |
+| Saúde (113–122)                            | `Despesas Fixas > Saúde`                    |                                                   |
+| Despesas Pessoais (127–143)                | `Despesas Fixas > Despesas Pessoais`        |                                                   |
+| Lazer (148–157)                            | `Despesas Fixas > Lazer`                    |                                                   |
+| Educação (162–168)                         | `Despesas Fixas > Educação`                 |                                                   |
+| Animais de Estimação (173–177)             | `Despesas Fixas > Animais de Estimação`     |                                                   |
+| **Despesas Financeiras (182–194)**         | **não existe no template**                  | DESCARTADA inteira — §4.1                         |
+| Impostos (199–204)                         | `Despesas Fixas > Impostos`                 |                                                   |
+| Despesas com dependentes (209–214)         | `Despesas Fixas > Despesas com Dependentes` | grupo template desde 05/08/2026 — §4.1            |
+| Despesas Empresa (219–228)                 | `Despesas Fixas > Despesas Empresa`         |                                                   |
+| Despesas Temporárias / Variáveis (244–257) | `Despesas > Despesas Variáveis`             | nome difere, mapeamento fixo                      |
+| Conta Corrente (267–271, linhas "Banco")   | `Conta Corrente` (type `saldo`)             | alimenta carry-over                               |
 
 ### Seções que NÃO importam (computadas no app ou fora do escopo v1)
 
@@ -94,25 +94,27 @@
 
 ### 4.1 Grupos da planilha sem correspondente no template — ✅ DECIDIDO 31/07/2026
 
-**O import NUNCA cria grupos.** Análise de redundância contra o template mostrou que
-duas das três seções já foram absorvidas pelo template (Receita Investimentos →
-Entradas Fixas; Dependentes → Educação). Política por seção (Wellington, 31/07):
+### (revisado 05/08/2026: Dependentes virou grupo template)
 
+**O import NUNCA cria grupos.** Política por seção (Wellington, 31/07; revisão 05/08):
+
+- **`Despesas com dependentes`: grupo template próprio desde 05/08/2026** (Wellington).
+  "Despesas com Dependentes" entrou no template sob Despesas Fixas, entre Impostos e
+  Despesas Empresa (posição da planilha), com os itens da planilha-modelo: Escola /
+  Faculdade, Cursos, Pensão, Material escolar, Vestuário, Outros. A seção importa como
+  qualquer outra (match por nome, item novo → custom). Bancos existentes ganham o grupo
+  via `ensureDependentesTemplate()` (upgrade lazy, rebaixa orderIndex dos irmãos e dos
+  overrides personalizados).
 - **`Despesas Financeiras`: DESCARTADA inteira.** Todos os itens viram ignorados com
   motivo ("descartada no import").
-- **`Receita Investimentos` e `Despesas com dependentes`: realocação item a item, só
-  correspondência DIRETA.** Itens sem correspondente direto → ignorados com motivo.
+- **`Receita Investimentos`: realocação item a item, só correspondência DIRETA.**
+  Itens sem correspondente direto → ignorados com motivo.
   Tabela de realocação (mapper, `REMAP_ITENS`):
   - Proventos Fii's → `Entradas Fixas > Receita Proventos FII's`
-  - Escola / Faculdade → `Educação > Escola/Faculdade`
-  - Cursos → `Educação > Cursos`
-  - Material escolar → `Educação > Material escolar`
   - Dividendos/JCP → ignorado (automático no app, proventos da carteira);
-    Juros Renda Fixa → ignorado (ambíguo: o app separa em Pré/Pós/Híbridos);
-    Pensão, Vestuário, "Outros" etc. → ignorados (sem correspondência direta).
+    Juros Renda Fixa → ignorado (ambíguo: o app separa em Pré/Pós/Híbridos).
 - **Colisão de realocação:** se a planilha preenche o mesmo item na seção-destino E na
-  seção realocada (ex.: "Cursos" em Educação e em Dependentes), os meses são SOMADOS
-  (alocação sem perda) e o preview mostra aviso.
+  seção realocada, os meses são SOMADOS (alocação sem perda) e o preview mostra aviso.
 
 ### 4.2 Ano-alvo
 

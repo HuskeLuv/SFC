@@ -41,14 +41,20 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
     { name: 'Lazer', orderIndex: 7, parentId: 'Despesas Fixas', type: 'despesa' as const },
     { name: 'Impostos', orderIndex: 8, parentId: 'Despesas Fixas', type: 'despesa' as const },
     {
-      name: 'Despesas Empresa',
+      name: 'Despesas com Dependentes',
       orderIndex: 9,
       parentId: 'Despesas Fixas',
       type: 'despesa' as const,
     },
     {
-      name: 'Planejamento Financeiro',
+      name: 'Despesas Empresa',
       orderIndex: 10,
+      parentId: 'Despesas Fixas',
+      type: 'despesa' as const,
+    },
+    {
+      name: 'Planejamento Financeiro',
+      orderIndex: 11,
       parentId: 'Despesas Fixas',
       type: 'despesa' as const,
     },
@@ -183,6 +189,15 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       { name: 'Outros' },
     ],
     Impostos: [{ name: 'IRPF' }, { name: 'ISS' }, { name: 'Outros impostos' }],
+    // Itens espelham a seção "Despesas com dependentes" da planilha FLC
+    'Despesas com Dependentes': [
+      { name: 'Escola / Faculdade' },
+      { name: 'Cursos' },
+      { name: 'Pensão' },
+      { name: 'Material escolar' },
+      { name: 'Vestuário' },
+      { name: 'Outros' },
+    ],
     'Despesas Empresa': [
       { name: 'Administrativas/Operacionais' },
       { name: 'Fornecedores' },
@@ -262,6 +277,82 @@ export async function ensureContaCorrenteTemplate(): Promise<void> {
   }
 
   contaCorrenteEnsured = true;
+}
+
+// ===== ENSURE: DESPESAS COM DEPENDENTES (upgrade de template para bancos existentes) =====
+
+let dependentesEnsured = false;
+
+const DEPENDENTES_GROUP_NAME = 'Despesas com Dependentes';
+const DEPENDENTES_ITEMS = [
+  'Escola / Faculdade',
+  'Cursos',
+  'Pensão',
+  'Material escolar',
+  'Vestuário',
+  'Outros',
+];
+
+/**
+ * Garante que o grupo template "Despesas com Dependentes" exista sob
+ * "Despesas Fixas", entre Impostos (8) e Despesas Empresa (posição da seção na
+ * planilha FLC). Bancos criados antes desta feature têm o seed completo mas não
+ * este grupo. Rebaixa orderIndex >= 9 dos templates irmãos E dos overrides
+ * personalizados (que copiam o orderIndex do template na personalização) para
+ * o grupo novo não empatar com "Despesas Empresa" na árvore mesclada.
+ * Idempotente e barato (1 findFirst por processo).
+ */
+export async function ensureDependentesTemplate(): Promise<void> {
+  if (dependentesEnsured) return;
+
+  const existing = await prisma.cashflowGroup.findFirst({
+    where: { userId: null, name: DEPENDENTES_GROUP_NAME },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    const despesasFixas = await prisma.cashflowGroup.findFirst({
+      where: { userId: null, name: 'Despesas Fixas' },
+      select: { id: true },
+    });
+    if (!despesasFixas) {
+      // banco sem seed (seedTemplates ainda não rodou) — o seed novo já cria o grupo
+      dependentesEnsured = true;
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const irmaosDepois = await tx.cashflowGroup.findMany({
+        where: { userId: null, parentId: despesasFixas.id, orderIndex: { gte: 9 } },
+        select: { id: true },
+      });
+      const idsDepois = irmaosDepois.map((g) => g.id);
+      await tx.cashflowGroup.updateMany({
+        where: { id: { in: idsDepois } },
+        data: { orderIndex: { increment: 1 } },
+      });
+      await tx.cashflowGroup.updateMany({
+        where: { templateId: { in: idsDepois } },
+        data: { orderIndex: { increment: 1 } },
+      });
+
+      const group = await tx.cashflowGroup.create({
+        data: {
+          userId: null,
+          name: DEPENDENTES_GROUP_NAME,
+          type: 'despesa',
+          orderIndex: 9,
+          parentId: despesasFixas.id,
+        },
+      });
+      await tx.cashflowItem.createMany({
+        data: DEPENDENTES_ITEMS.map((name) => ({ userId: null, groupId: group.id, name })),
+      });
+    });
+    logger.info('✅ Template "Despesas com Dependentes" criado (upgrade de template)');
+  }
+
+  dependentesEnsured = true;
 }
 
 // ===== SEED TEMPLATES =====

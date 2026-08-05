@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuthWithActing } from '@/utils/auth';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
-import { ensureContaCorrenteTemplate } from '@/utils/cashflowTemplates';
+import { ensureContaCorrenteTemplate, ensureDependentesTemplate } from '@/utils/cashflowTemplates';
 import type { CashflowGroup } from '@/types/cashflow';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -42,8 +42,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Ano inválido' }, { status: 400 });
   }
 
-  // Upgrade lazy de template: bancos antigos não têm o grupo "Conta Corrente".
+  // Upgrade lazy de template: bancos antigos não têm os grupos "Conta Corrente"
+  // e "Despesas com Dependentes".
   await ensureContaCorrenteTemplate();
+  await ensureDependentesTemplate();
 
   // Templates padrão + personalizações do usuário, mesclados (override layer).
   const mergedGroups = await getMergedCashflowGroups(targetUserId, year);
