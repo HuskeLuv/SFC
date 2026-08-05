@@ -26,6 +26,11 @@ vi.mock('@/services/cashflow/getCashflowTree', () => ({
   getMergedCashflowGroups: mockGetMergedCashflowGroups,
 }));
 
+vi.mock('@/utils/cashflowTemplates', () => ({
+  // upgrade lazy de template: no teste o grupo já está na árvore mockada
+  ensureDependentesTemplate: vi.fn().mockResolvedValue(undefined),
+}));
+
 const grupo = (
   id: string,
   name: string,
@@ -61,6 +66,7 @@ const arvore = (): CashflowGroup[] => [
       grupo('g-educacao', 'Educação', 'despesa'),
       grupo('g-animais', 'Animais de Estimação', 'despesa'),
       grupo('g-impostos', 'Impostos', 'despesa'),
+      grupo('g-dependentes', 'Despesas com Dependentes', 'despesa'),
       grupo('g-desp-empresa', 'Despesas Empresa', 'despesa'),
     ]),
     grupo('g-desp-var', 'Despesas Variáveis', 'despesa'),
@@ -102,7 +108,8 @@ describe('POST /api/cashflow/import/preview', () => {
     const chaves = body.plan.grupos.map((g: { chave: string }) => g.chave);
     expect(chaves).not.toContain('receita-investimentos');
     expect(chaves).not.toContain('despesas-financeiras');
-    expect(chaves).not.toContain('despesas-dependentes');
+    // dependentes tem grupo template próprio desde 05/08/2026
+    expect(chaves).toContain('despesas-dependentes');
     // item sem correspondência direta da Receita Investimentos → ignorado com motivo
     const dividendos = body.plan.ignorados.find(
       (i: { label: string }) => i.label === 'Dividendos / JCP',

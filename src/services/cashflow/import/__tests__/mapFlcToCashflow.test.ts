@@ -63,7 +63,10 @@ const arvorePadrao = () => {
   const educacao = grupo('Educação', {
     items: [item('Escola/Faculdade'), item('Cursos'), item('Material escolar')],
   });
-  const despesasFixas = grupo('Despesas Fixas', { children: [habitacao, educacao] });
+  const dependentes = grupo('Despesas com Dependentes', {
+    items: [item('Escola / Faculdade'), item('Cursos'), item('Pensão'), item('Vestuário')],
+  });
+  const despesasFixas = grupo('Despesas Fixas', { children: [habitacao, educacao, dependentes] });
   const despesasVariaveis = grupo('Despesas Variáveis');
   const despesas = grupo('Despesas', { children: [despesasFixas, despesasVariaveis] });
 
@@ -76,6 +79,7 @@ const arvorePadrao = () => {
     semTributacao,
     habitacao,
     educacao,
+    dependentes,
     despesasFixas,
     despesasVariaveis,
     contaCorrente,
@@ -222,10 +226,6 @@ describe('mapFlcToCashflow', () => {
           flcItem('Juros Renda Fixa', meses({ 1: 80 })),
           flcItem('Amortização', meses({ 2: 40 })),
         ]),
-        secao('despesas-dependentes', 'Despesas com dependentes', [
-          flcItem('Pensão', meses({ 0: 900 })),
-          flcItem('Vestuário', meses({ 1: 150 })),
-        ]),
       ]),
       tree,
     );
@@ -235,43 +235,39 @@ describe('mapFlcToCashflow', () => {
     expect(porLabel('Dividendos / JCP')?.motivo).toContain('automático');
     expect(porLabel('Juros Renda Fixa')?.motivo).toContain('Pré/Pós/Híbridos');
     expect(porLabel('Amortização')?.motivo).toContain('sem correspondência direta');
-    expect(porLabel('Pensão')?.motivo).toContain('sem correspondência direta');
-    expect(porLabel('Vestuário')?.motivo).toContain('sem correspondência direta');
   });
 
-  it('§4.1: dependentes realocados para Educação somam com a própria seção Educação da planilha', () => {
-    const { tree, educacao } = arvorePadrao();
+  it('Despesas com dependentes mapeia para o grupo template próprio (fora do regime §4.1)', () => {
+    const { tree, dependentes } = arvorePadrao();
     const plan = mapFlcToCashflow(
       parseResult([
-        secao('educacao', 'Educação', [flcItem('Cursos', meses({ 0: 100, 2: 30 }))]),
         secao('despesas-dependentes', 'Despesas com dependentes', [
-          flcItem('Cursos', meses({ 0: 50, 1: 20 })),
-          flcItem('Escola / Faculdade', meses({ 0: 800 })),
+          flcItem('Escola / Faculdade', meses({ 0: 1300 })),
+          flcItem('Pensão', meses({ 1: 900 })),
+          flcItem('Babá', meses({ 2: 700 })),
         ]),
       ]),
       tree,
     );
 
     expect(plan.grupos).toHaveLength(1);
-    const grupoEducacao = plan.grupos[0];
-    expect(grupoEducacao.destino).toMatchObject({ groupId: educacao.id });
-
-    const cursos = grupoEducacao.itens.find((i) => i.label === 'Cursos');
-    // jan somado (100+50), fev só dos dependentes, mar só da seção própria
-    expect(cursos?.escritas).toEqual([
-      { mes: 0, valor: 150 },
-      { mes: 1, valor: 20 },
-      { mes: 2, valor: 30 },
-    ]);
-    expect(plan.avisos.some((a) => a.includes('somada'))).toBe(true);
-
-    const escola = grupoEducacao.itens.find((i) => i.label === 'Escola/Faculdade');
-    expect(escola?.destino).toEqual({
-      tipo: 'existente',
-      itemId: educacao.items[0].id,
-      nome: 'Escola/Faculdade',
+    expect(plan.grupos[0].chave).toBe('despesas-dependentes');
+    expect(plan.grupos[0].destino).toEqual({
+      groupId: dependentes.id,
+      nome: 'Despesas com Dependentes',
     });
-    expect(escola?.escritas).toEqual([{ mes: 0, valor: 800 }]);
+
+    const porLabel = (l: string) => plan.grupos[0].itens.find((i) => i.label === l);
+    expect(porLabel('Escola / Faculdade')?.destino).toEqual({
+      tipo: 'existente',
+      itemId: dependentes.items[0].id,
+      nome: 'Escola / Faculdade',
+    });
+    expect(porLabel('Pensão')?.destino).toMatchObject({ tipo: 'existente' });
+    // item personalizado da planilha sem par no template → criação no grupo novo
+    expect(porLabel('Babá')?.destino).toMatchObject({ tipo: 'criar' });
+    expect(plan.ignorados).toHaveLength(0);
+    expect(plan.avisos).toHaveLength(0);
   });
 
   it('classifica célula a célula: escrita, já igual e conflito', () => {

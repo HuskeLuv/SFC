@@ -26,6 +26,10 @@ vi.mock('@/services/cashflow/import/executeFlcImportPlan', () => ({
   executeFlcImportPlan: mockExecute,
 }));
 vi.mock('@/services/changeHistory', () => ({ recordChange: mockRecordChange }));
+vi.mock('@/utils/cashflowTemplates', () => ({
+  // upgrade lazy de template: irrelevante aqui, a árvore é mockada
+  ensureDependentesTemplate: vi.fn().mockResolvedValue(undefined),
+}));
 const mockRecomputeEvolucao = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
   recomputeEvolucaoSnapshotsSafe: mockRecomputeEvolucao,

@@ -16,10 +16,10 @@ import {
  *
  * Regras (docs/plano-importacao-planilha-flc.md §3-§4):
  * - Grupo destino identificado por nome canônico (templateName, estável a
- *   renomes) normalizado. O import NUNCA cria grupos: as três seções da
- *   planilha sem correspondente no template (§4.1, decisão 31/07/2026) são
- *   descartadas ou realocadas item a item — só correspondência DIRETA aloca;
- *   o resto é ignorado com motivo.
+ *   renomes) normalizado. O import NUNCA cria grupos: as seções da planilha
+ *   sem correspondente no template (§4.1, decisão 31/07/2026) são descartadas
+ *   ou realocadas item a item — só correspondência DIRETA aloca; o resto é
+ *   ignorado com motivo.
  * - Item casa por nome normalizado dentro do grupo; sem match → criação de
  *   item custom (leva significado/rank); com match → só grava valores, sem
  *   sobrescrever significado/rank pré-existentes.
@@ -87,6 +87,8 @@ const DESTINOS: Partial<Record<FlcSecaoChave, string>> = {
   educacao: 'Educação',
   'animais-estimacao': 'Animais de Estimação',
   impostos: 'Impostos',
+  // grupo template desde 05/08/2026 — antes era realocação item a item (§4.1)
+  'despesas-dependentes': 'Despesas com Dependentes',
   'despesas-empresa': 'Despesas Empresa',
   'despesas-temporarias': 'Despesas Variáveis',
   'conta-corrente': 'Conta Corrente',
@@ -95,9 +97,10 @@ const DESTINOS: Partial<Record<FlcSecaoChave, string>> = {
 // ---------------------------------------------------------------------------
 // §4.1 — seções da planilha sem correspondente no template (decisão 31/07/2026):
 // nada de grupo custom. "Despesas Financeiras" é descartada inteira;
-// "Receita Investimentos" e "Despesas com dependentes" realocam APENAS os
-// itens com correspondência direta no template, renomeando para o nome do
-// item de destino; o resto é ignorado com motivo.
+// "Receita Investimentos" realoca APENAS os itens com correspondência direta
+// no template, renomeando para o nome do item de destino; o resto é ignorado
+// com motivo. ("Despesas com dependentes" saiu deste regime em 05/08/2026 —
+// virou grupo template próprio, ver DESTINOS.)
 // ---------------------------------------------------------------------------
 
 const SECAO_DESCARTADA: Partial<Record<FlcSecaoChave, string>> = {
@@ -116,11 +119,6 @@ const REMAP_ITENS: Partial<Record<FlcSecaoChave, Record<string, RemapAlvo>>> = {
   'receita-investimentos': {
     'proventos fii s': { secao: 'entradas-fixas', item: "Receita Proventos FII's" },
   },
-  'despesas-dependentes': {
-    'escola faculdade': { secao: 'educacao', item: 'Escola/Faculdade' },
-    cursos: { secao: 'educacao', item: 'Cursos' },
-    'material escolar': { secao: 'educacao', item: 'Material escolar' },
-  },
 };
 
 /** motivos específicos por item (normalizado) para os não-realocados */
@@ -135,7 +133,6 @@ const MOTIVOS_ITEM: Partial<Record<FlcSecaoChave, Record<string, string>>> = {
 /** rótulo exibido quando a seção-destino não existe na planilha do cliente */
 const NOME_SECAO_SINTETICA: Partial<Record<FlcSecaoChave, string>> = {
   'entradas-fixas': 'Entradas Fixas',
-  educacao: 'Educação',
 };
 
 const somarValores = (a: (number | null)[], b: (number | null)[]): (number | null)[] =>
