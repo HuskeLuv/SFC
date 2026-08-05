@@ -24,6 +24,7 @@ function needsSpacingBefore(groupName: string) {
     'Despesas Pessoais',
     'Lazer',
     'Impostos',
+    'Despesas com Dependentes',
     'Despesas Empresa',
     'Planejamento Financeiro',
     'Despesas Variáveis',
