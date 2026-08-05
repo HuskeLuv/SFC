@@ -77,6 +77,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
     'Despesas Pessoais',
     'Lazer',
     'Impostos',
+    'Despesas com Dependentes',
   ].includes(canonical);
 
   const getDisplayName = () => {
