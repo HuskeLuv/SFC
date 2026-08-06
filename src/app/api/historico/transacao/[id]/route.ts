@@ -119,9 +119,15 @@ export const PATCH = withErrorHandler(
           recomputeSnapshotsFrom: snapshotCutoff,
         });
       } else {
-        // Transação órfã de Portfolio: sem recálculo possível, mas a edição
-        // ainda muda a série — invalida direto.
-        await invalidatePortfolioSnapshots(targetUserId, snapshotCutoff);
+        // Transação órfã de Portfolio (ex.: posição encerrada por resgate
+        // total): sem portfolioId o recalc RECRIA a linha a partir do
+        // histórico quando sobram transações reais (auditoria 2026-08-06,
+        // achado #9) — e invalida os snapshots internamente.
+        await recalculatePortfolioFromTransactions({
+          targetUserId,
+          assetId: transaction.assetId,
+          recomputeSnapshotsFrom: snapshotCutoff,
+        });
       }
 
       // Ativo vinculado a um sonho: editar a transação re-deriva o realizado.
@@ -183,9 +189,17 @@ export const DELETE = withErrorHandler(
         portfolioId: portfolio.id,
         recomputeSnapshotsFrom: snapshotCutoff,
       });
+    } else if (transaction.assetId) {
+      // Transação órfã de Portfolio (ex.: posição encerrada por resgate
+      // total): excluir a venda deve RECRIAR a posição a partir das compras
+      // restantes — sem portfolioId o recalc resolve/recria pela unique
+      // (userId, assetId) e invalida snapshots (auditoria 2026-08-06, #9).
+      await recalculatePortfolioFromTransactions({
+        targetUserId,
+        assetId: transaction.assetId,
+        recomputeSnapshotsFrom: snapshotCutoff,
+      });
     } else {
-      // Transação órfã de Portfolio: sem recálculo possível, mas a exclusão
-      // ainda muda a série — invalida direto.
       await invalidatePortfolioSnapshots(targetUserId, snapshotCutoff);
     }
 
