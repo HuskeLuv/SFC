@@ -94,7 +94,10 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
         );
       }
 
-      return formData.valorResgate > 0 && formData.valorResgate <= formData.availableTotal;
+      // Sem teto de availableTotal: é o CUSTO, não o valor de mercado — resgate
+      // com rendimento (CDB de 10k que virou 12,4k) é legítimo e encerra a
+      // posição no backend (auditoria 2026-08-06, achado #10).
+      return formData.valorResgate > 0;
     };
 
     setSteps((prevSteps) =>

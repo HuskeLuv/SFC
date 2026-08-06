@@ -105,9 +105,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     if (!valorResgate || valorResgate <= 0) {
       return NextResponse.json({ error: 'Valor de resgate inválido' }, { status: 400 });
     }
-    if (valorResgate > availableTotal) {
-      return NextResponse.json({ error: 'Valor maior que o disponível' }, { status: 400 });
-    }
+    // SEM teto de availableTotal aqui: availableTotal é o CUSTO (totalInvested),
+    // não o valor de mercado — um CDB de 10k que rendeu para 12,4k precisa poder
+    // resgatar os 12,4k (auditoria 2026-08-06, achado #10). Resgate por valor
+    // >= custo consome a base toda e encerra a posição (novaQuantidade 0 abaixo);
+    // o ganho acima do custo é receita, não base.
     // Estrito (!== 1, não > 1): posição fracionária (0,5 BTC, cotas 812,5) caía
     // no cálculo qty − 1 → novaQuantidade negativa → ramo de resgate TOTAL →
     // portfolio.delete. Resgatar R$100 apagava a posição inteira (auditoria
@@ -121,6 +123,29 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   const dataTransacao = new Date(dataResgate);
+
+  // Validação de data (auditoria 2026-08-06, achado #7): sem isso a rota
+  // aceitava resgate datado de 2030 ou anterior à compra — e o recalc por
+  // histórico processaria uma venda antes da compra correspondente.
+  const fimDeHoje = new Date();
+  fimDeHoje.setHours(23, 59, 59, 999);
+  if (dataTransacao > fimDeHoje) {
+    return NextResponse.json({ error: 'Data do resgate não pode ser futura' }, { status: 400 });
+  }
+  if (portfolio.assetId) {
+    const primeiraCompra = await prisma.stockTransaction.findFirst({
+      where: { userId: targetUserId, assetId: portfolio.assetId, type: 'compra' },
+      orderBy: { date: 'asc' },
+      select: { date: true },
+    });
+    if (primeiraCompra && dataTransacao < primeiraCompra.date) {
+      return NextResponse.json(
+        { error: 'Data do resgate não pode ser anterior à primeira compra do ativo' },
+        { status: 400 },
+      );
+    }
+  }
+
   const quantityResgate = metodoResgate === 'valor' ? 1 : quantidade!;
   const priceResgate = metodoResgate === 'valor' ? valorResgate! : cotacaoUnitaria!;
   const totalResgate = metodoResgate === 'valor' ? valorResgate! : quantityResgate * priceResgate;

@@ -96,6 +96,7 @@ export default function Step4RedeemInfo({
           defaultDate={formData.dataResgate}
           staticPosition={false}
           appendToBody
+          maxDate="today"
           onChange={(selectedDates) => {
             if (selectedDates && selectedDates.length > 0) {
               handleInputChange('dataResgate', selectedDates[0].toISOString().split('T')[0]);
@@ -108,7 +109,9 @@ export default function Step4RedeemInfo({
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
         <p>Quantidade disponível: {formData.availableQuantity ?? 0}</p>
         <p>
-          Valor disponível:{' '}
+          {/* rótulo honesto: é o CUSTO (totalInvested), não o valor de mercado —
+              resgate com rendimento pode (e deve poder) exceder este número */}
+          Valor investido:{' '}
           {(formData.availableTotal ?? 0).toLocaleString('pt-BR', {
             style: 'currency',
             currency: formData.moeda || 'BRL',

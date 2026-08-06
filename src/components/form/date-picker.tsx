@@ -17,6 +17,9 @@ type PropsType = {
   placeholder?: string;
   staticPosition?: boolean;
   appendToBody?: boolean;
+  /** Limite superior de data. Prefira strings estáveis ('today') — um `new
+   *  Date()` novo a cada render re-inicializaria o flatpickr (bug F1.3). */
+  maxDate?: DateOption;
 };
 
 /**
@@ -42,6 +45,7 @@ export default function DatePicker({
   placeholder,
   staticPosition = true,
   appendToBody = false,
+  maxDate,
 }: PropsType) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Mantém a última versão do onChange num ref para que o flatpickr
@@ -80,6 +84,7 @@ export default function DatePicker({
       locale: Portuguese,
       defaultDate,
       onChange: handleChange,
+      ...(maxDate !== undefined ? { maxDate } : {}),
       ...(appendToBody ? { appendTo: document.body } : {}),
     });
 
@@ -98,7 +103,7 @@ export default function DatePicker({
     // - `defaultDate` é sincronizado no efeito abaixo via `setDate()`,
     //   sem destruir a instância (que fecharia o popover aberto).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, staticPosition, appendToBody]);
+  }, [mode, staticPosition, appendToBody, maxDate]);
 
   // Sincroniza mudanças de `defaultDate` sem destruir o flatpickr — só
   // chama `setDate` quando o valor serializado de fato muda.

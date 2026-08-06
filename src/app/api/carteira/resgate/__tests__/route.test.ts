@@ -217,6 +217,31 @@ describe('POST /api/carteira/resgate', () => {
       expect(data.transacao.price).toBe(1000);
     });
 
+    it('permite resgate por valor ACIMA do custo (rendimento) e encerra a posição', async () => {
+      // Auditoria 2026-08-06 achado #10: o teto era o CUSTO (totalInvested) —
+      // um CDB de 10k que rendeu para 12,4k não podia ser resgatado integralmente.
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolioAcao,
+        id: 'port-cdb',
+        assetId: 'asset-cdb',
+        asset: { symbol: 'RENDA-FIXA-1', name: 'CDB', type: 'bond' },
+        quantity: 1,
+        totalInvested: 10000,
+        avgPrice: 10000,
+      });
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-cdb',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'valor',
+          valorResgate: 12400,
+        }),
+      );
+      expect(response.status).toBe(201);
+      // consome a base toda → posição encerrada
+      expect(mockPrisma.portfolio.delete).toHaveBeenCalledWith({ where: { id: 'port-cdb' } });
+    });
+
     it('retorna 400 quando resgate por valor com quantidade fracionária (< 1)', async () => {
       // Auditoria 2026-08-06 achado #2: com qty 0,5 o guard antigo (> 1) passava,
       // quantityResgate virava 1, novaQuantidade ficava negativa e a rota caía no
@@ -248,6 +273,48 @@ describe('POST /api/carteira/resgate', () => {
       const data = await response.json();
       expect(response.status).toBe(400);
       expect(data.error).toContain('quantidade 1');
+    });
+  });
+
+  describe('Validação de data (auditoria 2026-08-06, achado #7)', () => {
+    it('rejeita data futura', async () => {
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataResgate: '2099-01-01',
+          metodoResgate: 'quantidade',
+          quantidade: 10,
+          cotacaoUnitaria: 32.5,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('futura');
+    });
+
+    it('rejeita data anterior à primeira compra do ativo', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolioCrypto,
+        quantity: 2,
+        totalInvested: 200000,
+      });
+      // findFirst do stockTransaction: 1ª chamada = primeira compra (asc)
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+        date: new Date('2024-06-01T00:00:00Z'),
+      });
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-crypto',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'quantidade',
+          quantidade: 1,
+          cotacaoUnitaria: 100000,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('anterior à primeira compra');
+      expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
     });
   });
 
