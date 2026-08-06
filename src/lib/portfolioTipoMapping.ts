@@ -78,10 +78,3 @@ export const matchesTipo = (mapped: string, requested: string): boolean => {
   if (mapped === 'renda-fixa' && isRendaFixaTipo(requested)) return true;
   return false;
 };
-
-/**
- * Tipos de UI share-based (cotas/ações) — crescem via Comprar, não via Aporte.
- * Usado pelo `/api/carteira/aporte/tipos` para NÃO oferecê-los no aporte.
- * Espelha EQUITY_ASSET_TYPES (asset.type) já mapeado para o tipo de UI.
- */
-export const EQUITY_TIPOS = new Set(['acao', 'fii', 'etf', 'reit', 'bdr']);

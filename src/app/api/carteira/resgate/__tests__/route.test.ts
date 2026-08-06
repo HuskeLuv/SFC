@@ -252,6 +252,58 @@ describe('POST /api/carteira/resgate', () => {
   });
 
   describe('Resgate de criptoativos', () => {
+    // Auditoria 2026-08-06 achado #3: cripto/fundos/moedas/opções são share-based —
+    // a venda parcial recalcula pela source of truth (custo proporcional), não pelo
+    // cálculo inline que subtraía a RECEITA da venda do custo (2 BTC custo 200k,
+    // vende 1 por 300k → totalInvested 0, avgPrice 0).
+    it('venda parcial de crypto roteia pelo recalc (não usa cálculo inline)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolioCrypto,
+        quantity: 2,
+        totalInvested: 200000,
+      });
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-crypto',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'quantidade',
+          quantidade: 1,
+          cotacaoUnitaria: 300000,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockRecalc).toHaveBeenCalledWith(
+        expect.objectContaining({ targetUserId: 'user-123', assetId: 'asset-btc' }),
+      );
+      expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+    });
+
+    it('venda parcial de fundo CVM com cotas também roteia pelo recalc', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        id: 'port-fundo',
+        userId: 'user-123',
+        quantity: 812.5,
+        totalInvested: 5000,
+        avgPrice: 6.1538,
+        stockId: null,
+        assetId: 'asset-fundo',
+        stock: null,
+        asset: { symbol: '12.345.678/0001-00', name: 'Fundo Multi', type: 'fia' },
+      });
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-fundo',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'quantidade',
+          quantidade: 100,
+          cotacaoUnitaria: 8,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockRecalc).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-fundo' }));
+      expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+    });
+
     it('realiza resgate por quantidade de crypto com sucesso', async () => {
       mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioCrypto);
 

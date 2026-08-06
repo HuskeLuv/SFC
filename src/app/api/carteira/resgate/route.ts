@@ -8,7 +8,7 @@ import {
   invalidatePortfolioSnapshots,
   recalculatePortfolioFromTransactions,
 } from '@/services/portfolio/portfolioRecalculation';
-import { isEquityAssetType } from '@/lib/assetClassification';
+import { isShareBasedAssetType } from '@/lib/assetClassification';
 import { mapPortfolioToTipo } from '@/lib/portfolioTipoMapping';
 import {
   recordChange,
@@ -188,11 +188,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     // Item A (auditoria 2026-05-19): resgate em data passada deixava snapshots
     // stale entre [dataResgate, hoje]. Mesma justificativa do aporte.
     await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
-  } else if (isEquityAssetType(portfolio.asset?.type) && portfolio.assetId) {
+  } else if (isShareBasedAssetType(portfolio.asset?.type) && portfolio.assetId) {
     // Opção 3 / eventos corporativos: venda parcial de ativo share-based recalcula
     // pela source of truth, que (a) aplica eventos corporativos e (b) remove o
     // CUSTO PROPORCIONAL — o cálculo inline subtraía a RECEITA da venda do custo,
     // distorcendo o avgPrice. O recalc também invalida os snapshots internamente.
+    // Desde a auditoria 2026-08-06 (achado #3) isso cobre também cripto, moedas,
+    // opções e fundos CVM (Fase 2) — antes só equity, e a venda parcial desses
+    // tipos zerava/distorcia o custo pelo cálculo inline abaixo.
     await recalculatePortfolioFromTransactions({
       targetUserId,
       assetId: portfolio.assetId,

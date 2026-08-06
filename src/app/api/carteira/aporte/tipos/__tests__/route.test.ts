@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 
 describe('GET /api/carteira/aporte/tipos', () => {
-  it('exclui tipos share-based (ação/FII/ETF/REIT/BDR) e mantém value-based', async () => {
+  it('exclui tipos share-based e mantém value-based', async () => {
     mockPrisma.portfolio.findMany.mockResolvedValue([
       { asset: { type: 'stock' } }, // acao -> excluído
       { asset: { type: 'fii' } }, // fii -> excluído
@@ -28,18 +28,41 @@ describe('GET /api/carteira/aporte/tipos', () => {
       { asset: { type: 'bdr' } }, // bdr -> excluído
       { asset: { type: 'bond' } }, // renda-fixa -> incluído
       { asset: { type: 'emergency' } }, // reserva -> incluído
-      { asset: { type: 'fund' } }, // fundo -> incluído (até Fase 2)
+      // Fase 2 + auditoria 2026-08-06 (achado #6): fundos/cripto/moedas são
+      // share-based — crescem via Comprar, saem do aporte.
+      { asset: { type: 'fund' } }, // fundo -> excluído
+      { asset: { type: 'fia' } }, // fundo CVM -> excluído
+      { asset: { type: 'crypto' } }, // cripto -> excluído
+      { asset: { type: 'currency' } }, // moeda -> excluído
     ]);
 
     const res = await GET(req());
     const data = await res.json();
     const values = (data.tipos as { value: string }[]).map((t) => t.value);
 
-    for (const equity of ['acao', 'fii', 'etf', 'reit', 'bdr']) {
-      expect(values).not.toContain(equity);
+    for (const shareBased of [
+      'acao',
+      'fii',
+      'etf',
+      'reit',
+      'bdr',
+      'fundo',
+      'criptoativo',
+      'moeda',
+    ]) {
+      expect(values).not.toContain(shareBased);
     }
     expect(values).toContain('renda-fixa');
     expect(values).toContain('reserva-emergencia');
-    expect(values).toContain('fundo');
+  });
+
+  it('previdência: fundo CVM (share-based) sai, seguro manual (insurance) continua aportável', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([{ asset: { type: 'previdencia' } }]);
+    let data = await (await GET(req())).json();
+    expect((data.tipos as { value: string }[]).map((t) => t.value)).not.toContain('previdencia');
+
+    mockPrisma.portfolio.findMany.mockResolvedValue([{ asset: { type: 'insurance' } }]);
+    data = await (await GET(req())).json();
+    expect((data.tipos as { value: string }[]).map((t) => t.value)).toContain('previdencia');
   });
 });
