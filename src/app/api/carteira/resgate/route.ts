@@ -253,7 +253,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   // Ativo vinculado a um sonho: a venda abate o realizado (líquido) do mês.
-  if (portfolio.assetId) {
+  // Passa o objetivoId capturado ANTES das mutações: no resgate total o
+  // Portfolio (onde mora o vínculo) já foi deletado, e o resolve por assetId
+  // fazia early-return silencioso — o realizado ficava congelado para sempre
+  // (auditoria 2026-08-06, achado #8).
+  if (portfolio.planejamentoObjetivoId) {
+    await syncSonhoRealizadoBestEffort(targetUserId, {
+      objetivoId: portfolio.planejamentoObjetivoId,
+    });
+  } else if (portfolio.assetId) {
     await syncSonhoRealizadoBestEffort(targetUserId, { assetId: portfolio.assetId });
   }
 

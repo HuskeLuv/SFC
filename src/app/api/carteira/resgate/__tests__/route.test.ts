@@ -38,6 +38,12 @@ vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
   recalculatePortfolioFromTransactions: mockRecalc,
 }));
 
+const mockSyncSonho = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock('@/services/planejamento/carteiraToSonhoRealizado', () => ({
+  syncSonhoRealizadoBestEffort: mockSyncSonho,
+}));
+
 const createRequest = (body: object) =>
   new NextRequest('http://localhost/api/carteira/resgate', {
     method: 'POST',
@@ -273,6 +279,42 @@ describe('POST /api/carteira/resgate', () => {
       const data = await response.json();
       expect(response.status).toBe(400);
       expect(data.error).toContain('quantidade 1');
+    });
+  });
+
+  describe('Vínculo com sonho (auditoria 2026-08-06, achado #8)', () => {
+    it('resgate TOTAL de ativo vinculado sincroniza o sonho pelo objetivoId capturado antes do delete', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolioCrypto,
+        planejamentoObjetivoId: 'obj-sonho-1',
+      });
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-crypto',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'quantidade',
+          quantidade: 0.5, // tudo → delete do Portfolio (onde mora o vínculo)
+          cotacaoUnitaria: 100000,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.portfolio.delete).toHaveBeenCalled();
+      // resolver por assetId pós-delete faria early-return silencioso
+      expect(mockSyncSonho).toHaveBeenCalledWith('user-123', { objetivoId: 'obj-sonho-1' });
+    });
+
+    it('sem vínculo, sincroniza por assetId como antes', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioCrypto);
+      await POST(
+        createRequest({
+          portfolioId: 'port-crypto',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'quantidade',
+          quantidade: 0.1,
+          cotacaoUnitaria: 100000,
+        }),
+      );
+      expect(mockSyncSonho).toHaveBeenCalledWith('user-123', { assetId: 'asset-btc' });
     });
   });
 
