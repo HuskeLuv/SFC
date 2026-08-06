@@ -105,6 +105,20 @@ describe('POST /api/carteira/operacao', () => {
   });
 
   describe('Validações obrigatórias', () => {
+    it('retorna 400 quando a data da operação é futura (não existe cotação futura)', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'emergency',
+          instituicaoId: 'inst-1',
+          dataCompra: '2099-01-01',
+          valorInvestido: 1000,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('futura');
+    });
+
     it('retorna 400 quando tipoAtivo está ausente', async () => {
       const response = await POST(
         createRequest({

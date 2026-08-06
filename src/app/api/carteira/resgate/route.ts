@@ -10,6 +10,7 @@ import {
 } from '@/services/portfolio/portfolioRecalculation';
 import { isShareBasedAssetType } from '@/lib/assetClassification';
 import { mapPortfolioToTipo } from '@/lib/portfolioTipoMapping';
+import { isDataFutura } from '@/utils/formatDate';
 import {
   recordChange,
   diffFields,
@@ -127,9 +128,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // Validação de data (auditoria 2026-08-06, achado #7): sem isso a rota
   // aceitava resgate datado de 2030 ou anterior à compra — e o recalc por
   // histórico processaria uma venda antes da compra correspondente.
-  const fimDeHoje = new Date();
-  fimDeHoje.setHours(23, 59, 59, 999);
-  if (dataTransacao > fimDeHoje) {
+  if (isDataFutura(dataTransacao)) {
     return NextResponse.json({ error: 'Data do resgate não pode ser futura' }, { status: 400 });
   }
   if (portfolio.assetId) {

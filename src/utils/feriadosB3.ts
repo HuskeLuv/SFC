@@ -107,3 +107,17 @@ export const nextBusinessDayB3 = (from: number): number => {
   }
   return cursor;
 };
+
+/**
+ * Devolve o timestamp UTC midnight do dia útil ANTERIOR (<= `from`). Usado
+ * quando o próximo dia útil cairia no futuro — datas de operação não podem
+ * passar de hoje (não existe cotação futura).
+ */
+export const prevBusinessDayB3 = (from: number): number => {
+  let cursor = from;
+  for (let i = 0; i < 10; i++) {
+    if (!isNonBusinessDayB3(cursor)) return cursor;
+    cursor -= DAY_MS;
+  }
+  return cursor;
+};

@@ -16,6 +16,17 @@ const toDate = (input: Date | string | number | null | undefined): Date | null =
 };
 
 /** "06/05/2026" — formato curto pt-BR sem ajuste de timezone do viewer. */
+/**
+ * True se a data cai depois do fim do dia de HOJE (fuso do servidor).
+ * Guarda comum de aplicação/resgate: não existe cotação futura — registrar
+ * transação com data à frente corrompe a série (auditoria 2026-08-06).
+ */
+export const isDataFutura = (data: Date): boolean => {
+  const fimDeHoje = new Date();
+  fimDeHoje.setHours(23, 59, 59, 999);
+  return data > fimDeHoje;
+};
+
 export const formatWallClockDate = (input: Date | string | number | null | undefined): string => {
   const d = toDate(input);
   if (!d) return '';

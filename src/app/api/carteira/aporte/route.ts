@@ -6,6 +6,7 @@ import { aporteSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { isShareBasedAssetType } from '@/lib/assetClassification';
+import { isDataFutura } from '@/utils/formatDate';
 import {
   recordChange,
   diffFields,
@@ -26,6 +27,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
   const { portfolioId, dataAporte, valorAporte, tipoAtivo, instituicaoId } = parsed.data;
   const { vinculoTipo, vinculoObjetivoId } = parsed.data;
+
+  // Não existe cotação futura — aporte datado à frente corrompe a série
+  // (mesma regra do resgate; pedido dos testers, 2026-08-06).
+  if (isDataFutura(new Date(dataAporte))) {
+    return NextResponse.json({ error: 'Data do aporte não pode ser futura' }, { status: 400 });
+  }
 
   const portfolio = await prisma.portfolio.findFirst({
     where: { id: portfolioId, userId: targetUserId },
