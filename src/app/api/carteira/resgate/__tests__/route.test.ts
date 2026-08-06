@@ -2,17 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { POST } from '../route';
 
-const mockPrisma = vi.hoisted(() => ({
-  // Histórico de alterações (recordChange importa prisma como default export).
-  userChangeLog: { create: vi.fn() },
-  portfolio: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  stockTransaction: { create: vi.fn(), findFirst: vi.fn() },
-  user: { findUnique: vi.fn() },
-  fixedIncomeAsset: {
-    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
-  },
-}));
+const mockPrisma = vi.hoisted(() => {
+  const base = {
+    // Histórico de alterações (recordChange importa prisma como default export).
+    userChangeLog: { create: vi.fn() },
+    portfolio: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    stockTransaction: { create: vi.fn(), findFirst: vi.fn() },
+    user: { findUnique: vi.fn() },
+    fixedIncomeAsset: {
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    // rota usa $transaction interativo — no mock, roda o callback com o próprio mock
+    $transaction: vi.fn(),
+  };
+  base.$transaction.mockImplementation((fn: (tx: typeof base) => unknown) => fn(base));
+  return base;
+});
 
 vi.mock('@/utils/auth', () => ({
   requireAuthWithActing: vi.fn().mockResolvedValue({

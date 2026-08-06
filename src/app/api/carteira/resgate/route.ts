@@ -178,20 +178,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
-  const transacao = await prisma.stockTransaction.create({
-    data: {
-      userId: targetUserId,
-      assetId: portfolio.assetId!,
-      type: 'venda',
-      quantity: quantityResgate,
-      price: priceResgate,
-      total: totalResgate,
-      date: dataTransacao,
-      fees: 0,
-      notes: notesData,
-    },
-  });
-
   const isResgatePorValor = metodoResgate === 'valor';
   const novaQuantidade =
     isResgatePorValor && availableQuantity === 1
@@ -199,56 +185,82 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         ? 0
         : 1
       : availableQuantity - quantityResgate;
+  const resgateTotal = novaQuantidade <= 0;
+  const shareBased = isShareBasedAssetType(portfolio.asset?.type) && !!portfolio.assetId;
 
-  if (novaQuantidade <= 0) {
-    await prisma.portfolio.delete({ where: { id: portfolio.id } });
-    // Resgate total: remove FI órfão (FK em Asset, não em Portfolio — sobrava
-    // sem o portfolio que apontava pra ele). Sem isso, futuras buscas e o
-    // pricer pegam um FI sem dono.
-    if (portfolio.assetId) {
-      await prisma.fixedIncomeAsset.deleteMany({
-        where: { userId: targetUserId, assetId: portfolio.assetId },
+  // Venda + mutação do Portfolio/FI no MESMO $transaction (auditoria
+  // 2026-08-06, achado #11): antes, falha entre o create e o update/delete
+  // deixava a venda registrada com a posição intacta (dupla contagem no
+  // MWR/IR). O ramo share-based só grava a venda aqui — o recalc roda depois
+  // e é idempotente (source of truth pelas transações).
+  const transacao = await prisma.$transaction(async (tx) => {
+    const novaTransacao = await tx.stockTransaction.create({
+      data: {
+        userId: targetUserId,
+        assetId: portfolio.assetId!,
+        type: 'venda',
+        quantity: quantityResgate,
+        price: priceResgate,
+        total: totalResgate,
+        date: dataTransacao,
+        fees: 0,
+        notes: notesData,
+      },
+    });
+
+    if (resgateTotal) {
+      await tx.portfolio.delete({ where: { id: portfolio.id } });
+      // Resgate total: remove FI órfão (FK em Asset, não em Portfolio — sobrava
+      // sem o portfolio que apontava pra ele). Sem isso, futuras buscas e o
+      // pricer pegam um FI sem dono.
+      if (portfolio.assetId) {
+        await tx.fixedIncomeAsset.deleteMany({
+          where: { userId: targetUserId, assetId: portfolio.assetId },
+        });
+      }
+    } else if (!shareBased) {
+      // Value-based (renda-fixa/reservas): cálculo inline.
+      const novoTotalInvestido = Math.max(availableTotal - totalResgate, 0);
+      const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
+      await tx.portfolio.update({
+        where: { id: portfolio.id },
+        data: {
+          quantity: novaQuantidade,
+          totalInvested: novoTotalInvestido,
+          avgPrice: novoPrecoMedio,
+          lastUpdate: new Date(),
+        },
       });
+      // Bug #15 (residual): resgate parcial em RF atualizava só Portfolio,
+      // deixando FixedIncomeAsset.investedAmount com o valor antigo. updateMany
+      // é no-op pra assets sem FI vinculado.
+      if (portfolio.assetId) {
+        await tx.fixedIncomeAsset.updateMany({
+          where: { userId: targetUserId, assetId: portfolio.assetId },
+          data: { investedAmount: novoTotalInvestido },
+        });
+      }
     }
-    // Item A (auditoria 2026-05-19): resgate em data passada deixava snapshots
-    // stale entre [dataResgate, hoje]. Mesma justificativa do aporte.
-    await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
-  } else if (isShareBasedAssetType(portfolio.asset?.type) && portfolio.assetId) {
+
+    return novaTransacao;
+  });
+
+  if (!resgateTotal && shareBased) {
     // Opção 3 / eventos corporativos: venda parcial de ativo share-based recalcula
     // pela source of truth, que (a) aplica eventos corporativos e (b) remove o
     // CUSTO PROPORCIONAL — o cálculo inline subtraía a RECEITA da venda do custo,
     // distorcendo o avgPrice. O recalc também invalida os snapshots internamente.
     // Desde a auditoria 2026-08-06 (achado #3) isso cobre também cripto, moedas,
-    // opções e fundos CVM (Fase 2) — antes só equity, e a venda parcial desses
-    // tipos zerava/distorcia o custo pelo cálculo inline abaixo.
+    // opções e fundos CVM (Fase 2) — antes só equity.
     await recalculatePortfolioFromTransactions({
       targetUserId,
-      assetId: portfolio.assetId,
+      assetId: portfolio.assetId!,
       portfolioId: portfolio.id,
       recomputeSnapshotsFrom: dataTransacao,
     });
   } else {
-    // Value-based (renda-fixa/reservas): cálculo inline.
-    const novoTotalInvestido = Math.max(availableTotal - totalResgate, 0);
-    const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
-    await prisma.portfolio.update({
-      where: { id: portfolio.id },
-      data: {
-        quantity: novaQuantidade,
-        totalInvested: novoTotalInvestido,
-        avgPrice: novoPrecoMedio,
-        lastUpdate: new Date(),
-      },
-    });
-    // Bug #15 (residual): resgate parcial em RF atualizava só Portfolio,
-    // deixando FixedIncomeAsset.investedAmount com o valor antigo. updateMany
-    // é no-op pra assets sem FI vinculado.
-    if (portfolio.assetId) {
-      await prisma.fixedIncomeAsset.updateMany({
-        where: { userId: targetUserId, assetId: portfolio.assetId },
-        data: { investedAmount: novoTotalInvestido },
-      });
-    }
+    // Item A (auditoria 2026-05-19): resgate em data passada deixava snapshots
+    // stale entre [dataResgate, hoje]. Mesma justificativa do aporte.
     await invalidatePortfolioSnapshots(targetUserId, dataTransacao);
   }
 
