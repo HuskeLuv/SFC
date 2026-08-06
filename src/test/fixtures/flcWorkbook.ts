@@ -18,6 +18,8 @@ export type FixtureLinha =
       label: string;
       /** valores por mês, índice 0 = jan; meses ausentes viram literal 0 */
       valores?: Partial<Record<number, number>>;
+      /** comentários de célula (nota legada) por mês, índice 0 = jan */
+      comentarios?: Partial<Record<number, string>>;
       significado?: string;
       rank?: number;
       /** não escreve célula alguma em F..Q (linha "vazia" real) */
@@ -163,10 +165,12 @@ export const buildFlcWorkbook = (
     if (linha.rank !== undefined) set(`D${r}`, { t: 'n', v: linha.rank });
     if (linha.semCelulas) continue;
     for (let i = 0; i < 12; i++) {
+      const comentario = linha.comentarios?.[i];
+      const c = comentario !== undefined ? [{ a: 'Fixture', t: comentario }] : undefined;
       if (linha.formula) {
-        set(`${colMes(i)}${r}`, { t: 'n', v: 0, f: `'Outra Aba'!J${i + 2}` });
+        set(`${colMes(i)}${r}`, { t: 'n', v: 0, f: `'Outra Aba'!J${i + 2}`, ...(c && { c }) });
       } else {
-        set(`${colMes(i)}${r}`, { t: 'n', v: linha.valores?.[i] ?? 0 });
+        set(`${colMes(i)}${r}`, { t: 'n', v: linha.valores?.[i] ?? 0, ...(c && { c }) });
       }
     }
   }

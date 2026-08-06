@@ -44,6 +44,8 @@ export interface FlcItem {
   rank: number | null;
   /** índice 0 = jan; null = célula vazia, zero ou não numérica */
   valores: (number | null)[];
+  /** comentários de célula (notas/threads do Excel), índice 0 = jan */
+  comentarios: (string | null)[];
 }
 
 export interface FlcSecao {
@@ -128,8 +130,36 @@ const LINHAS_IGNORADAS: Record<string, string> = {
 const MESES_COLS = Array.from({ length: 12 }, (_, i) => 5 + i); // F..Q
 const MAX_LINHAS = 2000;
 
+/** mesmo limite do comentário manual (cashflowCommentSchema) */
+const MAX_COMENTARIO = 1000;
+
+/**
+ * O parser de threaded comments do SheetJS 0.18.5 decodifica o XML como
+ * latin1, então texto UTF-8 chega com mojibake ("lanÃ§amentos"). Reverte o
+ * double-decode quando a sequência é inequívoca; notas legadas chegam certas
+ * e passam intactas.
+ */
+export const repararMojibake = (s: string): string => {
+  // first-byte UTF-8 (0xC2-0xF4) seguido de continuation byte (0x80-0xBF),
+  // ambos lidos como latin1 - nao ocorre em texto latino legitimo
+  if (!/[\u00C2-\u00F4][\u0080-\u00BF]/.test(s)) return s;
+  const decodificado = Buffer.from(s, 'latin1').toString('utf8');
+  return decodificado.includes('�') ? s : decodificado;
+};
+
+const lerComentario = (cell: XLSX.CellObject | undefined): string | null => {
+  if (!cell?.c?.length) return null;
+  const texto = cell.c
+    .map((entrada) => repararMojibake(entrada.t ?? '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+  if (!texto) return null;
+  return texto.length > MAX_COMENTARIO ? `${texto.slice(0, MAX_COMENTARIO - 1)}…` : texto;
+};
+
 interface CelulasMes {
   valores: (number | null)[];
+  comentarios: (string | null)[];
   temLiteral: boolean;
   temFormula: boolean;
   temCelula: boolean;
@@ -137,11 +167,13 @@ interface CelulasMes {
 
 const lerMeses = (ws: XLSX.WorkSheet, linha: number): CelulasMes => {
   const valores: (number | null)[] = [];
+  const comentarios: (string | null)[] = [];
   let temLiteral = false;
   let temFormula = false;
   let temCelula = false;
   for (const c of MESES_COLS) {
     const cell: XLSX.CellObject | undefined = ws[XLSX.utils.encode_cell({ r: linha - 1, c })];
+    comentarios.push(lerComentario(cell));
     if (!cell || cell.v === undefined || cell.v === null || cell.v === '') {
       valores.push(null);
       continue;
@@ -159,7 +191,7 @@ const lerMeses = (ws: XLSX.WorkSheet, linha: number): CelulasMes => {
       valores.push(null);
     }
   }
-  return { valores, temLiteral, temFormula, temCelula };
+  return { valores, comentarios, temLiteral, temFormula, temCelula };
 };
 
 const lerTexto = (ws: XLSX.WorkSheet, addr: string): string | null => {
@@ -252,6 +284,7 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
         significado: lerTexto(ws, `C${r}`),
         rank: lerNumero(ws, `D${r}`),
         valores: meses.valores,
+        comentarios: meses.comentarios,
       });
       continue;
     }

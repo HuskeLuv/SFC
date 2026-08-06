@@ -59,15 +59,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (relatorio.celulasGravadas > 0 || relatorio.itensCriados > 0) {
     // Import grava valores do ano inteiro (meses passados incluídos) →
     // snapshots travados da Evolução do Patrimônio do ano em diante precisam
-    // ser recomputados.
+    // ser recomputados. (Comentário sozinho não altera valor — não recomputa.)
     await recomputeEvolucaoSnapshotsSafe(targetUserId, new Date(Date.UTC(ano, 0, 1)));
+  }
+  if (
+    relatorio.celulasGravadas > 0 ||
+    relatorio.itensCriados > 0 ||
+    relatorio.comentariosGravados > 0
+  ) {
     await recordChange({
       request,
       auth,
       section: 'fluxo-caixa',
       action: 'fluxo.importar-planilha',
       entity: 'importacao',
-      entityLabel: `a planilha "${arquivo}" (${ano}): ${relatorio.celulasGravadas} células, ${relatorio.itensCriados} itens novos`,
+      entityLabel: `a planilha "${arquivo}" (${ano}): ${relatorio.celulasGravadas} células, ${relatorio.itensCriados} itens novos, ${relatorio.comentariosGravados} comentários`,
     });
   }
 

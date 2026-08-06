@@ -25,6 +25,7 @@ const itemPlano = (overrides: Partial<FlcItemPlano> = {}): FlcItemPlano => ({
   escritas: [{ mes: 0, valor: 100 }],
   conflitos: [],
   jaIguais: [],
+  comentarios: [],
   ...overrides,
 });
 
@@ -32,7 +33,7 @@ const plano = (grupos: FlcGrupoPlano[]): FlcImportPlan => ({
   grupos,
   ignorados: [],
   avisos: [],
-  resumo: { itensNovos: 0, celulas: 0, conflitos: 0, jaIguais: 0, ignorados: 0 },
+  resumo: { itensNovos: 0, celulas: 0, conflitos: 0, jaIguais: 0, ignorados: 0, comentarios: 0 },
 });
 
 const grupoPlano = (itens: FlcItemPlano[], groupId = 'grp-1'): FlcGrupoPlano => ({
@@ -156,6 +157,83 @@ describe('executeFlcImportPlan', () => {
     expect(mockPrisma.cashflowItem.create).toHaveBeenCalledTimes(1);
     expect(rel.itensCriados).toBe(1);
     expect(rel.celulasGravadas).toBe(2);
+  });
+
+  it('valor e comentário no mesmo mês vão no MESMO upsert; comentário sozinho cria valor 0', async () => {
+    const rel = await executeFlcImportPlan(
+      plano([
+        grupoPlano([
+          itemPlano({
+            escritas: [{ mes: 0, valor: 100 }],
+            comentarios: [
+              { mes: 0, texto: 'Reajuste em janeiro', textoApp: null },
+              { mes: 4, texto: 'Célula vazia comentada', textoApp: null },
+            ],
+          }),
+        ]),
+      ]),
+      'user-1',
+      2026,
+      'sobrescrever',
+    );
+
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith({
+      where: {
+        itemId_userId_year_month: { itemId: 'item-final', userId: 'user-1', year: 2026, month: 0 },
+      },
+      update: { value: 100, comment: 'Reajuste em janeiro' },
+      create: {
+        itemId: 'item-final',
+        userId: 'user-1',
+        year: 2026,
+        month: 0,
+        value: 100,
+        comment: 'Reajuste em janeiro',
+      },
+    });
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith({
+      where: {
+        itemId_userId_year_month: { itemId: 'item-final', userId: 'user-1', year: 2026, month: 4 },
+      },
+      update: { comment: 'Célula vazia comentada' },
+      create: {
+        itemId: 'item-final',
+        userId: 'user-1',
+        year: 2026,
+        month: 4,
+        value: 0,
+        comment: 'Célula vazia comentada',
+      },
+    });
+    expect(rel).toMatchObject({ celulasGravadas: 1, comentariosGravados: 2 });
+  });
+
+  it('comentário conflitante (app já tem outro texto) segue a política: manter pula, sobrescrever grava', async () => {
+    const comConflito = () =>
+      plano([
+        grupoPlano([
+          itemPlano({
+            escritas: [],
+            comentarios: [{ mes: 2, texto: 'Da planilha', textoApp: 'Do app' }],
+          }),
+        ]),
+      ]);
+
+    const mantem = await executeFlcImportPlan(comConflito(), 'user-1', 2026, 'manter');
+    expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
+    expect(mantem).toMatchObject({ comentariosGravados: 0 });
+
+    vi.clearAllMocks();
+    mockEnsurePersonalizedItem.mockResolvedValue({
+      itemId: 'item-final',
+      item: { id: 'item-1', objetivoId: null },
+    });
+    const sobrescreve = await executeFlcImportPlan(comConflito(), 'user-1', 2026, 'sobrescrever');
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { comment: 'Da planilha' } }),
+    );
+    expect(sobrescreve).toMatchObject({ comentariosGravados: 1 });
   });
 
   it('defensivo: item que virou linha de sonho entre map e execução não é gravado', async () => {

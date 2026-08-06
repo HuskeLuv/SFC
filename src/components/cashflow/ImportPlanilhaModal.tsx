@@ -174,10 +174,13 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
         ),
       )
     : [];
-  const motivosIgnorados = new Map<string, number>();
-  preview?.plan.ignorados.forEach((i) =>
-    motivosIgnorados.set(i.motivo, (motivosIgnorados.get(i.motivo) ?? 0) + 1),
-  );
+  const comentarios = preview
+    ? preview.plan.grupos.flatMap((g) =>
+        g.itens.flatMap((i) =>
+          i.comentarios.map((c) => ({ grupo: g.destino.nome, item: i.label, ...c })),
+        ),
+      )
+    : [];
 
   return createPortal(
     <div
@@ -252,7 +255,11 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
                   tone={resumo.conflitos > 0 ? 'warn' : 'muted'}
                 />
                 <Chip label="já iguais" value={resumo.jaIguais} tone="muted" />
-                <Chip label="ignorados" value={resumo.ignorados} tone="muted" />
+                <Chip
+                  label="comentários"
+                  value={resumo.comentarios}
+                  tone={resumo.comentarios > 0 ? 'ok' : 'muted'}
+                />
               </div>
 
               {preview.plan.avisos.length > 0 && (
@@ -312,15 +319,18 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
                 </div>
               </details>
 
-              {motivosIgnorados.size > 0 && (
+              {comentarios.length > 0 && (
                 <details className="text-sm">
                   <summary className="cursor-pointer font-medium text-gray-900 dark:text-white">
-                    Linhas ignoradas ({preview.plan.ignorados.length})
+                    Comentários das células ({comentarios.length}) — aparecem ao passar o mouse
                   </summary>
-                  <div className="mt-2 max-h-40 overflow-y-auto text-xs text-gray-600 dark:text-gray-300">
-                    {[...motivosIgnorados.entries()].map(([motivo, n]) => (
-                      <p key={motivo}>
-                        {n}× {motivo}
+                  <div className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-gray-600 dark:text-gray-300">
+                    {comentarios.map((c, i) => (
+                      <p key={i}>
+                        <span className="font-medium">
+                          {c.grupo} › {c.item} ({MESES_ABREV[c.mes]}):
+                        </span>{' '}
+                        &ldquo;{c.texto}&rdquo;
                       </p>
                     ))}
                   </div>
@@ -342,9 +352,10 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
                   ? 'Importação concluída com sucesso.'
                   : 'Importação concluída com erros — veja o detalhe abaixo.'}
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 <Chip label="células gravadas" value={resultado.relatorio.celulasGravadas} />
                 <Chip label="itens criados" value={resultado.relatorio.itensCriados} />
+                <Chip label="comentários" value={resultado.relatorio.comentariosGravados} />
                 <Chip
                   label="conflitos sobrescritos"
                   value={resultado.relatorio.conflitosSobrescritos}
@@ -401,7 +412,10 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
                 onClick={importar}
                 disabled={
                   loading ||
-                  (resumo?.celulas === 0 && resumo?.itensNovos === 0 && conflitos.length === 0)
+                  (resumo?.celulas === 0 &&
+                    resumo?.itensNovos === 0 &&
+                    resumo?.comentarios === 0 &&
+                    conflitos.length === 0)
                 }
                 className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
