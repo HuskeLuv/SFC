@@ -1,10 +1,11 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import DatePicker from '@/components/form/date-picker';
 import { RedeemWizardErrors, RedeemWizardFormData } from '@/types/redeemWizard';
+import { parseDecimalValue, DECIMAL_INPUT_PROPS } from '@/components/carteira/wizard/step4Utils';
 
 interface Step4RedeemInfoProps {
   formData: RedeemWizardFormData;
@@ -30,6 +31,12 @@ export default function Step4RedeemInfo({
         ]
       : [{ value: 'quantidade', label: 'Por quantidade' }];
 
+  // Buffer de string dos campos numéricos (mesmo padrão do Step4AssetInfo do
+  // aporte): input controlado por número + parseFloat descartava o separador
+  // decimal no re-render — digitar "0,5" registrava 5, colar "1.500,50"
+  // registrava 1,50 (auditoria 2026-08-06, achado #4).
+  const [decimalInputValues, setDecimalInputValues] = useState<Record<string, string>>({});
+
   const handleInputChange = (field: keyof RedeemWizardFormData, value: string | number) => {
     onFormDataChange({ [field]: value });
     if (errors[field as keyof RedeemWizardErrors]) {
@@ -37,7 +44,37 @@ export default function Step4RedeemInfo({
     }
   };
 
+  const getDecimalInputValue = (field: 'quantidade' | 'cotacaoUnitaria' | 'valorResgate') => {
+    const localValue = decimalInputValues[field];
+    if (localValue !== undefined) {
+      return localValue;
+    }
+    const numericValue = formData[field];
+    if (typeof numericValue !== 'number' || Number.isNaN(numericValue) || numericValue === 0) {
+      return '';
+    }
+    return String(numericValue).replace('.', ',');
+  };
+
+  const handleDecimalInputChange =
+    (field: 'quantidade' | 'cotacaoUnitaria' | 'valorResgate') =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const rawValue = e.target.value;
+      setDecimalInputValues((prev) => ({ ...prev, [field]: rawValue }));
+
+      if (!rawValue.trim()) {
+        handleInputChange(field, 0);
+        return;
+      }
+      const parsedValue = parseDecimalValue(rawValue);
+      if (parsedValue === null) {
+        return;
+      }
+      handleInputChange(field, parsedValue);
+    };
+
   const handleMetodoChange = (value: string) => {
+    setDecimalInputValues({});
     onFormDataChange({
       metodoResgate: value as RedeemWizardFormData['metodoResgate'],
       quantidade: 0,
@@ -99,16 +136,12 @@ export default function Step4RedeemInfo({
             <Label htmlFor="quantidade">Quantidade a resgatar *</Label>
             <Input
               id="quantidade"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="Ex: 10"
-              value={formData.quantidade}
-              onChange={(e) => handleInputChange('quantidade', parseFloat(e.target.value) || 0)}
+              {...DECIMAL_INPUT_PROPS}
+              placeholder="Ex: 10 ou 0,5"
+              value={getDecimalInputValue('quantidade')}
+              onChange={handleDecimalInputChange('quantidade')}
               error={!!errors.quantidade}
               hint={errors.quantidade}
-              min="1"
-              step="1"
             />
           </div>
           <div>
@@ -117,18 +150,12 @@ export default function Step4RedeemInfo({
             </Label>
             <Input
               id="cotacaoUnitaria"
-              type="text"
-              inputMode="decimal"
-              pattern="[0-9]*[.,]?[0-9]*"
-              placeholder="Ex: 32.50"
-              value={formData.cotacaoUnitaria}
-              onChange={(e) =>
-                handleInputChange('cotacaoUnitaria', parseFloat(e.target.value) || 0)
-              }
+              {...DECIMAL_INPUT_PROPS}
+              placeholder="Ex: 32,50"
+              value={getDecimalInputValue('cotacaoUnitaria')}
+              onChange={handleDecimalInputChange('cotacaoUnitaria')}
               error={!!errors.cotacaoUnitaria}
               hint={errors.cotacaoUnitaria}
-              min="0"
-              step="0.01"
             />
           </div>
         </>
@@ -139,16 +166,12 @@ export default function Step4RedeemInfo({
           </Label>
           <Input
             id="valorResgate"
-            type="text"
-            inputMode="decimal"
-            pattern="[0-9]*[.,]?[0-9]*"
-            placeholder="Ex: 1000.00"
-            value={formData.valorResgate}
-            onChange={(e) => handleInputChange('valorResgate', parseFloat(e.target.value) || 0)}
+            {...DECIMAL_INPUT_PROPS}
+            placeholder="Ex: 1.000,00"
+            value={getDecimalInputValue('valorResgate')}
+            onChange={handleDecimalInputChange('valorResgate')}
             error={!!errors.valorResgate}
             hint={errors.valorResgate}
-            min="0"
-            step="0.01"
           />
         </div>
       )}
