@@ -3,57 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
-  const assetType = item.asset?.type || '';
-  // Pós-consolidação Stock → Asset: tipo vem de Asset.type direto.
-  if (assetType === 'stock') return 'acao';
-  if (assetType === 'fii') return 'fii';
-  switch (assetType) {
-    case 'emergency':
-      return 'reserva-emergencia';
-    case 'opportunity':
-      return 'reserva-oportunidade';
-    case 'personalizado':
-      return 'personalizado';
-    case 'imovel':
-      return 'imoveis-bens';
-    case 'crypto':
-      return 'criptoativo';
-    case 'currency':
-      return 'moeda';
-    case 'etf':
-      return 'etf';
-    case 'reit':
-      return 'reit';
-    case 'bdr':
-      return 'bdr';
-    case 'fund':
-      return 'fundo';
-    case 'bond':
-      // RF é classificada via FixedIncomeAsset.type (CDB_PRE/POS/HIB), mas
-      // /aporte e /resgate enviam ?tipo=renda-fixa, renda-fixa-prefixada,
-      // -posfixada ou -hibrida. Marca como "renda-fixa" e deixa o
-      // matchesTipo() abaixo aceitar qualquer variação.
-      return 'renda-fixa';
-    case 'insurance':
-      return 'previdencia';
-    case 'cash':
-      return 'conta-corrente';
-    default:
-      return assetType || 'personalizado';
-  }
-};
-
-const isRendaFixaTipo = (tipo: string): boolean =>
-  tipo === 'renda-fixa' || tipo.startsWith('renda-fixa-');
-
-const matchesTipo = (mapped: string, requested: string): boolean => {
-  if (mapped === requested) return true;
-  // RF é uma família: bond → "renda-fixa" no mapPortfolio, mas o caller pode
-  // pedir "-prefixada", "-posfixada" ou "-hibrida". Trata todos como match.
-  if (mapped === 'renda-fixa' && isRendaFixaTipo(requested)) return true;
-  return false;
-};
+import { mapPortfolioToTipo, matchesTipo } from '@/lib/portfolioTipoMapping';
 
 const extractInstitutionId = (notes?: string | null) => {
   if (!notes) return null;

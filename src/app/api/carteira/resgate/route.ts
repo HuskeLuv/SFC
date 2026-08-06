@@ -9,6 +9,7 @@ import {
   recalculatePortfolioFromTransactions,
 } from '@/services/portfolio/portfolioRecalculation';
 import { isEquityAssetType } from '@/lib/assetClassification';
+import { mapPortfolioToTipo } from '@/lib/portfolioTipoMapping';
 import {
   recordChange,
   diffFields,
@@ -16,43 +17,6 @@ import {
   TRANSACTION_FIELD_LABELS,
 } from '@/services/changeHistory';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
-
-const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
-  const assetType = item.asset?.type || '';
-  // Pós-consolidação: ações B3 e FIIs também viram Asset (type='stock' / 'fii').
-  if (assetType === 'stock') return 'acao';
-  if (assetType === 'fii') return 'fii';
-  switch (assetType) {
-    case 'emergency':
-      return 'reserva-emergencia';
-    case 'opportunity':
-      return 'reserva-oportunidade';
-    case 'personalizado':
-      return 'personalizado';
-    case 'imovel':
-      return 'imoveis-bens';
-    case 'crypto':
-      return 'criptoativo';
-    case 'currency':
-      return 'moeda';
-    case 'etf':
-      return 'etf';
-    case 'reit':
-      return 'reit';
-    case 'bdr':
-      return 'bdr';
-    case 'fund':
-      return 'fundo';
-    case 'bond':
-      return 'renda-fixa-prefixada';
-    case 'insurance':
-      return 'previdencia';
-    case 'cash':
-      return 'conta-corrente';
-    default:
-      return assetType || 'personalizado';
-  }
-};
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);

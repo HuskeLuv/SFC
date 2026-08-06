@@ -61,6 +61,24 @@ export const mapPortfolioToTipo = (item: {
   }
 };
 
+const isRendaFixaTipo = (tipo: string): boolean =>
+  tipo === 'renda-fixa' || tipo.startsWith('renda-fixa-');
+
+/**
+ * Match tolerante entre o tipo mapeado do Portfolio e o tipo pedido pelo wizard.
+ * RF é uma família: `bond` mapeia para "renda-fixa", mas o caller pode pedir
+ * "renda-fixa-prefixada"/"-posfixada"/"-hibrida" (classificação vive em
+ * FixedIncomeAsset.type). Único ponto de verdade — as rotas de
+ * /resgate/{ativos,instituicoes} usavam cópias divergentes deste código e a
+ * cópia de `ativos` mapeava bond → 'renda-fixa-prefixada', tornando RF
+ * invisível no resgate e no aporte (auditoria 2026-08-06, achado #1).
+ */
+export const matchesTipo = (mapped: string, requested: string): boolean => {
+  if (mapped === requested) return true;
+  if (mapped === 'renda-fixa' && isRendaFixaTipo(requested)) return true;
+  return false;
+};
+
 /**
  * Tipos de UI share-based (cotas/ações) — crescem via Comprar, não via Aporte.
  * Usado pelo `/api/carteira/aporte/tipos` para NÃO oferecê-los no aporte.
