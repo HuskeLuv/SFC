@@ -30,4 +30,11 @@ export function invalidatePortfolioDerivedQueries(queryClient: QueryClient): voi
   // mudam com qualquer transação. Mantém os defaults/seeds do planejamento
   // (Sonhos/Aposentadoria) coerentes com a carteira em tempo real.
   void queryClient.invalidateQueries({ queryKey: queryKeys.planejamento.all });
+  // Auditoria 2026-08-06 (achado #11): o realizado dos sonhos e o
+  // acompanhamento automático da aposentadoria derivam das transações de
+  // ativos vinculados — resgate/aporte mudam os dois, e só o AddAssetWizard
+  // invalidava sonhos (o resgate não invalidava nenhum). Chaves locais dos
+  // hooks usePlanejamentoSonhos/useAposentadoria (fora do queryKeys central).
+  void queryClient.invalidateQueries({ queryKey: ['planejamento-sonhos'] });
+  void queryClient.invalidateQueries({ queryKey: ['aposentadoria'] });
 }
