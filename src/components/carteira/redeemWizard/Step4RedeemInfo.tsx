@@ -1,10 +1,10 @@
-"use client";
-import React from "react";
-import Label from "@/components/form/Label";
-import Input from "@/components/form/input/InputField";
-import Select from "@/components/form/Select";
-import DatePicker from "@/components/form/date-picker";
-import { RedeemWizardErrors, RedeemWizardFormData } from "@/types/redeemWizard";
+'use client';
+import React from 'react';
+import Label from '@/components/form/Label';
+import Input from '@/components/form/input/InputField';
+import Select from '@/components/form/Select';
+import DatePicker from '@/components/form/date-picker';
+import { RedeemWizardErrors, RedeemWizardFormData } from '@/types/redeemWizard';
 
 interface Step4RedeemInfoProps {
   formData: RedeemWizardFormData;
@@ -19,13 +19,16 @@ export default function Step4RedeemInfo({
   onFormDataChange,
   onErrorsChange,
 }: Step4RedeemInfoProps) {
+  // Estrito (=== 1): "Por valor" só existe para posições value-based (qty 1).
+  // Posição fracionária (0,5 BTC) oferecia o método que o backend hoje rejeita
+  // (e que antes DELETAVA a posição inteira — auditoria 2026-08-06, achado #2).
   const metodoOptions =
-    formData.availableQuantity > 1
-      ? [{ value: "quantidade", label: "Por quantidade" }]
-      : [
-          { value: "quantidade", label: "Por quantidade" },
-          { value: "valor", label: "Por valor" },
-        ];
+    formData.availableQuantity === 1
+      ? [
+          { value: 'quantidade', label: 'Por quantidade' },
+          { value: 'valor', label: 'Por valor' },
+        ]
+      : [{ value: 'quantidade', label: 'Por quantidade' }];
 
   const handleInputChange = (field: keyof RedeemWizardFormData, value: string | number) => {
     onFormDataChange({ [field]: value });
@@ -36,7 +39,7 @@ export default function Step4RedeemInfo({
 
   const handleMetodoChange = (value: string) => {
     onFormDataChange({
-      metodoResgate: value as RedeemWizardFormData["metodoResgate"],
+      metodoResgate: value as RedeemWizardFormData['metodoResgate'],
       quantidade: 0,
       cotacaoUnitaria: 0,
       valorResgate: 0,
@@ -58,22 +61,20 @@ export default function Step4RedeemInfo({
           appendToBody
           onChange={(selectedDates) => {
             if (selectedDates && selectedDates.length > 0) {
-              handleInputChange("dataResgate", selectedDates[0].toISOString().split("T")[0]);
+              handleInputChange('dataResgate', selectedDates[0].toISOString().split('T')[0]);
             }
           }}
         />
-        {errors.dataResgate && (
-          <p className="mt-1 text-sm text-red-500">{errors.dataResgate}</p>
-        )}
+        {errors.dataResgate && <p className="mt-1 text-sm text-red-500">{errors.dataResgate}</p>}
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
         <p>Quantidade disponível: {formData.availableQuantity ?? 0}</p>
         <p>
-          Valor disponível:{" "}
-          {(formData.availableTotal ?? 0).toLocaleString("pt-BR", {
-            style: "currency",
-            currency: formData.moeda || "BRL",
+          Valor disponível:{' '}
+          {(formData.availableTotal ?? 0).toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: formData.moeda || 'BRL',
           })}
         </p>
       </div>
@@ -85,14 +86,14 @@ export default function Step4RedeemInfo({
           placeholder="Selecione o método"
           defaultValue={formData.metodoResgate}
           onChange={handleMetodoChange}
-          className={errors.metodoResgate ? "border-red-500" : ""}
+          className={errors.metodoResgate ? 'border-red-500' : ''}
         />
         {errors.metodoResgate && (
           <p className="mt-1 text-sm text-red-500">{errors.metodoResgate}</p>
         )}
       </div>
 
-      {formData.metodoResgate === "quantidade" ? (
+      {formData.metodoResgate === 'quantidade' ? (
         <>
           <div>
             <Label htmlFor="quantidade">Quantidade a resgatar *</Label>
@@ -103,7 +104,7 @@ export default function Step4RedeemInfo({
               pattern="[0-9]*"
               placeholder="Ex: 10"
               value={formData.quantidade}
-              onChange={(e) => handleInputChange("quantidade", parseFloat(e.target.value) || 0)}
+              onChange={(e) => handleInputChange('quantidade', parseFloat(e.target.value) || 0)}
               error={!!errors.quantidade}
               hint={errors.quantidade}
               min="1"
@@ -112,7 +113,7 @@ export default function Step4RedeemInfo({
           </div>
           <div>
             <Label htmlFor="cotacaoUnitaria">
-              Cotação unitária ({formData.moeda === "USD" ? "US$" : "R$"}) *
+              Cotação unitária ({formData.moeda === 'USD' ? 'US$' : 'R$'}) *
             </Label>
             <Input
               id="cotacaoUnitaria"
@@ -121,7 +122,9 @@ export default function Step4RedeemInfo({
               pattern="[0-9]*[.,]?[0-9]*"
               placeholder="Ex: 32.50"
               value={formData.cotacaoUnitaria}
-              onChange={(e) => handleInputChange("cotacaoUnitaria", parseFloat(e.target.value) || 0)}
+              onChange={(e) =>
+                handleInputChange('cotacaoUnitaria', parseFloat(e.target.value) || 0)
+              }
               error={!!errors.cotacaoUnitaria}
               hint={errors.cotacaoUnitaria}
               min="0"
@@ -132,7 +135,7 @@ export default function Step4RedeemInfo({
       ) : (
         <div>
           <Label htmlFor="valorResgate">
-            Valor do resgate ({formData.moeda === "USD" ? "US$" : "R$"}) *
+            Valor do resgate ({formData.moeda === 'USD' ? 'US$' : 'R$'}) *
           </Label>
           <Input
             id="valorResgate"
@@ -141,7 +144,7 @@ export default function Step4RedeemInfo({
             pattern="[0-9]*[.,]?[0-9]*"
             placeholder="Ex: 1000.00"
             value={formData.valorResgate}
-            onChange={(e) => handleInputChange("valorResgate", parseFloat(e.target.value) || 0)}
+            onChange={(e) => handleInputChange('valorResgate', parseFloat(e.target.value) || 0)}
             error={!!errors.valorResgate}
             hint={errors.valorResgate}
             min="0"

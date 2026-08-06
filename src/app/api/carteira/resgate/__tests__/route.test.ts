@@ -217,6 +217,25 @@ describe('POST /api/carteira/resgate', () => {
       expect(data.transacao.price).toBe(1000);
     });
 
+    it('retorna 400 quando resgate por valor com quantidade fracionária (< 1)', async () => {
+      // Auditoria 2026-08-06 achado #2: com qty 0,5 o guard antigo (> 1) passava,
+      // quantityResgate virava 1, novaQuantidade ficava negativa e a rota caía no
+      // ramo de resgate TOTAL — resgatar R$100 deletava a posição inteira.
+      mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioCrypto);
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-crypto',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'valor',
+          valorResgate: 100,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('quantidade 1');
+      expect(mockPrisma.portfolio.delete).not.toHaveBeenCalled();
+    });
+
     it('retorna 400 quando resgate por valor com quantidade > 1', async () => {
       const response = await POST(
         createRequest({

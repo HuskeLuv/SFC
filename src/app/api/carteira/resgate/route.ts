@@ -108,7 +108,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     if (valorResgate > availableTotal) {
       return NextResponse.json({ error: 'Valor maior que o disponível' }, { status: 400 });
     }
-    if (availableQuantity > 1) {
+    // Estrito (!== 1, não > 1): posição fracionária (0,5 BTC, cotas 812,5) caía
+    // no cálculo qty − 1 → novaQuantidade negativa → ramo de resgate TOTAL →
+    // portfolio.delete. Resgatar R$100 apagava a posição inteira (auditoria
+    // 2026-08-06, achado #2). Valor é só para posições value-based (qty 1).
+    if (availableQuantity !== 1) {
       return NextResponse.json(
         { error: 'Resgate por valor disponível apenas para investimentos com quantidade 1' },
         { status: 400 },
