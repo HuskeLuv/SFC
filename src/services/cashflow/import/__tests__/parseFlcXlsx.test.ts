@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildFlcWorkbook, modeloSpec, type FixtureLinha } from '@/test/fixtures/flcWorkbook';
-import { FlcParseError, normalizeLabel, parseFlcXlsx } from '../parseFlcXlsx';
+import { FlcParseError, normalizeLabel, parseFlcXlsx, repararMojibake } from '../parseFlcXlsx';
 
 const parseModelo = () => parseFlcXlsx(buildFlcWorkbook());
 
@@ -187,6 +187,62 @@ describe('parseFlcXlsx — cópias personalizadas de cliente', () => {
     expect(secao(result, 'transporte').itens.map((i) => i.label)).not.toContain('Subtotal carro');
     const ign = result.ignorados.find((i) => i.label === 'Subtotal carro');
     expect(ign?.motivo).toContain('computada');
+  });
+});
+
+describe('parseFlcXlsx — comentários de célula', () => {
+  const comComentarios = () => {
+    const spec = modeloSpec().map((l): FixtureLinha => {
+      if (l.tipo === 'item' && l.label === 'Combustível')
+        // mês 0 tem valor 400; mês 1 é célula zerada (valor null no IR)
+        return { ...l, comentarios: { 0: '  Posto Ipiranga da esquina  ', 1: 'Sem carro em fev' } };
+      return l;
+    });
+    return parseFlcXlsx(buildFlcWorkbook(spec));
+  };
+
+  it('captura comentário (com trim) em célula com valor e em célula zerada', () => {
+    const result = comComentarios();
+    const combustivel = secao(result, 'transporte').itens.find((i) => i.label === 'Combustível');
+    expect(combustivel?.comentarios[0]).toBe('Posto Ipiranga da esquina');
+    expect(combustivel?.valores[1]).toBeNull(); // zerada: sem valor…
+    expect(combustivel?.comentarios[1]).toBe('Sem carro em fev'); // …mas com comentário
+    expect(combustivel?.comentarios[2]).toBeNull();
+  });
+
+  it('item sem comentários tem os 12 meses null e o parse segue intacto', () => {
+    const result = comComentarios();
+    expect(result.secoes).toHaveLength(17);
+    expect(result.avisos).toEqual([]);
+    const uber = secao(result, 'transporte').itens.find((i) => i.label === 'Uber');
+    expect(uber?.comentarios).toEqual(Array(12).fill(null));
+  });
+
+  it('trunca comentário no limite do app (1000 chars, mesmo do manual)', () => {
+    const spec = modeloSpec().map((l): FixtureLinha => {
+      if (l.tipo === 'item' && l.label === 'Combustível')
+        return { ...l, comentarios: { 0: 'x'.repeat(1500) } };
+      return l;
+    });
+    const result = parseFlcXlsx(buildFlcWorkbook(spec));
+    const combustivel = secao(result, 'transporte').itens.find((i) => i.label === 'Combustível');
+    expect(combustivel?.comentarios[0]).toHaveLength(1000);
+    expect(combustivel?.comentarios[0]?.endsWith('…')).toBe(true);
+  });
+});
+
+describe('repararMojibake', () => {
+  it('reverte double-decode do parser de threaded comments (SheetJS 0.18.5)', () => {
+    expect(repararMojibake('O cliente faz lanÃ§amentos manuais')).toBe(
+      'O cliente faz lançamentos manuais',
+    );
+    expect(repararMojibake('PARA NÃ£o alterar')).toBe('PARA Não alterar');
+  });
+
+  it('não altera texto legítimo com acentos (notas legadas chegam corretas)', () => {
+    expect(repararMojibake('Reajuste previsto em março')).toBe('Reajuste previsto em março');
+    expect(repararMojibake('SÃO PAULO — ação e emoção')).toBe('SÃO PAULO — ação e emoção');
+    expect(repararMojibake('sem acento nenhum')).toBe('sem acento nenhum');
   });
 });
 

@@ -26,13 +26,14 @@ const plan: FlcImportPlan = {
           escritas: [{ mes: 0, valor: 1500 }],
           conflitos: [{ mes: 1, valorPlanilha: 200, valorApp: 100 }],
           jaIguais: [],
+          comentarios: [{ mes: 2, texto: 'Reajuste previsto em março', textoApp: null }],
         },
       ],
     },
   ],
   ignorados: [{ linha: 60, label: 'Inflação Pessoal', motivo: 'calculada no app' }],
   avisos: ['um aviso qualquer'],
-  resumo: { itensNovos: 0, celulas: 1, conflitos: 1, jaIguais: 0, ignorados: 1 },
+  resumo: { itensNovos: 0, celulas: 1, conflitos: 1, jaIguais: 0, ignorados: 1, comentarios: 1 },
 };
 
 const previewResponse = { ano: 2026, arquivo: 'flc.xlsx', plan };
@@ -41,6 +42,7 @@ const commitResponse = {
   relatorio: {
     itensCriados: 0,
     celulasGravadas: 2,
+    comentariosGravados: 1,
     conflitosSobrescritos: 1,
     conflitosMantidos: 0,
     erros: [],
@@ -93,11 +95,16 @@ describe('ImportPlanilhaModal', () => {
     escolherArquivo();
     fireEvent.click(screen.getByRole('button', { name: /gerar prévia/i }));
 
-    // prévia: resumo, aviso e conflito visíveis
+    // prévia: resumo, aviso, conflito e comentários visíveis; ignorados não aparecem
     await waitFor(() => expect(screen.getByText(/nada foi gravado ainda/i)).toBeInTheDocument());
     expect(screen.getByText('células a gravar')).toBeInTheDocument();
     expect(screen.getByText(/um aviso qualquer/)).toBeInTheDocument();
-    expect(screen.getByText(/Habitação › Aluguel/)).toBeInTheDocument();
+    // conflito e comentário citam o mesmo item ("Habitação › Aluguel")
+    expect(screen.getAllByText(/Habitação › Aluguel/)).toHaveLength(2);
+    expect(screen.getByText(/Comentários das células \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Reajuste previsto em março/)).toBeInTheDocument();
+    expect(screen.queryByText(/ignorad/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Inflação Pessoal/)).not.toBeInTheDocument();
 
     // muda a política de conflito e importa
     fireEvent.click(screen.getByLabelText(/manter valores do app/i));

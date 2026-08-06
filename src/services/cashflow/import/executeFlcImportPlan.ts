@@ -23,6 +23,7 @@ export type FlcPoliticaConflito = 'sobrescrever' | 'manter';
 export interface FlcImportRelatorio {
   itensCriados: number;
   celulasGravadas: number;
+  comentariosGravados: number;
   conflitosSobrescritos: number;
   conflitosMantidos: number;
   erros: { label: string; erro: string }[];
@@ -37,6 +38,7 @@ export const executeFlcImportPlan = async (
   const relatorio: FlcImportRelatorio = {
     itensCriados: 0,
     celulasGravadas: 0,
+    comentariosGravados: 0,
     conflitosSobrescritos: 0,
     conflitosMantidos: 0,
     erros: [],
@@ -57,19 +59,32 @@ export const executeFlcImportPlan = async (
   // dedupe intra-execução (seção duplicada na planilha → mesmo item criado 1x)
   const itemCriado = new Map<string, string>();
 
-  const upsertValores = async (
-    itemId: string,
-    escritas: { mes: number; valor: number }[],
-  ): Promise<void> => {
+  interface EscritaMes {
+    valor?: number;
+    comentario?: string;
+  }
+
+  const upsertValores = async (itemId: string, porMes: Map<number, EscritaMes>): Promise<void> => {
     await Promise.all(
-      escritas.map(({ mes, valor }) =>
+      [...porMes.entries()].map(([mes, { valor, comentario }]) =>
         prisma.cashflowValue.upsert({
           where: {
             itemId_userId_year_month: { itemId, userId: targetUserId, year: ano, month: mes },
           },
-          update: { value: valor },
-          // import grava valores "planejados" sem cor (plano §3.6)
-          create: { itemId, userId: targetUserId, year: ano, month: mes, value: valor },
+          update: {
+            ...(valor !== undefined && { value: valor }),
+            ...(comentario !== undefined && { comment: comentario }),
+          },
+          // import grava valores "planejados" sem cor (plano §3.6); célula só
+          // com comentário segue o precedente da rota manual: valor 0
+          create: {
+            itemId,
+            userId: targetUserId,
+            year: ano,
+            month: mes,
+            value: valor ?? 0,
+            ...(comentario !== undefined && { comment: comentario }),
+          },
         }),
       ),
     );
@@ -83,7 +98,17 @@ export const executeFlcImportPlan = async (
     } else {
       relatorio.conflitosMantidos += itemPlano.conflitos.length;
     }
-    if (escritas.length === 0) return;
+    // comentário conflitante (app já tem outro texto) segue a mesma política dos valores
+    const comentarios = itemPlano.comentarios.filter(
+      (c) => c.textoApp === null || politica === 'sobrescrever',
+    );
+
+    const porMes = new Map<number, EscritaMes>();
+    for (const { mes, valor } of escritas) porMes.set(mes, { valor });
+    for (const { mes, texto } of comentarios) {
+      porMes.set(mes, { ...porMes.get(mes), comentario: texto });
+    }
+    if (porMes.size === 0) return;
 
     let finalItemId: string;
     if (itemPlano.destino.tipo === 'existente') {
@@ -114,8 +139,9 @@ export const executeFlcImportPlan = async (
       }
     }
 
-    await upsertValores(finalItemId, escritas);
+    await upsertValores(finalItemId, porMes);
     relatorio.celulasGravadas += escritas.length;
+    relatorio.comentariosGravados += comentarios.length;
   };
 
   for (const grupo of plan.grupos) {

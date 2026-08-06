@@ -10,13 +10,14 @@ import type { FlcParseResult, FlcSecao } from '../parseFlcXlsx';
 let seq = 0;
 const uid = (prefix: string) => `${prefix}-${++seq}`;
 
-const valor = (month: number, value: number): CashflowValue => ({
+const valor = (month: number, value: number, comment?: string): CashflowValue => ({
   id: uid('val'),
   itemId: 'x',
   userId: 'user-1',
   year: 2026,
   month,
   value,
+  ...(comment !== undefined && { comment }),
 });
 
 const item = (name: string, overrides: Partial<CashflowItem> = {}): CashflowItem => ({
@@ -89,6 +90,9 @@ const arvorePadrao = () => {
 const meses = (porMes: Record<number, number> = {}): (number | null)[] =>
   Array.from({ length: 12 }, (_, m) => porMes[m] ?? null);
 
+const comentarios = (porMes: Record<number, string> = {}): (string | null)[] =>
+  Array.from({ length: 12 }, (_, m) => porMes[m] ?? null);
+
 const secao = (chave: FlcSecao['chave'], nome: string, itens: FlcSecao['itens']): FlcSecao => ({
   chave,
   nome,
@@ -106,6 +110,7 @@ const flcItem = (
   significado: null,
   rank: null,
   valores,
+  comentarios: comentarios(),
   ...extra,
 });
 
@@ -411,6 +416,82 @@ describe('mapFlcToCashflow', () => {
     expect(plan.ignorados).toHaveLength(1);
     expect(plan.avisos).toEqual(['aviso do parser']);
     expect(plan.resumo.ignorados).toBe(1);
+  });
+
+  it('comentário da planilha entra no plano; igual ao do app é omitido; diferente carrega o textoApp', () => {
+    const { tree, habitacao } = arvorePadrao();
+    habitacao.items[0].values = [
+      valor(0, 1500, 'Reajuste em março'), // igual ao da planilha
+      valor(1, 1500, 'Comentário antigo do app'), // diferente
+    ];
+
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses({ 0: 1500, 1: 1500, 2: 1500 }), {
+            comentarios: comentarios({
+              0: 'Reajuste em março',
+              1: 'Comentário novo da planilha',
+              2: 'Célula sem comentário no app',
+            }),
+          }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens[0].comentarios).toEqual([
+      { mes: 1, texto: 'Comentário novo da planilha', textoApp: 'Comentário antigo do app' },
+      { mes: 2, texto: 'Célula sem comentário no app', textoApp: null },
+    ]);
+    expect(plan.resumo.comentarios).toBe(2);
+  });
+
+  it('item existente só com comentário (sem valores) entra no plano; item novo só com comentário é criado', () => {
+    const { tree } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses(), { comentarios: comentarios({ 5: 'Contrato renegociado' }) }),
+          flcItem('Jardineiro', meses(), { comentarios: comentarios({ 3: 'Começa em abril' }) }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens).toHaveLength(2);
+    const porLabel = (l: string) => plan.grupos[0].itens.find((i) => i.label === l);
+    expect(porLabel('Aluguel')?.escritas).toEqual([]);
+    expect(porLabel('Aluguel')?.comentarios).toEqual([
+      { mes: 5, texto: 'Contrato renegociado', textoApp: null },
+    ]);
+    expect(porLabel('Jardineiro')?.destino).toMatchObject({ tipo: 'criar' });
+    expect(plan.ignorados).toHaveLength(0);
+  });
+
+  it('itens homônimos somados mesclam comentários mês a mês', () => {
+    const { tree } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('conta-corrente', 'Conta Corrente', [
+          flcItem('Banco', meses({ 0: 100 }), {
+            linha: 267,
+            comentarios: comentarios({ 0: 'Itaú' }),
+          }),
+          flcItem('Banco', meses({ 0: 50 }), {
+            linha: 268,
+            comentarios: comentarios({ 0: 'Nubank', 1: 'Só a partir de fev' }),
+          }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens).toHaveLength(1);
+    expect(plan.grupos[0].itens[0].comentarios).toEqual([
+      { mes: 0, texto: 'Itaú\nNubank', textoApp: null },
+      { mes: 1, texto: 'Só a partir de fev', textoApp: null },
+    ]);
   });
 
   it('seção duplicada gera aviso e mantém o mesmo destino', () => {

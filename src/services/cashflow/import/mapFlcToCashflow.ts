@@ -40,6 +40,13 @@ export interface FlcConflito {
   valorApp: number;
 }
 
+export interface FlcComentarioPlano {
+  mes: number;
+  texto: string;
+  /** comentário já existente na célula do app (null = célula sem comentário) */
+  textoApp: string | null;
+}
+
 export interface FlcItemPlano {
   linha: number;
   label: string;
@@ -50,6 +57,8 @@ export interface FlcItemPlano {
   conflitos: FlcConflito[];
   /** meses cujo valor no app já é o da planilha (nada a fazer) */
   jaIguais: number[];
+  /** comentários de célula da planilha a importar (idênticos ao app são omitidos) */
+  comentarios: FlcComentarioPlano[];
 }
 
 export interface FlcGrupoPlano {
@@ -65,6 +74,7 @@ export interface FlcImportResumo {
   conflitos: number;
   jaIguais: number;
   ignorados: number;
+  comentarios: number;
 }
 
 export interface FlcImportPlan {
@@ -140,6 +150,14 @@ const somarValores = (a: (number | null)[], b: (number | null)[]): (number | nul
     const o = b[m] ?? null;
     if (o === null) return v;
     return (v ?? 0) + o;
+  });
+
+/** merge mês a mês dos comentários de linhas somadas (homônimos/realocação) */
+const mesclarComentarios = (a: (string | null)[], b: (string | null)[]): (string | null)[] =>
+  a.map((c, m) => {
+    const o = b[m] ?? null;
+    if (o === null) return c;
+    return c === null ? o : `${c}\n${o}`;
   });
 
 /**
@@ -222,6 +240,7 @@ const aplicarDecisoes411 = (parse: FlcParseResult): FlcParseResult => {
       alvoSecao.itens[idx] = {
         ...existente,
         valores: somarValores(existente.valores, r.item.valores),
+        comentarios: mesclarComentarios(existente.comentarios, r.item.comentarios),
       };
       if (r.item.valores.some((v) => v !== null)) {
         avisos.push(
@@ -273,10 +292,15 @@ const planejarItem = (item: FlcItem, existente: CashflowItem | null): FlcItemPla
   const escritas: FlcEscrita[] = [];
   const conflitos: FlcConflito[] = [];
   const jaIguais: number[] = [];
+  const comentarios: FlcComentarioPlano[] = [];
 
   const valoresApp = new Map<number, number>();
+  const comentariosApp = new Map<number, string>();
   if (existente) {
-    for (const v of existente.values ?? []) valoresApp.set(v.month, v.value);
+    for (const v of existente.values ?? []) {
+      valoresApp.set(v.month, v.value);
+      if (v.comment?.trim()) comentariosApp.set(v.month, v.comment.trim());
+    }
   }
 
   item.valores.forEach((valor, mes) => {
@@ -294,6 +318,13 @@ const planejarItem = (item: FlcItem, existente: CashflowItem | null): FlcItemPla
     }
   });
 
+  item.comentarios.forEach((texto, mes) => {
+    if (texto === null) return;
+    const app = comentariosApp.get(mes) ?? null;
+    if (app === texto) return; // já igual: nada a fazer
+    comentarios.push({ mes, texto, textoApp: app });
+  });
+
   return {
     linha: item.linha,
     label: item.label,
@@ -307,6 +338,7 @@ const planejarItem = (item: FlcItem, existente: CashflowItem | null): FlcItemPla
     escritas,
     conflitos,
     jaIguais,
+    comentarios,
   };
 };
 
@@ -362,7 +394,11 @@ export const mapFlcToCashflow = (
         continue;
       }
       const base = itensMesclados[pos];
-      itensMesclados[pos] = { ...base, valores: somarValores(base.valores, item.valores) };
+      itensMesclados[pos] = {
+        ...base,
+        valores: somarValores(base.valores, item.valores),
+        comentarios: mesclarComentarios(base.comentarios, item.comentarios),
+      };
       if (item.valores.some((v) => v !== null)) {
         avisos.push(
           `linha ${item.linha} ("${item.label}") somada à linha ${base.linha} — itens homônimos em "${secao.nome}"`,
@@ -373,6 +409,7 @@ export const mapFlcToCashflow = (
     const itensPlano: FlcItemPlano[] = [];
     for (const item of itensMesclados) {
       const temValor = item.valores.some((v) => v !== null);
+      const temComentario = item.comentarios.some((c) => c !== null);
       const itemApp =
         grupoApp.items.find(
           (i) => !i.hidden && normalizeLabel(i.name) === normalizeLabel(item.label),
@@ -387,7 +424,7 @@ export const mapFlcToCashflow = (
         });
         continue;
       }
-      if (!temValor && !itemApp) {
+      if (!temValor && !temComentario && !itemApp) {
         ignorados.push({
           linha: item.linha,
           label: item.label,
@@ -395,7 +432,8 @@ export const mapFlcToCashflow = (
         });
         continue;
       }
-      if (!temValor) continue; // item já existe no app e não traz valores: nada a fazer
+      // item já existe no app e não traz valores nem comentários: nada a fazer
+      if (!temValor && !temComentario) continue;
 
       itensPlano.push(planejarItem(item, itemApp));
     }
@@ -417,6 +455,10 @@ export const mapFlcToCashflow = (
     conflitos: grupos.reduce((n, g) => n + g.itens.reduce((m, i) => m + i.conflitos.length, 0), 0),
     jaIguais: grupos.reduce((n, g) => n + g.itens.reduce((m, i) => m + i.jaIguais.length, 0), 0),
     ignorados: ignorados.length,
+    comentarios: grupos.reduce(
+      (n, g) => n + g.itens.reduce((m, i) => m + i.comentarios.length, 0),
+      0,
+    ),
   };
 
   return { grupos, ignorados, avisos, resumo };
