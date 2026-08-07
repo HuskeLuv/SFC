@@ -95,6 +95,19 @@ describe('POST /api/carteira/aporte', () => {
       expect(data.error).toContain('dataAporte');
     });
 
+    it('retorna 400 quando dataAporte é futura (não existe cotação futura)', async () => {
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataAporte: '2099-01-01',
+          valorAporte: 500,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('futura');
+    });
+
     it('retorna 400 quando valorAporte está ausente', async () => {
       const response = await POST(
         createRequest({

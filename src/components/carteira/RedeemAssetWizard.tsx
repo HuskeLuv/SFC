@@ -71,6 +71,7 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
   const [formData, setFormData] = useState<RedeemWizardFormData>(INITIAL_FORM_DATA);
   const [errors, setErrors] = useState<RedeemWizardErrors>({});
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [steps, setSteps] = useState<RedeemWizardStep[]>(STEPS);
   const isSubmittingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -93,7 +94,10 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
         );
       }
 
-      return formData.valorResgate > 0 && formData.valorResgate <= formData.availableTotal;
+      // Sem teto de availableTotal: é o CUSTO, não o valor de mercado — resgate
+      // com rendimento (CDB de 10k que virou 12,4k) é legítimo e encerra a
+      // posição no backend (auditoria 2026-08-06, achado #10).
+      return formData.valorResgate > 0;
     };
 
     setSteps((prevSteps) =>
@@ -129,6 +133,7 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
 
   const handlePrevious = () => {
     if (currentStep > 0) {
+      setSubmitError(null);
       setCurrentStep(currentStep - 1);
     }
   };
@@ -137,6 +142,7 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
     setCurrentStep(0);
     setFormData(INITIAL_FORM_DATA);
     setErrors({});
+    setSubmitError(null);
     onClose();
   };
 
@@ -152,6 +158,7 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setLoading(true);
+    setSubmitError(null);
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -167,11 +174,21 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
         onSuccess();
         handleCancel();
       } else {
+        // Auditoria 2026-08-06 (achado #5): o erro era só logado — usuário
+        // ficava preso na confirmação clicando sem nenhum feedback.
         const errorData = await response.json().catch(() => ({}));
+        setSubmitError(
+          typeof errorData?.error === 'string'
+            ? errorData.error
+            : 'Não foi possível registrar o resgate. Tente novamente.',
+        );
         logger.error('Erro ao resgatar investimento:', errorData);
       }
     } catch (error) {
       if ((error as Error)?.name === 'AbortError') return;
+      setSubmitError(
+        'Falha de rede ao registrar o resgate. Verifique a conexão e tente novamente.',
+      );
       logger.error('Erro ao resgatar investimento:', error);
     } finally {
       setLoading(false);
@@ -234,6 +251,12 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
         </div>
 
         <div className="min-h-[360px]">{renderCurrentStep()}</div>
+
+        {submitError && (
+          <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">
+            {submitError}
+          </div>
+        )}
 
         <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
           <Button

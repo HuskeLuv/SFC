@@ -50,6 +50,11 @@ export default function Step1RedeemAssetType({
   const handleTipoAtivoChange = (value: string) => {
     onFormDataChange({
       tipoAtivo: value,
+      // Auditoria 2026-08-06 (achado #12): a instituição e o método NÃO eram
+      // limpos — a instituição do tipo anterior viajava até o POST, que a
+      // rejeita ('Instituição inválida para este investimento').
+      instituicao: '',
+      instituicaoId: '',
       ativo: '',
       portfolioId: '',
       assetId: '',
@@ -57,6 +62,10 @@ export default function Step1RedeemAssetType({
       availableQuantity: 0,
       availableTotal: 0,
       moeda: '',
+      metodoResgate: 'quantidade',
+      quantidade: 0,
+      cotacaoUnitaria: 0,
+      valorResgate: 0,
     });
 
     if (errors.tipoAtivo) {

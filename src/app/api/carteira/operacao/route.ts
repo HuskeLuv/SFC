@@ -4,6 +4,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
 import { isTipoAtivoPermitido } from '@/types/wizard';
+import { isDataFutura } from '@/utils/formatDate';
 import { FixedIncomeType } from '@prisma/client';
 import { z } from 'zod';
 import { validationError } from '@/utils/validation-schemas';
@@ -187,6 +188,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     percentualCDI,
     // indexador
   } = requestBody;
+
+  // Não existe cotação futura — aplicação/compra datada à frente corrompe a
+  // série (mesma regra do resgate; pedido dos testers, 2026-08-06). Vale para
+  // a data da operação (dataCompra/dataInicio); vencimento futuro é legítimo.
+  for (const dataOperacao of [dataCompra, dataInicio]) {
+    if (typeof dataOperacao !== 'string' || !dataOperacao) continue;
+    const d = new Date(dataOperacao);
+    if (!Number.isNaN(d.getTime()) && isDataFutura(d)) {
+      return NextResponse.json({ error: 'Data da operação não pode ser futura' }, { status: 400 });
+    }
+  }
 
   // Validações básicas
   // Para reservas (emergency e opportunity) e personalizado, assetId não é obrigatório pois será criado automaticamente

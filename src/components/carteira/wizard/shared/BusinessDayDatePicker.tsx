@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import DatePicker from '@/components/form/date-picker';
-import { isNonBusinessDayB3, nextBusinessDayB3 } from '@/utils/feriadosB3';
+import { isNonBusinessDayB3, nextBusinessDayB3, prevBusinessDayB3 } from '@/utils/feriadosB3';
 
 interface BusinessDayDatePickerProps {
   id: string;
@@ -45,17 +45,27 @@ interface Adjustment {
   adjustedIso: string;
 }
 
+/** UTC midnight de hoje (data local do usuário). */
+const hojeUtcMidnight = (): number => {
+  const agora = new Date();
+  return Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate());
+};
+
 const computeAdjustment = (rawIso: string): Adjustment | null => {
   const rawTs = isoToUtcMidnight(rawIso);
   if (rawTs === null) return null;
   if (!isNonBusinessDayB3(rawTs)) return null;
   const nextTs = nextBusinessDayB3(rawTs);
+  // Datas de operação não podem passar de hoje (o backend rejeita futuro —
+  // não existe cotação). Se o próximo dia útil cai à frente (ex.: sábado →
+  // segunda), ajusta para TRÁS (sábado → sexta).
+  const adjustedTs = nextTs > hojeUtcMidnight() ? prevBusinessDayB3(rawTs) : nextTs;
   const dow = new Date(rawTs).getUTCDay();
   const reason: Adjustment['reason'] = dow === 0 || dow === 6 ? 'fim de semana' : 'feriado B3';
   return {
     reason,
     originalIso: rawIso,
-    adjustedIso: utcMidnightToIso(nextTs),
+    adjustedIso: utcMidnightToIso(adjustedTs),
   };
 };
 
@@ -106,6 +116,7 @@ export default function BusinessDayDatePicker({
         defaultDate={value}
         staticPosition={staticPosition}
         appendToBody={appendToBody}
+        maxDate="today"
         onChange={(selectedDates) => {
           if (!selectedDates || selectedDates.length === 0) return;
           const rawIso = selectedDates[0].toISOString().split('T')[0];

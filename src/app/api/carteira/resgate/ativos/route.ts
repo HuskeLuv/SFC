@@ -3,41 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-const mapPortfolioToTipo = (item: { asset?: { type?: string | null } | null }) => {
-  const assetType = item.asset?.type || '';
-  if (assetType === 'stock') return 'acao';
-  if (assetType === 'fii') return 'fii';
-  switch (assetType) {
-    case 'emergency':
-      return 'reserva-emergencia';
-    case 'opportunity':
-      return 'reserva-oportunidade';
-    case 'personalizado':
-      return 'personalizado';
-    case 'imovel':
-      return 'imoveis-bens';
-    case 'crypto':
-      return 'criptoativo';
-    case 'currency':
-      return 'moeda';
-    case 'etf':
-      return 'etf';
-    case 'reit':
-      return 'reit';
-    case 'bdr':
-      return 'bdr';
-    case 'fund':
-      return 'fundo';
-    case 'bond':
-      return 'renda-fixa-prefixada';
-    case 'insurance':
-      return 'previdencia';
-    case 'cash':
-      return 'conta-corrente';
-    default:
-      return assetType || 'personalizado';
-  }
-};
+import { mapPortfolioToTipo, matchesTipo } from '@/lib/portfolioTipoMapping';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
@@ -60,7 +26,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     include: { asset: true },
   });
 
-  const filtered = portfolio.filter((item) => mapPortfolioToTipo(item) === tipo);
+  const filtered = portfolio.filter((item) => matchesTipo(mapPortfolioToTipo(item), tipo));
 
   const assetIds = filtered.map((item) => item.assetId).filter(Boolean) as string[];
 

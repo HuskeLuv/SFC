@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockPrisma = vi.hoisted(() => ({
   stockTransaction: { findMany: vi.fn(), deleteMany: vi.fn() },
   fixedIncomeAsset: { deleteMany: vi.fn(), updateMany: vi.fn() },
-  portfolio: { update: vi.fn(), delete: vi.fn() },
+  portfolio: { update: vi.fn(), delete: vi.fn(), deleteMany: vi.fn(), upsert: vi.fn() },
   portfolioDailySnapshot: { deleteMany: vi.fn() },
   portfolioPerformance: { deleteMany: vi.fn() },
   asset: { findUnique: vi.fn(), update: vi.fn() },
@@ -52,6 +52,8 @@ beforeEach(() => {
   mockPrisma.fixedIncomeAsset.updateMany.mockResolvedValue({ count: 0 });
   mockPrisma.portfolio.update.mockResolvedValue({});
   mockPrisma.portfolio.delete.mockResolvedValue({});
+  mockPrisma.portfolio.deleteMany.mockResolvedValue({ count: 0 });
+  mockPrisma.portfolio.upsert.mockResolvedValue({});
   mockPrisma.portfolioDailySnapshot.deleteMany.mockResolvedValue({ count: 0 });
   mockPrisma.portfolioPerformance.deleteMany.mockResolvedValue({ count: 0 });
   mockPrisma.asset.findUnique.mockResolvedValue(null);
@@ -118,6 +120,49 @@ describe('recalculatePortfolioFromTransactions', () => {
       where: { userId, assetId: 'asset-1' },
     });
     expect(mockPrisma.portfolio.delete).toHaveBeenCalledWith({ where: { id: portfolioId } });
+  });
+
+  // Auditoria 2026-08-06 (achado #9): sem portfolioId a posição é resolvida —
+  // e RECRIADA — pela unique (userId, assetId). Caminho do histórico para
+  // transação órfã, ex.: excluir a venda de um resgate total.
+  describe('sem portfolioId (transação órfã de Portfolio)', () => {
+    it('recria a posição via upsert quando sobram transações reais', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ quantity: 10, price: 20, total: 200 }),
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+      });
+
+      expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.upsert).toHaveBeenCalledWith({
+        where: { userId_assetId: { userId, assetId: 'asset-1' } },
+        update: expect.objectContaining({ quantity: 10, avgPrice: 20, totalInvested: 200 }),
+        create: expect.objectContaining({
+          userId,
+          assetId: 'asset-1',
+          quantity: 10,
+          avgPrice: 20,
+          totalInvested: 200,
+        }),
+      });
+    });
+
+    it('sem transações reais limpa a posição com deleteMany (no-op se não existir)', async () => {
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+      });
+
+      expect(mockPrisma.portfolio.delete).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.deleteMany).toHaveBeenCalledWith({
+        where: { userId, assetId: 'asset-1' },
+      });
+    });
   });
 
   // Part B: eventos corporativos não dependem mais do cron — o recálculo

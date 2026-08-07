@@ -39,7 +39,14 @@ import { ensureCorporateActionsSynced } from '@/services/pricing/dividendService
 export async function recalculatePortfolioFromTransactions(params: {
   targetUserId: string;
   assetId: string | null;
-  portfolioId: string;
+  /**
+   * Quando omitido, a posição é resolvida (e RECRIADA se preciso) pela unique
+   * (userId, assetId) — caminho do histórico para transação órfã de Portfolio,
+   * ex.: excluir a venda de um resgate total, que deletou a linha (auditoria
+   * 2026-08-06, achado #9). Objetivo/estratégia/vínculos não são recuperáveis
+   * na recriação — voltam ao default.
+   */
+  portfolioId?: string;
   recomputeSnapshotsFrom?: Date;
 }): Promise<void> {
   const { targetUserId, assetId, portfolioId, recomputeSnapshotsFrom } = params;
@@ -70,9 +77,15 @@ export async function recalculatePortfolioFromTransactions(params: {
       // Limpa eventuais linhas de auditoria órfãs antes de remover a posição.
       await prisma.stockTransaction.deleteMany({ where: { userId: targetUserId, assetId } });
     }
-    await prisma.portfolio.delete({
-      where: { id: portfolioId },
-    });
+    if (portfolioId) {
+      await prisma.portfolio.delete({
+        where: { id: portfolioId },
+      });
+    } else {
+      // Sem portfolioId a linha pode nem existir (transação órfã) — deleteMany
+      // é no-op nesse caso.
+      await prisma.portfolio.deleteMany({ where: { userId: targetUserId, assetId } });
+    }
     if (recomputeSnapshotsFrom) {
       await invalidatePortfolioSnapshots(targetUserId, recomputeSnapshotsFrom);
     }
@@ -109,15 +122,24 @@ export async function recalculatePortfolioFromTransactions(params: {
 
   const avgPrice = runningQty > 0 ? runningCost / runningQty : 0;
 
-  await prisma.portfolio.update({
-    where: { id: portfolioId },
-    data: {
-      quantity: runningQty,
-      avgPrice,
-      totalInvested: runningCost,
-      lastUpdate: new Date(),
-    },
-  });
+  const dadosPosicao = {
+    quantity: runningQty,
+    avgPrice,
+    totalInvested: runningCost,
+    lastUpdate: new Date(),
+  };
+  if (portfolioId) {
+    await prisma.portfolio.update({
+      where: { id: portfolioId },
+      data: dadosPosicao,
+    });
+  } else {
+    await prisma.portfolio.upsert({
+      where: { userId_assetId: { userId: targetUserId, assetId } },
+      update: dadosPosicao,
+      create: { userId: targetUserId, assetId, ...dadosPosicao },
+    });
+  }
 
   // Renda-fixa/Tesouro: FixedIncomeAsset.investedAmount é a fonte de verdade
   // exibida em /carteira/renda-fixa e usada pela marcação na curva (fixedIncomePricing).

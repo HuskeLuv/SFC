@@ -89,6 +89,21 @@ describe('computeAdjustment', () => {
     expect(adj?.adjustedIso).toBe('2025-04-22');
   });
 
+  it('ajusta para TRÁS quando o próximo dia útil cairia no futuro (hoje = sábado)', () => {
+    // Backend rejeita data futura (não existe cotação) — sábado não pode virar
+    // segunda. 08/08/2026 é sábado; congela o relógio nele.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 8, 12, 0, 0));
+    try {
+      const adj = computeAdjustment('2026-08-08');
+      expect(adj).not.toBeNull();
+      expect(adj?.reason).toBe('fim de semana');
+      expect(adj?.adjustedIso).toBe('2026-08-07'); // sexta, não a segunda 10/08
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('retorna null para string vazia ou inválida', () => {
     expect(computeAdjustment('')).toBeNull();
     expect(computeAdjustment('foo')).toBeNull();
