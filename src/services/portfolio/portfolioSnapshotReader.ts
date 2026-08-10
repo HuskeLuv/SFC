@@ -7,7 +7,7 @@ import {
 } from './patrimonioHistoricoBuilder';
 import { loadCarteiraHistoricoData } from './carteiraHistoricoDataLoader';
 
-export type SnapshotCoverageReason = 'ok' | 'no-rows' | 'tail-gap' | 'history-gap';
+export type SnapshotCoverageReason = 'ok' | 'no-rows' | 'tail-gap' | 'history-gap' | 'perf-gap';
 
 export type SnapshotHistoricoBundle = {
   historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }>;
@@ -92,6 +92,16 @@ export const loadHistoricoFromSnapshots = async (
     value: perfByDay.get(p.data) ?? 0,
   }));
 
+  // Dias com snapshot mas SEM linha de performance: o `?? 0` acima viraria um
+  // TWR flat em zero servido como se fosse dado real (bug do gráfico de
+  // rentabilidade, ago/2026 — backfill morto entre a escrita das duas tabelas
+  // deixava meses de snapshots órfãos). Cobertura de performance precisa casar
+  // 1:1 com a de snapshots; qualquer buraco derruba pro rebuild + backfill.
+  const missingPerfDays = historicoPatrimonio.reduce(
+    (count, p) => (perfByDay.has(p.data) ? count : count + 1),
+    0,
+  );
+
   const lastSnap =
     rows.length > 0 ? normalizeDateStart(rows[rows.length - 1].date).getTime() : null;
   const firstSnap = rows.length > 0 ? normalizeDateStart(rows[0].date).getTime() : null;
@@ -166,12 +176,15 @@ export const loadHistoricoFromSnapshots = async (
   } else if (historyGapDays > HISTORY_GAP_TOLERANCE_DAYS) {
     // Snapshot mais antigo está bem depois da primeira atividade — backfill faltando.
     coverageReason = 'history-gap';
+  } else if (missingPerfDays > 0) {
+    // Snapshots sem a performance correspondente — tabelas dessincronizadas.
+    coverageReason = 'perf-gap';
   }
   const coverageOk = coverageReason === 'ok';
 
   if (!coverageOk) {
     logger.warn(
-      `[portfolioSnapshotReader] coverageOk=false userId=${userId} reason=${coverageReason} rows=${rows.length} tailGapDays=${gapDays.toFixed(1)} historyGapDays=${historyGapDays.toFixed(1)}`,
+      `[portfolioSnapshotReader] coverageOk=false userId=${userId} reason=${coverageReason} rows=${rows.length} tailGapDays=${gapDays.toFixed(1)} historyGapDays=${historyGapDays.toFixed(1)} missingPerfDays=${missingPerfDays}`,
     );
   }
 

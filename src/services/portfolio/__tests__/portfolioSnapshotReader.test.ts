@@ -21,6 +21,10 @@ import { loadHistoricoFromSnapshots } from '../portfolioSnapshotReader';
 const DAY = 24 * 60 * 60 * 1000;
 const utcDay = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d));
 
+/** Linhas de performance casadas 1:1 com as datas dos snapshots. */
+const perfFor = (rows: Array<{ date: Date }>) =>
+  rows.map((r) => ({ date: r.date, cumulativeReturn: 1.5 }));
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockPrisma.portfolioPerformance.findMany.mockResolvedValue([]);
@@ -35,6 +39,7 @@ describe('loadHistoricoFromSnapshots — coverage detection', () => {
       totalInvested: 900,
     }));
     mockPrisma.portfolioDailySnapshot.findMany.mockResolvedValue(rows);
+    mockPrisma.portfolioPerformance.findMany.mockResolvedValue(perfFor(rows));
 
     const result = await loadHistoricoFromSnapshots('u1', utcDay(2026, 5, 1), today, {
       firstActivityDate: utcDay(2026, 5, 7),
@@ -97,6 +102,7 @@ describe('loadHistoricoFromSnapshots — coverage detection', () => {
       totalInvested: 900,
     }));
     mockPrisma.portfolioDailySnapshot.findMany.mockResolvedValue(rows);
+    mockPrisma.portfolioPerformance.findMany.mockResolvedValue(perfFor(rows));
 
     const result = await loadHistoricoFromSnapshots('u1', utcDay(2026, 5, 1), today, {
       firstActivityDate: utcDay(2026, 5, 1),
@@ -114,9 +120,49 @@ describe('loadHistoricoFromSnapshots — coverage detection', () => {
       { date: utcDay(2026, 5, 15), totalValue: 100, totalInvested: 100 },
     ];
     mockPrisma.portfolioDailySnapshot.findMany.mockResolvedValue(rows);
+    mockPrisma.portfolioPerformance.findMany.mockResolvedValue(perfFor(rows));
 
     const result = await loadHistoricoFromSnapshots('u1', utcDay(2017, 1, 1), today);
     expect(result.coverageOk).toBe(true);
     expect(result.coverageReason).toBe('ok');
+  });
+
+  it('coverageReason=perf-gap quando há snapshot sem linha de performance (gráfico flat em 0)', async () => {
+    // Bug ago/2026: backfill morto entre a escrita das duas tabelas deixava
+    // snapshots órfãos; o reader preenchia TWR com 0 e servia como dado real.
+    const today = utcDay(2026, 5, 16);
+    const rows = Array.from({ length: 10 }, (_, i) => ({
+      date: new Date(utcDay(2026, 5, 6).getTime() + i * DAY),
+      totalValue: 1000,
+      totalInvested: 900,
+    }));
+    mockPrisma.portfolioDailySnapshot.findMany.mockResolvedValue(rows);
+    // performance só para os 3 últimos dias — prefixo órfão
+    mockPrisma.portfolioPerformance.findMany.mockResolvedValue(perfFor(rows.slice(-3)));
+
+    const result = await loadHistoricoFromSnapshots('u1', utcDay(2026, 5, 1), today, {
+      firstActivityDate: utcDay(2026, 5, 6),
+    });
+
+    expect(result.coverageOk).toBe(false);
+    expect(result.coverageReason).toBe('perf-gap');
+  });
+
+  it('perf-gap NÃO dispara quando performance cobre todos os snapshots', async () => {
+    const today = utcDay(2026, 5, 16);
+    const rows = Array.from({ length: 10 }, (_, i) => ({
+      date: new Date(utcDay(2026, 5, 6).getTime() + i * DAY),
+      totalValue: 1000,
+      totalInvested: 900,
+    }));
+    mockPrisma.portfolioDailySnapshot.findMany.mockResolvedValue(rows);
+    mockPrisma.portfolioPerformance.findMany.mockResolvedValue(perfFor(rows));
+
+    const result = await loadHistoricoFromSnapshots('u1', utcDay(2026, 5, 1), today, {
+      firstActivityDate: utcDay(2026, 5, 6),
+    });
+
+    expect(result.coverageOk).toBe(true);
+    expect(result.historicoTWR.every((p) => p.value === 1.5)).toBe(true);
   });
 });

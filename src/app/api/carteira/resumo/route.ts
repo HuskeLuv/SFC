@@ -385,7 +385,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       activityCandidates.length > 0 ? new Date(Math.min(...activityCandidates)) : undefined;
 
     let usedSnapshots = false;
-    let snapCoverageReason: 'ok' | 'no-rows' | 'tail-gap' | 'history-gap' | null = null;
+    let snapCoverageReason:
+      | import('@/services/portfolio/portfolioSnapshotReader').SnapshotCoverageReason
+      | null = null;
     if (usePortfolioSnapshots) {
       const snap = await loadHistoricoFromSnapshots(targetUserId, rawTimelineStart, hoje, {
         liveSaldoBruto: saldoBrutoAtual,
@@ -453,11 +455,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       proventosAcumuladosByDayForMwr = built.proventosAcumuladosByDay;
 
       // Lazy backfill: quando a falta de cobertura foi por gap histórico (snapshots
-      // recentes mas nada cobrindo as transações antigas), dispara em background a
-      // persistência da série completa pra próxima leitura ser servida pelo path
-      // rápido. Não bloqueia a request — o usuário já recebeu o resultado via
-      // buildPatrimonioHistorico aqui em cima.
-      if (usePortfolioSnapshots && snapCoverageReason === 'history-gap') {
+      // recentes mas nada cobrindo as transações antigas) ou por performance
+      // faltante (snapshots órfãos de TWR — serviam gráfico flat em 0), dispara em
+      // background a persistência da série completa pra próxima leitura ser servida
+      // pelo path rápido. Não bloqueia a request — o usuário já recebeu o resultado
+      // via buildPatrimonioHistorico aqui em cima.
+      if (
+        usePortfolioSnapshots &&
+        (snapCoverageReason === 'history-gap' || snapCoverageReason === 'perf-gap')
+      ) {
         void triggerLazyBackfill(targetUserId, hoje);
       }
     }
