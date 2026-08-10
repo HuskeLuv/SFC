@@ -150,7 +150,7 @@ export async function computeInvestimentosPorMes(
   userId: string,
   year: number,
 ): Promise<InvestimentosPorMes> {
-  const [transacoes, vinculados] = await Promise.all([
+  const [transacoes, vinculados, comprasTesouro] = await Promise.all([
     prisma.stockTransaction.findMany({
       where: {
         userId,
@@ -167,11 +167,39 @@ export async function computeInvestimentosPorMes(
       where: { userId, planejamentoObjetivoId: { not: null } },
       select: { assetId: true },
     }),
+    // Compras de Tesouro de CATÁLOGO do usuário (qualquer ano): o destino
+    // (reserva × renda fixa) vive nas notes da compra, não no Asset.
+    prisma.stockTransaction.findMany({
+      where: { userId, type: 'compra', notes: { not: null }, asset: { type: 'tesouro-direto' } },
+      select: { assetId: true, notes: true },
+    }),
   ]);
 
   const assetsDeSonho = new Set(
     vinculados.map((p) => p.assetId).filter((id): id is string => id != null),
   );
+
+  // Tesouro de catálogo comprado como RESERVA: o Asset é compartilhado e mantém
+  // type 'tesouro-direto' — mapTransactionToTipo mandava aporte E resgate pra
+  // linha Renda Fixa do Aporte/Resgate (report 10/08: "lançamento Reserva
+  // Oportunidade indo para Renda Fixa"). Marca por ATIVO usando o mesmo
+  // critério das abas de reserva (notes.tesouroDestino da compra) — por ativo,
+  // e não por transação, porque as VENDAS não carregam o destino nas notes.
+  const reservaTesouroPorAsset = new Map<string, 'emergency' | 'opportunity'>();
+  for (const compra of comprasTesouro) {
+    if (!compra.assetId || !compra.notes) continue;
+    try {
+      const parsed = JSON.parse(compra.notes);
+      const destino = parsed?.tesouroDestino ?? parsed?.operation?.tesouroDestino;
+      if (destino === 'reserva-emergencia') {
+        reservaTesouroPorAsset.set(compra.assetId, 'emergency');
+      } else if (destino === 'reserva-oportunidade') {
+        reservaTesouroPorAsset.set(compra.assetId, 'opportunity');
+      }
+    } catch {
+      // notas malformadas: segue a classificação por asset.type
+    }
+  }
 
   const porTipo: Record<string, Record<number, number>> = {};
   const tipos = new Set<string>();
@@ -183,11 +211,14 @@ export async function computeInvestimentosPorMes(
     const mes = transacao.date.getMonth();
     const valor =
       totalBRLTransacao(transacao, lastRateByAsset) * (transacao.type === 'venda' ? -1 : 1);
+    const tipoReservaTesouro = transacao.assetId
+      ? reservaTesouroPorAsset.get(transacao.assetId)
+      : undefined;
     const tipoAtivo = isReinvestimentoTransaction(transacao.notes)
       ? 'reinvestimento'
       : transacao.assetId && assetsDeSonho.has(transacao.assetId)
         ? 'planejamento'
-        : mapTransactionToTipo(transacao);
+        : (tipoReservaTesouro ?? mapTransactionToTipo(transacao));
 
     tipos.add(tipoAtivo);
     porTipo[tipoAtivo] = porTipo[tipoAtivo] || {};
