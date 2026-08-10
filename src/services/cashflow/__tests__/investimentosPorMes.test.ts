@@ -152,4 +152,67 @@ describe('computeInvestimentosPorMes', () => {
     expect(planejamentoPorMes[0]).toBe(0);
     expect(totaisPorMes[0]).toBe(0);
   });
+
+  describe('Tesouro de catálogo em reserva (report 10/08)', () => {
+    // duas queries de stockTransaction: a do ano (transações) e a de compras
+    // de Tesouro (where.asset presente) — distingue pelo shape do where
+    const mockTxQueries = (transacoesAno: unknown[], comprasTesouro: unknown[]) => {
+      mockPrisma.stockTransaction.findMany.mockImplementation(
+        (args: { where?: Record<string, unknown> }) =>
+          Promise.resolve(args?.where && 'asset' in args.where ? comprasTesouro : transacoesAno),
+      );
+    };
+
+    const tesouroTx = (overrides: Record<string, unknown> = {}) =>
+      tx({
+        assetId: 'asset-td-selic',
+        asset: { type: 'tesouro-direto', symbol: 'TD-TESOURO-SELIC-2029' },
+        notes: JSON.stringify({ tesouroDestino: 'reserva-oportunidade' }),
+        ...overrides,
+      });
+
+    it('compra E venda de Tesouro comprado como reserva-oportunidade vão pro bucket opportunity', async () => {
+      // asset.type é 'tesouro-direto' (catálogo compartilhado) — o destino vive
+      // nas notes da compra; a venda não carrega destino e caía em Renda Fixa.
+      mockTxQueries(
+        [
+          tesouroTx({ total: 2000 }),
+          tesouroTx({
+            type: 'venda',
+            total: 500,
+            notes: null,
+            date: new Date(Date.UTC(2026, 1, 10, 12)),
+          }),
+        ],
+        [tesouroTx({ total: 2000 })],
+      );
+
+      const { porTipo, tipos } = await computeInvestimentosPorMes('u1', 2026);
+
+      expect(porTipo.opportunity[0]).toBe(2000);
+      expect(porTipo.opportunity[1]).toBe(-500);
+      expect(porTipo.bond).toBeUndefined();
+      expect(tipos.has('bond')).toBe(false);
+    });
+
+    it('destino reserva-emergencia vai pro bucket emergency', async () => {
+      const compra = tesouroTx({ notes: JSON.stringify({ tesouroDestino: 'reserva-emergencia' }) });
+      mockTxQueries([compra], [compra]);
+
+      const { porTipo } = await computeInvestimentosPorMes('u1', 2026);
+      expect(porTipo.emergency[0]).toBe(1000);
+      expect(porTipo.bond).toBeUndefined();
+    });
+
+    it('Tesouro com destino renda-fixa continua no bucket bond', async () => {
+      const compra = tesouroTx({
+        notes: JSON.stringify({ tesouroDestino: 'renda-fixa-posfixada' }),
+      });
+      mockTxQueries([compra], [compra]);
+
+      const { porTipo } = await computeInvestimentosPorMes('u1', 2026);
+      expect(porTipo.bond[0]).toBe(1000);
+      expect(porTipo.opportunity).toBeUndefined();
+    });
+  });
 });
