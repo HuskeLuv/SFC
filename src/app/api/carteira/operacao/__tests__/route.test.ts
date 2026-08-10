@@ -2,19 +2,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { POST } from '../route';
 
-const mockPrisma = vi.hoisted(() => ({
-  // Histórico de alterações (recordChange importa prisma como default export).
-  userChangeLog: { create: vi.fn() },
-  user: { findUnique: vi.fn() },
-  institution: { findFirst: vi.fn(), findUnique: vi.fn() },
-  asset: { findUnique: vi.fn(), create: vi.fn() },
-  stock: { findUnique: vi.fn() },
-  stockTransaction: { create: vi.fn() },
-  portfolio: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
-  fixedIncomeAsset: { create: vi.fn() },
-  tesouroDiretoPrice: { findFirst: vi.fn() },
-  $transaction: vi.fn((ops: Array<Promise<unknown>>) => Promise.all(ops)),
-}));
+const mockPrisma = vi.hoisted(() => {
+  const base = {
+    // Histórico de alterações (recordChange importa prisma como default export).
+    userChangeLog: { create: vi.fn() },
+    user: { findUnique: vi.fn() },
+    institution: { findFirst: vi.fn(), findUnique: vi.fn() },
+    asset: { findUnique: vi.fn(), create: vi.fn() },
+    stock: { findUnique: vi.fn() },
+    stockTransaction: { create: vi.fn() },
+    portfolio: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    fixedIncomeAsset: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    tesouroDiretoPrice: { findFirst: vi.fn() },
+    // rota usa $transaction interativo — no mock, roda o callback com o próprio mock
+    $transaction: vi.fn(),
+  };
+  base.$transaction.mockImplementation((fn: (tx: typeof base) => unknown) => fn(base));
+  return base;
+});
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
@@ -1306,6 +1311,115 @@ describe('POST /api/carteira/operacao', () => {
           }),
         }),
       );
+    });
+
+    it('RECOMPRA de título do catálogo soma na posição existente (report Pedro 10/08)', async () => {
+      // FixedIncomeAsset.assetId é único e o Asset do catálogo é compartilhado:
+      // a segunda compra do mesmo título estourava P2002 DEPOIS de gravar a
+      // transação — 12 compras órfãs no Selic 2031 do qa.teste2.
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-td-cat',
+        symbol: 'TD-TESOURO-SELIC-2031',
+        name: 'Tesouro Selic 2031',
+        type: 'tesouro-direto',
+      });
+      mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue({
+        sellPU: 19269.05,
+        maturityDate: new Date('2031-03-01'),
+      });
+      mockPrisma.fixedIncomeAsset.findUnique.mockResolvedValueOnce({
+        id: 'fi-selic-2031',
+        userId: 'user-123',
+        assetId: 'asset-td-cat',
+        investedAmount: 102.96,
+      });
+      mockPrisma.portfolio.findFirst.mockResolvedValueOnce({
+        id: 'port-selic-2031',
+        userId: 'user-123',
+        assetId: 'asset-td-cat',
+        quantity: 0.005346133,
+        totalInvested: 102.96,
+        avgPrice: 19258.78,
+      });
+
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'tesouro-direto',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-td-cat',
+          dataCompra: '2024-01-15',
+          valorInvestido: 979.56,
+          metodo: 'valor',
+          tesouroDestino: 'renda-fixa-posfixada',
+          dataInicio: '2024-01-15',
+          dataVencimento: '2031-03-01',
+          taxaJurosAnual: 100,
+          rendaFixaIndexer: 'CDI',
+          rendaFixaIndexerPercent: 100,
+          descricao: 'Tesouro Selic 2031',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(201);
+      expect(data.success).toBe(true);
+      // soma na posição em vez de criar Portfolio/FI duplicado
+      expect(mockPrisma.fixedIncomeAsset.create).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.create).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'port-selic-2031' },
+          data: expect.objectContaining({
+            totalInvested: expect.closeTo(102.96 + 979.56, 2),
+          }),
+        }),
+      );
+      expect(mockPrisma.fixedIncomeAsset.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'fi-selic-2031' },
+          data: { investedAmount: { increment: 979.56 } },
+        }),
+      );
+    });
+
+    it('título do catálogo vinculado a OUTRA conta devolve 409 (sem transação órfã)', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-td-cat',
+        symbol: 'TD-TESOURO-SELIC-2031',
+        name: 'Tesouro Selic 2031',
+        type: 'tesouro-direto',
+      });
+      mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue({
+        sellPU: 19269.05,
+        maturityDate: new Date('2031-03-01'),
+      });
+      mockPrisma.fixedIncomeAsset.findUnique.mockResolvedValueOnce({
+        id: 'fi-de-outro',
+        userId: 'user-999',
+        assetId: 'asset-td-cat',
+      });
+
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'tesouro-direto',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-td-cat',
+          dataCompra: '2024-01-15',
+          valorInvestido: 979.56,
+          metodo: 'valor',
+          tesouroDestino: 'renda-fixa-posfixada',
+          dataInicio: '2024-01-15',
+          dataVencimento: '2031-03-01',
+          taxaJurosAnual: 100,
+          rendaFixaIndexer: 'CDI',
+          rendaFixaIndexerPercent: 100,
+          descricao: 'Tesouro Selic 2031',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(409);
+      expect(data.error).toContain('outra conta');
+      expect(mockPrisma.portfolio.create).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
     });
 
     it('popula tesouroBondType e tesouroMaturity quando tesouro do catálogo vai para renda fixa', async () => {

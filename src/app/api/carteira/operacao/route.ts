@@ -28,6 +28,9 @@ import { aplicarVinculoPlanejamento, vinculoPlanejamentoFields } from '@/utils/p
 
 /** Valores de fundoDestino que viram seções na aba "Fundos". */
 const FUNDO_SUBTIPO_DESTINOS: Set<string> = new Set(FUNDO_SUBTIPO_ORDER);
+
+/** Título de catálogo (Tesouro) já vinculado a outra conta — vira 409 limpo. */
+class TituloEmOutraContaError extends Error {}
 /** Structural validation for the operacao request body (common fields). */
 const operacaoBaseSchema = z
   .object({
@@ -1818,20 +1821,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: `Erro ao criar asset para ${tipoErro}` }, { status: 500 });
   }
 
-  // Criar transação de compra
-  const transacao = await prisma.stockTransaction.create({
-    data: {
-      userId: targetUserId,
-      assetId: asset!.id,
-      type: 'compra',
-      quantity: quantidadeFinal,
-      price: precoFinal,
-      total: valorFinal,
-      date: dataTransacao,
-      fees: taxaCorretagem || 0,
-      notes: notesData,
-    },
-  });
+  // Dados da transação de compra — a criação acontece DENTRO do $transaction
+  // junto com a mutação do Portfolio/FI (report Pedro 10/08: a transação era
+  // gravada primeiro e, quando o passo seguinte falhava, sobrava uma compra
+  // órfã invisível na posição mas contada na linha Aporte/Resgate do fluxo —
+  // 12 duplicatas no Tesouro Selic 2031 do qa.teste2).
+  const transacaoCreateData = {
+    userId: targetUserId,
+    assetId: asset!.id,
+    type: 'compra',
+    quantity: quantidadeFinal,
+    price: precoFinal,
+    total: valorFinal,
+    date: dataTransacao,
+    fees: taxaCorretagem || 0,
+    notes: notesData,
+  };
 
   // Prepara os dados do FixedIncomeAsset ANTES da criação do Portfolio para permitir
   // commit atômico em $transaction. Sem isso, se a criação do FI falhar após o Portfolio
@@ -1987,101 +1992,147 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     };
   }
 
-  // Atualizar ou criar portfolio
-  // Para reservas (emergency e opportunity) e personalizado, sempre criar um novo portfolio
-  // Para outros tipos, atualizar se existir ou criar novo
+  // Transação de compra + Portfolio/FI no MESMO $transaction: falha em
+  // qualquer passo desfaz tudo — o retry do usuário não acumula compras órfãs.
   // marketTradedPortfolioId: setado só no branch de ativos de bolsa (ações/FII/ETF/etc.),
   // pra recalcular a posição aplicando eventos corporativos no ato do registro.
   let marketTradedPortfolioId: string | null = null;
-  if (
-    isReserva ||
-    isPersonalizado ||
-    isRendaFixa ||
-    isTesouroReserva ||
-    isTesouroRendaFixa ||
-    isFundoReserva
-  ) {
-    const portfolioCreateArgs = {
-      data: {
-        userId: targetUserId,
-        assetId: asset!.id,
-        quantity: quantidadeFinal,
-        avgPrice: precoFinal,
-        totalInvested: valorFinal,
-        lastUpdate: new Date(),
-      },
-    };
+  let transacao;
+  try {
+    transacao = await prisma.$transaction(async (tx) => {
+      const novaTransacao = await tx.stockTransaction.create({ data: transacaoCreateData });
 
-    if (fixedIncomeCreateData) {
-      // Para reservas, tesouro em reserva e fundo em reserva, sempre criar um novo portfolio (não somar com existente)
-      try {
-        await prisma.$transaction([
-          prisma.portfolio.create(portfolioCreateArgs),
-          prisma.fixedIncomeAsset.create({ data: fixedIncomeCreateData }),
-        ]);
-      } catch (error) {
-        const prismaError = error as { code?: string };
-        if (prismaError?.code === 'P2021') {
-          return NextResponse.json(
-            {
-              error:
-                'Tabela de renda fixa não encontrada. Execute as migrations antes de adicionar ativos de renda fixa.',
-            },
-            { status: 500 },
-          );
+      if (
+        isReserva ||
+        isPersonalizado ||
+        isRendaFixa ||
+        isTesouroReserva ||
+        isTesouroRendaFixa ||
+        isFundoReserva
+      ) {
+        const portfolioCreateArgs = {
+          data: {
+            userId: targetUserId,
+            assetId: asset!.id,
+            quantity: quantidadeFinal,
+            avgPrice: precoFinal,
+            totalInvested: valorFinal,
+            lastUpdate: new Date(),
+          },
+        };
+
+        if (fixedIncomeCreateData) {
+          // Títulos de CATÁLOGO (Tesouro Direto) reusam o mesmo Asset e
+          // FixedIncomeAsset.assetId é único: recomprar um título que o usuário
+          // já tem estourava P2002 DEPOIS da transação gravada (report Pedro
+          // 10/08). Recompra agora SOMA na posição existente. Reservas/RF
+          // manuais criam um Asset novo por registro e nunca caem aqui.
+          const fiExistente = await tx.fixedIncomeAsset.findUnique({
+            where: { assetId: asset!.id },
+          });
+          if (fiExistente && fiExistente.userId !== targetUserId) {
+            // Limite do modelo atual (FI único por asset de catálogo) — melhor
+            // um erro claro do que uma compra órfã. Follow-up: unique(userId, assetId).
+            throw new TituloEmOutraContaError();
+          }
+          if (fiExistente) {
+            const portExistente = await tx.portfolio.findFirst({
+              where: { userId: targetUserId, assetId: asset!.id },
+            });
+            if (portExistente) {
+              const novaQuantidade = portExistente.quantity + quantidadeFinal;
+              const novoTotalInvestido = portExistente.totalInvested + valorFinal;
+              await tx.portfolio.update({
+                where: { id: portExistente.id },
+                data: {
+                  quantity: novaQuantidade,
+                  totalInvested: novoTotalInvestido,
+                  avgPrice: novaQuantidade > 0 ? novoTotalInvestido / novaQuantidade : precoFinal,
+                  lastUpdate: new Date(),
+                },
+              });
+            } else {
+              await tx.portfolio.create(portfolioCreateArgs);
+            }
+            await tx.fixedIncomeAsset.update({
+              where: { id: fiExistente.id },
+              data: { investedAmount: { increment: valorFinal } },
+            });
+          } else {
+            await tx.portfolio.create(portfolioCreateArgs);
+            await tx.fixedIncomeAsset.create({ data: fixedIncomeCreateData });
+          }
+        } else {
+          await tx.portfolio.create(portfolioCreateArgs);
         }
-        throw error;
+      } else {
+        // Para outros tipos, verificar se existe e atualizar ou criar
+        const portfolioExistente = await tx.portfolio.findFirst({
+          where: {
+            userId: targetUserId,
+            assetId: asset!.id,
+          },
+        });
+
+        if (portfolioExistente) {
+          const novaQuantidade = portfolioExistente.quantity + quantidadeFinal;
+          const novoTotalInvestido = portfolioExistente.totalInvested + valorFinal;
+          const novoPrecoMedio =
+            novaQuantidade > 0 ? novoTotalInvestido / novaQuantidade : precoFinal;
+
+          await tx.portfolio.update({
+            where: { id: portfolioExistente.id },
+            data: {
+              quantity: novaQuantidade,
+              avgPrice: novoPrecoMedio,
+              totalInvested: novoTotalInvestido,
+              ...(tipoAtivo === 'acao' && estrategia ? { estrategia } : {}),
+              ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
+              ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
+              ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
+              lastUpdate: new Date(),
+            },
+          });
+          marketTradedPortfolioId = portfolioExistente.id;
+        } else {
+          const novoPortfolio = await tx.portfolio.create({
+            data: {
+              userId: targetUserId,
+              assetId: asset!.id,
+              quantity: quantidadeFinal,
+              avgPrice: precoFinal,
+              totalInvested: valorFinal,
+              ...(tipoAtivo === 'acao' && estrategia ? { estrategia } : {}),
+              ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
+              ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
+              ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
+              lastUpdate: new Date(),
+            },
+          });
+          marketTradedPortfolioId = novoPortfolio.id;
+        }
       }
-    } else {
-      await prisma.portfolio.create(portfolioCreateArgs);
-    }
-  } else {
-    // Para outros tipos, verificar se existe e atualizar ou criar
-    const portfolioExistente = await prisma.portfolio.findFirst({
-      where: {
-        userId: targetUserId,
-        assetId: asset!.id,
-      },
+
+      return novaTransacao;
     });
-
-    if (portfolioExistente) {
-      // Atualizar portfolio existente
-      const novaQuantidade = portfolioExistente.quantity + quantidadeFinal;
-      const novoTotalInvestido = portfolioExistente.totalInvested + valorFinal;
-      const novoPrecoMedio = novaQuantidade > 0 ? novoTotalInvestido / novaQuantidade : precoFinal;
-
-      await prisma.portfolio.update({
-        where: { id: portfolioExistente.id },
-        data: {
-          quantity: novaQuantidade,
-          avgPrice: novoPrecoMedio,
-          totalInvested: novoTotalInvestido,
-          ...(tipoAtivo === 'acao' && estrategia ? { estrategia } : {}),
-          ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
-          ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
-          ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
-          lastUpdate: new Date(),
-        },
-      });
-      marketTradedPortfolioId = portfolioExistente.id;
-    } else {
-      // Criar novo portfolio
-      const novoPortfolio = await prisma.portfolio.create({
-        data: {
-          userId: targetUserId,
-          assetId: asset!.id,
-          quantity: quantidadeFinal,
-          avgPrice: precoFinal,
-          totalInvested: valorFinal,
-          ...(tipoAtivo === 'acao' && estrategia ? { estrategia } : {}),
-          ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
-          ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
-          ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
-          lastUpdate: new Date(),
-        },
-      });
-      marketTradedPortfolioId = novoPortfolio.id;
+  } catch (error) {
+    if (error instanceof TituloEmOutraContaError) {
+      return NextResponse.json(
+        { error: 'Este título já está vinculado a outra conta — fale com o suporte.' },
+        { status: 409 },
+      );
     }
+    const prismaError = error as { code?: string };
+    if (prismaError?.code === 'P2021') {
+      return NextResponse.json(
+        {
+          error:
+            'Tabela de renda fixa não encontrada. Execute as migrations antes de adicionar ativos de renda fixa.',
+        },
+        { status: 500 },
+      );
+    }
+    throw error;
   }
 
   // Ativos de bolsa (ações/FII/ETF/etc.): recalcula a posição pela source of
