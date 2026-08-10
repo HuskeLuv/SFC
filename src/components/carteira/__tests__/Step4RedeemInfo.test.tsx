@@ -4,11 +4,11 @@
  * Cobrem os achados #2 (método por valor × quantidade fracionária) e #4
  * (inputs decimais com buffer de string).
  */
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Step4RedeemInfo from '../redeemWizard/Step4RedeemInfo';
-import type { RedeemWizardFormData } from '@/types/redeemWizard';
+import type { RedeemWizardErrors, RedeemWizardFormData } from '@/types/redeemWizard';
 
 vi.mock('@/components/form/date-picker', () => ({
   default: ({ label }: { label?: string }) => <div>{label}</div>,
@@ -98,6 +98,63 @@ describe('Regressão (achado #2) — "Por valor" só aparece com quantidade exat
   it('com quantidade 1 (value-based) a opção aparece', () => {
     render(<Harness initial={{ availableQuantity: 1 }} />);
     expect(screen.getByText('Por valor')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Harness com estado de erros de verdade (callbacks estáveis como no wizard
+ * real — inline quebraria em loop de efeito).
+ */
+const HarnessComErros: React.FC<{ initial?: Partial<RedeemWizardFormData> }> = ({ initial }) => {
+  const [formData, setFormData] = useState<RedeemWizardFormData>({ ...baseFormData, ...initial });
+  const [errors, setErrors] = useState<RedeemWizardErrors>({});
+  const onFormDataChange = useCallback((d: Partial<RedeemWizardFormData>) => {
+    setFormData((prev) => ({ ...prev, ...d }));
+  }, []);
+  const onErrorsChange = useCallback((e: Partial<RedeemWizardErrors>) => {
+    setErrors((prev) => ({ ...prev, ...e }));
+  }, []);
+  return (
+    <Step4RedeemInfo
+      formData={formData}
+      errors={errors}
+      onFormDataChange={onFormDataChange}
+      onErrorsChange={onErrorsChange}
+    />
+  );
+};
+
+describe('Rodada 3 (achado frontend #4/#16) — hints de validação por campo', () => {
+  it('campos vazios explicam por que o Avançar está desabilitado', () => {
+    render(<HarnessComErros initial={{ dataResgate: '' }} />);
+    expect(screen.getByText('Informe a data do resgate.')).toBeInTheDocument();
+    expect(screen.getByText('Informe uma quantidade maior que zero.')).toBeInTheDocument();
+    expect(screen.getByText('Informe uma cotação maior que zero.')).toBeInTheDocument();
+  });
+
+  it('quantidade acima da disponível mostra o motivo específico', () => {
+    render(<HarnessComErros />); // availableQuantity 10
+    const qtd = document.getElementById('quantidade') as HTMLInputElement;
+    fireEvent.change(qtd, { target: { value: '15' } });
+    expect(screen.getByText(/maior que a disponível \(10\)/)).toBeInTheDocument();
+  });
+
+  it('o hint some quando o campo fica válido', () => {
+    render(<HarnessComErros />);
+    const qtd = document.getElementById('quantidade') as HTMLInputElement;
+    fireEvent.change(qtd, { target: { value: '15' } });
+    expect(screen.getByText(/maior que a disponível/)).toBeInTheDocument();
+    fireEvent.change(qtd, { target: { value: '5' } });
+    expect(screen.queryByText(/maior que a disponível/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Informe uma quantidade maior que zero.')).not.toBeInTheDocument();
+  });
+
+  it('método por valor tem hint próprio', () => {
+    render(<HarnessComErros initial={{ metodoResgate: 'valor', availableQuantity: 1 }} />);
+    expect(screen.getByText('Informe um valor maior que zero.')).toBeInTheDocument();
+    const valor = document.getElementById('valorResgate') as HTMLInputElement;
+    fireEvent.change(valor, { target: { value: '1.000,00' } });
+    expect(screen.queryByText('Informe um valor maior que zero.')).not.toBeInTheDocument();
   });
 });
 

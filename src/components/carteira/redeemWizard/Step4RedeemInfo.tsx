@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
@@ -36,6 +36,40 @@ export default function Step4RedeemInfo({
   // decimal no re-render — digitar "0,5" registrava 5, colar "1.500,50"
   // registrava 1,50 (auditoria 2026-08-06, achado #4).
   const [decimalInputValues, setDecimalInputValues] = useState<Record<string, string>>({});
+
+  // Rodada 3 (achado frontend #4/#16): o wizard desabilita o Avançar via
+  // isValid mas nunca preenchia errors.* — os hints por campo eram código
+  // morto e o botão desabilitava sem explicação. As mensagens nascem aqui e
+  // espelham as mesmas regras do validateStep4 do wizard (e do backend).
+  useEffect(() => {
+    const stepErrors: Partial<RedeemWizardErrors> = {
+      dataResgate: formData.dataResgate ? undefined : 'Informe a data do resgate.',
+      quantidade: undefined,
+      cotacaoUnitaria: undefined,
+      valorResgate: undefined,
+    };
+    if (formData.metodoResgate === 'quantidade') {
+      if (formData.quantidade <= 0) {
+        stepErrors.quantidade = 'Informe uma quantidade maior que zero.';
+      } else if (formData.quantidade > formData.availableQuantity) {
+        stepErrors.quantidade = `Quantidade maior que a disponível (${formData.availableQuantity.toLocaleString('pt-BR')}).`;
+      }
+      if (formData.cotacaoUnitaria <= 0) {
+        stepErrors.cotacaoUnitaria = 'Informe uma cotação maior que zero.';
+      }
+    } else if (formData.valorResgate <= 0) {
+      stepErrors.valorResgate = 'Informe um valor maior que zero.';
+    }
+    onErrorsChange(stepErrors);
+  }, [
+    formData.dataResgate,
+    formData.metodoResgate,
+    formData.quantidade,
+    formData.cotacaoUnitaria,
+    formData.valorResgate,
+    formData.availableQuantity,
+    onErrorsChange,
+  ]);
 
   const handleInputChange = (field: keyof RedeemWizardFormData, value: string | number) => {
     onFormDataChange({ [field]: value });
