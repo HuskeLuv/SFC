@@ -58,16 +58,18 @@ const createRequest = (body: object) =>
   });
 
 describe('POST /api/carteira/resgate', () => {
-  const mockPortfolioAcao = {
+  // Value-based (personalizado): resgate parcial usa o cálculo inline.
+  // assetId precisa existir — sem ele a rota rejeita com 400 (rodada 3).
+  const mockPortfolioValueBased = {
     id: 'port-1',
     userId: 'user-123',
     quantity: 100,
     totalInvested: 1000,
     avgPrice: 10,
-    stockId: 'stock-1',
-    assetId: null,
-    stock: { ticker: 'PETR4', companyName: 'Petrobras' },
-    asset: null,
+    stockId: null,
+    assetId: 'asset-1',
+    stock: null,
+    asset: { symbol: 'ATIVO-1', name: 'Ativo Personalizado', type: 'personalizado' },
   };
 
   const mockPortfolioCrypto = {
@@ -84,7 +86,7 @@ describe('POST /api/carteira/resgate', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioAcao);
+    mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioValueBased);
     mockPrisma.portfolio.update.mockResolvedValue({});
     mockPrisma.portfolio.delete.mockResolvedValue({});
     mockPrisma.stockTransaction.create.mockImplementation((args: { data: object }) =>
@@ -136,6 +138,29 @@ describe('POST /api/carteira/resgate', () => {
       expect(data.error).toContain('metodoResgate');
     });
 
+    it('retorna 400 para portfolio legado sem assetId (não cria venda órfã)', async () => {
+      // Rodada 3 (achado #12): antes a rota criava StockTransaction com
+      // assetId null — venda órfã invisível pro recalc e pro sync de FI.
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolioValueBased,
+        assetId: null,
+        asset: null,
+      });
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'quantidade',
+          quantidade: 10,
+          cotacaoUnitaria: 32.5,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('sem vínculo de ativo');
+      expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    });
+
     it('retorna 404 quando portfolio não existe', async () => {
       mockPrisma.portfolio.findFirst.mockResolvedValue(null);
       const response = await POST(
@@ -154,7 +179,7 @@ describe('POST /api/carteira/resgate', () => {
   });
 
   describe('Resgate por quantidade', () => {
-    it('realiza resgate por quantidade com sucesso (ações)', async () => {
+    it('realiza resgate por quantidade com sucesso (value-based)', async () => {
       const response = await POST(
         createRequest({
           portfolioId: 'port-1',
@@ -208,7 +233,7 @@ describe('POST /api/carteira/resgate', () => {
   describe('Resgate por valor', () => {
     it('realiza resgate por valor com sucesso (quantidade 1)', async () => {
       mockPrisma.portfolio.findFirst.mockResolvedValue({
-        ...mockPortfolioAcao,
+        ...mockPortfolioValueBased,
         quantity: 1,
         totalInvested: 1000,
         avgPrice: 1000,
@@ -233,7 +258,7 @@ describe('POST /api/carteira/resgate', () => {
       // Auditoria 2026-08-06 achado #10: o teto era o CUSTO (totalInvested) —
       // um CDB de 10k que rendeu para 12,4k não podia ser resgatado integralmente.
       mockPrisma.portfolio.findFirst.mockResolvedValue({
-        ...mockPortfolioAcao,
+        ...mockPortfolioValueBased,
         id: 'port-cdb',
         assetId: 'asset-cdb',
         asset: { symbol: 'RENDA-FIXA-1', name: 'CDB', type: 'bond' },

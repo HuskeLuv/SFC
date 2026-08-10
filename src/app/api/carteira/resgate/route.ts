@@ -48,6 +48,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Investimento não encontrado' }, { status: 404 });
   }
 
+  // Rodada 3 (achado #12): portfolio legado sem vínculo de Asset passava e a
+  // rota criava uma StockTransaction com assetId null — venda órfã que o
+  // recalc por histórico e o sync de FI ignoram. Mesmo padrão do
+  // ativos/[id]/portfolio.
+  if (!portfolio.assetId) {
+    return NextResponse.json(
+      { error: 'Investimento sem vínculo de ativo — não é possível resgatar' },
+      { status: 400 },
+    );
+  }
+
   const tipoAtivo = mapPortfolioToTipo(portfolio);
   const availableQuantity = portfolio.quantity;
   const availableTotal = portfolio.totalInvested;
