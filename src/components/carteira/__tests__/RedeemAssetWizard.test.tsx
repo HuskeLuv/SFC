@@ -48,9 +48,13 @@ vi.mock('../redeemWizard/Step4RedeemInfo', () => ({ default: makeStub('step4') }
 vi.mock('../redeemWizard/Step5RedeemConfirmation', () => ({ default: makeStub('step5') }));
 
 import RedeemAssetWizard from '../RedeemAssetWizard';
+import { createTestQueryWrapper } from '@/test/wrappers';
 
 // silencia unused-var do tipo auxiliar
 void (0 as unknown as StubProps);
+
+// usePriceDeviationWarning (rodada 3) exige QueryClientProvider
+const wrapper = createTestQueryWrapper();
 
 describe('Regressão (achado #5) — erro do backend aparece no wizard', () => {
   it('400 "Instituição inválida" é exibido, wizard fica aberto e onSuccess não dispara', async () => {
@@ -60,7 +64,7 @@ describe('Regressão (achado #5) — erro do backend aparece no wizard', () => {
       json: async () => ({ error: 'Instituição inválida para este investimento' }),
     });
     const onSuccess = vi.fn();
-    render(<RedeemAssetWizard isOpen onClose={vi.fn()} onSuccess={onSuccess} />);
+    render(<RedeemAssetWizard isOpen onClose={vi.fn()} onSuccess={onSuccess} />, { wrapper });
 
     // navega até a confirmação (steps stubados já validam tudo)
     for (let i = 0; i < 4; i++) {
@@ -80,7 +84,7 @@ describe('Regressão (achado #5) — erro do backend aparece no wizard', () => {
     mockCsrfFetch.mockResolvedValue({ ok: true, status: 201, json: async () => ({}) });
     const onSuccess = vi.fn();
     const onClose = vi.fn();
-    render(<RedeemAssetWizard isOpen onClose={onClose} onSuccess={onSuccess} />);
+    render(<RedeemAssetWizard isOpen onClose={onClose} onSuccess={onSuccess} />, { wrapper });
 
     for (let i = 0; i < 4; i++) {
       fireEvent.click(screen.getByRole('button', { name: 'Avançar' }));
