@@ -101,44 +101,52 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
-  const transacao = await prisma.stockTransaction.create({
-    data: {
-      userId: targetUserId,
-      assetId: portfolio.assetId!,
-      type: 'compra',
-      quantity,
-      price,
-      total,
-      date: dataTransacao,
-      fees: 0,
-      notes: notesData,
-    },
-  });
-
   const novoTotalInvestido = portfolio.totalInvested + valorAporte;
   const novaQuantidade = portfolio.quantity || 1;
   const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
 
-  await prisma.portfolio.update({
-    where: { id: portfolio.id },
-    data: {
-      totalInvested: novoTotalInvestido,
-      avgPrice: novoPrecoMedio,
-      lastUpdate: new Date(),
-    },
-  });
-
-  // Bug #15 (residual): aporte em RF atualizava só Portfolio.totalInvested,
-  // deixando FixedIncomeAsset.investedAmount preso no valor inicial — daí a
-  // divergência entre a aba Renda Fixa (lê portfolio.totalInvested) e a tela
-  // de detalhes do ativo (lê fi.investedAmount). updateMany é no-op pra
-  // assets sem FI vinculado (ações, FIIs, etc).
-  if (portfolio.assetId) {
-    await prisma.fixedIncomeAsset.updateMany({
-      where: { userId: targetUserId, assetId: portfolio.assetId },
-      data: { investedAmount: novoTotalInvestido },
+  // Transação + mutação do Portfolio/FI no MESMO $transaction (mesma correção
+  // do resgate na auditoria 2026-08-06). Report Pedro 10/08: escrita em duas
+  // etapas deixava transação órfã quando a segunda falhava — o aporte "sumia"
+  // da posição mas inflava a linha Aporte/Resgate do fluxo de caixa.
+  const transacao = await prisma.$transaction(async (tx) => {
+    const novaTransacao = await tx.stockTransaction.create({
+      data: {
+        userId: targetUserId,
+        assetId: portfolio.assetId!,
+        type: 'compra',
+        quantity,
+        price,
+        total,
+        date: dataTransacao,
+        fees: 0,
+        notes: notesData,
+      },
     });
-  }
+
+    await tx.portfolio.update({
+      where: { id: portfolio.id },
+      data: {
+        totalInvested: novoTotalInvestido,
+        avgPrice: novoPrecoMedio,
+        lastUpdate: new Date(),
+      },
+    });
+
+    // Bug #15 (residual): aporte em RF atualizava só Portfolio.totalInvested,
+    // deixando FixedIncomeAsset.investedAmount preso no valor inicial — daí a
+    // divergência entre a aba Renda Fixa (lê portfolio.totalInvested) e a tela
+    // de detalhes do ativo (lê fi.investedAmount). updateMany é no-op pra
+    // assets sem FI vinculado (ações, FIIs, etc).
+    if (portfolio.assetId) {
+      await tx.fixedIncomeAsset.updateMany({
+        where: { userId: targetUserId, assetId: portfolio.assetId },
+        data: { investedAmount: novoTotalInvestido },
+      });
+    }
+
+    return novaTransacao;
+  });
 
   // Item A (auditoria 2026-05-19): #02 só cobriu PATCH/DELETE de
   // historico/transacao. Aporte em data passada deixava snapshots stale entre
