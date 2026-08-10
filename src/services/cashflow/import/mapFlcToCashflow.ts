@@ -51,7 +51,19 @@ export interface FlcItemPlano {
   linha: number;
   label: string;
   destino:
-    | { tipo: 'existente'; itemId: string; nome: string }
+    | {
+        tipo: 'existente';
+        itemId: string;
+        nome: string;
+        /**
+         * "O SEU PORQUÊ"/rank da planilha a gravar no item — só preenchidos
+         * quando o item do app está VAZIO nesses campos (nunca sobrescreve).
+         * Report 10/08 (bug #1): antes o significado só chegava em itens
+         * CRIADOS; item existente sem significado nunca recebia o da planilha.
+         */
+        significado?: string | null;
+        rank?: string | null;
+      }
     | { tipo: 'criar'; significado: string | null; rank: string | null };
   escritas: FlcEscrita[];
   conflitos: FlcConflito[];
@@ -329,7 +341,13 @@ const planejarItem = (item: FlcItem, existente: CashflowItem | null): FlcItemPla
     linha: item.linha,
     label: item.label,
     destino: existente
-      ? { tipo: 'existente', itemId: existente.id, nome: existente.name }
+      ? {
+          tipo: 'existente',
+          itemId: existente.id,
+          nome: existente.name,
+          significado: !existente.significado?.trim() && item.significado ? item.significado : null,
+          rank: !existente.rank?.trim() && item.rank !== null ? String(item.rank) : null,
+        }
       : {
           tipo: 'criar',
           significado: item.significado,
@@ -432,8 +450,15 @@ export const mapFlcToCashflow = (
         });
         continue;
       }
-      // item já existe no app e não traz valores nem comentários: nada a fazer
-      if (!temValor && !temComentario) continue;
+      // "O SEU PORQUÊ"/rank da planilha preenchendo item existente vazio conta
+      // como trabalho a fazer — linha só de significado entrava aqui e o texto
+      // se perdia (report 10/08, bug #1).
+      const preencheMetadados =
+        !!itemApp &&
+        ((!itemApp.significado?.trim() && !!item.significado) ||
+          (!itemApp.rank?.trim() && item.rank !== null));
+      // item já existe no app e não traz valores, comentários nem metadados novos
+      if (!temValor && !temComentario && !preencheMetadados) continue;
 
       itensPlano.push(planejarItem(item, itemApp));
     }

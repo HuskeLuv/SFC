@@ -140,6 +140,8 @@ describe('mapFlcToCashflow', () => {
       tipo: 'existente',
       itemId: habitacao.items[0].id,
       nome: 'Aluguel',
+      significado: null,
+      rank: null,
     });
     expect(itemPlano.escritas).toEqual([{ mes: 0, valor: 1500 }]);
     expect(plan.resumo).toMatchObject({ itensNovos: 0, celulas: 1, conflitos: 0 });
@@ -217,6 +219,8 @@ describe('mapFlcToCashflow', () => {
       tipo: 'existente',
       itemId: entradasFixas.items[1].id,
       nome: "Receita Proventos FII's",
+      significado: null,
+      rank: null,
     });
     expect(plan.grupos[0].itens[0].escritas).toEqual([{ mes: 0, valor: 320 }]);
     expect(plan.avisos.some((a) => a.includes('realocada'))).toBe(true);
@@ -267,12 +271,65 @@ describe('mapFlcToCashflow', () => {
       tipo: 'existente',
       itemId: dependentes.items[0].id,
       nome: 'Escola / Faculdade',
+      significado: null,
+      rank: null,
     });
     expect(porLabel('Pensão')?.destino).toMatchObject({ tipo: 'existente' });
     // item personalizado da planilha sem par no template → criação no grupo novo
     expect(porLabel('Babá')?.destino).toMatchObject({ tipo: 'criar' });
     expect(plan.ignorados).toHaveLength(0);
     expect(plan.avisos).toHaveLength(0);
+  });
+
+  it('"O SEU PORQUÊ" preenche item existente VAZIO (report 10/08, bug #1)', () => {
+    const { tree, habitacao } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses({ 0: 1500 }), { significado: 'Moradia da família', rank: 1 }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens[0].destino).toEqual({
+      tipo: 'existente',
+      itemId: habitacao.items[0].id,
+      nome: 'Aluguel',
+      significado: 'Moradia da família',
+      rank: '1',
+    });
+  });
+
+  it('"O SEU PORQUÊ" NÃO sobrescreve significado pré-existente no app', () => {
+    const { tree, habitacao } = arvorePadrao();
+    habitacao.items[0].significado = 'Já preenchido pelo usuário';
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses({ 0: 1500 }), { significado: 'Da planilha' }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens[0].destino).toMatchObject({ significado: null });
+  });
+
+  it('linha só com significado (sem valores) ainda entra no plano para preencher item vazio', () => {
+    const { tree } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses(), { significado: 'Só o porquê' }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens).toHaveLength(1);
+    expect(plan.grupos[0].itens[0].destino).toMatchObject({ significado: 'Só o porquê' });
+    expect(plan.grupos[0].itens[0].escritas).toHaveLength(0);
   });
 
   it('classifica célula a célula: escrita, já igual e conflito', () => {

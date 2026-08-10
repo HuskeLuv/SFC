@@ -24,6 +24,8 @@ export interface FlcImportRelatorio {
   itensCriados: number;
   celulasGravadas: number;
   comentariosGravados: number;
+  /** "O SEU PORQUÊ"/rank preenchidos em itens existentes que estavam vazios */
+  significadosGravados: number;
   conflitosSobrescritos: number;
   conflitosMantidos: number;
   erros: { label: string; erro: string }[];
@@ -39,6 +41,7 @@ export const executeFlcImportPlan = async (
     itensCriados: 0,
     celulasGravadas: 0,
     comentariosGravados: 0,
+    significadosGravados: 0,
     conflitosSobrescritos: 0,
     conflitosMantidos: 0,
     erros: [],
@@ -108,7 +111,13 @@ export const executeFlcImportPlan = async (
     for (const { mes, texto } of comentarios) {
       porMes.set(mes, { ...porMes.get(mes), comentario: texto });
     }
-    if (porMes.size === 0) return;
+    // metadados (significado/rank) preenchendo item existente vazio contam
+    // como trabalho mesmo sem célula a gravar (report 10/08, bug #1)
+    const significadoNovo =
+      itemPlano.destino.tipo === 'existente' ? (itemPlano.destino.significado ?? null) : null;
+    const rankNovo =
+      itemPlano.destino.tipo === 'existente' ? (itemPlano.destino.rank ?? null) : null;
+    if (porMes.size === 0 && !significadoNovo && !rankNovo) return;
 
     let finalItemId: string;
     if (itemPlano.destino.tipo === 'existente') {
@@ -117,6 +126,18 @@ export const executeFlcImportPlan = async (
       // recalculado do banco e um vínculo pode ter surgido entre map e execução
       if (item.objetivoId) return;
       finalItemId = itemId;
+      // fill-if-empty re-checado contra o estado do banco (o plano é recalculado
+      // no commit, mas entre map e execução o usuário pode ter preenchido)
+      if ((significadoNovo && !item.significado?.trim()) || (rankNovo && !item.rank?.trim())) {
+        await prisma.cashflowItem.update({
+          where: { id: finalItemId },
+          data: {
+            ...(significadoNovo && !item.significado?.trim() && { significado: significadoNovo }),
+            ...(rankNovo && !item.rank?.trim() && { rank: rankNovo }),
+          },
+        });
+        if (significadoNovo && !item.significado?.trim()) relatorio.significadosGravados += 1;
+      }
     } else {
       const finalGroupId = await resolverGrupo(planGroupId);
       const chave = `${finalGroupId}:${normalizeLabel(itemPlano.label)}`;

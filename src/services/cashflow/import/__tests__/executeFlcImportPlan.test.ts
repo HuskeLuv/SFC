@@ -4,7 +4,7 @@ import type { FlcGrupoPlano, FlcImportPlan, FlcItemPlano } from '../mapFlcToCash
 
 const mockPrisma = vi.hoisted(() => ({
   cashflowGroup: { findUnique: vi.fn() },
-  cashflowItem: { create: vi.fn() },
+  cashflowItem: { create: vi.fn(), update: vi.fn().mockResolvedValue({}) },
   cashflowValue: { upsert: vi.fn().mockResolvedValue({}) },
 }));
 
@@ -106,6 +106,85 @@ describe('executeFlcImportPlan', () => {
     const mantem = await executeFlcImportPlan(comConflito(), 'user-1', 2026, 'manter');
     expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
     expect(mantem).toMatchObject({ conflitosMantidos: 1, celulasGravadas: 0 });
+  });
+
+  it('preenche significado/rank de item existente vazio (report 10/08, bug #1)', async () => {
+    const rel = await executeFlcImportPlan(
+      plano([
+        grupoPlano([
+          itemPlano({
+            destino: {
+              tipo: 'existente',
+              itemId: 'item-1',
+              nome: 'Aluguel',
+              significado: 'Moradia da família',
+              rank: '1',
+            },
+          }),
+        ]),
+      ]),
+      'user-1',
+      2026,
+      'sobrescrever',
+    );
+
+    expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith({
+      where: { id: 'item-final' },
+      data: { significado: 'Moradia da família', rank: '1' },
+    });
+    expect(rel).toMatchObject({ significadosGravados: 1, celulasGravadas: 1 });
+  });
+
+  it('não sobrescreve significado preenchido entre o map e a execução (re-check no banco)', async () => {
+    mockEnsurePersonalizedItem.mockResolvedValue({
+      itemId: 'item-final',
+      item: { id: 'item-1', objetivoId: null, significado: 'Preenchido pelo usuário agora' },
+    });
+    const rel = await executeFlcImportPlan(
+      plano([
+        grupoPlano([
+          itemPlano({
+            destino: {
+              tipo: 'existente',
+              itemId: 'item-1',
+              nome: 'Aluguel',
+              significado: 'Da planilha',
+            },
+          }),
+        ]),
+      ]),
+      'user-1',
+      2026,
+      'sobrescrever',
+    );
+
+    expect(mockPrisma.cashflowItem.update).not.toHaveBeenCalled();
+    expect(rel).toMatchObject({ significadosGravados: 0 });
+  });
+
+  it('linha só de significado grava metadados sem upsert de valores', async () => {
+    const rel = await executeFlcImportPlan(
+      plano([
+        grupoPlano([
+          itemPlano({
+            escritas: [],
+            destino: {
+              tipo: 'existente',
+              itemId: 'item-1',
+              nome: 'Aluguel',
+              significado: 'Só o porquê',
+            },
+          }),
+        ]),
+      ]),
+      'user-1',
+      2026,
+      'sobrescrever',
+    );
+
+    expect(mockPrisma.cashflowItem.update).toHaveBeenCalled();
+    expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
+    expect(rel).toMatchObject({ significadosGravados: 1, celulasGravadas: 0 });
   });
 
   it('cria item custom; grupo template é personalizado antes (personalizeGroup)', async () => {

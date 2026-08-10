@@ -352,10 +352,14 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
                   ? 'Importação concluída com sucesso.'
                   : 'Importação concluída com erros — veja o detalhe abaixo.'}
               </div>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-6 gap-2">
                 <Chip label="células gravadas" value={resultado.relatorio.celulasGravadas} />
                 <Chip label="itens criados" value={resultado.relatorio.itensCriados} />
                 <Chip label="comentários" value={resultado.relatorio.comentariosGravados} />
+                <Chip
+                  label="porquês preenchidos"
+                  value={resultado.relatorio.significadosGravados}
+                />
                 <Chip
                   label="conflitos sobrescritos"
                   value={resultado.relatorio.conflitosSobrescritos}
