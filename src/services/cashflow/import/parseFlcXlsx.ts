@@ -237,6 +237,13 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
     | { tipo: 'ignorada'; nome: string; motivo: string };
   let ctx: Contexto = { tipo: 'nenhum' };
 
+  // Seções ignoradas que carregam VALORES viram aviso agregado: o preview não
+  // exibe mais a lista de ignorados (PR #59) e um aporte digitado na planilha
+  // sumia sem explicação nenhuma (report 10/08: "aporte de jan/2025 não entrou
+  // na evolução do patrimônio" — a linha é ignorada por design, aporte vem da
+  // carteira, mas o usuário precisa SABER disso na prévia).
+  const secoesIgnoradasComValor = new Map<string, { motivo: string; linhas: number }>();
+
   for (let r = 1; r <= ultimaLinha; r++) {
     const label = lerTexto(ws, `B${r}`);
     if (!label) continue;
@@ -295,6 +302,11 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
         motivo: `seção "${ctx.nome}" ignorada: ${ctx.motivo}`,
         valores: meses.valores,
       });
+      if (meses.valores.some((v) => v !== null)) {
+        const atual = secoesIgnoradasComValor.get(ctx.nome) ?? { motivo: ctx.motivo, linhas: 0 };
+        atual.linhas += 1;
+        secoesIgnoradasComValor.set(ctx.nome, atual);
+      }
       continue;
     }
     // fora de qualquer seção
@@ -306,6 +318,10 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
       avisos.push(`linha ${r} ("${label}"): valores fora de qualquer seção conhecida — ignorados`);
     }
   }
+
+  secoesIgnoradasComValor.forEach(({ motivo, linhas }, nome) => {
+    avisos.push(`seção "${nome}": ${linhas} linha(s) com valores NÃO importada(s) — ${motivo}`);
+  });
 
   if (secoes.length === 0) {
     avisos.push('nenhuma seção conhecida encontrada — a aba tem o layout esperado?');

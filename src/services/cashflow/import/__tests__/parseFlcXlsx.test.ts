@@ -141,8 +141,30 @@ describe('parseFlcXlsx — seções e linhas ignoradas', () => {
     expect(todosItens).not.toContain('Rendimentos Recebidos');
   });
 
-  it('modelo intacto não gera avisos', () => {
-    expect(parseModelo().avisos).toEqual([]);
+  it('modelo intacto gera SÓ os avisos de seção ignorada com valores', () => {
+    // Report 10/08 (bug #3): aporte digitado na planilha era descartado em
+    // silêncio — a lista de ignorados saiu do preview (PR #59) e o usuário
+    // não tinha como saber que a linha não entra na Evolução do Patrimônio.
+    const avisos = parseModelo().avisos;
+    expect(avisos).toHaveLength(2);
+    expect(
+      avisos.some(
+        (a) =>
+          a.includes('Aporte/ Resgate Investimentos') &&
+          a.includes('NÃO importada') &&
+          a.includes('vem da carteira'),
+      ),
+    ).toBe(true);
+    expect(avisos.some((a) => a.includes('Planejamento Financeiro'))).toBe(true);
+  });
+
+  it('seção ignorada SEM valores não gera aviso', () => {
+    const spec = modeloSpec().map((l): FixtureLinha => {
+      if (l.tipo === 'item' && l.label === 'Reserva Oportunidade') return { ...l, valores: {} }; // zera a única linha com valor do Aporte/Resgate
+      return l;
+    });
+    const result = parseFlcXlsx(buildFlcWorkbook(spec));
+    expect(result.avisos.some((a) => a.includes('Aporte/ Resgate'))).toBe(false);
   });
 });
 
@@ -213,7 +235,8 @@ describe('parseFlcXlsx — comentários de célula', () => {
   it('item sem comentários tem os 12 meses null e o parse segue intacto', () => {
     const result = comComentarios();
     expect(result.secoes).toHaveLength(17);
-    expect(result.avisos).toEqual([]);
+    // só os 2 avisos estruturais do modelo (seções ignoradas com valores)
+    expect(result.avisos).toHaveLength(2);
     const uber = secao(result, 'transporte').itens.find((i) => i.label === 'Uber');
     expect(uber?.comentarios).toEqual(Array(12).fill(null));
   });
