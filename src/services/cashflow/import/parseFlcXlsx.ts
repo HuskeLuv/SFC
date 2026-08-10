@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { readFlcFontColors, type FlcZipFiles } from './flcCellColors';
 
 /**
  * Parser puro da aba "Fluxo de Caixa" da planilha FLC (modelo do Pedro).
@@ -46,6 +47,8 @@ export interface FlcItem {
   valores: (number | null)[];
   /** comentários de célula (notas/threads do Excel), índice 0 = jan */
   comentarios: (string | null)[];
+  /** cor de FONTE crua da célula ("#RRGGBB"), índice 0 = jan; null = padrão */
+  cores: (string | null)[];
 }
 
 export interface FlcSecao {
@@ -160,20 +163,28 @@ const lerComentario = (cell: XLSX.CellObject | undefined): string | null => {
 interface CelulasMes {
   valores: (number | null)[];
   comentarios: (string | null)[];
+  cores: (string | null)[];
   temLiteral: boolean;
   temFormula: boolean;
   temCelula: boolean;
 }
 
-const lerMeses = (ws: XLSX.WorkSheet, linha: number): CelulasMes => {
+const lerMeses = (
+  ws: XLSX.WorkSheet,
+  linha: number,
+  coresPorCelula: Map<string, string>,
+): CelulasMes => {
   const valores: (number | null)[] = [];
   const comentarios: (string | null)[] = [];
+  const cores: (string | null)[] = [];
   let temLiteral = false;
   let temFormula = false;
   let temCelula = false;
   for (const c of MESES_COLS) {
-    const cell: XLSX.CellObject | undefined = ws[XLSX.utils.encode_cell({ r: linha - 1, c })];
+    const ref = XLSX.utils.encode_cell({ r: linha - 1, c });
+    const cell: XLSX.CellObject | undefined = ws[ref];
     comentarios.push(lerComentario(cell));
+    cores.push(coresPorCelula.get(ref) ?? null);
     if (!cell || cell.v === undefined || cell.v === null || cell.v === '') {
       valores.push(null);
       continue;
@@ -191,7 +202,7 @@ const lerMeses = (ws: XLSX.WorkSheet, linha: number): CelulasMes => {
       valores.push(null);
     }
   }
-  return { valores, comentarios, temLiteral, temFormula, temCelula };
+  return { valores, comentarios, cores, temLiteral, temFormula, temCelula };
 };
 
 const lerTexto = (ws: XLSX.WorkSheet, addr: string): string | null => {
@@ -211,7 +222,10 @@ const lerNumero = (ws: XLSX.WorkSheet, addr: string): number | null => {
 export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
   let wb: XLSX.WorkBook;
   try {
-    wb = XLSX.read(buffer, { type: 'buffer', cellFormula: true });
+    // bookFiles: true expõe os XMLs crus do zip (styles/theme/sheets) — é por
+    // eles que a cor de fonte das células é resolvida (SheetJS CE não parseia
+    // estilos de .xlsx).
+    wb = XLSX.read(buffer, { type: 'buffer', cellFormula: true, bookFiles: true });
   } catch {
     throw new FlcParseError('Arquivo inválido: não foi possível ler como planilha .xlsx');
   }
@@ -223,6 +237,8 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
     );
   }
   const ws = wb.Sheets[sheetName];
+  const zipFiles = (wb as unknown as { files?: FlcZipFiles }).files ?? {};
+  const coresPorCelula = readFlcFontColors(zipFiles, sheetName);
 
   const secoes: FlcSecao[] = [];
   const ignorados: FlcIgnorado[] = [];
@@ -237,11 +253,18 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
     | { tipo: 'ignorada'; nome: string; motivo: string };
   let ctx: Contexto = { tipo: 'nenhum' };
 
+  // Seções ignoradas que carregam VALORES viram aviso agregado: o preview não
+  // exibe mais a lista de ignorados (PR #59) e um aporte digitado na planilha
+  // sumia sem explicação nenhuma (report 10/08: "aporte de jan/2025 não entrou
+  // na evolução do patrimônio" — a linha é ignorada por design, aporte vem da
+  // carteira, mas o usuário precisa SABER disso na prévia).
+  const secoesIgnoradasComValor = new Map<string, { motivo: string; linhas: number }>();
+
   for (let r = 1; r <= ultimaLinha; r++) {
     const label = lerTexto(ws, `B${r}`);
     if (!label) continue;
     const norm = normalizeLabel(label);
-    const meses = lerMeses(ws, r);
+    const meses = lerMeses(ws, r, coresPorCelula);
 
     if (LINHAS_IGNORADAS[norm]) {
       ignorados.push({ linha: r, label, motivo: LINHAS_IGNORADAS[norm], valores: meses.valores });
@@ -285,6 +308,7 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
         rank: lerNumero(ws, `D${r}`),
         valores: meses.valores,
         comentarios: meses.comentarios,
+        cores: meses.cores,
       });
       continue;
     }
@@ -295,6 +319,11 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
         motivo: `seção "${ctx.nome}" ignorada: ${ctx.motivo}`,
         valores: meses.valores,
       });
+      if (meses.valores.some((v) => v !== null)) {
+        const atual = secoesIgnoradasComValor.get(ctx.nome) ?? { motivo: ctx.motivo, linhas: 0 };
+        atual.linhas += 1;
+        secoesIgnoradasComValor.set(ctx.nome, atual);
+      }
       continue;
     }
     // fora de qualquer seção
@@ -306,6 +335,10 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
       avisos.push(`linha ${r} ("${label}"): valores fora de qualquer seção conhecida — ignorados`);
     }
   }
+
+  secoesIgnoradasComValor.forEach(({ motivo, linhas }, nome) => {
+    avisos.push(`seção "${nome}": ${linhas} linha(s) com valores NÃO importada(s) — ${motivo}`);
+  });
 
   if (secoes.length === 0) {
     avisos.push('nenhuma seção conhecida encontrada — a aba tem o layout esperado?');

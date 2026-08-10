@@ -100,6 +100,9 @@ const secao = (chave: FlcSecao['chave'], nome: string, itens: FlcSecao['itens'])
   itens,
 });
 
+const cores = (porMes: Record<number, string> = {}): (string | null)[] =>
+  Array.from({ length: 12 }, (_, m) => porMes[m] ?? null);
+
 const flcItem = (
   label: string,
   valores: (number | null)[],
@@ -111,6 +114,7 @@ const flcItem = (
   rank: null,
   valores,
   comentarios: comentarios(),
+  cores: cores(),
   ...extra,
 });
 
@@ -140,6 +144,8 @@ describe('mapFlcToCashflow', () => {
       tipo: 'existente',
       itemId: habitacao.items[0].id,
       nome: 'Aluguel',
+      significado: null,
+      rank: null,
     });
     expect(itemPlano.escritas).toEqual([{ mes: 0, valor: 1500 }]);
     expect(plan.resumo).toMatchObject({ itensNovos: 0, celulas: 1, conflitos: 0 });
@@ -217,6 +223,8 @@ describe('mapFlcToCashflow', () => {
       tipo: 'existente',
       itemId: entradasFixas.items[1].id,
       nome: "Receita Proventos FII's",
+      significado: null,
+      rank: null,
     });
     expect(plan.grupos[0].itens[0].escritas).toEqual([{ mes: 0, valor: 320 }]);
     expect(plan.avisos.some((a) => a.includes('realocada'))).toBe(true);
@@ -267,12 +275,160 @@ describe('mapFlcToCashflow', () => {
       tipo: 'existente',
       itemId: dependentes.items[0].id,
       nome: 'Escola / Faculdade',
+      significado: null,
+      rank: null,
     });
     expect(porLabel('Pensão')?.destino).toMatchObject({ tipo: 'existente' });
     // item personalizado da planilha sem par no template → criação no grupo novo
     expect(porLabel('Babá')?.destino).toMatchObject({ tipo: 'criar' });
     expect(plan.ignorados).toHaveLength(0);
     expect(plan.avisos).toHaveLength(0);
+  });
+
+  it('"O SEU PORQUÊ" preenche item existente VAZIO (report 10/08, bug #1)', () => {
+    const { tree, habitacao } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses({ 0: 1500 }), { significado: 'Moradia da família', rank: 1 }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens[0].destino).toEqual({
+      tipo: 'existente',
+      itemId: habitacao.items[0].id,
+      nome: 'Aluguel',
+      significado: 'Moradia da família',
+      rank: '1',
+    });
+  });
+
+  it('"O SEU PORQUÊ" NÃO sobrescreve significado pré-existente no app', () => {
+    const { tree, habitacao } = arvorePadrao();
+    habitacao.items[0].significado = 'Já preenchido pelo usuário';
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses({ 0: 1500 }), { significado: 'Da planilha' }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens[0].destino).toMatchObject({ significado: null });
+  });
+
+  it('linha só com significado (sem valores) ainda entra no plano para preencher item vazio', () => {
+    const { tree } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses(), { significado: 'Só o porquê' }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens).toHaveLength(1);
+    expect(plan.grupos[0].itens[0].destino).toMatchObject({ significado: 'Só o porquê' });
+    expect(plan.grupos[0].itens[0].escritas).toHaveLength(0);
+  });
+
+  it('cor da planilha encaixa na legenda e entra no plano (report 10/08, item 4)', () => {
+    const { tree } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          // vermelho escuro do Excel → snap no vermelho da legenda
+          flcItem('Aluguel', meses({ 0: 1500 }), { cores: cores({ 0: '#C00000' }) }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens[0].cores).toEqual([{ mes: 0, cor: '#FF0000', corApp: null }]);
+    expect(plan.resumo.cores).toBe(1);
+  });
+
+  it('cor igual à do app é omitida; divergente carrega corApp (conflito)', () => {
+    const { tree, habitacao } = arvorePadrao();
+    habitacao.items[0].values = [
+      { ...valor(0, 1500), color: '#FF0000' },
+      { ...valor(1, 1500), color: '#76933C' },
+    ];
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses(), {
+            cores: cores({ 0: '#FF0000', 1: '#FF0000' }),
+          }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens[0].cores).toEqual([{ mes: 1, cor: '#FF0000', corApp: '#76933C' }]);
+  });
+
+  it('cor DOMINANTE é tinta de digitação da planilha, não status (só desvios importam)', () => {
+    // Modelo FLC formata todas as células de entrada em azul; status são os
+    // desvios esparsos (verificado nos arquivos reais em 10/08/2026).
+    const { tree } = arvorePadrao();
+    const azulEmTudo = cores(
+      Object.fromEntries(Array.from({ length: 12 }, (_, m) => [m, '#0000FF'])),
+    );
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses({ 0: 1 }), { cores: azulEmTudo }),
+          flcItem('Condomínio', meses({ 0: 1 }), { cores: azulEmTudo }),
+          flcItem('Jardineiro', meses({ 0: 1 }), {
+            cores: cores({
+              ...Object.fromEntries(Array.from({ length: 12 }, (_, m) => [m, '#0000FF'])),
+              0: '#FF0000',
+            }),
+          }),
+        ]),
+      ]),
+      tree,
+    );
+
+    // 36 células coloridas, 35 azuis (>50%) → azul vira tinta padrão
+    expect(plan.avisos.some((a) => a.includes('tinta de digitação'))).toBe(true);
+    const todasCores = plan.grupos[0].itens.flatMap((i) => i.cores);
+    expect(todasCores).toEqual([{ mes: 0, cor: '#FF0000', corApp: null }]);
+    expect(plan.resumo.cores).toBe(1);
+  });
+
+  it('poucas células coloridas (< 24) não disparam a regra da dominante', () => {
+    const { tree } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses({ 0: 1 }), { cores: cores({ 0: '#0000FF', 1: '#0000FF' }) }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0].itens[0].cores).toHaveLength(2);
+    expect(plan.avisos.some((a) => a.includes('tinta de digitação'))).toBe(false);
+  });
+
+  it('quase-branco é descartado e linha só com cor descartada não entra no plano', () => {
+    const { tree } = arvorePadrao();
+    const plan = mapFlcToCashflow(
+      parseResult([
+        secao('habitacao', 'Habitação', [
+          flcItem('Aluguel', meses(), { cores: cores({ 0: '#FFFFFF' }) }),
+        ]),
+      ]),
+      tree,
+    );
+
+    expect(plan.grupos[0]?.itens ?? []).toHaveLength(0);
   });
 
   it('classifica célula a célula: escrita, já igual e conflito', () => {

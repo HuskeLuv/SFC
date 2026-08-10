@@ -24,6 +24,10 @@ export interface FlcImportRelatorio {
   itensCriados: number;
   celulasGravadas: number;
   comentariosGravados: number;
+  /** cores de texto da planilha gravadas nas células (legenda) */
+  coresGravadas: number;
+  /** "O SEU PORQUÊ"/rank preenchidos em itens existentes que estavam vazios */
+  significadosGravados: number;
   conflitosSobrescritos: number;
   conflitosMantidos: number;
   erros: { label: string; erro: string }[];
@@ -39,6 +43,8 @@ export const executeFlcImportPlan = async (
     itensCriados: 0,
     celulasGravadas: 0,
     comentariosGravados: 0,
+    coresGravadas: 0,
+    significadosGravados: 0,
     conflitosSobrescritos: 0,
     conflitosMantidos: 0,
     erros: [],
@@ -62,11 +68,12 @@ export const executeFlcImportPlan = async (
   interface EscritaMes {
     valor?: number;
     comentario?: string;
+    cor?: string;
   }
 
   const upsertValores = async (itemId: string, porMes: Map<number, EscritaMes>): Promise<void> => {
     await Promise.all(
-      [...porMes.entries()].map(([mes, { valor, comentario }]) =>
+      [...porMes.entries()].map(([mes, { valor, comentario, cor }]) =>
         prisma.cashflowValue.upsert({
           where: {
             itemId_userId_year_month: { itemId, userId: targetUserId, year: ano, month: mes },
@@ -74,9 +81,10 @@ export const executeFlcImportPlan = async (
           update: {
             ...(valor !== undefined && { value: valor }),
             ...(comentario !== undefined && { comment: comentario }),
+            ...(cor !== undefined && { color: cor }),
           },
-          // import grava valores "planejados" sem cor (plano §3.6); célula só
-          // com comentário segue o precedente da rota manual: valor 0
+          // célula só com comentário/cor segue o precedente da rota manual:
+          // valor 0. Cor vem da legenda da planilha (report 10/08, item 4).
           create: {
             itemId,
             userId: targetUserId,
@@ -84,6 +92,7 @@ export const executeFlcImportPlan = async (
             month: mes,
             value: valor ?? 0,
             ...(comentario !== undefined && { comment: comentario }),
+            ...(cor !== undefined && { color: cor }),
           },
         }),
       ),
@@ -98,17 +107,28 @@ export const executeFlcImportPlan = async (
     } else {
       relatorio.conflitosMantidos += itemPlano.conflitos.length;
     }
-    // comentário conflitante (app já tem outro texto) segue a mesma política dos valores
+    // comentário/cor conflitantes (app já tem outro valor) seguem a mesma
+    // política dos valores
     const comentarios = itemPlano.comentarios.filter(
       (c) => c.textoApp === null || politica === 'sobrescrever',
     );
+    const cores = itemPlano.cores.filter((c) => c.corApp === null || politica === 'sobrescrever');
 
     const porMes = new Map<number, EscritaMes>();
     for (const { mes, valor } of escritas) porMes.set(mes, { valor });
     for (const { mes, texto } of comentarios) {
       porMes.set(mes, { ...porMes.get(mes), comentario: texto });
     }
-    if (porMes.size === 0) return;
+    for (const { mes, cor } of cores) {
+      porMes.set(mes, { ...porMes.get(mes), cor });
+    }
+    // metadados (significado/rank) preenchendo item existente vazio contam
+    // como trabalho mesmo sem célula a gravar (report 10/08, bug #1)
+    const significadoNovo =
+      itemPlano.destino.tipo === 'existente' ? (itemPlano.destino.significado ?? null) : null;
+    const rankNovo =
+      itemPlano.destino.tipo === 'existente' ? (itemPlano.destino.rank ?? null) : null;
+    if (porMes.size === 0 && !significadoNovo && !rankNovo) return;
 
     let finalItemId: string;
     if (itemPlano.destino.tipo === 'existente') {
@@ -117,6 +137,18 @@ export const executeFlcImportPlan = async (
       // recalculado do banco e um vínculo pode ter surgido entre map e execução
       if (item.objetivoId) return;
       finalItemId = itemId;
+      // fill-if-empty re-checado contra o estado do banco (o plano é recalculado
+      // no commit, mas entre map e execução o usuário pode ter preenchido)
+      if ((significadoNovo && !item.significado?.trim()) || (rankNovo && !item.rank?.trim())) {
+        await prisma.cashflowItem.update({
+          where: { id: finalItemId },
+          data: {
+            ...(significadoNovo && !item.significado?.trim() && { significado: significadoNovo }),
+            ...(rankNovo && !item.rank?.trim() && { rank: rankNovo }),
+          },
+        });
+        if (significadoNovo && !item.significado?.trim()) relatorio.significadosGravados += 1;
+      }
     } else {
       const finalGroupId = await resolverGrupo(planGroupId);
       const chave = `${finalGroupId}:${normalizeLabel(itemPlano.label)}`;
@@ -142,6 +174,7 @@ export const executeFlcImportPlan = async (
     await upsertValores(finalItemId, porMes);
     relatorio.celulasGravadas += escritas.length;
     relatorio.comentariosGravados += comentarios.length;
+    relatorio.coresGravadas += cores.length;
   };
 
   for (const grupo of plan.grupos) {

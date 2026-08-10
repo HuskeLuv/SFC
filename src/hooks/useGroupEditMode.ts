@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { CashflowItem, CashflowValue } from '@/types/cashflow';
 import { ColorOption } from '@/components/cashflow/ColorPickerButton';
+import { cashflowColorCss } from '@/utils/cashflowColorLegend';
 
 export interface EditableItemData {
   id: string;
@@ -387,16 +388,8 @@ export const useGroupEditMode = () => {
     (itemId: string, monthIndex: number) => {
       if (!selectedColor) return;
 
-      // Converter ColorOption para formato CSS
-      const colorMap: Record<string, string> = {
-        black: '#000000',
-        green: '#76933C',
-        red: '#FF0000',
-        blue: '#0000FF',
-        yellow: '#9E8A58',
-      };
-
-      const cssColor = colorMap[selectedColor] || '#000000';
+      // Converter ColorOption para CSS (legenda compartilhada com o import)
+      const cssColor = cashflowColorCss(selectedColor);
       updateCellColor(itemId, monthIndex, cssColor);
     },
     [selectedColor, updateCellColor],

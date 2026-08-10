@@ -141,8 +141,30 @@ describe('parseFlcXlsx — seções e linhas ignoradas', () => {
     expect(todosItens).not.toContain('Rendimentos Recebidos');
   });
 
-  it('modelo intacto não gera avisos', () => {
-    expect(parseModelo().avisos).toEqual([]);
+  it('modelo intacto gera SÓ os avisos de seção ignorada com valores', () => {
+    // Report 10/08 (bug #3): aporte digitado na planilha era descartado em
+    // silêncio — a lista de ignorados saiu do preview (PR #59) e o usuário
+    // não tinha como saber que a linha não entra na Evolução do Patrimônio.
+    const avisos = parseModelo().avisos;
+    expect(avisos).toHaveLength(2);
+    expect(
+      avisos.some(
+        (a) =>
+          a.includes('Aporte/ Resgate Investimentos') &&
+          a.includes('NÃO importada') &&
+          a.includes('vem da carteira'),
+      ),
+    ).toBe(true);
+    expect(avisos.some((a) => a.includes('Planejamento Financeiro'))).toBe(true);
+  });
+
+  it('seção ignorada SEM valores não gera aviso', () => {
+    const spec = modeloSpec().map((l): FixtureLinha => {
+      if (l.tipo === 'item' && l.label === 'Reserva Oportunidade') return { ...l, valores: {} }; // zera a única linha com valor do Aporte/Resgate
+      return l;
+    });
+    const result = parseFlcXlsx(buildFlcWorkbook(spec));
+    expect(result.avisos.some((a) => a.includes('Aporte/ Resgate'))).toBe(false);
   });
 });
 
@@ -213,7 +235,8 @@ describe('parseFlcXlsx — comentários de célula', () => {
   it('item sem comentários tem os 12 meses null e o parse segue intacto', () => {
     const result = comComentarios();
     expect(result.secoes).toHaveLength(17);
-    expect(result.avisos).toEqual([]);
+    // só os 2 avisos estruturais do modelo (seções ignoradas com valores)
+    expect(result.avisos).toHaveLength(2);
     const uber = secao(result, 'transporte').itens.find((i) => i.label === 'Uber');
     expect(uber?.comentarios).toEqual(Array(12).fill(null));
   });
@@ -260,5 +283,58 @@ describe('parseFlcXlsx — erros e tolerâncias', () => {
 
   it('lança FlcParseError para buffer que não é planilha', () => {
     expect(() => parseFlcXlsx(Buffer.from('não sou xlsx'))).toThrow(FlcParseError);
+  });
+});
+
+describe('parseFlcXlsx — cores de fonte das células (report 10/08, item 4)', () => {
+  // A fixture (SheetJS CE) não escreve estilos — injeta via cirurgia de zip:
+  // styles.xml próprio (fonte 1 = vermelho, fonte 2 = verde da legenda) e o
+  // atributo s= nas células-alvo do sheet1.xml.
+  const STYLES_COLORIDO = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="3"><font><sz val="11"/></font><font><color rgb="FFFF0000"/></font><font><color rgb="FF76933C"/></font></fonts>
+<fills count="1"><fill><patternFill patternType="none"/></fill></fills>
+<borders count="1"><border/></borders>
+<cellXfs count="3"><xf numFmtId="0" fontId="0"/><xf numFmtId="0" fontId="1" applyFont="1"/><xf numFmtId="0" fontId="2" applyFont="1"/></cellXfs>
+</styleSheet>`;
+
+  const comCores = () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(buildFlcWorkbook());
+    zip.updateFile('xl/styles.xml', Buffer.from(STYLES_COLORIDO));
+    let sheet = zip.readAsText('xl/worksheets/sheet1.xml');
+    // Combustível jan = 400 → fonte vermelha; 1ª célula com 1000 no XML é
+    // Receita Alugúeis jan → verde
+    sheet = sheet.replace(/<c r="([A-Z]+\d+)"([^>]*)><v>400<\/v>/, '<c r="$1" s="1"$2><v>400</v>');
+    sheet = sheet.replace(
+      /<c r="([A-Z]+\d+)"([^>]*)><v>1000<\/v>/,
+      '<c r="$1" s="2"$2><v>1000</v>',
+    );
+    zip.updateFile('xl/worksheets/sheet1.xml', Buffer.from(sheet));
+    return parseFlcXlsx(zip.toBuffer());
+  };
+
+  const secaoPorChave = (r: ReturnType<typeof parseFlcXlsx>, chave: string) =>
+    r.secoes.find((s) => s.chave === chave)!;
+
+  it('captura a cor de fonte crua por mês nas células estilizadas', () => {
+    const result = comCores();
+    const combustivel = secaoPorChave(result, 'transporte').itens.find(
+      (i) => i.label === 'Combustível',
+    );
+    expect(combustivel?.cores[0]).toBe('#FF0000');
+    expect(combustivel?.cores[1]).toBeNull();
+
+    const receitaAlugueis = secaoPorChave(result, 'entradas-fixas').itens.find(
+      (i) => i.label === 'Receita Alugúeis',
+    );
+    expect(receitaAlugueis?.cores[0]).toBe('#76933C');
+  });
+
+  it('planilha sem estilos coloridos produz cores todas null (fixture pura)', () => {
+    const result = parseFlcXlsx(buildFlcWorkbook());
+    const todos = result.secoes.flatMap((s) => s.itens.flatMap((i) => i.cores));
+    expect(todos.every((c) => c === null)).toBe(true);
   });
 });
