@@ -26,6 +26,7 @@ const itemPlano = (overrides: Partial<FlcItemPlano> = {}): FlcItemPlano => ({
   conflitos: [],
   jaIguais: [],
   comentarios: [],
+  cores: [],
   ...overrides,
 });
 
@@ -185,6 +186,77 @@ describe('executeFlcImportPlan', () => {
     expect(mockPrisma.cashflowItem.update).toHaveBeenCalled();
     expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
     expect(rel).toMatchObject({ significadosGravados: 1, celulasGravadas: 0 });
+  });
+
+  it('grava cor da legenda no mesmo upsert do valor (report 10/08, item 4)', async () => {
+    const rel = await executeFlcImportPlan(
+      plano([
+        grupoPlano([
+          itemPlano({
+            escritas: [{ mes: 0, valor: 100 }],
+            cores: [
+              { mes: 0, cor: '#FF0000', corApp: null },
+              { mes: 2, cor: '#76933C', corApp: null },
+            ],
+          }),
+        ]),
+      ]),
+      'user-1',
+      2026,
+      'sobrescrever',
+    );
+
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith({
+      where: {
+        itemId_userId_year_month: { itemId: 'item-final', userId: 'user-1', year: 2026, month: 0 },
+      },
+      update: { value: 100, color: '#FF0000' },
+      create: {
+        itemId: 'item-final',
+        userId: 'user-1',
+        year: 2026,
+        month: 0,
+        value: 100,
+        color: '#FF0000',
+      },
+    });
+    // cor sem valor no mês 2: cria célula 0 pintada (precedente do comentário)
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { color: '#76933C' } }),
+    );
+    expect(rel).toMatchObject({ coresGravadas: 2, celulasGravadas: 1 });
+  });
+
+  it('cor conflitante segue a política: manter pula, sobrescrever grava', async () => {
+    const comCorConflitante = () =>
+      plano([
+        grupoPlano([
+          itemPlano({
+            escritas: [],
+            cores: [{ mes: 0, cor: '#FF0000', corApp: '#76933C' }],
+          }),
+        ]),
+      ]);
+
+    const mantem = await executeFlcImportPlan(comCorConflitante(), 'user-1', 2026, 'manter');
+    expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
+    expect(mantem).toMatchObject({ coresGravadas: 0 });
+
+    vi.clearAllMocks();
+    mockEnsurePersonalizedItem.mockResolvedValue({
+      itemId: 'item-final',
+      item: { id: 'item-1', objetivoId: null },
+    });
+    const sobrescreve = await executeFlcImportPlan(
+      comCorConflitante(),
+      'user-1',
+      2026,
+      'sobrescrever',
+    );
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { color: '#FF0000' } }),
+    );
+    expect(sobrescreve).toMatchObject({ coresGravadas: 1 });
   });
 
   it('cria item custom; grupo template é personalizado antes (personalizeGroup)', async () => {

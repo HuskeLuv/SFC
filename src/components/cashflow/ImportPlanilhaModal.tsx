@@ -246,7 +246,7 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
 
           {passo === 'preview' && resumo && (
             <div className="space-y-4">
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-6 gap-2">
                 <Chip label="células a gravar" value={resumo.celulas} />
                 <Chip label="itens novos" value={resumo.itensNovos} />
                 <Chip
@@ -260,6 +260,7 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
                   value={resumo.comentarios}
                   tone={resumo.comentarios > 0 ? 'ok' : 'muted'}
                 />
+                <Chip label="cores" value={resumo.cores} tone={resumo.cores > 0 ? 'ok' : 'muted'} />
               </div>
 
               {preview.plan.avisos.length > 0 && (
@@ -356,6 +357,7 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
                 <Chip label="células gravadas" value={resultado.relatorio.celulasGravadas} />
                 <Chip label="itens criados" value={resultado.relatorio.itensCriados} />
                 <Chip label="comentários" value={resultado.relatorio.comentariosGravados} />
+                <Chip label="cores" value={resultado.relatorio.coresGravadas} />
                 <Chip
                   label="porquês preenchidos"
                   value={resultado.relatorio.significadosGravados}

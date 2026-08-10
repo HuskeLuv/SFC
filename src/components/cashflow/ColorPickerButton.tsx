@@ -1,8 +1,9 @@
-"use client";
-import React, { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
+'use client';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { CASHFLOW_COLOR_LEGEND, type CashflowColorValue } from '@/utils/cashflowColorLegend';
 
-export type ColorOption = "black" | "green" | "red" | "blue" | "yellow";
+export type ColorOption = CashflowColorValue;
 
 interface ColorPickerButtonProps {
   onColorSelect: (color: ColorOption | null) => void;
@@ -10,13 +11,17 @@ interface ColorPickerButtonProps {
   isColorModeActive: boolean;
 }
 
-const COLOR_OPTIONS: Array<{ value: ColorOption; label: string; emoji: string; cssColor: string }> = [
-  { value: "black", label: "Pagar/Receber", emoji: "⚫", cssColor: "#000000" },
-  { value: "green", label: "Recebido", emoji: "🟢", cssColor: "#76933C" },
-  { value: "red", label: "Pago", emoji: "🔴", cssColor: "#FF0000" },
-  { value: "blue", label: "Lançamento Futuro", emoji: "🔵", cssColor: "#0000FF" },
-  { value: "yellow", label: "Cartão crédito", emoji: "🟤", cssColor: "#9E8A58" },
-];
+const EMOJIS: Record<ColorOption, string> = {
+  black: '⚫',
+  green: '🟢',
+  red: '🔴',
+  blue: '🔵',
+  yellow: '🟤',
+};
+
+// legenda compartilhada com o importador da planilha (cashflowColorLegend)
+const COLOR_OPTIONS: Array<{ value: ColorOption; label: string; emoji: string; cssColor: string }> =
+  CASHFLOW_COLOR_LEGEND.map((c) => ({ ...c, emoji: EMOJIS[c.value] }));
 
 export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
   onColorSelect,
@@ -31,7 +36,7 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        menuRef.current && 
+        menuRef.current &&
         !menuRef.current.contains(event.target as Node) &&
         buttonRef.current &&
         !buttonRef.current.contains(event.target as Node)
@@ -41,7 +46,7 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
     };
 
     if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
       // Calcular posição do menu
       if (buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
@@ -53,7 +58,7 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
 
@@ -79,9 +84,9 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
   };
 
   const getActiveColorCss = (): string => {
-    if (!selectedColor) return "#000000";
+    if (!selectedColor) return '#000000';
     const option = COLOR_OPTIONS.find((opt) => opt.value === selectedColor);
-    return option?.cssColor || "#000000";
+    return option?.cssColor || '#000000';
   };
 
   return (
@@ -92,97 +97,77 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
           onClick={handleButtonClick}
           aria-label="Alterar cor do texto"
           className={`rounded-full w-6 h-6 flex items-center justify-center border border-blue-600 bg-blue-500 text-white shadow hover:bg-blue-600 focus:outline-none transition-all ${
-            isColorModeActive
-              ? "ring-2 ring-blue-300"
-              : ""
+            isColorModeActive ? 'ring-2 ring-blue-300' : ''
           }`}
-          title={isColorModeActive ? "Desativar modo de cor" : "Alterar cor do texto"}
+          title={isColorModeActive ? 'Desativar modo de cor' : 'Alterar cor do texto'}
         >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 16 16"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          {/* Balde de tinta - estilo mais simples e limpo */}
-          <path
-            d="M3 4L8 2L13 4V9C13 11 11 13 8 13C5 13 3 11 3 9V4Z"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
             fill="none"
-          />
-          {/* Alça do balde */}
-          <path
-            d="M6 4L10 4"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-          {/* Gota de tinta saindo do balde */}
-          <path
-            d="M8 9L8 13"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-          <circle
-            cx="8"
-            cy="13.5"
-            r="1.2"
-            fill="currentColor"
-          />
-        </svg>
-        {isColorModeActive && (
-          <span
-            className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white"
-            style={{ backgroundColor: getActiveColorCss() }}
-          />
-        )}
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            {/* Balde de tinta - estilo mais simples e limpo */}
+            <path
+              d="M3 4L8 2L13 4V9C13 11 11 13 8 13C5 13 3 11 3 9V4Z"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+            {/* Alça do balde */}
+            <path d="M6 4L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            {/* Gota de tinta saindo do balde */}
+            <path d="M8 9L8 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="8" cy="13.5" r="1.2" fill="currentColor" />
+          </svg>
+          {isColorModeActive && (
+            <span
+              className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white"
+              style={{ backgroundColor: getActiveColorCss() }}
+            />
+          )}
         </button>
       </div>
 
-      {isOpen && typeof window !== 'undefined' && createPortal(
-        <div 
-          ref={menuRef}
-          className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-[140px]"
-          style={{ 
-            zIndex: 9999,
-            top: `${menuPosition.top}px`,
-            left: `${menuPosition.left}px`
-          }}
-        >
-          <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 px-2">
-            Escolher cor:
-          </div>
-          {COLOR_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => handleColorClick(option.value)}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                selectedColor === option.value
-                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                  : "text-gray-700 dark:text-gray-300"
-              }`}
-              style={
-                selectedColor === option.value
-                  ? {}
-                  : { color: option.cssColor }
-              }
-            >
-              <span className="text-base">{option.emoji}</span>
-              <span className="text-left">{option.label}</span>
-              {selectedColor === option.value && (
-                <span className="ml-auto text-blue-600 dark:text-blue-400">✓</span>
-              )}
-            </button>
-          ))}
-        </div>,
-        document.body
-      )}
+      {isOpen &&
+        typeof window !== 'undefined' &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-[140px]"
+            style={{
+              zIndex: 9999,
+              top: `${menuPosition.top}px`,
+              left: `${menuPosition.left}px`,
+            }}
+          >
+            <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 px-2">
+              Escolher cor:
+            </div>
+            {COLOR_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleColorClick(option.value)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                  selectedColor === option.value
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : 'text-gray-700 dark:text-gray-300'
+                }`}
+                style={selectedColor === option.value ? {} : { color: option.cssColor }}
+              >
+                <span className="text-base">{option.emoji}</span>
+                <span className="text-left">{option.label}</span>
+                {selectedColor === option.value && (
+                  <span className="ml-auto text-blue-600 dark:text-blue-400">✓</span>
+                )}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </>
   );
 };
-

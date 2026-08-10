@@ -1,5 +1,6 @@
 import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
 import { canonicalName } from '@/services/cashflow/groupMatchers';
+import { snapParaLegenda } from './flcCellColors';
 import {
   normalizeLabel,
   type FlcIgnorado,
@@ -47,6 +48,14 @@ export interface FlcComentarioPlano {
   textoApp: string | null;
 }
 
+export interface FlcCorPlano {
+  mes: number;
+  /** cor JÁ encaixada na legenda do app (CSS hex) */
+  cor: string;
+  /** cor já existente na célula do app (null = sem cor) */
+  corApp: string | null;
+}
+
 export interface FlcItemPlano {
   linha: number;
   label: string;
@@ -71,6 +80,8 @@ export interface FlcItemPlano {
   jaIguais: number[];
   /** comentários de célula da planilha a importar (idênticos ao app são omitidos) */
   comentarios: FlcComentarioPlano[];
+  /** cores de texto da planilha a importar, já na legenda (idênticas omitidas) */
+  cores: FlcCorPlano[];
 }
 
 export interface FlcGrupoPlano {
@@ -87,6 +98,7 @@ export interface FlcImportResumo {
   jaIguais: number;
   ignorados: number;
   comentarios: number;
+  cores: number;
 }
 
 export interface FlcImportPlan {
@@ -172,6 +184,10 @@ const mesclarComentarios = (a: (string | null)[], b: (string | null)[]): (string
     return c === null ? o : `${c}\n${o}`;
   });
 
+/** merge de cores de linhas somadas: primeira cor não-nula do mês vence */
+const mesclarCores = (a: (string | null)[], b: (string | null)[]): (string | null)[] =>
+  a.map((c, m) => c ?? b[m] ?? null);
+
 /**
  * Pré-passe puro: aplica as decisões §4.1 sobre o IR antes do mapeamento —
  * descarta/realoca as seções sem correspondente no template. Não muta a entrada.
@@ -253,6 +269,7 @@ const aplicarDecisoes411 = (parse: FlcParseResult): FlcParseResult => {
         ...existente,
         valores: somarValores(existente.valores, r.item.valores),
         comentarios: mesclarComentarios(existente.comentarios, r.item.comentarios),
+        cores: mesclarCores(existente.cores, r.item.cores),
       };
       if (r.item.valores.some((v) => v !== null)) {
         avisos.push(
@@ -300,18 +317,59 @@ const findGroup = (index: GrupoIndexado[], nome: string): CashflowGroup | null =
   return hit ? hit.group : null;
 };
 
-const planejarItem = (item: FlcItem, existente: CashflowItem | null): FlcItemPlano => {
+/**
+ * Cor de texto DOMINANTE da planilha = tinta padrão de digitação, não status.
+ * O modelo FLC formata TODAS as células de entrada com fonte azul (#0000FF);
+ * os status da legenda são os desvios esparsos por cima (vermelho=Pago etc.).
+ * Verificado nos arquivos reais (10/08/2026): template 2016/2016 azul; cópia
+ * de cliente 1890 azul + 98 vermelho + 28 cartão. Sem este filtro o import
+ * pintaria a planilha inteira de "Lançamento Futuro".
+ */
+const MIN_CELULAS_PARA_DOMINANTE = 24;
+const FRACAO_DOMINANTE = 0.5;
+
+const detectarCorPadraoPlanilha = (
+  secoes: FlcSecao[],
+): { corPadrao: string | null; ocorrencias: number; total: number } => {
+  const contagem = new Map<string, number>();
+  let total = 0;
+  for (const secao of secoes) {
+    for (const item of secao.itens) {
+      for (const hex of item.cores) {
+        if (hex === null) continue;
+        const cor = snapParaLegenda(hex);
+        if (cor === null) continue;
+        total += 1;
+        contagem.set(cor, (contagem.get(cor) ?? 0) + 1);
+      }
+    }
+  }
+  if (total < MIN_CELULAS_PARA_DOMINANTE) return { corPadrao: null, ocorrencias: 0, total };
+  for (const [cor, n] of contagem) {
+    if (n / total >= FRACAO_DOMINANTE) return { corPadrao: cor, ocorrencias: n, total };
+  }
+  return { corPadrao: null, ocorrencias: 0, total };
+};
+
+const planejarItem = (
+  item: FlcItem,
+  existente: CashflowItem | null,
+  corPadraoPlanilha: string | null,
+): FlcItemPlano => {
   const escritas: FlcEscrita[] = [];
   const conflitos: FlcConflito[] = [];
   const jaIguais: number[] = [];
   const comentarios: FlcComentarioPlano[] = [];
+  const cores: FlcCorPlano[] = [];
 
   const valoresApp = new Map<number, number>();
   const comentariosApp = new Map<number, string>();
+  const coresApp = new Map<number, string>();
   if (existente) {
     for (const v of existente.values ?? []) {
       valoresApp.set(v.month, v.value);
       if (v.comment?.trim()) comentariosApp.set(v.month, v.comment.trim());
+      if (v.color?.trim()) coresApp.set(v.month, v.color.trim().toUpperCase());
     }
   }
 
@@ -337,6 +395,19 @@ const planejarItem = (item: FlcItem, existente: CashflowItem | null): FlcItemPla
     comentarios.push({ mes, texto, textoApp: app });
   });
 
+  // Cor de texto da planilha → legenda do app (report 10/08, item 4): snap na
+  // cor mais próxima da legenda; igual à do app é omitida, divergente segue a
+  // mesma política de conflito dos valores.
+  item.cores.forEach((hex, mes) => {
+    if (hex === null) return;
+    const cor = snapParaLegenda(hex);
+    if (cor === null) return;
+    if (cor === corPadraoPlanilha) return; // tinta de digitação, não status
+    const app = coresApp.get(mes) ?? null;
+    if (app === cor) return;
+    cores.push({ mes, cor, corApp: app });
+  });
+
   return {
     linha: item.linha,
     label: item.label,
@@ -357,6 +428,7 @@ const planejarItem = (item: FlcItem, existente: CashflowItem | null): FlcItemPla
     conflitos,
     jaIguais,
     comentarios,
+    cores,
   };
 };
 
@@ -369,6 +441,13 @@ export const mapFlcToCashflow = (
   const grupos: FlcGrupoPlano[] = [];
   const ignorados: FlcIgnorado[] = [...parse.ignorados];
   const avisos: string[] = [...parse.avisos];
+
+  const { corPadrao, ocorrencias, total } = detectarCorPadraoPlanilha(parse.secoes);
+  if (corPadrao) {
+    avisos.push(
+      `cor de texto padrão da planilha detectada (${corPadrao} em ${ocorrencias} de ${total} células) — tratada como tinta de digitação, não como status; apenas as demais cores da legenda são importadas`,
+    );
+  }
 
   const index = flattenGroups(arvore);
   const chavesVistas = new Set<FlcSecaoChave>();
@@ -416,6 +495,7 @@ export const mapFlcToCashflow = (
         ...base,
         valores: somarValores(base.valores, item.valores),
         comentarios: mesclarComentarios(base.comentarios, item.comentarios),
+        cores: mesclarCores(base.cores, item.cores),
       };
       if (item.valores.some((v) => v !== null)) {
         avisos.push(
@@ -428,6 +508,11 @@ export const mapFlcToCashflow = (
     for (const item of itensMesclados) {
       const temValor = item.valores.some((v) => v !== null);
       const temComentario = item.comentarios.some((c) => c !== null);
+      const temCor = item.cores.some((c) => {
+        if (c === null) return false;
+        const cor = snapParaLegenda(c);
+        return cor !== null && cor !== corPadrao;
+      });
       const itemApp =
         grupoApp.items.find(
           (i) => !i.hidden && normalizeLabel(i.name) === normalizeLabel(item.label),
@@ -442,7 +527,7 @@ export const mapFlcToCashflow = (
         });
         continue;
       }
-      if (!temValor && !temComentario && !itemApp) {
+      if (!temValor && !temComentario && !temCor && !itemApp) {
         ignorados.push({
           linha: item.linha,
           label: item.label,
@@ -457,10 +542,10 @@ export const mapFlcToCashflow = (
         !!itemApp &&
         ((!itemApp.significado?.trim() && !!item.significado) ||
           (!itemApp.rank?.trim() && item.rank !== null));
-      // item já existe no app e não traz valores, comentários nem metadados novos
-      if (!temValor && !temComentario && !preencheMetadados) continue;
+      // item já existe no app e não traz valores, comentários, cores nem metadados
+      if (!temValor && !temComentario && !temCor && !preencheMetadados) continue;
 
-      itensPlano.push(planejarItem(item, itemApp));
+      itensPlano.push(planejarItem(item, itemApp, corPadrao));
     }
 
     grupos.push({
@@ -484,6 +569,7 @@ export const mapFlcToCashflow = (
       (n, g) => n + g.itens.reduce((m, i) => m + i.comentarios.length, 0),
       0,
     ),
+    cores: grupos.reduce((n, g) => n + g.itens.reduce((m, i) => m + i.cores.length, 0), 0),
   };
 
   return { grupos, ignorados, avisos, resumo };
