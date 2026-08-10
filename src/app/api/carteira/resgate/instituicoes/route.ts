@@ -32,7 +32,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     include: { asset: true },
   });
 
-  const filtered = portfolio.filter((item) => matchesTipo(mapPortfolioToTipo(item), tipo));
+  // Sem assetId (legado) o resgate é impossível (POST rejeita com 400) —
+  // não deixar esses portfolios criarem o balde "Instituição não informada"
+  // (rodada 3, achado #12).
+  const filtered = portfolio.filter(
+    (item) => !!item.assetId && matchesTipo(mapPortfolioToTipo(item), tipo),
+  );
 
   const assetIds = filtered.map((item) => item.assetId).filter(Boolean) as string[];
 
@@ -76,8 +81,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     .slice(0, limit)
     .map((inst) => ({ value: inst.id, label: inst.nome }));
 
-  if (hasUnknown && (!search || 'não informada'.includes(search))) {
-    institList.unshift({ value: 'unknown', label: 'Instituição não informada' });
+  // Match contra o LABEL COMPLETO (rodada 3, achado #15): o InstitutionPicker
+  // refaz o fetch usando o texto selecionado como search — "instituição não
+  // informada" não está contido em "não informada" e a opção sumia do dropdown
+  // logo após ser escolhida.
+  const UNKNOWN_LABEL = 'Instituição não informada';
+  if (hasUnknown && (!search || UNKNOWN_LABEL.toLowerCase().includes(search))) {
+    institList.unshift({ value: 'unknown', label: UNKNOWN_LABEL });
   }
 
   return NextResponse.json({ success: true, instituicoes: institList });

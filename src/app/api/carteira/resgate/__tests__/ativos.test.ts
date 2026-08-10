@@ -134,6 +134,20 @@ describe('GET /api/carteira/resgate/ativos', () => {
     });
   });
 
+  it('filtra portfolios legados sem assetId (POST rejeitaria com 400)', async () => {
+    // Rodada 3 (achado #12): a listagem oferecia posições que o resgate não
+    // consegue processar — o Step3 deixava selecionar e o POST criava venda órfã.
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      { ...mockPortfolioAcao, userId: 'user-123', quantity: 10, avgPrice: 5, totalInvested: 50 },
+    ]);
+
+    const response = await GET(createRequest({ tipo: 'personalizado', instituicaoId: 'unknown' }));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.assets).toHaveLength(0);
+  });
+
   it('retorna ativos de ações corretamente (apenas stockId)', async () => {
     mockPrisma.portfolio.findMany.mockResolvedValue([{ ...mockPortfolioAcao, userId: 'user-123' }]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([

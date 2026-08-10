@@ -58,16 +58,18 @@ const createRequest = (body: object) =>
   });
 
 describe('POST /api/carteira/resgate', () => {
-  const mockPortfolioAcao = {
+  // Value-based (personalizado): resgate parcial usa o cálculo inline.
+  // assetId precisa existir — sem ele a rota rejeita com 400 (rodada 3).
+  const mockPortfolioValueBased = {
     id: 'port-1',
     userId: 'user-123',
     quantity: 100,
     totalInvested: 1000,
     avgPrice: 10,
-    stockId: 'stock-1',
-    assetId: null,
-    stock: { ticker: 'PETR4', companyName: 'Petrobras' },
-    asset: null,
+    stockId: null,
+    assetId: 'asset-1',
+    stock: null,
+    asset: { symbol: 'ATIVO-1', name: 'Ativo Personalizado', type: 'personalizado' },
   };
 
   const mockPortfolioCrypto = {
@@ -84,7 +86,7 @@ describe('POST /api/carteira/resgate', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioAcao);
+    mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioValueBased);
     mockPrisma.portfolio.update.mockResolvedValue({});
     mockPrisma.portfolio.delete.mockResolvedValue({});
     mockPrisma.stockTransaction.create.mockImplementation((args: { data: object }) =>
@@ -136,6 +138,29 @@ describe('POST /api/carteira/resgate', () => {
       expect(data.error).toContain('metodoResgate');
     });
 
+    it('retorna 400 para portfolio legado sem assetId (não cria venda órfã)', async () => {
+      // Rodada 3 (achado #12): antes a rota criava StockTransaction com
+      // assetId null — venda órfã invisível pro recalc e pro sync de FI.
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolioValueBased,
+        assetId: null,
+        asset: null,
+      });
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'quantidade',
+          quantidade: 10,
+          cotacaoUnitaria: 32.5,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('sem vínculo de ativo');
+      expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    });
+
     it('retorna 404 quando portfolio não existe', async () => {
       mockPrisma.portfolio.findFirst.mockResolvedValue(null);
       const response = await POST(
@@ -154,7 +179,7 @@ describe('POST /api/carteira/resgate', () => {
   });
 
   describe('Resgate por quantidade', () => {
-    it('realiza resgate por quantidade com sucesso (ações)', async () => {
+    it('realiza resgate por quantidade com sucesso (value-based)', async () => {
       const response = await POST(
         createRequest({
           portfolioId: 'port-1',
@@ -208,7 +233,7 @@ describe('POST /api/carteira/resgate', () => {
   describe('Resgate por valor', () => {
     it('realiza resgate por valor com sucesso (quantidade 1)', async () => {
       mockPrisma.portfolio.findFirst.mockResolvedValue({
-        ...mockPortfolioAcao,
+        ...mockPortfolioValueBased,
         quantity: 1,
         totalInvested: 1000,
         avgPrice: 1000,
@@ -233,7 +258,7 @@ describe('POST /api/carteira/resgate', () => {
       // Auditoria 2026-08-06 achado #10: o teto era o CUSTO (totalInvested) —
       // um CDB de 10k que rendeu para 12,4k não podia ser resgatado integralmente.
       mockPrisma.portfolio.findFirst.mockResolvedValue({
-        ...mockPortfolioAcao,
+        ...mockPortfolioValueBased,
         id: 'port-cdb',
         assetId: 'asset-cdb',
         asset: { symbol: 'RENDA-FIXA-1', name: 'CDB', type: 'bond' },
@@ -285,6 +310,59 @@ describe('POST /api/carteira/resgate', () => {
       const data = await response.json();
       expect(response.status).toBe(400);
       expect(data.error).toContain('quantidade 1');
+    });
+  });
+
+  describe('Guard de instituição (rodada 3, achado #11)', () => {
+    const compraComInstituicao = {
+      date: new Date('2024-01-01T00:00:00Z'),
+      notes: JSON.stringify({ operation: { instituicaoId: 'inst-1' } }),
+    };
+    const baseBody = {
+      portfolioId: 'port-1',
+      dataResgate: '2024-01-15',
+      metodoResgate: 'quantidade',
+      quantidade: 10,
+      cotacaoUnitaria: 32.5,
+    };
+
+    it('rejeita instituição diferente da registrada na última compra', async () => {
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(compraComInstituicao);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'inst-2' }));
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Instituição inválida');
+    });
+
+    it('rejeita instituição concreta quando a compra não registrou nenhuma (guard era assimétrico)', async () => {
+      // Antes, sem instituição nas notes, QUALQUER instituicaoId passava —
+      // só o par 'unknown' + notes preenchidas era barrado.
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(null);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'inst-qualquer' }));
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Instituição inválida');
+      expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    });
+
+    it("aceita 'unknown' quando a compra não registrou instituição", async () => {
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(null);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'unknown' }));
+      expect(response.status).toBe(201);
+    });
+
+    it('aceita a instituição registrada na última compra', async () => {
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(compraComInstituicao);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'inst-1' }));
+      expect(response.status).toBe(201);
+    });
+
+    it("rejeita 'unknown' quando a compra registrou instituição", async () => {
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(compraComInstituicao);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'unknown' }));
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Instituição inválida');
     });
   });
 

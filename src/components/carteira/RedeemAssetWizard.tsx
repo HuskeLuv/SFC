@@ -11,6 +11,12 @@ import Step2RedeemInstitution from './redeemWizard/Step2RedeemInstitution';
 import Step3RedeemAsset from './redeemWizard/Step3RedeemAsset';
 import Step4RedeemInfo from './redeemWizard/Step4RedeemInfo';
 import Step5RedeemConfirmation from './redeemWizard/Step5RedeemConfirmation';
+import { usePriceDeviationWarning } from './wizard/usePriceDeviationWarning';
+import {
+  CRYPTO_PRICE_DEVIATION_THRESHOLD,
+  DEFAULT_PRICE_DEVIATION_THRESHOLD,
+} from './wizard/priceDeviationWarning';
+import PriceDeviationConfirmModal from './wizard/PriceDeviationConfirmModal';
 
 interface RedeemAssetWizardProps {
   isOpen: boolean;
@@ -65,6 +71,38 @@ const STEPS: RedeemWizardStep[] = [
   },
 ];
 
+/**
+ * Tipos com cotação de mercado comparável no resgate por quantidade — mesmo
+ * critério do AddAssetWizard (rodada 3, achado frontend #17: a compra tinha
+ * checagem de desvio de preço, o resgate não tinha nada e um erro de digitação
+ * de cotação ia direto pro custo/fluxo). RF/reservas/personalizado resgatam
+ * por valor e ficam de fora.
+ */
+function getPriceCheckParams(
+  formData: RedeemWizardFormData,
+): { enteredPrice: number; threshold: number } | null {
+  if (formData.metodoResgate !== 'quantidade') return null;
+  switch (formData.tipoAtivo) {
+    case 'acao':
+    case 'fii':
+    case 'etf':
+    case 'bdr':
+    case 'reit':
+      return {
+        enteredPrice: formData.cotacaoUnitaria,
+        threshold: DEFAULT_PRICE_DEVIATION_THRESHOLD,
+      };
+    case 'criptoativo':
+    case 'moeda':
+      return {
+        enteredPrice: formData.cotacaoUnitaria,
+        threshold: CRYPTO_PRICE_DEVIATION_THRESHOLD,
+      };
+    default:
+      return null;
+  }
+}
+
 export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: RedeemAssetWizardProps) {
   const { csrfFetch } = useCsrf();
   const [currentStep, setCurrentStep] = useState(0);
@@ -75,6 +113,33 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
   const [steps, setSteps] = useState<RedeemWizardStep[]>(STEPS);
   const isSubmittingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  // Assinatura do preço já confirmado no popup — mudar preço/data/ativo depois
+  // muda a assinatura e o popup reaparece (mesmo padrão do AddAssetWizard).
+  const [confirmedPriceSig, setConfirmedPriceSig] = useState<string | null>(null);
+
+  // Divergência entre a cotação digitada e o fechamento da data do resgate.
+  // Sem currentPrice pré-carregado no resgate: só o modo histórico
+  // (/api/ativos/price-at) emite aviso; sem fechamento, não bloqueia.
+  const priceCheck = getPriceCheckParams(formData);
+  const priceDeviation = usePriceDeviationWarning({
+    enteredPrice: priceCheck?.enteredPrice,
+    currentPrice: null,
+    threshold: priceCheck?.threshold,
+    symbol: priceCheck ? formData.ativo : null,
+    referenceDate: priceCheck ? formData.dataResgate : null,
+  });
+
+  const hasHistoricClose =
+    priceDeviation.warning != null &&
+    priceCheck != null &&
+    priceDeviation.referencePrice != null &&
+    priceDeviation.effectiveDate != null;
+
+  const priceSignature = hasHistoricClose
+    ? `${priceCheck!.enteredPrice}|${priceDeviation.referencePrice}|${priceDeviation.effectiveDate}`
+    : null;
+  const isPriceConfirmed = priceSignature !== null && priceSignature === confirmedPriceSig;
 
   useEffect(() => {
     return () => {
@@ -126,9 +191,21 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
   }, [formData]);
 
   const handleNext = () => {
+    // Ao sair do passo de Informações (índice 3) com divergência de preço não
+    // confirmada, abre o popup em vez de avançar (rodada 3, achado #17).
+    if (currentStep === 3 && hasHistoricClose && !isPriceConfirmed) {
+      setPriceModalOpen(true);
+      return;
+    }
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
+  };
+
+  const handleConfirmPrice = () => {
+    setConfirmedPriceSig(priceSignature);
+    setPriceModalOpen(false);
+    setCurrentStep((step) => Math.min(step + 1, steps.length - 1));
   };
 
   const handlePrevious = () => {
@@ -143,6 +220,8 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
     setFormData(INITIAL_FORM_DATA);
     setErrors({});
     setSubmitError(null);
+    setPriceModalOpen(false);
+    setConfirmedPriceSig(null);
     onClose();
   };
 
@@ -295,6 +374,19 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
           )}
         </div>
       </div>
+
+      {hasHistoricClose && (
+        <PriceDeviationConfirmModal
+          isOpen={priceModalOpen}
+          enteredPrice={priceCheck!.enteredPrice}
+          referencePrice={priceDeviation.referencePrice!}
+          effectiveDate={priceDeviation.effectiveDate!}
+          ratio={priceDeviation.warning!.ratio}
+          direction={priceDeviation.warning!.direction}
+          onConfirm={handleConfirmPrice}
+          onCancel={() => setPriceModalOpen(false)}
+        />
+      )}
     </Sidebar>
   );
 }

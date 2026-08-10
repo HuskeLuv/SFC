@@ -26,7 +26,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     include: { asset: true },
   });
 
-  const filtered = portfolio.filter((item) => matchesTipo(mapPortfolioToTipo(item), tipo));
+  // Sem assetId (legado) o POST /resgate rejeita com 400 — não listar o que
+  // não pode ser resgatado (rodada 3, achado #12).
+  const filtered = portfolio.filter(
+    (item) => !!item.assetId && matchesTipo(mapPortfolioToTipo(item), tipo),
+  );
 
   const assetIds = filtered.map((item) => item.assetId).filter(Boolean) as string[];
 
