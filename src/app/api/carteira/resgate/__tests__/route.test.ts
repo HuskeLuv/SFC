@@ -313,6 +313,59 @@ describe('POST /api/carteira/resgate', () => {
     });
   });
 
+  describe('Guard de instituição (rodada 3, achado #11)', () => {
+    const compraComInstituicao = {
+      date: new Date('2024-01-01T00:00:00Z'),
+      notes: JSON.stringify({ operation: { instituicaoId: 'inst-1' } }),
+    };
+    const baseBody = {
+      portfolioId: 'port-1',
+      dataResgate: '2024-01-15',
+      metodoResgate: 'quantidade',
+      quantidade: 10,
+      cotacaoUnitaria: 32.5,
+    };
+
+    it('rejeita instituição diferente da registrada na última compra', async () => {
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(compraComInstituicao);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'inst-2' }));
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Instituição inválida');
+    });
+
+    it('rejeita instituição concreta quando a compra não registrou nenhuma (guard era assimétrico)', async () => {
+      // Antes, sem instituição nas notes, QUALQUER instituicaoId passava —
+      // só o par 'unknown' + notes preenchidas era barrado.
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(null);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'inst-qualquer' }));
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Instituição inválida');
+      expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    });
+
+    it("aceita 'unknown' quando a compra não registrou instituição", async () => {
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(null);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'unknown' }));
+      expect(response.status).toBe(201);
+    });
+
+    it('aceita a instituição registrada na última compra', async () => {
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(compraComInstituicao);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'inst-1' }));
+      expect(response.status).toBe(201);
+    });
+
+    it("rejeita 'unknown' quando a compra registrou instituição", async () => {
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue(compraComInstituicao);
+      const response = await POST(createRequest({ ...baseBody, instituicaoId: 'unknown' }));
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Instituição inválida');
+    });
+  });
+
   describe('Vínculo com sonho (auditoria 2026-08-06, achado #8)', () => {
     it('resgate TOTAL de ativo vinculado sincroniza o sonho pelo objetivoId capturado antes do delete', async () => {
       mockPrisma.portfolio.findFirst.mockResolvedValue({

@@ -83,17 +83,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       orderBy: { date: 'desc' },
     });
     const institutionFromNotes = extractInstitutionId(latestCompra?.notes);
-    if (instituicaoId === 'unknown' && institutionFromNotes) {
-      return NextResponse.json(
-        { error: 'Instituição inválida para este investimento' },
-        { status: 400 },
-      );
-    }
-    if (
-      instituicaoId !== 'unknown' &&
-      institutionFromNotes &&
-      instituicaoId !== institutionFromNotes
-    ) {
+    // Guard simétrico (rodada 3, achado #11): a instituição válida é
+    // exatamente a da última compra — ou 'unknown' quando a compra não
+    // registrou nenhuma. Antes, posição sem instituição nas notes aceitava
+    // QUALQUER instituicaoId (só o par 'unknown' + notes preenchidas barrava).
+    const instituicaoValida = institutionFromNotes
+      ? instituicaoId === institutionFromNotes
+      : instituicaoId === 'unknown';
+    if (!instituicaoValida) {
       return NextResponse.json(
         { error: 'Instituição inválida para este investimento' },
         { status: 400 },
