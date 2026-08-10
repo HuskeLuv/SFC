@@ -81,8 +81,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     .slice(0, limit)
     .map((inst) => ({ value: inst.id, label: inst.nome }));
 
-  if (hasUnknown && (!search || 'não informada'.includes(search))) {
-    institList.unshift({ value: 'unknown', label: 'Instituição não informada' });
+  // Match contra o LABEL COMPLETO (rodada 3, achado #15): o InstitutionPicker
+  // refaz o fetch usando o texto selecionado como search — "instituição não
+  // informada" não está contido em "não informada" e a opção sumia do dropdown
+  // logo após ser escolhida.
+  const UNKNOWN_LABEL = 'Instituição não informada';
+  if (hasUnknown && (!search || UNKNOWN_LABEL.toLowerCase().includes(search))) {
+    institList.unshift({ value: 'unknown', label: UNKNOWN_LABEL });
   }
 
   return NextResponse.json({ success: true, instituicoes: institList });

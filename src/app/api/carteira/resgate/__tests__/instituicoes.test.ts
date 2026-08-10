@@ -104,4 +104,39 @@ describe('GET /api/carteira/resgate/instituicoes', () => {
       label: 'Instituição não informada',
     });
   });
+
+  it("mantém a opção 'unknown' quando o search é o próprio label selecionado", async () => {
+    // Rodada 3 (achado #15): ao selecionar a opção, o InstitutionPicker refaz
+    // o fetch com search="instituição não informada" — o match antigo era só
+    // contra "não informada" e a opção sumia do dropdown.
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      { ...mockPortfolioCrypto, userId: 'user-123' },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      createRequest({ tipo: 'criptoativo', search: 'Instituição não informada' }),
+    );
+    const data = await response.json();
+
+    expect(data.instituicoes).toContainEqual({
+      value: 'unknown',
+      label: 'Instituição não informada',
+    });
+  });
+
+  it("segue casando prefixos parciais como 'não inf'", async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      { ...mockPortfolioCrypto, userId: 'user-123' },
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
+
+    const response = await GET(createRequest({ tipo: 'criptoativo', search: 'não inf' }));
+    const data = await response.json();
+
+    expect(data.instituicoes).toContainEqual({
+      value: 'unknown',
+      label: 'Instituição não informada',
+    });
+  });
 });
