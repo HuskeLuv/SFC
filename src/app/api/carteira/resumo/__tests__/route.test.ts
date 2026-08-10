@@ -77,6 +77,10 @@ vi.mock('@/services/portfolio/patrimonioHistoricoBuilder', () => ({
 
 import { GET } from '../route';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
+import { loadHistoricoFromSnapshots } from '@/services/portfolio/portfolioSnapshotReader';
+import { triggerLazyBackfill } from '@/services/portfolio/portfolioSnapshotPersistence';
+import { buildPatrimonioHistorico } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { applyChartAggregation } from '@/services/portfolio/portfolioSeriesAggregation';
 
 const createGetRequest = (params = '') =>
   new NextRequest(`http://localhost/api/carteira/resumo${params}`, {
@@ -243,6 +247,47 @@ describe('GET /api/carteira/resumo', () => {
     expect(data.distribuicao.acoes.percentual).toBeCloseTo((5000 / 11500) * 100, 1);
     expect(data.distribuicao.reservaEmergencia.percentual).toBeCloseTo((6000 / 11500) * 100, 1);
     expect(data.distribuicao.imoveisBens.percentual).toBeCloseTo((500000 / 511500) * 100, 1);
+  });
+
+  it('coverage perf-gap cai no rebuild e dispara o lazy backfill (bug do gráfico flat)', async () => {
+    // Snapshots órfãos de performance eram servidos como TWR = 0 flat; agora o
+    // reader devolve perf-gap e a rota precisa rebuildar + reparar em background.
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        date: new Date('2026-01-10'),
+        type: 'compra',
+        quantity: 1,
+        price: 10,
+        total: 10,
+        assetId: 'a1',
+        notes: null,
+      },
+    ]);
+    vi.mocked(loadHistoricoFromSnapshots).mockResolvedValueOnce({
+      historicoPatrimonio: [],
+      historicoTWR: [],
+      historicoTWRPeriodo: [],
+      proventosAcumuladosByDay: new Map(),
+      coverageOk: false,
+      coverageReason: 'perf-gap',
+    });
+    vi.mocked(buildPatrimonioHistorico).mockResolvedValueOnce({
+      historicoPatrimonio: [{ data: 1735689600000, valorAplicado: 10, saldoBruto: 12 }],
+      historicoTWR: [{ data: 1735689600000, value: 0 }],
+      historicoTWRPeriodo: [],
+      cashFlowsByDay: new Map(),
+      proventosAcumuladosByDay: new Map(),
+    });
+    vi.mocked(applyChartAggregation).mockReturnValueOnce({
+      historicoPatrimonio: [],
+      historicoTWR: [],
+    });
+
+    const response = await GET(createGetRequest());
+
+    expect(response.status).toBe(200);
+    expect(triggerLazyBackfill).toHaveBeenCalledWith('user-1', expect.any(Date));
   });
 
   it('retorna 401 quando não autenticado', async () => {
