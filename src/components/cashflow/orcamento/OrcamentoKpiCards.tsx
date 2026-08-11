@@ -59,7 +59,7 @@ export function OrcamentoKpiCards({ totais, investimentos }: OrcamentoKpiCardsPr
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3">
       {cards.map((card) => (
         <div
           key={card.label}
@@ -68,7 +68,7 @@ export function OrcamentoKpiCards({ totais, investimentos }: OrcamentoKpiCardsPr
           <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
             {card.label}
           </p>
-          <p className={`mt-1 text-lg font-semibold tabular-nums ${card.accent}`}>{card.value}</p>
+          <p className={`mt-1 text-base font-semibold tabular-nums ${card.accent}`}>{card.value}</p>
           <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{card.sub}</p>
         </div>
       ))}
