@@ -112,6 +112,7 @@ model User {
   loginEvents                   LoginEvent[]
   changeLogs                    UserChangeLog[]               @relation("UserChangeLogUser")
   cashflowPatrimonioSnapshots   CashflowPatrimonioSnapshot[]  @relation("CashflowPatrimonioSnapshotUser")
+  cashflowOrcamentos            CashflowOrcamento[]           @relation("CashflowOrcamentoUser")
 }
 
 /**
@@ -251,6 +252,7 @@ model CashflowGroup {
   overrides  CashflowGroup[] @relation("GroupOverride")
   // Tombstone: usuário ocultou um template. Override row com hidden=true some do tree.
   hidden     Boolean         @default(false)
+  orcamentos CashflowOrcamento[] @relation("CashflowOrcamentoGroup")
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
@@ -289,6 +291,30 @@ model CashflowItem {
   @@index([groupId])
   @@index([userId])
   @@index([templateId])
+}
+
+// Meta mensal de orçamento da seção "Orçamento vs Real": um valor por
+// (usuário, ano, categoria). A categoria é um CashflowGroup de despesa
+// (grupo ou subgrupo). A linha especial de investimentos usa groupId=null
+// com tipo='investimentos' e tipoMeta='percentual' (% da renda do mês);
+// a unicidade dela é garantida por índice parcial criado na migration
+// (Postgres trata NULLs como distintos em unique compostas).
+model CashflowOrcamento {
+  id        String         @id @default(uuid())
+  userId    String
+  user      User           @relation("CashflowOrcamentoUser", fields: [userId], references: [id], onDelete: Cascade)
+  groupId   String? // null apenas na linha especial de investimentos
+  group     CashflowGroup? @relation("CashflowOrcamentoGroup", fields: [groupId], references: [id], onDelete: Cascade)
+  tipo      String         @default("grupo") // 'grupo' | 'investimentos'
+  year      Int
+  tipoMeta  String         @default("valor") // 'valor' (R$/mês) | 'percentual' (% da renda)
+  valor     Decimal        @db.Decimal(15, 2)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([userId, year, tipo, groupId])
+  @@index([userId, year])
+  @@map("cashflow_orcamentos")
 }
 
 model CashflowValue {
