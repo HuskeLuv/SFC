@@ -45,7 +45,7 @@ export function OrcamentoKpiCards({ totais, investimentos }: OrcamentoKpiCardsPr
       value: investimentos ? formatBRL(investimentos.real) : '—',
       sub:
         investDelta === null
-          ? 'defina a meta em % da renda'
+          ? 'defina a meta mensal'
           : investDelta >= 0
             ? `+${formatBRL(investDelta)} acima da meta`
             : `${formatBRL(Math.abs(investDelta))} abaixo da meta`,

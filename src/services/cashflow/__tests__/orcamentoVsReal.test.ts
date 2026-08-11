@@ -123,33 +123,46 @@ describe('buildOrcamentoVsReal', () => {
     expect(result.totais.metaMensal).toBe(4500);
   });
 
-  it('meta de investimentos = % da renda do mês, por modo', () => {
+  it('meta de investimentos em R$ mensal (padrão): valor fixo nos dois modos', () => {
     const result = buildOrcamentoVsReal({
       groups: sampleTree(),
-      metas: [{ groupId: null, tipo: 'investimentos', tipoMeta: 'percentual', valor: 10 }],
+      metas: [{ groupId: null, tipo: 'investimentos', tipoMeta: 'valor', valor: 750 }],
       investimentosRealPorMes: [900, ...Array(11).fill(0)],
     });
 
-    expect(result.investimentos.percentual).toBe(10);
+    expect(result.investimentos.tipoMeta).toBe('valor');
+    expect(result.investimentos.valorMeta).toBe(750);
+    expect(result.investimentos.metaPorMes.lancado.every((v) => v === 750)).toBe(true);
+    expect(result.investimentos.metaPorMes.consolidado.every((v) => v === 750)).toBe(true);
+    expect(result.investimentos.realPorMes[0]).toBe(900);
+  });
+
+  it('meta de investimentos legada em % da renda ainda calcula por modo', () => {
+    const result = buildOrcamentoVsReal({
+      groups: sampleTree(),
+      metas: [{ groupId: null, tipo: 'investimentos', tipoMeta: 'percentual', valor: 10 }],
+      investimentosRealPorMes: Array(12).fill(0),
+    });
+
+    expect(result.investimentos.tipoMeta).toBe('percentual');
     // Renda lançada: jan 7500, fev 8000 → metas 750 / 800
     expect(result.investimentos.metaPorMes.lancado[0]).toBe(750);
     expect(result.investimentos.metaPorMes.lancado[1]).toBe(800);
     // Renda consolidada: só jan está verde → fev meta consolidada = 0
     expect(result.investimentos.metaPorMes.consolidado[0]).toBe(750);
     expect(result.investimentos.metaPorMes.consolidado[1]).toBe(0);
-    expect(result.investimentos.realPorMes[0]).toBe(900);
   });
 
-  it('sem meta de investimentos: percentual null e metaPorMes zerada', () => {
+  it('sem meta de investimentos: tipoMeta null e metaPorMes zerada', () => {
     const result = buildOrcamentoVsReal({
       groups: sampleTree(),
       metas: [],
       investimentosRealPorMes: Array(12).fill(0),
     });
 
-    expect(result.investimentos.percentual).toBeNull();
+    expect(result.investimentos.tipoMeta).toBeNull();
+    expect(result.investimentos.valorMeta).toBeNull();
     expect(result.investimentos.metaPorMes.lancado.every((v) => v === 0)).toBe(true);
-    // Entradas seguem expostas (base do % na UI de configuração)
     expect(result.investimentos.entradasPorMes.lancado[0]).toBe(7500);
   });
 

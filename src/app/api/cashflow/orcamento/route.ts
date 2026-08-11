@@ -154,10 +154,11 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
       } else {
         // Linha de investimentos (groupId NULL): unique composta não pega
         // NULL no Postgres — a unicidade real vem do índice parcial da
-        // migration; aqui fazemos update-então-create.
+        // migration; aqui fazemos update-então-create. Meta em R$ mensal
+        // (tipoMeta 'valor'); update também converte metas legadas em %.
         const updated = await tx.cashflowOrcamento.updateMany({
           where: { userId: targetUserId, year, tipo: 'investimentos' },
-          data: { valor: meta.valor },
+          data: { valor: meta.valor, tipoMeta: 'valor' },
         });
         if (updated.count === 0) {
           await tx.cashflowOrcamento.create({
@@ -165,7 +166,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
               userId: targetUserId,
               year,
               tipo: 'investimentos',
-              tipoMeta: 'percentual',
+              tipoMeta: 'valor',
               groupId: null,
               valor: meta.valor,
             },
@@ -196,26 +197,24 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
       return {
         field: key,
         label: isInvestimentos
-          ? 'Meta de investimentos (% da renda)'
+          ? 'Meta mensal — Investimentos'
           : `Meta mensal — ${groupNames.get(meta.groupId!) ?? meta.groupId}`,
         before: prev ? Number(prev.valor) : null,
         after: meta.valor,
-        format: isInvestimentos ? ('percent' as const) : ('currency' as const),
+        format: 'currency' as const,
       };
     }),
     ...deletes
       .filter((d) => beforeByKey.has(d === 'investimentos' ? 'investimentos' : d))
       .map((d) => {
         const prev = beforeByKey.get(d === 'investimentos' ? 'investimentos' : d)!;
-        const isInvestimentos = d === 'investimentos';
         return {
           field: d,
-          label: isInvestimentos
-            ? 'Meta de investimentos (% da renda)'
-            : `Meta mensal — ${prev.groupId}`,
+          label:
+            d === 'investimentos' ? 'Meta mensal — Investimentos' : `Meta mensal — ${prev.groupId}`,
           before: Number(prev.valor),
           after: null,
-          format: isInvestimentos ? ('percent' as const) : ('currency' as const),
+          format: 'currency' as const,
         };
       }),
   ];

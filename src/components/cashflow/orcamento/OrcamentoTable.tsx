@@ -74,28 +74,19 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
       );
     }
     // Exibe a meta DA JANELA (mês = mensal; acumulado = mensal × meses);
-    // a edição é sempre do valor mensal (ou do % nos investimentos).
-    const label =
-      linha.metaBase === null
-        ? 'Definir'
-        : linha.isInvestimentos
-          ? formatPct(linha.metaBase)
-          : formatBRL(linha.metaJanela ?? linha.metaBase);
+    // a edição é sempre do valor mensal em R$ — investimentos inclusive.
+    const label = linha.metaJanela === null ? 'Definir' : formatBRL(linha.metaJanela);
     return (
       <button
         type="button"
         onClick={() => startEdit(linha)}
         disabled={savingKey === linha.key}
         className={`rounded px-1.5 py-0.5 text-right text-sm transition hover:bg-brand-50 dark:hover:bg-brand-500/10 ${
-          linha.metaBase === null
+          linha.metaJanela === null
             ? 'italic text-gray-400 hover:text-brand-600 dark:text-gray-500'
             : 'text-gray-800 dark:text-gray-100'
         } ${savingKey === linha.key ? 'opacity-50' : ''}`}
-        title={
-          linha.isInvestimentos
-            ? 'Meta em % da renda do mês — clique para editar (vazio remove)'
-            : 'Meta mensal em R$ — clique para editar (vazio remove)'
-        }
+        title="Meta mensal em R$ — clique para editar (vazio remove)"
       >
         {label}
       </button>
@@ -135,9 +126,6 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
             <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
               {linha.parentNome}
             </span>
-          )}
-          {linha.isInvestimentos && (
-            <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">% da renda</span>
           )}
         </td>
         <td className="py-2.5 pr-4 text-right">{renderMetaCell(linha)}</td>
@@ -193,7 +181,12 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
         <tbody className="[&>tr>td:first-child]:pl-4">
           {linhas.map(renderLinha)}
 
-          {/* Total de despesas (sem investimentos — aporte não é despesa) */}
+          {/* Investimentos entre as categorias e o Total, como na planilha
+              (linha 36 do modelo); diferença invertida: investir mais é bom. */}
+          {investimentos && renderLinha(investimentos)}
+
+          {/* Total de despesas (sem investimentos — aporte não é despesa,
+              mesma convenção do SUM(D25:D35) da planilha) */}
           <tr className="border-b border-gray-200 bg-gray-50 font-medium dark:border-gray-800 dark:bg-white/[0.02]">
             <td className="py-2.5 pr-4 text-sm text-gray-800 dark:text-gray-100">Total</td>
             <td className="py-2.5 pr-4 text-right text-sm text-gray-800 dark:text-gray-100">
@@ -213,8 +206,6 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
             </td>
             <td className="py-2.5" />
           </tr>
-
-          {investimentos && renderLinha(investimentos)}
         </tbody>
       </table>
     </div>

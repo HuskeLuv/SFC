@@ -8,6 +8,7 @@ import type { SeriePorModo } from '@/services/cashflow/orcamentoVsReal';
 import { OrcamentoKpiCards } from './OrcamentoKpiCards';
 import { OrcamentoTable, type OrcamentoLinha } from './OrcamentoTable';
 import OrcamentoChart from './OrcamentoChart';
+import OrcamentoMensalChart from './OrcamentoMensalChart';
 
 type Visao = 'mes' | 'ano';
 type ModoReal = 'lancado' | 'consolidado';
@@ -21,7 +22,8 @@ type ModoReal = 'lancado' | 'consolidado';
  *   decorridos vs real acumulado).
  * - Real "Lançado" (todas as células, padrão) ou "Consolidado" (apenas as
  *   pintadas de Pago/Recebido na planilha).
- * - Linha Investimentos: meta em % da renda do mês; real = Aporte/Resgate.
+ * - Linha Investimentos: meta mensal em R$ como as categorias, posicionada
+ *   antes do Total (fora da soma); real = Aporte/Resgate.
  */
 export default function OrcamentoVsRealSection() {
   const { year } = useCashflowYear();
@@ -68,16 +70,16 @@ export default function OrcamentoVsRealSection() {
 
   const investimentos = useMemo<OrcamentoLinha | null>(() => {
     if (!data) return null;
+    const inv = data.investimentos;
     return {
       key: 'investimentos',
       nome: 'Investimentos',
       parentNome: null,
-      metaBase: data.investimentos.percentual,
-      metaJanela:
-        data.investimentos.percentual !== null
-          ? janela.somaJanela(data.investimentos.metaPorMes[modoReal])
-          : null,
-      real: janela.somaJanela(data.investimentos.realPorMes),
+      // Edição sempre em R$ mensal; meta legada em % não pré-preenche o
+      // input (a próxima edição grava em R$ e converte a linha).
+      metaBase: inv.tipoMeta === 'valor' ? inv.valorMeta : null,
+      metaJanela: inv.tipoMeta !== null ? janela.somaJanela(inv.metaPorMes[modoReal]) : null,
+      real: janela.somaJanela(inv.realPorMes),
       isInvestimentos: true,
     };
   }, [data, janela, modoReal]);
@@ -208,6 +210,13 @@ export default function OrcamentoVsRealSection() {
           <OrcamentoChart linhas={linhas} />
         </div>
       </div>
+
+      {/* Barras mês a mês (modelo "Orçamento vs. Atual" da planilha) — o Real
+          acompanha o toggle Lançado/Consolidado. */}
+      <OrcamentoMensalChart
+        orcadoMensal={data.totais.metaMensal}
+        realPorMes={data.totais.realPorMes[modoReal]}
+      />
     </div>
   );
 }

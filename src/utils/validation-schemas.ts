@@ -162,33 +162,21 @@ export const cashflowBatchUpdateSchema = z.object({
   deletes: z.array(z.string()).optional(),
 });
 
-export const cashflowOrcamentoUpdateSchema = z
-  .object({
-    year: z.number().int().min(2000).max(2100),
-    metas: z
-      .array(
-        z.object({
-          // null = linha especial de Investimentos (meta em % da renda)
-          groupId: zString(255).nullable(),
-          valor: z.number().finite().min(0),
-        }),
-      )
-      .max(200)
-      .optional(),
-    // groupId da categoria ou o literal 'investimentos'
-    deletes: z.array(zString(255)).max(200).optional(),
-  })
-  .superRefine((data, ctx) => {
-    data.metas?.forEach((meta, index) => {
-      if (meta.groupId === null && meta.valor > 100) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['metas', index, 'valor'],
-          message: 'Meta de investimentos é percentual da renda: use um valor entre 0 e 100.',
-        });
-      }
-    });
-  });
+export const cashflowOrcamentoUpdateSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+  metas: z
+    .array(
+      z.object({
+        // null = linha especial de Investimentos (meta mensal em R$, como as categorias)
+        groupId: zString(255).nullable(),
+        valor: z.number().finite().min(0),
+      }),
+    )
+    .max(200)
+    .optional(),
+  // groupId da categoria ou o literal 'investimentos'
+  deletes: z.array(zString(255)).max(200).optional(),
+});
 
 // stockTransactionSchema / watchlistAddSchema removidos na Sprint 5B
 // (consolidação Stock → Asset). Substitutos: /api/carteira/operacao
