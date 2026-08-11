@@ -1595,19 +1595,31 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         if (dataRef && nameMatch) {
           const bondType = nameMatch[1].trim();
           const maturityYear = parseInt(nameMatch[2], 10);
-          const precoDia = await prisma.tesouroDiretoPrice.findFirst({
-            where: {
-              bondType,
-              maturityDate: {
-                gte: new Date(`${maturityYear}-01-01`),
-                lt: new Date(`${maturityYear + 1}-01-01`),
-              },
-              baseDate: { lte: new Date(dataRef) },
+          const whereTitulo = {
+            bondType,
+            maturityDate: {
+              gte: new Date(`${maturityYear}-01-01`),
+              lt: new Date(`${maturityYear + 1}-01-01`),
             },
+          };
+          const precoDia = await prisma.tesouroDiretoPrice.findFirst({
+            where: { ...whereTitulo, baseDate: { lte: new Date(dataRef) } },
             orderBy: { baseDate: 'desc' },
             select: { sellPU: true },
           });
-          const sellPU = precoDia?.sellPU ? Number(precoDia.sellPU) : 0;
+          // Compra datada ANTES do início da cobertura de PU (a ingestão começa
+          // em jun/2026): usa o primeiro PU DEPOIS da data como aproximação —
+          // muito melhor que o fallback qty=1, que fazia o pricer colapsar o
+          // valor da posição no PU do título (report 10/08, Tesouro Prefixado
+          // por valor).
+          const precoDepois = precoDia
+            ? null
+            : await prisma.tesouroDiretoPrice.findFirst({
+                where: { ...whereTitulo, baseDate: { gt: new Date(dataRef) } },
+                orderBy: { baseDate: 'asc' },
+                select: { sellPU: true },
+              });
+          const sellPU = Number(precoDia?.sellPU ?? precoDepois?.sellPU ?? 0);
           if (sellPU > 0) {
             quantidadeFinal = valorInvestido / sellPU;
             precoFinal = sellPU;

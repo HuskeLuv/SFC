@@ -160,3 +160,91 @@ describe('createFixedIncomePricer — Bug #15 (idempotência entre rotas)', () =
     expect(valorDetail).toBe(valorConsolidated);
   });
 });
+
+describe('Tesouro por valor — âncora de PU (report 10/08)', () => {
+  const makeTesouroFi = (overrides: Partial<FixedIncomeAssetWithAsset> = {}) =>
+    makeCdiPrefixadoFi({
+      id: 'fi-td',
+      assetId: 'asset-td',
+      description: 'Tesouro Prefixado 2029',
+      startDate: new Date('2026-01-15'),
+      maturityDate: new Date('2029-01-01'),
+      investedAmount: 1000,
+      annualRate: 0,
+      tesouroBondType: 'Tesouro Prefixado',
+      tesouroMaturity: new Date('2029-01-01'),
+      asset: {
+        symbol: 'TD-TESOURO-PREFIXADO-2029',
+        name: 'Tesouro Prefixado 2029',
+        type: 'tesouro-direto',
+      },
+      ...overrides,
+    });
+
+  const puRows = [
+    {
+      bondType: 'Tesouro Prefixado',
+      maturityDate: new Date('2029-01-01'),
+      baseDate: new Date('2026-06-02'),
+      basePU: 800,
+      sellPU: 800,
+      buyPU: null,
+    },
+    {
+      bondType: 'Tesouro Prefixado',
+      maturityDate: new Date('2029-01-01'),
+      baseDate: new Date('2026-08-07'),
+      basePU: 820,
+      sellPU: 820,
+      buyPU: null,
+    },
+  ];
+
+  beforeEach(() => {
+    mockPrisma.tesouroDiretoPrice.findMany.mockResolvedValue(puRows);
+  });
+
+  it('qty=1 placeholder (aplicação por valor sem PU do dia) ancora no PU oficial, não no valor aplicado', async () => {
+    // Bug: implied PU = 1000/1 = 1000 (desvio 25% do oficial 800) → o fator
+    // PU_dia/1000 colapsava o valor da posição no PU do título (820).
+    const fi = makeTesouroFi({ qty: 1 });
+    const pricer = await createFixedIncomePricer('user-1', {
+      asOfDate: new Date('2026-08-07'),
+      preloadedAssets: [fi],
+    });
+    // correto: 1000 × 820/800 = 1025 (valor aplicado marcado pela variação do título)
+    expect(pricer.getCurrentValue(fi)).toBeCloseTo(1025, 2);
+  });
+
+  it('qty fracionário real (derivado do PU) usa o PU efetivo de aquisição', async () => {
+    const fi = makeTesouroFi({ qty: 1.25 }); // implied = 1000/1.25 = 800 = oficial
+    const pricer = await createFixedIncomePricer('user-1', {
+      asOfDate: new Date('2026-08-07'),
+      preloadedAssets: [fi],
+    });
+    expect(pricer.getCurrentValue(fi)).toBeCloseTo(1025, 2);
+  });
+
+  it('estilo Kinvo (~1 cota inteira, preço pago ≈ PU) mantém o PU implícito', async () => {
+    const fi = makeTesouroFi({ qty: 1, investedAmount: 805 }); // implied 805, desvio 0,6%
+    const pricer = await createFixedIncomePricer('user-1', {
+      asOfDate: new Date('2026-08-07'),
+      preloadedAssets: [fi],
+    });
+    // 805 × 820/805 = 820 — 1 cota real vale o PU do dia
+    expect(pricer.getCurrentValue(fi)).toBeCloseTo(820, 2);
+  });
+
+  it('sem PU oficial nenhum, mantém o PU implícito (comportamento antigo)', async () => {
+    mockPrisma.tesouroDiretoPrice.findMany.mockResolvedValue([]);
+    // título/vencimento diferentes: fura o cache TTL de módulo do pricer
+    // (senão as linhas de PU dos testes anteriores voltam do cache)
+    const fi = makeTesouroFi({ qty: 1, tesouroMaturity: new Date('2031-01-01') });
+    const pricer = await createFixedIncomePricer('user-1', {
+      asOfDate: new Date('2026-08-07'),
+      preloadedAssets: [fi],
+    });
+    // sem série de PU: fator fica 1 → devolve o valor aplicado
+    expect(pricer.getCurrentValue(fi)).toBeCloseTo(1000, 2);
+  });
+});
