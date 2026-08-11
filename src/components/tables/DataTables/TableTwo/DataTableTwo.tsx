@@ -432,6 +432,10 @@ export default function DataTableTwo() {
         } else {
           await refetch();
         }
+        // Valores/cores editados mudam o "Real" da seção Orçamento vs Real.
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.cashflow.orcamento(currentYear),
+        });
         // Editar a linha-espelho de um sonho re-deriva o "Realizado" no backend;
         // invalida a query de sonhos pra a tela de Planejamento refletir na hora.
         queryClient.invalidateQueries({ queryKey: queryKeys.planejamento.all });
