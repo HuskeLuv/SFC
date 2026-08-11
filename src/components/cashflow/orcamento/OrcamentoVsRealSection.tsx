@@ -8,6 +8,7 @@ import type { SeriePorModo } from '@/services/cashflow/orcamentoVsReal';
 import { OrcamentoKpiCards } from './OrcamentoKpiCards';
 import { OrcamentoTable, type OrcamentoLinha } from './OrcamentoTable';
 import OrcamentoChart from './OrcamentoChart';
+import OrcamentoMensalChart from './OrcamentoMensalChart';
 
 type Visao = 'mes' | 'ano';
 type ModoReal = 'lancado' | 'consolidado';
@@ -208,6 +209,13 @@ export default function OrcamentoVsRealSection() {
           <OrcamentoChart linhas={linhas} />
         </div>
       </div>
+
+      {/* Barras mês a mês (modelo "Orçamento vs. Atual" da planilha) — o Real
+          acompanha o toggle Lançado/Consolidado. */}
+      <OrcamentoMensalChart
+        orcadoMensal={data.totais.metaMensal}
+        realPorMes={data.totais.realPorMes[modoReal]}
+      />
     </div>
   );
 }

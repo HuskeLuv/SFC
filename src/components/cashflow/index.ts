@@ -28,3 +28,4 @@ export { default as OrcamentoVsRealSection } from './orcamento/OrcamentoVsRealSe
 export { OrcamentoTable } from './orcamento/OrcamentoTable';
 export { OrcamentoKpiCards } from './orcamento/OrcamentoKpiCards';
 export { default as OrcamentoChart } from './orcamento/OrcamentoChart';
+export { default as OrcamentoMensalChart } from './orcamento/OrcamentoMensalChart';
