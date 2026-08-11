@@ -8,9 +8,9 @@ import { formatBRL } from '@/utils/format';
 import type { OrcamentoLinha } from './OrcamentoTable';
 
 /**
- * Donut de distribuição por categoria, espelhando o gráfico "Orçamento" da
- * planilha modelo (rosca com total no centro). Toggle Orçado (padrão, como o
- * modelo) × Real; fatias em R$ da janela selecionada (mês ou acumulado).
+ * Donut de distribuição por categoria, espelhando o gráfico de rosca da
+ * planilha modelo (total no centro). Toggle Real (padrão) × Orçado; fatias
+ * em R$ da janela selecionada (mês ou acumulado).
  * Paleta na família do tema clássico do Excel — mesma linguagem visual da
  * planilha e do PieChartCarteiraInvestimentos.
  */
@@ -39,7 +39,7 @@ interface OrcamentoChartProps {
 export default function OrcamentoChart({ linhas }: OrcamentoChartProps) {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
-  const [serie, setSerie] = useState<Serie>('orcado');
+  const [serie, setSerie] = useState<Serie>('real');
 
   const { labels, valores, total } = useMemo(() => {
     const fatias = linhas
@@ -129,17 +129,17 @@ export default function OrcamentoChart({ linhas }: OrcamentoChartProps) {
         <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-800 dark:bg-white/[0.03]">
           <button
             type="button"
-            className={toggleClass(serie === 'orcado')}
-            onClick={() => setSerie('orcado')}
-          >
-            Orçado
-          </button>
-          <button
-            type="button"
             className={toggleClass(serie === 'real')}
             onClick={() => setSerie('real')}
           >
             Real
+          </button>
+          <button
+            type="button"
+            className={toggleClass(serie === 'orcado')}
+            onClick={() => setSerie('orcado')}
+          >
+            Orçado
           </button>
         </div>
       </div>
