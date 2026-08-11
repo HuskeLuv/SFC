@@ -52,11 +52,16 @@ export interface OrcamentoCategoria {
 }
 
 export interface OrcamentoInvestimentos {
-  /** Meta em % da renda do mês (null = não definida). */
-  percentual: number | null;
-  /** Renda (entradas) por mês, base do cálculo da meta. */
+  /** 'valor' (R$ mensal fixo, padrão) | 'percentual' (legado, % da renda) | null sem meta. */
+  tipoMeta: string | null;
+  /** Valor bruto persistido: R$ mensal ou % conforme tipoMeta (null = sem meta). */
+  valorMeta: number | null;
+  /** Renda (entradas) por mês — base quando tipoMeta='percentual'. */
   entradasPorMes: SeriePorModo;
-  /** Meta em R$ por mês = percentual × entradas do mês (por modo). */
+  /**
+   * Meta em R$ por mês: valor fixo repetido (tipoMeta='valor') ou
+   * percentual × entradas do mês por modo (tipoMeta='percentual').
+   */
   metaPorMes: SeriePorModo;
   /**
    * Real investido por mês (linha Aporte/Resgate derivada das transações).
@@ -164,11 +169,11 @@ export function buildOrcamentoVsReal({
   investimentosRealPorMes: number[];
 }): OrcamentoVsReal {
   const metaPorGrupo = new Map<string, number>();
-  let percentualInvestimentos: number | null = null;
+  let metaInvestimentosRow: OrcamentoMetaRow | null = null;
 
   for (const meta of metas) {
     if (meta.tipo === 'investimentos') {
-      percentualInvestimentos = meta.valor;
+      metaInvestimentosRow = meta;
     } else if (meta.groupId) {
       metaPorGrupo.set(meta.groupId, meta.valor);
     }
@@ -192,11 +197,20 @@ export function buildOrcamentoVsReal({
   );
 
   const entradas = entradasPorMes(groups);
-  const pct = percentualInvestimentos;
-  const metaInvestimentos: SeriePorModo = {
-    lancado: entradas.lancado.map((v) => (pct !== null ? round2((pct / 100) * v) : 0)),
-    consolidado: entradas.consolidado.map((v) => (pct !== null ? round2((pct / 100) * v) : 0)),
-  };
+  // Meta de investimentos: R$ mensal fixo (padrão, como as categorias) ou
+  // % da renda do mês (legado — planilha guardava o % numa célula auxiliar).
+  const metaInvestimentos: SeriePorModo = (() => {
+    if (!metaInvestimentosRow) return { lancado: zeros(), consolidado: zeros() };
+    if (metaInvestimentosRow.tipoMeta === 'percentual') {
+      const pct = metaInvestimentosRow.valor;
+      return {
+        lancado: entradas.lancado.map((v) => round2((pct / 100) * v)),
+        consolidado: entradas.consolidado.map((v) => round2((pct / 100) * v)),
+      };
+    }
+    const fixo = Array(MONTHS).fill(round2(metaInvestimentosRow.valor));
+    return { lancado: fixo, consolidado: [...fixo] };
+  })();
 
   const realTotais: SeriePorModo = { lancado: zeros(), consolidado: zeros() };
   categorias.forEach((cat) => {
@@ -211,7 +225,8 @@ export function buildOrcamentoVsReal({
   return {
     categorias,
     investimentos: {
-      percentual: pct,
+      tipoMeta: metaInvestimentosRow?.tipoMeta ?? null,
+      valorMeta: metaInvestimentosRow?.valor ?? null,
       entradasPorMes: entradas,
       metaPorMes: metaInvestimentos,
       realPorMes: (investimentosRealPorMes ?? zeros()).slice(0, MONTHS).map(round2),

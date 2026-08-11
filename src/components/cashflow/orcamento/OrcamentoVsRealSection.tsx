@@ -69,16 +69,16 @@ export default function OrcamentoVsRealSection() {
 
   const investimentos = useMemo<OrcamentoLinha | null>(() => {
     if (!data) return null;
+    const inv = data.investimentos;
     return {
       key: 'investimentos',
       nome: 'Investimentos',
       parentNome: null,
-      metaBase: data.investimentos.percentual,
-      metaJanela:
-        data.investimentos.percentual !== null
-          ? janela.somaJanela(data.investimentos.metaPorMes[modoReal])
-          : null,
-      real: janela.somaJanela(data.investimentos.realPorMes),
+      // Edição sempre em R$ mensal; meta legada em % não pré-preenche o
+      // input (a próxima edição grava em R$ e converte a linha).
+      metaBase: inv.tipoMeta === 'valor' ? inv.valorMeta : null,
+      metaJanela: inv.tipoMeta !== null ? janela.somaJanela(inv.metaPorMes[modoReal]) : null,
+      real: janela.somaJanela(inv.realPorMes),
       isInvestimentos: true,
     };
   }, [data, janela, modoReal]);

@@ -226,26 +226,35 @@ describe('PUT /api/cashflow/orcamento', () => {
     );
   });
 
-  it('meta de investimentos: cria quando não existe (update-então-create)', async () => {
+  it('meta de investimentos: cria em R$ quando não existe (update-então-create)', async () => {
     mockPrisma.cashflowOrcamento.updateMany.mockResolvedValue({ count: 0 });
 
     const response = await PUT(
-      createPutRequest({ year: 2026, metas: [{ groupId: null, valor: 10 }] }),
+      createPutRequest({ year: 2026, metas: [{ groupId: null, valor: 750 }] }),
     );
 
     expect(response.status).toBe(200);
     expect(mockPrisma.cashflowOrcamento.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ tipo: 'investimentos', tipoMeta: 'percentual', valor: 10 }),
+        data: expect.objectContaining({ tipo: 'investimentos', tipoMeta: 'valor', valor: 750 }),
       }),
     );
   });
 
-  it('rejeita meta percentual acima de 100', async () => {
+  it('meta de investimentos existente: update converte legado % para R$', async () => {
+    mockPrisma.cashflowOrcamento.updateMany.mockResolvedValue({ count: 1 });
+
     const response = await PUT(
-      createPutRequest({ year: 2026, metas: [{ groupId: null, valor: 150 }] }),
+      createPutRequest({ year: 2026, metas: [{ groupId: null, valor: 900 }] }),
     );
-    expect(response.status).toBe(400);
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.cashflowOrcamento.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { valor: 900, tipoMeta: 'valor' },
+      }),
+    );
+    expect(mockPrisma.cashflowOrcamento.create).not.toHaveBeenCalled();
   });
 
   it('retorna 404 para categoria inexistente ou de outro usuário', async () => {
