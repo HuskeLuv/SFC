@@ -22,7 +22,8 @@ type ModoReal = 'lancado' | 'consolidado';
  *   decorridos vs real acumulado).
  * - Real "Lançado" (todas as células, padrão) ou "Consolidado" (apenas as
  *   pintadas de Pago/Recebido na planilha).
- * - Linha Investimentos: meta em % da renda do mês; real = Aporte/Resgate.
+ * - Linha Investimentos: meta mensal em R$ como as categorias, posicionada
+ *   antes do Total (fora da soma); real = Aporte/Resgate.
  */
 export default function OrcamentoVsRealSection() {
   const { year } = useCashflowYear();
