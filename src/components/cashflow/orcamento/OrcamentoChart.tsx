@@ -11,24 +11,27 @@ import type { OrcamentoLinha } from './OrcamentoTable';
  * Donut de distribuição por categoria, espelhando o gráfico de rosca da
  * planilha modelo (total no centro). Toggle Real (padrão) × Orçado; fatias
  * em R$ da janela selecionada (mês ou acumulado).
- * Paleta na família do tema clássico do Excel — mesma linguagem visual da
- * planilha e do PieChartCarteiraInvestimentos.
+ *
+ * Cores POR NOME de categoria, extraídas do próprio donut da planilha
+ * (xl/charts/chart1.xml — cada fatia tem cor explícita); categorias que não
+ * existem no modelo caem nos accents do tema da mesma planilha. Mapear por
+ * nome mantém a cor da categoria estável ao alternar Real/Orçado.
  */
 
-const PALETTE = [
-  '#4F81BD',
-  '#C0504D',
-  '#9BBB59',
-  '#8064A2',
-  '#4BACC6',
-  '#F79646',
-  '#FFC000',
-  '#7030A0',
-  '#9E8A58',
-  '#64748B',
-  '#E46C0A',
-  '#00CCFF',
-];
+const CORES_PLANILHA: Record<string, string> = {
+  Habitação: '#9E8A58',
+  Transporte: '#61D836',
+  Saúde: '#929292',
+  'Despesas Pessoais': '#4472C4',
+  Lazer: '#FFC000',
+  'Despesas Financeiras': '#E6E0D2',
+  Agradecimentos: '#404040',
+  'Despesas Empresa': '#E6E0D2',
+  'Planejamento Financeiro': '#685B3A',
+};
+
+// Accents do tema da planilha (theme1.xml), para categorias fora do modelo.
+const CORES_FALLBACK = ['#00A2FF', '#16E7CF', '#FFD932', '#FF644E', '#FF42A1', '#5E5E5E'];
 
 type Serie = 'orcado' | 'real';
 
@@ -41,23 +44,28 @@ export default function OrcamentoChart({ linhas }: OrcamentoChartProps) {
   const isDarkMode = theme === 'dark';
   const [serie, setSerie] = useState<Serie>('real');
 
-  const { labels, valores, total } = useMemo(() => {
+  const { labels, valores, total, cores } = useMemo(() => {
     const fatias = linhas
       .map((l) => ({
         nome: l.nome,
         valor: serie === 'orcado' ? (l.metaJanela ?? 0) : l.real,
       }))
       .filter((f) => f.valor > 0);
+    let fallbackIdx = 0;
+    const coresFatias = fatias.map(
+      (f) => CORES_PLANILHA[f.nome] ?? CORES_FALLBACK[fallbackIdx++ % CORES_FALLBACK.length],
+    );
     return {
       labels: fatias.map((f) => f.nome),
       valores: fatias.map((f) => f.valor),
       total: fatias.reduce((sum, f) => sum + f.valor, 0),
+      cores: coresFatias,
     };
   }, [linhas, serie]);
 
   const options: ApexOptions = useMemo(
     () => ({
-      colors: PALETTE,
+      colors: cores,
       labels,
       chart: { fontFamily: 'Outfit, sans-serif', type: 'donut' },
       stroke: { show: false },
@@ -110,7 +118,7 @@ export default function OrcamentoChart({ linhas }: OrcamentoChartProps) {
         itemMargin: { horizontal: 8, vertical: 2 },
       },
     }),
-    [labels, total, serie, isDarkMode],
+    [labels, cores, total, serie, isDarkMode],
   );
 
   const toggleClass = (active: boolean) =>
