@@ -26,3 +26,17 @@ export const CASHFLOW_COLOR_LEGEND: readonly CashflowColorLegendEntry[] = [
 
 export const cashflowColorCss = (value: CashflowColorValue): string =>
   CASHFLOW_COLOR_LEGEND.find((c) => c.value === value)?.cssColor ?? '#000000';
+
+/**
+ * Cores que marcam uma célula como CONSOLIDADA (dinheiro que de fato entrou/
+ * saiu): verde "Recebido" e vermelho "Pago". Azul (futuro), amarelo (cartão)
+ * e preto (a pagar/receber) contam apenas como lançado.
+ *
+ * `CashflowValue.color` guarda hex CSS, mas células antigas podem ter o token
+ * ('red'/'green') — aceitamos os dois formatos.
+ */
+export const isConsolidadoColor = (color: string | null | undefined): boolean => {
+  if (!color) return false;
+  const c = color.trim().toLowerCase();
+  return c === '#ff0000' || c === 'red' || c === '#76933c' || c === 'green';
+};
