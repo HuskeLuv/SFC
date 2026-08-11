@@ -312,23 +312,38 @@ export const createFixedIncomePricer = async (
     const key = `${fi.tesouroBondType}|${fi.tesouroMaturity.toISOString()}`;
     const tesouroPU = tesouroPUByBond.get(key);
     if (!tesouroPU) return { tesouroPU: undefined, tesouroPUAtStart: 0 };
-    // Quando temos qty na posição, o "PU efetivo de aquisição" é o que o user
-    // realmente pagou por cota: investedAmount / qty. Isso captura o ganho real
-    // mesmo quando o user cadastra 1 cota × R$ pago (estilo Kinvo) em vez de
-    // qty fracional × PU oficial. Em compras alinhadas com PU oficial os dois
-    // caminhos convergem (qty = investedAmount / pu_oficial → razão = 1).
-    if (fi.qty && fi.qty > 0 && fi.investedAmount > 0) {
-      return { tesouroPU, tesouroPUAtStart: fi.investedAmount / fi.qty };
-    }
+
+    // PU oficial mais próximo do início da posição — âncora padrão e
+    // sanity-check do caminho por qty.
     const startKey = normalizeDateStart(new Date(fi.startDate)).getTime();
     const sortedKeys = Array.from(tesouroPU.keys()).sort((a, b) => a - b);
     const atOrBefore = [...sortedKeys].reverse().find((k) => k <= startKey);
     const firstAfter = sortedKeys.find((k) => k >= startKey);
     const chosen = atOrBefore ?? firstAfter;
-    return {
-      tesouroPU,
-      tesouroPUAtStart: chosen !== undefined ? (tesouroPU.get(chosen) ?? 0) : 0,
-    };
+    const oficialAtStart = chosen !== undefined ? (tesouroPU.get(chosen) ?? 0) : 0;
+
+    // Quando temos qty na posição, o "PU efetivo de aquisição" é o que o user
+    // realmente pagou por cota: investedAmount / qty. Isso captura o ganho real
+    // mesmo quando o user cadastra 1 cota × R$ pago (estilo Kinvo) em vez de
+    // qty fracional × PU oficial. Em compras alinhadas com PU oficial os dois
+    // caminhos convergem (qty = investedAmount / pu_oficial → razão = 1).
+    //
+    // Report 10/08 (Tesouro Prefixado por valor): aplicação POR VALOR sem PU
+    // na data da compra caía no fallback qty=1 — o "PU implícito" vira o
+    // próprio VALOR APLICADO (não um preço por cota) e o fator
+    // PU_dia/implícito colapsa o valor da posição no PU do título. Se o PU
+    // oficial do início existe e o implícito desvia demais dele (>20%; desvio
+    // legítimo de spread/estilo Kinvo fica em poucos %), o qty não representa
+    // cotas: ancora no PU oficial — o valor aplicado passa a ser marcado pela
+    // variação do título, que é a semântica da entrada por valor.
+    if (fi.qty && fi.qty > 0 && fi.investedAmount > 0) {
+      const impliedPU = fi.investedAmount / fi.qty;
+      const desvio = oficialAtStart > 0 ? Math.abs(impliedPU / oficialAtStart - 1) : 0;
+      if (oficialAtStart <= 0 || desvio <= 0.2) {
+        return { tesouroPU, tesouroPUAtStart: impliedPU };
+      }
+    }
+    return { tesouroPU, tesouroPUAtStart: oficialAtStart };
   };
 
   const buildFactorSeries = (fi: FixedIncomeAssetWithAsset, timeline: number[]) => {

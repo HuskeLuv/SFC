@@ -1278,6 +1278,47 @@ describe('POST /api/carteira/operacao', () => {
       );
     });
 
+    it('compra datada ANTES da cobertura de PU deriva quantity do primeiro PU seguinte (report 10/08)', async () => {
+      // Sem PU at-or-before, o fallback qty=1 fazia o pricer colapsar o valor
+      // da posição no PU do título (Tesouro Prefixado por valor).
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-td-cat',
+        symbol: 'TD-TESOURO-PREFIXADO-2029',
+        name: 'Tesouro Prefixado 2029',
+        type: 'tesouro-direto',
+      });
+      mockPrisma.tesouroDiretoPrice.findFirst
+        .mockResolvedValueOnce(null) // baseDate <= dataCompra: nada
+        .mockResolvedValueOnce({ sellPU: 800 }) // primeiro PU depois da data
+        .mockResolvedValue({ maturityDate: new Date('2029-01-01'), sellPU: 800 });
+
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'tesouro-direto',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-td-cat',
+          dataCompra: '2024-01-15',
+          valorInvestido: 1000,
+          metodo: 'valor',
+          tesouroDestino: 'reserva-oportunidade',
+          cotizacaoResgate: 'D+1',
+          liquidacaoResgate: 'D+1',
+          vencimento: '2029-01-01',
+          benchmark: 'Selic',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.portfolio.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            quantity: 1.25, // 1000 / 800
+            avgPrice: 800,
+            totalInvested: 1000,
+          }),
+        }),
+      );
+    });
+
     it('cai para quantity=1 quando tesouro do catálogo não tem PU do dia', async () => {
       mockPrisma.asset.findUnique.mockResolvedValueOnce({
         id: 'asset-td-cat',
