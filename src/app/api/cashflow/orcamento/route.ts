@@ -200,7 +200,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           : `Meta mensal — ${groupNames.get(meta.groupId!) ?? meta.groupId}`,
         before: prev ? Number(prev.valor) : null,
         after: meta.valor,
-        format: (isInvestimentos ? 'percent' : 'currency') as const,
+        format: isInvestimentos ? ('percent' as const) : ('currency' as const),
       };
     }),
     ...deletes
@@ -215,7 +215,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
             : `Meta mensal — ${prev.groupId}`,
           before: Number(prev.valor),
           after: null,
-          format: (isInvestimentos ? 'percent' : 'currency') as const,
+          format: isInvestimentos ? ('percent' as const) : ('currency' as const),
         };
       }),
   ];
