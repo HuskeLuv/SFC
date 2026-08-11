@@ -192,16 +192,22 @@ export default function OrcamentoVsRealSection() {
         </div>
       )}
 
-      <OrcamentoKpiCards totais={totais} investimentos={investimentos} />
-
-      <OrcamentoChart linhas={linhas} />
-
-      <OrcamentoTable
-        linhas={linhas}
-        investimentos={investimentos}
-        totais={totais}
-        onSaveMeta={handleSaveMeta}
-      />
+      {/* Layout compacto (modelo da planilha/PDF): tabela à esquerda,
+          resumo + donut à direita. Empilha em telas menores. */}
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-5">
+        <div className="xl:col-span-3">
+          <OrcamentoTable
+            linhas={linhas}
+            investimentos={investimentos}
+            totais={totais}
+            onSaveMeta={handleSaveMeta}
+          />
+        </div>
+        <div className="space-y-5 xl:col-span-2">
+          <OrcamentoKpiCards totais={totais} investimentos={investimentos} />
+          <OrcamentoChart linhas={linhas} />
+        </div>
+      </div>
     </div>
   );
 }
