@@ -73,6 +73,11 @@ describe('UNDO_REGISTRY', () => {
       'aposentadoria.editar',
       'aposentadoria-aporte.registrar',
       'aposentadoria-aporte.excluir',
+      'divida.criar',
+      'divida.editar',
+      'divida.excluir',
+      'divida-pagamento.registrar',
+      'divida-pagamento.excluir',
       'perfil.editar',
     ];
     for (const action of expected) {

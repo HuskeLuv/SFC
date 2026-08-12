@@ -135,3 +135,31 @@ export const ATIVO_POSICAO_FIELD_LABELS: FieldLabelMap = {
   avgPrice: { label: 'Preço médio', format: 'currency' },
   totalInvested: { label: 'Total investido', format: 'currency' },
 };
+
+/** Divida */
+export const DIVIDA_FIELD_LABELS: FieldLabelMap = {
+  nome: 'Nome',
+  instituicao: 'Instituição',
+  tipo: 'Tipo',
+  modalidade: 'Modalidade',
+  principal: { label: 'Valor financiado', format: 'currency' },
+  // taxaAm é fração (0.01 = 1% a.m.) — sem format pra não renderizar "0,01%"
+  taxaAm: 'Taxa ao mês',
+  prazoMeses: { label: 'Prazo (meses)', format: 'number' },
+  sistema: 'Sistema de amortização',
+  indexador: 'Indexador',
+  primeiroVencimento: 'Primeiro vencimento',
+  saldoInicial: { label: 'Saldo inicial', format: 'currency' },
+  dataSaldoInicial: 'Data do saldo inicial',
+  status: 'Status',
+  notes: 'Observações',
+};
+
+/** DividaPagamento */
+export const DIVIDA_PAGAMENTO_FIELD_LABELS: FieldLabelMap = {
+  month: 'Mês',
+  valor: { label: 'Valor', format: 'currency' },
+  parcelaNumero: { label: 'Parcela nº', format: 'number' },
+  tipo: 'Tipo',
+  notes: 'Observações',
+};
