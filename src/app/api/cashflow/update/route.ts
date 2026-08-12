@@ -651,6 +651,18 @@ async function handleItemOperation(
       };
     }
 
+    // Linha-espelho de dívida é gerida pela área de Dívidas — apagar aqui
+    // deixaria a dívida sem espelho até o próximo sync.
+    if (target.dividaId) {
+      return {
+        response: NextResponse.json(
+          { error: 'Linha vinculada a uma dívida: exclua na página Dívidas' },
+          { status: 400 },
+        ),
+        outcome: {},
+      };
+    }
+
     // Estado completo pré-exclusão (item + valores) — permite desfazer.
     const values = await prisma.cashflowValue.findMany({
       where: { itemId: id, userId },

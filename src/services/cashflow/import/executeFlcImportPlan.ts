@@ -133,9 +133,10 @@ export const executeFlcImportPlan = async (
     let finalItemId: string;
     if (itemPlano.destino.tipo === 'existente') {
       const { itemId, item } = await ensurePersonalizedItem(itemPlano.destino.itemId, targetUserId);
-      // defensivo: o mapper já exclui linhas-espelho de sonho, mas o plano é
-      // recalculado do banco e um vínculo pode ter surgido entre map e execução
-      if (item.objetivoId) return;
+      // defensivo: o mapper já exclui linhas-espelho de sonho/dívida, mas o
+      // plano é recalculado do banco e um vínculo pode ter surgido entre map
+      // e execução
+      if (item.objetivoId || item.dividaId) return;
       finalItemId = itemId;
       // fill-if-empty re-checado contra o estado do banco (o plano é recalculado
       // no commit, mas entre map e execução o usuário pode ter preenchido)
