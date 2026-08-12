@@ -527,6 +527,15 @@ export const mapFlcToCashflow = (
         });
         continue;
       }
+      if (itemApp?.dividaId) {
+        ignorados.push({
+          linha: item.linha,
+          label: item.label,
+          motivo: 'linha vinculada a uma dívida no app (somente leitura no fluxo de caixa)',
+          valores: item.valores,
+        });
+        continue;
+      }
       if (!temValor && !temComentario && !temCor && !itemApp) {
         ignorados.push({
           linha: item.linha,

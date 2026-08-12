@@ -13,8 +13,14 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
   }),
 );
 
+const mockSyncDivida = vi.hoisted(() => vi.fn());
+const mockRemoveDividaCashflow = vi.hoisted(() => vi.fn());
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('@/services/dividas/dividaCashflowSync', () => ({
+  syncDividaRecordToCashflow: mockSyncDivida,
+  removeDividaCashflow: mockRemoveDividaCashflow,
+}));
 
 import { GET, PATCH, DELETE } from '../route';
 
@@ -104,6 +110,10 @@ describe('PATCH /api/dividas/[id]', () => {
       expect.objectContaining({ data: { nome: 'Apartamento' } }),
     );
     expect(mockPrisma.userChangeLog.create).toHaveBeenCalled();
+    expect(mockSyncDivida).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ nome: 'Apartamento' }),
+    );
   });
 
   it('rejeita campo de cronograma em dívida rotativa (400)', async () => {
@@ -155,6 +165,7 @@ describe('DELETE /api/dividas/[id]', () => {
 
     const res = await DELETE(new NextRequest('http://localhost/api/dividas/div-1'), params);
     expect(res.status).toBe(200);
+    expect(mockRemoveDividaCashflow).toHaveBeenCalledWith('div-1');
     expect(mockPrisma.divida.delete).toHaveBeenCalledWith({ where: { id: 'div-1' } });
     const logArg = mockPrisma.userChangeLog.create.mock.calls[0][0];
     expect(logArg.data.action).toBe('divida.excluir');

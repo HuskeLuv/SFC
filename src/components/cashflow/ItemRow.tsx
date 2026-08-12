@@ -65,6 +65,15 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
               🎯
             </Link>
           ) : null}
+          {item.dividaId ? (
+            <Link
+              href="/dividas"
+              className="mr-1"
+              title="Linha vinculada a uma dívida — abrir a página de Dívidas"
+            >
+              💳
+            </Link>
+          ) : null}
           {item.name || ''}
         </span>
       </TableCell>

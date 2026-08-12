@@ -73,10 +73,10 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   if (deletes && Array.isArray(deletes) && deletes.length > 0) {
     const owned = await prisma.cashflowItem.findMany({
       where: { id: { in: deletes }, userId: targetUserId },
-      select: { id: true, objetivoId: true, group: { select: { type: true } } },
+      select: { id: true, objetivoId: true, dividaId: true, group: { select: { type: true } } },
     });
     if (owned.some((i) => i.group?.type === 'investimento')) touchedInvestimento = true;
-    const ownedFree = owned.filter((i) => !i.objetivoId).map((i) => i.id);
+    const ownedFree = owned.filter((i) => !i.objetivoId && !i.dividaId).map((i) => i.id);
     const ownedLinked = owned.filter(
       (i): i is (typeof owned)[number] & { objetivoId: string } => i.objetivoId != null,
     );
@@ -129,6 +129,18 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
       }
     }
 
+    // 2b) Linhas de dívida — a linha-espelho é gerida pela área de Dívidas;
+    //     excluir pela planilha é bloqueado (diferente do sonho, apagar a
+    //     dívida descartaria o histórico de pagamentos sem confirmação rica).
+    for (const { id: itemId } of owned.filter((i) => i.dividaId != null)) {
+      handled.add(itemId);
+      results.push({
+        itemId,
+        success: false,
+        error: 'Linha vinculada a uma dívida: exclua na página Dívidas',
+      });
+    }
+
     // 3) Ids que não pertencem ao usuário (nem livres, nem vinculados).
     for (const itemId of deletes) {
       if (!handled.has(itemId)) {
@@ -161,17 +173,20 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           continue;
         }
 
-        // Linha vinculada a um sonho: valores/cor são editáveis (o cliente lança
-        // o realizado e pinta de vermelho "Pago"), mas nome/significado/rank são
-        // da fonte (o sonho) e não podem ser alterados aqui.
+        // Linha vinculada a um sonho ou dívida: valores/cor são editáveis (o
+        // cliente lança o realizado e pinta de vermelho "Pago"), mas nome/
+        // significado/rank são da fonte (o sonho/a dívida) e não podem ser
+        // alterados aqui.
         const linked = await prisma.cashflowItem.findUnique({
           where: { id: finalItemId },
           select: {
             objetivoId: true,
+            dividaId: true,
             objetivo: { select: { portfolios: { select: { id: true }, take: 1 } } },
           },
         });
         const objetivoId = linked?.objetivoId ?? null;
+        const dividaId = linked?.dividaId ?? null;
 
         // Sonho com ativos da carteira vinculados: o realizado é 100% derivado
         // das transações — edição manual de valores aqui seria sobrescrita pelo
@@ -192,7 +207,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           rank?: string | null;
         } = {};
 
-        if (!objetivoId) {
+        if (!objetivoId && !dividaId) {
           if (name !== undefined) itemUpdateData.name = name;
           if (significado !== undefined) itemUpdateData.significado = significado;
           if (rank !== undefined) itemUpdateData.rank = rank;

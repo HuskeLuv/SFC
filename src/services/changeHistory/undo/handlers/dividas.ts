@@ -1,12 +1,15 @@
 /**
  * Handlers de undo — seção DÍVIDAS.
  *
- * Sem side effects externos no PR1 (a linha-espelho no fluxo de caixa entra
- * no PR2 — quando entrar, todo undo que toca dívida deve re-disparar o sync,
- * como o planejamento faz com syncSonhoMirror).
+ * Todo undo que toca a dívida re-dispara o sync da linha-espelho no fluxo
+ * de caixa (mesmas chamadas das rotas), senão a planilha fica dessincronizada.
  */
 
 import prisma from '@/lib/prisma';
+import {
+  syncDividaRecordToCashflow,
+  removeDividaCashflow,
+} from '@/services/dividas/dividaCashflowSync';
 import { UndoError, type UndoContext, type UndoDefinition, type UndoOutcome } from '../types';
 import {
   assertCurrentMatchesAfter,
@@ -32,6 +35,9 @@ const dividaCriar: UndoDefinition = {
       throw new UndoError(409, 'A dívida já tem pagamentos registrados — exclua-os antes');
     }
 
+    // Mesma ordem do DELETE da rota: espelho primeiro (FK SetNull deixaria
+    // a linha órfã), depois a dívida.
+    await removeDividaCashflow(divida.id);
     await prisma.divida.delete({ where: { id: divida.id } });
     return { changes: invertChanges(getChanges(entry)) };
   },
@@ -48,10 +54,11 @@ const dividaEditar: UndoDefinition = {
     if (!divida) throw new UndoError(409, 'A dívida não existe mais');
 
     assertCurrentMatchesAfter(divida as unknown as Record<string, unknown>, changes);
-    await prisma.divida.update({
+    const updated = await prisma.divida.update({
       where: { id: divida.id },
       data: restoreData(changes),
     });
+    await syncDividaRecordToCashflow(auth.targetUserId, updated);
     return { changes: invertChanges(changes) };
   },
 };
@@ -130,6 +137,7 @@ const dividaExcluir: UndoDefinition = {
       });
     }
 
+    await syncDividaRecordToCashflow(auth.targetUserId, created);
     return { changes: invertChanges(getChanges(entry)) };
   },
 };

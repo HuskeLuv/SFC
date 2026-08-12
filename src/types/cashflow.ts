@@ -24,6 +24,8 @@ export interface CashflowItem {
   isTemplate?: boolean;
   /** Quando setado, a linha espelha um sonho (somente-leitura no fluxo de caixa). */
   objetivoId?: string | null;
+  /** Quando setado, a linha espelha uma dívida (parcelas do cronograma SAC/Price). */
+  dividaId?: string | null;
   /**
    * Sonho com ativos da carteira vinculados: o realizado (células vermelhas)
    * é 100% derivado das transações e os valores/cores da linha ficam

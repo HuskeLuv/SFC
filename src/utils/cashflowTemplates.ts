@@ -58,6 +58,9 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       parentId: 'Despesas Fixas',
       type: 'despesa' as const,
     },
+    // Linhas-espelho das dívidas (parcelas de financiamentos SAC/Price
+    // sincronizadas pela área de Dívidas — ver dividaCashflowSync.ts).
+    { name: 'Dívidas', orderIndex: 12, parentId: 'Despesas Fixas', type: 'despesa' as const },
     { name: 'Despesas Variáveis', orderIndex: 2, parentId: 'Despesas', type: 'despesa' as const },
     { name: 'Investimentos', orderIndex: 3, parentId: null, type: 'investimento' as const },
     // Bloco de SALDO (não é entrada nem despesa): o cliente informa manualmente
@@ -213,6 +216,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
     // Planejamento de Sonhos (linhas espelho, vínculo via objetivoId) — ver
     // src/services/planejamento/sonhoCashflowSync.ts. Sem placeholders no template.
     'Planejamento Financeiro': [],
+    Dívidas: [],
     'Despesas Variáveis': [
       { name: 'Lazer' },
       { name: 'Compras' },
@@ -353,6 +357,61 @@ export async function ensureDependentesTemplate(): Promise<void> {
   }
 
   dependentesEnsured = true;
+}
+
+// ===== ENSURE: DÍVIDAS (upgrade de template para bancos existentes) =====
+
+let dividasEnsured = false;
+
+const DIVIDAS_GROUP_NAME = 'Dívidas';
+
+/**
+ * Garante que o grupo template "Dívidas" exista sob "Despesas Fixas", no fim
+ * da seção (depois de "Planejamento Financeiro"). Recebe as linhas-espelho
+ * das parcelas de financiamento (dividaCashflowSync). Sem itens fixos — as
+ * linhas são criadas por dívida. Bancos criados antes desta feature têm o
+ * seed completo mas não este grupo. Idempotente e barato (1 findFirst por
+ * processo).
+ */
+export async function ensureDividasTemplate(): Promise<void> {
+  if (dividasEnsured) return;
+
+  const existing = await prisma.cashflowGroup.findFirst({
+    where: { userId: null, name: DIVIDAS_GROUP_NAME },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    const despesasFixas = await prisma.cashflowGroup.findFirst({
+      where: { userId: null, name: 'Despesas Fixas' },
+      select: { id: true },
+    });
+    if (!despesasFixas) {
+      // banco sem seed (seedTemplates ainda não rodou) — o seed novo já cria o grupo
+      dividasEnsured = true;
+      return;
+    }
+
+    // Vai pro fim da seção: 1 + maior orderIndex entre os irmãos (cobre bancos
+    // que ainda não têm "Despesas com Dependentes" e ficaram com índices antigos).
+    const last = await prisma.cashflowGroup.findFirst({
+      where: { userId: null, parentId: despesasFixas.id },
+      orderBy: { orderIndex: 'desc' },
+      select: { orderIndex: true },
+    });
+    await prisma.cashflowGroup.create({
+      data: {
+        userId: null,
+        name: DIVIDAS_GROUP_NAME,
+        type: 'despesa',
+        orderIndex: (last?.orderIndex ?? 11) + 1,
+        parentId: despesasFixas.id,
+      },
+    });
+    logger.info('✅ Template "Dívidas" criado (upgrade de template)');
+  }
+
+  dividasEnsured = true;
 }
 
 // ===== SEED TEMPLATES =====
