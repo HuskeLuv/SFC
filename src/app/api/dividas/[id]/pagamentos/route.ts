@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 import { dividaPagamentoCreateSchema, validationError } from '@/utils/validation-schemas';
 import { resumoDivida } from '@/services/dividas/amortizacao';
 import { recordChange, diffFields, DIVIDA_PAGAMENTO_FIELD_LABELS } from '@/services/changeHistory';
@@ -75,6 +76,9 @@ export const POST = withErrorHandler(
         notes: p.notes ?? null,
       },
     });
+
+    // Pagamento muda o saldo devedor → o resumo (totalDividas) precisa refazer.
+    deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
 
     await recordChange({
       request,

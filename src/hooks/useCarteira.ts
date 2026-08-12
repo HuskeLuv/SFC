@@ -12,8 +12,17 @@ export interface CarteiraResumo {
   rentabilidade: number;
   metaPatrimonio: number;
   caixaParaInvestir: number;
-  /** Denominadores únicos calculados no backend (dinheiro exclui imóveis). */
-  totais?: { dinheiro: number; dinheiroMaisBens: number };
+  /**
+   * Denominadores únicos calculados no backend (dinheiro exclui imóveis).
+   * dividas/patrimonioLiquido: passivo das dívidas ativas (saldo corrigido
+   * pelo índice realizado) e patrimônio líquido = dinheiroMaisBens − dividas.
+   */
+  totais?: {
+    dinheiro: number;
+    dinheiroMaisBens: number;
+    dividas?: number;
+    patrimonioLiquido?: number;
+  };
   historicoPatrimonio: Array<{
     data: number;
     valorAplicado: number;

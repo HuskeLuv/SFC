@@ -32,13 +32,13 @@ export type {
 
 /**
  * Invalida os caches derivados de dívidas. Criar/editar/excluir uma dívida
- * mexe na linha-espelho do fluxo de caixa (parcelas do cronograma), então o
- * cashflow refaz junto. Quando o patrimônio líquido entrar no resumo (PR3),
- * carteira.resumo() entra aqui também.
+ * mexe na linha-espelho do fluxo de caixa (parcelas do cronograma) e no
+ * resumo da carteira (totalDividas/patrimonioLiquido) — ambos refazem junto.
  */
 function invalidateDividaCaches(queryClient: ReturnType<typeof useQueryClient>): void {
   queryClient.invalidateQueries({ queryKey: queryKeys.dividas.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.carteira.resumo() });
 }
 
 /** Payload de criação — discriminated union espelhando dividaCreateSchema. */
