@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   CalenderIcon,
   ChevronDownIcon,
+  CreditCardIcon,
   DollarLineIcon,
   GridIcon,
   HorizontaLDots,
@@ -47,6 +48,11 @@ const MAIN_NAV_ITEMS: NavItem[] = [
     name: 'Planejamento',
     icon: <PencilIcon />,
     path: '/planejamento-financeiro',
+  },
+  {
+    name: 'Dívidas',
+    icon: <CreditCardIcon />,
+    path: '/dividas',
   },
   {
     icon: <CalenderIcon />,
@@ -104,6 +110,8 @@ const AppSidebar: React.FC = () => {
         'Carteira',
         'Relatórios',
         'Planejamento',
+        // Dívidas são parte central do trabalho do consultor no cliente
+        'Dívidas',
         // Consultor vê o histórico do cliente (inclui a própria trilha "via consultor")
         'Histórico',
       ];
