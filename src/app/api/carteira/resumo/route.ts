@@ -27,6 +27,9 @@ import {
 } from '@/services/changeHistory';
 import { parseRangeMonths } from '@/utils/rangeQuery';
 import { loadProventosByDay } from '@/services/portfolio/proventosByDay';
+import { resumoDivida } from '@/services/dividas/amortizacao';
+import { accruedIndexFactor } from '@/services/dividas/indexacaoDivida';
+import { toCalcInput, toPagamentoInputs } from '@/app/api/dividas/_lib/serializer';
 const resumoCache = getTtlCache<Record<string, unknown>>('carteiraResumo');
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -589,6 +592,27 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     ) + (caixaParaInvestir || 0);
   const totalDinheiroMaisBens = totalDinheiro + categorias.imoveisBens;
 
+  // Passivos: saldo devedor das dívidas ativas (área de Dívidas), corrigido
+  // pelo índice realizado (TR/IPCA/CDI). Patrimônio LÍQUIDO = dinheiro+bens −
+  // dívidas — live-only (os snapshots de série continuam asset-only, decisão
+  // do plano). N dívidas é pequeno; custo desprezível frente ao resto da rota.
+  let totalDividas = 0;
+  try {
+    const dividasAtivas = await prisma.divida.findMany({
+      where: { userId: targetUserId, status: 'ativa' },
+      include: { pagamentos: true },
+    });
+    for (const d of dividasAtivas) {
+      const r = resumoDivida(toCalcInput(d), toPagamentoInputs(d.pagamentos));
+      const fator = await accruedIndexFactor(d.indexador, d.primeiroVencimento);
+      totalDividas += r.saldoDevedor * fator;
+    }
+  } catch (error) {
+    // P2021 (tabela ausente em ambiente parcial) → sem passivo, resumo segue.
+    const prismaError = error as Prisma.PrismaClientKnownRequestError;
+    if (prismaError?.code !== 'P2021') throw error;
+  }
+
   const round2 = (v: number) => Math.round(v * 100) / 100;
   const pctOf = (valor: number, base: number) => (base > 0 ? round2((valor / base) * 100) : 0);
   const distribuicaoEntry = (key: keyof typeof categorias) => ({
@@ -625,6 +649,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     totais: {
       dinheiro: round2(totalDinheiro),
       dinheiroMaisBens: round2(totalDinheiroMaisBens),
+      dividas: round2(totalDividas),
+      patrimonioLiquido: round2(totalDinheiroMaisBens - totalDividas),
     },
     historicoPatrimonio,
     historicoTWR,

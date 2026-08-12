@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 import {
   recordChange,
   finalStateChanges,
@@ -34,6 +35,8 @@ export const DELETE = withErrorHandler(
     }
 
     await prisma.dividaPagamento.delete({ where: { id: pagamentoId } });
+    // Saldo devedor mudou → resumo da carteira (totalDividas) refaz.
+    deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
 
     await recordChange({
       request,

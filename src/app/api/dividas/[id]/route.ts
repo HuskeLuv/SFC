@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 import { dividaPatchSchema, validationError } from '@/utils/validation-schemas';
 import { resumoDivida } from '@/services/dividas/amortizacao';
 import {
@@ -131,6 +132,8 @@ export const PATCH = withErrorHandler(
 
     // Re-sincroniza a linha-espelho (janela/parcela/nome/status podem ter mudado).
     await syncDividaRecordToCashflow(targetUserId, updated);
+    // O resumo da carteira embute totalDividas/patrimonioLiquido (TTL cache).
+    deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
 
     await recordChange({
       request,
@@ -168,6 +171,7 @@ export const DELETE = withErrorHandler(
     await removeDividaCashflow(id);
     // Cascade via FK onDelete:Cascade no schema → pagamentos somem juntos.
     await prisma.divida.delete({ where: { id } });
+    deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
 
     await recordChange({
       request,

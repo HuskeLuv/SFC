@@ -21,6 +21,7 @@ import MarketIndicatorsCards from './MarketIndicatorsCards';
 import AddAssetWizard from './AddAssetWizard';
 import RedeemAssetWizard from './RedeemAssetWizard';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
+import MetricCard from '@/components/carteira/shared/MetricCard';
 import { DownloadIcon, PlusIcon } from '@/icons';
 import { useReservaEmergencia } from '@/hooks/useReservaEmergencia';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
@@ -121,6 +122,12 @@ export default function CarteiraResumo() {
   const carteiraTotal = resumo?.totais?.dinheiro ?? resumo?.saldoBruto ?? 0;
   const carteiraTotalComBens = resumo?.totais?.dinheiroMaisBens ?? carteiraTotal;
 
+  // Patrimônio líquido = ativos (dinheiro+bens) − dívidas ativas. Card só
+  // aparece quando há dívida cadastrada; valor é live (snapshots da série
+  // seguem asset-only). Saldo corrigido pelo índice realizado no backend.
+  const totalDividas = resumo?.totais?.dividas ?? 0;
+  const patrimonioLiquido = resumo?.totais?.patrimonioLiquido ?? carteiraTotalComBens;
+
   return (
     <div>
       {/* Header com botão de adicionar investimento */}
@@ -188,15 +195,31 @@ export default function CarteiraResumo() {
 
               {/* Tabela de Alocação de Ativos */}
               <MarketIndicatorsCards
-                extraCards={
+                extraCards={[
                   <CaixaParaInvestirCard
                     key="caixa-para-investir-resumo"
                     value={resumo.caixaParaInvestir ?? 0}
                     formatCurrency={formatCurrency}
                     onSave={updateCaixaParaInvestir}
                     color="success"
-                  />
-                }
+                  />,
+                  ...(totalDividas > 0
+                    ? [
+                        <div
+                          key="patrimonio-liquido-resumo"
+                          title="Ativos (dinheiro + bens) menos o saldo devedor das dívidas ativas, corrigido pelo índice realizado. Valor ao vivo — o histórico de patrimônio segue só com ativos."
+                        >
+                          <MetricCard
+                            title="Patrimônio Líquido"
+                            value={formatCurrency(patrimonioLiquido)}
+                            color={patrimonioLiquido >= 0 ? 'primary' : 'error'}
+                            change={`${formatCurrency(totalDividas)} em dívidas`}
+                            changeDirection="neutral"
+                          />
+                        </div>,
+                      ]
+                    : []),
+                ]}
               />
               <AlocacaoAtivosTable
                 distribuicao={resumo.distribuicao}

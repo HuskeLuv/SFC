@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 import { dividaCreateSchema, validationError } from '@/utils/validation-schemas';
 import { resumoDivida } from '@/services/dividas/amortizacao';
 import { syncDividaRecordToCashflow } from '@/services/dividas/dividaCashflowSync';
@@ -71,6 +72,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   // Espelha as parcelas do financiamento no fluxo de caixa (grupo "Dívidas").
   await syncDividaRecordToCashflow(targetUserId, created);
+  // O resumo da carteira embute totalDividas/patrimonioLiquido (TTL cache).
+  deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
 
   await recordChange({
     request,

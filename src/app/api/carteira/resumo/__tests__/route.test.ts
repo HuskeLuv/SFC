@@ -12,6 +12,7 @@ const mockPrisma = vi.hoisted(() => ({
   asset: { findMany: vi.fn() },
   economicIndex: { findMany: vi.fn().mockResolvedValue([]) },
   tesouroDiretoPrice: { findMany: vi.fn().mockResolvedValue([]) },
+  divida: { findMany: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -104,6 +105,8 @@ describe('GET /api/carteira/resumo', () => {
     mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
     mockPrisma.alocacaoConfig.findMany.mockResolvedValue([]);
     mockPrisma.asset.findMany.mockResolvedValue([]);
+    mockPrisma.divida.findMany.mockResolvedValue([]);
+    mockPrisma.economicIndex.findMany.mockResolvedValue([]);
   });
 
   it('retorna resumo da carteira com sucesso', async () => {
@@ -247,6 +250,72 @@ describe('GET /api/carteira/resumo', () => {
     expect(data.distribuicao.acoes.percentual).toBeCloseTo((5000 / 11500) * 100, 1);
     expect(data.distribuicao.reservaEmergencia.percentual).toBeCloseTo((6000 / 11500) * 100, 1);
     expect(data.distribuicao.imoveisBens.percentual).toBeCloseTo((500000 / 511500) * 100, 1);
+  });
+
+  it('totais.dividas soma o saldo das ativas e patrimonioLiquido desconta do dinheiroMaisBens', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p-1',
+        assetId: 'a-res',
+        quantity: 1,
+        avgPrice: 50000,
+        totalInvested: 50000,
+        asset: { symbol: 'RESERVA-EMERG-1', type: 'emergency', currency: 'BRL', name: 'Reserva' },
+      },
+    ]);
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map());
+    // Financiamento Price 12k/0%/12m sem pagamentos → saldo 12.000 (prefixado,
+    // fator 1). Quitada NÃO entra (filtro status: 'ativa' na query).
+    mockPrisma.divida.findMany.mockResolvedValue([
+      {
+        id: 'div-1',
+        nome: 'Apê',
+        modalidade: 'financiamento',
+        status: 'ativa',
+        principal: 12000,
+        taxaAm: 0,
+        prazoMeses: 12,
+        sistema: 'PRICE',
+        indexador: 'PREFIXADO',
+        primeiroVencimento: '2026-01',
+        saldoInicial: null,
+        dataSaldoInicial: null,
+        pagamentos: [],
+      },
+      {
+        id: 'div-2',
+        nome: 'Cartão',
+        modalidade: 'rotativa',
+        status: 'ativa',
+        principal: null,
+        taxaAm: null,
+        prazoMeses: null,
+        sistema: null,
+        indexador: 'PREFIXADO',
+        primeiroVencimento: null,
+        saldoInicial: 3000,
+        dataSaldoInicial: '2026-01',
+        pagamentos: [{ month: '2026-02', valor: 1000, parcelaNumero: null, tipo: 'pagamento' }],
+      },
+    ]);
+
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    // 12.000 (financiamento) + 2.000 (rotativa: 3.000 − 1.000) = 14.000
+    expect(data.totais.dividas).toBeCloseTo(14000);
+    expect(data.totais.patrimonioLiquido).toBeCloseTo(data.totais.dinheiroMaisBens - 14000);
+    expect(mockPrisma.divida.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'user-1', status: 'ativa' } }),
+    );
+  });
+
+  it('sem dívidas: totais.dividas = 0 e patrimonioLiquido == dinheiroMaisBens', async () => {
+    vi.mocked(getAssetPrices).mockResolvedValue(new Map());
+    const response = await GET(createGetRequest('?includeHistorico=false'));
+    const data = await response.json();
+    expect(data.totais.dividas).toBe(0);
+    expect(data.totais.patrimonioLiquido).toBeCloseTo(data.totais.dinheiroMaisBens);
   });
 
   it('coverage perf-gap cai no rebuild e dispara o lazy backfill (bug do gráfico flat)', async () => {
