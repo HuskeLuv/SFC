@@ -62,6 +62,19 @@ describe('accruedIndexFactor', () => {
     expect(await accruedIndexFactor('TR', '2026-01', new Date('2026-06-01'))).toBe(1);
   });
 
+  it('TR: amostra só a PRIMEIRA observação de cada mês (taxa de período publicada diariamente)', async () => {
+    // 3 dias de jan + 2 de fev — deve compor apenas 1 valor por mês.
+    mockPrisma.economicIndex.findMany.mockResolvedValue([
+      { date: new Date('2026-01-01T00:00:00Z'), value: 0.0017 },
+      { date: new Date('2026-01-02T00:00:00Z'), value: 0.0018 },
+      { date: new Date('2026-01-03T00:00:00Z'), value: 0.0019 },
+      { date: new Date('2026-02-01T00:00:00Z'), value: 0.0016 },
+      { date: new Date('2026-02-02T00:00:00Z'), value: 0.0015 },
+    ]);
+    const factor = await accruedIndexFactor('TR', '2026-01', new Date('2026-03-01'));
+    expect(factor).toBeCloseTo(1.0017 * 1.0016, 10);
+  });
+
   it('valores não-numéricos são ignorados', async () => {
     mockPrisma.economicIndex.findMany.mockResolvedValue([{ value: 'x' }, { value: 0.01 }]);
     const factor = await accruedIndexFactor('CDI', '2026-01', new Date('2026-06-01'));

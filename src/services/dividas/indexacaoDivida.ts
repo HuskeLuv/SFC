@@ -8,9 +8,15 @@
  * imobiliário) corrigem o saldo antes de cada amortização.
  *
  * Fonte: EconomicIndex (ingestão BACEN, ver economicIndexesIngestion.ts).
- * CDI e TR são séries DIÁRIAS (fração decimal por dia útil); IPCA é MENSAL.
- * Composição segue o padrão de fixedIncomePricing.ts: Π(1 + taxa) sobre as
- * linhas do intervalo. Série ausente/vazia → fator 1 (degrada sem corrigir).
+ * Semântica por índice (verificada nos dados em 2026-08):
+ *  - CDI (série 12): taxa DIÁRIA por dia útil (~0.000525) → compõe linha a
+ *    linha, padrão fixedIncomePricing.
+ *  - IPCA (série 433): variação MENSAL, uma linha no dia 1º → compõe linha
+ *    a linha (cada linha já é um mês).
+ *  - TR (série 226): taxa DO PERÍODO de ~30 dias publicada TODO DIA
+ *    (~0.0017, inclusive fim de semana). Compor diariamente inflaria ~30×;
+ *    amostra-se UMA observação por mês (a primeira) e compõe-se mensalmente.
+ * Série ausente/vazia → fator 1 (degrada sem corrigir).
  */
 
 import { prisma } from '@/lib/prisma';
@@ -47,12 +53,12 @@ export async function accruedIndexFactor(
   const cached = factorCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
-  let rows: Array<{ value: unknown }> = [];
+  let rows: Array<{ date: Date; value: unknown }> = [];
   try {
     rows = await prisma.economicIndex.findMany({
       where: { indexType: indexador, date: { gte: start, lte: asOf } },
       orderBy: { date: 'asc' },
-      select: { value: true },
+      select: { date: true, value: true },
     });
   } catch (error) {
     // P2021 (tabela ausente em ambiente parcial) → sem correção, como no
@@ -60,6 +66,21 @@ export async function accruedIndexFactor(
     const prismaError = error as Prisma.PrismaClientKnownRequestError;
     if (prismaError?.code !== 'P2021') throw error;
     return 1;
+  }
+
+  // TR: uma observação por mês (a primeira), porque cada linha já é a taxa
+  // de um período de ~30 dias — ver doc do módulo.
+  if (indexador === 'TR') {
+    const firstOfMonth = new Map<string, number>();
+    for (const row of rows) {
+      const d = row.date;
+      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      if (!firstOfMonth.has(key)) {
+        const val = Number(row.value);
+        if (Number.isFinite(val)) firstOfMonth.set(key, val);
+      }
+    }
+    rows = Array.from(firstOfMonth.values()).map((value) => ({ date: start, value }));
   }
 
   let factor = 1;
