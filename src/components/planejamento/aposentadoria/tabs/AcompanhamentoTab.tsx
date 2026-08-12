@@ -15,6 +15,7 @@ import {
 import type { PlanoUpsertPayload, AposentadoriaEntryDTO } from '@/hooks/useAposentadoria';
 import { useAcompanhamentoAuto, useAutoFillEntries } from '@/hooks/useAposentadoria';
 import { formatBRL, formatBRLCompact, fPct, fMonth } from '../utils';
+import { aaToAm } from '@/utils/rateConversion';
 
 interface AcompanhamentoTabProps {
   params: PlanoUpsertPayload;
@@ -108,8 +109,7 @@ export default function AcompanhamentoTab({
     const rem = Math.max(1, retM - maxOff);
     const fac = Math.pow(1 + rN, rem);
     const newNom = ((origRet - currPat * fac) * rN) / (fac - 1);
-    const newReal =
-      newNom / Math.pow(1 + (Math.pow(1 + params.inflacao / 100, 1 / 12) - 1), maxOff);
+    const newReal = newNom / Math.pow(1 + aaToAm(params.inflacao / 100), maxOff);
     recalcMsg = `Para atingir o objetivo original precisará contribuir aprox. ${formatBRL(newNom)}/mês nominal = ${formatBRL(newReal)}/mês em R$ de hoje.`;
   }
 

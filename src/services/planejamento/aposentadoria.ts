@@ -16,6 +16,8 @@
  * Sem I/O. Todas as funções recebem o estado explicitamente.
  */
 
+import { aaToAm } from '@/utils/rateConversion';
+
 export type EventoTipo = 'aporte' | 'resgate';
 
 export interface AposentadoriaEvento {
@@ -58,7 +60,7 @@ export function getRealAA(s: AposentadoriaPlanoInput): number {
 
 /** Taxa real mensal de acumulação. */
 export function getRealM(s: AposentadoriaPlanoInput): number {
-  return Math.pow(1 + getRealAA(s), 1 / 12) - 1;
+  return aaToAm(getRealAA(s));
 }
 
 /** Taxa nominal a.a. usada na fase de saque (cai pra acumulação se não definida). */
@@ -73,17 +75,17 @@ export function getRetiroRealAA(s: AposentadoriaPlanoInput): number {
 
 /** Taxa real mensal na aposentadoria. */
 export function getRetiroRealM(s: AposentadoriaPlanoInput): number {
-  return Math.pow(1 + getRetiroRealAA(s), 1 / 12) - 1;
+  return aaToAm(getRetiroRealAA(s));
 }
 
 /** Taxa nominal mensal de acumulação (pra tracking). */
 export function nomM(s: AposentadoriaPlanoInput): number {
-  return Math.pow(1 + s.rentNom / 100, 1 / 12) - 1;
+  return aaToAm(s.rentNom / 100);
 }
 
 /** Inflação mensal. */
 export function infM(s: AposentadoriaPlanoInput): number {
-  return Math.pow(1 + s.inflacao / 100, 1 / 12) - 1;
+  return aaToAm(s.inflacao / 100);
 }
 
 /**
