@@ -283,6 +283,11 @@ model CashflowItem {
   // valores mensais são o aporte mensal (pmt) sincronizado pelo planejamento.
   objetivoId  String?               @unique
   objetivo    PlanejamentoObjetivo? @relation(fields: [objetivoId], references: [id], onDelete: SetNull)
+  // Vínculo opcional com uma dívida. Quando setado, esta linha é espelho do
+  // financiamento (somente-leitura no fluxo de caixa) e seus valores mensais
+  // são as parcelas do cronograma SAC/Price sincronizadas pela área de Dívidas.
+  dividaId    String?               @unique
+  divida      Divida?               @relation(fields: [dividaId], references: [id], onDelete: SetNull)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -1023,6 +1028,9 @@ model Divida {
   updatedAt DateTime @updatedAt
 
   pagamentos DividaPagamento[]
+  // Linha-espelho no fluxo de caixa (grupo "Dívidas"). A dívida é a fonte:
+  // as parcelas do cronograma são gravadas nessa linha (só financiamentos).
+  cashflowItem CashflowItem?
 
   @@index([userId])
   @@index([userId, status])
