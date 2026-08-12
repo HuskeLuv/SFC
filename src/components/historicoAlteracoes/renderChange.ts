@@ -5,6 +5,7 @@ export const SECTION_LABELS: Record<ChangeSection, string> = {
   carteira: 'Carteira',
   'fluxo-caixa': 'Fluxo de Caixa',
   planejamento: 'Planejamento',
+  dividas: 'Dívidas',
   perfil: 'Perfil',
 };
 
@@ -15,6 +16,7 @@ export const SECTION_BADGE_COLORS: Record<
   carteira: 'primary',
   'fluxo-caixa': 'success',
   planejamento: 'warning',
+  dividas: 'warning',
   perfil: 'info',
 };
 
@@ -103,6 +105,19 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
   'aposentadoria-aporte.registrar': withLabel('Registrou um aporte na aposentadoria'),
   'aposentadoria-aporte.auto': withLabel('Preencheu aportes da aposentadoria automaticamente'),
   'aposentadoria-aporte.excluir': withLabel('Excluiu um aporte da aposentadoria'),
+
+  // Dívidas
+  'divida.criar': withLabel('Cadastrou uma dívida', (l) => `Cadastrou a dívida "${l}"`),
+  'divida.editar': withLabel('Editou uma dívida', (l) => `Editou a dívida "${l}"`),
+  'divida.excluir': withLabel('Excluiu uma dívida', (l) => `Excluiu a dívida "${l}"`),
+  'divida-pagamento.registrar': withLabel(
+    'Registrou um pagamento de dívida',
+    (l) => `Registrou pagamento na dívida "${l}"`,
+  ),
+  'divida-pagamento.excluir': withLabel(
+    'Excluiu um pagamento de dívida',
+    (l) => `Excluiu pagamento da dívida "${l}"`,
+  ),
 
   // Perfil
   'perfil.editar': withLabel('Editou os dados do perfil'),

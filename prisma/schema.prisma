@@ -108,6 +108,7 @@ model User {
   portfolioGoal                 PortfolioGoal?
   planejamentoObjetivos         PlanejamentoObjetivo[]
   aposentadoriaPlano            AposentadoriaPlano?
+  dividas                       Divida[]
   consents                      UserConsent[]
   loginEvents                   LoginEvent[]
   changeLogs                    UserChangeLog[]               @relation("UserChangeLogUser")
@@ -719,7 +720,7 @@ model CashflowPatrimonioSnapshot {
 
 model EconomicIndex {
   id        String   @id @default(uuid())
-  indexType String // "CDI" | "IPCA"
+  indexType String // ver BACEN_SERIES em economicIndexesIngestion.ts: CDI, IPCA, TR, SELIC_*, IGPM, IMAB…
   date      DateTime // Data de referência
   value     Decimal  @db.Decimal(14, 6) // Taxa do período ou valor absoluto de índice (IMA-B pode exceder 9999)
   createdAt DateTime @default(now())
@@ -981,6 +982,73 @@ model AposentadoriaPlanoEntry {
   @@unique([planoId, off])
   @@index([planoId])
   @@map("aposentadoria_plano_entries")
+}
+
+// Dívidas do usuário — financiamentos com cronograma (SAC/Price) e dívidas
+// rotativas sem cronograma (cartão, cheque especial). `modalidade` discrimina
+// os dois formatos: campos de cronograma são null quando rotativa, e
+// saldoInicial/dataSaldoInicial são null quando financiamento (união imposta
+// no zod, seguindo a convenção de String + union em vez de enum Prisma).
+//
+// O cronograma SAC/Price nunca é persistido — é derivado do serviço puro
+// (src/services/dividas/amortizacao.ts) a partir destes parâmetros. O saldo
+// devedor também é sempre computado, nunca gravado.
+model Divida {
+  id          String  @id @default(uuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nome        String
+  instituicao String?
+  // 'financiamento_imobiliario' | 'financiamento_veiculo' | 'emprestimo_pessoal'
+  // | 'consignado' | 'cartao_credito' | 'cheque_especial' | 'outro'
+  tipo        String
+  modalidade  String // 'financiamento' | 'rotativa'
+
+  // ── Financiamento (null quando rotativa) ──
+  principal          Decimal? @db.Decimal(15, 2) // valor financiado
+  taxaAm             Decimal? @db.Decimal(8, 6) // taxa efetiva a.m. (decimal: 0.01 = 1%), sempre normalizada
+  taxaUnidadeEntrada String   @default("am") // 'am' | 'aa' — como o usuário digitou (fidelidade ao reeditar)
+  prazoMeses         Int? // 1..480
+  sistema            String? // 'SAC' | 'PRICE'
+  indexador          String   @default("PREFIXADO") // 'PREFIXADO' | 'TR' | 'IPCA' | 'CDI'
+  primeiroVencimento String? // YYYY-MM
+
+  // ── Rotativa (null quando financiamento) ──
+  saldoInicial     Decimal? @db.Decimal(15, 2)
+  dataSaldoInicial String? // YYYY-MM — âncora do saldo
+
+  status    String   @default("ativa") // 'ativa' | 'quitada'
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pagamentos DividaPagamento[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("dividas")
+}
+
+// Pagamentos e ajustes de uma dívida. Sem unique(dividaId, month) de propósito:
+// cartão pode ter vários pagamentos no mesmo mês. Unicidade de parcelaNumero
+// por dívida é imposta na API (Prisma não tem partial unique).
+model DividaPagamento {
+  id            String  @id @default(uuid())
+  dividaId      String
+  divida        Divida  @relation(fields: [dividaId], references: [id], onDelete: Cascade)
+  month         String // YYYY-MM
+  valor         Decimal @db.Decimal(15, 2) // sempre positivo; `tipo` dá o sinal
+  parcelaNumero Int? // financiamento: nº da parcela paga; null p/ rotativa e pagamentos extras
+  // 'pagamento' reduz o saldo; 'ajuste' soma (encargos/novos saques da rotativa)
+  tipo          String  @default("pagamento")
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dividaId])
+  @@index([dividaId, month])
+  @@map("divida_pagamentos")
 }
 
 // Trilha de auditoria de autenticação (login tracking).

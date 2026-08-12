@@ -29,6 +29,11 @@ export const queryKeys = {
     all: ['planejamento'] as const,
     contexto: () => [...queryKeys.planejamento.all, 'contexto'] as const,
   },
+  dividas: {
+    all: ['dividas'] as const,
+    detail: (id: string) => [...queryKeys.dividas.all, id] as const,
+    cronograma: (id: string) => [...queryKeys.dividas.all, id, 'cronograma'] as const,
+  },
   reserva: {
     emergencia: () => ['reserva', 'emergencia'] as const,
     oportunidade: () => ['reserva', 'oportunidade'] as const,

@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { aaToAm } from '@/utils/rateConversion';
 
 const DEFAULT_RATE_MONTHLY = 0.009; // ~0.9%/mês como fallback se CDI indisponível
 
@@ -36,7 +37,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     // CDI_ANUALIZADO vem como % anual (ex.: 13.65 = 13.65%/ano).
     const cdiAnual = Number(latestCdi.value) / 100;
     if (Number.isFinite(cdiAnual) && cdiAnual > 0 && cdiAnual < 1) {
-      rate = Math.pow(1 + cdiAnual, 1 / 12) - 1;
+      rate = aaToAm(cdiAnual);
     }
   }
 

@@ -385,6 +385,84 @@ export const aposentadoriaEntryUpsertSchema = z.object({
   patFinal: z.number().finite().nonnegative(),
 });
 
+// ── Dívidas schemas ────────────────────────────────────────────────────
+
+// Discriminated union por `modalidade`: financiamento exige os parâmetros do
+// cronograma (principal/taxa/prazo/sistema/1º vencimento); rotativa exige só
+// a âncora de saldo. `taxaAm` chega SEMPRE normalizada ao mês (o form converte
+// a.a. → a.m. via aaToAm antes do POST); `taxaUnidadeEntrada` preserva o modo
+// digitado pra reedição. Prazo 1..480 espelha o teto dos sonhos (40 anos).
+
+const dividaTipo = z.enum([
+  'financiamento_imobiliario',
+  'financiamento_veiculo',
+  'emprestimo_pessoal',
+  'consignado',
+  'cartao_credito',
+  'cheque_especial',
+  'outro',
+]);
+const dividaSistema = z.enum(['SAC', 'PRICE']);
+const dividaIndexador = z.enum(['PREFIXADO', 'TR', 'IPCA', 'CDI']);
+const dividaStatus = z.enum(['ativa', 'quitada']);
+const dividaYearMonth = z.string().regex(yearMonthRegex, 'deve ser YYYY-MM');
+
+const dividaBaseFields = {
+  nome: zString(255),
+  instituicao: zString(255).nullable().optional(),
+  tipo: dividaTipo,
+  status: dividaStatus.optional().default('ativa'),
+  notes: z.string().max(2000).nullable().optional(),
+};
+
+export const dividaCreateSchema = z.discriminatedUnion('modalidade', [
+  z.object({
+    modalidade: z.literal('financiamento'),
+    ...dividaBaseFields,
+    principal: zPositiveNumber,
+    taxaAm: z.number().finite().min(0).max(1),
+    taxaUnidadeEntrada: z.enum(['am', 'aa']).optional().default('am'),
+    prazoMeses: z.number().int().min(1).max(480),
+    sistema: dividaSistema,
+    indexador: dividaIndexador.optional().default('PREFIXADO'),
+    primeiroVencimento: dividaYearMonth,
+  }),
+  z.object({
+    modalidade: z.literal('rotativa'),
+    ...dividaBaseFields,
+    saldoInicial: zNonNegativeNumber,
+    dataSaldoInicial: dividaYearMonth,
+  }),
+]);
+
+// PATCH parcial — `modalidade` não muda depois de criada (excluir e recriar).
+export const dividaPatchSchema = z.object({
+  nome: zString(255).optional(),
+  instituicao: zString(255).nullable().optional(),
+  tipo: dividaTipo.optional(),
+  status: dividaStatus.optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  principal: zPositiveNumber.optional(),
+  taxaAm: z.number().finite().min(0).max(1).optional(),
+  taxaUnidadeEntrada: z.enum(['am', 'aa']).optional(),
+  prazoMeses: z.number().int().min(1).max(480).optional(),
+  sistema: dividaSistema.optional(),
+  indexador: dividaIndexador.optional(),
+  primeiroVencimento: dividaYearMonth.optional(),
+  saldoInicial: zNonNegativeNumber.optional(),
+  dataSaldoInicial: dividaYearMonth.optional(),
+});
+
+// Regras cruzadas (parcelaNumero só p/ financiamento, range 1..prazoMeses,
+// sem duplicata) ficam na rota — dependem da dívida carregada.
+export const dividaPagamentoCreateSchema = z.object({
+  month: dividaYearMonth,
+  valor: zPositiveNumber,
+  parcelaNumero: z.number().int().min(1).max(480).nullable().optional(),
+  tipo: z.enum(['pagamento', 'ajuste']).optional().default('pagamento'),
+  notes: z.string().max(2000).nullable().optional(),
+});
+
 // ── Utility: build 400 response from ZodError ─────────────────────────
 
 export function validationError(result: { success: false; error: z.ZodError }) {
