@@ -13,8 +13,13 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
   }),
 );
 
+const mockSyncDivida = vi.hoisted(() => vi.fn());
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('@/services/dividas/dividaCashflowSync', () => ({
+  syncDividaRecordToCashflow: mockSyncDivida,
+  removeDividaCashflow: vi.fn(),
+}));
 
 import { GET, POST } from '../route';
 
@@ -97,6 +102,7 @@ describe('POST /api/dividas', () => {
       }),
     );
     expect(mockPrisma.userChangeLog.create).toHaveBeenCalled();
+    expect(mockSyncDivida).toHaveBeenCalledWith('user-1', expect.objectContaining({ id: 'div-1' }));
   });
 
   it('cria rotativa sem campos de cronograma', async () => {

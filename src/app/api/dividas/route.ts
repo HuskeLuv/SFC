@@ -12,6 +12,7 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { dividaCreateSchema, validationError } from '@/utils/validation-schemas';
 import { resumoDivida } from '@/services/dividas/amortizacao';
+import { syncDividaRecordToCashflow } from '@/services/dividas/dividaCashflowSync';
 import { recordChange, diffFields, DIVIDA_FIELD_LABELS } from '@/services/changeHistory';
 import { serializeDivida, toCalcInput, toPagamentoInputs } from './_lib/serializer';
 
@@ -67,6 +68,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           }),
     },
   });
+
+  // Espelha as parcelas do financiamento no fluxo de caixa (grupo "Dívidas").
+  await syncDividaRecordToCashflow(targetUserId, created);
 
   await recordChange({
     request,

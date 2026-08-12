@@ -17,7 +17,13 @@ const mockPrisma = vi.hoisted(() => ({
   },
 }));
 
+const mockSyncDivida = vi.hoisted(() => vi.fn());
+const mockRemoveDividaCashflow = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('@/services/dividas/dividaCashflowSync', () => ({
+  syncDividaRecordToCashflow: mockSyncDivida,
+  removeDividaCashflow: mockRemoveDividaCashflow,
+}));
 
 import { DIVIDAS_UNDO_HANDLERS } from '../handlers/dividas';
 import { UndoError } from '../types';
@@ -60,9 +66,10 @@ beforeEach(() => {
 describe('divida.criar (delete-created)', () => {
   const def = DIVIDAS_UNDO_HANDLERS['divida.criar'];
 
-  it('apaga a dívida criada quando não tem pagamentos', async () => {
+  it('apaga a dívida criada quando não tem pagamentos (espelho primeiro)', async () => {
     mockPrisma.divida.findFirst.mockResolvedValue({ id: 'div-1', pagamentos: [] });
     await def.execute(ctx(makeEntry({ action: 'divida.criar', changes: [] })));
+    expect(mockRemoveDividaCashflow).toHaveBeenCalledWith('div-1');
     expect(mockPrisma.divida.delete).toHaveBeenCalledWith({ where: { id: 'div-1' } });
   });
 
@@ -88,8 +95,9 @@ describe('divida.criar (delete-created)', () => {
 describe('divida.editar (restore-fields)', () => {
   const def = DIVIDAS_UNDO_HANDLERS['divida.editar'];
 
-  it('restaura os campos anteriores quando o estado atual bate', async () => {
+  it('restaura os campos anteriores e re-sincroniza o espelho', async () => {
     mockPrisma.divida.findFirst.mockResolvedValue({ id: 'div-1', nome: 'Apartamento' });
+    mockPrisma.divida.update.mockResolvedValue({ id: 'div-1', nome: 'Apê' });
     const entry = makeEntry({
       changes: [{ field: 'nome', label: 'Nome', before: 'Apê', after: 'Apartamento' }],
     });
@@ -97,6 +105,7 @@ describe('divida.editar (restore-fields)', () => {
     expect(mockPrisma.divida.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'div-1' }, data: { nome: 'Apê' } }),
     );
+    expect(mockSyncDivida).toHaveBeenCalledWith('user-1', expect.objectContaining({ id: 'div-1' }));
   });
 
   it('409 quando o estado atual diverge (edição posterior)', async () => {
@@ -140,7 +149,7 @@ describe('divida.excluir (recreate-from-snapshot)', () => {
     },
   };
 
-  it('recria dívida com o id original e os pagamentos', async () => {
+  it('recria dívida com o id original, os pagamentos e re-sincroniza o espelho', async () => {
     mockPrisma.divida.create.mockResolvedValue({ id: 'div-1' });
     const entry = makeEntry({ action: 'divida.excluir', changes: [], snapshot });
     await def.execute(ctx(entry));
@@ -154,6 +163,7 @@ describe('divida.excluir (recreate-from-snapshot)', () => {
         data: [expect.objectContaining({ dividaId: 'div-1', parcelaNumero: 1 })],
       }),
     );
+    expect(mockSyncDivida).toHaveBeenCalledWith('user-1', expect.objectContaining({ id: 'div-1' }));
   });
 
   it('409 quando já foi restaurada (unique violation)', async () => {

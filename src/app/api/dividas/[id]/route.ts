@@ -16,6 +16,10 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { dividaPatchSchema, validationError } from '@/utils/validation-schemas';
 import { resumoDivida } from '@/services/dividas/amortizacao';
 import {
+  syncDividaRecordToCashflow,
+  removeDividaCashflow,
+} from '@/services/dividas/dividaCashflowSync';
+import {
   recordChange,
   diffFields,
   finalStateChanges,
@@ -125,6 +129,9 @@ export const PATCH = withErrorHandler(
       include: { pagamentos: true },
     });
 
+    // Re-sincroniza a linha-espelho (janela/parcela/nome/status podem ter mudado).
+    await syncDividaRecordToCashflow(targetUserId, updated);
+
     await recordChange({
       request,
       auth,
@@ -156,6 +163,9 @@ export const DELETE = withErrorHandler(
       return NextResponse.json({ error: 'Dívida não encontrada' }, { status: 404 });
     }
 
+    // Remove a linha-espelho no fluxo de caixa antes (o FK é SetNull, então
+    // sem isso a linha ficaria órfã com os valores antigos).
+    await removeDividaCashflow(id);
     // Cascade via FK onDelete:Cascade no schema → pagamentos somem juntos.
     await prisma.divida.delete({ where: { id } });
 
