@@ -39,6 +39,7 @@ function invalidateDividaCaches(queryClient: ReturnType<typeof useQueryClient>):
   queryClient.invalidateQueries({ queryKey: queryKeys.dividas.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.carteira.resumo() });
+  queryClient.invalidateQueries({ queryKey: queryKeys.saudeFinanceira.all });
 }
 
 /** Payload de criação — discriminated union espelhando dividaCreateSchema. */
