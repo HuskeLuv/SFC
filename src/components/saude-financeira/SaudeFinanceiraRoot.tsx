@@ -6,6 +6,7 @@ import StatusHero from './StatusHero';
 import FluxoCards from './FluxoCards';
 import MetasPatrimoniais from './MetasPatrimoniais';
 import BalancoPatrimonial from './BalancoPatrimonial';
+import EvolucaoChart from './EvolucaoChart';
 
 /**
  * Container raiz da Saúde Financeira: diagnóstico live derivado de carteira +
@@ -27,7 +28,7 @@ export default function SaudeFinanceiraRoot() {
     );
   }
 
-  const { indicadores, fontes, composicao } = data;
+  const { indicadores, fontes, composicao, tendencias } = data;
   const semFluxo = fontes.cashflow.activeMonths === 0;
 
   return (
@@ -46,10 +47,15 @@ export default function SaudeFinanceiraRoot() {
         </div>
       ) : null}
 
-      <StatusHero indicadores={indicadores} />
-      <FluxoCards indicadores={indicadores} cashflowYear={fontes.cashflow.year} />
+      <StatusHero indicadores={indicadores} tendencias={tendencias} />
+      <FluxoCards
+        indicadores={indicadores}
+        tendencias={tendencias}
+        cashflowYear={fontes.cashflow.year}
+      />
       <MetasPatrimoniais indicadores={indicadores} idade={fontes.idade} />
       <BalancoPatrimonial indicadores={indicadores} composicao={composicao} />
+      <EvolucaoChart />
     </div>
   );
 }
