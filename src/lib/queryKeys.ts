@@ -66,6 +66,9 @@ export const queryKeys = {
     list: (page: number, section?: string) =>
       [...queryKeys.historicoAlteracoes.all, page, section ?? 'todas'] as const,
   },
+  saudeFinanceira: {
+    all: ['saudeFinanceira'] as const,
+  },
   ir: {
     all: ['ir'] as const,
     resumoAnual: (year: number) => [...queryKeys.ir.all, 'resumoAnual', year] as const,

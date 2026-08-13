@@ -20,49 +20,16 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
 import { aggregateCashflow, type CashflowAverages } from '@/services/cashflow/cashflowAggregation';
 import { isReinvestimentoTransaction } from '@/services/cashflow/investimentosPorMes';
-
-const DEFAULT_INFLACAO = 4.5; // % a.a. fallback (meta BCB) se não houver série IPCA.
+import {
+  DEFAULT_INFLACAO_AA as DEFAULT_INFLACAO,
+  getCdiAnualizado,
+  getInflacao12m,
+} from '@/services/market/economicRates';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
-const round1 = (v: number) => Math.round(v * 10) / 10;
 
 const isReservaEmergenciaItem = (asset: { type: string; symbol: string } | null): boolean =>
   asset?.type === 'emergency' || asset?.symbol?.startsWith('RESERVA-EMERG') === true;
-
-/** CDI anualizado mais recente (% a.a.), validado. Null se indisponível. */
-async function getCdiAnualizado(): Promise<number | null> {
-  const latest = await prisma.economicIndex.findFirst({
-    where: { indexType: 'CDI_ANUALIZADO' },
-    orderBy: { date: 'desc' },
-    select: { value: true },
-  });
-  if (!latest) return null;
-  const cdi = Number(latest.value);
-  if (!Number.isFinite(cdi) || cdi <= 0 || cdi >= 100) return null;
-  return round1(cdi);
-}
-
-/**
- * Inflação acumulada nos últimos 12 meses (% a.a.), compondo as variações
- * mensais do IPCA (cada registro vem como fração, ex.: 0.0045 = 0,45%/mês).
- * Null se não houver 12 registros — o consumidor cai no fallback.
- */
-async function getInflacao12m(): Promise<number | null> {
-  const records = await prisma.economicIndex.findMany({
-    where: { indexType: 'IPCA' },
-    orderBy: { date: 'desc' },
-    take: 12,
-    select: { value: true },
-  });
-  if (records.length < 12) return null;
-  let acumulado = 1;
-  for (const r of records) {
-    const v = Number(r.value);
-    if (!Number.isFinite(v)) return null;
-    acumulado *= 1 + v;
-  }
-  return round1((acumulado - 1) * 100);
-}
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);

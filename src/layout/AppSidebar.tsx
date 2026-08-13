@@ -13,6 +13,7 @@ import {
   GridIcon,
   HorizontaLDots,
   PencilIcon,
+  PieChartIcon,
   TableIcon,
   TimeIcon,
   UserCircleIcon,
@@ -48,6 +49,11 @@ const MAIN_NAV_ITEMS: NavItem[] = [
     name: 'Planejamento',
     icon: <PencilIcon />,
     path: '/planejamento-financeiro',
+  },
+  {
+    name: 'Saúde Financeira',
+    icon: <PieChartIcon />,
+    path: '/saude-financeira',
   },
   {
     name: 'Dívidas',
@@ -112,6 +118,8 @@ const AppSidebar: React.FC = () => {
         'Planejamento',
         // Dívidas são parte central do trabalho do consultor no cliente
         'Dívidas',
+        // Diagnóstico de saúde financeira é o caso de uso original do consultor
+        'Saúde Financeira',
         // Consultor vê o histórico do cliente (inclui a própria trilha "via consultor")
         'Histórico',
       ];

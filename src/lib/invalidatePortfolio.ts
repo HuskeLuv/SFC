@@ -37,4 +37,7 @@ export function invalidatePortfolioDerivedQueries(queryClient: QueryClient): voi
   // hooks usePlanejamentoSonhos/useAposentadoria (fora do queryKeys central).
   void queryClient.invalidateQueries({ queryKey: ['planejamento-sonhos'] });
   void queryClient.invalidateQueries({ queryKey: ['aposentadoria'] });
+  // Saúde Financeira deriva de carteira + fluxo de caixa + dívidas — refaz
+  // o diagnóstico após qualquer mutação de portfolio.
+  void queryClient.invalidateQueries({ queryKey: queryKeys.saudeFinanceira.all });
 }
