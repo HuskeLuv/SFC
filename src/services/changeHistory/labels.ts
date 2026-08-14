@@ -155,6 +155,17 @@ export const DIVIDA_FIELD_LABELS: FieldLabelMap = {
   notes: 'Observações',
 };
 
+/** SeguroApolice (Saúde Financeira → Gestão de Risco) */
+export const SEGURO_FIELD_LABELS: FieldLabelMap = {
+  nome: 'Nome',
+  tipo: 'Tipo',
+  cobertura: 'Cobertura',
+  risco: 'Risco de sinistro',
+  custoAnual: { label: 'Custo anual', format: 'currency' },
+  capitalSegurado: { label: 'Capital segurado', format: 'currency' },
+  notes: 'Observações',
+};
+
 /** DividaPagamento */
 export const DIVIDA_PAGAMENTO_FIELD_LABELS: FieldLabelMap = {
   month: 'Mês',

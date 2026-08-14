@@ -82,6 +82,39 @@ export function formatMeses(value: number | null | undefined): string {
   return `${value.toFixed(1).replace('.', ',')} meses`;
 }
 
+// ── Gestão de risco (seguros) ─────────────────────────────────────────
+
+export const SEGURO_TIPO_LABELS: Record<string, string> = {
+  vida: 'Seguro de vida',
+  saude: 'Plano de saúde',
+  auto: 'Seguro auto',
+  residencial: 'Seguro residencial',
+  invalidez: 'Invalidez/DIT',
+  outro: 'Outro',
+};
+
+export const SEGURO_COBERTURA_LABELS: Record<string, string> = {
+  total: 'Total',
+  parcial: 'Parcial',
+  nenhuma: 'Nenhuma',
+};
+
+export const SEGURO_RISCO_LABELS: Record<string, string> = {
+  baixo: 'Baixo',
+  medio: 'Médio',
+  alto: 'Alto',
+};
+
+/** Posições dos eixos do bubble chart (1..3 com jitter por item). */
+export const RISCO_EIXO: Record<string, number> = { baixo: 1, medio: 2, alto: 3 };
+export const COBERTURA_EIXO: Record<string, number> = { nenhuma: 1, parcial: 2, total: 3 };
+
+export const SEGURO_COBERTURA_BADGE: Record<string, string> = {
+  total: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  parcial: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+  nenhuma: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+};
+
 export interface StatusMeta {
   label: string;
   descricao: string;

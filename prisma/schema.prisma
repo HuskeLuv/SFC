@@ -115,6 +115,7 @@ model User {
   cashflowPatrimonioSnapshots   CashflowPatrimonioSnapshot[]  @relation("CashflowPatrimonioSnapshotUser")
   cashflowOrcamentos            CashflowOrcamento[]           @relation("CashflowOrcamentoUser")
   saudeFinanceiraSnapshots      SaudeFinanceiraSnapshot[]     @relation("SaudeFinanceiraSnapshotUser")
+  seguroApolices                SeguroApolice[]               @relation("SeguroApoliceUser")
 }
 
 /**
@@ -725,6 +726,29 @@ model SaudeFinanceiraSnapshot {
   @@unique([userId, year, month])
   @@index([userId, year])
   @@map("saude_financeira_snapshots")
+}
+
+/**
+ * Apólice de seguro/proteção — bloco Gestão de Risco da Saúde Financeira.
+ * Cadastro manual (não é ativo de carteira): risco e cobertura como enums
+ * simples viram os eixos do bubble chart; custoAnual é o tamanho da bolha.
+ */
+model SeguroApolice {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation("SeguroApoliceUser", fields: [userId], references: [id], onDelete: Cascade)
+  nome            String
+  tipo            String // 'vida' | 'saude' | 'auto' | 'residencial' | 'invalidez' | 'outro'
+  cobertura       String // 'total' | 'parcial' | 'nenhuma'
+  risco           String // 'baixo' | 'medio' | 'alto' — chance percebida de sinistro
+  custoAnual      Decimal  @db.Decimal(15, 2)
+  capitalSegurado Decimal? @db.Decimal(15, 2)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@map("seguro_apolices")
 }
 
 model CashflowPatrimonioSnapshot {

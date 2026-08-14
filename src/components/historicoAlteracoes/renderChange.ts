@@ -6,6 +6,7 @@ export const SECTION_LABELS: Record<ChangeSection, string> = {
   'fluxo-caixa': 'Fluxo de Caixa',
   planejamento: 'Planejamento',
   dividas: 'Dívidas',
+  'saude-financeira': 'Saúde Financeira',
   perfil: 'Perfil',
 };
 
@@ -17,6 +18,7 @@ export const SECTION_BADGE_COLORS: Record<
   'fluxo-caixa': 'success',
   planejamento: 'warning',
   dividas: 'warning',
+  'saude-financeira': 'success',
   perfil: 'info',
 };
 
@@ -118,6 +120,11 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Excluiu um pagamento de dívida',
     (l) => `Excluiu pagamento da dívida "${l}"`,
   ),
+
+  // Saúde Financeira
+  'seguro.criar': withLabel('Cadastrou um seguro', (l) => `Cadastrou o seguro "${l}"`),
+  'seguro.editar': withLabel('Editou um seguro', (l) => `Editou o seguro "${l}"`),
+  'seguro.excluir': withLabel('Excluiu um seguro', (l) => `Excluiu o seguro "${l}"`),
 
   // Perfil
   'perfil.editar': withLabel('Editou os dados do perfil'),
