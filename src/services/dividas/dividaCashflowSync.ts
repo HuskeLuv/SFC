@@ -167,8 +167,9 @@ async function syncDividaToCashflowInner(userId: string, divida: DividaForSync):
   });
 
   // Reescreve a parcela planejada de cada mês do cronograma, exceto nos meses
-  // já realizados. Dívida quitada não projeta: o deleteMany acima já limpou o
-  // planejado e nada é reescrito.
+  // já realizados. Só 'ativa' (Iniciada) projeta: quitada, pausada e em
+  // espera não pagam parcela — o deleteMany acima já limpou o planejado e
+  // nada é reescrito (mesma semântica dos sonhos pausados).
   if (divida.status === 'ativa' && cronograma.length > 0) {
     const toCreate = cronograma
       .map((p) => ({ ...ymToYearMonth0(p.mes), value: p.parcela }))

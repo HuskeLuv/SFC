@@ -6,6 +6,7 @@ import type { DividaDTO } from '@/hooks/useDividas';
 import {
   CATEGORIA_LABELS,
   INDEXADOR_LABELS,
+  STATUS_BADGE,
   STATUS_LABELS,
   TIPO_LABELS,
   formatBRL,
@@ -41,15 +42,17 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
     });
   }, [dividas, cetSort]);
 
+  // Saldo total = tudo em aberto (pausada/em espera segue devendo); parcelas
+  // somam só as INICIADAS — pausada não está pagando.
   const totalDevido = useMemo(
     () =>
       dividas
-        .filter((d) => d.status === 'ativa')
+        .filter((d) => d.status !== 'quitada')
         .reduce((s, d) => s + (d.resumo?.saldoDevedor ?? 0), 0),
     [dividas],
   );
 
-  // Somatória das parcelas das ativas (pedido ago/2026) — rotativas sem
+  // Somatória das parcelas das iniciadas (pedido ago/2026) — rotativas sem
   // cronograma não somam (mesma convenção do card "Parcelas do Mês").
   const totalParcelas = useMemo(
     () =>
@@ -155,11 +158,7 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
                 </TableCell>
                 <TableCell className="px-3 py-2.5 text-center">
                   <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                      d.status === 'quitada'
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
-                        : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
-                    }`}
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[d.status]}`}
                   >
                     {STATUS_LABELS[d.status]}
                   </span>
@@ -170,7 +169,7 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
           {/* Rodapé de totais */}
           <TableRow className="bg-gray-50 font-medium dark:bg-white/[0.03]">
             <TableCell className="px-3 py-2.5 text-gray-700 dark:text-gray-200">
-              Total (ativas)
+              Total (em aberto)
             </TableCell>
             <TableCell className="px-3 py-2.5">{''}</TableCell>
             <TableCell className="px-3 py-2.5">{''}</TableCell>

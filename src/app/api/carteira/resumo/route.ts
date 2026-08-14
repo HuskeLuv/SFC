@@ -598,8 +598,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // do plano). N dívidas é pequeno; custo desprezível frente ao resto da rota.
   let totalDividas = 0;
   try {
+    // Em aberto = tudo que não foi quitado — pausada/em espera segue devendo.
     const dividasAtivas = await prisma.divida.findMany({
-      where: { userId: targetUserId, status: 'ativa' },
+      where: { userId: targetUserId, status: { not: 'quitada' } },
       include: { pagamentos: true },
     });
     for (const d of dividasAtivas) {

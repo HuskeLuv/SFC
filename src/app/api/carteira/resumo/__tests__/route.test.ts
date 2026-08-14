@@ -265,7 +265,8 @@ describe('GET /api/carteira/resumo', () => {
     ]);
     vi.mocked(getAssetPrices).mockResolvedValue(new Map());
     // Financiamento Price 12k/0%/12m sem pagamentos → saldo 12.000 (prefixado,
-    // fator 1). Quitada NÃO entra (filtro status: 'ativa' na query).
+    // fator 1). Quitada NÃO entra; pausada/em espera ENTRAM (status != quitada
+    // — dívida pausada segue devendo, rodada ago/2026).
     mockPrisma.divida.findMany.mockResolvedValue([
       {
         id: 'div-1',
@@ -306,7 +307,7 @@ describe('GET /api/carteira/resumo', () => {
     expect(data.totais.dividas).toBeCloseTo(14000);
     expect(data.totais.patrimonioLiquido).toBeCloseTo(data.totais.dinheiroMaisBens - 14000);
     expect(mockPrisma.divida.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: 'user-1', status: 'ativa' } }),
+      expect.objectContaining({ where: { userId: 'user-1', status: { not: 'quitada' } } }),
     );
   });
 

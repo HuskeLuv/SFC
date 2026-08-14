@@ -31,23 +31,26 @@ export default function DividasDashboard({ dividas, onSelectDivida }: DividasDas
   const [tab, setTab] = useState<TabValue>('all');
   const [creating, setCreating] = useState(false);
 
-  const ativas = useMemo(() => dividas.filter((d) => d.status === 'ativa'), [dividas]);
+  // Em aberto = não concluída (pausada/em espera segue devendo); as parcelas
+  // do mês só contam as INICIADAS — pausada não está pagando.
+  const emAberto = useMemo(() => dividas.filter((d) => d.status !== 'quitada'), [dividas]);
+  const iniciadas = useMemo(() => dividas.filter((d) => d.status === 'ativa'), [dividas]);
 
   const stats = useMemo(() => {
-    const totalDevido = ativas.reduce((s, d) => s + (d.resumo?.saldoDevedor ?? 0), 0);
-    const curtoPrazo = ativas
+    const totalDevido = emAberto.reduce((s, d) => s + (d.resumo?.saldoDevedor ?? 0), 0);
+    const curtoPrazo = emAberto
       .filter((d) => d.resumo?.categoria === 'c')
       .reduce((s, d) => s + (d.resumo?.saldoDevedor ?? 0), 0);
     // Comprometimento do mês: parcela da próxima parcela quando vence neste mês
-    // (financiamentos ativos).
+    // (financiamentos iniciados).
     const mesAtual = currentYearMonth();
-    const parcelasMes = ativas.reduce((s, d) => {
+    const parcelasMes = iniciadas.reduce((s, d) => {
       const prox = d.resumo?.proximaParcela;
       return prox && prox.mes <= mesAtual ? s + prox.parcela : s;
     }, 0);
-    const quitadas = dividas.length - ativas.length;
+    const quitadas = dividas.length - emAberto.length;
     return { totalDevido, curtoPrazo, parcelasMes, quitadas };
-  }, [dividas, ativas]);
+  }, [dividas, emAberto, iniciadas]);
 
   const filtered = useMemo(() => {
     if (tab === 'all') return dividas;
@@ -79,7 +82,7 @@ export default function DividasDashboard({ dividas, onSelectDivida }: DividasDas
           title="Total Devido"
           value={formatBRLCompact(stats.totalDevido)}
           color="error"
-          change={`${ativas.length} dívida${ativas.length !== 1 ? 's' : ''} ativa${ativas.length !== 1 ? 's' : ''}`}
+          change={`${emAberto.length} dívida${emAberto.length !== 1 ? 's' : ''} em aberto`}
           changeDirection="neutral"
         />
         <MetricCard
@@ -93,11 +96,11 @@ export default function DividasDashboard({ dividas, onSelectDivida }: DividasDas
           title="Parcelas do Mês"
           value={formatBRLCompact(stats.parcelasMes)}
           color="primary"
-          change="financiamentos ativos"
+          change="financiamentos iniciados"
           changeDirection="neutral"
         />
         <MetricCard
-          title="Quitadas"
+          title="Concluídas"
           value={String(stats.quitadas)}
           color="success"
           changeDirection="neutral"

@@ -94,8 +94,18 @@ export const INDEXADOR_LABELS: Record<DividaIndexador, string> = {
 };
 
 export const STATUS_LABELS: Record<DividaStatus, string> = {
-  ativa: 'Ativa',
-  quitada: 'Quitada',
+  ativa: 'Iniciada',
+  em_espera: 'Em espera',
+  pausada: 'Pausada',
+  quitada: 'Concluída',
+};
+
+/** Badge por status (tabela/detalhe) — mesma paleta dos sonhos. */
+export const STATUS_BADGE: Record<DividaStatus, string> = {
+  ativa: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
+  em_espera: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+  pausada: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+  quitada: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
 };
 
 export const CATEGORIA_LABELS: Record<Category, string> = {

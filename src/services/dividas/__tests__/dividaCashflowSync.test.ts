@@ -113,6 +113,19 @@ describe('syncDividaToCashflow', () => {
     expect(mockRecomputeEvolucao).toHaveBeenCalled();
   });
 
+  it('dívida PAUSADA/em espera limpa o planejado e não projeta (como sonho pausado)', async () => {
+    for (const status of ['pausada', 'em_espera'] as const) {
+      vi.clearAllMocks();
+      mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', name: 'Apê' });
+      mockPrisma.cashflowValue.findMany.mockResolvedValue([]);
+
+      await syncDividaToCashflow('u1', financiamento({ status }));
+
+      expect(mockPrisma.cashflowValue.deleteMany).toHaveBeenCalled();
+      expect(mockPrisma.cashflowValue.createMany).not.toHaveBeenCalled();
+    }
+  });
+
   it('rotativa sem linha existente é no-op (não cria linha nem recomputa)', async () => {
     mockPrisma.cashflowItem.findUnique.mockResolvedValue(null);
 

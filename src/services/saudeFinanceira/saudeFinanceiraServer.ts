@@ -205,8 +205,9 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
     })(),
     (async () => {
       try {
+        // Em aberto = não quitada — pausada/em espera segue no passivo.
         return await prisma.divida.findMany({
-          where: { userId, status: 'ativa' },
+          where: { userId, status: { not: 'quitada' } },
           include: { pagamentos: true },
         });
       } catch (error) {
