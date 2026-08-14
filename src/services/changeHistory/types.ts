@@ -3,6 +3,7 @@ export const CHANGE_SECTIONS = [
   'fluxo-caixa',
   'planejamento',
   'dividas',
+  'saude-financeira',
   'perfil',
 ] as const;
 

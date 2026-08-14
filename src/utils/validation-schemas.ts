@@ -463,6 +463,24 @@ export const dividaPagamentoCreateSchema = z.object({
   notes: z.string().max(2000).nullable().optional(),
 });
 
+// ── Saúde Financeira: seguros (gestão de risco) ───────────────────────
+
+const seguroTipo = z.enum(['vida', 'saude', 'auto', 'residencial', 'invalidez', 'outro']);
+const seguroCobertura = z.enum(['total', 'parcial', 'nenhuma']);
+const seguroRisco = z.enum(['baixo', 'medio', 'alto']);
+
+export const seguroCreateSchema = z.object({
+  nome: zString(255),
+  tipo: seguroTipo,
+  cobertura: seguroCobertura,
+  risco: seguroRisco,
+  custoAnual: zNonNegativeNumber,
+  capitalSegurado: zPositiveNumber.nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
+
+export const seguroPatchSchema = seguroCreateSchema.partial();
+
 // ── Utility: build 400 response from ZodError ─────────────────────────
 
 export function validationError(result: { success: false; error: z.ZodError }) {
