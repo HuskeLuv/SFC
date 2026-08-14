@@ -226,9 +226,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     // Calcular percentual da carteira
     const percentualCarteira = saldoBrutoTotal > 0 ? (valorAtualizado / saldoBrutoTotal) * 100 : 0;
 
-    // Calcular rentabilidade por ativo: ((valorAtualizado - valorInicial) / valorInicial) * 100
-    const rentabilidade =
-      valorInicial > 0 ? ((valorAtualizado - valorInicial) / valorInicial) * 100 : 0;
+    // Rentabilidade descontando fluxos (report 14/08/2026 — fórmula do
+    // Wellington): atual / (inicial + aportes − resgates) − 1. Aporte não é
+    // rendimento e resgate reduz a base no custo — a fórmula antiga
+    // ((atual − inicial) / inicial) mostrava −32% num CDB que só teve resgate.
+    const baseComFluxos = valorInicial + aporte - resgate;
+    const rentabilidade = baseComFluxos > 0 ? (valorAtualizado / baseComFluxos - 1) * 100 : 0;
 
     // Buscar metadata do mapa ou usar valores padrão
     const metadata = item.assetId ? metadataMap.get(item.assetId) : null;
@@ -250,12 +253,18 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     };
   });
 
-  // Calcular totais
+  // Calcular totais — mesma convenção de fluxos da rentabilidade por ativo:
+  // base = inicial + aportes − resgates; rendimento = atual − base. Fonte
+  // única do card e da linha TOTAL GERAL.
   const totalValorInicial = ativos.reduce((sum, ativo) => sum + ativo.valorInicial, 0);
+  const totalAporte = ativos.reduce((sum, ativo) => sum + ativo.aporte, 0);
+  const totalResgate = ativos.reduce((sum, ativo) => sum + ativo.resgate, 0);
   const totalValorAtualizado = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
   const saldoInicioMes = totalValorInicial; // Assumindo que é o saldo inicial
-  const rendimento = totalValorAtualizado - totalValorInicial;
-  const rentabilidade = totalValorInicial > 0 ? (rendimento / totalValorInicial) * 100 : 0;
+  const totalBaseComFluxos = totalValorInicial + totalAporte - totalResgate;
+  const rendimento = totalValorAtualizado - totalBaseComFluxos;
+  const rentabilidade =
+    totalBaseComFluxos > 0 ? (totalValorAtualizado / totalBaseComFluxos - 1) * 100 : 0;
 
   return NextResponse.json({
     ativos,
