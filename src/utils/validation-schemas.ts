@@ -166,11 +166,31 @@ export const cashflowOrcamentoUpdateSchema = z.object({
   year: z.number().int().min(2000).max(2100),
   metas: z
     .array(
-      z.object({
-        // null = linha especial de Investimentos (meta mensal em R$, como as categorias)
-        groupId: zString(255).nullable(),
-        valor: z.number().finite().min(0),
-      }),
+      z
+        .object({
+          // null = linha especial de Investimentos
+          groupId: zString(255).nullable(),
+          valor: z.number().finite().min(0),
+          // Só a linha de Investimentos aceita 'percentual' (% da renda,
+          // reintroduzido a pedido em ago/2026); categorias são sempre R$.
+          tipoMeta: z.enum(['valor', 'percentual']).optional().default('valor'),
+        })
+        .superRefine((meta, ctx) => {
+          if (meta.tipoMeta === 'percentual' && meta.groupId !== null) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['tipoMeta'],
+              message: 'Meta percentual só é permitida na linha de Investimentos',
+            });
+          }
+          if (meta.tipoMeta === 'percentual' && meta.valor > 100) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['valor'],
+              message: 'Percentual da renda deve ser no máximo 100',
+            });
+          }
+        }),
     )
     .max(200)
     .optional(),
