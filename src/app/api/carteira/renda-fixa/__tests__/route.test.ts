@@ -95,6 +95,41 @@ describe('/api/carteira/renda-fixa', () => {
       );
     });
 
+    it('EXCLUI Tesouro destinado à reserva (bug ago/2026: duplicado nas duas abas)', async () => {
+      const tesouroPort = (id: string, assetId: string, name: string) => ({
+        id,
+        assetId,
+        quantity: 2.68,
+        avgPrice: 19058,
+        totalInvested: 51082.52,
+        asset: { id: assetId, type: 'tesouro-direto', name, currentPrice: null },
+      });
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        tesouroPort('pf-td-reserva', 'asset-td-reserva', 'Tesouro Selic 2031'),
+        tesouroPort('pf-td-rf', 'asset-td-rf', 'Tesouro Selic 2028'),
+      ]);
+      // 1ª chamada = getTesouroDestinoByAssetId (compras com notes); as demais
+      // (metadados/IR) devolvem vazio.
+      mockPrisma.stockTransaction.findMany
+        .mockResolvedValueOnce([
+          {
+            assetId: 'asset-td-reserva',
+            notes: JSON.stringify({ tesouroDestino: 'reserva-emergencia' }),
+          },
+        ])
+        .mockResolvedValue([]);
+
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      const nomes = (data.secoes as Array<{ ativos: Array<{ nome: string }> }>).flatMap((s) =>
+        s.ativos.map((a) => a.nome),
+      );
+      expect(nomes).toContain('Tesouro Selic 2028');
+      expect(nomes).not.toContain('Tesouro Selic 2031');
+    });
+
     it('marks pre-fixed CDB to curve and exposes isAutoUpdated', async () => {
       const startDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000); // ~200 dias atrás
       const maturityDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
