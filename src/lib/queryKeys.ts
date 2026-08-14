@@ -68,6 +68,7 @@ export const queryKeys = {
   },
   saudeFinanceira: {
     all: ['saudeFinanceira'] as const,
+    evolucao: () => [...queryKeys.saudeFinanceira.all, 'evolucao'] as const,
   },
   ir: {
     all: ['ir'] as const,

@@ -1,17 +1,27 @@
 'use client';
 
-import type { SaudeFinanceiraIndicadores } from '@/hooks/useSaudeFinanceira';
-import { STATUS_META, formatBRL, formatMeses, formatPercent } from './utils';
+import type { SaudeFinanceiraIndicadores, TendenciasSaude } from '@/hooks/useSaudeFinanceira';
+import { STATUS_META, formatBRL, formatMeses, formatPercent, tendenciaSeta } from './utils';
 
 interface StatusHeroProps {
   indicadores: SaudeFinanceiraIndicadores;
+  tendencias: TendenciasSaude;
+}
+
+function Seta({ seta }: { seta: ReturnType<typeof tendenciaSeta> }) {
+  if (!seta) return null;
+  return (
+    <span className={`ml-1 text-sm font-semibold ${seta.className}`} title="vs mês anterior">
+      {seta.glyph}
+    </span>
+  );
 }
 
 /**
  * Bloco ① — o veredito: status ED/FR/EQ com motivos, ladeado por patrimônio
- * líquido, grau de independência e meses de cobertura.
+ * líquido, grau de independência e meses de cobertura (setas vs último mês).
  */
-export default function StatusHero({ indicadores }: StatusHeroProps) {
+export default function StatusHero({ indicadores, tendencias }: StatusHeroProps) {
   const { status, balanco, metricas } = indicadores;
   const meta = STATUS_META[status.codigo];
 
@@ -45,12 +55,14 @@ export default function StatusHero({ indicadores }: StatusHeroProps) {
               }`}
             >
               {formatBRL(balanco.patrimonioLiquido)}
+              <Seta seta={tendenciaSeta(tendencias.patrimonioLiquido, true)} />
             </p>
           </div>
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400">Independência financeira</p>
             <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
               {formatPercent(metricas.grauIndependencia)}
+              <Seta seta={tendenciaSeta(tendencias.grauIndependencia, true)} />
             </p>
             <p className="text-[11px] text-gray-400 dark:text-gray-500">do patrimônio necessário</p>
           </div>
@@ -58,6 +70,7 @@ export default function StatusHero({ indicadores }: StatusHeroProps) {
             <p className="text-xs text-gray-500 dark:text-gray-400">Cobertura de gastos</p>
             <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
               {formatMeses(metricas.mesesCobertura)}
+              <Seta seta={tendenciaSeta(tendencias.mesesCobertura, true)} />
             </p>
             <p className="text-[11px] text-gray-400 dark:text-gray-500">em ativos líquidos</p>
           </div>

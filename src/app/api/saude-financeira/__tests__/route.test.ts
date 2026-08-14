@@ -11,6 +11,7 @@ const mockPrisma = vi.hoisted(() => ({
   dashboardData: { findMany: vi.fn() },
   stockTransaction: { findMany: vi.fn() },
   portfolioPerformance: { findFirst: vi.fn() },
+  saudeFinanceiraSnapshot: { findFirst: vi.fn(), findMany: vi.fn(), upsert: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -121,6 +122,9 @@ beforeEach(() => {
   mockPrisma.dashboardData.findMany.mockResolvedValue([]);
   mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
   mockPrisma.portfolioPerformance.findFirst.mockResolvedValue(null);
+  mockPrisma.saudeFinanceiraSnapshot.findFirst.mockResolvedValue(null);
+  mockPrisma.saudeFinanceiraSnapshot.findMany.mockResolvedValue([]);
+  mockPrisma.saudeFinanceiraSnapshot.upsert.mockResolvedValue({});
   mockGetMergedCashflowGroups.mockResolvedValue(cashflowTree());
   mockGetAssetPrices.mockResolvedValue(new Map());
   mockGetIndicator.mockResolvedValue(null);
@@ -326,5 +330,55 @@ describe('GET /api/saude-financeira', () => {
       '/api/saude-financeira',
       'GET',
     );
+  });
+
+  it('sem snapshot anterior: tendências null e upsert do mês corrente disparado', async () => {
+    const res = await GET(req());
+    const data = await res.json();
+
+    expect(data.tendencias.patrimonioLiquido).toBeNull();
+    expect(data.tendencias.rendaMensal).toBeNull();
+
+    const now = new Date();
+    expect(mockPrisma.saudeFinanceiraSnapshot.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_year_month: {
+            userId: 'user-1',
+            year: now.getFullYear(),
+            month: now.getMonth(),
+          },
+        },
+      }),
+    );
+  });
+
+  it('com snapshot de mês anterior: setas comparam o live com o último teste', async () => {
+    // Live: renda 13000, gasto 9000, PL 0 (sem ativos/dívidas no default).
+    mockPrisma.saudeFinanceiraSnapshot.findFirst.mockResolvedValue({
+      data: {
+        rendaMensal: 12000, // live 13000 → up
+        gastoMensal: 9000, // igual → flat
+        poupancaMensal: 3000,
+        taxaPoupanca: 0.25,
+        ativosAltaLiquidez: 0,
+        ativosBaixaLiquidez: 0,
+        passivosCurtoPrazo: 0,
+        passivosLongoPrazo: 10000, // live 0 → down
+        patrimonioLiquido: -10000, // live 0 → up
+        reservaEmergencia: 0,
+        mesesCobertura: null,
+        grauIndependencia: null,
+        status: 'ED',
+      },
+    });
+
+    const res = await GET(req());
+    const data = await res.json();
+
+    expect(data.tendencias.rendaMensal).toBe('up');
+    expect(data.tendencias.gastoMensal).toBe('flat');
+    expect(data.tendencias.passivosTotal).toBe('down');
+    expect(data.tendencias.patrimonioLiquido).toBe('up');
   });
 });

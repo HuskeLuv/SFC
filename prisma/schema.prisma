@@ -114,6 +114,7 @@ model User {
   changeLogs                    UserChangeLog[]               @relation("UserChangeLogUser")
   cashflowPatrimonioSnapshots   CashflowPatrimonioSnapshot[]  @relation("CashflowPatrimonioSnapshotUser")
   cashflowOrcamentos            CashflowOrcamento[]           @relation("CashflowOrcamentoUser")
+  saudeFinanceiraSnapshots      SaudeFinanceiraSnapshot[]     @relation("SaudeFinanceiraSnapshotUser")
 }
 
 /**
@@ -705,6 +706,27 @@ model UserChangeLog {
  * trava o valor calculado (aportes nominais + fluxo livre) para que meses
  * fechados fiquem estáticos no histórico, imunes a edições retroativas.
  */
+/**
+ * Foto mensal dos indicadores de Saúde Financeira (pacote fechado em Json —
+ * ninguém consulta campo a campo, e novos indicadores não pedem migração).
+ * Gravada lazy pelo GET /api/saude-financeira (upsert do mês corrente);
+ * alimenta as setas de tendência e o gráfico de evolução.
+ */
+model SaudeFinanceiraSnapshot {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("SaudeFinanceiraSnapshotUser", fields: [userId], references: [id], onDelete: Cascade)
+  year      Int
+  month     Int // 0 = janeiro ... 11 = dezembro
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, year, month])
+  @@index([userId, year])
+  @@map("saude_financeira_snapshots")
+}
+
 model CashflowPatrimonioSnapshot {
   id        String   @id @default(uuid())
   userId    String

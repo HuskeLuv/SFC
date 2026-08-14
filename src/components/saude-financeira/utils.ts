@@ -3,8 +3,59 @@
  * Sem dependências de React (padrão de components/dividas/utils.ts).
  */
 
-import type { StatusSaudeCodigo } from '@/hooks/useSaudeFinanceira';
+import type { StatusSaudeCodigo, TendenciaDirecao } from '@/hooks/useSaudeFinanceira';
 import { formatCurrency } from '@/utils/formatters';
+
+export const MONTH_NAMES_PT = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+];
+
+const TENDENCIA_GLYPH: Record<TendenciaDirecao, string> = { up: '↑', down: '↓', flat: '→' };
+
+/**
+ * Texto + cor do rodapé de um MetricCard a partir da tendência vs último mês.
+ * A direção é factual; `bomQuandoSobe` decide a cor (gasto subindo = ruim).
+ * Sem tendência (primeiro mês) cai no texto de fonte.
+ */
+export function tendenciaChange(
+  direcao: TendenciaDirecao | null,
+  bomQuandoSobe: boolean,
+  fallback: string,
+): { change: string; changeDirection: 'up' | 'down' | 'neutral' } {
+  if (direcao == null) return { change: fallback, changeDirection: 'neutral' };
+  if (direcao === 'flat')
+    return { change: '→ estável vs mês anterior', changeDirection: 'neutral' };
+  const bom = direcao === 'up' ? bomQuandoSobe : !bomQuandoSobe;
+  return {
+    change: `${TENDENCIA_GLYPH[direcao]} vs mês anterior`,
+    changeDirection: bom ? 'up' : 'down',
+  };
+}
+
+/** Seta inline (hero): glyph + classe de cor pela "bondade" da variação. */
+export function tendenciaSeta(
+  direcao: TendenciaDirecao | null,
+  bomQuandoSobe: boolean,
+): { glyph: string; className: string } | null {
+  if (direcao == null) return null;
+  if (direcao === 'flat') return { glyph: '→', className: 'text-gray-400 dark:text-gray-500' };
+  const bom = direcao === 'up' ? bomQuandoSobe : !bomQuandoSobe;
+  return {
+    glyph: TENDENCIA_GLYPH[direcao],
+    className: bom ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+  };
+}
 
 export function formatBRL(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—';
