@@ -64,7 +64,7 @@ export const AddRowForm: React.FC<AddRowFormProps> = ({
         className="w-full px-1 rounded border border-gray-300 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white h-6 leading-6"
         value={newRow.significado || ''}
         onChange={(e) => onUpdateField('significado', e.target.value)}
-        placeholder="Significado"
+        placeholder="O seu porquê"
       />
     </TableCell>
     <TableCell

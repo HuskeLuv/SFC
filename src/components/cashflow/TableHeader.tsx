@@ -33,7 +33,15 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
         fontSize: '12px',
       }}
     >
-      {['Itens', 'Significado', 'Rank', '% Receita'].map((label, index) => (
+      {/* "O SEU PORQUÊ" e "Nível Prioridade" em azul negrito (planilha-base
+          Escolhi $er Rico, pedido ago/2026); a segunda quebra em 2 linhas
+          como no Excel — a coluna tem 80px. */}
+      {[
+        { label: 'Itens' },
+        { label: 'O SEU PORQUÊ', azul: true },
+        { label: 'Nível Prioridade', azul: true, quebra: true },
+        { label: '% Receita' },
+      ].map(({ label, azul, quebra }, index) => (
         <TableCell
           key={label}
           isHeader
@@ -49,7 +57,13 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
             borderRight: index === 3 ? '1px solid rgb(203 213 225)' : 'none',
           }}
         >
-          <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
+          <p
+            className={`font-bold ${
+              azul ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-400'
+            } ${
+              quebra ? 'text-[10px] leading-[11px] whitespace-normal' : 'text-xs whitespace-nowrap'
+            }`}
+          >
             {label}
           </p>
         </TableCell>

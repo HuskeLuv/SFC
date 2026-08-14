@@ -193,7 +193,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             type="text"
             value={displayData.significado || ''}
             onChange={handleSignificadoChange}
-            placeholder="Significado"
+            placeholder="O seu porquê"
             className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 h-6 leading-6"
           />
         ) : (
@@ -219,7 +219,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             type="text"
             value={displayData.rank || ''}
             onChange={handleRankChange}
-            placeholder="Rank"
+            placeholder="Nível prioridade"
             className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-center h-6 leading-6"
           />
         ) : (
