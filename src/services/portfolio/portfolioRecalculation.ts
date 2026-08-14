@@ -115,12 +115,60 @@ export async function recalculatePortfolioFromTransactions(params: {
       })
     : [];
 
-  const { quantity: runningQty, cost: runningCost } = replayPosition(
-    realTransactions,
-    corporateActions,
-  );
+  // RESERVAS são VALUE-BASED: toda transação usa quantity=1 como marcador de
+  // "1 lançamento" e o valor real mora em `total`. O replay por quantidade
+  // (custo médio ponderado) destrói essas posições — uma venda qty=1 anula a
+  // compra qty=1 e zera a reserva inteira ignorando os valores (incidente
+  // qa.teste2, 14/08/2026: excluir uma transação de reserva pelo histórico
+  // zerou R$ 8.787 de reserva). Para reservas a posição é o LÍQUIDO em reais:
+  // Σ compras − Σ vendas, com qty=1 e avgPrice=valor (a cascata de valoração
+  // de reserva lê avgPrice×qty).
+  const isReservaValueBased =
+    asset?.type === 'emergency' ||
+    asset?.type === 'opportunity' ||
+    asset?.type === 'cash' ||
+    asset?.symbol?.startsWith('RESERVA-EMERG') === true ||
+    asset?.symbol?.startsWith('RESERVA-OPORT') === true;
 
-  const avgPrice = runningQty > 0 ? runningCost / runningQty : 0;
+  let runningQty: number;
+  let runningCost: number;
+  let avgPrice: number;
+  if (isReservaValueBased) {
+    const netValue = realTransactions.reduce((sum, t) => {
+      const total = Number(t.total) || 0;
+      if (t.type === 'compra') return sum + total;
+      if (t.type === 'venda') return sum - total;
+      return sum;
+    }, 0);
+    runningCost = Math.round(Math.max(0, netValue) * 100) / 100;
+    runningQty = runningCost > 0 ? 1 : 0;
+    avgPrice = runningCost;
+    if (netValue < 0) {
+      logger.warn(
+        `[portfolioRecalculation] reserva ${asset?.symbol ?? assetId} com líquido negativo (${netValue.toFixed(2)}) — posição zerada`,
+      );
+    }
+
+    // Líquido zerado = resgate total: remove a posição e o FI acoplado (mesmo
+    // desfecho do fluxo de resgate total), preservando o histórico de transações.
+    if (runningQty === 0) {
+      await prisma.fixedIncomeAsset.deleteMany({ where: { userId: targetUserId, assetId } });
+      if (portfolioId) {
+        await prisma.portfolio.delete({ where: { id: portfolioId } });
+      } else {
+        await prisma.portfolio.deleteMany({ where: { userId: targetUserId, assetId } });
+      }
+      if (recomputeSnapshotsFrom) {
+        await invalidatePortfolioSnapshots(targetUserId, recomputeSnapshotsFrom);
+      }
+      return;
+    }
+  } else {
+    const replay = replayPosition(realTransactions, corporateActions);
+    runningQty = replay.quantity;
+    runningCost = replay.cost;
+    avgPrice = runningQty > 0 ? runningCost / runningQty : 0;
+  }
 
   const dadosPosicao = {
     quantity: runningQty,

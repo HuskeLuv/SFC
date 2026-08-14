@@ -499,4 +499,112 @@ describe('recalculatePortfolioFromTransactions', () => {
       expect(mockPrisma.portfolio.delete).toHaveBeenCalledWith({ where: { id: portfolioId } });
     });
   });
+
+  describe('reservas são VALUE-BASED (incidente qa.teste2, 14/08/2026)', () => {
+    const reservaAsset = { symbol: 'RESERVA-EMERG-123', type: 'emergency' };
+
+    it('resgate parcial NÃO zera a reserva: posição = Σ compras − Σ vendas em R$', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue(reservaAsset);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ type: 'compra', quantity: 1, price: 25000, total: 25000 }),
+        tx({ type: 'venda', quantity: 1, price: 2041, total: 2041, date: new Date('2024-02-01') }),
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-reserva',
+        portfolioId,
+      });
+
+      // Antes do fix o replay por quantidade dava 0/0/0 (venda qty=1 anulava
+      // a compra qty=1). Agora: líquido em reais, qty=1, avgPrice = valor.
+      expect(mockPrisma.portfolio.update).toHaveBeenCalledWith({
+        where: { id: portfolioId },
+        data: expect.objectContaining({
+          quantity: 1,
+          avgPrice: 22959,
+          totalInvested: 22959,
+        }),
+      });
+    });
+
+    it('sincroniza FixedIncomeAsset.investedAmount com o líquido (CDB de reserva)', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue(reservaAsset);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ type: 'compra', quantity: 1, price: 10000, total: 10000 }),
+        tx({ type: 'venda', quantity: 1, price: 4000, total: 4000, date: new Date('2024-02-01') }),
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-reserva',
+        portfolioId,
+      });
+
+      expect(mockPrisma.fixedIncomeAsset.updateMany).toHaveBeenCalledWith({
+        where: { userId, assetId: 'asset-reserva' },
+        data: expect.objectContaining({ investedAmount: 6000 }),
+      });
+    });
+
+    it('líquido zerado (resgate total) remove posição e FI, preservando as transações', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue(reservaAsset);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ type: 'compra', quantity: 1, price: 5000, total: 5000 }),
+        tx({ type: 'venda', quantity: 1, price: 5000, total: 5000, date: new Date('2024-02-01') }),
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-reserva',
+        portfolioId,
+      });
+
+      expect(mockPrisma.portfolio.delete).toHaveBeenCalledWith({ where: { id: portfolioId } });
+      expect(mockPrisma.fixedIncomeAsset.deleteMany).toHaveBeenCalledWith({
+        where: { userId, assetId: 'asset-reserva' },
+      });
+      // Histórico preservado — diferente do branch "sem transações".
+      expect(mockPrisma.stockTransaction.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+    });
+
+    it('reserva identificada por PREFIXO de símbolo mesmo sem type de reserva', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue({ symbol: 'RESERVA-OPORT-9', type: 'custom' });
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ type: 'compra', quantity: 1, price: 3000, total: 3000 }),
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-reserva',
+        portfolioId,
+      });
+
+      expect(mockPrisma.portfolio.update).toHaveBeenCalledWith({
+        where: { id: portfolioId },
+        data: expect.objectContaining({ quantity: 1, avgPrice: 3000, totalInvested: 3000 }),
+      });
+    });
+
+    it('ativo NORMAL continua no replay por quantidade (regressão)', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue({ symbol: 'PETR4', type: 'stock' });
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        tx({ type: 'compra', quantity: 10, price: 20, total: 200 }),
+        tx({ type: 'venda', quantity: 5, price: 30, total: 150, date: new Date('2024-02-01') }),
+      ]);
+
+      await recalculatePortfolioFromTransactions({
+        targetUserId: userId,
+        assetId: 'asset-1',
+        portfolioId,
+      });
+
+      // 10 compradas a 20, 5 vendidas (custo proporcional 100) → 5 @ 20.
+      expect(mockPrisma.portfolio.update).toHaveBeenCalledWith({
+        where: { id: portfolioId },
+        data: expect.objectContaining({ quantity: 5, avgPrice: 20, totalInvested: 100 }),
+      });
+    });
+  });
 });
