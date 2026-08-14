@@ -78,6 +78,10 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
     'Lazer',
     'Impostos',
     'Despesas com Dependentes',
+    // Ex-"Dívidas" (linhas-espelho de financiamentos): sem esta entrada o
+    // cabeçalho caía no estilo genérico azul e parecia de outra seção.
+    'Despesas Financeiras',
+    'Dívidas',
   ].includes(canonical);
 
   const getDisplayName = () => {
