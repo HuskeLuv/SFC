@@ -86,8 +86,9 @@ export default function OrcamentoMensalChart({
 
   return (
     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+      {/* Nome do gráfico homônimo da planilha-base */}
       <h4 className="mb-2 text-sm font-medium text-gray-800 dark:text-white/90">
-        Orçado vs Real — mês a mês
+        Orçamento vs. Atual
       </h4>
       <ReactApexChart options={options} series={series} type="bar" height={280} />
     </div>

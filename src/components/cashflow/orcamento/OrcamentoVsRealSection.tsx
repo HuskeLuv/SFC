@@ -5,7 +5,6 @@ import { useCashflowYear } from '@/context/CashflowYearContext';
 import { useOrcamento } from '@/hooks/useOrcamento';
 import { MONTHS } from '@/constants/cashflow';
 import type { SeriePorModo } from '@/services/cashflow/orcamentoVsReal';
-import { OrcamentoKpiCards } from './OrcamentoKpiCards';
 import { OrcamentoTable, type OrcamentoLinha, type OrcamentoTipoMeta } from './OrcamentoTable';
 import OrcamentoChart from './OrcamentoChart';
 import OrcamentoMensalChart from './OrcamentoMensalChart';
@@ -206,29 +205,28 @@ export default function OrcamentoVsRealSection() {
         </div>
       )}
 
-      {/* Layout compacto (modelo da planilha/PDF): tabela à esquerda,
-          resumo + donut à direita. Empilha em telas menores. */}
-      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-5">
-        <div className="xl:col-span-3">
-          <OrcamentoTable
-            linhas={linhas}
-            investimentos={investimentos}
-            totais={totais}
-            onSaveMeta={handleSaveMeta}
-          />
-        </div>
-        <div className="space-y-5 xl:col-span-2">
-          <OrcamentoKpiCards totais={totais} investimentos={investimentos} />
-          <OrcamentoChart linhas={linhas} />
-        </div>
+      {/* Layout no formato da planilha-base ("Orçamento vs Real (Mensal)"):
+          gráficos LADO A LADO no topo (donut + "Orçamento vs. Atual"), depois
+          o subtítulo "Resumo por Categoria" e a tabela em largura total. */}
+      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
+        <OrcamentoChart linhas={linhas} />
+        <OrcamentoMensalChart
+          orcadoMensal={data.totais.metaMensal}
+          realPorMes={data.totais.realPorMes[modoReal]}
+        />
       </div>
 
-      {/* Barras mês a mês (modelo "Orçamento vs. Atual" da planilha) — o Real
-          acompanha o toggle Lançado/Consolidado. */}
-      <OrcamentoMensalChart
-        orcadoMensal={data.totais.metaMensal}
-        realPorMes={data.totais.realPorMes[modoReal]}
-      />
+      <div className="space-y-3">
+        <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
+          Resumo por Categoria
+        </h3>
+        <OrcamentoTable
+          linhas={linhas}
+          investimentos={investimentos}
+          totais={totais}
+          onSaveMeta={handleSaveMeta}
+        />
+      </div>
     </div>
   );
 }

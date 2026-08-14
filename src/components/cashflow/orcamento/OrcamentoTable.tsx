@@ -214,7 +214,8 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
       <table className="w-full min-w-[640px] text-left">
         <thead>
-          <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-white/[0.02] dark:text-gray-400">
+          {/* Cabeçalho no oliva exato da planilha-base (#9E8A58, texto branco) */}
+          <tr className="border-b border-gray-200 bg-[#9E8A58] text-xs uppercase tracking-wide text-white dark:border-gray-800">
             <th className="py-3 pl-4 pr-4 font-medium">Categoria</th>
             <th className="py-3 pr-4 text-right font-medium">Orçamento</th>
             <th className="py-3 pr-4 text-right font-medium">Real</th>
