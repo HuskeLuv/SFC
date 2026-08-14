@@ -97,6 +97,45 @@ describe('GET /api/carteira/reserva-emergencia', () => {
     expect(data.rentabilidade).toBeDefined();
   });
 
+  it('rentabilidade desconta o RESGATE da base (report 14/08 — CDB com resgate mostrava −32%)', async () => {
+    // Números reais do print: inicial 4.185,00, resgate 1.341,31, atual
+    // 2.843,69. Fórmula canônica: atual / (inicial + aportes − resgates) − 1
+    // = 2.843,69 / 2.843,69 − 1 = 0%. A fórmula antiga dava −32,05%.
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    const item = {
+      id: 'port-cdb',
+      userId: 'user-1',
+      quantity: 1,
+      avgPrice: 2843.69,
+      totalInvested: 2843.69,
+      assetId: 'asset-cdb',
+      asset: {
+        id: 'asset-cdb',
+        name: 'CDB 100% CDI',
+        type: 'emergency',
+        symbol: 'RESERVA-EMERG-CDB',
+      },
+    };
+    mockPrisma.portfolio.findMany
+      .mockResolvedValueOnce([item])
+      .mockResolvedValueOnce([{ ...item, stock: null }]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { id: 'tx-c', assetId: 'asset-cdb', type: 'compra', total: 4185, notes: null },
+      { id: 'tx-v', assetId: 'asset-cdb', type: 'venda', total: 1341.31, notes: null },
+    ]);
+
+    const response = await GET(createGetRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.ativos[0].valorInicial).toBe(4185);
+    expect(data.ativos[0].resgate).toBeCloseTo(1341.31, 2);
+    expect(data.ativos[0].rentabilidade).toBe(0);
+    // Totais (card + linha TOTAL GERAL) usam a mesma base com fluxos.
+    expect(data.rendimento).toBeCloseTo(0, 2);
+    expect(data.rentabilidade).toBeCloseTo(0, 6);
+  });
+
   it('retorna lista vazia quando não há reservas', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
     mockPrisma.portfolio.findMany
