@@ -76,6 +76,12 @@ export function formatPercent(fraction: number | null | undefined, decimals = 1)
   return `${(fraction * 100).toFixed(decimals).replace('.', ',')}%`;
 }
 
+/** Taxa anual (fração) → equivalente mensal composto: (1+aa)^(1/12) − 1. */
+export function taxaMensal(aa: number | null | undefined): number | null {
+  if (aa == null || !Number.isFinite(aa) || aa <= -1) return null;
+  return Math.pow(1 + aa, 1 / 12) - 1;
+}
+
 /** Meses com 1 casa ("11.87" → "11,9 meses"). */
 export function formatMeses(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—';

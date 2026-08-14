@@ -27,6 +27,9 @@ export interface SnapshotData {
   reservaEmergencia: number;
   mesesCobertura: number | null;
   grauIndependencia: number | null;
+  /** Rentabilidade nominal a.a. usada no mês (TWR 12m ou proxy CDI).
+   *  Opcional: snapshots gravados antes de ago/2026 não têm o campo. */
+  rentabilidadeAA?: number | null;
   status: StatusSaudeCodigo;
 }
 
@@ -71,6 +74,7 @@ export function extractSnapshotData(indicadores: SaudeFinanceiraIndicadores): Sn
     reservaEmergencia: indicadores.benchmarks.reservaEmergencia.atual,
     mesesCobertura: indicadores.metricas.mesesCobertura,
     grauIndependencia: indicadores.metricas.grauIndependencia,
+    rentabilidadeAA: indicadores.economia.rentabilidadeAA,
     status: indicadores.status.codigo,
   };
 }

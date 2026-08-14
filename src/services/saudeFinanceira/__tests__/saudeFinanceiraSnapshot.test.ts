@@ -45,6 +45,8 @@ describe('extractSnapshotData', () => {
     expect(data.reservaEmergencia).toBeCloseTo(106822.93, 2);
     expect(data.status).toBe('EQ');
     expect(data.grauIndependencia).toBeCloseTo(0.0975, 3);
+    // Rentabilidade usada no mês entra na foto (tabela de evolução da planilha).
+    expect(data.rentabilidadeAA).toBeCloseTo(0.115, 4);
     // Serializável como Json puro (vai pro campo Json do Prisma).
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
   });
