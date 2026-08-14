@@ -166,6 +166,14 @@ export const SEGURO_FIELD_LABELS: FieldLabelMap = {
   notes: 'Observações',
 };
 
+/** Parâmetros da metodologia de Saúde Financeira */
+export const SAUDE_CONFIG_FIELD_LABELS: FieldLabelMap = {
+  multReserva: { label: 'Reserva de emergência (× gasto mensal)', format: 'number' },
+  multSeguranca: { label: 'Patrimônio de segurança (× gasto mensal)', format: 'number' },
+  fatorIdeal: 'Fator do patrimônio ideal',
+  coberturaMinimaMeses: { label: 'Cobertura mínima (meses)', format: 'number' },
+};
+
 /** DividaPagamento */
 export const DIVIDA_PAGAMENTO_FIELD_LABELS: FieldLabelMap = {
   month: 'Mês',

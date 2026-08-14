@@ -125,6 +125,7 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
   'seguro.criar': withLabel('Cadastrou um seguro', (l) => `Cadastrou o seguro "${l}"`),
   'seguro.editar': withLabel('Editou um seguro', (l) => `Editou o seguro "${l}"`),
   'seguro.excluir': withLabel('Excluiu um seguro', (l) => `Excluiu o seguro "${l}"`),
+  'saude-config.editar': withLabel('Personalizou as metas de saúde financeira'),
 
   // Perfil
   'perfil.editar': withLabel('Editou os dados do perfil'),

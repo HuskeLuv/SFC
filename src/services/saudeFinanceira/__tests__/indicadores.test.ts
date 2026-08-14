@@ -133,6 +133,30 @@ describe('computeSaudeFinanceira — status FR (Frágil)', () => {
   });
 });
 
+describe('computeSaudeFinanceira — config personalizada (F4)', () => {
+  it('multiplicadores customizados mudam os benchmarks', () => {
+    const r = computeSaudeFinanceira(
+      { ...baseInputs, idade: 30 },
+      { multReserva: 6, multSeguranca: 24, fatorIdeal: 0.2, coberturaMinimaMeses: 12 },
+    );
+    expect(r.benchmarks.reservaEmergencia.necessario).toBe(54000); // 6×9000
+    expect(r.benchmarks.patrimonioSeguranca.necessario).toBe(216000); // 24×9000
+    expect(r.benchmarks.patrimonioIdeal.necessario).toBe(936000); // 20%×156000×30
+  });
+
+  it('coberturaMinimaMeses customizada muda o corte do status Frágil', () => {
+    // Cobertura ~11,87 meses: EQ com corte 6 (default), FR com corte 12.
+    const r = computeSaudeFinanceira(baseInputs, {
+      multReserva: 3,
+      multSeguranca: 12,
+      fatorIdeal: 0.1,
+      coberturaMinimaMeses: 12,
+    });
+    expect(r.status.codigo).toBe('FR');
+    expect(r.status.motivos).toContain('Ativos líquidos cobrem menos de 12 meses de gastos');
+  });
+});
+
 describe('computeSaudeFinanceira — casos de borda', () => {
   it('gasto mensal zero: benchmarks de gasto e cobertura incalculáveis, sem crash', () => {
     const r = computeSaudeFinanceira({ ...baseInputs, gastoMensal: 0 });

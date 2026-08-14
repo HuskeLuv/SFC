@@ -481,6 +481,14 @@ export const seguroCreateSchema = z.object({
 
 export const seguroPatchSchema = seguroCreateSchema.partial();
 
+// Parâmetros da metodologia — mesmas faixas de RANGES em saudeFinanceiraConfig.ts.
+export const saudeConfigSchema = z.object({
+  multReserva: z.number().finite().min(1).max(24).optional(),
+  multSeguranca: z.number().finite().min(1).max(60).optional(),
+  fatorIdeal: z.number().finite().min(0.01).max(1).optional(),
+  coberturaMinimaMeses: z.number().finite().min(1).max(24).optional(),
+});
+
 // ── Utility: build 400 response from ZodError ─────────────────────────
 
 export function validationError(result: { success: false; error: z.ZodError }) {

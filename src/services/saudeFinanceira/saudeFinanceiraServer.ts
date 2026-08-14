@@ -33,7 +33,12 @@ import {
 } from '@/services/market/economicRates';
 import { CATEGORIA_LABELS } from '@/lib/carteiraCategoryColors';
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
-import { computeSaudeFinanceira, type SaudeFinanceiraIndicadores } from './indicadores';
+import {
+  computeSaudeFinanceira,
+  type SaudeFinanceiraConfig,
+  type SaudeFinanceiraIndicadores,
+} from './indicadores';
+import { getSaudeConfig } from './saudeFinanceiraConfig';
 
 /** Renda fixa com vencimento até este horizonte conta como alta liquidez. */
 const HORIZONTE_LIQUIDEZ_MESES = 12;
@@ -76,6 +81,8 @@ export interface SaudeFinanceiraPayload {
     /** Idade usada no patrimônio ideal (AposentadoriaPlano); null = não preenchida. */
     idade: number | null;
   };
+  /** Parâmetros efetivos da metodologia (defaults + overrides do user). */
+  config: SaudeFinanceiraConfig;
   composicao: {
     altaLiquidez: ComposicaoLinha[];
     baixaLiquidez: ComposicaoLinha[];
@@ -166,6 +173,7 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
     dashboardMetrics,
     stockTransactions,
     twr12m,
+    config,
   ] = await Promise.all([
     prisma.portfolio.findMany({ where: { userId }, include: { asset: true } }),
     (async (): Promise<FixedIncomeAssetWithAsset[]> => {
@@ -205,6 +213,7 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
       select: { assetId: true, notes: true },
     }),
     getTwr12m(userId),
+    getSaudeConfig(userId),
   ]);
 
   // Fluxo de caixa: média dos meses ativos, com fallback pro ano anterior.
@@ -349,19 +358,22 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
     .filter((p) => p.prazo === 'longo')
     .reduce((s, p) => s + p.saldo, 0);
 
-  const indicadores = computeSaudeFinanceira({
-    rendaMensal,
-    gastoMensal,
-    idade: plano?.idade ?? null,
-    rentabilidadeCarteiraAA: twr12m,
-    cdiAA: cdiAnualizado != null ? cdiAnualizado / 100 : null,
-    inflacaoAA: (inflacao12m ?? DEFAULT_INFLACAO_AA) / 100,
-    ativosAltaLiquidez,
-    ativosBaixaLiquidez,
-    reservaEmergencia: porCategoria.reservaEmergencia,
-    passivosCurtoPrazo,
-    passivosLongoPrazo,
-  });
+  const indicadores = computeSaudeFinanceira(
+    {
+      rendaMensal,
+      gastoMensal,
+      idade: plano?.idade ?? null,
+      rentabilidadeCarteiraAA: twr12m,
+      cdiAA: cdiAnualizado != null ? cdiAnualizado / 100 : null,
+      inflacaoAA: (inflacao12m ?? DEFAULT_INFLACAO_AA) / 100,
+      ativosAltaLiquidez,
+      ativosBaixaLiquidez,
+      reservaEmergencia: porCategoria.reservaEmergencia,
+      passivosCurtoPrazo,
+      passivosLongoPrazo,
+    },
+    config,
+  );
 
   // Composição pro bloco de balanço da UI (linhas zeradas ficam de fora).
   const linha = (chave: string, label: string, valor: number): ComposicaoLinha[] =>
@@ -395,6 +407,7 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
       inflacao: inflacao12m != null ? 'ipca-12m' : 'fallback',
       idade: plano?.idade ?? null,
     },
+    config,
     composicao: { altaLiquidez, baixaLiquidez, passivos },
   };
 }
