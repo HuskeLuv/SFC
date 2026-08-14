@@ -605,6 +605,79 @@ describe('buildPatrimonioHistorico', () => {
     expect(result.cashFlowsByDay.size).toBe(0);
   });
 
+  it('IGNORA transação com data futura (além do fim da timeline) — regressão qa.teste2 ago/2026', async () => {
+    const txPassada = {
+      id: 'tx-passada',
+      date: new Date(Date.UTC(2025, 0, 15)),
+      type: 'compra',
+      quantity: 10,
+      price: 100,
+      total: 1000,
+      asset: { symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
+      stockId: 'stock-1',
+      assetId: null,
+      userId: 'user-1',
+      portfolioId: 'port-1',
+    } as unknown as StockTransactionWithRelations;
+    // Venda "digitada no futuro" (o caso real: resgate datado 01/09 criado
+    // antes do guard isDataFutura da API).
+    const txFutura = {
+      ...txPassada,
+      id: 'tx-futura',
+      date: new Date(Date.UTC(2025, 2, 1)),
+      type: 'venda',
+      total: 500,
+    } as unknown as StockTransactionWithRelations;
+
+    const endDate = new Date(Date.UTC(2025, 0, 17));
+    const comFutura = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [txPassada, txFutura],
+      saldoBrutoAtual: 1200,
+      valorAplicadoAtual: 1000,
+      timelineEndDate: endDate,
+    });
+    const semFutura = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [txPassada],
+      saldoBrutoAtual: 1200,
+      valorAplicadoAtual: 1000,
+      timelineEndDate: endDate,
+    });
+
+    // A série com a tx futura é IDÊNTICA à série sem ela.
+    expect(comFutura.historicoPatrimonio).toEqual(semFutura.historicoPatrimonio);
+    expect(comFutura.historicoTWR).toEqual(semFutura.historicoTWR);
+    // Nenhum fluxo registrado no dia futuro.
+    expect(comFutura.cashFlowsByDay.get(Date.UTC(2025, 2, 1))).toBeUndefined();
+    // Timeline não passa do fim.
+    const lastDay = comFutura.historicoPatrimonio[comFutura.historicoPatrimonio.length - 1];
+    expect(lastDay.data).toBeLessThanOrEqual(endDate.getTime());
+  });
+
+  it('carteira SÓ com transação futura: série vazia (nada realizado ainda)', async () => {
+    const txFutura = {
+      id: 'tx-futura',
+      date: new Date(Date.UTC(2030, 0, 1)),
+      type: 'compra',
+      quantity: 1,
+      price: 100,
+      total: 100,
+      asset: { symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
+      stockId: 'stock-1',
+      assetId: null,
+      userId: 'user-1',
+      portfolioId: 'port-1',
+    } as unknown as StockTransactionWithRelations;
+
+    const result = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [txFutura],
+      timelineEndDate: new Date(Date.UTC(2025, 0, 17)),
+    });
+    expect(result.historicoPatrimonio).toEqual([]);
+  });
+
   it('constroi timeline a partir da transacao mais antiga', async () => {
     const txDate = new Date(Date.UTC(2025, 0, 15));
     const _hoje = normalizeDateStart(new Date());

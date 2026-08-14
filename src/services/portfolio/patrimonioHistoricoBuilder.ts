@@ -1,5 +1,6 @@
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import { isHolidayB3, nextBusinessDayB3 } from '@/utils/feriadosB3';
+import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import {
   APPLICABLE_CORPORATE_ACTION_TYPES,
@@ -544,7 +545,7 @@ export const buildPatrimonioHistorico = async (
   const {
     portfolio,
     fixedIncomeAssets,
-    stockTransactions,
+    stockTransactions: stockTransactionsRaw,
     investmentsExclReservas,
     saldoBrutoAtual,
     valorAplicadoAtual,
@@ -556,6 +557,22 @@ export const buildPatrimonioHistorico = async (
     timelineEndDate,
     proventosByDay,
   } = params;
+
+  // Transação com data FUTURA (além do fim da timeline) fica fora do cômputo:
+  // não existe fluxo realizado no futuro, e uma linha assim (legado pré-guard
+  // isDataFutura, ex.: resgate digitado como 01/09 na conta qa.teste2, ago/26)
+  // contaminava a série do cron E do caminho live. O guard de API bloqueia
+  // novas; este filtro blinda contra as que já existem ou entram por script.
+  const timelineEndGuard = normalizeDateStart(timelineEndDate ?? new Date());
+  const stockTransactions = stockTransactionsRaw.filter((tx) => {
+    const isFuture = normalizeDateStart(new Date(tx.date)) > timelineEndGuard;
+    if (isFuture) {
+      logger.warn(
+        `[patrimonioHistorico] transação futura ignorada na série: id=${tx.id} date=${new Date(tx.date).toISOString().slice(0, 10)}`,
+      );
+    }
+    return !isFuture;
+  });
 
   const historicoPatrimonio: Array<{ data: number; valorAplicado: number; saldoBruto: number }> =
     [];
