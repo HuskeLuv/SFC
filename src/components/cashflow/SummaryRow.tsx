@@ -28,6 +28,12 @@ export interface SummaryRowProps {
    * Excel: positivo azul, negativo vermelho). Zero mantém a cor da variante.
    */
   positiveBlue?: boolean;
+  /**
+   * Escala de cor por faixa de valor (ex.: Índice de Poupança). Retornando
+   * uma classe, ela vence negativeRed/positiveBlue; null cai nas regras
+   * padrão. Passar função de módulo (estável) — a linha é memoizada.
+   */
+  cellClass?: (value: number | null) => string | null;
   showActionsColumn?: boolean;
 }
 
@@ -57,12 +63,15 @@ const SummaryRowComponent: React.FC<SummaryRowProps> = ({
   variant = 'brown',
   negativeRed = false,
   positiveBlue = false,
+  cellClass,
   showActionsColumn = false,
 }) => {
   const { bg, text } = VARIANT[variant];
   const formatValue = format === 'currency' ? formatCurrency : formatPercent;
 
   const valueClass = (value: number | null) => {
+    const custom = cellClass?.(value);
+    if (custom) return custom;
     if (negativeRed && value !== null && value < 0) return 'text-red-600 dark:text-red-400';
     if (positiveBlue && value !== null && value > 0) return 'text-blue-600 dark:text-blue-300';
     return text;
