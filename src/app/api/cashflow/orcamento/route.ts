@@ -155,10 +155,11 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         // Linha de investimentos (groupId NULL): unique composta não pega
         // NULL no Postgres — a unicidade real vem do índice parcial da
         // migration; aqui fazemos update-então-create. Meta em R$ mensal
-        // (tipoMeta 'valor'); update também converte metas legadas em %.
+        // (tipoMeta 'valor') OU % da renda (tipoMeta 'percentual',
+        // reintroduzido em ago/2026 — o serviço computa % × entradas do mês).
         const updated = await tx.cashflowOrcamento.updateMany({
           where: { userId: targetUserId, year, tipo: 'investimentos' },
-          data: { valor: meta.valor, tipoMeta: 'valor' },
+          data: { valor: meta.valor, tipoMeta: meta.tipoMeta },
         });
         if (updated.count === 0) {
           await tx.cashflowOrcamento.create({
@@ -166,7 +167,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
               userId: targetUserId,
               year,
               tipo: 'investimentos',
-              tipoMeta: 'valor',
+              tipoMeta: meta.tipoMeta,
               groupId: null,
               valor: meta.valor,
             },

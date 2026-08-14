@@ -3,13 +3,17 @@
 import { useState } from 'react';
 import { formatBRL, formatPct } from '@/utils/format';
 
+export type OrcamentoTipoMeta = 'valor' | 'percentual';
+
 export interface OrcamentoLinha {
   /** groupId da categoria ou o literal 'investimentos'. */
   key: string;
   nome: string;
   parentNome: string | null;
-  /** Valor persistido e editável: R$ mensal (categoria) ou % (investimentos). */
+  /** Valor persistido e editável: R$ mensal ou % conforme tipoMeta. */
   metaBase: number | null;
+  /** Como a meta é definida — categorias são sempre 'valor'; investimentos escolhe. */
+  tipoMeta: OrcamentoTipoMeta;
   /** Meta na janela exibida (mês ou acumulado), em R$. */
   metaJanela: number | null;
   /** Real na janela exibida, em R$. */
@@ -21,7 +25,7 @@ interface OrcamentoTableProps {
   linhas: OrcamentoLinha[];
   investimentos: OrcamentoLinha | null;
   totais: { meta: number; real: number; diferenca: number };
-  onSaveMeta: (key: string, valor: number | null) => Promise<void>;
+  onSaveMeta: (key: string, valor: number | null, tipoMeta: OrcamentoTipoMeta) => Promise<void>;
 }
 
 /**
@@ -32,24 +36,28 @@ interface OrcamentoTableProps {
 export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: OrcamentoTableProps) {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<string>('');
+  const [draftTipo, setDraftTipo] = useState<OrcamentoTipoMeta>('valor');
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const startEdit = (linha: OrcamentoLinha) => {
     setEditingKey(linha.key);
+    setDraftTipo(linha.tipoMeta);
     setDraft(linha.metaBase !== null ? String(linha.metaBase).replace('.', ',') : '');
   };
 
-  const commitEdit = async (linha: OrcamentoLinha) => {
+  const commitEdit = async (linha: OrcamentoLinha, tipoOverride?: OrcamentoTipoMeta) => {
     if (editingKey !== linha.key) return;
+    const tipo = tipoOverride ?? draftTipo;
     const raw = draft.trim().replace(/\./g, '').replace(',', '.');
     setEditingKey(null);
     const valor = raw === '' ? null : Number(raw);
     if (valor !== null && (!Number.isFinite(valor) || valor < 0)) return;
-    if (valor === linha.metaBase) return;
+    if (valor !== null && tipo === 'percentual' && valor > 100) return;
+    if (valor === linha.metaBase && tipo === linha.tipoMeta) return;
     if (valor === null && linha.metaBase === null) return;
     setSavingKey(linha.key);
     try {
-      await onSaveMeta(linha.key, valor);
+      await onSaveMeta(linha.key, valor, tipo);
     } finally {
       setSavingKey(null);
     }
@@ -58,24 +66,56 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
   const renderMetaCell = (linha: OrcamentoLinha) => {
     if (editingKey === linha.key) {
       return (
-        <input
-          autoFocus
-          inputMode="decimal"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => void commitEdit(linha)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void commitEdit(linha);
-            if (e.key === 'Escape') setEditingKey(null);
-          }}
-          className="w-24 rounded border border-brand-300 bg-white px-2 py-0.5 text-right text-sm dark:border-brand-700 dark:bg-gray-900"
-          aria-label={`Meta de ${linha.nome}`}
-        />
+        <span className="inline-flex items-center gap-1">
+          {/* Investimentos escolhe o modo da meta: R$ fixo ou % da renda
+              (reintroduzido ago/2026 — o R$ do mês passa a seguir a renda). */}
+          {linha.isInvestimentos && (
+            <span className="inline-flex overflow-hidden rounded border border-gray-300 dark:border-gray-700">
+              {(['valor', 'percentual'] as const).map((tipo) => (
+                <button
+                  key={tipo}
+                  type="button"
+                  // mousedown pra trocar o modo sem disparar o blur do input.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setDraftTipo(tipo);
+                  }}
+                  className={`px-1.5 py-0.5 text-xs font-medium ${
+                    draftTipo === tipo
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-white text-gray-500 dark:bg-gray-900 dark:text-gray-400'
+                  }`}
+                  aria-pressed={draftTipo === tipo}
+                >
+                  {tipo === 'valor' ? 'R$' : '%'}
+                </button>
+              ))}
+            </span>
+          )}
+          <input
+            autoFocus
+            inputMode="decimal"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => void commitEdit(linha)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void commitEdit(linha);
+              if (e.key === 'Escape') setEditingKey(null);
+            }}
+            className="w-24 rounded border border-brand-300 bg-white px-2 py-0.5 text-right text-sm dark:border-brand-700 dark:bg-gray-900"
+            aria-label={`Meta de ${linha.nome}${draftTipo === 'percentual' ? ' (% da renda)' : ''}`}
+          />
+        </span>
       );
     }
-    // Exibe a meta DA JANELA (mês = mensal; acumulado = mensal × meses);
-    // a edição é sempre do valor mensal em R$ — investimentos inclusive.
-    const label = linha.metaJanela === null ? 'Definir' : formatBRL(linha.metaJanela);
+    // Exibe a meta DA JANELA (mês = mensal; acumulado = mensal × meses).
+    // Meta percentual mostra o % definido + o R$ que ele vale na janela.
+    const label =
+      linha.metaJanela === null
+        ? 'Definir'
+        : linha.tipoMeta === 'percentual'
+          ? `${formatPct(linha.metaBase ?? 0, 0)} · ${formatBRL(linha.metaJanela)}`
+          : formatBRL(linha.metaJanela);
     return (
       <button
         type="button"
@@ -86,7 +126,11 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
             ? 'italic text-gray-400 hover:text-brand-600 dark:text-gray-500'
             : 'text-gray-800 dark:text-gray-100'
         } ${savingKey === linha.key ? 'opacity-50' : ''}`}
-        title="Meta mensal em R$ — clique para editar (vazio remove)"
+        title={
+          linha.tipoMeta === 'percentual'
+            ? '% da renda — o R$ acompanha as entradas do mês. Clique para editar (vazio remove)'
+            : 'Meta mensal em R$ — clique para editar (vazio remove)'
+        }
       >
         {label}
       </button>

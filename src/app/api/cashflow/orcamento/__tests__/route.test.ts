@@ -241,7 +241,7 @@ describe('PUT /api/cashflow/orcamento', () => {
     );
   });
 
-  it('meta de investimentos existente: update converte legado % para R$', async () => {
+  it('meta de investimentos existente: update sem tipoMeta grava R$ (default)', async () => {
     mockPrisma.cashflowOrcamento.updateMany.mockResolvedValue({ count: 1 });
 
     const response = await PUT(
@@ -255,6 +255,49 @@ describe('PUT /api/cashflow/orcamento', () => {
       }),
     );
     expect(mockPrisma.cashflowOrcamento.create).not.toHaveBeenCalled();
+  });
+
+  it('investimentos aceita meta PERCENTUAL da renda (opção reintroduzida ago/2026)', async () => {
+    mockPrisma.cashflowOrcamento.updateMany.mockResolvedValue({ count: 0 });
+
+    const response = await PUT(
+      createPutRequest({
+        year: 2026,
+        metas: [{ groupId: null, valor: 15, tipoMeta: 'percentual' }],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.cashflowOrcamento.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tipo: 'investimentos',
+          tipoMeta: 'percentual',
+          valor: 15,
+        }),
+      }),
+    );
+  });
+
+  it('400 para meta percentual em CATEGORIA (só investimentos escolhe o modo)', async () => {
+    const response = await PUT(
+      createPutRequest({
+        year: 2026,
+        metas: [{ groupId: 'habitacao', valor: 20, tipoMeta: 'percentual' }],
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(mockPrisma.cashflowOrcamento.upsert).not.toHaveBeenCalled();
+  });
+
+  it('400 para percentual acima de 100', async () => {
+    const response = await PUT(
+      createPutRequest({
+        year: 2026,
+        metas: [{ groupId: null, valor: 150, tipoMeta: 'percentual' }],
+      }),
+    );
+    expect(response.status).toBe(400);
   });
 
   it('retorna 404 para categoria inexistente ou de outro usuário', async () => {

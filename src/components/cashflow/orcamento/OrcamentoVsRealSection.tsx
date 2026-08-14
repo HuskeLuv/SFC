@@ -6,7 +6,7 @@ import { useOrcamento } from '@/hooks/useOrcamento';
 import { MONTHS } from '@/constants/cashflow';
 import type { SeriePorModo } from '@/services/cashflow/orcamentoVsReal';
 import { OrcamentoKpiCards } from './OrcamentoKpiCards';
-import { OrcamentoTable, type OrcamentoLinha } from './OrcamentoTable';
+import { OrcamentoTable, type OrcamentoLinha, type OrcamentoTipoMeta } from './OrcamentoTable';
 import OrcamentoChart from './OrcamentoChart';
 import OrcamentoMensalChart from './OrcamentoMensalChart';
 
@@ -62,6 +62,7 @@ export default function OrcamentoVsRealSection() {
       nome: cat.nome,
       parentNome: cat.parentNome,
       metaBase: cat.metaMensal,
+      tipoMeta: 'valor' as const,
       metaJanela: cat.metaMensal !== null ? cat.metaMensal * janela.fatorMeta : null,
       real: janela.realJanela(cat.realPorMes),
       isInvestimentos: false,
@@ -75,9 +76,10 @@ export default function OrcamentoVsRealSection() {
       key: 'investimentos',
       nome: 'Investimentos',
       parentNome: null,
-      // Edição sempre em R$ mensal; meta legada em % não pré-preenche o
-      // input (a próxima edição grava em R$ e converte a linha).
-      metaBase: inv.tipoMeta === 'valor' ? inv.valorMeta : null,
+      // Meta em R$ mensal OU % da renda (opção reintroduzida ago/2026) —
+      // o input pré-preenche com o número bruto do modo escolhido.
+      metaBase: inv.tipoMeta !== null ? inv.valorMeta : null,
+      tipoMeta: (inv.tipoMeta === 'percentual' ? 'percentual' : 'valor') as OrcamentoTipoMeta,
       metaJanela: inv.tipoMeta !== null ? janela.somaJanela(inv.metaPorMes[modoReal]) : null,
       real: janela.somaJanela(inv.realPorMes),
       isInvestimentos: true,
@@ -94,13 +96,23 @@ export default function OrcamentoVsRealSection() {
     };
   }, [linhas]);
 
-  const handleSaveMeta = async (key: string, valor: number | null) => {
+  const handleSaveMeta = async (key: string, valor: number | null, tipoMeta: OrcamentoTipoMeta) => {
     setSaveError(null);
     try {
       if (valor === null) {
         await saveMetas({ deletes: [key] });
       } else {
-        await saveMetas({ metas: [{ groupId: key === 'investimentos' ? null : key, valor }] });
+        const isInvestimentos = key === 'investimentos';
+        await saveMetas({
+          metas: [
+            {
+              groupId: isInvestimentos ? null : key,
+              valor,
+              // Só investimentos escolhe o modo; categorias são sempre R$.
+              ...(isInvestimentos ? { tipoMeta } : {}),
+            },
+          ],
+        });
       }
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar meta');

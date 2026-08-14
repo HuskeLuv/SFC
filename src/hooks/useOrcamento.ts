@@ -17,10 +17,12 @@ export interface OrcamentoPayload extends OrcamentoVsReal {
   year: number;
 }
 
-/** Meta a upsertar: groupId null = linha de investimentos (% da renda). */
+/** Meta a upsertar: groupId null = linha de investimentos. */
 export interface OrcamentoMetaUpdate {
   groupId: string | null;
   valor: number;
+  /** Só investimentos: 'valor' (R$/mês, default) ou 'percentual' (% da renda). */
+  tipoMeta?: 'valor' | 'percentual';
 }
 
 export const useOrcamento = (year?: number) => {
