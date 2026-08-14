@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import type { ApexOptions } from 'apexcharts';
 import { useSaudeFinanceiraEvolucao } from '@/hooks/useSaudeFinanceira';
 import { formatBRL, MONTH_NAMES_PT } from './utils';
+import EvolucaoTabela from './EvolucaoTabela';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -74,9 +75,17 @@ export default function EvolucaoChart() {
           do patrimônio líquido, da liquidez e do endividamento.
         </p>
       ) : (
-        <div className="mt-2">
-          <ReactApexChart type="line" height={320} series={chart.series} options={chart.options} />
-        </div>
+        <>
+          <div className="mt-2">
+            <ReactApexChart
+              type="line"
+              height={320}
+              series={chart.series}
+              options={chart.options}
+            />
+          </div>
+          <EvolucaoTabela snapshots={snapshots} />
+        </>
       )}
     </div>
   );

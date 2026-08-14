@@ -70,6 +70,19 @@ export interface PassivoLinha {
   tipo: string;
   prazo: 'curto' | 'longo';
   saldo: number;
+  /** 'financiamento' | 'rotativa'. */
+  modalidade: string;
+  /** 'SAC' | 'PRICE'; null para rotativa. */
+  sistema: string | null;
+  /** Taxa efetiva a.m. em fração (0.01 = 1%); null para rotativa. */
+  taxaAm: number | null;
+  /** 'PREFIXADO' | 'TR' | 'IPCA' | 'CDI'. */
+  indexador: string;
+  /** Valor da próxima parcela do cronograma; null para rotativa/quitada. */
+  valorParcela: number | null;
+  parcelasPagas: number | null;
+  totalParcelas: number | null;
+  prazoRestanteMeses: number | null;
 }
 
 export interface SaudeFinanceiraPayload {
@@ -80,6 +93,8 @@ export interface SaudeFinanceiraPayload {
     inflacao: 'ipca-12m' | 'fallback';
     /** Idade usada no patrimônio ideal (AposentadoriaPlano); null = não preenchida. */
     idade: number | null;
+    /** Idade-alvo de aposentadoria (AposentadoriaPlano.apos); null = sem plano. */
+    idadeAlvo: number | null;
   };
   /** Parâmetros efetivos da metodologia (defaults + overrides do user). */
   config: SaudeFinanceiraConfig;
@@ -200,7 +215,10 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
         return [];
       }
     })(),
-    prisma.aposentadoriaPlano.findUnique({ where: { userId }, select: { idade: true } }),
+    prisma.aposentadoriaPlano.findUnique({
+      where: { userId },
+      select: { idade: true, apos: true },
+    }),
     getCdiAnualizado(),
     getInflacao12m(),
     getMergedCashflowGroups(userId, currentYear),
@@ -349,6 +367,14 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
       tipo: d.tipo,
       prazo: r.categoria === 'c' ? 'curto' : 'longo',
       saldo,
+      modalidade: d.modalidade,
+      sistema: d.sistema,
+      taxaAm: d.taxaAm != null ? Number(d.taxaAm) : null,
+      indexador: d.indexador,
+      valorParcela: r.proximaParcela != null ? round2(r.proximaParcela.parcela) : null,
+      parcelasPagas: r.parcelasPagas,
+      totalParcelas: r.totalParcelas,
+      prazoRestanteMeses: r.prazoRestanteMeses,
     });
   }
   const passivosCurtoPrazo = passivos
@@ -406,6 +432,7 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
       cashflow: { year: cashflowYear, activeMonths: averages.activeMonths },
       inflacao: inflacao12m != null ? 'ipca-12m' : 'fallback',
       idade: plano?.idade ?? null,
+      idadeAlvo: plano?.apos ?? null,
     },
     config,
     composicao: { altaLiquidez, baixaLiquidez, passivos },

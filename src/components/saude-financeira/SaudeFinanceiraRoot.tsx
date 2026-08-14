@@ -6,9 +6,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSaudeFinanceira } from '@/hooks/useSaudeFinanceira';
 import { STATUS_META } from './utils';
 import StatusHero from './StatusHero';
+import ClienteHeader from './ClienteHeader';
+import DadosEconomicos from './DadosEconomicos';
 import FluxoCards from './FluxoCards';
 import MetasPatrimoniais from './MetasPatrimoniais';
 import BalancoPatrimonial from './BalancoPatrimonial';
+import PassivosDetalhe from './PassivosDetalhe';
 import EvolucaoChart from './EvolucaoChart';
 import GestaoRisco from './GestaoRisco';
 
@@ -71,7 +74,9 @@ export default function SaudeFinanceiraRoot() {
         </div>
       ) : null}
 
+      <ClienteHeader nome={nomeCliente} fontes={fontes} asOf={data.asOf} />
       <StatusHero indicadores={indicadores} tendencias={tendencias} />
+      <DadosEconomicos indicadores={indicadores} />
       <FluxoCards
         indicadores={indicadores}
         tendencias={tendencias}
@@ -79,6 +84,7 @@ export default function SaudeFinanceiraRoot() {
       />
       <MetasPatrimoniais indicadores={indicadores} idade={fontes.idade} config={data.config} />
       <BalancoPatrimonial indicadores={indicadores} composicao={composicao} />
+      <PassivosDetalhe indicadores={indicadores} composicao={composicao} />
       <EvolucaoChart />
       <GestaoRisco />
     </div>
