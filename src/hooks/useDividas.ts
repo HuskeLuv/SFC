@@ -68,6 +68,9 @@ export type DividaCreatePayload =
       notes?: string | null;
       saldoInicial: number;
       dataSaldoInicial: string; // YYYY-MM
+      /** CET informativo (fração a.m.) — não acrui no saldo. */
+      taxaAm?: number | null;
+      taxaUnidadeEntrada?: 'am' | 'aa';
     };
 
 export type DividaPatchPayload = Partial<Omit<DividaCreatePayload, 'modalidade'>> & {

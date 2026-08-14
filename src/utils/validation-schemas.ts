@@ -452,6 +452,11 @@ export const dividaCreateSchema = z.discriminatedUnion('modalidade', [
     ...dividaBaseFields,
     saldoInicial: zNonNegativeNumber,
     dataSaldoInicial: dividaYearMonth,
+    // CET informativo (pedido ago/2026): ajuda cliente/consultor a ranquear a
+    // dívida mais cara. NÃO acrui no saldo — a âncora continua saldoInicial +
+    // pagamentos.
+    taxaAm: z.number().finite().min(0).max(1).nullable().optional(),
+    taxaUnidadeEntrada: z.enum(['am', 'aa']).optional().default('am'),
   }),
 ]);
 
@@ -463,7 +468,8 @@ export const dividaPatchSchema = z.object({
   status: dividaStatus.optional(),
   notes: z.string().max(2000).nullable().optional(),
   principal: zPositiveNumber.optional(),
-  taxaAm: z.number().finite().min(0).max(1).optional(),
+  // null limpa o CET informativo de rotativa; a rota rejeita null p/ financiamento.
+  taxaAm: z.number().finite().min(0).max(1).nullable().optional(),
   taxaUnidadeEntrada: z.enum(['am', 'aa']).optional(),
   prazoMeses: z.number().int().min(1).max(480).optional(),
   sistema: dividaSistema.optional(),

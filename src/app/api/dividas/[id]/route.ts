@@ -77,13 +77,13 @@ export const PATCH = withErrorHandler(
     }
 
     // Campos de cronograma só fazem sentido em financiamento; âncora de saldo
-    // só em rotativa. Rejeita cruzado pra não criar estado híbrido.
+    // só em rotativa. Rejeita cruzado pra não criar estado híbrido. Exceção:
+    // taxaAm/taxaUnidadeEntrada valem TAMBÉM em rotativa (CET informativo,
+    // pedido ago/2026 — não acrui no saldo).
     const p = parsed.data;
     if (
       existing.modalidade === 'rotativa' &&
       (p.principal !== undefined ||
-        p.taxaAm !== undefined ||
-        p.taxaUnidadeEntrada !== undefined ||
         p.prazoMeses !== undefined ||
         p.sistema !== undefined ||
         p.indexador !== undefined ||
@@ -91,6 +91,13 @@ export const PATCH = withErrorHandler(
     ) {
       return NextResponse.json(
         { error: 'Campos de cronograma não se aplicam a dívida rotativa' },
+        { status: 400 },
+      );
+    }
+    // Financiamento precisa de taxa para o cronograma — não pode ser limpa.
+    if (existing.modalidade === 'financiamento' && p.taxaAm === null) {
+      return NextResponse.json(
+        { error: 'Financiamento exige taxa de juros (não pode ser removida)' },
         { status: 400 },
       );
     }
