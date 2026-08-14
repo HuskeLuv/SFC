@@ -166,8 +166,21 @@ interface CelulasMes {
   cores: (string | null)[];
   temLiteral: boolean;
   temFormula: boolean;
+  /** Célula com fórmula de TOTALIZAÇÃO (SUM/intervalo) — nunca importável. */
+  temFormulaAgregada: boolean;
+  /** Célula com fórmula aritmética cujo resultado cacheado foi importado. */
+  temFormulaValor: boolean;
   temCelula: boolean;
 }
+
+/**
+ * Fórmula de totalização: SUM/SOMA/SUBTOTAL ou referência a intervalo (:).
+ * O restante (aritmética como "=2980/12", referências simples) é VALOR do
+ * usuário expresso por fórmula — o report de ago/2026 mostrou linhas
+ * legítimas do modelo (Conta de energia, IPVA, Seguro Carro) escritas como
+ * "=anual/12" sendo descartadas em bloco.
+ */
+const FORMULA_AGREGACAO = /(?:\bSUM\b|\bSOMA\b|\bSUBTOTAL\b)\s*\(|:/i;
 
 const lerMeses = (
   ws: XLSX.WorkSheet,
@@ -179,6 +192,8 @@ const lerMeses = (
   const cores: (string | null)[] = [];
   let temLiteral = false;
   let temFormula = false;
+  let temFormulaAgregada = false;
+  let temFormulaValor = false;
   let temCelula = false;
   for (const c of MESES_COLS) {
     const ref = XLSX.utils.encode_cell({ r: linha - 1, c });
@@ -192,7 +207,19 @@ const lerMeses = (
     temCelula = true;
     if (cell.f) {
       temFormula = true;
-      valores.push(null);
+      if (FORMULA_AGREGACAO.test(cell.f)) {
+        temFormulaAgregada = true;
+        valores.push(null);
+        continue;
+      }
+      // Fórmula aritmética: importa o RESULTADO cacheado pelo Excel — não
+      // recalculamos, mas todo .xlsx salvo carrega o valor computado.
+      if (typeof cell.v === 'number') {
+        temFormulaValor = true;
+        valores.push(cell.v !== 0 ? cell.v : null);
+      } else {
+        valores.push(null);
+      }
       continue;
     }
     if (typeof cell.v === 'number') {
@@ -202,7 +229,16 @@ const lerMeses = (
       valores.push(null);
     }
   }
-  return { valores, comentarios, cores, temLiteral, temFormula, temCelula };
+  return {
+    valores,
+    comentarios,
+    cores,
+    temLiteral,
+    temFormula,
+    temFormulaAgregada,
+    temFormulaValor,
+    temCelula,
+  };
 };
 
 const lerTexto = (ws: XLSX.WorkSheet, addr: string): string | null => {
@@ -290,16 +326,24 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
 
     // linha de item (ou linha desconhecida)
     if (ctx.tipo === 'secao') {
-      if (meses.temFormula && !meses.temLiteral) {
+      // Só linha 100% de TOTALIZAÇÃO (SUM/intervalo, sem literal nem valor
+      // aritmético) é computada — antes QUALQUER linha toda-fórmula era
+      // descartada e "=anual/12" legítimo sumia (report ago/2026).
+      if (meses.temFormulaAgregada && !meses.temLiteral && !meses.temFormulaValor) {
         ignorados.push({
           linha: r,
           label,
-          motivo: `linha computada (fórmula) dentro de "${ctx.secao.nome}"`,
+          motivo: `linha computada (fórmula de totalização) dentro de "${ctx.secao.nome}"`,
         });
         continue;
       }
-      if (meses.temFormula) {
-        avisos.push(`linha ${r} ("${label}"): células com fórmula foram ignoradas`);
+      if (meses.temFormulaAgregada) {
+        avisos.push(`linha ${r} ("${label}"): células de totalização (SUM) foram ignoradas`);
+      }
+      if (meses.temFormulaValor) {
+        avisos.push(
+          `linha ${r} ("${label}"): valores calculados por fórmula importados pelo resultado`,
+        );
       }
       ctx.secao.itens.push({
         linha: r,

@@ -24,8 +24,13 @@ export type FixtureLinha =
       rank?: number;
       /** não escreve célula alguma em F..Q (linha "vazia" real) */
       semCelulas?: boolean;
-      /** escreve fórmula nos 12 meses (linha computada dentro de seção) */
+      /**
+       * escreve fórmula ARITMÉTICA nos 12 meses, com `valores` como resultado
+       * cacheado (caso real: itens "=anual/12" do modelo do Pedro)
+       */
       formula?: boolean;
+      /** escreve fórmula de TOTALIZAÇÃO (SUM) nos 12 meses (linha computada) */
+      formulaSum?: boolean;
     };
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -167,8 +172,20 @@ export const buildFlcWorkbook = (
     for (let i = 0; i < 12; i++) {
       const comentario = linha.comentarios?.[i];
       const c = comentario !== undefined ? [{ a: 'Fixture', t: comentario }] : undefined;
-      if (linha.formula) {
-        set(`${colMes(i)}${r}`, { t: 'n', v: 0, f: `'Outra Aba'!J${i + 2}`, ...(c && { c }) });
+      if (linha.formulaSum) {
+        set(`${colMes(i)}${r}`, {
+          t: 'n',
+          v: linha.valores?.[i] ?? 0,
+          f: `SUM(${colMes(i)}1:${colMes(i)}2)`,
+          ...(c && { c }),
+        });
+      } else if (linha.formula) {
+        set(`${colMes(i)}${r}`, {
+          t: 'n',
+          v: linha.valores?.[i] ?? 0,
+          f: `${(linha.valores?.[i] ?? 0) * 12}/12`,
+          ...(c && { c }),
+        });
       } else {
         set(`${colMes(i)}${r}`, { t: 'n', v: linha.valores?.[i] ?? 0, ...(c && { c }) });
       }
