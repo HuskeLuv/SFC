@@ -826,6 +826,105 @@ describe('buildPatrimonioHistorico', () => {
     expect(mockGetAssetHistory).not.toHaveBeenCalled();
   });
 
+  it('FI com startDate POSTERIOR à 1ª compra: gap vale o custo, sem degrau no TWR — regressão qa.teste2 ago/2026', async () => {
+    // Cenário real: transações antigas (importação/QA) e FixedIncomeAsset
+    // criado só num aporte posterior. A curva valorava 0 antes do startDate
+    // enquanto a compra contava como fluxo ⇒ degrau de −F/(V+F) no dia da
+    // compra (−13,43% no caso real) e salto simétrico quando o startDate
+    // "começava". Com o fix, o gap vale o custo replayado e o TWR fica 0.
+    const compra = {
+      id: 'tx-td',
+      date: new Date(Date.UTC(2025, 0, 6)), // segunda-feira
+      type: 'compra',
+      quantity: 2.6,
+      price: 0,
+      total: 50000,
+      asset: {
+        symbol: 'TD-TESOURO-SELIC-2031',
+        name: 'Tesouro Selic 2031',
+        type: 'tesouro-direto',
+      },
+      stockId: null,
+      assetId: 'asset-td-1',
+      userId: 'user-1',
+      portfolioId: 'port-td-1',
+      notes: null,
+    } as unknown as StockTransactionWithRelations;
+
+    const fi: FixedIncomeAssetWithAsset = {
+      id: 'fi-td-1',
+      userId: 'user-1',
+      assetId: 'asset-td-1',
+      type: 'CDB',
+      description: 'Tesouro Selic 2031',
+      // startDate 4 meses DEPOIS da compra (registro criado num aporte posterior)
+      startDate: new Date(Date.UTC(2025, 4, 5)),
+      maturityDate: new Date(Date.UTC(2031, 2, 1)),
+      investedAmount: 50000,
+      annualRate: 10,
+      indexer: null,
+      indexerPercent: null,
+      liquidityType: null,
+      taxExempt: true,
+      asset: { symbol: 'TD-TESOURO-SELIC-2031', name: 'Tesouro Selic 2031' },
+    };
+
+    const portfolioItem = {
+      id: 'port-td-1',
+      userId: 'user-1',
+      stockId: null,
+      assetId: 'asset-td-1',
+      quantity: 2.6,
+      avgPrice: 19230,
+      totalInvested: 50000,
+      lastUpdate: new Date(Date.UTC(2025, 0, 6)),
+      stock: null,
+      asset: {
+        symbol: 'TD-TESOURO-SELIC-2031',
+        name: 'Tesouro Selic 2031',
+        type: 'tesouro-direto',
+      },
+    } as unknown as PortfolioWithRelations;
+
+    const result = await buildPatrimonioHistorico({
+      ...emptyParams,
+      portfolio: [portfolioItem],
+      fixedIncomeAssets: [fi],
+      stockTransactions: [compra],
+      saldoBrutoAtual: 51000,
+      valorAplicadoAtual: 50000,
+      timelineEndDate: new Date(Date.UTC(2025, 5, 2)),
+      // Mimica o fiPricer.buildValueSeriesForAsset real: value = 0 antes do
+      // startDate do registro (é exatamente esse zero que causava o degrau).
+      fixedIncomeValueSeriesBuilder: (f, timeline) => {
+        const startTs = new Date(f.startDate).getTime();
+        return timeline.map((day) => ({
+          date: day,
+          value: day < startTs ? 0 : f.investedAmount,
+        }));
+      },
+    });
+
+    // No dia da compra a posição vale o custo — não zero.
+    const diaCompra = result.historicoPatrimonio.find((p) => p.data === Date.UTC(2025, 0, 6));
+    expect(diaCompra).toBeDefined();
+    expect(diaCompra!.saldoBruto).toBeCloseTo(50000, 0);
+
+    // Nenhum degrau: TWR diário nunca varia mais de 1% no período todo
+    // (antes do fix: −100%/−13,43% no dia da compra e salto no startDate).
+    let prev = 0;
+    for (const p of result.historicoTWR) {
+      const saltoPp = Math.abs(p.value - prev);
+      expect(saltoPp).toBeLessThanOrEqual(1);
+      prev = p.value;
+    }
+
+    // O gap entre a compra e o startDate nunca zera a posição.
+    for (const p of result.historicoPatrimonio) {
+      if (p.data >= Date.UTC(2025, 0, 6)) expect(p.saldoBruto).toBeGreaterThan(0);
+    }
+  });
+
   it('aplica split (10:1) sem salto e na escala certa no saldoBruto', async () => {
     // Compra 100 cotas pré-split. getAssetHistory já entrega preço split-ADJUSTED
     // consistente (~6) em todo o histórico (normaliza as linhas cruas do COTAHIST).

@@ -644,6 +644,9 @@ export const buildPatrimonioHistorico = async (
   const reinvestimentoCashDeltasByDay = new Map<number, number>();
   const pricePointsBySymbol = new Map<string, Array<{ date: number; value: number }>>();
   const firstTransactionBySymbol = new Map<string, number>();
+  // Custo aplicado por símbolo/dia (compra soma, venda subtrai) — base do
+  // fallback de custo replayado para posições FI antes do startDate do registro.
+  const appliedDeltasBySymbol = new Map<string, Map<number, number>>();
 
   stockTransactions.forEach((transaction) => {
     const symbol = transaction.asset?.symbol;
@@ -679,6 +682,11 @@ export const buildPatrimonioHistorico = async (
     }
     cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
     appliedDeltasByDay.set(day, (appliedDeltasByDay.get(day) || 0) + appliedDelta);
+    if (!appliedDeltasBySymbol.has(symbol)) {
+      appliedDeltasBySymbol.set(symbol, new Map());
+    }
+    const symbolApplied = appliedDeltasBySymbol.get(symbol)!;
+    symbolApplied.set(day, (symbolApplied.get(day) || 0) + appliedDelta);
 
     const priceValue =
       transaction.price > 0
@@ -832,6 +840,28 @@ export const buildPatrimonioHistorico = async (
         }));
     const valueByDay = new Map<number, number>();
     points.forEach((p) => valueByDay.set(p.date, p.value));
+
+    // Posição com transação NUNCA vale 0 na série. Quando o FixedIncomeAsset
+    // foi criado depois das primeiras compras (registro nascido num aporte
+    // posterior, importação, QA), a curva valora 0 antes do startDate — mas o
+    // fluxo da compra conta no TWR, gerando um degrau de −F/(V+F) no dia da
+    // compra e o salto simétrico quando o startDate "começa" (bug qa.teste2
+    // ago/2026: −13,43% e +13,63% num dia). No intervalo [1ª transação,
+    // startDate) a posição vale o CUSTO replayado das transações.
+    const fiStartTs = normalizeDateStart(new Date(fixedIncome.startDate)).getTime();
+    const firstTxTs = firstTransactionBySymbol.get(symbol);
+    if (firstTxTs != null && firstTxTs < fiStartTs) {
+      const applied = appliedDeltasBySymbol.get(symbol);
+      let custoReplayado = 0;
+      for (const day of timeline) {
+        if (day >= fiStartTs) break;
+        custoReplayado += applied?.get(day) ?? 0;
+        if (day >= firstTxTs && custoReplayado > 0 && (valueByDay.get(day) ?? 0) === 0) {
+          valueByDay.set(day, Math.round(custoReplayado * 100) / 100);
+        }
+      }
+    }
+
     fixedIncomeValuesBySymbol.set(symbol, valueByDay);
   });
 
