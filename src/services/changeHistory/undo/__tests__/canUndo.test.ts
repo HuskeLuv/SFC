@@ -54,8 +54,14 @@ describe('rowLevelUndoable', () => {
 
   it('rejeita action fora do registry', () => {
     expect(rowLevelUndoable(baseEntry({ action: 'senha.alterar' }))).toBeNull();
-    expect(rowLevelUndoable(baseEntry({ action: 'operacao.registrar' }))).toBeNull();
     expect(rowLevelUndoable(baseEntry({ action: 'ativo.editar' }))).toBeNull();
+  });
+
+  it('adições compostas da carteira são reversíveis desde ago/2026', () => {
+    expect(rowLevelUndoable(baseEntry({ action: 'operacao.registrar' }))).not.toBeNull();
+    expect(rowLevelUndoable(baseEntry({ action: 'aporte.registrar' }))).not.toBeNull();
+    expect(rowLevelUndoable(baseEntry({ action: 'resgate.registrar' }))).not.toBeNull();
+    expect(rowLevelUndoable(baseEntry({ action: 'investimento.registrar' }))).not.toBeNull();
   });
 
   it('rejeita exclusão pré-deploy sem snapshot', () => {

@@ -452,7 +452,115 @@ const objetivoClasseDefinir: UndoDefinition = {
   },
 };
 
+/**
+ * Desfazer de uma ADIÇÃO composta na carteira (operacao/aporte/resgate
+ * .registrar — o wizard e os fluxos de aporte/resgate). Era proibido no
+ * registry original ("reverter parcialmente é pior que não reverter"), mas os
+ * primitivos seguros passaram a existir: o efeito inverso é EXATAMENTE o
+ * DELETE /api/historico/transacao/[id] — apagar a transação criada e deixar o
+ * recalculatePortfolioFromTransactions resolver o resto (ele deleta
+ * Portfolio/FixedIncomeAsset quando a última transação some, recria posição
+ * em resgate desfeito, sincroniza investedAmount e invalida snapshots).
+ * entityId = id da StockTransaction criada pela rota.
+ */
+const adicaoRegistrada: UndoDefinition = {
+  strategy: 'delete-created',
+  requires: { entityId: true },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const transaction = await prisma.stockTransaction.findFirst({
+      where: { id: entry.entityId!, userId: auth.targetUserId },
+    });
+    if (!transaction) throw new UndoError(409, 'A transação não existe mais');
+
+    const portfolio = transaction.assetId
+      ? await prisma.portfolio.findFirst({
+          where: { userId: auth.targetUserId, assetId: transaction.assetId },
+        })
+      : null;
+    const snapshotCutoff = transaction.date;
+
+    await prisma.stockTransaction.delete({ where: { id: transaction.id } });
+
+    if (portfolio) {
+      await recalculatePortfolioFromTransactions({
+        targetUserId: auth.targetUserId,
+        assetId: transaction.assetId,
+        portfolioId: portfolio.id,
+        recomputeSnapshotsFrom: snapshotCutoff,
+      });
+    } else if (transaction.assetId) {
+      // Posição já encerrada (ex.: resgate total depois da compra): sem
+      // portfolioId o recalc resolve/recria pela unique (userId, assetId).
+      await recalculatePortfolioFromTransactions({
+        targetUserId: auth.targetUserId,
+        assetId: transaction.assetId,
+        recomputeSnapshotsFrom: snapshotCutoff,
+      });
+    } else {
+      await invalidatePortfolioSnapshots(auth.targetUserId, snapshotCutoff);
+    }
+
+    if (transaction.assetId) {
+      await syncSonhoRealizadoBestEffort(auth.targetUserId, { assetId: transaction.assetId });
+    }
+
+    return { changes: invertChanges(getChanges(entry)) };
+  },
+};
+
+/**
+ * Desfazer de investimento.registrar: a rota cria um CashflowItem no grupo
+ * Investimentos + o CashflowValue do mês corrente. Mesmo shape do item.criar
+ * do fluxo de caixa (delete item + values), com os guards de linha-espelho e
+ * a invalidação de snapshots que a rota de criação também faz (valores do
+ * grupo investimento entram como fluxo na série da carteira).
+ */
+const investimentoRegistrado: UndoDefinition = {
+  strategy: 'delete-created',
+  requires: { entityId: true },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const item = await prisma.cashflowItem.findFirst({
+      where: { id: entry.entityId!, userId: auth.targetUserId },
+      include: { values: { where: { userId: auth.targetUserId } } },
+    });
+    if (!item) throw new UndoError(409, 'O investimento não existe mais');
+    if (item.objetivoId) {
+      throw new UndoError(409, 'Esta linha espelha um sonho — exclua o sonho no Planejamento');
+    }
+    if (item.dividaId) {
+      throw new UndoError(409, 'Esta linha espelha uma dívida — exclua a dívida em Dívidas');
+    }
+
+    // Snapshot da Evolução: invalida do mês do valor mais antigo em diante.
+    const earliest = item.values.reduce<{ year: number; month: number } | null>(
+      (acc, v) =>
+        !acc || v.year < acc.year || (v.year === acc.year && v.month < acc.month)
+          ? { year: v.year, month: v.month }
+          : acc,
+      null,
+    );
+
+    await prisma.$transaction([
+      prisma.cashflowValue.deleteMany({ where: { itemId: item.id } }),
+      prisma.cashflowItem.delete({ where: { id: item.id } }),
+    ]);
+
+    if (earliest) {
+      await invalidatePortfolioSnapshots(
+        auth.targetUserId,
+        new Date(earliest.year, earliest.month, 1),
+      );
+    }
+
+    return { changes: invertChanges(getChanges(entry)) };
+  },
+};
+
 export const CARTEIRA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
+  'operacao.registrar': adicaoRegistrada,
+  'aporte.registrar': adicaoRegistrada,
+  'resgate.registrar': adicaoRegistrada,
+  'investimento.registrar': investimentoRegistrado,
   'transacao.editar': transacaoEditar,
   'transacao.excluir': transacaoExcluir,
   'ativo.remover': ativoRemover,

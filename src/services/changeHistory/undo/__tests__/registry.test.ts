@@ -27,14 +27,13 @@ describe('UNDO_REGISTRY', () => {
   });
 
   it('ações proibidas NUNCA entram no registry', () => {
+    // As adições compostas da carteira (operacao/aporte/resgate/investimento
+    // .registrar) SAÍRAM desta lista em ago/2026 — o inverso delas virou o
+    // caminho do DELETE canônico de transação (ver handlers/carteira.ts).
     const forbidden = [
       'senha.alterar',
       '2fa.ativar',
       '2fa.desativar',
-      'operacao.registrar',
-      'investimento.registrar',
-      'aporte.registrar',
-      'resgate.registrar',
       'ativo.editar',
       'valores.editar-lote',
       'aposentadoria-aporte.auto',
@@ -46,6 +45,10 @@ describe('UNDO_REGISTRY', () => {
 
   it('cobre as ações reversíveis planejadas', () => {
     const expected = [
+      'operacao.registrar',
+      'aporte.registrar',
+      'resgate.registrar',
+      'investimento.registrar',
       'transacao.editar',
       'transacao.excluir',
       'ativo.remover',
