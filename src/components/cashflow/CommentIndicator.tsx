@@ -1,6 +1,6 @@
-"use client";
-import React, { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
+'use client';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface CommentIndicatorProps {
   comment: string;
@@ -10,8 +10,18 @@ interface CommentIndicatorProps {
 }
 
 const MONTH_NAMES = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
 ];
 
 export const CommentIndicator: React.FC<CommentIndicatorProps> = ({
@@ -32,35 +42,35 @@ export const CommentIndicator: React.FC<CommentIndicatorProps> = ({
           const rect = indicatorRef.current.getBoundingClientRect();
           const tooltipWidth = 250; // max-w-xs é aproximadamente 250px
           const tooltipHeight = 100; // altura estimada
-          
+
           let top = rect.bottom + window.scrollY + 8;
           let left = rect.left + window.scrollX;
-          
+
           // Ajustar se o tooltip sair da tela à direita
           if (left + tooltipWidth > window.innerWidth + window.scrollX) {
             left = window.innerWidth + window.scrollX - tooltipWidth - 8;
           }
-          
+
           // Ajustar se o tooltip sair da tela embaixo
           if (top + tooltipHeight > window.innerHeight + window.scrollY) {
             top = rect.top + window.scrollY - tooltipHeight - 8;
           }
-          
+
           // Garantir que não saia da tela à esquerda
           if (left < window.scrollX) {
             left = window.scrollX + 8;
           }
-          
+
           setTooltipPosition({ top, left });
         }
       };
-      
+
       updatePosition();
-      
+
       // Atualizar posição ao scrollar ou redimensionar
       window.addEventListener('scroll', updatePosition, true);
       window.addEventListener('resize', updatePosition);
-      
+
       return () => {
         window.removeEventListener('scroll', updatePosition, true);
         window.removeEventListener('resize', updatePosition);
@@ -81,11 +91,11 @@ export const CommentIndicator: React.FC<CommentIndicatorProps> = ({
     };
 
     if (showTooltip) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showTooltip]);
 
@@ -106,7 +116,10 @@ export const CommentIndicator: React.FC<CommentIndicatorProps> = ({
         onMouseLeave={() => {
           // Delay para permitir movimento do mouse para o tooltip
           setTimeout(() => {
-            if (!tooltipRef.current?.matches(':hover') && !indicatorRef.current?.matches(':hover')) {
+            if (
+              !tooltipRef.current?.matches(':hover') &&
+              !indicatorRef.current?.matches(':hover')
+            ) {
               setShowTooltip(false);
             }
           }, 150);
@@ -139,33 +152,34 @@ export const CommentIndicator: React.FC<CommentIndicatorProps> = ({
         </svg>
       </div>
 
-      {showTooltip && typeof window !== 'undefined' && createPortal(
-        <div
-          ref={tooltipRef}
-          className="fixed bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-600 rounded-lg shadow-2xl p-3 max-w-xs z-[99999] pointer-events-auto"
-          style={{
-            top: `${tooltipPosition.top}px`,
-            left: `${tooltipPosition.left}px`,
-            transform: 'translateY(0)',
-            minWidth: '200px',
-          }}
-          onMouseEnter={() => {
-            setShowTooltip(true);
-          }}
-          onMouseLeave={() => {
-            setShowTooltip(false);
-          }}
-        >
-          <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-            {itemName} - {MONTH_NAMES[month]} / {year}
-          </div>
-          <div className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
-            {formatCommentForTooltip(comment)}
-          </div>
-        </div>,
-        document.body
-      )}
+      {showTooltip &&
+        typeof window !== 'undefined' &&
+        createPortal(
+          <div
+            ref={tooltipRef}
+            className="fixed bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-600 rounded-lg shadow-2xl p-3 max-w-xs z-[99999] pointer-events-auto"
+            style={{
+              top: `${tooltipPosition.top}px`,
+              left: `${tooltipPosition.left}px`,
+              transform: 'translateY(0)',
+              minWidth: '200px',
+            }}
+            onMouseEnter={() => {
+              setShowTooltip(true);
+            }}
+            onMouseLeave={() => {
+              setShowTooltip(false);
+            }}
+          >
+            <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              {itemName} - {MONTH_NAMES[month]} / {year}
+            </div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
+              {formatCommentForTooltip(comment)}
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 };
-

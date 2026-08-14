@@ -1,5 +1,5 @@
-"use client";
-import React, { useState, useRef, useEffect } from "react";
+'use client';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface NewEditableTextCellProps {
   value: string | number | null;
@@ -8,7 +8,7 @@ interface NewEditableTextCellProps {
   onStopEdit: () => void;
   onValueChange: (newValue: string | number) => void;
   className?: string;
-  type?: "text" | "number";
+  type?: 'text' | 'number';
   placeholder?: string;
 }
 
@@ -18,9 +18,9 @@ export default function NewEditableTextCell({
   onStartEdit,
   onStopEdit,
   onValueChange,
-  className = "",
-  type = "text",
-  placeholder = "",
+  className = '',
+  type = 'text',
+  placeholder = '',
 }: NewEditableTextCellProps) {
   const [tempValue, setTempValue] = useState(value?.toString() || '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +37,7 @@ export default function NewEditableTextCell({
   }, [value]);
 
   const handleSave = () => {
-    if (type === "number") {
+    if (type === 'number') {
       const numValue = tempValue.trim() === '' ? null : parseInt(tempValue, 10);
       if (numValue === null || !isNaN(numValue)) {
         onValueChange(numValue === null ? '' : numValue);
@@ -82,7 +82,7 @@ export default function NewEditableTextCell({
 
   const isClickable = !className.includes('cursor-default');
   const displayValue = value === null || value === '' ? '-' : value.toString();
-  
+
   return (
     <span
       onClick={isClickable ? onStartEdit : undefined}
@@ -92,4 +92,3 @@ export default function NewEditableTextCell({
     </span>
   );
 }
-

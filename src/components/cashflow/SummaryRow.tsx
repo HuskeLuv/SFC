@@ -23,6 +23,11 @@ export interface SummaryRowProps {
   variant?: keyof typeof VARIANT;
   /** Pinta valores negativos de vermelho (Saldo do mês, Evolução). */
   negativeRed?: boolean;
+  /**
+   * Pinta valores positivos de azul (pedido do Pedro, ago/2026 — convenção
+   * Excel: positivo azul, negativo vermelho). Zero mantém a cor da variante.
+   */
+  positiveBlue?: boolean;
   showActionsColumn?: boolean;
 }
 
@@ -51,13 +56,17 @@ const SummaryRowComponent: React.FC<SummaryRowProps> = ({
   format = 'currency',
   variant = 'brown',
   negativeRed = false,
+  positiveBlue = false,
   showActionsColumn = false,
 }) => {
   const { bg, text } = VARIANT[variant];
   const formatValue = format === 'currency' ? formatCurrency : formatPercent;
 
-  const valueClass = (value: number | null) =>
-    negativeRed && value !== null && value < 0 ? 'text-red-600 dark:text-red-400' : text;
+  const valueClass = (value: number | null) => {
+    if (negativeRed && value !== null && value < 0) return 'text-red-600 dark:text-red-400';
+    if (positiveBlue && value !== null && value > 0) return 'text-blue-600 dark:text-blue-300';
+    return text;
+  };
 
   const stickyCell = (index: number, content: React.ReactNode, extraClass = '') => (
     <TableCell
