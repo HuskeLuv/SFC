@@ -54,7 +54,7 @@ export default function SaudeFinanceiraRoot() {
         tendencias={tendencias}
         cashflowYear={fontes.cashflow.year}
       />
-      <MetasPatrimoniais indicadores={indicadores} idade={fontes.idade} />
+      <MetasPatrimoniais indicadores={indicadores} idade={fontes.idade} config={data.config} />
       <BalancoPatrimonial indicadores={indicadores} composicao={composicao} />
       <EvolucaoChart />
       <GestaoRisco />
