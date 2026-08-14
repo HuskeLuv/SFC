@@ -7,6 +7,7 @@ import FluxoCards from './FluxoCards';
 import MetasPatrimoniais from './MetasPatrimoniais';
 import BalancoPatrimonial from './BalancoPatrimonial';
 import EvolucaoChart from './EvolucaoChart';
+import GestaoRisco from './GestaoRisco';
 
 /**
  * Container raiz da Saúde Financeira: diagnóstico live derivado de carteira +
@@ -56,6 +57,7 @@ export default function SaudeFinanceiraRoot() {
       <MetasPatrimoniais indicadores={indicadores} idade={fontes.idade} />
       <BalancoPatrimonial indicadores={indicadores} composicao={composicao} />
       <EvolucaoChart />
+      <GestaoRisco />
     </div>
   );
 }

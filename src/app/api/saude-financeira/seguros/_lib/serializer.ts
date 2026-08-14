@@ -9,7 +9,9 @@ export type SeguroTipo = 'vida' | 'saude' | 'auto' | 'residencial' | 'invalidez'
 export type SeguroCobertura = 'total' | 'parcial' | 'nenhuma';
 export type SeguroRisco = 'baixo' | 'medio' | 'alto';
 
-export interface SeguroDTO {
+// Type alias (não interface) de propósito: ganha index signature implícita,
+// que o diffFields do histórico exige (Record<string, unknown>).
+export type SeguroDTO = {
   id: string;
   nome: string;
   tipo: SeguroTipo;
@@ -20,7 +22,7 @@ export interface SeguroDTO {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
-}
+};
 
 type DecimalLike = Prisma.Decimal | number | string | null | undefined;
 
