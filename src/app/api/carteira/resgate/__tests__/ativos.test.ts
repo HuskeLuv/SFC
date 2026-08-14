@@ -148,6 +148,77 @@ describe('GET /api/carteira/resgate/ativos', () => {
     expect(data.assets).toHaveLength(0);
   });
 
+  describe('Tesouro comprado para reserva (bug ago/2026)', () => {
+    const mockPortfolioTesouroReserva = {
+      id: 'port-td',
+      userId: 'user-123',
+      stockId: null,
+      assetId: 'asset-td',
+      stock: null,
+      asset: {
+        symbol: 'TD-TESOURO-SELIC-2031',
+        name: 'Tesouro Selic 2031',
+        type: 'tesouro-direto',
+        currency: 'BRL',
+      },
+      quantity: 2.68,
+      avgPrice: 19058,
+      totalInvested: 51082.52,
+    };
+    const txComDestino = {
+      id: 'tx-td',
+      assetId: 'asset-td',
+      stockId: null,
+      type: 'compra',
+      notes: JSON.stringify({
+        tesouroDestino: 'reserva-emergencia',
+        operation: { instituicaoId: 'inst-1' },
+      }),
+    };
+
+    it('aparece em reserva-emergencia quando a compra marcou tesouroDestino', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([mockPortfolioTesouroReserva]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([txComDestino]);
+
+      const response = await GET(
+        createRequest({ tipo: 'reserva-emergencia', instituicaoId: 'inst-1', search: '' }),
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.assets).toHaveLength(1);
+      expect(data.assets[0].symbol).toBe('TD-TESOURO-SELIC-2031');
+    });
+
+    it('NÃO aparece mais em renda-fixa quando destinado à reserva', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([mockPortfolioTesouroReserva]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([txComDestino]);
+
+      const response = await GET(
+        createRequest({ tipo: 'renda-fixa', instituicaoId: 'inst-1', search: '' }),
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.assets).toHaveLength(0);
+    });
+
+    it('Tesouro SEM destino segue em renda-fixa (regressão)', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([mockPortfolioTesouroReserva]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        { ...txComDestino, notes: JSON.stringify({ operation: { instituicaoId: 'inst-1' } }) },
+      ]);
+
+      const response = await GET(
+        createRequest({ tipo: 'renda-fixa', instituicaoId: 'inst-1', search: '' }),
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.assets).toHaveLength(1);
+    });
+  });
+
   it('retorna ativos de ações corretamente (apenas stockId)', async () => {
     mockPrisma.portfolio.findMany.mockResolvedValue([{ ...mockPortfolioAcao, userId: 'user-123' }]);
     mockPrisma.stockTransaction.findMany.mockResolvedValue([

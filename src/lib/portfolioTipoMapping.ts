@@ -29,10 +29,21 @@ export const TIPO_LABELS: Record<string, string> = {
 /** Fundos da aba agrupada ("Fundos") → um único tipo de UI. */
 const FUNDOS_AGRUPADOS = new Set<string>(FUNDO_TYPES_AGRUPADOS);
 
-export const mapPortfolioToTipo = (item: {
-  asset?: { type?: string | null; symbol?: string | null } | null;
-}): string => {
+export const mapPortfolioToTipo = (
+  item: {
+    asset?: { type?: string | null; symbol?: string | null } | null;
+  },
+  /**
+   * Destino de Tesouro comprado para uma reserva (transaction.notes
+   * .tesouroDestino, via getTesouroDestinoByAssetId). O catálogo classifica o
+   * título como 'tesouro-direto', mas a UI o exibe na aba da reserva — sem o
+   * destino, o resgate de um Tesouro da Reserva de Emergência só aparecia em
+   * Renda Fixa (bug ago/2026).
+   */
+  tesouroDestino?: 'reserva-emergencia' | 'reserva-oportunidade' | null,
+): string => {
   const assetType = item.asset?.type || '';
+  if (assetType === 'tesouro-direto' && tesouroDestino) return tesouroDestino;
   if (assetType === 'stock') return 'acao';
   if (assetType === 'fii') return 'fii';
   // Tipos de fundo da CVM (fia/multimercado/fidc/fiagro/...) caíam no default e
