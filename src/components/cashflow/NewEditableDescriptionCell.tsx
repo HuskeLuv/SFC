@@ -78,7 +78,7 @@ export default function NewEditableDescriptionCell({
           value={tempSignificado}
           onChange={(e) => setTempSignificado(e.target.value)}
           onKeyDown={handleKeyPress}
-          placeholder="Significado (opcional)"
+          placeholder="O seu porquê (opcional)"
           className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none"
         />
       </div>
