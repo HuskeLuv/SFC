@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as XLSX from 'xlsx';
 import { buildFlcWorkbook, modeloSpec, type FixtureLinha } from '@/test/fixtures/flcWorkbook';
 import { FlcParseError, normalizeLabel, parseFlcXlsx, repararMojibake } from '../parseFlcXlsx';
 
@@ -201,14 +202,74 @@ describe('parseFlcXlsx — cópias personalizadas de cliente', () => {
     expect(result.avisos.some((a) => a.includes('Aluguel / Prestação'))).toBe(true);
   });
 
-  it('linha computada (fórmula) dentro de seção importável vai para ignorados', () => {
+  it('linha de TOTALIZAÇÃO (SUM) dentro de seção importável vai para ignorados', () => {
     const spec = modeloSpec();
     const idx = spec.findIndex((l) => l.tipo === 'item' && l.label === 'Uber');
-    spec.splice(idx + 1, 0, { tipo: 'item', label: 'Subtotal carro', formula: true });
+    spec.splice(idx + 1, 0, {
+      tipo: 'item',
+      label: 'Subtotal carro',
+      formulaSum: true,
+      valores: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i, 999])),
+    });
     const result = parseFlcXlsx(buildFlcWorkbook(spec));
     expect(secao(result, 'transporte').itens.map((i) => i.label)).not.toContain('Subtotal carro');
     const ign = result.ignorados.find((i) => i.label === 'Subtotal carro');
     expect(ign?.motivo).toContain('computada');
+  });
+
+  it('item com fórmula ARITMÉTICA importa o resultado cacheado (report ago/2026: =anual/12)', () => {
+    // Caso real: Conta de energia/IPVA/Seguro Carro escritos como "=2980/12"
+    // eram descartados em bloco e o total da seção não batia.
+    const spec = modeloSpec();
+    const idx = spec.findIndex((l) => l.tipo === 'item' && l.label === 'Combustível');
+    spec.splice(idx + 1, 0, {
+      tipo: 'item',
+      label: 'IPVA + Seguro Obrigatório Carro',
+      formula: true,
+      valores: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i, 416.67])),
+    });
+    const result = parseFlcXlsx(buildFlcWorkbook(spec));
+
+    const ipva = secao(result, 'transporte').itens.find(
+      (i) => i.label === 'IPVA + Seguro Obrigatório Carro',
+    );
+    expect(ipva).toBeDefined();
+    expect(ipva?.valores.every((v) => v === 416.67)).toBe(true);
+    expect(result.ignorados.some((i) => i.label === 'IPVA + Seguro Obrigatório Carro')).toBe(false);
+    expect(
+      result.avisos.some(
+        (a) => a.includes('IPVA + Seguro Obrigatório Carro') && a.includes('resultado'),
+      ),
+    ).toBe(true);
+  });
+
+  it('linha mista literal + SUM: literais importam, células de totalização viram null', () => {
+    const spec = modeloSpec();
+    const idx = spec.findIndex((l) => l.tipo === 'item' && l.label === 'Uber');
+    // constrói manualmente: não há açúcar na fixture pra célula-a-célula mista;
+    // usa item normal e sobrescreve um mês com SUM via segunda passada abaixo.
+    spec.splice(idx + 1, 0, {
+      tipo: 'item',
+      label: 'Linha Mista',
+      valores: { 0: 100, 1: 200 },
+    });
+    const buffer = buildFlcWorkbook(spec);
+    // reabre e injeta SUM no mês 1 da Linha Mista
+    // (XLSX é zip; mais simples: reparse → achar linha → regravar)
+    const wb = XLSX.read(buffer, { type: 'buffer', cellFormula: true });
+    const ws = wb.Sheets['Fluxo de Caixa'];
+    const linhaMista = Object.keys(ws).find(
+      (k) => k.startsWith('B') && ws[k]?.v === 'Linha Mista',
+    )!;
+    const row = linhaMista.slice(1);
+    ws[`G${row}`] = { t: 'n', v: 200, f: 'SUM(G1:G2)' };
+    const rebuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+
+    const result = parseFlcXlsx(rebuffer);
+    const mista = secao(result, 'transporte').itens.find((i) => i.label === 'Linha Mista');
+    expect(mista?.valores[0]).toBe(100); // literal preservado
+    expect(mista?.valores[1]).toBeNull(); // SUM ignorada
+    expect(result.avisos.some((a) => a.includes('Linha Mista') && a.includes('SUM'))).toBe(true);
   });
 });
 
