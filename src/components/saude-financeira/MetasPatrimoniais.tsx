@@ -1,13 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import type { BenchmarkPatrimonial, SaudeFinanceiraIndicadores } from '@/hooks/useSaudeFinanceira';
+import { useState } from 'react';
+import type {
+  BenchmarkPatrimonial,
+  SaudeFinanceiraConfig,
+  SaudeFinanceiraIndicadores,
+} from '@/hooks/useSaudeFinanceira';
+import { DEFAULT_SAUDE_CONFIG } from '@/services/saudeFinanceira/indicadores';
+import MetasConfigForm from './MetasConfigForm';
 import { formatBRL, formatPercent } from './utils';
 
 interface MetasPatrimoniaisProps {
   indicadores: SaudeFinanceiraIndicadores;
   /** Idade usada no patrimônio ideal; null exibe o CTA de preencher. */
   idade: number | null;
+  /** Parâmetros efetivos (defaults + overrides do user). */
+  config: SaudeFinanceiraConfig;
 }
 
 interface MetaRowProps {
@@ -63,8 +72,13 @@ function MetaRow({ titulo, descricao, benchmark, indisponivel }: MetaRowProps) {
  * Bloco ③ — as 4 metas patrimoniais da metodologia, com progresso
  * (correlação real/benchmark da planilha).
  */
-export default function MetasPatrimoniais({ indicadores, idade }: MetasPatrimoniaisProps) {
+export default function MetasPatrimoniais({ indicadores, idade, config }: MetasPatrimoniaisProps) {
   const { benchmarks, economia } = indicadores;
+  const [configurando, setConfigurando] = useState(false);
+  const isCustom = (Object.keys(DEFAULT_SAUDE_CONFIG) as (keyof SaudeFinanceiraConfig)[]).some(
+    (k) => config[k] !== DEFAULT_SAUDE_CONFIG[k],
+  );
+  const fatorIdealPct = `${(config.fatorIdeal * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 
   const rentabilidadeNota =
     economia.rentabilidadeFonte === 'carteira'
@@ -74,20 +88,45 @@ export default function MetasPatrimoniais({ indicadores, idade }: MetasPatrimoni
         : null;
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
-        Metas Patrimoniais
-      </h3>
+    <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
+          Metas Patrimoniais
+          {isCustom ? (
+            <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+              personalizado
+            </span>
+          ) : null}
+        </h3>
+        {!configurando ? (
+          <button
+            type="button"
+            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 print:hidden"
+            onClick={() => setConfigurando(true)}
+          >
+            Personalizar
+          </button>
+        ) : null}
+      </div>
+
+      {configurando ? (
+        <MetasConfigForm
+          config={config}
+          defaults={DEFAULT_SAUDE_CONFIG}
+          onClose={() => setConfigurando(false)}
+        />
+      ) : null}
+
       <div className="mt-4 space-y-5">
         <MetaRow
           titulo="Reserva de Emergência"
-          descricao="3× o gasto mensal, em reserva dedicada"
+          descricao={`${config.multReserva}× o gasto mensal, em reserva dedicada`}
           benchmark={benchmarks.reservaEmergencia}
           indisponivel="Preencha o fluxo de caixa para calcular o gasto mensal."
         />
         <MetaRow
           titulo="Patrimônio de Segurança"
-          descricao="12 meses de gastos em ativos de alta liquidez"
+          descricao={`${config.multSeguranca} meses de gastos em ativos de alta liquidez`}
           benchmark={benchmarks.patrimonioSeguranca}
           indisponivel="Preencha o fluxo de caixa para calcular o gasto mensal."
         />
@@ -95,8 +134,8 @@ export default function MetasPatrimoniais({ indicadores, idade }: MetasPatrimoni
           titulo="Patrimônio Ideal"
           descricao={
             idade != null
-              ? `10% × renda anual × idade (${idade} anos)`
-              : '10% × renda anual × idade'
+              ? `${fatorIdealPct} × renda anual × idade (${idade} anos)`
+              : `${fatorIdealPct} × renda anual × idade`
           }
           benchmark={benchmarks.patrimonioIdeal}
           indisponivel={

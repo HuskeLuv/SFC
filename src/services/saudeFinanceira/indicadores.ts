@@ -25,6 +25,26 @@ export const COBERTURA_MINIMA_MESES = 6;
 /** Passivo total / ativo total acima disso ⇒ status Endividado. */
 export const LIMITE_PASSIVO_SOBRE_ATIVO = 0.5;
 
+/**
+ * Parâmetros personalizáveis da metodologia (F4). Os defaults são os valores
+ * da planilha; o usuário/consultor pode calibrar por conta (ex.: autônomo
+ * com renda volátil usa reserva de 6× em vez de 3×).
+ */
+export interface SaudeFinanceiraConfig {
+  multReserva: number;
+  multSeguranca: number;
+  /** Fração (0.1 = 10% × renda anual × idade). */
+  fatorIdeal: number;
+  coberturaMinimaMeses: number;
+}
+
+export const DEFAULT_SAUDE_CONFIG: SaudeFinanceiraConfig = {
+  multReserva: MULT_RESERVA_EMERGENCIA,
+  multSeguranca: MULT_PATRIMONIO_SEGURANCA,
+  fatorIdeal: FATOR_PATRIMONIO_IDEAL,
+  coberturaMinimaMeses: COBERTURA_MINIMA_MESES,
+};
+
 export type StatusSaudeCodigo = 'ED' | 'FR' | 'EQ';
 
 export interface SaudeFinanceiraInputs {
@@ -140,7 +160,10 @@ const benchmark = (necessario: number | null, atual: number): BenchmarkPatrimoni
  *    benchmark de 3× gasto.
  *  - EQ: o resto.
  */
-export function computeSaudeFinanceira(inputs: SaudeFinanceiraInputs): SaudeFinanceiraIndicadores {
+export function computeSaudeFinanceira(
+  inputs: SaudeFinanceiraInputs,
+  config: SaudeFinanceiraConfig = DEFAULT_SAUDE_CONFIG,
+): SaudeFinanceiraIndicadores {
   const {
     rendaMensal,
     gastoMensal,
@@ -176,16 +199,16 @@ export function computeSaudeFinanceira(inputs: SaudeFinanceiraInputs): SaudeFina
     ganhoReal != null && ganhoReal > 0 && gastoAnual > 0 ? gastoAnual / ganhoReal : null;
   const benchmarks = {
     reservaEmergencia: benchmark(
-      gastoMensal > 0 ? gastoMensal * MULT_RESERVA_EMERGENCIA : null,
+      gastoMensal > 0 ? gastoMensal * config.multReserva : null,
       reservaEmergencia,
     ),
     patrimonioSeguranca: benchmark(
-      gastoMensal > 0 ? gastoMensal * MULT_PATRIMONIO_SEGURANCA : null,
+      gastoMensal > 0 ? gastoMensal * config.multSeguranca : null,
       ativosAltaLiquidez,
     ),
     patrimonioIdeal: benchmark(
       idade != null && idade > 0 && rendaMensal > 0
-        ? FATOR_PATRIMONIO_IDEAL * rendaMensal * 12 * idade
+        ? config.fatorIdeal * rendaMensal * 12 * idade
         : null,
       patrimonioLiquido,
     ),
@@ -211,8 +234,10 @@ export function computeSaudeFinanceira(inputs: SaudeFinanceiraInputs): SaudeFina
   }
 
   const motivosFR: string[] = [];
-  if (mesesCobertura != null && mesesCobertura < COBERTURA_MINIMA_MESES) {
-    motivosFR.push(`Ativos líquidos cobrem menos de ${COBERTURA_MINIMA_MESES} meses de gastos`);
+  if (mesesCobertura != null && mesesCobertura < config.coberturaMinimaMeses) {
+    motivosFR.push(
+      `Ativos líquidos cobrem menos de ${config.coberturaMinimaMeses} meses de gastos`,
+    );
   }
   const { necessario: reservaNecessaria } = benchmarks.reservaEmergencia;
   if (reservaNecessaria != null && reservaEmergencia < reservaNecessaria) {

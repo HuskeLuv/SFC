@@ -42,7 +42,7 @@ export default function BalancoPatrimonial({ indicadores, composicao }: BalancoP
   const passivosLongo = composicao.passivos.filter((p) => p.prazo === 'longo');
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
       <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
         Balanço Patrimonial
       </h3>
@@ -88,7 +88,7 @@ export default function BalancoPatrimonial({ indicadores, composicao }: BalancoP
             </h4>
             <Link
               href="/dividas"
-              className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+              className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400 print:hidden"
             >
               Gerenciar dívidas →
             </Link>

@@ -33,11 +33,16 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   return (
     <CashflowYearProvider>
       <div className="min-h-screen xl:flex">
-        <AppSidebar />
-        <Backdrop />
-        <MobileSidebarTrigger />
-        <div className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}>
-          <div className={`p-4 md:p-6 ${contentWidthClass}`}>
+        {/* print: só o conteúdo — sidebar/trigger fora, margem zerada */}
+        <div className="print:hidden">
+          <AppSidebar />
+          <Backdrop />
+          <MobileSidebarTrigger />
+        </div>
+        <div
+          className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin} print:ml-0`}
+        >
+          <div className={`p-4 md:p-6 ${contentWidthClass} print:max-w-none print:p-0`}>
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>
         </div>

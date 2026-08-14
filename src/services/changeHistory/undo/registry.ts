@@ -15,6 +15,7 @@ import { CARTEIRA_UNDO_HANDLERS } from './handlers/carteira';
 import { FLUXO_CAIXA_UNDO_HANDLERS } from './handlers/fluxoCaixa';
 import { PLANEJAMENTO_UNDO_HANDLERS } from './handlers/planejamento';
 import { DIVIDAS_UNDO_HANDLERS } from './handlers/dividas';
+import { SAUDE_FINANCEIRA_UNDO_HANDLERS } from './handlers/saudeFinanceira';
 import { PERFIL_UNDO_HANDLERS } from './handlers/perfil';
 
 export const UNDO_REGISTRY: Record<string, UndoDefinition> = {
@@ -22,5 +23,6 @@ export const UNDO_REGISTRY: Record<string, UndoDefinition> = {
   ...FLUXO_CAIXA_UNDO_HANDLERS,
   ...PLANEJAMENTO_UNDO_HANDLERS,
   ...DIVIDAS_UNDO_HANDLERS,
+  ...SAUDE_FINANCEIRA_UNDO_HANDLERS,
   ...PERFIL_UNDO_HANDLERS,
 };

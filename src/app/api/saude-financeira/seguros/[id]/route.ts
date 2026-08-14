@@ -74,6 +74,7 @@ export const DELETE = withErrorHandler(
 
     await prisma.seguroApolice.delete({ where: { id } });
 
+    const dto = serializeSeguro(existing);
     await recordChange({
       request,
       auth,
@@ -82,7 +83,22 @@ export const DELETE = withErrorHandler(
       entity: 'seguro',
       entityId: id,
       entityLabel: existing.nome,
-      changes: finalStateChanges(serializeSeguro(existing), SEGURO_FIELD_LABELS),
+      changes: finalStateChanges(dto, SEGURO_FIELD_LABELS),
+      // Snapshot p/ o Desfazer recriar a apólice (kind 'seguro' no registry).
+      snapshot: {
+        v: 1,
+        kind: 'seguro',
+        data: {
+          id: dto.id,
+          nome: dto.nome,
+          tipo: dto.tipo,
+          cobertura: dto.cobertura,
+          risco: dto.risco,
+          custoAnual: dto.custoAnual,
+          capitalSegurado: dto.capitalSegurado,
+          notes: dto.notes,
+        },
+      },
     });
 
     return NextResponse.json({ success: true });

@@ -57,7 +57,7 @@ export default function CookieConsentBanner() {
       role="dialog"
       aria-live="polite"
       aria-label="Aviso de cookies"
-      className="fixed bottom-4 left-4 right-4 z-[9999] mx-auto max-w-2xl rounded-xl border border-gray-200 bg-white p-4 shadow-2xl dark:border-gray-700 dark:bg-gray-900 sm:left-auto sm:right-4 sm:p-5"
+      className="print:hidden fixed bottom-4 left-4 right-4 z-[9999] mx-auto max-w-2xl rounded-xl border border-gray-200 bg-white p-4 shadow-2xl dark:border-gray-700 dark:bg-gray-900 sm:left-auto sm:right-4 sm:p-5"
     >
       <p className="text-sm text-gray-700 dark:text-gray-300">
         Usamos apenas cookies <strong>estritamente necessários</strong> ao funcionamento da

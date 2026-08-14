@@ -61,7 +61,7 @@ export default function EvolucaoChart() {
   }, [snapshots]);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
       <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">Evolução</h3>
       {loading ? (
         <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">Carregando evolução...</p>

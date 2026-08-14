@@ -26,7 +26,9 @@ export default function StatusHero({ indicadores, tendencias }: StatusHeroProps)
   const meta = STATUS_META[status.codigo];
 
   return (
-    <div className={`rounded-2xl border bg-white p-5 dark:bg-white/[0.03] ${meta.cardClass}`}>
+    <div
+      className={`print:break-inside-avoid rounded-2xl border bg-white p-5 dark:bg-white/[0.03] ${meta.cardClass}`}
+    >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-xl">
           <span
