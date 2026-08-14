@@ -4,14 +4,25 @@ import Link from 'next/link';
 import type {
   SaudeFinanceiraIndicadores,
   SaudeFinanceiraPayload,
+  TendenciasSaude,
 } from '@/hooks/useSaudeFinanceira';
 import { TIPO_LABELS } from '@/components/dividas/utils';
 import type { DividaTipo } from '@/hooks/useDividas';
-import { formatBRL } from './utils';
+import { formatBRL, formatPercent, tendenciaSeta } from './utils';
 
 interface BalancoPatrimonialProps {
   indicadores: SaudeFinanceiraIndicadores;
   composicao: SaudeFinanceiraPayload['composicao'];
+  tendencias: TendenciasSaude;
+}
+
+function Seta({ seta }: { seta: ReturnType<typeof tendenciaSeta> }) {
+  if (!seta) return null;
+  return (
+    <span className={`ml-1 text-sm font-semibold ${seta.className}`} title="vs mês anterior">
+      {seta.glyph}
+    </span>
+  );
 }
 
 function Linha({ label, valor }: { label: string; valor: number }) {
@@ -36,8 +47,12 @@ function Subtotal({ label, valor }: { label: string; valor: number }) {
  * Bloco ④ — balanço patrimonial: ativos por liquidez × passivos por prazo,
  * fechando no patrimônio líquido (mesma conta do resumo da carteira).
  */
-export default function BalancoPatrimonial({ indicadores, composicao }: BalancoPatrimonialProps) {
-  const { balanco } = indicadores;
+export default function BalancoPatrimonial({
+  indicadores,
+  composicao,
+  tendencias,
+}: BalancoPatrimonialProps) {
+  const { balanco, metricas } = indicadores;
   const passivosCurto = composicao.passivos.filter((p) => p.prazo === 'curto');
   const passivosLongo = composicao.passivos.filter((p) => p.prazo === 'longo');
 
@@ -144,6 +159,18 @@ export default function BalancoPatrimonial({ indicadores, composicao }: BalancoP
           }`}
         >
           {formatBRL(balanco.patrimonioLiquido)}
+          <Seta seta={tendenciaSeta(tendencias.patrimonioLiquido, true)} />
+        </span>
+      </div>
+
+      {/* Linha B66 da planilha: grau de independência medido pelo PL */}
+      <div className="mt-2 flex items-center justify-between px-4 text-sm">
+        <span className="text-gray-600 dark:text-gray-300">
+          Grau de independência financeira medido pelo patrimônio líquido
+        </span>
+        <span className="font-semibold text-gray-900 dark:text-white/90">
+          {formatPercent(metricas.grauIndependencia)}
+          <Seta seta={tendenciaSeta(tendencias.grauIndependencia, true)} />
         </span>
       </div>
     </div>
