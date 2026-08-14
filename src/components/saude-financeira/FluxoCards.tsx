@@ -25,35 +25,40 @@ export default function FluxoCards({ indicadores, tendencias, cashflowYear }: Fl
   const taxa = tendenciaChange(tendencias.taxaPoupanca, true, 'da renda vira patrimônio');
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <MetricCard
-        title="Renda Mensal"
-        value={formatBRLCompact(fluxo.rendaMensal)}
-        color="primary"
-        change={renda.change}
-        changeDirection={renda.changeDirection}
-      />
-      <MetricCard
-        title="Gasto Mensal"
-        value={formatBRLCompact(fluxo.gastoMensal)}
-        color="warning"
-        change={gasto.change}
-        changeDirection={gasto.changeDirection}
-      />
-      <MetricCard
-        title="Poupança Mensal"
-        value={formatBRLCompact(fluxo.poupancaMensal)}
-        color={fluxo.poupancaMensal >= 0 ? 'success' : 'error'}
-        change={poupanca.change}
-        changeDirection={poupanca.changeDirection}
-      />
-      <MetricCard
-        title="Taxa de Poupança"
-        value={formatPercent(fluxo.taxaPoupanca)}
-        color={fluxo.taxaPoupanca != null && fluxo.taxaPoupanca >= 0.2 ? 'success' : 'warning'}
-        change={taxa.change}
-        changeDirection={taxa.changeDirection}
-      />
+    <div className="print:break-inside-avoid">
+      <h3 className="mb-3 text-base font-semibold text-gray-900 dark:text-white/90">
+        Indicadores Financeiros (Fluxo de Caixa)
+      </h3>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Renda Mensal"
+          value={formatBRLCompact(fluxo.rendaMensal)}
+          color="primary"
+          change={renda.change}
+          changeDirection={renda.changeDirection}
+        />
+        <MetricCard
+          title="Gasto Mensal"
+          value={formatBRLCompact(fluxo.gastoMensal)}
+          color="warning"
+          change={gasto.change}
+          changeDirection={gasto.changeDirection}
+        />
+        <MetricCard
+          title="Poupança Mensal"
+          value={formatBRLCompact(fluxo.poupancaMensal)}
+          color={fluxo.poupancaMensal >= 0 ? 'success' : 'error'}
+          change={poupanca.change}
+          changeDirection={poupanca.changeDirection}
+        />
+        <MetricCard
+          title="Taxa de Poupança"
+          value={formatPercent(fluxo.taxaPoupanca)}
+          color={fluxo.taxaPoupanca != null && fluxo.taxaPoupanca >= 0.2 ? 'success' : 'warning'}
+          change={taxa.change}
+          changeDirection={taxa.changeDirection}
+        />
+      </div>
     </div>
   );
 }

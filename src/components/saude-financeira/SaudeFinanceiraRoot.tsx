@@ -11,9 +11,7 @@ import DadosEconomicos from './DadosEconomicos';
 import FluxoCards from './FluxoCards';
 import MetasPatrimoniais from './MetasPatrimoniais';
 import BalancoPatrimonial from './BalancoPatrimonial';
-import PassivosDetalhe from './PassivosDetalhe';
 import EvolucaoChart from './EvolucaoChart';
-import GestaoRisco from './GestaoRisco';
 
 /**
  * Container raiz da Saúde Financeira: diagnóstico live derivado de carteira +
@@ -74,8 +72,8 @@ export default function SaudeFinanceiraRoot() {
         </div>
       ) : null}
 
+      {/* Ordem das seções segue a aba "Saúde Financeira" da planilha-base. */}
       <ClienteHeader nome={nomeCliente} fontes={fontes} asOf={data.asOf} />
-      <StatusHero indicadores={indicadores} tendencias={tendencias} />
       <DadosEconomicos indicadores={indicadores} />
       <FluxoCards
         indicadores={indicadores}
@@ -83,10 +81,13 @@ export default function SaudeFinanceiraRoot() {
         cashflowYear={fontes.cashflow.year}
       />
       <MetasPatrimoniais indicadores={indicadores} idade={fontes.idade} config={data.config} />
-      <BalancoPatrimonial indicadores={indicadores} composicao={composicao} />
-      <PassivosDetalhe indicadores={indicadores} composicao={composicao} />
+      <BalancoPatrimonial
+        indicadores={indicadores}
+        composicao={composicao}
+        tendencias={tendencias}
+      />
+      <StatusHero indicadores={indicadores} tendencias={tendencias} />
       <EvolucaoChart />
-      <GestaoRisco />
     </div>
   );
 }

@@ -91,7 +91,7 @@ export default function MetasPatrimoniais({ indicadores, idade, config }: MetasP
     <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
-          Metas Patrimoniais
+          Indicadores Financeiros (Saúde Financeira)
           {isCustom ? (
             <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
               personalizado
