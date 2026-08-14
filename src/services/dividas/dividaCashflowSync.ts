@@ -7,7 +7,7 @@ import { gerarCronograma } from './amortizacao';
 
 /**
  * Sincroniza uma dívida com a linha-espelho no fluxo de caixa (grupo
- * "Dívidas" sob Despesas Fixas). A dívida é a FONTE: as parcelas do
+ * "Despesas Financeiras" sob Despesas Fixas). A dívida é a FONTE: as parcelas do
  * cronograma SAC/Price viram os valores planejados dos meses da janela
  * (`primeiroVencimento` → fim do prazo), atravessando anos. A linha é
  * somente-leitura no fluxo de caixa (vínculo via CashflowItem.dividaId).
@@ -21,7 +21,9 @@ import { gerarCronograma } from './amortizacao';
  *    DAQUELE mês — no SAC a parcela é decrescente.
  */
 
-const DIVIDAS_GROUP_NAME = 'Dívidas';
+// Ex-"Dívidas" — renomeado p/ "Despesas Financeiras" (ago/2026, alinhado à
+// categoria homônima da planilha-base; migração renomeia as linhas existentes).
+const DIVIDAS_GROUP_NAME = 'Despesas Financeiras';
 
 export interface DividaForSync {
   id: string;
@@ -74,7 +76,7 @@ export async function syncDividaRecordToCashflow(
   });
 }
 
-/** Resolve (personalizando se preciso) o grupo "Dívidas" do usuário. */
+/** Resolve (personalizando se preciso) o grupo "Despesas Financeiras" do usuário. */
 async function resolveDividasGroupId(userId: string): Promise<string | null> {
   const own = await prisma.cashflowGroup.findFirst({
     where: { userId, name: DIVIDAS_GROUP_NAME },

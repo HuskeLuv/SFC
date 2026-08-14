@@ -52,15 +52,22 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
       parentId: 'Despesas Fixas',
       type: 'despesa' as const,
     },
+    // Linhas-espelho das dívidas (parcelas de financiamentos SAC/Price
+    // sincronizadas pela área de Dívidas — ver dividaCashflowSync.ts).
+    // Renomeado de "Dívidas" e movido para ANTES do Planejamento Financeiro
+    // (pedido ago/2026; nome alinhado à categoria da planilha-base).
     {
-      name: 'Planejamento Financeiro',
+      name: 'Despesas Financeiras',
       orderIndex: 11,
       parentId: 'Despesas Fixas',
       type: 'despesa' as const,
     },
-    // Linhas-espelho das dívidas (parcelas de financiamentos SAC/Price
-    // sincronizadas pela área de Dívidas — ver dividaCashflowSync.ts).
-    { name: 'Dívidas', orderIndex: 12, parentId: 'Despesas Fixas', type: 'despesa' as const },
+    {
+      name: 'Planejamento Financeiro',
+      orderIndex: 12,
+      parentId: 'Despesas Fixas',
+      type: 'despesa' as const,
+    },
     { name: 'Despesas Variáveis', orderIndex: 2, parentId: 'Despesas', type: 'despesa' as const },
     { name: 'Investimentos', orderIndex: 3, parentId: null, type: 'investimento' as const },
     // Bloco de SALDO (não é entrada nem despesa): o cliente informa manualmente
@@ -216,7 +223,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
     // Planejamento de Sonhos (linhas espelho, vínculo via objetivoId) — ver
     // src/services/planejamento/sonhoCashflowSync.ts. Sem placeholders no template.
     'Planejamento Financeiro': [],
-    Dívidas: [],
+    'Despesas Financeiras': [],
     'Despesas Variáveis': [
       { name: 'Lazer' },
       { name: 'Compras' },
@@ -359,16 +366,17 @@ export async function ensureDependentesTemplate(): Promise<void> {
   dependentesEnsured = true;
 }
 
-// ===== ENSURE: DÍVIDAS (upgrade de template para bancos existentes) =====
+// ===== ENSURE: DESPESAS FINANCEIRAS (upgrade de template p/ bancos antigos) =====
 
 let dividasEnsured = false;
 
-const DIVIDAS_GROUP_NAME = 'Dívidas';
+// Ex-"Dívidas" (renomeado ago/2026, migração 20260814*_rename_dividas_group).
+const DIVIDAS_GROUP_NAME = 'Despesas Financeiras';
 
 /**
- * Garante que o grupo template "Dívidas" exista sob "Despesas Fixas", no fim
- * da seção (depois de "Planejamento Financeiro"). Recebe as linhas-espelho
- * das parcelas de financiamento (dividaCashflowSync). Sem itens fixos — as
+ * Garante que o grupo template "Despesas Financeiras" exista sob "Despesas
+ * Fixas", ANTES do "Planejamento Financeiro". Recebe as linhas-espelho das
+ * parcelas de financiamento (dividaCashflowSync). Sem itens fixos — as
  * linhas são criadas por dívida. Bancos criados antes desta feature têm o
  * seed completo mas não este grupo. Idempotente e barato (1 findFirst por
  * processo).
@@ -392,23 +400,37 @@ export async function ensureDividasTemplate(): Promise<void> {
       return;
     }
 
-    // Vai pro fim da seção: 1 + maior orderIndex entre os irmãos (cobre bancos
-    // que ainda não têm "Despesas com Dependentes" e ficaram com índices antigos).
-    const last = await prisma.cashflowGroup.findFirst({
-      where: { userId: null, parentId: despesasFixas.id },
-      orderBy: { orderIndex: 'desc' },
-      select: { orderIndex: true },
+    // Entra ANTES do Planejamento Financeiro (assume o índice dele e o PF
+    // desce 1); sem PF no banco, vai pro fim da seção.
+    const pf = await prisma.cashflowGroup.findFirst({
+      where: { userId: null, parentId: despesasFixas.id, name: 'Planejamento Financeiro' },
+      select: { id: true, orderIndex: true },
     });
+    let orderIndex: number;
+    if (pf) {
+      orderIndex = pf.orderIndex;
+      await prisma.cashflowGroup.update({
+        where: { id: pf.id },
+        data: { orderIndex: pf.orderIndex + 1 },
+      });
+    } else {
+      const last = await prisma.cashflowGroup.findFirst({
+        where: { userId: null, parentId: despesasFixas.id },
+        orderBy: { orderIndex: 'desc' },
+        select: { orderIndex: true },
+      });
+      orderIndex = (last?.orderIndex ?? 11) + 1;
+    }
     await prisma.cashflowGroup.create({
       data: {
         userId: null,
         name: DIVIDAS_GROUP_NAME,
         type: 'despesa',
-        orderIndex: (last?.orderIndex ?? 11) + 1,
+        orderIndex,
         parentId: despesasFixas.id,
       },
     });
-    logger.info('✅ Template "Dívidas" criado (upgrade de template)');
+    logger.info('✅ Template "Despesas Financeiras" criado (upgrade de template)');
   }
 
   dividasEnsured = true;
