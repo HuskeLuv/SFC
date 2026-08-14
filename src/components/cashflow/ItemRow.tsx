@@ -18,6 +18,8 @@ interface ItemRowProps {
   isEditing: (itemId: string, field: string, monthIndex?: number) => boolean;
   currentYear?: number;
   isLastItem?: boolean;
+  /** Reordena a linha dentro do grupo (setinhas ↑↓ no hover). */
+  onMoveItem?: (item: CashflowItem, group: CashflowGroup, direction: 'up' | 'down') => void;
 }
 
 const ItemRowComponent: React.FC<ItemRowProps> = ({
@@ -27,6 +29,7 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
   itemPercentage,
   group,
   currentYear = new Date().getFullYear(),
+  onMoveItem,
 }) => {
   const getPercentageColorClass = () => {
     return 'text-black dark:text-gray-300';
@@ -40,7 +43,7 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
 
   return (
     <TableRow
-      className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-white dark:bg-gray-900"
+      className="group/linha h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-white dark:bg-gray-900"
       style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
     >
       <TableCell
@@ -56,6 +59,30 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
         }}
       >
         <span className="cursor-default truncate block" title={item.name || undefined}>
+          {onMoveItem ? (
+            // Setinhas de reordenação — aparecem no hover da linha; nas
+            // bordas do grupo o movimento é no-op (handler valida).
+            <span className="mr-1 inline-flex gap-0.5 align-middle opacity-0 transition-opacity group-hover/linha:opacity-100">
+              <button
+                type="button"
+                aria-label={`Mover ${item.name} para cima`}
+                title="Mover para cima"
+                onClick={() => onMoveItem(item, group, 'up')}
+                className="rounded px-0.5 text-[9px] leading-none text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                aria-label={`Mover ${item.name} para baixo`}
+                title="Mover para baixo"
+                onClick={() => onMoveItem(item, group, 'down')}
+                className="rounded px-0.5 text-[9px] leading-none text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+              >
+                ▼
+              </button>
+            </span>
+          ) : null}
           {item.objetivoId ? (
             <Link
               href="/planejamento-financeiro"

@@ -87,6 +87,10 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Importou uma planilha no fluxo de caixa',
     (l) => `Importou ${l} no fluxo de caixa`,
   ),
+  'itens.reordenar': withLabel(
+    'Reordenou linhas do fluxo de caixa',
+    (l) => `Reordenou as linhas do grupo ${l}`,
+  ),
   'grupo.criar': withLabel('Criou um grupo no fluxo de caixa', (l) => `Criou o grupo ${l}`),
   'grupo.editar': withLabel('Editou um grupo do fluxo de caixa', (l) => `Editou o grupo ${l}`),
   'grupo.excluir': withLabel('Excluiu um grupo do fluxo de caixa', (l) => `Excluiu o grupo ${l}`),

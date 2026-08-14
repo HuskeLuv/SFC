@@ -111,4 +111,57 @@ describe('mergeTemplatesWithCustomizations', () => {
     expect(merged.id).toBe('tpl-group');
     expect(merged.items[0].groupId).toBe('tpl-group');
   });
+
+  it('ordena itens por orderIndex (reordenação do usuário), com desempate por nome', () => {
+    const template = group({
+      id: 'tpl-group',
+      name: 'Habitação',
+      items: [
+        item({ id: 'a', groupId: 'tpl-group', name: 'Aluguel', orderIndex: 1 }),
+        item({ id: 'b', groupId: 'tpl-group', name: 'Condomínio', orderIndex: 2 }),
+        item({ id: 'c', groupId: 'tpl-group', name: 'Zuper (sem índice)', orderIndex: 0 }),
+      ],
+    });
+
+    const [merged] = mergeTemplatesWithCustomizations([template], []);
+    // orderIndex 0 vem antes; entre 1 e 2 mantém a ordem; alfabético só desempata.
+    expect(merged.items.map((i) => i.name)).toEqual([
+      'Zuper (sem índice)',
+      'Aluguel',
+      'Condomínio',
+    ]);
+  });
+
+  it('override de item carrega a POSIÇÃO escolhida pelo usuário por cima do template', () => {
+    const template = group({
+      id: 'tpl-group',
+      name: 'Habitação',
+      items: [
+        item({ id: 'tpl-a', groupId: 'tpl-group', name: 'Aluguel', orderIndex: 1 }),
+        item({ id: 'tpl-b', groupId: 'tpl-group', name: 'Condomínio', orderIndex: 2 }),
+        item({ id: 'tpl-c', groupId: 'tpl-group', name: 'Internet', orderIndex: 3 }),
+      ],
+    });
+    // Usuário moveu Internet pro topo: override com orderIndex 0.
+    const override = group({
+      id: 'user-group',
+      userId: 'user-1',
+      templateId: 'tpl-group',
+      name: 'Habitação',
+      items: [
+        item({
+          id: 'user-c',
+          userId: 'user-1',
+          groupId: 'user-group',
+          templateId: 'tpl-c',
+          name: 'Internet',
+          orderIndex: 0,
+        }),
+      ],
+    });
+
+    const [merged] = mergeTemplatesWithCustomizations([template], [override]);
+    expect(merged.items.map((i) => i.name)).toEqual(['Internet', 'Aluguel', 'Condomínio']);
+    expect(merged.items[0].id).toBe('user-c');
+  });
 });

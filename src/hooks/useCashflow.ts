@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useAuthOptional } from '@/context/AuthContext';
 import { CashflowGroup, AlertState, NewRowData } from '@/types/cashflow';
 import { queryKeys } from '@/lib/queryKeys';
 import { aggregateCashflow } from '@/services/cashflow/cashflowAggregation';
@@ -73,13 +74,46 @@ export const useCashflowData = (year?: number) => {
 };
 
 export const useCollapsibleState = () => {
+  // Tolerante à ausência do AuthProvider (testes de hook isolado): sem user,
+  // o colapso funciona normal, só não persiste.
+  const auth = useAuthOptional();
+  const user = auth?.user ?? null;
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [addingRow, setAddingRow] = useState<Record<string, boolean>>({});
   const [newRow, setNewRow] = useState<Record<string, NewRowData>>({});
 
-  const toggleCollapse = useCallback((groupId: string) => {
-    setCollapsed((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
-  }, []);
+  // Lembra quais grupos estavam abertos/colapsados entre visitas (pedido
+  // ago/2026). Persistência em localStorage por usuário — preferência de UI
+  // local, sem custo de rede; ids de grupo são estáveis por usuário.
+  const storageKey = user?.id ? `cashflow:collapsed:${user.id}` : null;
+  const loadedKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!storageKey || loadedKeyRef.current === storageKey) return;
+    loadedKeyRef.current = storageKey;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) setCollapsed(JSON.parse(raw) as Record<string, boolean>);
+    } catch {
+      // storage indisponível/corrompido — segue com estado vazio
+    }
+  }, [storageKey]);
+
+  const toggleCollapse = useCallback(
+    (groupId: string) => {
+      setCollapsed((prev) => {
+        const next = { ...prev, [groupId]: !prev[groupId] };
+        if (storageKey) {
+          try {
+            window.localStorage.setItem(storageKey, JSON.stringify(next));
+          } catch {
+            // quota/navegador restrito — a preferência só não persiste
+          }
+        }
+        return next;
+      });
+    },
+    [storageKey],
+  );
 
   const startAddingRow = useCallback((groupId: string) => {
     setAddingRow((prev) => ({ ...prev, [groupId]: true }));
