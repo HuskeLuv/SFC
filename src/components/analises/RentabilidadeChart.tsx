@@ -57,7 +57,7 @@ const ApexChartWrapper = React.memo(
     height,
   }: {
     options: ApexOptions;
-    series: Array<{ name: string; data: number[][] }>;
+    series: Array<{ name: string; data: Array<Array<number | null>> }>;
     type: string;
     height: number;
   }) => {
@@ -100,7 +100,9 @@ const ApexChartWrapper = React.memo(
         if (!s || !s.name || !Array.isArray(s.data)) {
           return null;
         }
-        // Garantir que todos os pontos são arrays válidos com 2 elementos
+        // Pontos válidos: [ts, número] ou [ts, null] — null é GAP legítimo
+        // (série sem dado naquele trecho); converter pra 0 fabricava um platô
+        // falso em 0% no início das séries (bug crônico do gráfico).
         const sanitizedData = s.data
           .map((point) => {
             if (!Array.isArray(point) || point.length !== 2) {
@@ -110,13 +112,15 @@ const ApexChartWrapper = React.memo(
             if (typeof date !== 'number' || !Number.isFinite(date)) {
               return null;
             }
-            // Garantir que o valor é um número (substituir null/undefined por 0)
-            const numValue = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-            return [date, numValue] as number[];
+            if (value === null || (typeof value === 'number' && Number.isFinite(value))) {
+              return [date, value] as [number, number | null];
+            }
+            return [date, null] as [number, number | null];
           })
-          .filter((point): point is number[] => point !== null);
+          .filter((point): point is [number, number | null] => point !== null);
 
-        if (sanitizedData.length === 0) {
+        const hasRealValue = sanitizedData.some((p) => p[1] !== null);
+        if (!hasRealValue) {
           return null;
         }
 
@@ -125,7 +129,7 @@ const ApexChartWrapper = React.memo(
           data: sanitizedData,
         };
       })
-      .filter((s): s is { name: string; data: number[][] } => s !== null);
+      .filter((s): s is { name: string; data: Array<[number, number | null]> } => s !== null);
 
     if (sanitizedSeries.length === 0) {
       return (
@@ -176,6 +180,71 @@ interface RentabilidadeChartProps {
 const toDayKey = (ts: number): number => {
   const d = new Date(ts);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+};
+
+/**
+ * Alinha as séries numa união de datas (dia UTC) para o tooltip compartilhado:
+ * dentro do domínio próprio de cada série os buracos são preenchidos com o
+ * último valor (forward-fill); FORA do domínio o ponto é null — o ApexCharts
+ * desenha gap, nunca um trecho fabricado em 0%.
+ *
+ * Substitui o antigo padding-zero + "trim de 10%": séries que começavam
+ * depois ganhavam um platô falso em 0% desde a data mais antiga da união, e
+ * um corte heurístico assimétrico fazia a Carteira "começar no meio" do
+ * gráfico enquanto benchmarks apareciam antes (bug crônico da aba Análise).
+ * O alinhamento de JANELA (mesmo t0, âncora 0%) acontece antes, em
+ * alinhamentoSeries.ts — aqui é só geometria de datas.
+ */
+export const alinharDatasUniao = (
+  series: Array<{ name: string; data: Array<Array<number | null>> }>,
+): Array<{ name: string; data: Array<[number, number | null]> }> => {
+  const allDatesSet = new Set<number>();
+  series.forEach((serie) => {
+    serie.data.forEach((point) => {
+      if (Array.isArray(point) && typeof point[0] === 'number' && Number.isFinite(point[0])) {
+        allDatesSet.add(toDayKey(point[0]));
+      }
+    });
+  });
+  const allDates = Array.from(allDatesSet).sort((a, b) => a - b);
+  if (allDates.length === 0) return [];
+
+  return series
+    .map((serie) => {
+      const valueByDate = new Map<number, number>();
+      serie.data.forEach((point) => {
+        if (
+          Array.isArray(point) &&
+          typeof point[0] === 'number' &&
+          Number.isFinite(point[0]) &&
+          typeof point[1] === 'number' &&
+          Number.isFinite(point[1])
+        ) {
+          valueByDate.set(toDayKey(point[0]), point[1]);
+        }
+      });
+      if (valueByDate.size === 0) return null;
+
+      const ownDates = Array.from(valueByDate.keys());
+      const firstOwn = Math.min(...ownDates);
+      const lastOwn = Math.max(...ownDates);
+
+      let lastValue: number | null = null;
+      const alignedData: Array<[number, number | null]> = allDates.map((date) => {
+        if (valueByDate.has(date)) {
+          lastValue = valueByDate.get(date)!;
+          return [date, lastValue];
+        }
+        // Forward-fill só dentro do domínio da própria série.
+        if (date > firstOwn && date < lastOwn && lastValue !== null) {
+          return [date, lastValue];
+        }
+        return [date, null];
+      });
+
+      return { name: serie.name, data: alignedData };
+    })
+    .filter((s): s is { name: string; data: Array<[number, number | null]> } => s !== null);
 };
 
 // Paleta por NOME de série, alinhada ao Kinvo (comparação lado a lado). Mapear
@@ -276,7 +345,7 @@ export default function RentabilidadeChart({
   legendPosition = 'top',
 }: RentabilidadeChartProps) {
   const series = useMemo(() => {
-    const seriesData: Array<{ name: string; data: number[][] }> = [];
+    const seriesData: Array<{ name: string; data: Array<Array<number | null>> }> = [];
 
     // Validar carteiraData
     if (!Array.isArray(carteiraData)) {
@@ -408,90 +477,12 @@ export default function RentabilidadeChart({
       return [];
     }
 
-    // Coletar todas as datas (normalizadas para meia-noite UTC via toDayKey) para alinhar timezones
-    const allDatesSet = new Set<number>();
-    validSeries.forEach((serie) => {
-      serie.data.forEach((point) => {
-        if (
-          Array.isArray(point) &&
-          point.length >= 2 &&
-          typeof point[0] === 'number' &&
-          Number.isFinite(point[0])
-        ) {
-          allDatesSet.add(toDayKey(point[0]));
-        }
-      });
-    });
-    const allDates = Array.from(allDatesSet).sort((a, b) => a - b);
+    // União de datas + forward-fill dentro do domínio + null fora (gap honesto).
+    const finalAlignedSeries = alinharDatasUniao(validSeries);
 
-    if (allDates.length === 0) {
+    if (finalAlignedSeries.length === 0) {
       return [];
     }
-
-    const finalAlignedSeries = validSeries
-      .map((serie) => {
-        if (!Array.isArray(serie.data) || serie.data.length === 0) {
-          return {
-            name: serie.name,
-            data: [],
-          };
-        }
-
-        const valueByDate = new Map<number, number | null>();
-        serie.data.forEach((point) => {
-          if (
-            Array.isArray(point) &&
-            point.length >= 2 &&
-            typeof point[0] === 'number' &&
-            Number.isFinite(point[0])
-          ) {
-            const value = point[1];
-            if (value === null || (typeof value === 'number' && Number.isFinite(value))) {
-              valueByDate.set(toDayKey(point[0]), value);
-            }
-          }
-        });
-
-        // #7 (checklist mai/28): a série precisa sobreviver à filtragem
-        // quando tem ao menos um ponto ORIGINAL — antes a verificação só
-        // checava se alignedData tinha algum valor != 0, então índices que
-        // ficavam 0 em todo o range filtrado (ex: CDI/IPCA = 0% acumulado
-        // no início do ano) eram descartados. Resultado: tooltip "shared"
-        // mostrava só a Carteira em "No ano" enquanto em "Do início"
-        // mostrava todas as linhas.
-        if (valueByDate.size === 0) {
-          return null;
-        }
-
-        let lastValue: number | null = null;
-
-        const alignedData: number[][] = allDates.map((date) => {
-          if (valueByDate.has(date)) {
-            lastValue = valueByDate.get(date) ?? null;
-            return [date, lastValue !== null && Number.isFinite(lastValue) ? lastValue : 0];
-          }
-          return [date, lastValue !== null && Number.isFinite(lastValue) ? lastValue : 0];
-        });
-
-        // Verificar se a série começa apenas com zeros (pode causar problemas no ApexCharts)
-        const firstValidIndex = alignedData.findIndex(
-          (point) => Number.isFinite(point[1]) && point[1] !== 0,
-        );
-
-        if (firstValidIndex > alignedData.length * 0.1 && firstValidIndex > 0) {
-          const trimmedData = alignedData.slice(firstValidIndex > 0 ? firstValidIndex - 1 : 0);
-          return {
-            name: serie.name,
-            data: trimmedData,
-          };
-        }
-
-        return {
-          name: serie.name,
-          data: alignedData,
-        };
-      })
-      .filter((serie): serie is { name: string; data: number[][] } => serie !== null);
 
     // Filtrar ao período quando startTimestamp/endTimestamp fornecidos (ex: Relatórios)
     if (startTimestamp != null || endTimestamp != null) {
@@ -500,6 +491,7 @@ export default function RentabilidadeChart({
           ...serie,
           data: serie.data.filter((point) => {
             const ts = point[0];
+            if (typeof ts !== 'number') return false;
             if (startTimestamp != null && ts < startTimestamp) return false;
             if (endTimestamp != null && ts > endTimestamp) return false;
             return true;
@@ -541,7 +533,12 @@ export default function RentabilidadeChart({
     const values: number[] = [];
     series.forEach((s) => {
       s.data.forEach((point) => {
-        if (Array.isArray(point) && point.length === 2 && Number.isFinite(point[1])) {
+        if (
+          Array.isArray(point) &&
+          point.length === 2 &&
+          typeof point[1] === 'number' &&
+          Number.isFinite(point[1])
+        ) {
           values.push(point[1]);
         }
       });

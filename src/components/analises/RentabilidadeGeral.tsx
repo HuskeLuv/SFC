@@ -8,6 +8,7 @@ import { useCarteiraHistorico } from '@/hooks/useCarteiraHistorico';
 import { useRentabilidadePeriodo } from '@/hooks/useRentabilidadePeriodo';
 import RentabilidadeChart from './RentabilidadeChart';
 import RentabilidadeResumo from './RentabilidadeResumo';
+import { alinharSeriesComparativas } from './alinhamentoSeries';
 import { inicioUltimosNMeses, inicioDoAno } from '@/utils/periodWindow';
 import { utcMidnight } from '@/utils/utcDay';
 
@@ -257,6 +258,37 @@ export default function RentabilidadeGeral() {
     [indices1y, selectedRangeStart],
   );
 
+  // Alinhamento canônico (alinhamentoSeries.ts): janela = janela da carteira,
+  // toda série ancorada em 0% no mesmo t0. É o contrato que impede o bug
+  // crônico de "carteira começando no meio" com benchmarks em janelas próprias.
+  const alinhado1d = useMemo(
+    () =>
+      alinharSeriesComparativas({
+        carteira: carteiraParaChart,
+        benchmarks: filteredIndices1d,
+        periodoInicio: selectedRangeStart,
+      }),
+    [carteiraParaChart, filteredIndices1d, selectedRangeStart],
+  );
+  const alinhado1mo = useMemo(
+    () =>
+      alinharSeriesComparativas({
+        carteira: carteiraParaChart,
+        benchmarks: filteredIndices1mo,
+        periodoInicio: selectedRangeStart,
+      }),
+    [carteiraParaChart, filteredIndices1mo, selectedRangeStart],
+  );
+  const alinhado1y = useMemo(
+    () =>
+      alinharSeriesComparativas({
+        carteira: carteiraParaChart,
+        benchmarks: filteredIndices1y,
+        periodoInicio: selectedRangeStart,
+      }),
+    [carteiraParaChart, filteredIndices1y, selectedRangeStart],
+  );
+
   const handleRangeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedRange(event.target.value as RentabilidadeRangeValue);
   };
@@ -365,35 +397,36 @@ export default function RentabilidadeGeral() {
         <div className="lg:col-span-2 space-y-6">
           <ComponentCard title={`Rentabilidade Por Dia · ${metric.toUpperCase()}`}>
             <RentabilidadeChart
-              carteiraData={carteiraParaChart}
-              indicesData={filteredIndices1d}
+              carteiraData={alinhado1d.carteira}
+              indicesData={alinhado1d.benchmarks}
               period="1d"
             />
           </ComponentCard>
 
           <ComponentCard title={`Rentabilidade Por Mês · ${metric.toUpperCase()}`}>
             <RentabilidadeChart
-              carteiraData={carteiraParaChart}
-              indicesData={filteredIndices1mo}
+              carteiraData={alinhado1mo.carteira}
+              indicesData={alinhado1mo.benchmarks}
               period="1mo"
             />
           </ComponentCard>
 
           <ComponentCard title={`Rentabilidade Por Ano · ${metric.toUpperCase()}`}>
             <RentabilidadeChart
-              carteiraData={carteiraParaChart}
-              indicesData={filteredIndices1y}
+              carteiraData={alinhado1y.carteira}
+              indicesData={alinhado1y.benchmarks}
               period="1y"
             />
           </ComponentCard>
         </div>
 
-        {/* Resumo de Rentabilidade à direita */}
+        {/* Resumo de Rentabilidade à direita — fecha na MESMA janela do gráfico */}
         <div className="lg:col-span-1">
           <RentabilidadeResumo
             periodStart={isPeriodoInicio ? undefined : selectedRangeStart}
             periodReturn={periodReturn}
             periodLabel={periodLabel}
+            fimJanela={alinhado1d.janela?.fim}
           />
         </div>
       </div>

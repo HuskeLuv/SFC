@@ -1,7 +1,7 @@
-"use client";
-import React, { useState } from "react";
-import ProventosConsolidado from "./ProventosConsolidado";
-import ProventosAgenda from "./ProventosAgenda";
+'use client';
+import React, { useState } from 'react';
+import ProventosConsolidado from './ProventosConsolidado';
+import ProventosAgenda from './ProventosAgenda';
 
 interface TabButtonProps {
   id: string;
@@ -10,17 +10,13 @@ interface TabButtonProps {
   onClick: () => void;
 }
 
-const TabButton: React.FC<TabButtonProps> = ({
-  label,
-  isActive,
-  onClick,
-}) => {
+const TabButton: React.FC<TabButtonProps> = ({ label, isActive, onClick }) => {
   return (
     <button
       className={`inline-flex items-center border-b-2 px-3 py-3 text-sm font-medium transition-colors duration-200 ease-in-out whitespace-nowrap ${
         isActive
-          ? "text-brand-500 dark:text-brand-400 border-brand-500 dark:border-brand-400"
-          : "bg-transparent text-gray-500 border-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          ? 'text-brand-500 dark:text-brand-400 border-brand-500 dark:border-brand-400'
+          : 'bg-transparent text-gray-500 border-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
       }`}
       onClick={onClick}
     >
@@ -41,12 +37,12 @@ const TabContent: React.FC<TabContentProps> = ({ isActive, children }) => {
 };
 
 const tabs = [
-  { id: "consolidado", label: "Consolidado" },
-  { id: "agenda", label: "Agenda" },
+  { id: 'consolidado', label: 'Consolidado' },
+  { id: 'agenda', label: 'Agenda' },
 ];
 
 export default function ProventosTabs() {
-  const [activeTab, setActiveTab] = useState("consolidado");
+  const [activeTab, setActiveTab] = useState('consolidado');
 
   return (
     <div>
@@ -68,11 +64,11 @@ export default function ProventosTabs() {
 
         {/* Tab Content */}
         <div className="p-6">
-          <TabContent id="consolidado" isActive={activeTab === "consolidado"}>
+          <TabContent id="consolidado" isActive={activeTab === 'consolidado'}>
             <ProventosConsolidado />
           </TabContent>
 
-          <TabContent id="agenda" isActive={activeTab === "agenda"}>
+          <TabContent id="agenda" isActive={activeTab === 'agenda'}>
             <ProventosAgenda />
           </TabContent>
         </div>
@@ -80,5 +76,3 @@ export default function ProventosTabs() {
     </div>
   );
 }
-
-
