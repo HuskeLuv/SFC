@@ -81,8 +81,10 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
 
   const tiposDisponiveis = modalidade === 'financiamento' ? TIPOS_FINANCIAMENTO : TIPOS_ROTATIVA;
 
-  // Taxa normalizada a.m. (decimal) a partir do que foi digitado.
+  // Taxa normalizada a.m. (decimal) a partir do que foi digitado. Campo vazio
+  // → null (em rotativa significa "sem CET informado"; financiamento usa ?? 0).
   const taxaAmNormalizada = useMemo(() => {
+    if (taxaPct.trim() === '') return null;
     const pct = Number(taxaPct.replace(',', '.'));
     if (!Number.isFinite(pct) || pct < 0) return null;
     const decimal = pct / 100;
@@ -120,6 +122,8 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
                 notes: notes.trim() || null,
                 saldoInicial: Number(saldoInicial),
                 dataSaldoInicial,
+                taxaAm: taxaAmNormalizada,
+                taxaUnidadeEntrada: taxaUnidade,
               };
         const updated = await updateDivida.mutateAsync({ id: divida.id, payload });
         onSaved(updated.id);
@@ -150,6 +154,8 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
               notes: notes.trim() || null,
               saldoInicial: Number(saldoInicial),
               dataSaldoInicial,
+              taxaAm: taxaAmNormalizada,
+              taxaUnidadeEntrada: taxaUnidade,
             };
       const created = await createDivida.mutateAsync(payload);
       onSaved(created.id);
@@ -345,6 +351,45 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
                 value={dataSaldoInicial}
                 onChange={(e) => setDataSaldoInicial(e.target.value)}
               />
+            </div>
+            {/* CET informativo (pedido ago/2026): ranqueia a dívida mais cara
+                na tabela; NÃO acrui no saldo (âncora = saldo + pagamentos). */}
+            <div>
+              <Label htmlFor="divida-cet">CET (%) — opcional</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="divida-cet"
+                  type="number"
+                  value={taxaPct}
+                  onChange={(e) => setTaxaPct(e.target.value)}
+                  min="0"
+                  step="0.01"
+                  className="flex-1"
+                />
+                <div className="inline-flex shrink-0 rounded-lg border border-gray-200 p-0.5 dark:border-gray-800">
+                  {(['am', 'aa'] as const).map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setTaxaUnidade(u)}
+                      className={`rounded-md px-2 py-1 text-xs font-medium transition ${
+                        taxaUnidade === u
+                          ? 'bg-brand-500 text-white'
+                          : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                      }`}
+                      aria-pressed={taxaUnidade === u}
+                    >
+                      {u === 'am' ? 'a.m.' : 'a.a.'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Custo efetivo total da dívida — usado para comparar e priorizar a quitação.
+                {taxaUnidade === 'aa' && taxaAmNormalizada != null && taxaAmNormalizada > 0
+                  ? ` ≈ ${(taxaAmNormalizada * 100).toFixed(4)}% a.m.`
+                  : ''}
+              </p>
             </div>
           </>
         )}

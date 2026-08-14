@@ -66,6 +66,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         : {
             saldoInicial: d.saldoInicial,
             dataSaldoInicial: d.dataSaldoInicial,
+            // CET informativo (não acrui no saldo — análise/ranking apenas).
+            taxaAm: d.taxaAm ?? null,
+            taxaUnidadeEntrada: d.taxaUnidadeEntrada,
           }),
     },
   });
