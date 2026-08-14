@@ -1,25 +1,20 @@
-"use client";
-import React from "react";
+'use client';
+import React from 'react';
 
 interface CommentButtonProps {
   onClick: () => void;
   isCommentModeActive: boolean;
 }
 
-export const CommentButton: React.FC<CommentButtonProps> = ({
-  onClick,
-  isCommentModeActive,
-}) => {
+export const CommentButton: React.FC<CommentButtonProps> = ({ onClick, isCommentModeActive }) => {
   return (
     <button
       onClick={onClick}
       aria-label="Adicionar comentário"
       className={`rounded-full w-6 h-6 flex items-center justify-center border border-purple-600 bg-purple-500 text-white shadow hover:bg-purple-600 focus:outline-none transition-all ${
-        isCommentModeActive
-          ? "ring-2 ring-purple-300"
-          : ""
+        isCommentModeActive ? 'ring-2 ring-purple-300' : ''
       }`}
-      title={isCommentModeActive ? "Cancelar modo de comentário" : "Adicionar comentário"}
+      title={isCommentModeActive ? 'Cancelar modo de comentário' : 'Adicionar comentário'}
     >
       <svg
         width="12"
@@ -45,4 +40,3 @@ export const CommentButton: React.FC<CommentButtonProps> = ({
     </button>
   );
 };
-

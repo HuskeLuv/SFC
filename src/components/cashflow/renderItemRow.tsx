@@ -1,7 +1,7 @@
-import React from "react";
-import { CashflowItem, CashflowGroup } from "@/types/cashflow";
-import { ItemRow } from "./ItemRow";
-import { EditableItemRow } from "./EditableItemRow";
+import React from 'react';
+import { CashflowItem, CashflowGroup } from '@/types/cashflow';
+import { ItemRow } from './ItemRow';
+import { EditableItemRow } from './EditableItemRow';
 
 interface RenderItemRowProps {
   item: CashflowItem;
@@ -10,10 +10,18 @@ interface RenderItemRowProps {
   itemAnnualTotal: number;
   itemPercentage: number;
   isGroupEditing: boolean;
-  editedData: ReturnType<typeof import("@/hooks/useGroupEditMode").useGroupEditMode>["getEditedItem"];
-  isItemDeleted: ReturnType<typeof import("@/hooks/useGroupEditMode").useGroupEditMode>["isItemDeleted"];
-  onUpdateField: ReturnType<typeof import("@/hooks/useGroupEditMode").useGroupEditMode>["updateItemField"];
-  onDeleteItem: ReturnType<typeof import("@/hooks/useGroupEditMode").useGroupEditMode>["deleteItem"];
+  editedData: ReturnType<
+    typeof import('@/hooks/useGroupEditMode').useGroupEditMode
+  >['getEditedItem'];
+  isItemDeleted: ReturnType<
+    typeof import('@/hooks/useGroupEditMode').useGroupEditMode
+  >['isItemDeleted'];
+  onUpdateField: ReturnType<
+    typeof import('@/hooks/useGroupEditMode').useGroupEditMode
+  >['updateItemField'];
+  onDeleteItem: ReturnType<
+    typeof import('@/hooks/useGroupEditMode').useGroupEditMode
+  >['deleteItem'];
   onItemUpdate?: (updatedItem: CashflowItem) => void;
   startEditing: (itemId: string, field: string, monthIndex?: number) => void;
   stopEditing: () => void;
@@ -73,4 +81,3 @@ export const renderItemRow = ({
     );
   }
 };
-

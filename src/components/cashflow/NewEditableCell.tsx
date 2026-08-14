@@ -1,5 +1,5 @@
-"use client";
-import React, { useState, useRef, useEffect } from "react";
+'use client';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface NewEditableCellProps {
   value: number;
@@ -8,7 +8,7 @@ interface NewEditableCellProps {
   onStopEdit: () => void;
   onValueChange: (newValue: number) => void;
   className?: string;
-  type?: "currency" | "percentage" | "number";
+  type?: 'currency' | 'percentage' | 'number';
   min?: number;
   max?: number;
   placeholder?: string;
@@ -20,11 +20,11 @@ export default function NewEditableCell({
   onStartEdit,
   onStopEdit,
   onValueChange,
-  className = "",
-  type = "currency",
+  className = '',
+  type = 'currency',
   min = 0,
   max,
-  placeholder = "0.00",
+  placeholder = '0.00',
 }: NewEditableCellProps) {
   const [tempValue, setTempValue] = useState(value.toString());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -42,18 +42,17 @@ export default function NewEditableCell({
 
   const formatDisplayValue = (val: number): string => {
     switch (type) {
-      case "currency":
+      case 'currency':
         return val.toLocaleString('pt-BR', {
           style: 'currency',
           currency: 'BRL',
         });
-      case "percentage":
+      case 'percentage':
         return `${val.toFixed(2)}%`;
       default:
         return val.toString();
     }
   };
-
 
   const handleSave = () => {
     const numValue = parseFloat(tempValue);
@@ -91,7 +90,7 @@ export default function NewEditableCell({
           onBlur={handleBlur}
           min={min}
           max={max}
-          step={type === "currency" ? "0.01" : type === "percentage" ? "0.1" : "1"}
+          step={type === 'currency' ? '0.01' : type === 'percentage' ? '0.1' : '1'}
           placeholder={placeholder}
           className="w-full px-2 py-1 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
@@ -100,7 +99,7 @@ export default function NewEditableCell({
   }
 
   const isClickable = !className.includes('cursor-default');
-  
+
   return (
     <span
       onClick={isClickable ? onStartEdit : undefined}

@@ -17,6 +17,7 @@ export const TotalRow: React.FC<TotalRowProps> = ({
     cells={totalByMonth.map((v) => v || 0)}
     annual={totalAnnual}
     negativeRed
+    positiveBlue
     showActionsColumn={showActionsColumn}
   />
 );

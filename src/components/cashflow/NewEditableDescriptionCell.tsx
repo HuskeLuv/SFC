@@ -1,5 +1,5 @@
-"use client";
-import React, { useState, useRef, useEffect } from "react";
+'use client';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface NewEditableDescriptionCellProps {
   descricao: string;
@@ -18,7 +18,7 @@ export default function NewEditableDescriptionCell({
   onCancel,
   isEditing,
   onStartEdit,
-  className = "",
+  className = '',
 }: NewEditableDescriptionCellProps) {
   const [tempDescricao, setTempDescricao] = useState(descricao);
   const [tempSignificado, setTempSignificado] = useState(significado || '');
@@ -86,20 +86,14 @@ export default function NewEditableDescriptionCell({
   }
 
   const isClickable = !className.includes('cursor-default');
-  
+
   return (
     <div
       onClick={isClickable ? onStartEdit : undefined}
       className={`${isClickable ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : 'cursor-default'} px-2 py-1 rounded transition-colors ${className}`}
     >
-      <div className="font-medium text-gray-800 dark:text-white">
-        {descricao}
-      </div>
-      {significado && (
-        <div className="text-xs text-gray-500 dark:text-gray-400">
-          {significado}
-        </div>
-      )}
+      <div className="font-medium text-gray-800 dark:text-white">{descricao}</div>
+      {significado && <div className="text-xs text-gray-500 dark:text-gray-400">{significado}</div>}
     </div>
   );
 }
