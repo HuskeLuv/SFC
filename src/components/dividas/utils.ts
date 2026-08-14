@@ -35,6 +35,12 @@ export function formatBRLCompact(value: number | null | undefined): string {
   return `R$ ${formatCurrency(value)}`;
 }
 
+/** Fração → percentual pt-BR ("0.0125" → "1,25%"). */
+export function formatTaxaPercent(fraction: number | null | undefined, decimals = 2): string {
+  if (fraction == null || !Number.isFinite(fraction)) return '—';
+  return `${(fraction * 100).toFixed(decimals).replace('.', ',')}%`;
+}
+
 /** "YYYY-MM" → "Mai/26". */
 export function formatYearMonth(yearMonth: string | null | undefined): string {
   if (!yearMonth) return '—';
