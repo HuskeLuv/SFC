@@ -6,6 +6,7 @@ import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing
 import { getFixedIncomeCurrentValue } from '@/services/portfolio/itemValuation';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { calcularIRRendaFixa } from '@/services/ir/fixedIncomeIR';
+import { getTesouroDestinoByAssetId } from '@/services/portfolio/tesouroDestino';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import {
@@ -32,7 +33,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const { fixedIncomeByAssetId } = pricer;
   type FixedIncomeRecord = (typeof pricer.fixedIncomeAssets)[number];
 
-  const portfolio = await prisma.portfolio.findMany({
+  const portfolioBruto = await prisma.portfolio.findMany({
     where: {
       userId: targetUserId,
       asset: {
@@ -41,6 +42,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     },
     include: { asset: true },
   });
+
+  // Tesouro comprado para uma reserva (notes.tesouroDestino) pertence à aba
+  // da reserva — listá-lo aqui duplicava o título nas duas abas (bug ago/2026:
+  // Selic 2031 da Reserva de Emergência aparecia também em Renda Fixa).
+  const tesouroAssetIds = portfolioBruto
+    .filter((p) => p.asset?.type === 'tesouro-direto' && p.assetId)
+    .map((p) => p.assetId!) as string[];
+  const destinoByAssetId = await getTesouroDestinoByAssetId(targetUserId, tesouroAssetIds);
+  const portfolio = portfolioBruto.filter(
+    (p) => !(p.asset?.type === 'tesouro-direto' && p.assetId && destinoByAssetId.has(p.assetId)),
+  );
 
   // Buscar transações para obter metadados editados
   const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
