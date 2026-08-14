@@ -9,6 +9,7 @@ import {
   recalculatePortfolioFromTransactions,
 } from '@/services/portfolio/portfolioRecalculation';
 import { isShareBasedAssetType } from '@/lib/assetClassification';
+import { getTesouroDestinoByAssetId } from '@/services/portfolio/tesouroDestino';
 import { mapPortfolioToTipo } from '@/lib/portfolioTipoMapping';
 import { isDataFutura } from '@/utils/formatDate';
 import {
@@ -59,7 +60,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
-  const tipoAtivo = mapPortfolioToTipo(portfolio);
+  // Rótulo em notes coerente com a listagem do wizard: Tesouro comprado para
+  // reserva registra o resgate como tipo da reserva, não renda-fixa.
+  const destinoTesouro =
+    portfolio.asset?.type === 'tesouro-direto'
+      ? (await getTesouroDestinoByAssetId(targetUserId, [portfolio.assetId])).get(portfolio.assetId)
+      : null;
+  const tipoAtivo = mapPortfolioToTipo(portfolio, destinoTesouro);
   const availableQuantity = portfolio.quantity;
   const availableTotal = portfolio.totalInvested;
 

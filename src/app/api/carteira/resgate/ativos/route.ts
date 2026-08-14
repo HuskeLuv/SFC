@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { mapPortfolioToTipo, matchesTipo } from '@/lib/portfolioTipoMapping';
+import { getTesouroDestinoByAssetId } from '@/services/portfolio/tesouroDestino';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
@@ -26,10 +27,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     include: { asset: true },
   });
 
+  // Tesouro comprado para reserva pertence ao tipo da reserva (bug ago/2026:
+  // o Selic da Reserva de Emergência só aparecia em Renda Fixa).
+  const tesouroAssetIds = portfolio
+    .filter((item) => item.asset?.type === 'tesouro-direto' && item.assetId)
+    .map((item) => item.assetId!) as string[];
+  const destinoByAssetId = await getTesouroDestinoByAssetId(targetUserId, tesouroAssetIds);
+
   // Sem assetId (legado) o POST /resgate rejeita com 400 — não listar o que
   // não pode ser resgatado (rodada 3, achado #12).
   const filtered = portfolio.filter(
-    (item) => !!item.assetId && matchesTipo(mapPortfolioToTipo(item), tipo),
+    (item) =>
+      !!item.assetId &&
+      matchesTipo(mapPortfolioToTipo(item, destinoByAssetId.get(item.assetId)), tipo),
   );
 
   const assetIds = filtered.map((item) => item.assetId).filter(Boolean) as string[];
