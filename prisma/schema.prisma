@@ -274,6 +274,9 @@ model CashflowItem {
   name        String
   significado String? // explicação opcional
   rank        String? // ordem de importância (essencial, normal, etc.)
+  // Posição da linha dentro do grupo (reordenável pelo usuário, ago/2026).
+  // Backfill da migração preservou a ordem alfabética que era exibida antes.
+  orderIndex  Int            @default(0)
   // Override layer: quando setado, esta linha personaliza o item-template apontado.
   templateId  String?
   template    CashflowItem?  @relation("ItemOverride", fields: [templateId], references: [id])

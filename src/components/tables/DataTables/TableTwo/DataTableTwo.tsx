@@ -378,6 +378,32 @@ export default function DataTableTwo() {
     }
   }, [refetch, showAlert]);
 
+  // Reordena a linha dentro do grupo (setinhas ↑↓): troca com o vizinho e
+  // manda a lista completa pro backend, que personaliza templates e grava
+  // orderIndex por posição.
+  const moveItem = useCallback(
+    async (item: CashflowItem, group: CashflowGroup, direction: 'up' | 'down') => {
+      const ids = (group.items ?? []).map((i) => i.id);
+      const idx = ids.indexOf(item.id);
+      const alvo = direction === 'up' ? idx - 1 : idx + 1;
+      if (idx < 0 || alvo < 0 || alvo >= ids.length) return;
+      [ids[idx], ids[alvo]] = [ids[alvo], ids[idx]];
+      try {
+        const res = await csrfFetch('/api/cashflow/item/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupId: group.id, itemIds: ids }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await refetch();
+      } catch (error) {
+        logger.error('Erro ao reordenar linha:', error);
+        showAlert('error', 'Erro ao reordenar', 'Não foi possível mover a linha.');
+      }
+    },
+    [csrfFetch, refetch, showAlert],
+  );
+
   const handleStartGroupEdit = useCallback(
     (group: CashflowGroup) => {
       const allItems = getAllItemsInGroup(group);
@@ -520,6 +546,7 @@ export default function DataTableTwo() {
             isEditing={isEditing}
             currentYear={currentYear}
             isLastItem={isLastItem}
+            onMoveItem={moveItem}
           />
         );
       }
@@ -539,6 +566,7 @@ export default function DataTableTwo() {
       handleCommentCellClick,
       isCommentModeActive,
       currentYear,
+      moveItem,
     ],
   );
 

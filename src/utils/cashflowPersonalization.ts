@@ -309,6 +309,9 @@ export async function personalizeItem(
           name: templateItem.name,
           significado: templateItem.significado,
           rank: templateItem.rank,
+          // Preserva a posição da linha — o override substitui o template no
+          // merge e a ordem não pode pular pro fim (feature de reordenação).
+          orderIndex: templateItem.orderIndex,
           templateId: templateItem.id,
         },
       });

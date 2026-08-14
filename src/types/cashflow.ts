@@ -18,6 +18,8 @@ export interface CashflowItem {
   name: string; // era descricao
   significado: string | null;
   rank: string | null;
+  /** Posição da linha dentro do grupo (reordenável; backfill = ordem alfabética). */
+  orderIndex?: number;
   values: CashflowValue[]; // era valores
   templateId?: string | null;
   hidden?: boolean;

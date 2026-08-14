@@ -207,3 +207,12 @@ export const useAuth = () => {
   }
   return context;
 };
+
+/**
+ * Como useAuth, mas devolve undefined fora do provider — para hooks que só
+ * usam o user como conveniência (ex.: chave de localStorage) e precisam ser
+ * testáveis isolados.
+ */
+export function useAuthOptional(): AuthContextType | undefined {
+  return useContext(AuthContext);
+}

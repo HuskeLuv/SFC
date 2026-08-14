@@ -13,7 +13,7 @@ import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
  */
 
 const valuesInclude = (valuesFilter: { userId: string; year: number }) => ({
-  orderBy: { rank: 'asc' as const },
+  orderBy: [{ orderIndex: 'asc' as const }, { name: 'asc' as const }],
   include: {
     values: {
       where: valuesFilter,
@@ -155,6 +155,8 @@ export function mergeTemplatesWithCustomizations(
           name: userItem.name,
           significado: userItem.significado,
           rank: userItem.rank,
+          // O override carrega a posição escolhida pelo usuário (reordenação).
+          orderIndex: userItem.orderIndex ?? tplItem.orderIndex,
           values: userItem.values ?? [],
           templateId: userItem.templateId ?? tplItem.id,
           hidden: false,
@@ -192,7 +194,10 @@ export function mergeTemplatesWithCustomizations(
     }
 
     mergedChildren.sort((a, b) => a.orderIndex - b.orderIndex);
-    mergedItems.sort((a, b) => a.name.localeCompare(b.name));
+    // Ordem do usuário (orderIndex, backfill = alfabética) com desempate por nome.
+    mergedItems.sort(
+      (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0) || a.name.localeCompare(b.name),
+    );
 
     const base: CashflowGroup = override
       ? {
@@ -243,7 +248,11 @@ function markTemplate(group: CashflowGroup): CashflowGroup {
     ...group,
     isTemplate: true,
     templateName: group.name,
-    items: (group.items ?? []).map((i) => ({ ...i, isTemplate: true })),
+    items: (group.items ?? [])
+      .map((i) => ({ ...i, isTemplate: true }))
+      // Mesmo comparador do caminho com personalizações: a pura-função fica
+      // determinística mesmo quando o caller não ordenou na query.
+      .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0) || a.name.localeCompare(b.name)),
     children: (group.children ?? []).map((c) => markTemplate(c)),
   };
 }
