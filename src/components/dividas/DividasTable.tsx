@@ -1,9 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import type { DividaDTO } from '@/hooks/useDividas';
-import { CATEGORIA_LABELS, INDEXADOR_LABELS, STATUS_LABELS, TIPO_LABELS, formatBRL } from './utils';
+import {
+  CATEGORIA_LABELS,
+  INDEXADOR_LABELS,
+  STATUS_LABELS,
+  TIPO_LABELS,
+  formatBRL,
+  formatTaxaPercent,
+} from './utils';
 
 interface DividasTableProps {
   dividas: DividaDTO[];
@@ -14,11 +21,26 @@ const HEAD =
   'px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
 
 /**
- * Tabela consolidada de dívidas: nome, tipo, sistema/indexador, saldo
- * devedor, parcela, progresso (pagas/total) e status. Rodapé soma o saldo
- * devedor das ativas.
+ * Tabela consolidada de dívidas: nome, tipo, CET mensal (ordenável), sistema/
+ * indexador, saldo devedor, parcela, progresso (pagas/total) e status. Rodapé
+ * soma o saldo devedor das ativas.
  */
 export default function DividasTable({ dividas, onSelectDivida }: DividasTableProps) {
+  // Ordenação por CET (pedido ago/2026): clique no cabeçalho alterna
+  // maior→menor, menor→maior e ordem original. Rotativas sem taxa vão pro fim.
+  const [cetSort, setCetSort] = useState<'desc' | 'asc' | null>(null);
+
+  const dividasOrdenadas = useMemo(() => {
+    if (!cetSort) return dividas;
+    const dir = cetSort === 'desc' ? -1 : 1;
+    return [...dividas].sort((a, b) => {
+      if (a.taxaAm == null && b.taxaAm == null) return 0;
+      if (a.taxaAm == null) return 1;
+      if (b.taxaAm == null) return -1;
+      return dir * (a.taxaAm - b.taxaAm);
+    });
+  }, [dividas, cetSort]);
+
   const totalDevido = useMemo(
     () =>
       dividas
@@ -37,6 +59,24 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
             </TableCell>
             <TableCell isHeader className={`${HEAD} text-left`}>
               Tipo
+            </TableCell>
+            <TableCell isHeader className={`${HEAD} text-right`}>
+              <button
+                type="button"
+                onClick={() =>
+                  setCetSort((prev) => (prev === null ? 'desc' : prev === 'desc' ? 'asc' : null))
+                }
+                className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-gray-700 dark:hover:text-gray-200"
+                title="Ordenar pelo CET mensal"
+              >
+                CET a.m.
+                <span
+                  className={cetSort ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}
+                  aria-hidden
+                >
+                  {cetSort === 'desc' ? '↓' : cetSort === 'asc' ? '↑' : '↕'}
+                </span>
+              </button>
             </TableCell>
             <TableCell isHeader className={`${HEAD} text-left`}>
               Sistema
@@ -59,7 +99,7 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
           </TableRow>
         </TableHeader>
         <TableBody>
-          {dividas.map((d) => {
+          {dividasOrdenadas.map((d) => {
             const r = d.resumo;
             const isFinanciamento = d.modalidade === 'financiamento';
             const progresso =
@@ -82,6 +122,9 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
                 </TableCell>
                 <TableCell className="px-3 py-2.5 text-gray-600 dark:text-gray-300">
                   {TIPO_LABELS[d.tipo]}
+                </TableCell>
+                <TableCell className="px-3 py-2.5 text-right font-medium text-gray-900 dark:text-white/90">
+                  {formatTaxaPercent(d.taxaAm)}
                 </TableCell>
                 <TableCell className="px-3 py-2.5 text-gray-600 dark:text-gray-300">
                   {isFinanciamento && d.sistema
@@ -119,6 +162,7 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
             <TableCell className="px-3 py-2.5 text-gray-700 dark:text-gray-200">
               Total (ativas)
             </TableCell>
+            <TableCell className="px-3 py-2.5">{''}</TableCell>
             <TableCell className="px-3 py-2.5">{''}</TableCell>
             <TableCell className="px-3 py-2.5">{''}</TableCell>
             <TableCell className="px-3 py-2.5 text-right text-gray-900 dark:text-white/90">
