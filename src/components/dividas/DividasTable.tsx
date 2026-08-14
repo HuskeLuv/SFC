@@ -49,6 +49,16 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
     [dividas],
   );
 
+  // Somatória das parcelas das ativas (pedido ago/2026) — rotativas sem
+  // cronograma não somam (mesma convenção do card "Parcelas do Mês").
+  const totalParcelas = useMemo(
+    () =>
+      dividas
+        .filter((d) => d.status === 'ativa')
+        .reduce((s, d) => s + (d.resumo?.proximaParcela?.parcela ?? 0), 0),
+    [dividas],
+  );
+
   return (
     <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
       <Table className="text-sm">
@@ -168,7 +178,9 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
             <TableCell className="px-3 py-2.5 text-right text-gray-900 dark:text-white/90">
               {formatBRL(totalDevido)}
             </TableCell>
-            <TableCell className="px-3 py-2.5">{''}</TableCell>
+            <TableCell className="px-3 py-2.5 text-right text-gray-900 dark:text-white/90">
+              {totalParcelas > 0 ? formatBRL(totalParcelas) : ''}
+            </TableCell>
             <TableCell className="px-3 py-2.5">{''}</TableCell>
             <TableCell className="px-3 py-2.5">{''}</TableCell>
             <TableCell className="px-3 py-2.5">{''}</TableCell>
