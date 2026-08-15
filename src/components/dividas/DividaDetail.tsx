@@ -186,7 +186,9 @@ export default function DividaDetail({
         <MetricCard
           title={indexada ? 'Saldo Devedor (corrigido)' : 'Saldo Devedor'}
           value={formatBRLCompact(
-            indexada && cronogramaData ? cronogramaData.saldoCorrigido : resumo?.saldoDevedor,
+            indexada
+              ? (cronogramaData?.saldoCorrigido ?? resumo?.saldoCorrigido ?? resumo?.saldoDevedor)
+              : resumo?.saldoDevedor,
           )}
           color="error"
           change={
@@ -200,7 +202,13 @@ export default function DividaDetail({
           <>
             <MetricCard
               title="Próxima Parcela"
-              value={resumo?.proximaParcela ? formatBRLCompact(resumo.proximaParcela.parcela) : '—'}
+              value={
+                resumo?.proximaParcela
+                  ? formatBRLCompact(
+                      resumo.proximaParcelaCorrigida ?? resumo.proximaParcela.parcela,
+                    )
+                  : '—'
+              }
               color="primary"
               change={
                 resumo?.proximaParcela
@@ -245,10 +253,11 @@ export default function DividaDetail({
       {/* Disclaimer de indexação */}
       {isFinanciamento && indexada ? (
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300">
-          Contrato indexado a {INDEXADOR_LABELS[divida.indexador]}: as parcelas do cronograma são
-          estimativas em valores de hoje (taxa contratual, sem projeção do índice). O saldo devedor
-          é corrigido pelo índice já realizado desde o primeiro vencimento — aproximação de
-          exibição, não recálculo contratual.
+          Contrato indexado a {INDEXADOR_LABELS[divida.indexador]}: cada parcela é corrigida
+          automaticamente pelo índice já realizado até o aniversário do mês dela; parcelas futuras
+          aparecem com a correção realizada até hoje (sem projeção do índice) e avançam a cada
+          divulgação. O saldo devedor é corrigido pelo índice realizado desde o primeiro vencimento
+          — aproximação de exibição, não recálculo contratual.
         </div>
       ) : null}
 

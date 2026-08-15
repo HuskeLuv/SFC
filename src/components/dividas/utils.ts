@@ -90,6 +90,7 @@ export const INDEXADOR_LABELS: Record<DividaIndexador, string> = {
   PREFIXADO: 'Prefixado',
   TR: 'TR',
   IPCA: 'IPCA',
+  IGPM: 'IGP-M',
   CDI: 'CDI',
 };
 

@@ -3,7 +3,8 @@ import { personalizeGroup } from '@/utils/cashflowPersonalization';
 import { ensureDividasTemplate } from '@/utils/cashflowTemplates';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import { REALIZADO_COLOR } from '@/services/planejamento/cashflowToSonhoSync';
-import { gerarCronograma, parcelasCortadasDe } from './amortizacao';
+import { corrigirCronograma, gerarCronograma, parcelasCortadasDe } from './amortizacao';
+import { isIndexadorCorrigivel, monthlyIndexFactors } from './indexacaoDivida';
 
 /**
  * Sincroniza uma dívida com a linha-espelho no fluxo de caixa (grupo
@@ -35,6 +36,8 @@ export interface DividaForSync {
   prazoMeses: number | null;
   sistema: string | null;
   primeiroVencimento: string | null; // YYYY-MM
+  /** TR/IPCA/IGPM/CDI corrigem a parcela projetada pelo índice realizado. */
+  indexador?: string | null;
   /** Parcelas do FIM quitadas por amortização (redução de prazo) — saem da projeção. */
   parcelasCortadas?: number;
 }
@@ -62,6 +65,7 @@ export async function syncDividaRecordToCashflow(
     taxaAm: unknown;
     prazoMeses: number | null;
     sistema: string | null;
+    indexador?: string | null;
     primeiroVencimento: string | null;
     /** Quando o caller carrega os pagamentos, amortizações de prazo encurtam a projeção. */
     pagamentos?: Array<{ tipo: string; parcelaNumero: number | null; valor?: unknown }>;
@@ -93,6 +97,7 @@ export async function syncDividaRecordToCashflow(
     taxaAm: toNum(divida.taxaAm),
     prazoMeses: divida.prazoMeses,
     sistema: divida.sistema,
+    indexador: divida.indexador ?? null,
     primeiroVencimento: divida.primeiroVencimento,
     parcelasCortadas,
   });
@@ -200,8 +205,20 @@ async function syncDividaToCashflowInner(userId: string, divida: DividaForSync):
   // espera não pagam parcela — o deleteMany acima já limpou o planejado e
   // nada é reescrito (mesma semântica dos sonhos pausados).
   if (divida.status === 'ativa' && cronograma.length > 0) {
-    const toCreate = cronograma
-      .map((p) => ({ ...ymToYearMonth0(p.mes), value: p.parcela }))
+    // Contrato indexado: projeta a parcela CORRIGIDA pelo índice realizado até
+    // o aniversário de cada mês (futuros ficam na correção realizada até hoje;
+    // o cron diário de índices ressincroniza — ver resyncDividasIndexadas).
+    let rows = cronograma;
+    if (isIndexadorCorrigivel(divida.indexador)) {
+      const fatores = await monthlyIndexFactors(
+        divida.indexador!,
+        divida.primeiroVencimento,
+        cronograma[cronograma.length - 1].mes,
+      );
+      rows = corrigirCronograma(cronograma, fatores);
+    }
+    const toCreate = rows
+      .map((p) => ({ ...ymToYearMonth0(p.mes), value: p.parcelaCorrigida ?? p.parcela }))
       .filter((w) => w.value > 0 && !realizedKey.has(`${w.year}-${w.month}`));
     if (toCreate.length > 0) {
       await prisma.cashflowValue.createMany({
@@ -217,6 +234,29 @@ async function syncDividaToCashflowInner(userId: string, divida: DividaForSync):
     }
   }
   return true;
+}
+
+/**
+ * Ressincroniza TODAS as dívidas indexadas (TR/IPCA/IGPM/CDI) ativas com a
+ * linha-espelho do fluxo de caixa — chamado pelo cron diário de índices
+ * econômicos depois da ingestão BACEN, pra que a correção mensal das parcelas
+ * avance sozinha no aniversário de cada dívida (sem esperar uma mutação).
+ */
+export async function resyncDividasIndexadas(): Promise<{ dividas: number; usuarios: number }> {
+  const dividas = await prisma.divida.findMany({
+    where: {
+      modalidade: 'financiamento',
+      status: 'ativa',
+      indexador: { in: ['TR', 'IPCA', 'IGPM', 'CDI'] },
+    },
+    include: { pagamentos: { select: { tipo: true, parcelaNumero: true } } },
+  });
+  const usuarios = new Set<string>();
+  for (const d of dividas) {
+    await syncDividaRecordToCashflow(d.userId, d);
+    usuarios.add(d.userId);
+  }
+  return { dividas: dividas.length, usuarios: usuarios.size };
 }
 
 /** Remove a linha do fluxo de caixa vinculada a uma dívida (valores + item). */

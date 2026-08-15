@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
   divida: { findMany: vi.fn(), create: vi.fn() },
+  economicIndex: { findMany: vi.fn() },
   userChangeLog: { create: vi.fn() },
 }));
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -16,6 +17,10 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 const mockSyncDivida = vi.hoisted(() => vi.fn());
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('@/lib/simpleTtlCache', () => ({
+  getTtlCache: () => ({ get: () => undefined, set: () => {} }),
+  deleteTtlCacheKeyPrefix: () => {},
+}));
 vi.mock('@/services/dividas/dividaCashflowSync', () => ({
   syncDividaRecordToCashflow: mockSyncDivida,
   removeDividaCashflow: vi.fn(),
@@ -67,6 +72,23 @@ describe('GET /api/dividas', () => {
     expect(mockPrisma.divida.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: 'user-1' } }),
     );
+    // Prefixado não consulta índice nem ganha campos corrigidos.
+    expect(body.dividas[0].resumo.saldoCorrigido).toBeUndefined();
+    expect(mockPrisma.economicIndex.findMany).not.toHaveBeenCalled();
+  });
+
+  it('dívida indexada: resumo ganha saldo e próxima parcela corrigidos pelo índice realizado', async () => {
+    mockPrisma.divida.findMany.mockResolvedValue([financiamentoRow({ indexador: 'IPCA' })]);
+    mockPrisma.economicIndex.findMany.mockResolvedValue([{ value: 0.01 }]);
+
+    const res = await GET(new NextRequest('http://localhost/api/dividas'));
+    const body = await res.json();
+    const resumo = body.dividas[0].resumo;
+    expect(resumo.fatorIndexacao).toBeCloseTo(1.01, 10);
+    expect(resumo.saldoCorrigido).toBeCloseTo(101000, 2);
+    expect(resumo.proximaParcelaCorrigida).toBeCloseTo(resumo.proximaParcela.parcela * 1.01, 2);
+    // Base em moeda constante permanece intacta.
+    expect(resumo.saldoDevedor).toBe(100000);
   });
 });
 

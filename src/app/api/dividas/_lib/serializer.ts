@@ -11,7 +11,7 @@ import type { ResumoDivida } from '@/services/dividas/amortizacao';
 
 export type DividaModalidade = 'financiamento' | 'rotativa';
 export type DividaSistema = 'SAC' | 'PRICE';
-export type DividaIndexador = 'PREFIXADO' | 'TR' | 'IPCA' | 'CDI';
+export type DividaIndexador = 'PREFIXADO' | 'TR' | 'IPCA' | 'IGPM' | 'CDI';
 // 4 estados como no planejamento dos sonhos (pedido ago/2026): 'ativa' =
 // Iniciada (paga e projeta parcelas), 'em_espera'/'pausada' = dívida existe e
 // conta no passivo mas NÃO projeta parcela no fluxo, 'quitada' = Concluída.

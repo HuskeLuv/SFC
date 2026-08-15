@@ -48,7 +48,7 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
     () =>
       dividas
         .filter((d) => d.status !== 'quitada')
-        .reduce((s, d) => s + (d.resumo?.saldoDevedor ?? 0), 0),
+        .reduce((s, d) => s + (d.resumo?.saldoCorrigido ?? d.resumo?.saldoDevedor ?? 0), 0),
     [dividas],
   );
 
@@ -58,7 +58,11 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
     () =>
       dividas
         .filter((d) => d.status === 'ativa')
-        .reduce((s, d) => s + (d.resumo?.proximaParcela?.parcela ?? 0), 0),
+        .reduce(
+          (s, d) =>
+            s + (d.resumo?.proximaParcelaCorrigida ?? d.resumo?.proximaParcela?.parcela ?? 0),
+          0,
+        ),
     [dividas],
   );
 
@@ -145,10 +149,12 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
                     : 'Rotativa'}
                 </TableCell>
                 <TableCell className="px-3 py-2.5 text-right font-medium text-gray-900 dark:text-white/90">
-                  {formatBRL(r?.saldoDevedor)}
+                  {formatBRL(r?.saldoCorrigido ?? r?.saldoDevedor)}
                 </TableCell>
                 <TableCell className="px-3 py-2.5 text-right text-gray-600 dark:text-gray-300">
-                  {r?.proximaParcela ? formatBRL(r.proximaParcela.parcela) : '—'}
+                  {r?.proximaParcela
+                    ? formatBRL(r.proximaParcelaCorrigida ?? r.proximaParcela.parcela)
+                    : '—'}
                 </TableCell>
                 <TableCell className="px-3 py-2.5 text-center text-gray-600 dark:text-gray-300">
                   {progresso}

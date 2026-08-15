@@ -41,22 +41,24 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
 
   const rows = useMemo(() => sample(cronograma, 60), [cronograma]);
 
+  // Contratos indexados chegam com *Corrigido (índice realizado) — plota o
+  // corrigido quando presente.
   const series = useMemo(
     () => [
       {
         name: 'Amortização',
         type: 'column' as const,
-        data: rows.map((r) => ({ x: r.mes, y: r.amortizacao })),
+        data: rows.map((r) => ({ x: r.mes, y: r.amortizacaoCorrigida ?? r.amortizacao })),
       },
       {
         name: 'Juros',
         type: 'column' as const,
-        data: rows.map((r) => ({ x: r.mes, y: r.juros })),
+        data: rows.map((r) => ({ x: r.mes, y: r.jurosCorrigido ?? r.juros })),
       },
       {
         name: 'Saldo devedor',
         type: 'line' as const,
-        data: rows.map((r) => ({ x: r.mes, y: r.saldoDevedor })),
+        data: rows.map((r) => ({ x: r.mes, y: r.saldoDevedorCorrigido ?? r.saldoDevedor })),
       },
     ],
     [rows],

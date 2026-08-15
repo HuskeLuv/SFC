@@ -34,10 +34,12 @@ export default function CronogramaTable({
     return cronograma.slice(start, start + 24);
   }, [cronograma, expanded, proximaParcela]);
 
+  // Contratos indexados chegam com *Corrigido (índice realizado até o
+  // aniversário de cada parcela) — exibe o corrigido quando presente.
   const totais = useMemo(
     () => ({
-      juros: cronograma.reduce((s, r) => s + r.juros, 0),
-      amortizacao: cronograma.reduce((s, r) => s + r.amortizacao, 0),
+      juros: cronograma.reduce((s, r) => s + (r.jurosCorrigido ?? r.juros), 0),
+      amortizacao: cronograma.reduce((s, r) => s + (r.amortizacaoCorrigida ?? r.amortizacao), 0),
     }),
     [cronograma],
   );
@@ -110,16 +112,16 @@ export default function CronogramaTable({
                     {formatYearMonth(r.mes)}
                   </TableCell>
                   <TableCell className="px-3 py-2 text-right font-medium text-gray-900 dark:text-white/90">
-                    {formatBRL(r.parcela)}
+                    {formatBRL(r.parcelaCorrigida ?? r.parcela)}
                   </TableCell>
                   <TableCell className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">
-                    {formatBRL(r.juros)}
+                    {formatBRL(r.jurosCorrigido ?? r.juros)}
                   </TableCell>
                   <TableCell className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">
-                    {formatBRL(r.amortizacao)}
+                    {formatBRL(r.amortizacaoCorrigida ?? r.amortizacao)}
                   </TableCell>
                   <TableCell className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">
-                    {formatBRL(r.saldoDevedor)}
+                    {formatBRL(r.saldoDevedorCorrigido ?? r.saldoDevedor)}
                   </TableCell>
                 </TableRow>
               );

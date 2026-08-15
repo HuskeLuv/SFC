@@ -65,12 +65,39 @@ describe('GET /api/dividas/[id]/cronograma', () => {
 
   it('aplica fator de indexação realizado quando indexada (CDI)', async () => {
     mockPrisma.divida.findFirst.mockResolvedValue(financiamentoRow({ indexador: 'CDI' }));
-    mockPrisma.economicIndex.findMany.mockResolvedValue([{ value: 0.01 }]);
+    mockPrisma.economicIndex.findMany.mockResolvedValue([
+      { date: new Date('2026-01-15T00:00:00Z'), value: 0.01 },
+    ]);
 
     const res = await GET(req(), params);
     const body = await res.json();
     expect(body.fatorIndexacao).toBeCloseTo(1.01, 10);
     expect(body.saldoCorrigido).toBeCloseTo(101000, 2);
+    // Parcelas corrigidas pelo aniversário: 1ª no valor contratual, 2ª em
+    // diante corrigida pelo índice realizado (jan) — futuras repetem o fator.
+    expect(body.cronograma[0].fatorIndexacao).toBe(1);
+    expect(body.cronograma[0].parcelaCorrigida).toBeCloseTo(body.cronograma[0].parcela, 2);
+    expect(body.cronograma[1].fatorIndexacao).toBeCloseTo(1.01, 10);
+    expect(body.cronograma[1].parcelaCorrigida).toBeCloseTo(body.cronograma[1].parcela * 1.01, 2);
+    expect(body.cronograma[119].parcelaCorrigida).toBeCloseTo(
+      body.cronograma[119].parcela * 1.01,
+      2,
+    );
+  });
+
+  it('IGPM é indexador corrigível (série 189)', async () => {
+    mockPrisma.divida.findFirst.mockResolvedValue(financiamentoRow({ indexador: 'IGPM' }));
+    mockPrisma.economicIndex.findMany.mockResolvedValue([
+      { date: new Date('2026-01-01T00:00:00Z'), value: 0.006 },
+    ]);
+
+    const res = await GET(req(), params);
+    const body = await res.json();
+    expect(body.fatorIndexacao).toBeCloseTo(1.006, 10);
+    expect(body.cronograma[1].parcelaCorrigida).toBeCloseTo(body.cronograma[1].parcela * 1.006, 2);
+    expect(mockPrisma.economicIndex.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ indexType: 'IGPM' }) }),
+    );
   });
 
   it('400 para dívida rotativa', async () => {

@@ -2,6 +2,7 @@ import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { runEconomicIndexesIngestion } from '@/services/market/economicIndexesIngestion';
+import { resyncDividasIndexadas } from '@/services/dividas/dividaCashflowSync';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
 /**
@@ -25,7 +26,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   try {
     const result = await runEconomicIndexesIngestion();
-    return NextResponse.json(result);
+    // Índices novos mudam a correção das parcelas de dívidas indexadas —
+    // ressincroniza as linhas-espelho do fluxo de caixa (best-effort: falha
+    // aqui não invalida a ingestão).
+    let dividasResync: { dividas: number; usuarios: number } | { error: string };
+    try {
+      dividasResync = await resyncDividasIndexadas();
+    } catch (error) {
+      logger.error('[cron/economic-indexes] resync dívidas indexadas falhou', error);
+      dividasResync = { error: 'resync de dívidas indexadas falhou' };
+    }
+    return NextResponse.json({ ...result, dividasResync });
   } catch (error) {
     logger.error('[cron/economic-indexes]', error);
     return NextResponse.json(

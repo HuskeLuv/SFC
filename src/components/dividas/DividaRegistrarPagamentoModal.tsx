@@ -35,9 +35,13 @@ export default function DividaRegistrarPagamentoModal({
 }: DividaRegistrarPagamentoModalProps) {
   const isFinanciamento = divida.modalidade === 'financiamento';
   const proxima = divida.resumo?.proximaParcela ?? null;
+  // Contrato indexado: a parcela esperada é a CORRIGIDA pelo índice realizado.
+  const parcelaEsperada = proxima
+    ? (divida.resumo?.proximaParcelaCorrigida ?? proxima.parcela)
+    : null;
 
   const initialMonth = proxima?.mes ?? currentYearMonth();
-  const initialValor = proxima ? proxima.parcela.toFixed(2) : '';
+  const initialValor = parcelaEsperada != null ? parcelaEsperada.toFixed(2) : '';
   const initialParcela = proxima ? String(proxima.numero) : '';
 
   const [month, setMonth] = useState(initialMonth);
@@ -62,7 +66,8 @@ export default function DividaRegistrarPagamentoModal({
   const registrar = useRegistrarPagamento(divida.id);
 
   const valorNum = useMemo(() => Number(valor.replace(',', '.')) || 0, [valor]);
-  const deltaParcela = proxima && vincularParcela ? valorNum - proxima.parcela : null;
+  const deltaParcela =
+    parcelaEsperada != null && vincularParcela ? valorNum - parcelaEsperada : null;
 
   const handleSave = async () => {
     setError(null);
@@ -164,7 +169,7 @@ export default function DividaRegistrarPagamentoModal({
           />
           {proxima && vincularParcela && tipo === 'pagamento' ? (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Parcela esperada: {formatBRL(proxima.parcela)}
+              Parcela esperada: {formatBRL(parcelaEsperada ?? proxima.parcela)}
               {deltaParcela != null && Math.abs(deltaParcela) >= 0.01 ? (
                 <strong className={deltaParcela > 0 ? 'text-amber-600' : 'text-emerald-600'}>
                   {' '}
