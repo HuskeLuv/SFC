@@ -51,6 +51,14 @@ jobs:
           cache: npm
 
       - name: Build da release no runner
+        # Mesmos secrets do CI: o "Collecting page data" do next build
+        # instancia o PrismaClient e exige DATABASE_URL (falha do 1º run do
+        # pipeline). Nada disso é embutido no bundle (sem NEXT_PUBLIC) — em
+        # runtime a EC2 usa o /etc/myfinance/app.env.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          BRAPI_API_KEY: ${{ secrets.BRAPI_API_KEY }}
         run: |
           set -euo pipefail
           npm ci --include=dev
