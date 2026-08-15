@@ -424,7 +424,7 @@ const dividaTipo = z.enum([
 ]);
 const dividaSistema = z.enum(['SAC', 'PRICE']);
 const dividaIndexador = z.enum(['PREFIXADO', 'TR', 'IPCA', 'CDI']);
-const dividaStatus = z.enum(['ativa', 'quitada']);
+const dividaStatus = z.enum(['ativa', 'em_espera', 'pausada', 'quitada']);
 const dividaYearMonth = z.string().regex(yearMonthRegex, 'deve ser YYYY-MM');
 
 const dividaBaseFields = {

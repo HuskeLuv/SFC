@@ -9,7 +9,9 @@ import {
   useDividaCronograma,
   useDeleteDivida,
   useDeletePagamento,
+  useUpdateDivida,
   type DividaDTO,
+  type DividaStatus,
 } from '@/hooks/useDividas';
 import DividaForm from './DividaForm';
 import CronogramaTable from './CronogramaTable';
@@ -53,6 +55,19 @@ export default function DividaDetail({
 
   const deleteDivida = useDeleteDivida();
   const deletePagamento = useDeletePagamento(divida.id);
+  const updateDivida = useUpdateDivida();
+
+  // Status como nos sonhos (pedido ago/2026): pausar/pôr em espera tira as
+  // parcelas da projeção do fluxo, mas a dívida continua no passivo.
+  const handleStatusChange = async (status: DividaStatus) => {
+    if (status === divida.status) return;
+    try {
+      await updateDivida.mutateAsync({ id: divida.id, payload: { status } });
+    } catch (err) {
+      logger.error('Erro ao mudar status da dívida:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao mudar status.');
+    }
+  };
 
   const resumo = divida.resumo;
   const pagamentos = detalhe?.pagamentos ?? [];
@@ -101,11 +116,23 @@ export default function DividaDetail({
               {isFinanciamento && divida.sistema
                 ? ` · ${divida.sistema} · ${INDEXADOR_LABELS[divida.indexador]}`
                 : ' · Rotativa'}
-              {` · ${STATUS_LABELS[divida.status]}`}
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={divida.status}
+            onChange={(e) => handleStatusChange(e.target.value as DividaStatus)}
+            disabled={updateDivida.isPending}
+            className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200"
+            aria-label="Status da dívida"
+          >
+            {(Object.keys(STATUS_LABELS) as DividaStatus[]).map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
           <Button onClick={onRegistrarPagamento} size="sm">
             Registrar pagamento
           </Button>
