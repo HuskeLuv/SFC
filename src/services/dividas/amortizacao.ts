@@ -23,7 +23,11 @@ import {
 
 export type SistemaAmortizacao = 'SAC' | 'PRICE';
 export type ModalidadeDivida = 'financiamento' | 'rotativa';
-export type TipoPagamentoDivida = 'pagamento' | 'ajuste';
+// 'amortizacao_prazo' = amortização extraordinária que QUITA parcelas do fim
+// (redução de prazo — o desconto dos juros futuros é do cliente). O campo
+// parcelaNumero desse lançamento guarda QUANTAS parcelas do fim foram
+// quitadas (calculado pelo servidor), não um nº de parcela.
+export type TipoPagamentoDivida = 'pagamento' | 'ajuste' | 'amortizacao_prazo';
 
 export interface ParcelaCronograma {
   numero: number; // 1-based
@@ -32,6 +36,8 @@ export interface ParcelaCronograma {
   juros: number;
   amortizacao: number;
   saldoDevedor: number; // após pagar esta parcela
+  /** Anotação da rota de cronograma: quitada por amortização de prazo. */
+  amortizada?: boolean;
 }
 
 export interface PagamentoDividaInput {
@@ -150,6 +156,36 @@ export interface SaldoFinanciamentoResult {
  *  - Pagamentos extras (parcelaNumero null) subtraem direto do saldo teórico,
  *    sem recalcular prazo/parcela; ajustes somam.
  */
+/** Total de parcelas do FIM já quitadas por amortizações com redução de prazo. */
+export function parcelasCortadasDe(pagamentos: PagamentoDividaInput[]): number {
+  return pagamentos.reduce(
+    (s, p) => s + (p.tipo === 'amortizacao_prazo' ? (p.parcelaNumero ?? 0) : 0),
+    0,
+  );
+}
+
+/**
+ * Quantas parcelas do fim um valor de amortização quita (greedy do fim para
+ * o começo, sobre o cronograma ainda EFETIVO). O custo de quitar uma parcela
+ * futura é a AMORTIZAÇÃO dela — os juros ainda não incorridos são o desconto.
+ * `valorTeorico` = soma das amortizações cortadas (≤ valor pago).
+ */
+export function calcularCorteAmortizacao(
+  cronograma: ParcelaCronograma[],
+  jaCortadas: number,
+  valor: number,
+): { parcelas: number; valorTeorico: number } {
+  let parcelas = 0;
+  let valorTeorico = 0;
+  for (let i = cronograma.length - 1 - jaCortadas; i >= 0; i--) {
+    const custo = cronograma[i].amortizacao;
+    if (valorTeorico + custo > valor + 0.005) break;
+    valorTeorico = round2(valorTeorico + custo);
+    parcelas += 1;
+  }
+  return { parcelas, valorTeorico };
+}
+
 export function saldoFinanciamento(
   principal: number,
   cronograma: ParcelaCronograma[],
@@ -158,20 +194,27 @@ export function saldoFinanciamento(
   const parcelasPagas = pagamentos.filter(
     (p) => p.tipo === 'pagamento' && p.parcelaNumero != null,
   ).length;
-  const idx = Math.min(parcelasPagas, cronograma.length);
+  // Amortização com redução de prazo tira parcelas do FIM do cronograma:
+  // a "última parcela pagável" recua e o valor pago abate o saldo como um
+  // pagamento extraordinário (o saldo devedor É a soma das amortizações
+  // restantes, então o abate direto fecha a conta em SAC e Price).
+  const cortadas = parcelasCortadasDe(pagamentos);
+  const efetivas = Math.max(0, cronograma.length - cortadas);
+  const idx = Math.min(parcelasPagas, efetivas);
   const saldoTeorico = idx <= 0 ? principal : cronograma[idx - 1].saldoDevedor;
 
   let extras = 0;
   let ajustes = 0;
   for (const p of pagamentos) {
     if (p.tipo === 'pagamento' && p.parcelaNumero == null) extras += p.valor;
+    else if (p.tipo === 'amortizacao_prazo') extras += p.valor;
     else if (p.tipo === 'ajuste') ajustes += p.valor;
   }
 
   return {
     saldoDevedor: round2(Math.max(0, saldoTeorico - extras + ajustes)),
     parcelasPagas,
-    proximaParcela: cronograma[idx] ?? null,
+    proximaParcela: idx < efetivas ? (cronograma[idx] ?? null) : null,
   };
 }
 
@@ -234,11 +277,14 @@ export function resumoDivida(d: DividaCalcInput, pagamentos: PagamentoDividaInpu
       sistema: d.sistema,
     });
     const s = saldoFinanciamento(d.principal, cronograma, pagamentos);
-    const prazoRestante = Math.max(0, d.prazoMeses - s.parcelasPagas);
+    // Prazo efetivo desconta as parcelas do fim quitadas por amortização —
+    // o financiamento termina antes (é o objetivo da redução de prazo).
+    const totalParcelas = Math.max(0, d.prazoMeses - parcelasCortadasDe(pagamentos));
+    const prazoRestante = Math.max(0, totalParcelas - s.parcelasPagas);
     return {
       saldoDevedor: s.saldoDevedor,
       parcelasPagas: s.parcelasPagas,
-      totalParcelas: d.prazoMeses,
+      totalParcelas,
       proximaParcela: s.proximaParcela,
       prazoRestanteMeses: prazoRestante,
       categoria: categoryFromMonths(Math.max(1, prazoRestante)),

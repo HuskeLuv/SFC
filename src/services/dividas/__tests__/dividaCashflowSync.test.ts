@@ -126,6 +126,19 @@ describe('syncDividaToCashflow', () => {
     }
   });
 
+  it('amortização com redução de prazo TIRA as últimas parcelas da projeção', async () => {
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', name: 'Apê' });
+    mockPrisma.cashflowValue.findMany.mockResolvedValue([]);
+
+    await syncDividaToCashflow('u1', financiamento({ parcelasCortadas: 3 }));
+
+    const createArg = mockPrisma.cashflowValue.createMany.mock.calls[0][0];
+    // 12 parcelas − 3 cortadas = 9 meses projetados (Jan..Set/2026).
+    expect(createArg.data).toHaveLength(9);
+    const meses = createArg.data.map((v: { year: number; month: number }) => v.month);
+    expect(Math.max(...meses)).toBe(8); // Set = month0 8
+  });
+
   it('rotativa sem linha existente é no-op (não cria linha nem recomputa)', async () => {
     mockPrisma.cashflowItem.findUnique.mockResolvedValue(null);
 

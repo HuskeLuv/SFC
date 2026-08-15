@@ -16,6 +16,7 @@ import {
   DIVIDA_PAGAMENTO_FIELD_LABELS,
 } from '@/services/changeHistory';
 import { decimalToNumber } from '../../../_lib/serializer';
+import { syncDividaRecordToCashflow } from '@/services/dividas/dividaCashflowSync';
 
 export const DELETE = withErrorHandler(
   async (
@@ -28,7 +29,7 @@ export const DELETE = withErrorHandler(
 
     const pagamento = await prisma.dividaPagamento.findFirst({
       where: { id: pagamentoId, dividaId: id, divida: { userId: targetUserId } },
-      include: { divida: { select: { nome: true } } },
+      include: { divida: true },
     });
     if (!pagamento) {
       return NextResponse.json({ error: 'Pagamento não encontrado' }, { status: 404 });
@@ -37,6 +38,12 @@ export const DELETE = withErrorHandler(
     await prisma.dividaPagamento.delete({ where: { id: pagamentoId } });
     // Saldo devedor mudou → resumo da carteira (totalDividas) refaz.
     deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
+
+    // Excluir uma amortização de prazo devolve as parcelas do fim à projeção
+    // da linha-espelho (o sync recarrega os pagamentos restantes do banco).
+    if (pagamento.tipo === 'amortizacao_prazo') {
+      await syncDividaRecordToCashflow(targetUserId, pagamento.divida);
+    }
 
     await recordChange({
       request,

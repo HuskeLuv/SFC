@@ -3,7 +3,7 @@ import { personalizeGroup } from '@/utils/cashflowPersonalization';
 import { ensureDividasTemplate } from '@/utils/cashflowTemplates';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import { REALIZADO_COLOR } from '@/services/planejamento/cashflowToSonhoSync';
-import { gerarCronograma } from './amortizacao';
+import { gerarCronograma, parcelasCortadasDe } from './amortizacao';
 
 /**
  * Sincroniza uma dívida com a linha-espelho no fluxo de caixa (grupo
@@ -35,6 +35,8 @@ export interface DividaForSync {
   prazoMeses: number | null;
   sistema: string | null;
   primeiroVencimento: string | null; // YYYY-MM
+  /** Parcelas do FIM quitadas por amortização (redução de prazo) — saem da projeção. */
+  parcelasCortadas?: number;
 }
 
 /** Decimal | number → number (Prisma serializa Decimal como objeto). */
@@ -61,8 +63,27 @@ export async function syncDividaRecordToCashflow(
     prazoMeses: number | null;
     sistema: string | null;
     primeiroVencimento: string | null;
+    /** Quando o caller carrega os pagamentos, amortizações de prazo encurtam a projeção. */
+    pagamentos?: Array<{ tipo: string; parcelaNumero: number | null; valor?: unknown }>;
   },
 ): Promise<void> {
+  // Callers sem pagamentos carregados (create, undo de edição) buscam aqui —
+  // barato (N pequeno) e garante que a projeção nunca "desencurta" por
+  // esquecimento de include.
+  const pagamentos =
+    divida.pagamentos ??
+    (await prisma.dividaPagamento.findMany({
+      where: { dividaId: divida.id },
+      select: { tipo: true, parcelaNumero: true },
+    }));
+  const parcelasCortadas = parcelasCortadasDe(
+    pagamentos.map((p) => ({
+      tipo: p.tipo,
+      parcelaNumero: p.parcelaNumero,
+      valor: 0,
+      month: '',
+    })),
+  );
   await syncDividaToCashflow(userId, {
     id: divida.id,
     nome: divida.nome,
@@ -73,6 +94,7 @@ export async function syncDividaRecordToCashflow(
     prazoMeses: divida.prazoMeses,
     sistema: divida.sistema,
     primeiroVencimento: divida.primeiroVencimento,
+    parcelasCortadas,
   });
 }
 
@@ -116,7 +138,7 @@ export async function syncDividaToCashflow(userId: string, divida: DividaForSync
 
 /** @returns true se a linha existia/foi criada (algo pode ter mudado). */
 async function syncDividaToCashflowInner(userId: string, divida: DividaForSync): Promise<boolean> {
-  const cronograma =
+  const cronogramaCompleto =
     divida.modalidade === 'financiamento' &&
     divida.principal != null &&
     divida.taxaAm != null &&
@@ -131,6 +153,13 @@ async function syncDividaToCashflowInner(userId: string, divida: DividaForSync):
           sistema: divida.sistema,
         })
       : [];
+  // Amortização com redução de prazo: as últimas N parcelas foram quitadas —
+  // saem da projeção (o deleteMany abaixo limpa o planejado que sobrou delas).
+  const cortadas = Math.max(0, divida.parcelasCortadas ?? 0);
+  const cronograma =
+    cortadas > 0
+      ? cronogramaCompleto.slice(0, cronogramaCompleto.length - cortadas)
+      : cronogramaCompleto;
 
   let item = await prisma.cashflowItem.findUnique({ where: { dividaId: divida.id } });
   if (!item) {

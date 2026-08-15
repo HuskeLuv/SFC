@@ -12,9 +12,16 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 import { dividaPagamentoCreateSchema, validationError } from '@/utils/validation-schemas';
-import { resumoDivida } from '@/services/dividas/amortizacao';
+import {
+  calcularCorteAmortizacao,
+  gerarCronograma,
+  parcelasCortadasDe,
+  resumoDivida,
+} from '@/services/dividas/amortizacao';
+import { syncDividaRecordToCashflow } from '@/services/dividas/dividaCashflowSync';
 import { recordChange, diffFields, DIVIDA_PAGAMENTO_FIELD_LABELS } from '@/services/changeHistory';
 import {
+  decimalToNumber,
   serializeDivida,
   serializePagamento,
   toCalcInput,
@@ -49,6 +56,12 @@ export const POST = withErrorHandler(
           { status: 400 },
         );
       }
+      if (p.tipo !== 'pagamento') {
+        return NextResponse.json(
+          { error: 'parcelaNumero só se aplica a pagamento de parcela' },
+          { status: 400 },
+        );
+      }
       if (divida.prazoMeses != null && p.parcelaNumero > divida.prazoMeses) {
         return NextResponse.json(
           { error: `parcelaNumero fora do prazo (1..${divida.prazoMeses})` },
@@ -66,16 +79,66 @@ export const POST = withErrorHandler(
       }
     }
 
+    // Amortização com redução de prazo: quita parcelas do FIM do cronograma.
+    // O servidor calcula quantas o valor cobre (custo = amortização de cada
+    // uma; juros futuros são o desconto do cliente) e grava o nº cortado em
+    // parcelaNumero — semântica própria desse tipo.
+    let parcelasCortadas: number | null = null;
+    if (p.tipo === 'amortizacao_prazo') {
+      if (
+        divida.modalidade !== 'financiamento' ||
+        divida.principal == null ||
+        divida.taxaAm == null ||
+        divida.prazoMeses == null ||
+        !divida.sistema ||
+        !divida.primeiroVencimento
+      ) {
+        return NextResponse.json(
+          { error: 'Amortização com redução de prazo só se aplica a financiamento' },
+          { status: 400 },
+        );
+      }
+      const cronograma = gerarCronograma({
+        principal: decimalToNumber(divida.principal),
+        taxaAm: decimalToNumber(divida.taxaAm),
+        prazoMeses: divida.prazoMeses,
+        primeiroVencimento: divida.primeiroVencimento,
+        sistema: divida.sistema,
+      });
+      const jaCortadas = parcelasCortadasDe(toPagamentoInputs(divida.pagamentos));
+      const corte = calcularCorteAmortizacao(cronograma, jaCortadas, p.valor);
+      if (corte.parcelas < 1) {
+        const ultima = cronograma[cronograma.length - 1 - jaCortadas];
+        return NextResponse.json(
+          {
+            error: `Valor não quita nem a última parcela do cronograma (amortização de R$ ${ultima ? ultima.amortizacao.toFixed(2) : '—'}). Para abater o saldo sem reduzir o prazo, use o pagamento extraordinário.`,
+          },
+          { status: 400 },
+        );
+      }
+      parcelasCortadas = corte.parcelas;
+    }
+
     const created = await prisma.dividaPagamento.create({
       data: {
         dividaId: divida.id,
         month: p.month,
         valor: p.valor,
-        parcelaNumero: p.parcelaNumero ?? null,
+        parcelaNumero:
+          p.tipo === 'amortizacao_prazo' ? parcelasCortadas : (p.parcelaNumero ?? null),
         tipo: p.tipo,
         notes: p.notes ?? null,
       },
     });
+
+    // Redução de prazo muda a projeção da linha-espelho no fluxo de caixa
+    // (as parcelas do fim saem do planejado).
+    if (p.tipo === 'amortizacao_prazo') {
+      await syncDividaRecordToCashflow(targetUserId, {
+        ...divida,
+        pagamentos: [...divida.pagamentos, created],
+      });
+    }
 
     // Pagamento muda o saldo devedor → o resumo (totalDividas) precisa refazer.
     deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);

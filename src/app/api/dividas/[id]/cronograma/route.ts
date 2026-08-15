@@ -10,7 +10,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { gerarCronograma, saldoFinanciamento } from '@/services/dividas/amortizacao';
+import {
+  gerarCronograma,
+  parcelasCortadasDe,
+  saldoFinanciamento,
+} from '@/services/dividas/amortizacao';
 import { accruedIndexFactor } from '@/services/dividas/indexacaoDivida';
 import { decimalToNumber, toPagamentoInputs } from '../../_lib/serializer';
 
@@ -49,7 +53,15 @@ export const GET = withErrorHandler(
       primeiroVencimento: divida.primeiroVencimento,
       sistema: divida.sistema,
     });
-    const saldo = saldoFinanciamento(principal, cronograma, toPagamentoInputs(divida.pagamentos));
+    const pagamentosInput = toPagamentoInputs(divida.pagamentos);
+    const saldo = saldoFinanciamento(principal, cronograma, pagamentosInput);
+    // Parcelas do fim quitadas por amortização (redução de prazo): a UI marca
+    // as linhas como amortizadas em vez de escondê-las.
+    const parcelasCortadas = parcelasCortadasDe(pagamentosInput);
+    const cronogramaAnotado = cronograma.map((p) => ({
+      ...p,
+      amortizada: p.numero > cronograma.length - parcelasCortadas,
+    }));
 
     // Fator acumulado do índice realizado desde o 1º vencimento — 1 quando
     // PREFIXADO ou série indisponível. A UI mostra saldoDevedor × fator com
@@ -57,8 +69,9 @@ export const GET = withErrorHandler(
     const fatorIndexacao = await accruedIndexFactor(divida.indexador, divida.primeiroVencimento);
 
     return NextResponse.json({
-      cronograma,
+      cronograma: cronogramaAnotado,
       saldo,
+      parcelasCortadas,
       indexador: divida.indexador,
       fatorIndexacao,
       saldoCorrigido: Math.round(saldo.saldoDevedor * fatorIndexacao * 100) / 100,
