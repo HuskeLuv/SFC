@@ -4,6 +4,7 @@ import {
   gerarCronogramaSAC,
   gerarCronogramaPrice,
   gerarCronograma,
+  calcularCorteAmortizacao,
   saldoFinanciamento,
   saldoRotativa,
   resumoDivida,
@@ -258,5 +259,65 @@ describe('resumoDivida', () => {
   it('financiamento com campos incompletos degrada pra saldo 0 sem lançar', () => {
     const r = resumoDivida({ modalidade: 'financiamento', principal: 1000 }, []);
     expect(r.saldoDevedor).toBe(0);
+  });
+});
+
+describe('amortização com redução de prazo (amortizacao_prazo)', () => {
+  // SAC 12.000 / 0% / 12m: amortização constante de 1.000, parcela 1.000.
+  const cron = gerarCronograma({
+    principal: 12_000,
+    taxaAm: 0,
+    prazoMeses: 12,
+    primeiroVencimento: '2026-01',
+    sistema: 'SAC',
+  });
+  const calc = {
+    modalidade: 'financiamento',
+    principal: 12_000,
+    taxaAm: 0,
+    prazoMeses: 12,
+    sistema: 'SAC',
+    primeiroVencimento: '2026-01',
+  };
+
+  it('calcularCorteAmortizacao: greedy do fim, respeitando cortes anteriores', () => {
+    expect(calcularCorteAmortizacao(cron, 0, 3000)).toEqual({ parcelas: 3, valorTeorico: 3000 });
+    expect(calcularCorteAmortizacao(cron, 0, 2500)).toEqual({ parcelas: 2, valorTeorico: 2000 });
+    expect(calcularCorteAmortizacao(cron, 2, 2000)).toEqual({ parcelas: 2, valorTeorico: 2000 });
+    expect(calcularCorteAmortizacao(cron, 0, 500).parcelas).toBe(0);
+  });
+
+  it('abate o saldo, encurta o prazo e recua a última parcela pagável', () => {
+    const amort = pg({
+      tipo: 'amortizacao_prazo',
+      parcelaNumero: 3,
+      valor: 3000,
+      month: '2026-05',
+    });
+    const s = saldoFinanciamento(12_000, cron, [amort]);
+    expect(s.saldoDevedor).toBeCloseTo(9000, 2);
+    expect(s.proximaParcela?.numero).toBe(1);
+
+    const r = resumoDivida(calc, [amort]);
+    expect(r.totalParcelas).toBe(9);
+    expect(r.prazoRestanteMeses).toBe(9);
+  });
+
+  it('pagar todas as parcelas efetivas zera o saldo e encerra o cronograma', () => {
+    const amort = pg({
+      tipo: 'amortizacao_prazo',
+      parcelaNumero: 3,
+      valor: 3000,
+      month: '2026-05',
+    });
+    const parcelas = Array.from({ length: 9 }, (_, i) =>
+      pg({ tipo: 'pagamento', parcelaNumero: i + 1, valor: 1000, month: '2026-06' }),
+    );
+    const s = saldoFinanciamento(12_000, cron, [amort, ...parcelas]);
+    expect(s.saldoDevedor).toBeCloseTo(0, 2);
+    expect(s.proximaParcela).toBeNull();
+
+    const r = resumoDivida(calc, [amort, ...parcelas]);
+    expect(r.prazoRestanteMeses).toBe(0);
   });
 });

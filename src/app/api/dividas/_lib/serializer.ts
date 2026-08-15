@@ -24,7 +24,7 @@ export type DividaTipo =
   | 'cartao_credito'
   | 'cheque_especial'
   | 'outro';
-export type DividaPagamentoTipo = 'pagamento' | 'ajuste';
+export type DividaPagamentoTipo = 'pagamento' | 'ajuste' | 'amortizacao_prazo';
 
 export interface DividaPagamentoDTO {
   id: string;

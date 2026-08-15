@@ -80,15 +80,30 @@ export default function CronogramaTable({
             {visible.map((r) => {
               const paga = r.numero <= parcelasPagas;
               const isProxima = r.numero === proximaParcela;
+              const amortizada = Boolean(r.amortizada);
               return (
                 <TableRow
                   key={r.numero}
                   className={`border-b border-gray-100 dark:border-gray-800/60 ${
-                    isProxima ? 'bg-brand-50 dark:bg-brand-500/10' : paga ? 'opacity-60' : ''
+                    isProxima
+                      ? 'bg-brand-50 dark:bg-brand-500/10'
+                      : amortizada
+                        ? 'opacity-50 line-through'
+                        : paga
+                          ? 'opacity-60'
+                          : ''
                   }`}
                 >
                   <TableCell className="px-3 py-2 text-gray-600 dark:text-gray-300">
-                    {paga ? '✓ ' : ''}
+                    {amortizada ? (
+                      <span className="mr-1 inline-block rounded-full bg-emerald-50 px-1.5 text-[10px] font-medium text-emerald-700 no-underline dark:bg-emerald-900/20 dark:text-emerald-300">
+                        amortizada
+                      </span>
+                    ) : paga ? (
+                      '✓ '
+                    ) : (
+                      ''
+                    )}
                     {r.numero}
                   </TableCell>
                   <TableCell className="px-3 py-2 text-gray-600 dark:text-gray-300">

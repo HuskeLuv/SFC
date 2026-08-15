@@ -148,10 +148,15 @@ const dividaPagamentoRegistrar: UndoDefinition = {
   async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
     const pagamento = await prisma.dividaPagamento.findFirst({
       where: { id: entry.entityId!, divida: { userId: auth.targetUserId } },
+      include: { divida: true },
     });
     if (!pagamento) throw new UndoError(409, 'O pagamento não existe mais');
 
     await prisma.dividaPagamento.delete({ where: { id: pagamento.id } });
+    // Amortização de prazo desfeita devolve as parcelas do fim à projeção.
+    if (pagamento.tipo === 'amortizacao_prazo') {
+      await syncDividaRecordToCashflow(auth.targetUserId, pagamento.divida);
+    }
     return { changes: invertChanges(getChanges(entry)) };
   },
 };
@@ -203,6 +208,12 @@ const dividaPagamentoExcluir: UndoDefinition = {
     } catch (error: unknown) {
       if (isUniqueViolation(error)) throw new UndoError(409, 'O pagamento já foi restaurado');
       throw error;
+    }
+    // Amortização de prazo restaurada volta a encurtar a projeção. Os
+    // pagamentos carregados acima são de ANTES do recreate — forçar o sync a
+    // recarregar do banco (inclui o restaurado).
+    if (data.tipo === 'amortizacao_prazo') {
+      await syncDividaRecordToCashflow(auth.targetUserId, { ...divida, pagamentos: undefined });
     }
     return { changes: invertChanges(getChanges(entry)) };
   },

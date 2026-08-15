@@ -485,7 +485,10 @@ export const dividaPagamentoCreateSchema = z.object({
   month: dividaYearMonth,
   valor: zPositiveNumber,
   parcelaNumero: z.number().int().min(1).max(480).nullable().optional(),
-  tipo: z.enum(['pagamento', 'ajuste']).optional().default('pagamento'),
+  // 'amortizacao_prazo': quita parcelas do FIM (redução de prazo); o nº de
+  // parcelas cortadas é calculado pela ROTA a partir do cronograma — o
+  // cliente não envia parcelaNumero nesse tipo.
+  tipo: z.enum(['pagamento', 'ajuste', 'amortizacao_prazo']).optional().default('pagamento'),
   notes: z.string().max(2000).nullable().optional(),
 });
 

@@ -16,6 +16,10 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+const mockSyncDivida = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('@/services/dividas/dividaCashflowSync', () => ({
+  syncDividaRecordToCashflow: mockSyncDivida,
+}));
 
 import { POST } from '../route';
 
@@ -133,5 +137,75 @@ describe('POST /api/dividas/[id]/pagamentos', () => {
     mockPrisma.divida.findFirst.mockResolvedValue(null);
     const res = await POST(postReq({ month: '2026-01', valor: 100 }), params);
     expect(res.status).toBe(404);
+  });
+});
+
+describe('POST amortização com redução de prazo', () => {
+  // SAC 12.000 / 0% / 12m → amortização de 1.000 por parcela.
+  const sacRow = () =>
+    financiamentoRow({ principal: 12000, taxaAm: 0, prazoMeses: 12, sistema: 'SAC' });
+
+  it('calcula quantas parcelas do fim o valor quita e grava em parcelaNumero', async () => {
+    mockPrisma.divida.findFirst.mockResolvedValue(sacRow());
+    mockPrisma.dividaPagamento.create.mockResolvedValue(
+      pagamentoRow({ tipo: 'amortizacao_prazo', parcelaNumero: 3, valor: 3000 }),
+    );
+
+    const res = await POST(
+      postReq({ month: '2026-06', valor: 3000, tipo: 'amortizacao_prazo' }),
+      params,
+    );
+    expect(res.status).toBe(201);
+    expect(mockPrisma.dividaPagamento.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tipo: 'amortizacao_prazo', parcelaNumero: 3 }),
+      }),
+    );
+    // Redução de prazo re-sincroniza a linha-espelho do fluxo.
+    expect(mockSyncDivida).toHaveBeenCalled();
+  });
+
+  it('400 quando o valor não quita nem a última parcela', async () => {
+    mockPrisma.divida.findFirst.mockResolvedValue(sacRow());
+
+    const res = await POST(
+      postReq({ month: '2026-06', valor: 500, tipo: 'amortizacao_prazo' }),
+      params,
+    );
+    const data = await res.json();
+    expect(res.status).toBe(400);
+    expect(data.error).toContain('pagamento extraordinário');
+    expect(mockPrisma.dividaPagamento.create).not.toHaveBeenCalled();
+  });
+
+  it('400 para rotativa', async () => {
+    mockPrisma.divida.findFirst.mockResolvedValue(
+      financiamentoRow({
+        modalidade: 'rotativa',
+        principal: null,
+        taxaAm: null,
+        prazoMeses: null,
+        sistema: null,
+        primeiroVencimento: null,
+        saldoInicial: 5000,
+        dataSaldoInicial: '2026-01',
+      }),
+    );
+
+    const res = await POST(
+      postReq({ month: '2026-06', valor: 1000, tipo: 'amortizacao_prazo' }),
+      params,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('400 quando parcelaNumero vem junto de tipo que não é pagamento', async () => {
+    mockPrisma.divida.findFirst.mockResolvedValue(sacRow());
+
+    const res = await POST(
+      postReq({ month: '2026-06', valor: 1000, tipo: 'amortizacao_prazo', parcelaNumero: 5 }),
+      params,
+    );
+    expect(res.status).toBe(400);
   });
 });

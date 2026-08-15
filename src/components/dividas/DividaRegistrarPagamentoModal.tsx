@@ -105,30 +105,41 @@ export default function DividaRegistrarPagamentoModal({
       ) : null}
 
       <div className="space-y-3">
-        {/* Tipo (rotativa pode lançar ajuste) */}
-        {!isFinanciamento ? (
-          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 dark:border-gray-800">
-            {(
-              [
+        {/* Tipo: rotativa lança ajuste; financiamento lança amortização
+            com redução de prazo (quita parcelas do FIM do cronograma). */}
+        <div className="inline-flex flex-wrap rounded-lg border border-gray-200 p-0.5 dark:border-gray-800">
+          {(isFinanciamento
+            ? ([
+                ['pagamento', 'Pagamento'],
+                ['amortizacao_prazo', 'Amortização (reduz prazo)'],
+              ] as const)
+            : ([
                 ['pagamento', 'Pagamento (reduz saldo)'],
                 ['ajuste', 'Ajuste (soma ao saldo)'],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setTipo(value)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                  tipo === value
-                    ? 'bg-brand-500 text-white'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-                aria-pressed={tipo === value}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+              ] as const)
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTipo(value)}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                tipo === value
+                  ? 'bg-brand-500 text-white'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+              aria-pressed={tipo === value}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {tipo === 'amortizacao_prazo' ? (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Quita as <strong>últimas parcelas</strong> do cronograma (redução de prazo): o valor
+            pago cobre a amortização de cada parcela do fim — os juros que ainda não correram são o
+            seu desconto. O saldo devedor cai pelo valor pago e o prazo encurta; a projeção no fluxo
+            de caixa perde as parcelas do fim.
+          </p>
         ) : null}
 
         <div>
@@ -151,7 +162,7 @@ export default function DividaRegistrarPagamentoModal({
             min="0"
             step="10"
           />
-          {proxima && vincularParcela ? (
+          {proxima && vincularParcela && tipo === 'pagamento' ? (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Parcela esperada: {formatBRL(proxima.parcela)}
               {deltaParcela != null && Math.abs(deltaParcela) >= 0.01 ? (
@@ -165,7 +176,7 @@ export default function DividaRegistrarPagamentoModal({
           ) : null}
         </div>
 
-        {isFinanciamento ? (
+        {isFinanciamento && tipo === 'pagamento' ? (
           <>
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
               <input

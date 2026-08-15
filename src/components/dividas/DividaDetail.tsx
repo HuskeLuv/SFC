@@ -286,8 +286,13 @@ export default function DividaDetail({
                   </span>
                   <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                     {formatYearMonth(p.month)}
-                    {p.parcelaNumero != null ? ` · parcela ${p.parcelaNumero}` : ''}
+                    {p.tipo === 'pagamento' && p.parcelaNumero != null
+                      ? ` · parcela ${p.parcelaNumero}`
+                      : ''}
                     {p.tipo === 'ajuste' ? ' · ajuste (soma ao saldo)' : ''}
+                    {p.tipo === 'amortizacao_prazo'
+                      ? ` · amortização (quitou ${p.parcelaNumero ?? '?'} parcela${(p.parcelaNumero ?? 0) !== 1 ? 's' : ''} do fim)`
+                      : ''}
                     {p.notes ? ` · ${p.notes}` : ''}
                   </span>
                 </div>
