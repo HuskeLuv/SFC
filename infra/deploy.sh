@@ -49,9 +49,17 @@ set +a
 log "deps em $REL"
 npm ci --include=dev
 npx prisma generate
-export NODE_OPTIONS=--max-old-space-size=3072
-log "build (release atual segue servindo)"
-npm run build
+# DEPLOY_PREBUILT=1 (pipeline de artefato): o .next veio pronto do runner do
+# GitHub — o build de 25-35min não roda mais no t4g.micro. O npm ci acima
+# continua obrigatório: a EC2 é aarch64 e os binários nativos (prisma/sharp)
+# precisam ser instalados aqui; --include=dev porque os crons usam tsx.
+if [ "${DEPLOY_PREBUILT:-0}" = "1" ] && [ -d .next ]; then
+  log "build pré-fabricado no CI (.next presente) — pulando next build"
+else
+  export NODE_OPTIONS=--max-old-space-size=3072
+  log "build (release atual segue servindo)"
+  npm run build
+fi
 
 log "health-check da nova release na porta $HEALTH_PORT (antes do flip)"
 npm run start -- -p "$HEALTH_PORT" >/tmp/deploy-healthcheck.log 2>&1 &

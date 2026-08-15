@@ -1,11 +1,16 @@
-# Deploy contínuo em produção (EC2, sa-east-1).
+# Deploy contínuo em produção (EC2, sa-east-1) — pipeline de ARTEFATO.
 #
 # Gatilhos: push na main (merge de PR) ou manual (workflow_dispatch).
+# O build Next roda AQUI no runner (x64, rápido); o tarball (fonte + .next)
+# sobe pro S3 e a EC2 (aarch64, t4g.micro/1GB) só instala deps nativas,
+# valida na porta 3001, roda migrate e flipa o symlink — o build de 25-35min
+# saiu do host (incidente 14/08: TimedOut matou o deploy do #96).
+#
 # O job assume a role myfinance-prod-github-deploy via OIDC (sem secrets
-# estáticos — ver infra/github-deploy.tf) e dispara o deploy atômico já
-# existente no host: infra/bootstrap-deploy.sh (clone da main em
-# releases/<stamp>-<sha> → build → health-check na 3001 → migrate → flip do
-# symlink → restart → health na 3000 → rollback automático se falhar).
+# estáticos — ver infra/github-deploy.tf). Host: infra/bootstrap-deploy-artifact.sh
+# → infra/deploy.sh com DEPLOY_PREBUILT=1 (health → migrate → flip → rollback).
+# O .next é arch-independente (JS); node_modules NUNCA vai no tarball — a EC2
+# é ARM e os binários nativos são instalados lá pelo npm ci.
 name: deploy
 
 on:
@@ -23,39 +28,84 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  ARTIFACTS_BUCKET: myfinance-deploy-artifacts-824353504847
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Build no runner ~5-10min + fase EC2 (npm ci/health/migrate) ~10-15min;
+    # teto folgado pro watchdog de 40min do passo SSM.
+    timeout-minutes: 60
     env:
       AWS_REGION: sa-east-1
       INSTANCE_ID: i-09099b2b041adcdb6
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 20 com cache de npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Build da release no runner
+        run: |
+          set -euo pipefail
+          npm ci --include=dev
+          npx prisma generate
+          NODE_OPTIONS=--max-old-space-size=6144 npm run build
+
+      - name: Empacotar artefato (fonte + .next, sem node_modules)
+        run: |
+          set -euo pipefail
+          # Cache de webpack não serve em runtime e pesa centenas de MB.
+          rm -rf .next/cache
+          tar -czf "/tmp/deploy-${GITHUB_SHA::7}.tar.gz" \
+            --exclude=./node_modules --exclude=./.git \
+            .
+          ls -lh "/tmp/deploy-${GITHUB_SHA::7}.tar.gz"
+
       - name: Assumir role AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::824353504847:role/myfinance-prod-github-deploy
           aws-region: sa-east-1
 
+      - name: Subir artefato pro S3
+        run: |
+          aws s3 cp "/tmp/deploy-${GITHUB_SHA::7}.tar.gz" \
+            "s3://${ARTIFACTS_BUCKET}/deploys/${GITHUB_SHA}.tar.gz" --only-show-errors
+
       - name: Disparar deploy atômico via SSM e acompanhar
         run: |
           set -euo pipefail
 
+          # O bootstrap vai EMBUTIDO (base64 do checkout deste commit) — sem
+          # depender de script pré-existente no host, e sempre na versão do
+          # próprio deploy. O deploy.sh (health/migrate/flip/rollback) vem de
+          # dentro do tarball extraído.
+          BOOT_B64=$(base64 -w0 infra/bootstrap-deploy-artifact.sh)
           CID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
             --comment "deploy ${GITHUB_SHA::7} via GitHub Actions (${GITHUB_ACTOR})" \
             --parameters '{"commands":[
               "set -o pipefail",
-              "cd /opt/myfinance/app && bash infra/bootstrap-deploy.sh 2>&1 | tail -60",
+              "echo '"$BOOT_B64"' | base64 -d > /tmp/bootstrap-deploy-artifact.sh",
+              "bash /tmp/bootstrap-deploy-artifact.sh s3://'"$ARTIFACTS_BUCKET"'/deploys/'"$GITHUB_SHA"'.tar.gz '"${GITHUB_SHA::7}"' 2>&1 | tail -60",
               "echo \"--- release ativa:\"; readlink -f /opt/myfinance/current",
               "echo \"--- health:\"; curl -s -o /dev/null -w \"%{http_code}\\n\" http://localhost:3000/api/health"
-            ],"executionTimeout":["1800"]}' \
+            ],"executionTimeout":["2400"]}' \
             --query Command.CommandId --output text)
           echo "CommandId: $CID"
 
+          # Watchdog > executionTimeout do SSM (2400s): 250×10s ≈ 42min.
+          # A fase EC2 agora é npm ci + prisma + health + migrate + flip
+          # (~10-15min) — sem o next build de 25-35min (incidente 14/08).
           STATUS=InProgress
-          for i in $(seq 1 120); do
+          for i in $(seq 1 250); do
             STATUS=$(aws ssm get-command-invocation \
               --command-id "$CID" --instance-id "$INSTANCE_ID" \
               --query Status --output text 2>/dev/null || echo Pending)
