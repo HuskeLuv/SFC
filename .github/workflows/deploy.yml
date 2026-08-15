@@ -26,7 +26,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Precisa cobrir o watchdog (~65min) — ver comentário no passo do SSM.
+    timeout-minutes: 75
     env:
       AWS_REGION: sa-east-1
       INSTANCE_ID: i-09099b2b041adcdb6
