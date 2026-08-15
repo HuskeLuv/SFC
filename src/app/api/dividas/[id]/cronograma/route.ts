@@ -11,11 +11,16 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import {
+  corrigirCronograma,
   gerarCronograma,
   parcelasCortadasDe,
   saldoFinanciamento,
 } from '@/services/dividas/amortizacao';
-import { accruedIndexFactor } from '@/services/dividas/indexacaoDivida';
+import {
+  accruedIndexFactor,
+  isIndexadorCorrigivel,
+  monthlyIndexFactors,
+} from '@/services/dividas/indexacaoDivida';
 import { decimalToNumber, toPagamentoInputs } from '../../_lib/serializer';
 
 export const GET = withErrorHandler(
@@ -46,13 +51,24 @@ export const GET = withErrorHandler(
     }
 
     const principal = decimalToNumber(divida.principal);
-    const cronograma = gerarCronograma({
+    let cronograma = gerarCronograma({
       principal,
       taxaAm: decimalToNumber(divida.taxaAm),
       prazoMeses: divida.prazoMeses,
       primeiroVencimento: divida.primeiroVencimento,
       sistema: divida.sistema,
     });
+    // Contrato indexado: cada parcela é corrigida pelo índice realizado até o
+    // aniversário do mês dela (parcelas futuras carregam a correção realizada
+    // até hoje, sem projeção — atualizam conforme o BACEN publica).
+    if (isIndexadorCorrigivel(divida.indexador) && cronograma.length > 0) {
+      const fatores = await monthlyIndexFactors(
+        divida.indexador,
+        divida.primeiroVencimento,
+        cronograma[cronograma.length - 1].mes,
+      );
+      cronograma = corrigirCronograma(cronograma, fatores);
+    }
     const pagamentosInput = toPagamentoInputs(divida.pagamentos);
     const saldo = saldoFinanciamento(principal, cronograma, pagamentosInput);
     // Parcelas do fim quitadas por amortização (redução de prazo): a UI marca

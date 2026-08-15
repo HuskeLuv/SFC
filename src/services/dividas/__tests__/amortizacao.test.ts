@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   pmtPrice,
+  corrigirCronograma,
   gerarCronogramaSAC,
   gerarCronogramaPrice,
   gerarCronograma,
@@ -319,5 +320,43 @@ describe('amortização com redução de prazo (amortizacao_prazo)', () => {
 
     const r = resumoDivida(calc, [amort, ...parcelas]);
     expect(r.prazoRestanteMeses).toBe(0);
+  });
+});
+
+describe('corrigirCronograma', () => {
+  it('multiplica parcela/juros/amortização/saldo pelo fator do mês (aniversário)', () => {
+    const cronograma = gerarCronogramaPrice(10_000, 0.01, 3, '2026-01');
+    const corrigido = corrigirCronograma(cronograma, {
+      '2026-01': 1,
+      '2026-02': 1.005,
+      '2026-03': 1.01,
+    });
+    // 1ª parcela: valor contratual (fator 1).
+    expect(corrigido[0].fatorIndexacao).toBe(1);
+    expect(corrigido[0].parcelaCorrigida).toBe(corrigido[0].parcela);
+    // 2ª parcela: +0,5% realizado.
+    expect(corrigido[1].parcelaCorrigida).toBeCloseTo(cronograma[1].parcela * 1.005, 2);
+    expect(corrigido[1].jurosCorrigido).toBeCloseTo(cronograma[1].juros * 1.005, 2);
+    expect(corrigido[1].amortizacaoCorrigida).toBeCloseTo(cronograma[1].amortizacao * 1.005, 2);
+    expect(corrigido[1].saldoDevedorCorrigido).toBeCloseTo(cronograma[1].saldoDevedor * 1.005, 2);
+    // Campos base ficam intocados (moeda constante segue disponível).
+    expect(corrigido[1].parcela).toBe(cronograma[1].parcela);
+  });
+
+  it('mês sem fator repete o último visto (futuro sem projeção)', () => {
+    const cronograma = gerarCronogramaSAC(12_000, 0.01, 4, '2026-01');
+    const corrigido = corrigirCronograma(cronograma, { '2026-01': 1, '2026-02': 1.01 });
+    expect(corrigido[2].fatorIndexacao).toBe(1.01);
+    expect(corrigido[3].fatorIndexacao).toBe(1.01);
+    expect(corrigido[3].parcelaCorrigida).toBeCloseTo(cronograma[3].parcela * 1.01, 2);
+  });
+
+  it('fatores vazios → tudo corrigido com fator 1', () => {
+    const cronograma = gerarCronogramaPrice(5_000, 0.02, 2, '2026-01');
+    const corrigido = corrigirCronograma(cronograma, {});
+    for (const r of corrigido) {
+      expect(r.fatorIndexacao).toBe(1);
+      expect(r.parcelaCorrigida).toBe(r.parcela);
+    }
   });
 });

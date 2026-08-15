@@ -314,7 +314,7 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
                 id="divida-indexador"
                 value={indexador}
                 onChange={(v) => setIndexador(v as DividaIndexador)}
-                options={(['PREFIXADO', 'TR', 'IPCA', 'CDI'] as const).map((i) => ({
+                options={(['PREFIXADO', 'TR', 'IPCA', 'IGPM', 'CDI'] as const).map((i) => ({
                   value: i,
                   label: INDEXADOR_LABELS[i],
                 }))}

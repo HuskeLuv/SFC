@@ -423,7 +423,7 @@ const dividaTipo = z.enum([
   'outro',
 ]);
 const dividaSistema = z.enum(['SAC', 'PRICE']);
-const dividaIndexador = z.enum(['PREFIXADO', 'TR', 'IPCA', 'CDI']);
+const dividaIndexador = z.enum(['PREFIXADO', 'TR', 'IPCA', 'IGPM', 'CDI']);
 const dividaStatus = z.enum(['ativa', 'em_espera', 'pausada', 'quitada']);
 const dividaYearMonth = z.string().regex(yearMonthRegex, 'deve ser YYYY-MM');
 

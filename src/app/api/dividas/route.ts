@@ -12,7 +12,8 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 import { dividaCreateSchema, validationError } from '@/utils/validation-schemas';
-import { resumoDivida } from '@/services/dividas/amortizacao';
+import { resumoDivida, type ResumoDivida } from '@/services/dividas/amortizacao';
+import { accruedIndexFactor, isIndexadorCorrigivel } from '@/services/dividas/indexacaoDivida';
 import { syncDividaRecordToCashflow } from '@/services/dividas/dividaCashflowSync';
 import { recordChange, diffFields, DIVIDA_FIELD_LABELS } from '@/services/changeHistory';
 import { serializeDivida, toCalcInput, toPagamentoInputs } from './_lib/serializer';
@@ -26,11 +27,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     orderBy: { createdAt: 'desc' },
   });
 
-  return NextResponse.json({
-    dividas: rows.map((d) =>
-      serializeDivida(d, { resumo: resumoDivida(toCalcInput(d), toPagamentoInputs(d.pagamentos)) }),
-    ),
-  });
+  const dividas = await Promise.all(
+    rows.map(async (d) => {
+      const resumo: ResumoDivida = resumoDivida(toCalcInput(d), toPagamentoInputs(d.pagamentos));
+      // Contrato indexado: saldo e próxima parcela corrigidos pelo índice já
+      // realizado (fator cacheado 1h — ver indexacaoDivida.ts).
+      if (d.modalidade === 'financiamento' && isIndexadorCorrigivel(d.indexador)) {
+        const fator = await accruedIndexFactor(d.indexador, d.primeiroVencimento);
+        resumo.fatorIndexacao = fator;
+        resumo.saldoCorrigido = Math.round(resumo.saldoDevedor * fator * 100) / 100;
+        if (resumo.proximaParcela) {
+          resumo.proximaParcelaCorrigida =
+            Math.round(resumo.proximaParcela.parcela * fator * 100) / 100;
+        }
+      }
+      return serializeDivida(d, { resumo });
+    }),
+  );
+
+  return NextResponse.json({ dividas });
 });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {

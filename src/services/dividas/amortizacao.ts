@@ -38,6 +38,15 @@ export interface ParcelaCronograma {
   saldoDevedor: number; // após pagar esta parcela
   /** Anotação da rota de cronograma: quitada por amortização de prazo. */
   amortizada?: boolean;
+  /**
+   * Correção pelo índice realizado até o aniversário desta parcela
+   * (indexacaoDivida.ts) — presentes só em contratos indexados.
+   */
+  fatorIndexacao?: number;
+  parcelaCorrigida?: number;
+  jurosCorrigido?: number;
+  amortizacaoCorrigida?: number;
+  saldoDevedorCorrigido?: number;
 }
 
 export interface PagamentoDividaInput {
@@ -119,6 +128,31 @@ export function gerarCronogramaPrice(
     });
   }
   return rows;
+}
+
+/**
+ * Aplica a cada linha do cronograma o fator do índice realizado até o
+ * aniversário do mês dela (`fatores` = monthlyIndexFactors). Mês sem entrada
+ * repete o último fator visto (meses futuros ficam na correção realizada até
+ * hoje — sem projeção). Puro: recebe os fatores prontos, não faz I/O.
+ */
+export function corrigirCronograma(
+  cronograma: ParcelaCronograma[],
+  fatores: Record<string, number>,
+): ParcelaCronograma[] {
+  let last = 1;
+  return cronograma.map((r) => {
+    const fator = fatores[r.mes] ?? last;
+    last = fator;
+    return {
+      ...r,
+      fatorIndexacao: fator,
+      parcelaCorrigida: round2(r.parcela * fator),
+      jurosCorrigido: round2(r.juros * fator),
+      amortizacaoCorrigida: round2(r.amortizacao * fator),
+      saldoDevedorCorrigido: round2(r.saldoDevedor * fator),
+    };
+  });
 }
 
 export interface FinanciamentoParams {
@@ -254,6 +288,10 @@ export interface ResumoDivida {
   proximaParcela: ParcelaCronograma | null;
   prazoRestanteMeses: number | null;
   categoria: Category; // 'c' | 'm' | 'l' — rotativa é sempre curto prazo
+  /** Correção pelo índice realizado — preenchidos pela rota em contratos indexados. */
+  fatorIndexacao?: number;
+  saldoCorrigido?: number;
+  proximaParcelaCorrigida?: number;
 }
 
 /**

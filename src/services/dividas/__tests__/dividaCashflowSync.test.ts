@@ -4,12 +4,17 @@ const mockPrisma = vi.hoisted(() => ({
   cashflowItem: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   cashflowValue: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
   cashflowGroup: { findFirst: vi.fn() },
+  economicIndex: { findMany: vi.fn() },
 }));
 const mockPersonalizeGroup = vi.hoisted(() => vi.fn());
 const mockEnsureDividasTemplate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockRecomputeEvolucao = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('@/lib/simpleTtlCache', () => ({
+  getTtlCache: () => ({ get: () => undefined, set: () => {} }),
+  deleteTtlCacheKeyPrefix: () => {},
+}));
 vi.mock('@/utils/cashflowPersonalization', () => ({ personalizeGroup: mockPersonalizeGroup }));
 vi.mock('@/utils/cashflowTemplates', () => ({ ensureDividasTemplate: mockEnsureDividasTemplate }));
 vi.mock('@/services/cashflow/evolucaoPatrimonioServer', () => ({
@@ -80,6 +85,25 @@ describe('syncDividaToCashflow', () => {
     expect(createArg.data[0].value).toBeCloseTo(1120, 2); // 1000 amort + 120 juros
     expect(createArg.data[1].value).toBeLessThan(createArg.data[0].value);
     expect(createArg.data[11].value).toBeCloseTo(1010, 2); // última: 1000 + 1% de 1000
+  });
+
+  it('dívida indexada grava a parcela CORRIGIDA pelo índice realizado no aniversário', async () => {
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ id: 'item-1', name: 'Apê' });
+    // IPCA de jan/2026 = 1% — parcelas de fev em diante corrigem ×1,01.
+    mockPrisma.economicIndex.findMany.mockResolvedValue([
+      { date: new Date('2026-01-01T00:00:00Z'), value: 0.01 },
+    ]);
+
+    // 12.000 / 12m / taxa 0 → parcela contratual 1.000 constante.
+    await syncDividaToCashflow('u1', financiamento({ indexador: 'IPCA' }));
+
+    expect(mockPrisma.economicIndex.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ indexType: 'IPCA' }) }),
+    );
+    const createArg = mockPrisma.cashflowValue.createMany.mock.calls[0][0];
+    expect(createArg.data[0].value).toBeCloseTo(1000, 2); // 1ª no valor contratual
+    expect(createArg.data[1].value).toBeCloseTo(1010, 2); // fev corrigida
+    expect(createArg.data[11].value).toBeCloseTo(1010, 2); // futuras repetem o fator
   });
 
   it('preserva células realizadas e não as reescreve', async () => {
