@@ -7,6 +7,7 @@ import Select from '@/components/form/Select';
 import DatePicker from '@/components/form/date-picker';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 
 export default function Step4RendaFixaFields({
   formData,
@@ -193,6 +194,10 @@ export default function Step4RendaFixaFields({
           <Label htmlFor="rendaFixaTaxExempt">Isento de IR</Label>
         </div>
       </div>
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }

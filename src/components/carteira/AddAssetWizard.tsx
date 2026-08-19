@@ -633,6 +633,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
             instituicaoId: formData.instituicaoId,
             vinculoTipo: formData.vinculoTipo ?? null,
             vinculoObjetivoId: formData.vinculoObjetivoId ?? null,
+            isReinvestimento: !!formData.isReinvestimento,
           }),
         });
 

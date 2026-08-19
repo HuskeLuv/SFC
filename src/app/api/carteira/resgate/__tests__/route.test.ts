@@ -254,6 +254,49 @@ describe('POST /api/carteira/resgate', () => {
       expect(data.transacao.price).toBe(1000);
     });
 
+    it('isReinvestimento grava action=reinvestimento (resgate p/ troca fora do fluxo)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolioValueBased,
+        quantity: 1,
+        totalInvested: 1000,
+        avgPrice: 1000,
+      });
+
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'valor',
+          valorResgate: 400,
+          isReinvestimento: true,
+        }),
+      );
+      expect(response.status).toBe(201);
+      const createArgs = mockPrisma.stockTransaction.create.mock.calls[0][0];
+      expect(JSON.parse(createArgs.data.notes).operation.action).toBe('reinvestimento');
+    });
+
+    it('sem a flag, resgate grava action=resgate', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...mockPortfolioValueBased,
+        quantity: 1,
+        totalInvested: 1000,
+        avgPrice: 1000,
+      });
+
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataResgate: '2024-01-15',
+          metodoResgate: 'valor',
+          valorResgate: 400,
+        }),
+      );
+      expect(response.status).toBe(201);
+      const createArgs = mockPrisma.stockTransaction.create.mock.calls[0][0];
+      expect(JSON.parse(createArgs.data.notes).operation.action).toBe('resgate');
+    });
+
     it('permite resgate por valor ACIMA do custo (rendimento) e encerra a posição', async () => {
       // Auditoria 2026-08-06 achado #10: o teto era o CUSTO (totalInvested) —
       // um CDB de 10k que rendeu para 12,4k não podia ser resgatado integralmente.

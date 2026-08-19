@@ -153,6 +153,28 @@ describe('computeInvestimentosPorMes', () => {
     expect(totaisPorMes[0]).toBe(0);
   });
 
+  it('venda marcada como troca/rolagem sai da linha de Aporte/Resgate (F1.10 generalizado)', async () => {
+    mockPrisma.portfolio.findMany.mockResolvedValue([]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({
+        type: 'venda',
+        total: 250,
+        notes: JSON.stringify({ operation: { action: 'reinvestimento' } }),
+      }),
+      tx({
+        type: 'venda',
+        total: 100,
+        notes: JSON.stringify({ operation: { action: 'resgate' } }),
+      }),
+    ]);
+
+    const { porTipo, totaisPorMes } = await computeInvestimentosPorMes('u1', 2026);
+
+    // venda-troca vai pro bucket separado (negativa); só o resgate comum conta
+    expect(porTipo.reinvestimento[0]).toBe(-250);
+    expect(totaisPorMes[0]).toBe(-100);
+  });
+
   describe('Tesouro de catálogo em reserva (report 10/08)', () => {
     // duas queries de stockTransaction: a do ano (transações) e a de compras
     // de Tesouro (where.asset presente) — distingue pelo shape do where

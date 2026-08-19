@@ -669,8 +669,9 @@ export const buildPatrimonioHistorico = async (
     const totalValue = getTransactionValue(transaction);
     const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
     const appliedDelta = transaction.type === 'compra' ? totalValue : -totalValue;
-    const isReinvest =
-      transaction.type === 'compra' && isReinvestimentoTransaction(transaction.notes);
+    // F1.10 generalizado (ticket 19/08/2026): a flag vale para compra E venda
+    // — resgate marcado como troca/rolagem também não é fluxo externo.
+    const isReinvest = isReinvestimentoTransaction(transaction.notes);
     if (transaction.type === 'compra' && !isReinvest) {
       aportesByDay.set(day, (aportesByDay.get(day) || 0) + totalValue);
     }
@@ -1203,7 +1204,9 @@ export const buildPatrimonioCashFlowsByDayOnly = (
     const totalValue = getTransactionValue(transaction);
     const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
     cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
-    if (transaction.type === 'compra' && isReinvestimentoTransaction(transaction.notes)) {
+    // F1.10 generalizado: compra E venda marcadas como reinvestimento/troca
+    // ficam fora dos fluxos externos.
+    if (isReinvestimentoTransaction(transaction.notes)) {
       reinvestimentoCashDeltasByDay.set(
         day,
         (reinvestimentoCashDeltasByDay.get(day) || 0) + cashDelta,

@@ -165,6 +165,37 @@ describe('POST /api/carteira/aporte', () => {
       });
     });
 
+    it('isReinvestimento grava action=reinvestimento (fora das linhas de aporte do fluxo)', async () => {
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataAporte: '2024-01-15',
+          valorAporte: 500,
+          tipoAtivo: 'renda-fixa',
+          instituicaoId: 'inst-1',
+          isReinvestimento: true,
+        }),
+      );
+      expect(response.status).toBe(201);
+      const createArgs = mockPrisma.stockTransaction.create.mock.calls[0][0];
+      expect(JSON.parse(createArgs.data.notes).operation.action).toBe('reinvestimento');
+    });
+
+    it('sem a flag, aporte grava action=aporte', async () => {
+      const response = await POST(
+        createRequest({
+          portfolioId: 'port-1',
+          dataAporte: '2024-01-15',
+          valorAporte: 500,
+          tipoAtivo: 'renda-fixa',
+          instituicaoId: 'inst-1',
+        }),
+      );
+      expect(response.status).toBe(201);
+      const createArgs = mockPrisma.stockTransaction.create.mock.calls[0][0];
+      expect(JSON.parse(createArgs.data.notes).operation.action).toBe('aporte');
+    });
+
     it('realiza aporte com sucesso em portfolio com asset', async () => {
       mockPrisma.portfolio.findFirst.mockResolvedValue(mockPortfolioWithAsset);
       const response = await POST(

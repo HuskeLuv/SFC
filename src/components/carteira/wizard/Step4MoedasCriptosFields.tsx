@@ -4,6 +4,7 @@ import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 
 interface Step4MoedasCriptosFieldsProps extends Step4FieldsProps {
   variant: 'criptoativo' | 'moeda';
@@ -129,6 +130,10 @@ export default function Step4MoedasCriptosFields({
           className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
         />
       </div>
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }
