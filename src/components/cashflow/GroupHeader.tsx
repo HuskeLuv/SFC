@@ -108,7 +108,9 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
               : isPlanejamentoFinanceiro
                 ? '#9E8A58'
                 : isInvestimentosGroup
-                  ? '#38761D'
+                  ? // Aporte/Resgate: cinza-claro da planilha, RGB 201,204,204
+                    // (ticket 19/08/2026 — era o verde #38761D)
+                    '#C9CCCC'
                   : isContaCorrenteGroup
                     ? '#002060'
                     : isDespesasFixasSubgroup
@@ -128,8 +130,11 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
     return isReceita ? 'text-green-700 dark:text-green-300' : 'text-blue-900 dark:text-blue-100';
   })();
 
-  const textClass = isSolid ? 'text-white' : '';
-  const valueTextClass = isSolid ? 'text-white' : 'text-blue-900 dark:text-blue-100';
+  // Aporte/Resgate tem fundo claro → escrito preto (as demais sólidas são
+  // escuras e mantêm texto branco).
+  const solidTextClass = isInvestimentosGroup ? 'text-black' : 'text-white';
+  const textClass = isSolid ? solidTextClass : '';
+  const valueTextClass = isSolid ? solidTextClass : 'text-blue-900 dark:text-blue-100';
   const stickyBgClass = isSolid ? '' : genericBgClass;
   const stickyBgStyle = solidHex ? { backgroundColor: solidHex } : undefined;
 
@@ -151,7 +156,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
 
   return (
     <TableRow
-      className={`h-6 w-full ${isSolid ? 'text-white' : genericBgClass}`}
+      className={`h-6 w-full ${isSolid ? solidTextClass : genericBgClass}`}
       style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px', ...stickyBgStyle }}
     >
       <TableCell
@@ -175,14 +180,14 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
           {isPlanejamentoFinanceiro ? (
             <Link
               href="/planejamento-financeiro"
-              className={`text-xs truncate flex-1 hover:underline ${isSolid ? 'text-white' : genericNameColorClass}`}
+              className={`text-xs truncate flex-1 hover:underline ${isSolid ? solidTextClass : genericNameColorClass}`}
               title="Abrir o Planejamento de Sonhos"
             >
               {getDisplayName()} <span aria-hidden>↗</span>
             </Link>
           ) : (
             <span
-              className={`text-xs truncate flex-1 ${isSolid ? 'text-white' : genericNameColorClass}`}
+              className={`text-xs truncate flex-1 ${isSolid ? solidTextClass : genericNameColorClass}`}
               title={getDisplayName()}
             >
               {getDisplayName()}
@@ -236,7 +241,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
         -
       </TableCell>
       <TableCell
-        className={`px-2 text-xs font-bold text-right h-6 leading-6 align-middle whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300 ${isSolid ? 'text-white' : 'text-black dark:text-gray-300'} ${stickyBgClass}`}
+        className={`px-2 text-xs font-bold text-right h-6 leading-6 align-middle whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300 ${isSolid ? solidTextClass : 'text-black dark:text-gray-300'} ${stickyBgClass}`}
         style={{
           position: 'sticky',
           ...stickyBgStyle,

@@ -38,8 +38,12 @@ export interface SummaryRowProps {
 }
 
 const VARIANT = {
-  /** Saldo do mês, Fluxo de Caixa livre */
+  /** (legado — Saldo do mês/Fluxo livre migraram pros cinzas da planilha, 19/08/2026) */
   brown: { bg: '#998256', text: 'text-white' },
+  /** Saldo do mês, Índice de Poupança Mensal — RGB 204,204,204 da planilha */
+  silver: { bg: '#CCCCCC', text: 'text-black' },
+  /** Fluxo de Caixa livre (e linha Aporte/Resgate no GroupHeader) — RGB 201,204,204 */
+  silverGreen: { bg: '#C9CCCC', text: 'text-black' },
   /** Inflação Pessoal */
   gray: { bg: '#D8D8D8', text: 'text-black' },
   /** Saldo Conta Corrente Mês Anterior */

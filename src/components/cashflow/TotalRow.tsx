@@ -16,6 +16,7 @@ export const TotalRow: React.FC<TotalRowProps> = ({
     label="Saldo do mês (Lucro Líquido)"
     cells={totalByMonth.map((v) => v || 0)}
     annual={totalAnnual}
+    variant="silver"
     negativeRed
     positiveBlue
     showActionsColumn={showActionsColumn}
