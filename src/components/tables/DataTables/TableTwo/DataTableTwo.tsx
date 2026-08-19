@@ -806,7 +806,9 @@ export default function DataTableTwo() {
               tooltip="Saldo do mês + Saldo Conta Corrente do mês anterior − aportes/resgates do mês. Mês com aporte grande fica negativo: o dinheiro saiu do caixa livre e virou patrimônio investido."
               cells={fluxoCaixaLivreByMonth}
               annual={fluxoCaixaLivreByMonth.reduce((sum, val) => sum + val, 0)}
+              variant="silverGreen"
               negativeRed
+              positiveBlue
               showActionsColumn={anyGroupEditing}
             />
 
