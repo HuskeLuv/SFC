@@ -14,6 +14,7 @@ import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 import { dividaPagamentoCreateSchema, validationError } from '@/utils/validation-schemas';
 import {
   calcularCorteAmortizacao,
+  custoQuitacaoParcela,
   gerarCronograma,
   parcelasCortadasDe,
   resumoDivida,
@@ -80,9 +81,10 @@ export const POST = withErrorHandler(
     }
 
     // Amortização com redução de prazo: quita parcelas do FIM do cronograma.
-    // O servidor calcula quantas o valor cobre (custo = amortização de cada
-    // uma; juros futuros são o desconto do cliente) e grava o nº cortado em
-    // parcelaNumero — semântica própria desse tipo.
+    // O servidor calcula quantas o valor cobre (custo = VALOR PRESENTE de
+    // cada parcela na data do pagamento; os juros embutidos são o desconto do
+    // cliente) e grava o nº cortado em parcelaNumero — semântica própria
+    // desse tipo.
     let parcelasCortadas: number | null = null;
     if (p.tipo === 'amortizacao_prazo') {
       if (
@@ -98,20 +100,21 @@ export const POST = withErrorHandler(
           { status: 400 },
         );
       }
+      const taxaAm = decimalToNumber(divida.taxaAm);
       const cronograma = gerarCronograma({
         principal: decimalToNumber(divida.principal),
-        taxaAm: decimalToNumber(divida.taxaAm),
+        taxaAm,
         prazoMeses: divida.prazoMeses,
         primeiroVencimento: divida.primeiroVencimento,
         sistema: divida.sistema,
       });
       const jaCortadas = parcelasCortadasDe(toPagamentoInputs(divida.pagamentos));
-      const corte = calcularCorteAmortizacao(cronograma, jaCortadas, p.valor);
+      const corte = calcularCorteAmortizacao(cronograma, jaCortadas, p.valor, taxaAm, p.month);
       if (corte.parcelas < 1) {
         const ultima = cronograma[cronograma.length - 1 - jaCortadas];
         return NextResponse.json(
           {
-            error: `Valor não quita nem a última parcela do cronograma (amortização de R$ ${ultima ? ultima.amortizacao.toFixed(2) : '—'}). Para abater o saldo sem reduzir o prazo, use o pagamento extraordinário.`,
+            error: `Valor não quita nem a última parcela do cronograma (custo de hoje: R$ ${ultima ? custoQuitacaoParcela(ultima, taxaAm, p.month).toFixed(2) : '—'}). Para abater o saldo sem reduzir o prazo, use o pagamento extraordinário.`,
           },
           { status: 400 },
         );
