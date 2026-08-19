@@ -136,11 +136,11 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   const canMutateRows = !isCollapsed && !group.children?.length && !isInvestimentosGroup;
 
   // Formatação condicional do % Receita da linha "Despesas Fixas e Variáveis" —
-  // faixas e cores da planilha do Pedro (regra da célula E58).
+  // faixas do ticket QA 19/08/2026 (substitui a regra E58 da planilha):
+  // ≤80% azul · (80,90]% amarelo · (90,100]% vermelho claro · >100% vermelho forte.
   const despesasPercentStyle = (pct: number): React.CSSProperties => {
-    if (pct < 60) return { backgroundColor: '#0000FF', color: '#FFFFFF' };
-    if (pct < 80) return { backgroundColor: '#C6EFCE', color: '#006100' };
-    if (pct < 90) return { backgroundColor: '#FFEB9C', color: '#9C6500' };
+    if (pct <= 80) return { backgroundColor: '#0000FF', color: '#FFFFFF' };
+    if (pct <= 90) return { backgroundColor: '#FFEB9C', color: '#9C6500' };
     if (pct <= 100) return { backgroundColor: '#FFC7CE', color: '#9C0006' };
     return { backgroundColor: '#FF0000', color: '#FFFFFF' };
   };
