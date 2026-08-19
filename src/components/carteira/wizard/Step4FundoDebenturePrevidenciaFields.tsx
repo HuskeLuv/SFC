@@ -96,6 +96,94 @@ export default function Step4FundoDebenturePrevidenciaFields({
         </div>
       )}
 
+      {/* Sem API de preços de debêntures, a rentabilidade é marcada na curva com
+          a taxa contratada — igual emissão bancária (ticket QA 19/08/2026). */}
+      {formData.tipoAtivo === 'debenture' && formData.tipoDebenture === 'prefixada' && (
+        <div>
+          <Label htmlFor="taxaJurosAnual">Taxa contratada (% a.a.) *</Label>
+          <Input
+            id="taxaJurosAnual"
+            {...decimalInputProps}
+            placeholder="Ex.: 12,5"
+            value={getDecimalInputValue('taxaJurosAnual')}
+            onChange={handleDecimalInputChange('taxaJurosAnual')}
+            error={!!errors.taxaJurosAnual}
+            hint={
+              errors.taxaJurosAnual ??
+              'A rentabilidade acompanha esta taxa desde a compra (marcação na curva).'
+            }
+            min="0"
+            step="0.01"
+          />
+        </div>
+      )}
+      {formData.tipoAtivo === 'debenture' && formData.tipoDebenture === 'pos-fixada' && (
+        <div>
+          <Label htmlFor="percentualCDI">Rentabilidade contratada (% do CDI)</Label>
+          <Input
+            id="percentualCDI"
+            {...decimalInputProps}
+            placeholder="Ex.: 110 (padrão 100)"
+            value={getDecimalInputValue('percentualCDI')}
+            onChange={handleDecimalInputChange('percentualCDI')}
+            min="0"
+            step="0.01"
+            hint="Ex.: 110 = 110% do CDI. Em branco, consideramos 100% do CDI."
+          />
+        </div>
+      )}
+      {formData.tipoAtivo === 'debenture' && formData.tipoDebenture === 'hibrida' && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="rendaFixaIndexer">Indexador</Label>
+            <Select
+              id="rendaFixaIndexer"
+              options={[
+                { value: 'IPCA', label: 'IPCA' },
+                { value: 'CDI', label: 'CDI' },
+              ]}
+              placeholder="IPCA (padrão)"
+              value={formData.rendaFixaIndexer || ''}
+              onChange={(value) => handleInputChange('rendaFixaIndexer', value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="taxaFixaAnual">Taxa fixa (% a.a.)</Label>
+            <Input
+              id="taxaFixaAnual"
+              {...decimalInputProps}
+              placeholder="Ex.: 6,5"
+              value={getDecimalInputValue('taxaFixaAnual')}
+              onChange={handleDecimalInputChange('taxaFixaAnual')}
+              min="0"
+              step="0.01"
+              hint="Indexador + taxa fixa (ex.: IPCA + 6,5% a.a.)."
+            />
+          </div>
+        </div>
+      )}
+      {formData.tipoAtivo === 'debenture' && formData.tipoDebenture && (
+        <>
+          <BusinessDayDatePicker
+            id="dataVencimento"
+            label="Data de Vencimento"
+            placeholder="Opcional — em branco, consideramos 10 anos"
+            value={formData.dataVencimento}
+            onChange={(iso) => handleInputChange('dataVencimento', iso)}
+            error={errors.dataVencimento}
+          />
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={!!formData.rendaFixaTaxExempt}
+              onChange={(e) => handleInputChange('rendaFixaTaxExempt', e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Debênture incentivada (isenta de IR)
+          </label>
+        </>
+      )}
+
       {formData.tipoAtivo === 'fundo' && autoSubtipo && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
           <p className="text-sm text-blue-700 dark:text-blue-300">

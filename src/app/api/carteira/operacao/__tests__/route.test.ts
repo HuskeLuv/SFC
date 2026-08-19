@@ -1040,7 +1040,7 @@ describe('POST /api/carteira/operacao', () => {
   });
 
   describe('Debênture', () => {
-    it('adiciona debênture manual com sucesso', async () => {
+    it('adiciona debênture manual com sucesso e cria FI na curva (pré-fixada)', async () => {
       const response = await POST(
         createRequest({
           tipoAtivo: 'debenture',
@@ -1052,6 +1052,7 @@ describe('POST /api/carteira/operacao', () => {
           cotacaoUnitaria: 10,
           metodo: 'cotas',
           tipoDebenture: 'prefixada',
+          taxaJurosAnual: 12.5,
         }),
       );
       const data = await response.json();
@@ -1059,6 +1060,96 @@ describe('POST /api/carteira/operacao', () => {
       expect(data.success).toBe(true);
       expect(mockPrisma.asset.create).toHaveBeenCalled();
       expect(mockPrisma.portfolio.create).toHaveBeenCalled();
+      // Sem API de preços: debênture marca na curva igual emissão bancária.
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'CDB_PRE',
+            indexer: 'PRE',
+            annualRate: 12.5,
+            investedAmount: 1000,
+            description: 'Debênture XYZ',
+            taxExempt: false,
+          }),
+        }),
+      );
+    });
+
+    it('retorna 400 para debênture pré-fixada sem taxa contratada', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'debenture',
+          instituicaoId: 'inst-1',
+          assetId: 'DEBENTURE-MANUAL',
+          ativo: 'Debênture XYZ',
+          dataCompra: '2024-01-15',
+          valorInvestido: 10000,
+          metodo: 'valor',
+          tipoDebenture: 'prefixada',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Taxa contratada');
+      expect(mockPrisma.fixedIncomeAsset.create).not.toHaveBeenCalled();
+    });
+
+    it('pós-fixada usa % do CDI contratado (padrão 100) e vencimento default de 10 anos', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'debenture',
+          instituicaoId: 'inst-1',
+          assetId: 'DEBENTURE-MANUAL',
+          ativo: 'ENAT11',
+          dataCompra: '2022-08-09',
+          valorInvestido: 100000,
+          metodo: 'valor',
+          tipoDebenture: 'pos-fixada',
+          percentualCDI: 110,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            indexer: 'CDI',
+            indexerPercent: 110,
+            annualRate: 0,
+            investedAmount: 100000,
+            maturityDate: new Date('2032-08-09T00:00:00.000Z'),
+          }),
+        }),
+      );
+    });
+
+    it('híbrida incentivada: IPCA + taxa fixa e isenção via tipo CRI_HIB', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'debenture',
+          instituicaoId: 'inst-1',
+          assetId: 'DEBENTURE-MANUAL',
+          ativo: 'Debênture Incentivada ABC',
+          dataCompra: '2024-01-15',
+          valorInvestido: 5000,
+          metodo: 'valor',
+          tipoDebenture: 'hibrida',
+          taxaFixaAnual: 6.5,
+          rendaFixaTaxExempt: true,
+          dataVencimento: '2030-06-30',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.fixedIncomeAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'CRI_HIB',
+            indexer: 'IPCA',
+            indexerPercent: 100,
+            annualRate: 6.5,
+            taxExempt: true,
+          }),
+        }),
+      );
     });
 
     it('retorna 400 quando tipoDebenture ausente', async () => {

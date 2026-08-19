@@ -329,6 +329,12 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       if (tipoAtivo === 'debenture' || tipoAtivo === 'fundo' || tipoAtivo === 'previdencia') {
         const metodoCotas = formData.metodo === 'cotas' || formData.metodo === 'percentual';
         const debentureTipoRequired = tipoAtivo === 'debenture' && !!formData.tipoDebenture;
+        // Debênture pré-fixada exige a taxa contratada — sem ela a marcação
+        // na curva (igual emissão bancária) não tem o que acruar.
+        const debentureTaxaOk =
+          tipoAtivo !== 'debenture' ||
+          formData.tipoDebenture !== 'prefixada' ||
+          (formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000);
         const fundoDestinoRequired = tipoAtivo === 'fundo' && !!formData.fundoDestino;
         const fundoRendaFixaTipoRequired =
           tipoAtivo === 'fundo' &&
@@ -340,6 +346,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
             formData.quantidade > 0 &&
             formData.cotacaoUnitaria > 0 &&
             (tipoAtivo !== 'debenture' || debentureTipoRequired) &&
+            debentureTaxaOk &&
             (tipoAtivo !== 'fundo' || fundoDestinoRequired) &&
             (tipoAtivo !== 'fundo' ||
               formData.fundoDestino !== 'renda-fixa' ||
@@ -350,6 +357,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           dataCompra &&
           formData.valorInvestido > 0 &&
           (tipoAtivo !== 'debenture' || debentureTipoRequired) &&
+          debentureTaxaOk &&
           (tipoAtivo !== 'fundo' || fundoDestinoRequired) &&
           (tipoAtivo !== 'fundo' ||
             formData.fundoDestino !== 'renda-fixa' ||
