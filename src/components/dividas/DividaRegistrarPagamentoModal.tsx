@@ -140,10 +140,11 @@ export default function DividaRegistrarPagamentoModal({
         </div>
         {tipo === 'amortizacao_prazo' ? (
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Quita as <strong>últimas parcelas</strong> do cronograma (redução de prazo): o valor
-            pago cobre a amortização de cada parcela do fim — os juros que ainda não correram são o
-            seu desconto. O saldo devedor cai pelo valor pago e o prazo encurta; a projeção no fluxo
-            de caixa perde as parcelas do fim.
+            Quita as <strong>últimas parcelas</strong> do cronograma (redução de prazo): cada
+            parcela do fim é trazida a <strong>valor presente</strong> (descontada à taxa do
+            contrato até a data do pagamento) — os juros que ainda não correram são o seu desconto.
+            O saldo devedor cai pelo valor pago e o prazo encurta; a projeção no fluxo de caixa
+            perde as parcelas do fim.
           </p>
         ) : null}
 

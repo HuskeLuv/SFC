@@ -51,9 +51,10 @@ export const GET = withErrorHandler(
     }
 
     const principal = decimalToNumber(divida.principal);
+    const taxaAm = decimalToNumber(divida.taxaAm);
     let cronograma = gerarCronograma({
       principal,
-      taxaAm: decimalToNumber(divida.taxaAm),
+      taxaAm,
       prazoMeses: divida.prazoMeses,
       primeiroVencimento: divida.primeiroVencimento,
       sistema: divida.sistema,
@@ -70,7 +71,7 @@ export const GET = withErrorHandler(
       cronograma = corrigirCronograma(cronograma, fatores);
     }
     const pagamentosInput = toPagamentoInputs(divida.pagamentos);
-    const saldo = saldoFinanciamento(principal, cronograma, pagamentosInput);
+    const saldo = saldoFinanciamento(principal, cronograma, pagamentosInput, taxaAm);
     // Parcelas do fim quitadas por amortização (redução de prazo): a UI marca
     // as linhas como amortizadas em vez de escondê-las.
     const parcelasCortadas = parcelasCortadasDe(pagamentosInput);

@@ -198,21 +198,53 @@ export function parcelasCortadasDe(pagamentos: PagamentoDividaInput[]): number {
   );
 }
 
+/** Meses entre dois YYYY-MM (positivo quando `to` é depois de `from`). */
+const monthsBetween = (from: string, to: string): number => {
+  const [fy, fm] = from.split('-').map(Number);
+  const [ty, tm] = to.split('-').map(Number);
+  return (ty - fy) * 12 + (tm - fm);
+};
+
+/**
+ * Custo de HOJE (valor presente) de quitar antecipadamente uma parcela
+ * futura: o valor dela descontado à taxa contratual pelos meses entre
+ * `mesRef` e o vencimento — os juros embutidos na parcela são o desconto do
+ * cliente. Parcela já vencida (mes ≤ mesRef) custa o valor cheio.
+ *
+ * Em contratos indexados, quando o cronograma veio de corrigirCronograma(),
+ * usa a parcela CORRIGIDA pelo índice realizado — o pagamento é em dinheiro
+ * de hoje, então o custo também precisa ser. Cronograma sem correção (base)
+ * degrada pra moeda constante.
+ */
+export function custoQuitacaoParcela(
+  parcela: ParcelaCronograma,
+  taxaAm: number,
+  mesRef: string,
+): number {
+  const meses = Math.max(0, monthsBetween(mesRef, parcela.mes));
+  const valor = parcela.parcelaCorrigida ?? parcela.parcela;
+  return round2(valor / Math.pow(1 + taxaAm, meses));
+}
+
 /**
  * Quantas parcelas do fim um valor de amortização quita (greedy do fim para
- * o começo, sobre o cronograma ainda EFETIVO). O custo de quitar uma parcela
- * futura é a AMORTIZAÇÃO dela — os juros ainda não incorridos são o desconto.
- * `valorTeorico` = soma das amortizações cortadas (≤ valor pago).
+ * o começo, sobre o cronograma ainda EFETIVO). O custo de quitar cada parcela
+ * é o VALOR PRESENTE dela em `mesRef` (custoQuitacaoParcela) — equivale a
+ * recalcular o prazo mantendo o valor das parcelas restantes, como o banco
+ * faz na amortização com redução de prazo.
+ * `valorTeorico` = soma dos custos de hoje das parcelas cortadas (≤ valor pago).
  */
 export function calcularCorteAmortizacao(
   cronograma: ParcelaCronograma[],
   jaCortadas: number,
   valor: number,
+  taxaAm: number,
+  mesRef: string,
 ): { parcelas: number; valorTeorico: number } {
   let parcelas = 0;
   let valorTeorico = 0;
   for (let i = cronograma.length - 1 - jaCortadas; i >= 0; i--) {
-    const custo = cronograma[i].amortizacao;
+    const custo = custoQuitacaoParcela(cronograma[i], taxaAm, mesRef);
     if (valorTeorico + custo > valor + 0.005) break;
     valorTeorico = round2(valorTeorico + custo);
     parcelas += 1;
@@ -224,24 +256,59 @@ export function saldoFinanciamento(
   principal: number,
   cronograma: ParcelaCronograma[],
   pagamentos: PagamentoDividaInput[],
+  taxaAm = 0,
 ): SaldoFinanciamentoResult {
   const parcelasPagas = pagamentos.filter(
     (p) => p.tipo === 'pagamento' && p.parcelaNumero != null,
   ).length;
   // Amortização com redução de prazo tira parcelas do FIM do cronograma:
-  // a "última parcela pagável" recua e o valor pago abate o saldo como um
-  // pagamento extraordinário (o saldo devedor É a soma das amortizações
-  // restantes, então o abate direto fecha a conta em SAC e Price).
+  // a "última parcela pagável" recua.
   const cortadas = parcelasCortadasDe(pagamentos);
   const efetivas = Math.max(0, cronograma.length - cortadas);
   const idx = Math.min(parcelasPagas, efetivas);
-  const saldoTeorico = idx <= 0 ? principal : cronograma[idx - 1].saldoDevedor;
+
+  let saldoTeorico: number;
+  if (cortadas <= 0) {
+    saldoTeorico = idx <= 0 ? principal : cronograma[idx - 1].saldoDevedor;
+  } else {
+    // Com parcelas do fim cortadas, o replay do cronograma superestima o
+    // saldo (ainda inclui as cortadas). O saldo é o VALOR PRESENTE das
+    // parcelas mantidas e ainda não pagas, descontadas à taxa contratual a
+    // partir da posição atual — sem corte, isso coincide com o saldoDevedor
+    // do cronograma; com corte, zera exatamente após a última efetiva.
+    let pv = 0;
+    for (let k = idx; k < efetivas; k++) {
+      pv += cronograma[k].parcela / Math.pow(1 + taxaAm, k + 1 - idx);
+    }
+    saldoTeorico = round2(pv);
+  }
 
   let extras = 0;
   let ajustes = 0;
+  // O abate da amortização com redução de prazo já está refletido na remoção
+  // das parcelas do fim (fora do PV acima). Só o TROCO — o que o valor pago
+  // excedeu o custo de hoje das parcelas cortadas — abate o saldo direto.
+  // (Lançamentos antigos, gravados quando o custo era a amortização nominal,
+  // degradam bem: o troco grande compensa o corte pequeno.) Em contratos
+  // indexados o troco fica mais preciso quando o caller passa o cronograma
+  // corrigido (rota de cronograma); com cronograma base (resumoDivida) sai em
+  // moeda constante — divergência limitada à fração indexada de <1 parcela.
+  let cumCortadas = 0;
+  const amortizacoes = pagamentos
+    .filter((p) => p.tipo === 'amortizacao_prazo')
+    .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
+  for (const p of amortizacoes) {
+    const n = p.parcelaNumero ?? 0;
+    let custo = 0;
+    for (let j = 0; j < n; j++) {
+      const row = cronograma[cronograma.length - 1 - cumCortadas - j];
+      if (row) custo += custoQuitacaoParcela(row, taxaAm, p.month);
+    }
+    extras += Math.max(0, p.valor - round2(custo));
+    cumCortadas += n;
+  }
   for (const p of pagamentos) {
     if (p.tipo === 'pagamento' && p.parcelaNumero == null) extras += p.valor;
-    else if (p.tipo === 'amortizacao_prazo') extras += p.valor;
     else if (p.tipo === 'ajuste') ajustes += p.valor;
   }
 
@@ -314,7 +381,7 @@ export function resumoDivida(d: DividaCalcInput, pagamentos: PagamentoDividaInpu
       primeiroVencimento: d.primeiroVencimento,
       sistema: d.sistema,
     });
-    const s = saldoFinanciamento(d.principal, cronograma, pagamentos);
+    const s = saldoFinanciamento(d.principal, cronograma, pagamentos, d.taxaAm);
     // Prazo efetivo desconta as parcelas do fim quitadas por amortização —
     // o financiamento termina antes (é o objetivo da redução de prazo).
     const totalParcelas = Math.max(0, d.prazoMeses - parcelasCortadasDe(pagamentos));

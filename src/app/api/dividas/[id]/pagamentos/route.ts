@@ -14,10 +14,13 @@ import { deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
 import { dividaPagamentoCreateSchema, validationError } from '@/utils/validation-schemas';
 import {
   calcularCorteAmortizacao,
+  corrigirCronograma,
+  custoQuitacaoParcela,
   gerarCronograma,
   parcelasCortadasDe,
   resumoDivida,
 } from '@/services/dividas/amortizacao';
+import { isIndexadorCorrigivel, monthlyIndexFactors } from '@/services/dividas/indexacaoDivida';
 import { syncDividaRecordToCashflow } from '@/services/dividas/dividaCashflowSync';
 import { recordChange, diffFields, DIVIDA_PAGAMENTO_FIELD_LABELS } from '@/services/changeHistory';
 import {
@@ -80,9 +83,10 @@ export const POST = withErrorHandler(
     }
 
     // Amortização com redução de prazo: quita parcelas do FIM do cronograma.
-    // O servidor calcula quantas o valor cobre (custo = amortização de cada
-    // uma; juros futuros são o desconto do cliente) e grava o nº cortado em
-    // parcelaNumero — semântica própria desse tipo.
+    // O servidor calcula quantas o valor cobre (custo = VALOR PRESENTE de
+    // cada parcela na data do pagamento; os juros embutidos são o desconto do
+    // cliente) e grava o nº cortado em parcelaNumero — semântica própria
+    // desse tipo.
     let parcelasCortadas: number | null = null;
     if (p.tipo === 'amortizacao_prazo') {
       if (
@@ -98,20 +102,33 @@ export const POST = withErrorHandler(
           { status: 400 },
         );
       }
-      const cronograma = gerarCronograma({
+      const taxaAm = decimalToNumber(divida.taxaAm);
+      let cronograma = gerarCronograma({
         principal: decimalToNumber(divida.principal),
-        taxaAm: decimalToNumber(divida.taxaAm),
+        taxaAm,
         prazoMeses: divida.prazoMeses,
         primeiroVencimento: divida.primeiroVencimento,
         sistema: divida.sistema,
       });
+      // Contrato indexado: o pagamento é em dinheiro de hoje, então o custo
+      // de quitar cada parcela do fim usa a parcela CORRIGIDA pelo índice
+      // realizado (custoQuitacaoParcela prefere parcelaCorrigida) — sem isso
+      // o corte em moeda constante quitaria parcelas demais.
+      if (isIndexadorCorrigivel(divida.indexador) && cronograma.length > 0) {
+        const fatores = await monthlyIndexFactors(
+          divida.indexador,
+          divida.primeiroVencimento,
+          cronograma[cronograma.length - 1].mes,
+        );
+        cronograma = corrigirCronograma(cronograma, fatores);
+      }
       const jaCortadas = parcelasCortadasDe(toPagamentoInputs(divida.pagamentos));
-      const corte = calcularCorteAmortizacao(cronograma, jaCortadas, p.valor);
+      const corte = calcularCorteAmortizacao(cronograma, jaCortadas, p.valor, taxaAm, p.month);
       if (corte.parcelas < 1) {
         const ultima = cronograma[cronograma.length - 1 - jaCortadas];
         return NextResponse.json(
           {
-            error: `Valor não quita nem a última parcela do cronograma (amortização de R$ ${ultima ? ultima.amortizacao.toFixed(2) : '—'}). Para abater o saldo sem reduzir o prazo, use o pagamento extraordinário.`,
+            error: `Valor não quita nem a última parcela do cronograma (custo de hoje: R$ ${ultima ? custoQuitacaoParcela(ultima, taxaAm, p.month).toFixed(2) : '—'}). Para abater o saldo sem reduzir o prazo, use o pagamento extraordinário.`,
           },
           { status: 400 },
         );
