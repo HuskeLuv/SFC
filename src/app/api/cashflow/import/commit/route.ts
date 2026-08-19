@@ -54,7 +54,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   await ensureDependentesTemplate();
   const arvore = await getMergedCashflowGroups(targetUserId, ano);
   const plan = mapFlcToCashflow(lido.parse, arvore);
-  const relatorio = await executeFlcImportPlan(plan, targetUserId, ano, politica);
+  const { relatorio, undo } = await executeFlcImportPlan(plan, targetUserId, ano, politica);
 
   if (relatorio.celulasGravadas > 0 || relatorio.itensCriados > 0) {
     // Import grava valores do ano inteiro (meses passados incluídos) →
@@ -74,6 +74,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       action: 'fluxo.importar-planilha',
       entity: 'importacao',
       entityLabel: `a planilha "${arquivo}" (${ano}): ${relatorio.celulasGravadas} células, ${relatorio.itensCriados} itens novos, ${relatorio.comentariosGravados} comentários`,
+      // Pré-estado de tudo que o import gravou — habilita o Desfazer (ticket
+      // QA 19/08/2026): células restauram ao valor anterior, itens criados
+      // são removidos; célula editada DEPOIS do import é preservada.
+      snapshot: {
+        v: 1,
+        kind: 'fluxo-import',
+        data: undo as unknown as Record<string, unknown>,
+        meta: { ano, arquivo },
+      },
     });
   }
 
