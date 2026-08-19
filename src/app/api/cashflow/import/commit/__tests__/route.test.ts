@@ -59,6 +59,8 @@ const relatorioOk = {
   erros: [],
 };
 
+const undoVazio = { ano: 2026, itensCriados: [], metadados: [], valores: [] };
+
 const createRequest = (fields: { file?: File; ano?: string; politicaConflito?: string }) => {
   const form = new FormData();
   if (fields.file) form.append('file', fields.file);
@@ -80,7 +82,7 @@ describe('POST /api/cashflow/import/commit', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetMergedCashflowGroups.mockResolvedValue(arvore());
-    mockExecute.mockResolvedValue(relatorioOk);
+    mockExecute.mockResolvedValue({ relatorio: relatorioOk, undo: undoVazio });
   });
 
   it('recalcula o plano no servidor, executa e registra no histórico', async () => {
@@ -103,6 +105,12 @@ describe('POST /api/cashflow/import/commit', () => {
         section: 'fluxo-caixa',
         action: 'fluxo.importar-planilha',
         entityLabel: expect.stringContaining('flc.xlsx'),
+        // pré-estado da importação — habilita o Desfazer no histórico
+        snapshot: expect.objectContaining({
+          kind: 'fluxo-import',
+          data: undoVazio,
+          meta: expect.objectContaining({ ano: 2026 }),
+        }),
       }),
     );
     // árvore buscada antes (map) e depois (resposta) da execução
@@ -122,7 +130,10 @@ describe('POST /api/cashflow/import/commit', () => {
   });
 
   it('não registra histórico quando nada foi gravado', async () => {
-    mockExecute.mockResolvedValue({ ...relatorioOk, itensCriados: 0, celulasGravadas: 0 });
+    mockExecute.mockResolvedValue({
+      relatorio: { ...relatorioOk, itensCriados: 0, celulasGravadas: 0 },
+      undo: undoVazio,
+    });
     const response = await POST(createRequest({ file: xlsxFile(), ano: '2026' }));
     expect(response.status).toBe(200);
     expect(mockRecordChange).not.toHaveBeenCalled();
@@ -131,8 +142,8 @@ describe('POST /api/cashflow/import/commit', () => {
 
   it('success=false quando o relatório tem erros', async () => {
     mockExecute.mockResolvedValue({
-      ...relatorioOk,
-      erros: [{ label: 'Aluguel', erro: 'boom' }],
+      relatorio: { ...relatorioOk, erros: [{ label: 'Aluguel', erro: 'boom' }] },
+      undo: undoVazio,
     });
     const response = await POST(createRequest({ file: xlsxFile(), ano: '2026' }));
     const body = await response.json();

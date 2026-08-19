@@ -9,6 +9,8 @@
  */
 
 import prisma from '@/lib/prisma';
+import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
+import type { FlcImportUndoData } from '@/services/cashflow/import/executeFlcImportPlan';
 import { UndoError, type UndoContext, type UndoDefinition, type UndoOutcome } from '../types';
 import {
   assertCurrentMatchesAfter,
@@ -355,6 +357,105 @@ const grupoExcluir: UndoDefinition = {
   },
 };
 
+/**
+ * Desfazer da importação de planilha FLC (ticket QA 19/08/2026). O snapshot
+ * (kind 'fluxo-import') guarda o pré-estado de tudo que o executor gravou:
+ * - células de itens pré-existentes: restaura `antes` (ou remove a row se a
+ *   célula não existia) — mas SÓ quando o estado atual ainda bate com o
+ *   `depois` gravado pelo import; célula editada depois é preservada.
+ * - significado/rank preenchidos em itens vazios: volta ao anterior.
+ * - itens criados pelo import: removidos com todas as suas células.
+ * A personalização de grupos/itens (cópia template → usuário) fica — é
+ * infraestrutura sem efeito em valores.
+ */
+const importarPlanilha: UndoDefinition = {
+  strategy: 'custom',
+  requires: { snapshot: true },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const { targetUserId } = auth;
+    const snap = getSnapshot(entry)!;
+    if (snap.kind !== 'fluxo-import') {
+      throw new UndoError(400, 'Snapshot incompatível', 'UNDO_MISSING_DATA');
+    }
+    const data = snap.data as unknown as FlcImportUndoData;
+    if (typeof data?.ano !== 'number') {
+      throw new UndoError(400, 'Snapshot sem o ano da importação', 'UNDO_MISSING_DATA');
+    }
+    const ano = data.ano;
+    const idsCriados = (data.itensCriados ?? []).map((i) => i.id);
+
+    let restauradas = 0;
+    let mantidas = 0;
+    for (const v of data.valores ?? []) {
+      const current = await prisma.cashflowValue.findFirst({
+        where: { itemId: v.itemId, userId: targetUserId, year: ano, month: v.month },
+      });
+      const atual = current
+        ? {
+            value: Number(current.value),
+            comment: current.comment ?? null,
+            color: current.color ?? null,
+          }
+        : null;
+      const aindaEhDoImport =
+        atual !== null &&
+        atual.value === v.depois.value &&
+        atual.comment === v.depois.comment &&
+        atual.color === v.depois.color;
+      if (!aindaEhDoImport) {
+        // Editada/removida depois do import — preserva a mudança mais nova.
+        mantidas += 1;
+        continue;
+      }
+      if (v.antes === null) {
+        await prisma.cashflowValue.delete({ where: { id: current!.id } });
+      } else {
+        await prisma.cashflowValue.update({
+          where: { id: current!.id },
+          data: { value: v.antes.value, comment: v.antes.comment, color: v.antes.color },
+        });
+      }
+      restauradas += 1;
+    }
+
+    for (const m of data.metadados ?? []) {
+      const item = await prisma.cashflowItem.findFirst({
+        where: { id: m.itemId, userId: targetUserId },
+      });
+      if (!item) continue;
+      const upd: { significado?: string | null; rank?: string | null } = {};
+      if (m.significadoDepois !== undefined && (item.significado ?? null) === m.significadoDepois) {
+        upd.significado = m.significadoAntes ?? null;
+      }
+      if (m.rankDepois !== undefined && (item.rank ?? null) === m.rankDepois) {
+        upd.rank = m.rankAntes ?? null;
+      }
+      if (Object.keys(upd).length > 0) {
+        await prisma.cashflowItem.update({ where: { id: item.id }, data: upd });
+      }
+    }
+
+    if (idsCriados.length > 0) {
+      await prisma.cashflowValue.deleteMany({
+        where: { itemId: { in: idsCriados }, userId: targetUserId },
+      });
+      await prisma.cashflowItem.deleteMany({
+        where: { id: { in: idsCriados }, userId: targetUserId },
+      });
+    }
+
+    // Mesmo efeito colateral do commit: valores do ano mudaram → snapshots
+    // travados da Evolução do Patrimônio recomputam do ano em diante.
+    if (restauradas > 0 || idsCriados.length > 0) {
+      await recomputeEvolucaoSnapshotsSafe(targetUserId, new Date(Date.UTC(ano, 0, 1)));
+    }
+
+    const partes = [`${restauradas} células restauradas`, `${idsCriados.length} itens removidos`];
+    if (mantidas > 0) partes.push(`${mantidas} células mantidas (editadas depois do import)`);
+    return { entityLabel: `${entry.entityLabel ?? `importação (${ano})`} — ${partes.join(', ')}` };
+  },
+};
+
 // 'lancamento.*' (modelo legado Cashflow) saiu do registry quando o modelo foi
 // dropado: entradas antigas seguem visíveis no histórico (labels em
 // renderChange), apenas sem Desfazer.
@@ -367,4 +468,5 @@ export const FLUXO_CAIXA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'grupo.criar': grupoCriar,
   'grupo.editar': grupoEditar,
   'grupo.excluir': grupoExcluir,
+  'fluxo.importar-planilha': importarPlanilha,
 };

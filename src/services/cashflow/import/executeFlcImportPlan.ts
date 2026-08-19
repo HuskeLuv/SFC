@@ -33,12 +33,44 @@ export interface FlcImportRelatorio {
   erros: { label: string; erro: string }[];
 }
 
+/** Estado de uma célula (para o snapshot de undo). */
+export interface FlcCelulaEstado {
+  value: number;
+  comment: string | null;
+  color: string | null;
+}
+
+/**
+ * Dados de reversão da importação (ticket QA 19/08/2026): o pré-estado de
+ * TUDO que o executor gravou. Vai no snapshot do UserChangeLog e o handler
+ * 'fluxo.importar-planilha' restaura célula a célula — `antes: null` = a
+ * célula não existia; `depois` permite pular células editadas após o import.
+ */
+export interface FlcImportUndoData {
+  ano: number;
+  itensCriados: { id: string; nome: string }[];
+  metadados: {
+    itemId: string;
+    significadoAntes?: string | null;
+    significadoDepois?: string;
+    rankAntes?: string | null;
+    rankDepois?: string;
+  }[];
+  /** Só células de itens PRÉ-existentes — as dos itens criados somem com eles. */
+  valores: {
+    itemId: string;
+    month: number;
+    antes: FlcCelulaEstado | null;
+    depois: FlcCelulaEstado;
+  }[];
+}
+
 export const executeFlcImportPlan = async (
   plan: FlcImportPlan,
   targetUserId: string,
   ano: number,
   politica: FlcPoliticaConflito,
-): Promise<FlcImportRelatorio> => {
+): Promise<{ relatorio: FlcImportRelatorio; undo: FlcImportUndoData }> => {
   const relatorio: FlcImportRelatorio = {
     itensCriados: 0,
     celulasGravadas: 0,
@@ -49,6 +81,8 @@ export const executeFlcImportPlan = async (
     conflitosMantidos: 0,
     erros: [],
   };
+  const undo: FlcImportUndoData = { ano, itensCriados: [], metadados: [], valores: [] };
+  const idsItensCriados = new Set<string>();
 
   // grupo do plano → grupo final do usuário (personalizado sob demanda)
   const grupoFinal = new Map<string, string>();
@@ -141,14 +175,24 @@ export const executeFlcImportPlan = async (
       // fill-if-empty re-checado contra o estado do banco (o plano é recalculado
       // no commit, mas entre map e execução o usuário pode ter preenchido)
       if ((significadoNovo && !item.significado?.trim()) || (rankNovo && !item.rank?.trim())) {
+        const gravaSignificado = Boolean(significadoNovo && !item.significado?.trim());
+        const gravaRank = Boolean(rankNovo && !item.rank?.trim());
         await prisma.cashflowItem.update({
           where: { id: finalItemId },
           data: {
-            ...(significadoNovo && !item.significado?.trim() && { significado: significadoNovo }),
-            ...(rankNovo && !item.rank?.trim() && { rank: rankNovo }),
+            ...(gravaSignificado && { significado: significadoNovo }),
+            ...(gravaRank && { rank: rankNovo }),
           },
         });
-        if (significadoNovo && !item.significado?.trim()) relatorio.significadosGravados += 1;
+        undo.metadados.push({
+          itemId: finalItemId,
+          ...(gravaSignificado && {
+            significadoAntes: item.significado ?? null,
+            significadoDepois: significadoNovo!,
+          }),
+          ...(gravaRank && { rankAntes: item.rank ?? null, rankDepois: rankNovo! }),
+        });
+        if (gravaSignificado) relatorio.significadosGravados += 1;
       }
     } else {
       const finalGroupId = await resolverGrupo(planGroupId);
@@ -167,8 +211,44 @@ export const executeFlcImportPlan = async (
           },
         });
         itemCriado.set(chave, criado.id);
+        idsItensCriados.add(criado.id);
+        undo.itensCriados.push({ id: criado.id, nome: itemPlano.label });
         relatorio.itensCriados += 1;
         finalItemId = criado.id;
+      }
+    }
+
+    // Pré-estado das células (undo). Só itens PRÉ-existentes: célula de item
+    // criado pelo import é revertida junto com a exclusão do item. Ler ANTES
+    // do upsert — se o upsert falhar, antes==atual e o handler trata como
+    // "não bate com o depois" e pula (idempotente).
+    if (!idsItensCriados.has(finalItemId) && porMes.size > 0) {
+      const existentes = await prisma.cashflowValue.findMany({
+        where: {
+          itemId: finalItemId,
+          userId: targetUserId,
+          year: ano,
+          month: { in: [...porMes.keys()] },
+        },
+      });
+      const antesPorMes = new Map<number, FlcCelulaEstado>(
+        existentes.map((r) => [
+          r.month,
+          { value: Number(r.value), comment: r.comment ?? null, color: r.color ?? null },
+        ]),
+      );
+      for (const [mes, e] of porMes) {
+        const antes = antesPorMes.get(mes) ?? null;
+        undo.valores.push({
+          itemId: finalItemId,
+          month: mes,
+          antes,
+          depois: {
+            value: e.valor ?? antes?.value ?? 0,
+            comment: e.comentario ?? antes?.comment ?? null,
+            color: e.cor ?? antes?.color ?? null,
+          },
+        });
       }
     }
 
@@ -192,5 +272,5 @@ export const executeFlcImportPlan = async (
     }
   }
 
-  return relatorio;
+  return { relatorio, undo };
 };

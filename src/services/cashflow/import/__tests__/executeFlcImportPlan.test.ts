@@ -5,7 +5,7 @@ import type { FlcGrupoPlano, FlcImportPlan, FlcItemPlano } from '../mapFlcToCash
 const mockPrisma = vi.hoisted(() => ({
   cashflowGroup: { findUnique: vi.fn() },
   cashflowItem: { create: vi.fn(), update: vi.fn().mockResolvedValue({}) },
-  cashflowValue: { upsert: vi.fn().mockResolvedValue({}) },
+  cashflowValue: { upsert: vi.fn().mockResolvedValue({}), findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 const mockEnsurePersonalizedItem = vi.hoisted(() => vi.fn());
@@ -57,7 +57,7 @@ describe('executeFlcImportPlan', () => {
   });
 
   it('grava escritas de item existente via ensurePersonalizedItem + upsert na chave composta', async () => {
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([
         grupoPlano([
           itemPlano({
@@ -93,7 +93,12 @@ describe('executeFlcImportPlan', () => {
         ]),
       ]);
 
-    const sobrescreve = await executeFlcImportPlan(comConflito(), 'user-1', 2026, 'sobrescrever');
+    const { relatorio: sobrescreve } = await executeFlcImportPlan(
+      comConflito(),
+      'user-1',
+      2026,
+      'sobrescrever',
+    );
     expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ update: { value: 200 } }),
     );
@@ -104,13 +109,18 @@ describe('executeFlcImportPlan', () => {
       itemId: 'item-final',
       item: { id: 'item-1', objetivoId: null },
     });
-    const mantem = await executeFlcImportPlan(comConflito(), 'user-1', 2026, 'manter');
+    const { relatorio: mantem } = await executeFlcImportPlan(
+      comConflito(),
+      'user-1',
+      2026,
+      'manter',
+    );
     expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
     expect(mantem).toMatchObject({ conflitosMantidos: 1, celulasGravadas: 0 });
   });
 
   it('preenche significado/rank de item existente vazio (report 10/08, bug #1)', async () => {
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([
         grupoPlano([
           itemPlano({
@@ -141,7 +151,7 @@ describe('executeFlcImportPlan', () => {
       itemId: 'item-final',
       item: { id: 'item-1', objetivoId: null, significado: 'Preenchido pelo usuário agora' },
     });
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([
         grupoPlano([
           itemPlano({
@@ -164,7 +174,7 @@ describe('executeFlcImportPlan', () => {
   });
 
   it('linha só de significado grava metadados sem upsert de valores', async () => {
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([
         grupoPlano([
           itemPlano({
@@ -189,7 +199,7 @@ describe('executeFlcImportPlan', () => {
   });
 
   it('grava cor da legenda no mesmo upsert do valor (report 10/08, item 4)', async () => {
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([
         grupoPlano([
           itemPlano({
@@ -238,7 +248,12 @@ describe('executeFlcImportPlan', () => {
         ]),
       ]);
 
-    const mantem = await executeFlcImportPlan(comCorConflitante(), 'user-1', 2026, 'manter');
+    const { relatorio: mantem } = await executeFlcImportPlan(
+      comCorConflitante(),
+      'user-1',
+      2026,
+      'manter',
+    );
     expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
     expect(mantem).toMatchObject({ coresGravadas: 0 });
 
@@ -247,7 +262,7 @@ describe('executeFlcImportPlan', () => {
       itemId: 'item-final',
       item: { id: 'item-1', objetivoId: null },
     });
-    const sobrescreve = await executeFlcImportPlan(
+    const { relatorio: sobrescreve } = await executeFlcImportPlan(
       comCorConflitante(),
       'user-1',
       2026,
@@ -262,7 +277,7 @@ describe('executeFlcImportPlan', () => {
   it('cria item custom; grupo template é personalizado antes (personalizeGroup)', async () => {
     mockPrisma.cashflowGroup.findUnique.mockResolvedValue({ id: 'grp-tpl', userId: null });
 
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([
         grupoPlano(
           [
@@ -297,7 +312,7 @@ describe('executeFlcImportPlan', () => {
       label: 'Jardineiro',
       destino: { tipo: 'criar', significado: null, rank: null },
     });
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([grupoPlano([criar]), grupoPlano([{ ...criar, escritas: [{ mes: 5, valor: 9 }] }])]),
       'user-1',
       2026,
@@ -311,7 +326,7 @@ describe('executeFlcImportPlan', () => {
   });
 
   it('valor e comentário no mesmo mês vão no MESMO upsert; comentário sozinho cria valor 0', async () => {
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([
         grupoPlano([
           itemPlano({
@@ -371,7 +386,12 @@ describe('executeFlcImportPlan', () => {
         ]),
       ]);
 
-    const mantem = await executeFlcImportPlan(comConflito(), 'user-1', 2026, 'manter');
+    const { relatorio: mantem } = await executeFlcImportPlan(
+      comConflito(),
+      'user-1',
+      2026,
+      'manter',
+    );
     expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
     expect(mantem).toMatchObject({ comentariosGravados: 0 });
 
@@ -380,7 +400,12 @@ describe('executeFlcImportPlan', () => {
       itemId: 'item-final',
       item: { id: 'item-1', objetivoId: null },
     });
-    const sobrescreve = await executeFlcImportPlan(comConflito(), 'user-1', 2026, 'sobrescrever');
+    const { relatorio: sobrescreve } = await executeFlcImportPlan(
+      comConflito(),
+      'user-1',
+      2026,
+      'sobrescrever',
+    );
     expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ update: { comment: 'Da planilha' } }),
     );
@@ -392,7 +417,7 @@ describe('executeFlcImportPlan', () => {
       itemId: 'item-final',
       item: { id: 'item-1', objetivoId: 'obj-1' },
     });
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([grupoPlano([itemPlano()])]),
       'user-1',
       2026,
@@ -408,7 +433,7 @@ describe('executeFlcImportPlan', () => {
       .mockRejectedValueOnce(new Error('Item não encontrado'))
       .mockResolvedValueOnce({ itemId: 'item-b', item: { id: 'b', objetivoId: null } });
 
-    const rel = await executeFlcImportPlan(
+    const { relatorio: rel } = await executeFlcImportPlan(
       plano([
         grupoPlano([
           itemPlano({ label: 'Quebrado' }),
