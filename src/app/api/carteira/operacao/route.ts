@@ -551,6 +551,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         { status: 400 },
       );
     }
+    // Sem API de preços de debêntures, a rentabilidade acompanha a taxa
+    // contratada (marcação na curva, igual emissão bancária) — pré-fixada
+    // sem taxa ficaria eternamente em 0%.
+    if (
+      tipoAtivo === 'debenture' &&
+      tipoDebenture === 'prefixada' &&
+      !(typeof taxaJurosAnual === 'number' && taxaJurosAnual > 0)
+    ) {
+      return NextResponse.json(
+        { error: 'Taxa contratada (% a.a.) é obrigatória para debênture pré-fixada' },
+        { status: 400 },
+      );
+    }
     if (
       tipoAtivo === 'fundo' &&
       (!fundoDestino ||
@@ -1856,7 +1869,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // aparece na tabela de RF sem "valor atual" calculável e quebra os gráficos em /ativos/[id].
   let fixedIncomeCreateData: Parameters<typeof prisma.fixedIncomeAsset.create>[0]['data'] | null =
     null;
-  if ((isRendaFixa || isTesouroRendaFixa || isTesouroReserva || isManualReserva) && asset?.id) {
+  if (
+    (isRendaFixa ||
+      isTesouroRendaFixa ||
+      isTesouroReserva ||
+      isManualReserva ||
+      isDebentureManual) &&
+    asset?.id
+  ) {
     const descricaoTesouro = requestBody.descricao || requestBody.ativo;
     const dataInicioTesouro = dataCompra || dataInicio;
     const valorAplicadoTesouro =
@@ -1917,6 +1937,31 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         indexerForAsset = 'CDI';
         indexerPercentForAsset = percentualCDISafe ?? 100;
       }
+    } else if (isDebentureManual) {
+      // Debênture manual: sem API de preços, marca na curva com a taxa
+      // contratada — mesmo modelo da emissão bancária (ticket QA 19/08/2026).
+      // Incentivada (isenta de IR p/ PF) usa o tipo CRI_* pra herdar a
+      // classificação de isenção do calcularIRRendaFixa; comum fica CDB_*.
+      const percentualCDISafe =
+        typeof percentualCDI === 'number' && percentualCDI > 0 ? percentualCDI : null;
+      const isenta = Boolean(rendaFixaTaxExempt);
+      if (tipoDebenture === 'prefixada') {
+        rendaFixaTipoForAsset = isenta ? 'CRI_PRE' : 'CDB_PRE';
+        indexerForAsset = 'PRE';
+        indexerPercentForAsset = null;
+        annualRateForAsset = taxaJurosAnual ?? 0;
+      } else if (tipoDebenture === 'hibrida') {
+        rendaFixaTipoForAsset = isenta ? 'CRI_HIB' : 'CDB_HIB';
+        indexerForAsset = rendaFixaIndexer === 'CDI' ? 'CDI' : 'IPCA';
+        indexerPercentForAsset = 100;
+        annualRateForAsset = taxaFixaAnual ?? 0;
+      } else {
+        // pos-fixada: % do CDI contratado (padrão 100%)
+        rendaFixaTipoForAsset = isenta ? 'CRI_PRE' : 'CDB_PRE';
+        indexerForAsset = 'CDI';
+        indexerPercentForAsset = percentualCDISafe ?? 100;
+        annualRateForAsset = 0;
+      }
     } else {
       annualRateForAsset =
         tipoAtivo === 'renda-fixa-hibrida' ? (taxaFixaAnual ?? 0) : taxaJurosAnual;
@@ -1962,23 +2007,39 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       }
     }
 
+    // Debênture sem vencimento informado: horizonte de 10 anos (mesma
+    // convenção do fundo de renda fixa manual) — só ancora a maturityDate,
+    // não afeta a marcação na curva.
+    const debentureMaturityDefault = () => {
+      const d = new Date(dataCompra || new Date());
+      d.setFullYear(d.getFullYear() + 10);
+      return d.toISOString();
+    };
     const startDateForFi = isTesouroRendaFixa
       ? dataInicioTesouro
-      : isTesouroReserva || isManualReserva
+      : isTesouroReserva || isManualReserva || isDebentureManual
         ? dataCompra
         : dataInicio;
     const maturityDateForFi =
       (isTesouroReserva || isManualReserva) && vencimento
         ? vencimento
-        : dataVencimento || vencimento;
+        : isDebentureManual
+          ? dataVencimento || debentureMaturityDefault()
+          : dataVencimento || vencimento;
     const investedForFi = isTesouroRendaFixa
       ? valorAplicadoTesouro
       : isTesouroReserva || isManualReserva
         ? valorInvestido
-        : valorAplicado;
+        : isDebentureManual
+          ? (requestBody.metodo === 'cotas' || requestBody.metodo === 'percentual') &&
+            quantidade > 0 &&
+            cotacaoUnitaria > 0
+            ? quantidade * cotacaoUnitaria
+            : valorInvestido
+          : valorAplicado;
     const descriptionForFi = isTesouroRendaFixa
       ? descricaoTesouro
-      : isTesouroReserva || isManualReserva
+      : isTesouroReserva || isManualReserva || isDebentureManual
         ? requestBody.descricao || requestBody.ativo || asset.name
         : descricao;
 
@@ -2020,7 +2081,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         isRendaFixa ||
         isTesouroReserva ||
         isTesouroRendaFixa ||
-        isFundoReserva
+        isFundoReserva ||
+        // Debênture manual agora carrega FixedIncomeAsset (marcação na curva
+        // igual emissão bancária) — precisa do branch FI-aware. Asset é único
+        // por registro (symbol com timestamp), então fiExistente nunca colide.
+        isDebentureManual
       ) {
         const portfolioCreateArgs = {
           data: {
