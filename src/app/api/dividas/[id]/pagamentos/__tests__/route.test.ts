@@ -20,6 +20,12 @@ const mockSyncDivida = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock('@/services/dividas/dividaCashflowSync', () => ({
   syncDividaRecordToCashflow: mockSyncDivida,
 }));
+// isIndexadorCorrigivel é puro e fica real; só os fatores (I/O) são mockados.
+const mockMonthlyFactors = vi.hoisted(() => vi.fn().mockResolvedValue({}));
+vi.mock('@/services/dividas/indexacaoDivida', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/dividas/indexacaoDivida')>();
+  return { ...actual, monthlyIndexFactors: mockMonthlyFactors };
+});
 
 import { POST } from '../route';
 
@@ -176,6 +182,36 @@ describe('POST amortização com redução de prazo', () => {
     expect(res.status).toBe(400);
     expect(data.error).toContain('pagamento extraordinário');
     expect(mockPrisma.dividaPagamento.create).not.toHaveBeenCalled();
+  });
+
+  it('dívida indexada: corte usa a parcela CORRIGIDA pelo índice realizado', async () => {
+    // Parcela base 1.000 com correção +10% → custo de hoje 1.100 por parcela:
+    // R$ 3.000 cortam 2, não 3 (corrigirCronograma repete o último fator).
+    mockMonthlyFactors.mockResolvedValueOnce({ '2026-01': 1.1 });
+    mockPrisma.divida.findFirst.mockResolvedValue(
+      financiamentoRow({
+        principal: 12000,
+        taxaAm: 0,
+        prazoMeses: 12,
+        sistema: 'SAC',
+        indexador: 'IPCA',
+      }),
+    );
+    mockPrisma.dividaPagamento.create.mockResolvedValue(
+      pagamentoRow({ tipo: 'amortizacao_prazo', parcelaNumero: 2, valor: 3000 }),
+    );
+
+    const res = await POST(
+      postReq({ month: '2026-06', valor: 3000, tipo: 'amortizacao_prazo' }),
+      params,
+    );
+    expect(res.status).toBe(201);
+    expect(mockMonthlyFactors).toHaveBeenCalledWith('IPCA', '2026-01', '2026-12');
+    expect(mockPrisma.dividaPagamento.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tipo: 'amortizacao_prazo', parcelaNumero: 2 }),
+      }),
+    );
   });
 
   it('400 para rotativa', async () => {

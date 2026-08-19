@@ -210,6 +210,11 @@ const monthsBetween = (from: string, to: string): number => {
  * futura: o valor dela descontado à taxa contratual pelos meses entre
  * `mesRef` e o vencimento — os juros embutidos na parcela são o desconto do
  * cliente. Parcela já vencida (mes ≤ mesRef) custa o valor cheio.
+ *
+ * Em contratos indexados, quando o cronograma veio de corrigirCronograma(),
+ * usa a parcela CORRIGIDA pelo índice realizado — o pagamento é em dinheiro
+ * de hoje, então o custo também precisa ser. Cronograma sem correção (base)
+ * degrada pra moeda constante.
  */
 export function custoQuitacaoParcela(
   parcela: ParcelaCronograma,
@@ -217,7 +222,8 @@ export function custoQuitacaoParcela(
   mesRef: string,
 ): number {
   const meses = Math.max(0, monthsBetween(mesRef, parcela.mes));
-  return round2(parcela.parcela / Math.pow(1 + taxaAm, meses));
+  const valor = parcela.parcelaCorrigida ?? parcela.parcela;
+  return round2(valor / Math.pow(1 + taxaAm, meses));
 }
 
 /**
@@ -283,7 +289,10 @@ export function saldoFinanciamento(
   // das parcelas do fim (fora do PV acima). Só o TROCO — o que o valor pago
   // excedeu o custo de hoje das parcelas cortadas — abate o saldo direto.
   // (Lançamentos antigos, gravados quando o custo era a amortização nominal,
-  // degradam bem: o troco grande compensa o corte pequeno.)
+  // degradam bem: o troco grande compensa o corte pequeno.) Em contratos
+  // indexados o troco fica mais preciso quando o caller passa o cronograma
+  // corrigido (rota de cronograma); com cronograma base (resumoDivida) sai em
+  // moeda constante — divergência limitada à fração indexada de <1 parcela.
   let cumCortadas = 0;
   const amortizacoes = pagamentos
     .filter((p) => p.tipo === 'amortizacao_prazo')

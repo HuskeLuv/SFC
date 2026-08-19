@@ -6,6 +6,7 @@ import {
   gerarCronogramaPrice,
   gerarCronograma,
   calcularCorteAmortizacao,
+  custoQuitacaoParcela,
   saldoFinanciamento,
   saldoRotativa,
   resumoDivida,
@@ -383,6 +384,26 @@ describe('amortização com redução de prazo — valor presente (juros > 0)', 
     const s = saldoFinanciamento(100_000, cron, [amort, ...pagas], 0.01);
     expect(s.saldoDevedor).toBe(0);
     expect(s.proximaParcela).toBeNull();
+  });
+
+  it('cronograma corrigido por índice: custo usa a parcela CORRIGIDA', () => {
+    // SAC 12.000 / 0% / 12m (parcela base 1.000) com correção realizada de
+    // +10% em todos os meses: quitar uma parcela do fim custa 1.100 em
+    // dinheiro de hoje — R$ 3.000 cortam 2 parcelas, não 3.
+    const base = gerarCronograma({
+      principal: 12_000,
+      taxaAm: 0,
+      prazoMeses: 12,
+      primeiroVencimento: '2026-01',
+      sistema: 'SAC',
+    });
+    const fatores = Object.fromEntries(base.map((r) => [r.mes, 1.1]));
+    const corrigido = corrigirCronograma(base, fatores);
+    expect(custoQuitacaoParcela(corrigido[11], 0, '2026-05')).toBe(1100);
+    const corte = calcularCorteAmortizacao(corrigido, 0, 3000, 0, '2026-05');
+    expect(corte).toEqual({ parcelas: 2, valorTeorico: 2200 });
+    // Sem correção, o mesmo valor cortaria 3 (comportamento base preservado).
+    expect(calcularCorteAmortizacao(base, 0, 3000, 0, '2026-05').parcelas).toBe(3);
   });
 
   it('lançamento legado (contagem pela regra antiga) segue abatendo ≈ o valor pago', () => {
