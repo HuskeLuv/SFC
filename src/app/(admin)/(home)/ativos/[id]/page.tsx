@@ -233,9 +233,13 @@ function AtivoDetalheContent() {
       }
     >();
 
+    // Agrupamento SEMPRE em UTC: os timestamps da série são UTC-midnight e o
+    // rótulo (formatMonthYear) formata em UTC. Agrupar com getMonth() local
+    // (navegador em BRT = UTC−3) desloca todo dia 1º pro mês anterior e a
+    // tabela mostra meses duplicados/faltando (report QA 19/08/2026).
     hp.forEach((h) => {
       const d = new Date(h.data);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
       const existing = monthMap.get(monthKey);
       if (!existing || h.data >= existing.date) {
         monthMap.set(monthKey, {
@@ -252,8 +256,8 @@ function AtivoDetalheContent() {
 
     twr.forEach((h) => {
       const d = new Date(h.date);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).getTime();
+      const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      const lastDay = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59);
       const entry = monthMap.get(monthKey);
       if (entry && h.date <= lastDay + 86400000) {
         entry.rentFim = h.value;
@@ -270,7 +274,7 @@ function AtivoDetalheContent() {
 
     prov.forEach((p) => {
       const d = new Date(p.data);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
       const entry = monthMap.get(monthKey);
       if (entry) entry.proventos += p.valorTotal;
     });
