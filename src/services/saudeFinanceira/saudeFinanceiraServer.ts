@@ -416,11 +416,11 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
       CATEGORIA_LABELS.reservaOportunidade,
       porCategoria.reservaOportunidade,
     ),
-    ...linha('rendaFixaAltaLiquidez', 'Renda Fixa (liquidez ≤ 12m)', rendaFixaAltaLiquidez),
+    ...linha('rendaFixaAltaLiquidez', 'Renda Fixa até D+360', rendaFixaAltaLiquidez),
     ...linha('caixaParaInvestir', 'Caixa para investir', caixaParaInvestir),
   ];
   const baixaLiquidez: ComposicaoLinha[] = [
-    ...linha('rendaFixaBaixaLiquidez', 'Renda Fixa (vencimento > 12m)', rendaFixaBaixaLiquidez),
+    ...linha('rendaFixaBaixaLiquidez', 'Renda Fixa acima de D+360', rendaFixaBaixaLiquidez),
     ...CATEGORIAS_BAIXA_LIQUIDEZ.flatMap((cat) =>
       linha(cat, CATEGORIA_LABELS[cat] ?? cat, porCategoria[cat]),
     ),
