@@ -164,10 +164,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const priceResgate = metodoResgate === 'valor' ? valorResgate! : cotacaoUnitaria!;
   const totalResgate = metodoResgate === 'valor' ? valorResgate! : quantityResgate * priceResgate;
 
+  // 'reinvestimento' = o valor resgatado volta pra carteira (troca/rolagem):
+  // sai das linhas automáticas de Aporte/Resgate do Fluxo de Caixa e dos
+  // fluxos externos do MWR (F1.10 generalizado, ticket 19/08/2026).
+  const isReinvestimento = parsed.data.isReinvestimento === true;
   const notesData = JSON.stringify({
     observacoes: observacoes || undefined,
     operation: {
-      action: 'resgate',
+      action: isReinvestimento ? 'reinvestimento' : 'resgate',
       performedBy: {
         userId: payload.id,
         role: payload.role,

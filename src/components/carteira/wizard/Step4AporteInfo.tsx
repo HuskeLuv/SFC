@@ -3,6 +3,7 @@ import React from 'react';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import { WizardErrors, WizardFormData } from '@/types/wizard';
 
 interface Step4AporteInfoProps {
@@ -54,6 +55,10 @@ export default function Step4AporteInfo({
           step="0.01"
         />
       </div>
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => onFormDataChange({ isReinvestimento: value })}
+      />
     </div>
   );
 }

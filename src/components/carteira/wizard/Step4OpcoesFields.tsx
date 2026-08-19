@@ -6,6 +6,7 @@ import Select from '@/components/form/Select';
 import DatePicker from '@/components/form/date-picker';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 
 export default function Step4OpcoesFields({
   formData,
@@ -144,6 +145,10 @@ export default function Step4OpcoesFields({
         />
         <p className="mt-1 text-xs text-gray-500">Quantidade × Preço pago + Corretagem</p>
       </div>
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }

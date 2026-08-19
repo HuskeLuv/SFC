@@ -4,6 +4,7 @@ import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 
 export default function Step4DefaultFields({
   formData,
@@ -64,6 +65,10 @@ export default function Step4DefaultFields({
           step="0.01"
         />
       </div>
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }

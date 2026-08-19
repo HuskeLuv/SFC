@@ -5,6 +5,7 @@ import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import DatePicker from '@/components/form/date-picker';
 import { RedeemWizardErrors, RedeemWizardFormData } from '@/types/redeemWizard';
+import ReinvestimentoToggle from '@/components/carteira/wizard/shared/ReinvestimentoToggle';
 import { parseDecimalValue, DECIMAL_INPUT_PROPS } from '@/components/carteira/wizard/step4Utils';
 
 interface Step4RedeemInfoProps {
@@ -212,6 +213,11 @@ export default function Step4RedeemInfo({
           />
         </div>
       )}
+      <ReinvestimentoToggle
+        mode="resgate"
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => onFormDataChange({ isReinvestimento: value })}
+      />
     </div>
   );
 }

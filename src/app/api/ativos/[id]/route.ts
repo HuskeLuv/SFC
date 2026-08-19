@@ -203,20 +203,24 @@ const CORPORATE_ACTION_LABEL: Record<string, string> = {
  *   - venda → "Resgate"
  */
 const labelForTransaction = (tx: { type: string; notes: string | null }): string => {
-  if (tx.type === 'venda') return 'Resgate';
+  let action: string | undefined;
   if (tx.notes) {
     try {
       const parsed = JSON.parse(tx.notes);
-      const action = parsed?.operation?.action;
+      action = parsed?.operation?.action;
       if (action === 'ajuste-corporativo') {
         const corpType = parsed?.corporateActionType;
         return CORPORATE_ACTION_LABEL[corpType] ?? 'Ajuste corporativo';
       }
-      if (action === 'reinvestimento') return 'Reinvestimento';
     } catch {
       // notes malformado → cai no default
     }
   }
+  // F1.10 generalizado: venda marcada como troca/rolagem ganha rótulo próprio.
+  if (tx.type === 'venda') {
+    return action === 'reinvestimento' ? 'Resgate (reinvestido)' : 'Resgate';
+  }
+  if (action === 'reinvestimento') return 'Reinvestimento';
   return 'Aporte';
 };
 

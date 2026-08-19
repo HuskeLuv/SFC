@@ -5,6 +5,7 @@ import Select from '@/components/form/Select';
 import { Step4FieldsProps } from './step4Types';
 import Step4TesouroReservaFields from './Step4TesouroReservaFields';
 import Step4TesouroRendaFixaFields from './Step4TesouroRendaFixaFields';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 
 const TESOURO_DESTINO_OPTIONS = [
   { value: 'reserva-emergencia', label: 'Reserva de Emergência' },
@@ -147,6 +148,10 @@ export default function Step4TesouroDiretoFields(props: Step4FieldsProps) {
 
       {tesouroEmReserva && <Step4TesouroReservaFields {...props} />}
       {tesouroEmRendaFixa && <Step4TesouroRendaFixaFields {...props} />}
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }

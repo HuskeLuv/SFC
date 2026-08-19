@@ -15,13 +15,16 @@ export interface RedeemWizardFormData {
   stockId: string;
   moeda: string;
   dataResgate: string;
-  metodoResgate: "quantidade" | "valor";
+  metodoResgate: 'quantidade' | 'valor';
   quantidade: number;
   cotacaoUnitaria: number;
   valorResgate: number;
   observacoes: string;
   availableQuantity: number;
   availableTotal: number;
+  /** F1.10 generalizado: valor resgatado volta pra carteira (troca/rolagem) —
+   * não conta como resgate nas linhas automáticas do Fluxo de Caixa. */
+  isReinvestimento?: boolean;
 }
 
 export interface RedeemWizardErrors {

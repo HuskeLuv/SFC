@@ -7,6 +7,7 @@ import DatePicker from '@/components/form/date-picker';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { inferIndexerFromDescricao } from '@/utils/tesouroIndexador';
 import { Step4FieldsProps } from './step4Types';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 
 /** Benchmarks aceitos pela reserva Tesouro. CDI/IPCA/PRE são os únicos suportados
  * pelo pricer (ver isTesouroReserva no /api/carteira/operacao). Tesouro Selic vira CDI. */
@@ -162,6 +163,10 @@ export default function Step4TesouroReservaFields({
           </p>
         )}
       </div>
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }

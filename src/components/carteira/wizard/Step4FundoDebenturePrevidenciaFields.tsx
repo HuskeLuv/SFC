@@ -5,6 +5,7 @@ import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 import {
   fundoSubtipoFromAssetType,
   FUNDO_SUBTIPO_LABEL,
@@ -383,6 +384,10 @@ export default function Step4FundoDebenturePrevidenciaFields({
           </div>
         </>
       )}
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }

@@ -106,6 +106,9 @@ export const aporteSchema = z.object({
   valorAporte: zPositiveNumber,
   tipoAtivo: z.string().optional(),
   instituicaoId: z.string().optional(),
+  // Dinheiro que já estava investido (rolagem/posição pré-existente) — não
+  // conta como aporte nas linhas automáticas do Fluxo de Caixa (F1.10).
+  isReinvestimento: z.boolean().optional(),
   // Vínculo do ativo com planejamento (sonho | aposentadoria) — ver
   // utils/planejamentoVinculo.ts
   vinculoTipo: z.enum(['sonho', 'aposentadoria']).nullable().optional(),
@@ -123,6 +126,9 @@ export const resgateSchema = z.object({
   valorResgate: z.number().finite().optional(),
   instituicaoId: z.string().optional(),
   observacoes: z.string().max(1000).optional(),
+  // Resgate para troca/rolagem (o valor volta pra carteira) — não conta como
+  // resgate nas linhas automáticas do Fluxo de Caixa (F1.10 generalizado).
+  isReinvestimento: z.boolean().optional(),
 });
 
 // ── Cashflow update (PATCH) schema ────────────────────────────────────

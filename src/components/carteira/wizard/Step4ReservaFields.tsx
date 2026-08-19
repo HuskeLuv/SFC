@@ -6,6 +6,7 @@ import Select from '@/components/form/Select';
 import DatePicker from '@/components/form/date-picker';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 
 /** Benchmarks aceitos pela reserva. Restringimos a CDI/IPCA/PRE pois o pricer
  * de reserva em /api/carteira/operacao só sabe aplicar marcação na curva para
@@ -149,6 +150,10 @@ export default function Step4ReservaFields({
           </p>
         )}
       </div>
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }

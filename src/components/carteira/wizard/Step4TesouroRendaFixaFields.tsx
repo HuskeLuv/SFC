@@ -8,6 +8,7 @@ import DatePicker from '@/components/form/date-picker';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { inferIndexerFromDescricao } from '@/utils/tesouroIndexador';
 import { Step4FieldsProps } from './step4Types';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 
 export default function Step4TesouroRendaFixaFields({
   formData,
@@ -189,6 +190,10 @@ export default function Step4TesouroRendaFixaFields({
           )}
         </div>
       )}
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }

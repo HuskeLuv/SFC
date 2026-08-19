@@ -5,6 +5,7 @@ import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
+import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
 
 export default function Step4PersonalizadoFields({
   formData,
@@ -87,6 +88,10 @@ export default function Step4PersonalizadoFields({
         />
         {errors.metodo && <p className="mt-1 text-sm text-red-500">{errors.metodo}</p>}
       </div>
+      <ReinvestimentoToggle
+        checked={!!formData.isReinvestimento}
+        onChange={(value) => handleInputChange('isReinvestimento', value)}
+      />
     </>
   );
 }

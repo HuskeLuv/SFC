@@ -27,6 +27,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
   const { portfolioId, dataAporte, valorAporte, tipoAtivo, instituicaoId } = parsed.data;
   const { vinculoTipo, vinculoObjetivoId } = parsed.data;
+  const isReinvestimento = parsed.data.isReinvestimento === true;
 
   // Não existe cotação futura — aporte datado à frente corrompe a série
   // (mesma regra do resgate; pedido dos testers, 2026-08-06).
@@ -79,9 +80,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const price = valorAporte;
   const total = valorAporte;
 
+  // 'reinvestimento' = dinheiro que já estava investido (rolagem de título,
+  // posição pré-existente): sai das linhas automáticas de Aporte/Resgate do
+  // Fluxo de Caixa e dos fluxos externos do MWR (mesma semântica do F1.10).
   const notesData = JSON.stringify({
     operation: {
-      action: 'aporte',
+      action: isReinvestimento ? 'reinvestimento' : 'aporte',
       performedBy: {
         userId: payload.id,
         role: payload.role,

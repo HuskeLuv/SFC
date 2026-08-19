@@ -575,6 +575,38 @@ describe('buildPatrimonioCashFlowsByDayOnly', () => {
     // Sem fix: cashFlow seria 600. Com fix: só o aporte (500) conta.
     expect(result.get(day1)).toBe(500);
   });
+
+  it('F1.10 generalizado: venda marcada como troca/rolagem não vira fluxo externo', () => {
+    const day1 = normalizeDateStart(new Date(Date.UTC(2025, 0, 2))).getTime();
+    const timeline = [day1];
+
+    const txResgate = {
+      id: 'tx-resgate',
+      date: new Date(Date.UTC(2025, 0, 2)),
+      type: 'venda',
+      quantity: 4,
+      price: 50,
+      total: 200,
+      asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
+      notes: JSON.stringify({ operation: { action: 'resgate' } }),
+    } as unknown as StockTransactionWithRelations;
+
+    const txTroca = {
+      id: 'tx-troca',
+      date: new Date(Date.UTC(2025, 0, 2)),
+      type: 'venda',
+      quantity: 6,
+      price: 50,
+      total: 300,
+      asset: { symbol: 'PETR4', name: 'PETR4', type: 'stock' },
+      notes: JSON.stringify({ operation: { action: 'reinvestimento' } }),
+    } as unknown as StockTransactionWithRelations;
+
+    const result = buildPatrimonioCashFlowsByDayOnly([], [], [txResgate, txTroca], [], timeline);
+    // cashFlowsByDay = -externalCashDelta: só o resgate comum (-200) conta;
+    // a venda-troca (300) fica fora dos fluxos externos.
+    expect(result.get(day1)).toBe(-200);
+  });
 });
 
 /* ================================================================== */
