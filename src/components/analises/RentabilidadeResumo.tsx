@@ -8,6 +8,8 @@ import { inicioUltimosNMeses } from '@/utils/periodWindow';
 import dynamic from 'next/dynamic';
 import { ApexOptions } from 'apexcharts';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
+import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { useTheme } from '@/context/ThemeContext';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -113,6 +115,8 @@ export default function RentabilidadeResumo({
   fimJanela,
 }: RentabilidadeResumoProps = {}) {
   const { resumo, formatPercentage } = useCarteiraResumoContext();
+  const { theme } = useTheme();
+  const isDarkMode = theme === 'dark';
 
   // Calcular data do primeiro investimento
   const firstInvestmentDate = useMemo(() => {
@@ -266,10 +270,17 @@ export default function RentabilidadeResumo({
     const cdiValor = Math.max(0, valoresResumo.cdiPeriodo || 0);
     const ibovValor = Math.max(0, valoresResumo.ibovPeriodo || 0);
 
+    // Paleta My Finance (ticket 20/08/2026), mesma atribuição dos gráficos de
+    // rentabilidade: Carteira=outside, CDI=patrimônio, IBOV=potência (escolha
+    // no dark, senão a fatia quase-preta some no fundo escuro).
     const valores = [
-      { nome: 'CARTEIRA', valor: carteiraValor, cor: '#465FFF' },
-      { nome: 'CDI', valor: cdiValor, cor: '#10B981' },
-      { nome: 'IBOV', valor: ibovValor, cor: '#F59E0B' },
+      { nome: 'CARTEIRA', valor: carteiraValor, cor: MYFINANCE_BRAND.outside },
+      { nome: 'CDI', valor: cdiValor, cor: MYFINANCE_BRAND.patrimonio },
+      {
+        nome: 'IBOV',
+        valor: ibovValor,
+        cor: isDarkMode ? MYFINANCE_BRAND.escolha : MYFINANCE_BRAND.potencia,
+      },
     ];
 
     // Filtrar apenas valores maiores que zero
@@ -304,7 +315,7 @@ export default function RentabilidadeResumo({
       series: percentuais.map((d) => d.percentual),
       colors: percentuais.map((d) => d.cor),
     };
-  }, [valoresResumo]);
+  }, [valoresResumo, isDarkMode]);
 
   const donutOptions: ApexOptions = useMemo(() => {
     if (donutData.labels.length === 0) {
@@ -441,13 +452,13 @@ export default function RentabilidadeResumo({
                 <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
                   Último dia
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">
+                <td className="py-3 px-4 text-sm text-right text-[#0079F2]">
                   {formatPercentage(rentabilidades.carteira.ultimoDia)}
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#10B981]">
+                <td className="py-3 px-4 text-sm text-right text-[#396CAA] dark:text-[#6E9DC4]">
                   {formatPercentage(rentabilidades.cdi.ultimoDia)}
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">
+                <td className="py-3 px-4 text-sm text-right text-[#2D2D2D] dark:text-[#EAEAEA]">
                   {formatPercentage(rentabilidades.ibov.ultimoDia)}
                 </td>
               </tr>
@@ -455,13 +466,13 @@ export default function RentabilidadeResumo({
                 <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
                   No mês
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">
+                <td className="py-3 px-4 text-sm text-right text-[#0079F2]">
                   {formatPercentage(rentabilidades.carteira.mes)}
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#10B981]">
+                <td className="py-3 px-4 text-sm text-right text-[#396CAA] dark:text-[#6E9DC4]">
                   {formatPercentage(rentabilidades.cdi.mes)}
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">
+                <td className="py-3 px-4 text-sm text-right text-[#2D2D2D] dark:text-[#EAEAEA]">
                   {formatPercentage(rentabilidades.ibov.mes)}
                 </td>
               </tr>
@@ -469,13 +480,13 @@ export default function RentabilidadeResumo({
                 <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
                   No ano
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">
+                <td className="py-3 px-4 text-sm text-right text-[#0079F2]">
                   {formatPercentage(rentabilidades.carteira.ano)}
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#10B981]">
+                <td className="py-3 px-4 text-sm text-right text-[#396CAA] dark:text-[#6E9DC4]">
                   {formatPercentage(rentabilidades.cdi.ano)}
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">
+                <td className="py-3 px-4 text-sm text-right text-[#2D2D2D] dark:text-[#EAEAEA]">
                   {formatPercentage(rentabilidades.ibov.ano)}
                 </td>
               </tr>
@@ -483,13 +494,13 @@ export default function RentabilidadeResumo({
                 <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
                   12 meses
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#465FFF]">
+                <td className="py-3 px-4 text-sm text-right text-[#0079F2]">
                   {formatPercentage(rentabilidades.carteira.dozeMeses)}
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#10B981]">
+                <td className="py-3 px-4 text-sm text-right text-[#396CAA] dark:text-[#6E9DC4]">
                   {formatPercentage(rentabilidades.cdi.dozeMeses)}
                 </td>
-                <td className="py-3 px-4 text-sm text-right text-[#F59E0B]">
+                <td className="py-3 px-4 text-sm text-right text-[#2D2D2D] dark:text-[#EAEAEA]">
                   {formatPercentage(rentabilidades.ibov.dozeMeses)}
                 </td>
               </tr>
