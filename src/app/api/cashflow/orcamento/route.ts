@@ -5,6 +5,7 @@ import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
 import { computeInvestimentosPorMes } from '@/services/cashflow/investimentosPorMes';
 import { buildOrcamentoVsReal } from '@/services/cashflow/orcamentoVsReal';
+import { checkOrcamentoAlertasSafe } from '@/services/cashflow/orcamentoAlertas';
 import { cashflowOrcamentoUpdateSchema, validationError } from '@/utils/validation-schemas';
 import { recordChange } from '@/services/changeHistory';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -219,6 +220,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
         };
       }),
   ];
+  // Meta nova/alterada pode já nascer consumida (ex.: definir meta com o mês
+  // a 90%) — checa os alertas do mês corrente na hora; best-effort.
+  if (metas.length > 0) {
+    await checkOrcamentoAlertasSafe(targetUserId);
+  }
+
   if (changes.length > 0) {
     await recordChange({
       request,
