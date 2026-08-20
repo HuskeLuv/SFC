@@ -62,15 +62,20 @@ export async function getBaseAplicadaAnterior(userId: string, year: number): Pro
  * Duas séries: `totaisPorMes` (ex-planejamento — usada na subtração do Fluxo
  * de Caixa Livre, pois os aportes de sonho já descem como despesa da
  * linha-espelho) e `aportesFullPorMes` (série CHEIA — usada na Evolução do
- * Patrimônio, onde todo aporte nominal conta, vinculado ou não).
+ * Patrimônio, onde todo aporte nominal conta: livre, vinculado a sonho ou
+ * marcado como "dinheiro já estava investido"). As operações marcadas não
+ * passam pelo Fluxo de Caixa Livre, então sem somá-las aqui elas sumiam da
+ * Evolução do ano e reapareciam só na base aplicada da virada (degrau em jan).
  */
 export async function getAportesPorMes(
   userId: string,
   year: number,
 ): Promise<{ totaisPorMes: number[]; aportesFullPorMes: number[] }> {
-  const { totaisPorMes, planejamentoPorMes } = await computeInvestimentosPorMes(userId, year);
+  const { totaisPorMes, planejamentoPorMes, reinvestimentoPorMes } =
+    await computeInvestimentosPorMes(userId, year);
   const aportesFullPorMes = totaisPorMes.map(
-    (v, i) => Math.round((v + (planejamentoPorMes[i] || 0)) * 100) / 100,
+    (v, i) =>
+      Math.round((v + (planejamentoPorMes[i] || 0) + (reinvestimentoPorMes[i] || 0)) * 100) / 100,
   );
   return { totaisPorMes, aportesFullPorMes };
 }

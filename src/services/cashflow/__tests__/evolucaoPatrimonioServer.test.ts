@@ -18,6 +18,7 @@ vi.mock('../investimentosPorMes', async (importOriginal) => ({
 }));
 
 import {
+  getAportesPorMes,
   getBaseAplicadaAnterior,
   recomputeEvolucaoSnapshots,
   recomputeEvolucaoSnapshotsSafe,
@@ -44,6 +45,7 @@ beforeEach(() => {
     porTipo: {},
     totaisPorMes: Array(12).fill(0),
     planejamentoPorMes: Array(12).fill(0),
+    reinvestimentoPorMes: Array(12).fill(0),
     tipos: new Set<string>(),
   });
 });
@@ -92,6 +94,49 @@ describe('getBaseAplicadaAnterior', () => {
   });
 });
 
+describe('getAportesPorMes', () => {
+  it('série cheia soma sonho E "dinheiro já estava investido" (ticket 20/08)', async () => {
+    // Compra com a flag do PR #109 (posição pré-existente): fora do
+    // Aporte/Resgate e do fluxo livre, mas o nominal É patrimônio — sem
+    // entrar na série cheia, sumia da Evolução do Patrimônio.
+    const totais = Array(12).fill(0);
+    totais[7] = 1000;
+    const sonho = Array(12).fill(0);
+    sonho[7] = 200;
+    const reinvest = Array(12).fill(0);
+    reinvest[7] = 7333.68;
+    mockComputeInvestimentos.mockResolvedValue({
+      porTipo: {},
+      totaisPorMes: totais,
+      planejamentoPorMes: sonho,
+      reinvestimentoPorMes: reinvest,
+      tipos: new Set<string>(),
+    });
+
+    const { totaisPorMes, aportesFullPorMes } = await getAportesPorMes('u1', 2026);
+
+    // Fluxo livre segue subtraindo só os aportes livres
+    expect(totaisPorMes[7]).toBe(1000);
+    expect(aportesFullPorMes[7]).toBeCloseTo(1000 + 200 + 7333.68, 2);
+  });
+
+  it('venda-troca marcada anula a compra correspondente na série cheia (rolagem)', async () => {
+    const reinvest = Array(12).fill(0);
+    reinvest[3] = 0; // compra +5000 e venda −5000 no mesmo mês
+    mockComputeInvestimentos.mockResolvedValue({
+      porTipo: {},
+      totaisPorMes: Array(12).fill(0),
+      planejamentoPorMes: Array(12).fill(0),
+      reinvestimentoPorMes: reinvest,
+      tipos: new Set<string>(),
+    });
+
+    const { aportesFullPorMes } = await getAportesPorMes('u1', 2026);
+
+    expect(aportesFullPorMes[3]).toBe(0);
+  });
+});
+
 describe('recomputeEvolucaoSnapshots', () => {
   const snap = (overrides: Record<string, unknown>) => ({
     id: 'snap-1',
@@ -113,6 +158,7 @@ describe('recomputeEvolucaoSnapshots', () => {
       porTipo: {},
       totaisPorMes: aportes,
       planejamentoPorMes: Array(12).fill(0),
+      reinvestimentoPorMes: Array(12).fill(0),
       tipos: new Set<string>(),
     });
     mockPrisma.cashflowPatrimonioSnapshot.findMany.mockResolvedValue([snap({})]);
