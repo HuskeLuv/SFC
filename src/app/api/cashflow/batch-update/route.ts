@@ -8,6 +8,7 @@ import { cashflowBatchUpdateSchema, validationError } from '@/utils/validation-s
 import { syncCashflowToObjetivo } from '@/services/planejamento/cashflowToSonhoSync';
 import { removeObjetivoCashflow } from '@/services/planejamento/sonhoCashflowSync';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
+import { checkOrcamentoAlertasSafe } from '@/services/cashflow/orcamentoAlertas';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { recordChange } from '@/services/changeHistory';
@@ -339,6 +340,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   // Query e dispensa o refetch bloqueante (a personalização pode trocar ids
   // de itens, então devolver só os results não basta para atualizar a UI).
   const groups = await getMergedCashflowGroups(targetUserId, targetYear);
+
+  // Alertas de orçamento (80%/100%/estouro) do mês corrente — reaproveita a
+  // árvore recém-carregada quando o ano bate; best-effort.
+  if (successCount > 0) {
+    await checkOrcamentoAlertasSafe(targetUserId, { groups, groupsYear: targetYear });
+  }
 
   return NextResponse.json({
     success: true,

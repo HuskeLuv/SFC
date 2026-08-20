@@ -11,6 +11,7 @@ import {
   type FlcPoliticaConflito,
 } from '@/services/cashflow/import/executeFlcImportPlan';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
+import { checkOrcamentoAlertasSafe } from '@/services/cashflow/orcamentoAlertas';
 import { recordChange } from '@/services/changeHistory';
 
 /**
@@ -88,6 +89,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   // árvore pós-import para o client gravar direto no cache (padrão batch-update)
   const groups = await getMergedCashflowGroups(targetUserId, ano);
+
+  // Import pode encher o mês corrente de uma vez — checa alertas de orçamento.
+  if (relatorio.celulasGravadas > 0) {
+    await checkOrcamentoAlertasSafe(targetUserId, { groups, groupsYear: ano });
+  }
 
   return NextResponse.json({
     success: relatorio.erros.length === 0,
