@@ -3,7 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
-import { ensureDependentesTemplate } from '@/utils/cashflowTemplates';
+import { ensureDependentesTemplate, ensureDividasTemplate } from '@/utils/cashflowTemplates';
 import { lerPlanilhaImport } from '@/services/cashflow/import/importRequest';
 import { mapFlcToCashflow } from '@/services/cashflow/import/mapFlcToCashflow';
 import {
@@ -50,9 +50,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
   const politica: FlcPoliticaConflito = politicaRaw === 'manter' ? 'manter' : 'sobrescrever';
 
-  // A seção "Despesas com dependentes" mapeia para grupo template próprio —
-  // garante que ele exista antes de montar a árvore (upgrade lazy).
+  // As seções "Despesas com dependentes" e "Despesas Financeiras" mapeiam
+  // para grupos template próprios — garante que existam (com os itens) antes
+  // de montar a árvore (upgrade lazy).
   await ensureDependentesTemplate();
+  await ensureDividasTemplate();
   const arvore = await getMergedCashflowGroups(targetUserId, ano);
   const plan = mapFlcToCashflow(lido.parse, arvore);
   const { relatorio, undo } = await executeFlcImportPlan(plan, targetUserId, ano, politica);

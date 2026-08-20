@@ -67,7 +67,12 @@ const arvorePadrao = () => {
   const dependentes = grupo('Despesas com Dependentes', {
     items: [item('Escola / Faculdade'), item('Cursos'), item('Pensão'), item('Vestuário')],
   });
-  const despesasFixas = grupo('Despesas Fixas', { children: [habitacao, educacao, dependentes] });
+  const despesasFinanceiras = grupo('Despesas Financeiras', {
+    items: [item('Taxas Bancárias'), item('Cheque Especial'), item('Anuidade cartão de crédito')],
+  });
+  const despesasFixas = grupo('Despesas Fixas', {
+    children: [habitacao, educacao, dependentes, despesasFinanceiras],
+  });
   const despesasVariaveis = grupo('Despesas Variáveis');
   const despesas = grupo('Despesas', { children: [despesasFixas, despesasVariaveis] });
 
@@ -81,6 +86,7 @@ const arvorePadrao = () => {
     habitacao,
     educacao,
     dependentes,
+    despesasFinanceiras,
     despesasFixas,
     despesasVariaveis,
     contaCorrente,
@@ -185,23 +191,32 @@ describe('mapFlcToCashflow', () => {
     expect(plan.resumo.itensNovos).toBe(1);
   });
 
-  it('§4.1: Despesas Financeiras é descartada inteira com motivo', () => {
-    const { tree } = arvorePadrao();
+  it('Despesas Financeiras importa para o grupo template homônimo (ticket 20/08/2026)', () => {
+    // Antes (§4.1, decisão 31/07/2026) a seção era descartada inteira — o
+    // grupo do app nasceu depois (PR #83) e a linha de totais divergia da
+    // planilha. Item do template casa como 'existente'; fora do template
+    // (ex.: Club Smiles) vira criação.
+    const { tree, despesasFinanceiras } = arvorePadrao();
     const plan = mapFlcToCashflow(
       parseResult([
         secao('despesas-financeiras', 'Despesas Financeiras', [
           flcItem('Taxas Bancárias', meses({ 0: 50 })),
-          flcItem('Cheque Especial', meses()),
+          flcItem('Club Smiles', meses({ 1: 30 })),
         ]),
       ]),
       tree,
     );
 
-    expect(plan.grupos).toHaveLength(0);
-    expect(plan.ignorados).toHaveLength(2);
-    for (const ig of plan.ignorados) {
-      expect(ig.motivo).toContain('descartada');
-    }
+    expect(plan.ignorados).toHaveLength(0);
+    expect(plan.grupos).toHaveLength(1);
+    expect(plan.grupos[0].destino).toMatchObject({ groupId: despesasFinanceiras.id });
+    expect(plan.grupos[0].itens[0].destino).toMatchObject({
+      tipo: 'existente',
+      itemId: despesasFinanceiras.items[0].id,
+    });
+    expect(plan.grupos[0].itens[0].escritas).toEqual([{ mes: 0, valor: 50 }]);
+    expect(plan.grupos[0].itens[1].destino).toMatchObject({ tipo: 'criar' });
+    expect(plan.resumo.itensNovos).toBe(1);
   });
 
   it('§4.1: Proventos Fii\'s é realocado para "Receita Proventos FII\'s" em Entradas Fixas', () => {

@@ -123,6 +123,8 @@ const DESTINOS: Partial<Record<FlcSecaoChave, string>> = {
   impostos: 'Impostos',
   // grupo template desde 05/08/2026 — antes era realocação item a item (§4.1)
   'despesas-dependentes': 'Despesas com Dependentes',
+  // grupo template com itens desde 20/08/2026 — antes descartada inteira (§4.1)
+  'despesas-financeiras': 'Despesas Financeiras',
   'despesas-empresa': 'Despesas Empresa',
   'despesas-temporarias': 'Despesas Variáveis',
   'conta-corrente': 'Conta Corrente',
@@ -130,17 +132,14 @@ const DESTINOS: Partial<Record<FlcSecaoChave, string>> = {
 
 // ---------------------------------------------------------------------------
 // §4.1 — seções da planilha sem correspondente no template (decisão 31/07/2026):
-// nada de grupo custom. "Despesas Financeiras" é descartada inteira;
-// "Receita Investimentos" realoca APENAS os itens com correspondência direta
-// no template, renomeando para o nome do item de destino; o resto é ignorado
-// com motivo. ("Despesas com dependentes" saiu deste regime em 05/08/2026 —
-// virou grupo template próprio, ver DESTINOS.)
+// nada de grupo custom. "Receita Investimentos" realoca APENAS os itens com
+// correspondência direta no template, renomeando para o nome do item de
+// destino; o resto é ignorado com motivo. ("Despesas com dependentes" saiu
+// deste regime em 05/08/2026 e "Despesas Financeiras" em 20/08/2026 — viraram
+// grupos template próprios, ver DESTINOS.)
 // ---------------------------------------------------------------------------
 
-const SECAO_DESCARTADA: Partial<Record<FlcSecaoChave, string>> = {
-  'despesas-financeiras':
-    'seção "Despesas Financeiras" descartada no import (sem correspondente no app; decisão 31/07/2026)',
-};
+const SECAO_DESCARTADA: Partial<Record<FlcSecaoChave, string>> = {};
 
 interface RemapAlvo {
   /** seção-destino (chave do parser) cujo grupo do app receberá o item */
