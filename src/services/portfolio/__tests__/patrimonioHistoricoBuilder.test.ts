@@ -545,7 +545,7 @@ describe('buildPatrimonioCashFlowsByDayOnly', () => {
     expect(result.get(day1)).toBe(0);
   });
 
-  it('F1.10: compra marcada como reinvestimento não vira fluxo externo', () => {
+  it('compra marcada como "já investido" conta como fluxo externo do TWR/MWR', () => {
     const day1 = normalizeDateStart(new Date(Date.UTC(2025, 0, 2))).getTime();
     const timeline = [day1];
 
@@ -572,11 +572,13 @@ describe('buildPatrimonioCashFlowsByDayOnly', () => {
     } as unknown as StockTransactionWithRelations;
 
     const result = buildPatrimonioCashFlowsByDayOnly([], [], [txAporte, txReinvest], [], timeline);
-    // Sem fix: cashFlow seria 600. Com fix: só o aporte (500) conta.
-    expect(result.get(day1)).toBe(500);
+    // Ticket 20/08/2026: a compra marcada CONTA como fluxo externo do TWR/MWR
+    // (capital entrando no universo medido) — a exclusão antiga fazia o valor
+    // da posição marcada virar retorno espúrio. 500 (aporte) + 100 (marcada).
+    expect(result.get(day1)).toBe(600);
   });
 
-  it('F1.10 generalizado: venda marcada como troca/rolagem não vira fluxo externo', () => {
+  it('venda marcada como troca/rolagem também conta como fluxo externo', () => {
     const day1 = normalizeDateStart(new Date(Date.UTC(2025, 0, 2))).getTime();
     const timeline = [day1];
 
@@ -603,9 +605,11 @@ describe('buildPatrimonioCashFlowsByDayOnly', () => {
     } as unknown as StockTransactionWithRelations;
 
     const result = buildPatrimonioCashFlowsByDayOnly([], [], [txResgate, txTroca], [], timeline);
-    // cashFlowsByDay = -externalCashDelta: só o resgate comum (-200) conta;
-    // a venda-troca (300) fica fora dos fluxos externos.
-    expect(result.get(day1)).toBe(-200);
+    // cashFlowsByDay = -cashDelta: resgate comum (-200) + venda-troca (-300).
+    // Numa troca real a compra-par marcada (+) anula a venda no mesmo dia; a
+    // exclusão antiga deixava o sumiço do valor da posição virar retorno
+    // negativo espúrio no TWR.
+    expect(result.get(day1)).toBe(-500);
   });
 });
 
@@ -685,6 +689,49 @@ describe('buildPatrimonioHistorico', () => {
     // Timeline não passa do fim.
     const lastDay = comFutura.historicoPatrimonio[comFutura.historicoPatrimonio.length - 1];
     expect(lastDay.data).toBeLessThanOrEqual(endDate.getTime());
+  });
+
+  it('ticket 20/08: compra marcada "já investido" mantém o principal na série e TWR sem salto', async () => {
+    // Cenário michel: carteira SÓ com uma compra de 110k marcada (posição
+    // pré-existente). Antes do fix o caixa da série ficava −110k (débito sem o
+    // crédito do aporte) e o gráfico mostrava só o rendimento (R$ 398); com o
+    // fluxo excluído do TWR, o valor aparecendo virava +133% espúrio.
+    const dia = new Date(Date.UTC(2025, 0, 15));
+    const txMarcada = {
+      id: 'tx-ja-investido',
+      date: dia,
+      type: 'compra',
+      quantity: 1,
+      price: 110000,
+      total: 110000,
+      asset: { symbol: 'RESERVA-EMERG-X', name: 'Reserva', type: 'emergency' },
+      stockId: 'stock-1',
+      assetId: null,
+      userId: 'user-1',
+      portfolioId: 'port-1',
+      notes: JSON.stringify({ operation: { action: 'reinvestimento' } }),
+    } as unknown as StockTransactionWithRelations;
+
+    const result = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [txMarcada],
+      saldoBrutoAtual: 110000,
+      valorAplicadoAtual: 110000,
+      timelineEndDate: new Date(Date.UTC(2025, 0, 20)),
+    });
+
+    // Série exibe o principal (preço da própria tx como âncora), não só rendimento.
+    for (const ponto of result.historicoPatrimonio) {
+      expect(ponto.saldoBruto).toBeCloseTo(110000, 0);
+      expect(ponto.valorAplicado).toBeCloseTo(110000, 0);
+    }
+    // Fluxo externo do dia da compra registrado (neutraliza o TWR/MWR).
+    const diaUtil = result.historicoPatrimonio[0].data;
+    expect(result.cashFlowsByDay.get(diaUtil)).toBeCloseTo(110000, 0);
+    // TWR sem retorno espúrio: flat em 0 (preço constante).
+    for (const ponto of result.historicoTWR) {
+      expect(Math.abs(ponto.value)).toBeLessThan(0.01);
+    }
   });
 
   it('carteira SÓ com transação futura: série vazia (nada realizado ainda)', async () => {

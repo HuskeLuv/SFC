@@ -105,12 +105,20 @@ export const getTransactionValue = (transaction: {
   return Number.isFinite(fallback) ? fallback : 0;
 };
 
-// F1.10: compras marcadas como reinvestimento de provento não são capital novo.
-// O dinheiro veio de dividendo/JCP/rendimento — entra como compra (afeta posição
-// e cost basis), mas tem que ser excluído de `aportesByDay` E dos cashflows
-// externos que alimentam o TWR. Caso contrário o TWR é deflado artificialmente
-// (a compra entra como aporte e o ganho derivado do provento é subtraído de
-// volta no cálculo time-weighted).
+// F1.10 / flag "dinheiro já estava investido" (reinvestimento de provento,
+// rolagem, troca, posição pré-existente): o dinheiro NÃO transitou pelo caixa
+// rastreado da carteira. Efeitos no builder (ticket 20/08/2026):
+// - CAIXA da série (aportesByDay/cashBalance): operação marcada fica FORA —
+//   sem isto, a compra marcada debitava o caixa sem o crédito do aporte e a
+//   série exibia só o rendimento (posição pré-existente de 110k aparecia como
+//   R$ 398 no gráfico).
+// - Fluxos externos do TWR/MWR (cashFlowsByDay): operação marcada CONTA —
+//   capital entrando/saindo do universo medido precisa ser neutralizado, senão
+//   o valor da posição aparecendo vira retorno espúrio (+133% no ticket). O
+//   provento reinvestido não é dobrado: a renda já entra uma única vez no dia
+//   do booking via incomeByDay (na arquitetura antiga, com o caixa acumulado
+//   DENTRO da base, contar o fluxo deflava o TWR — por isso a exclusão de
+//   maio/2026; a base atual é só posições, e a conta se inverteu).
 export const isReinvestimentoTransaction = (notes: string | null | undefined): boolean => {
   if (!notes) return false;
   try {
@@ -639,8 +647,9 @@ export const buildPatrimonioHistorico = async (
   const cashDeltasByDay = new Map<number, number>();
   const appliedDeltasByDay = new Map<number, number>();
   const aportesByDay = new Map<number, number>();
-  // F1.10: cashDelta de reinvestimentos rastreado em separado para que o TWR
-  // exclua esses fluxos do cashFlowsByDay (não são aportes externos).
+  // F1.10/flag: cashDelta de operações marcadas rastreado em separado para que
+  // o CAIXA da série as ignore (o dinheiro nunca esteve no caixa rastreado).
+  // Nos fluxos externos do TWR/MWR elas CONTAM (ver comentário do helper).
   const reinvestimentoCashDeltasByDay = new Map<number, number>();
   const pricePointsBySymbol = new Map<string, Array<{ date: number; value: number }>>();
   const firstTransactionBySymbol = new Map<string, number>();
@@ -1006,7 +1015,8 @@ export const buildPatrimonioHistorico = async (
     if (day < timelineStartTs) cashBalance += delta;
   }
   for (const [day, delta] of cashDeltasByDay) {
-    if (day < timelineStartTs) cashBalance += delta;
+    // Operação marcada (flag "já investido") não passa pelo caixa da série.
+    if (day < timelineStartTs) cashBalance += delta - (reinvestimentoCashDeltasByDay.get(day) || 0);
   }
   // Proventos recebidos antes do início da janela já contam como retorno acumulado.
   if (proventosByDay) {
@@ -1025,7 +1035,11 @@ export const buildPatrimonioHistorico = async (
     }
 
     if (cashDeltasByDay.has(day)) {
-      cashBalance += cashDeltasByDay.get(day) || 0;
+      // Operação marcada (flag "já investido") não passa pelo caixa da série:
+      // sem o desconto, a compra marcada debitava −X sem o aporte +X e a série
+      // perdia o principal (ficava só o rendimento).
+      cashBalance +=
+        (cashDeltasByDay.get(day) || 0) - (reinvestimentoCashDeltasByDay.get(day) || 0);
     }
 
     if (rendimentosByDay.has(day)) {
@@ -1120,11 +1134,14 @@ export const buildPatrimonioHistorico = async (
   const cashFlowsByDay = new Map<number, number>();
   timeline.forEach((day) => {
     const cashDelta = cashDeltasByDay.get(day) ?? 0;
-    // F1.10: subtrai o componente de reinvestimento — não é fluxo externo.
-    const reinvestDelta = reinvestimentoCashDeltasByDay.get(day) ?? 0;
-    const externalCashDelta = cashDelta - reinvestDelta;
+    // Operação marcada (flag "já investido") CONTA como fluxo externo: capital
+    // entrando/saindo do universo medido é neutralizado no TWR/MWR — senão o
+    // valor da posição aparecendo na série vira retorno espúrio (ticket 20/08:
+    // posição pré-existente de 110k lida como +133% de TWR). O provento
+    // reinvestido continua contado uma única vez, como renda no booking
+    // (incomeByDay).
     const manualVal = manualValuesByDay.get(day) ?? 0;
-    cashFlowsByDay.set(day, -externalCashDelta + manualVal);
+    cashFlowsByDay.set(day, -cashDelta + manualVal);
   });
 
   // TWR: série de patrimônio (valor de mercado) + provento do dia como RENDA
@@ -1192,9 +1209,6 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   });
 
   const cashDeltasByDay = new Map<number, number>();
-  // F1.10: cashDelta de reinvestimentos isolado pra exclusão do fluxo externo
-  // que alimenta o TWR.
-  const reinvestimentoCashDeltasByDay = new Map<number, number>();
 
   stockTransactions.forEach((transaction) => {
     const symbol = transaction.asset?.symbol;
@@ -1203,15 +1217,11 @@ export const buildPatrimonioCashFlowsByDayOnly = (
     const day = shiftToBusinessDay(normalizeDateStart(transaction.date).getTime());
     const totalValue = getTransactionValue(transaction);
     const cashDelta = transaction.type === 'compra' ? -totalValue : totalValue;
+    // Operações marcadas (flag "já investido") CONTAM como fluxo externo do
+    // TWR/MWR — mesma semântica do builder principal (ver comentário do helper
+    // isReinvestimentoTransaction). A exclusão antiga fazia o valor da posição
+    // marcada virar retorno espúrio no caminho dos snapshots (ticket 20/08).
     cashDeltasByDay.set(day, (cashDeltasByDay.get(day) || 0) + cashDelta);
-    // F1.10 generalizado: compra E venda marcadas como reinvestimento/troca
-    // ficam fora dos fluxos externos.
-    if (isReinvestimentoTransaction(transaction.notes)) {
-      reinvestimentoCashDeltasByDay.set(
-        day,
-        (reinvestimentoCashDeltasByDay.get(day) || 0) + cashDelta,
-      );
-    }
   });
 
   portfolio.forEach((item) => {
@@ -1231,10 +1241,8 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   const cashFlowsByDay = new Map<number, number>();
   timeline.forEach((day) => {
     const cashDelta = cashDeltasByDay.get(day) ?? 0;
-    const reinvestDelta = reinvestimentoCashDeltasByDay.get(day) ?? 0;
-    const externalCashDelta = cashDelta - reinvestDelta;
     const manualVal = manualValuesByDay.get(day) ?? 0;
-    cashFlowsByDay.set(day, -externalCashDelta + manualVal);
+    cashFlowsByDay.set(day, -cashDelta + manualVal);
   });
 
   return cashFlowsByDay;
