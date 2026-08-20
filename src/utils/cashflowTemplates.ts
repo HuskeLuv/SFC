@@ -3,6 +3,24 @@ import prisma from '@/lib/prisma';
 
 // ===== CASHFLOW TEMPLATES STRUCTURE =====
 
+// Linhas do grupo "Despesas Financeiras", espelhando a seção homônima da
+// planilha FLC (ticket 20/08/2026 — sem elas o import não tinha destino e a
+// linha de totais divergia da planilha). Compartilhadas entre o seed (bancos
+// novos) e o ensure (upgrade de bancos existentes).
+export const DESPESAS_FINANCEIRAS_ITEMS = [
+  'Taxas Bancárias',
+  'Cheque Especial',
+  'Doações / Dízimos',
+  'Gorjetas / caixinhas',
+  'Taxa de TED',
+  'Extras diários',
+  'Cota do Clube',
+  'PIC / Título de capitalização',
+  'Contribuição Previdência',
+  'Anuidade cartão de crédito',
+  'Outros',
+];
+
 const CASHFLOW_TEMPLATE_STRUCTURE = {
   grupos: [
     { name: 'Entradas', orderIndex: 1, parentId: null, type: 'entrada' as const },
@@ -223,7 +241,10 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
     // Planejamento de Sonhos (linhas espelho, vínculo via objetivoId) — ver
     // src/services/planejamento/sonhoCashflowSync.ts. Sem placeholders no template.
     'Planejamento Financeiro': [],
-    'Despesas Financeiras': [],
+    // Linhas da seção homônima da planilha FLC (ticket 20/08/2026) — além
+    // delas, o grupo recebe as linhas-espelho das parcelas de dívidas
+    // (dividaCashflowSync), criadas por dívida.
+    'Despesas Financeiras': DESPESAS_FINANCEIRAS_ITEMS.map((name) => ({ name })),
     'Despesas Variáveis': [
       { name: 'Lazer' },
       { name: 'Compras' },
@@ -375,16 +396,16 @@ const DIVIDAS_GROUP_NAME = 'Despesas Financeiras';
 
 /**
  * Garante que o grupo template "Despesas Financeiras" exista sob "Despesas
- * Fixas", ANTES do "Planejamento Financeiro". Recebe as linhas-espelho das
- * parcelas de financiamento (dividaCashflowSync). Sem itens fixos — as
- * linhas são criadas por dívida. Bancos criados antes desta feature têm o
- * seed completo mas não este grupo. Idempotente e barato (1 findFirst por
- * processo).
+ * Fixas", ANTES do "Planejamento Financeiro", E que ele tenha as linhas da
+ * seção homônima da planilha FLC (`DESPESAS_FINANCEIRAS_ITEMS` — ticket
+ * 20/08/2026; bancos antigos criaram o grupo vazio). Além delas, o grupo
+ * recebe as linhas-espelho das parcelas de financiamento, criadas por dívida
+ * (dividaCashflowSync). Idempotente e barato (1 findFirst por processo).
  */
 export async function ensureDividasTemplate(): Promise<void> {
   if (dividasEnsured) return;
 
-  const existing = await prisma.cashflowGroup.findFirst({
+  let existing = await prisma.cashflowGroup.findFirst({
     where: { userId: null, name: DIVIDAS_GROUP_NAME },
     select: { id: true },
   });
@@ -421,7 +442,7 @@ export async function ensureDividasTemplate(): Promise<void> {
       });
       orderIndex = (last?.orderIndex ?? 11) + 1;
     }
-    await prisma.cashflowGroup.create({
+    existing = await prisma.cashflowGroup.create({
       data: {
         userId: null,
         name: DIVIDAS_GROUP_NAME,
@@ -429,8 +450,26 @@ export async function ensureDividasTemplate(): Promise<void> {
         orderIndex,
         parentId: despesasFixas.id,
       },
+      select: { id: true },
     });
     logger.info('✅ Template "Despesas Financeiras" criado (upgrade de template)');
+  }
+
+  // Itens-template da seção da planilha: cria só os que faltam (bancos
+  // antigos têm o grupo vazio; reexecutar não duplica).
+  const itensExistentes = await prisma.cashflowItem.findMany({
+    where: { userId: null, groupId: existing.id },
+    select: { name: true },
+  });
+  const nomesExistentes = new Set(itensExistentes.map((i) => i.name));
+  const faltantes = DESPESAS_FINANCEIRAS_ITEMS.filter((name) => !nomesExistentes.has(name));
+  if (faltantes.length > 0) {
+    await prisma.cashflowItem.createMany({
+      data: faltantes.map((name) => ({ userId: null, groupId: existing!.id, name })),
+    });
+    logger.info(
+      `✅ ${faltantes.length} itens-template criados em "Despesas Financeiras" (upgrade de template)`,
+    );
   }
 
   dividasEnsured = true;

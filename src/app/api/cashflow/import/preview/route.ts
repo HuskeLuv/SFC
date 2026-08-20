@@ -3,7 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
-import { ensureDependentesTemplate } from '@/utils/cashflowTemplates';
+import { ensureDependentesTemplate, ensureDividasTemplate } from '@/utils/cashflowTemplates';
 import { lerPlanilhaImport } from '@/services/cashflow/import/importRequest';
 import { mapFlcToCashflow } from '@/services/cashflow/import/mapFlcToCashflow';
 
@@ -30,9 +30,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const lido = await lerPlanilhaImport(request);
   if (!lido.ok) return lido.response;
 
-  // A seção "Despesas com dependentes" mapeia para grupo template próprio —
-  // garante que ele exista antes de montar a árvore (upgrade lazy).
+  // As seções "Despesas com dependentes" e "Despesas Financeiras" mapeiam
+  // para grupos template próprios — garante que existam (com os itens) antes
+  // de montar a árvore (upgrade lazy).
   await ensureDependentesTemplate();
+  await ensureDividasTemplate();
   const arvore = await getMergedCashflowGroups(targetUserId, lido.ano);
   const plan = mapFlcToCashflow(lido.parse, arvore);
 

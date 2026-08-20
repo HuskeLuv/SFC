@@ -9,7 +9,8 @@ const mockPrisma = vi.hoisted(() => ({
     findFirst: vi.fn().mockResolvedValue({ id: 'tpl-conta-corrente' }),
     create: vi.fn(),
   },
-  cashflowItem: { createMany: vi.fn() },
+  // findMany: ensureDividasTemplate lê os itens-template existentes (vazio → cria via createMany mockado)
+  cashflowItem: { createMany: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   // Anotação objetivoAutoRealizado: sem sonhos com ativos vinculados por padrão
   planejamentoObjetivo: { findMany: vi.fn().mockResolvedValue([]) },
 }));

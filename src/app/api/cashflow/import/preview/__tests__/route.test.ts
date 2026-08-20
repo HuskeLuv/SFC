@@ -27,8 +27,9 @@ vi.mock('@/services/cashflow/getCashflowTree', () => ({
 }));
 
 vi.mock('@/utils/cashflowTemplates', () => ({
-  // upgrade lazy de template: no teste o grupo já está na árvore mockada
+  // upgrade lazy de template: no teste os grupos já estão na árvore mockada
   ensureDependentesTemplate: vi.fn().mockResolvedValue(undefined),
+  ensureDividasTemplate: vi.fn().mockResolvedValue(undefined),
 }));
 
 const grupo = (
