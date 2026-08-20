@@ -5,6 +5,8 @@ import React, { useEffect, useState, useMemo, Component, ErrorInfo, ReactNode } 
 import { ApexOptions } from 'apexcharts';
 import { IndexData, IndexResponse } from '@/hooks/useIndices';
 import { monthKeyUtc, yearKeyUtc } from '@/utils/utcDay';
+import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { useTheme } from '@/context/ThemeContext';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') return true;
@@ -247,17 +249,19 @@ export const alinharDatasUniao = (
     .filter((s): s is { name: string; data: Array<[number, number | null]> } => s !== null);
 };
 
-// Paleta por NOME de série, alinhada ao Kinvo (comparação lado a lado). Mapear
-// por nome (não por posição) evita que a ordem das séries troque as cores.
-const KINVO_COLOR_BY_NAME: Record<string, string> = {
-  CDI: '#8B5CF6', // roxo
-  IBOV: '#F59E0B', // laranja
-  IPCA: '#22C55E', // verde
-  'Inflação (IPCA)': '#22C55E',
-  Poupança: '#EC4899', // magenta
-  Poupanca: '#EC4899',
-};
-const CARTEIRA_COLOR = '#06B6D4'; // ciano (como no Kinvo)
+// Paleta oficial My Finance por NOME de série (ticket 20/08/2026 — substituiu
+// a paleta Kinvo). Mapear por nome (não por posição) evita que a ordem das
+// séries troque as cores. IBOV (potência, quase-preto) e Poupança (segurança,
+// marinho) somem no dark mode → variantes claras da própria paleta.
+const brandColorByName = (isDark: boolean): Record<string, string> => ({
+  CDI: MYFINANCE_BRAND.patrimonio,
+  IBOV: isDark ? MYFINANCE_BRAND.escolha : MYFINANCE_BRAND.potencia,
+  IPCA: MYFINANCE_BRAND.tranquilidade,
+  'Inflação (IPCA)': MYFINANCE_BRAND.tranquilidade,
+  Poupança: isDark ? MYFINANCE_BRAND.transparencia : MYFINANCE_BRAND.seguranca,
+  Poupanca: isDark ? MYFINANCE_BRAND.transparencia : MYFINANCE_BRAND.seguranca,
+});
+const CARTEIRA_COLOR = MYFINANCE_BRAND.outside;
 const FALLBACK_SERIES_COLOR = '#94A3B8';
 
 // Função para agrupar dados por mês (pega o último valor CUMULATIVO de cada mês).
@@ -344,6 +348,8 @@ export default function RentabilidadeChart({
   carteiraLabel = 'Carteira',
   legendPosition = 'top',
 }: RentabilidadeChartProps) {
+  const { theme } = useTheme();
+  const isDarkMode = theme === 'dark';
   const series = useMemo(() => {
     const seriesData: Array<{ name: string; data: Array<Array<number | null>> }> = [];
 
@@ -513,16 +519,13 @@ export default function RentabilidadeChart({
 
   const chartType = chartTypeProp ?? (period === '1mo' || period === '1y' ? 'bar' : 'line');
 
-  // Cores por NOME de série (paleta Kinvo), na ordem em que as séries entram.
-  const seriesColors = useMemo(
-    () =>
-      series.map((s) =>
-        s.name === carteiraLabel
-          ? CARTEIRA_COLOR
-          : (KINVO_COLOR_BY_NAME[s.name] ?? FALLBACK_SERIES_COLOR),
-      ),
-    [series, carteiraLabel],
-  );
+  // Cores por NOME de série (paleta My Finance), na ordem em que as séries entram.
+  const seriesColors = useMemo(() => {
+    const byName = brandColorByName(isDarkMode);
+    return series.map((s) =>
+      s.name === carteiraLabel ? CARTEIRA_COLOR : (byName[s.name] ?? FALLBACK_SERIES_COLOR),
+    );
+  }, [series, carteiraLabel, isDarkMode]);
 
   // Eixo Y com escala "redonda": passo 1/2/5 × 10^n (nice numbers) — em faixas de
   // rentabilidade típicas vira 5/10/20/50 (múltiplos de 5), deixando o gráfico
