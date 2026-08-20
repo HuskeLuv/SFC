@@ -143,14 +143,14 @@ describe('computeInvestimentosPorMes', () => {
       }),
     ]);
 
-    const { porTipo, planejamentoPorMes, totaisPorMes } = await computeInvestimentosPorMes(
-      'u1',
-      2026,
-    );
+    const { porTipo, planejamentoPorMes, totaisPorMes, reinvestimentoPorMes } =
+      await computeInvestimentosPorMes('u1', 2026);
 
     expect(porTipo.reinvestimento[0]).toBe(100);
     expect(planejamentoPorMes[0]).toBe(0);
     expect(totaisPorMes[0]).toBe(0);
+    // Série dedicada p/ a Evolução do Patrimônio (aporte nominal conta lá)
+    expect(reinvestimentoPorMes[0]).toBe(100);
   });
 
   it('venda marcada como troca/rolagem sai da linha de Aporte/Resgate (F1.10 generalizado)', async () => {
@@ -168,11 +168,15 @@ describe('computeInvestimentosPorMes', () => {
       }),
     ]);
 
-    const { porTipo, totaisPorMes } = await computeInvestimentosPorMes('u1', 2026);
+    const { porTipo, totaisPorMes, reinvestimentoPorMes } = await computeInvestimentosPorMes(
+      'u1',
+      2026,
+    );
 
     // venda-troca vai pro bucket separado (negativa); só o resgate comum conta
     expect(porTipo.reinvestimento[0]).toBe(-250);
     expect(totaisPorMes[0]).toBe(-100);
+    expect(reinvestimentoPorMes[0]).toBe(-250);
   });
 
   describe('Tesouro de catálogo em reserva (report 10/08)', () => {

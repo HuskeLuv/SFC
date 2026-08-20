@@ -30,6 +30,7 @@ export const useCashflowData = (year?: number) => {
   const investimentosQuery = useQuery<{
     investimentos: InvestimentoCalculado[];
     totaisPlanejamentoPorMes: number[];
+    totaisReinvestimentosPorMes: number[];
   }>({
     queryKey: queryKeys.cashflow.investimentos(currentYear),
     queryFn: async ({ signal }) => {
@@ -42,6 +43,7 @@ export const useCashflowData = (year?: number) => {
       return {
         investimentos: responseData.investimentos || [],
         totaisPlanejamentoPorMes: responseData.totaisPlanejamentoPorMes || Array(12).fill(0),
+        totaisReinvestimentosPorMes: responseData.totaisReinvestimentosPorMes || Array(12).fill(0),
       };
     },
   });
@@ -64,9 +66,11 @@ export const useCashflowData = (year?: number) => {
 
   return {
     data,
-    // Aportes de ativos vinculados a sonho (fora do Aporte/Resgate) — a
-    // Evolução do Patrimônio precisa da série cheia.
+    // Aportes de ativos vinculados a sonho e operações "dinheiro já estava
+    // investido" (ambos fora do Aporte/Resgate) — a Evolução do Patrimônio
+    // precisa da série cheia.
     planejamentoPorMes: investimentosQuery.data?.totaisPlanejamentoPorMes,
+    reinvestimentosPorMes: investimentosQuery.data?.totaisReinvestimentosPorMes,
     loading: groupsQuery.isLoading || investimentosQuery.isLoading,
     error: groupsQuery.error ? (groupsQuery.error as Error).message : null,
     refetch,

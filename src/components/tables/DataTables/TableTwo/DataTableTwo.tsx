@@ -65,7 +65,8 @@ export default function DataTableTwo() {
   const queryClient = useQueryClient();
   const { year: currentYear } = useCashflowYear();
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const { data, planejamentoPorMes, loading, error, refetch } = useCashflowData(currentYear);
+  const { data, planejamentoPorMes, reinvestimentosPorMes, loading, error, refetch } =
+    useCashflowData(currentYear);
   const startDateISO = useMemo(() => new Date(currentYear, 0, 1).toISOString(), [currentYear]);
   const endDateISO = useMemo(
     () => new Date(currentYear, 11, 31, 23, 59, 59).toISOString(),
@@ -248,10 +249,14 @@ export default function DataTableTwo() {
       snapshotByMonth[snap.month] = snap.valor;
     }
     // Série CHEIA de aportes: Aporte/Resgate (livres) + ativos vinculados a
-    // sonho. Estes últimos ficam fora do fluxo livre (já descem como despesa
-    // da linha-espelho), mas o aporte nominal vira patrimônio do mesmo jeito.
+    // sonho + operações "dinheiro já estava investido". Os dois últimos ficam
+    // fora do fluxo livre (sonho já desce como despesa da linha-espelho; a
+    // operação marcada nunca passou pelo caixa), mas o aporte nominal vira
+    // patrimônio do mesmo jeito — sem somá-los, a posição pré-existente sumia
+    // da Evolução do ano e reaparecia na base aplicada da virada (degrau).
     const aportesFullByMonth = investimentosByMonth.map(
-      (v: number, i: number) => v + (planejamentoPorMes?.[i] || 0),
+      (v: number, i: number) =>
+        v + (planejamentoPorMes?.[i] || 0) + (reinvestimentosPorMes?.[i] || 0),
     );
     return computeEvolucaoSeries({
       baseAplicada: evolucaoData?.baseAplicadaAnterior ?? 0,
@@ -264,6 +269,7 @@ export default function DataTableTwo() {
     evolucaoData,
     investimentosByMonth,
     planejamentoPorMes,
+    reinvestimentosPorMes,
     fluxoCaixaLivreByMonth,
     saldoContaCorrenteAnteriorByMonth,
   ]);

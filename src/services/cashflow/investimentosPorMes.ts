@@ -133,9 +133,19 @@ export interface InvestimentosPorMes {
    * Esses aportes viram o realizado da linha-espelho do sonho (despesa do grupo
    * Planejamento Financeiro) — por isso saem de `totaisPorMes` (senão o mesmo
    * dinheiro seria subtraído 2× do Fluxo de Caixa Livre). A Evolução do
-   * Patrimônio soma `totaisPorMes + planejamentoPorMes` (série cheia).
+   * Patrimônio soma `totaisPorMes + planejamentoPorMes + reinvestimentoPorMes`
+   * (série cheia).
    */
   planejamentoPorMes: number[];
+  /**
+   * Líquido mensal das operações marcadas com a flag "dinheiro já estava
+   * investido" (action 'reinvestimento': reinvestimento de proventos, rolagem,
+   * trade, posição pré-existente). Fora do Aporte/Resgate e do Fluxo de Caixa
+   * Livre (não é dinheiro que passou pelo caixa), mas o aporte nominal É
+   * patrimônio — a Evolução do Patrimônio precisa desta série; sem ela a
+   * compra marcada sumia do ano e reaparecia só na base aplicada da virada.
+   */
+  reinvestimentoPorMes: number[];
   /** Tipos de ativo com movimento (inclui 'reinvestimento'/'planejamento' quando houver). */
   tipos: Set<string>;
 }
@@ -236,6 +246,7 @@ export async function computeInvestimentosPorMes(
 
   const totaisPorMes = somaMes((tipo) => tipo !== 'reinvestimento' && tipo !== 'planejamento');
   const planejamentoPorMes = somaMes((tipo) => tipo === 'planejamento');
+  const reinvestimentoPorMes = somaMes((tipo) => tipo === 'reinvestimento');
 
-  return { porTipo, totaisPorMes, planejamentoPorMes, tipos };
+  return { porTipo, totaisPorMes, planejamentoPorMes, reinvestimentoPorMes, tipos };
 }
