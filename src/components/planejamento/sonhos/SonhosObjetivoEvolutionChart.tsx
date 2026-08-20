@@ -75,8 +75,21 @@ export default function SonhosObjetivoEvolutionChart({
       chart: {
         id: `sonhos-${objetivo.id}`,
         fontFamily: 'Outfit, sans-serif',
-        toolbar: { show: false },
-        zoom: { enabled: false },
+        // Zoom igual ao gráfico de Evolução da aposentadoria (ticket
+        // 20/08/2026): seleção no eixo X + botões da toolbar.
+        zoom: { enabled: true, type: 'x', autoScaleYaxis: true },
+        toolbar: {
+          show: true,
+          tools: {
+            zoom: true,
+            zoomin: true,
+            zoomout: true,
+            reset: true,
+            pan: true,
+            download: false,
+            selection: false,
+          },
+        },
         type: 'line',
       },
       colors: ['#94A3B8', accent],
