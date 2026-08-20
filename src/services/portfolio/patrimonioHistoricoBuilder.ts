@@ -119,6 +119,12 @@ export const getTransactionValue = (transaction: {
 //   do booking via incomeByDay (na arquitetura antiga, com o caixa acumulado
 //   DENTRO da base, contar o fluxo deflava o TWR — por isso a exclusão de
 //   maio/2026; a base atual é só posições, e a conta se inverteu).
+// Imóveis & Bens (ticket 20/08/2026): patrimônio, não investimento. Ficam na
+// Carteira Consolidada (cards/donut via portfolioLiveTotals) e no Balanço
+// Patrimonial, mas FORA das séries de rentabilidade/patrimônio investido —
+// valor parado dilui o TWR e o aporte não é fluxo de investimento.
+const isImovelAssetType = (type: string | null | undefined): boolean => type === 'imovel';
+
 export const isReinvestimentoTransaction = (notes: string | null | undefined): boolean => {
   if (!notes) return false;
   try {
@@ -614,6 +620,7 @@ export const buildPatrimonioHistorico = async (
   portfolio.forEach((item) => {
     const symbol = item.asset?.symbol;
     if (!symbol) return;
+    if (isImovelAssetType(item.asset?.type)) return;
 
     const isFixedIncome = item.assetId ? fixedIncomeByAssetId.has(item.assetId) : false;
     const isManual =
@@ -660,6 +667,7 @@ export const buildPatrimonioHistorico = async (
   stockTransactions.forEach((transaction) => {
     const symbol = transaction.asset?.symbol;
     if (!symbol) return;
+    if (isImovelAssetType(transaction.asset?.type)) return;
 
     // Linhas de auditoria de evento corporativo são DISPLAY-ONLY (extrato). O
     // split já é aplicado via fator (cumulativeFactorAfter); somar o delta da
@@ -719,6 +727,7 @@ export const buildPatrimonioHistorico = async (
   portfolio.forEach((item) => {
     const symbol = item.asset?.symbol;
     if (!symbol) return;
+    if (isImovelAssetType(item.asset?.type)) return;
     if (transactionsBySymbol.has(symbol)) return;
 
     const day = shiftToBusinessDay(normalizeDateStart(item.lastUpdate || new Date()).getTime());
@@ -793,15 +802,17 @@ export const buildPatrimonioHistorico = async (
   };
 
   const timelineStartCandidates: number[] = [];
-  if (stockTransactions.length > 0) {
-    timelineStartCandidates.push(normalizeDateStart(stockTransactions[0].date).getTime());
+  const txSemImovel = stockTransactions.filter((t) => !isImovelAssetType(t.asset?.type));
+  if (txSemImovel.length > 0) {
+    timelineStartCandidates.push(normalizeDateStart(txSemImovel[0].date).getTime());
   }
   if (manualValuesByDay.size > 0) {
     timelineStartCandidates.push(Math.min(...Array.from(manualValuesByDay.keys())));
   }
-  if (portfolio.length > 0) {
+  const portfolioSemImovel = portfolio.filter((item) => !isImovelAssetType(item.asset?.type));
+  if (portfolioSemImovel.length > 0) {
     const earliestPortfolioDate = Math.min(
-      ...portfolio
+      ...portfolioSemImovel
         .map((item) => normalizeDateStart(item.lastUpdate || new Date()).getTime())
         .filter((value) => Number.isFinite(value)),
     );
@@ -1213,6 +1224,7 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   stockTransactions.forEach((transaction) => {
     const symbol = transaction.asset?.symbol;
     if (!symbol) return;
+    if (isImovelAssetType(transaction.asset?.type)) return;
 
     const day = shiftToBusinessDay(normalizeDateStart(transaction.date).getTime());
     const totalValue = getTransactionValue(transaction);
@@ -1227,6 +1239,7 @@ export const buildPatrimonioCashFlowsByDayOnly = (
   portfolio.forEach((item) => {
     const symbol = item.asset?.symbol;
     if (!symbol) return;
+    if (isImovelAssetType(item.asset?.type)) return;
 
     const hasTx = stockTransactions.some((t) => t.asset?.symbol === symbol);
     if (hasTx) return;

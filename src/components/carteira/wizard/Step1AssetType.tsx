@@ -171,6 +171,8 @@ function getAssetTypeDescription(tipoAtivo: string): string {
     'renda-fixa':
       'Renda fixa inclui títulos pré-fixados (taxa definida na aplicação), pós-fixados (atrelados a CDI ou IPCA) ou híbridos (parte fixa + indexador). No próximo passo você escolherá o tipo de rentabilidade.',
     'tesouro-direto': 'Títulos públicos federais negociados diretamente com o Tesouro Nacional.',
+    imovel:
+      'Imóveis e bens (apartamento, casa, carro, terreno etc.) compõem o seu patrimônio na Carteira Consolidada e no Balanço Patrimonial, mas não entram no cálculo de rentabilidade da carteira.',
   };
 
   return descriptions[tipoAtivo] || 'Selecione um tipo de ativo para ver mais informações.';

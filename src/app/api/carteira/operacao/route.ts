@@ -207,6 +207,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // Para reservas (emergency e opportunity) e personalizado, assetId não é obrigatório pois será criado automaticamente
   const isReserva = tipoAtivo === 'emergency' || tipoAtivo === 'opportunity';
   const isPersonalizado = tipoAtivo === 'personalizado';
+  // Imóveis & Bens (ticket 20/08/2026): patrimônio, não investimento — asset
+  // manual próprio, fora da rentabilidade (exclusão no builder de séries).
+  const isImovel = tipoAtivo === 'imovel';
   if (!tipoAtivo || !instituicaoId) {
     return NextResponse.json(
       {
@@ -258,6 +261,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (
     !isReserva &&
     !isPersonalizado &&
+    !isImovel &&
     !isRendaFixa &&
     !isContaCorrente &&
     !isPoupanca &&
@@ -340,6 +344,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       return NextResponse.json(
         {
           error: 'Quantidade e preço de aquisição devem ser maiores que zero',
+        },
+        { status: 400 },
+      );
+    }
+  } else if (tipoAtivo === 'imovel') {
+    if (!dataInicio || !nomePersonalizado || !precoUnitario) {
+      return NextResponse.json(
+        {
+          error: 'Campos obrigatórios para este tipo: dataInicio, nomePersonalizado, precoUnitario',
         },
         { status: 400 },
       );
@@ -841,6 +854,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
+  if (tipoAtivo === 'imovel' && precoUnitario <= 0) {
+    return NextResponse.json(
+      { error: 'Valor de aquisição deve ser maior que zero' },
+      { status: 400 },
+    );
+  }
+
   if (tipoAtivo === 'personalizado' && (quantidade <= 0 || precoUnitario <= 0)) {
     return NextResponse.json(
       {
@@ -1047,6 +1067,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     tipoAtivo === 'emergency' ||
     tipoAtivo === 'opportunity' ||
     tipoAtivo === 'personalizado' ||
+    tipoAtivo === 'imovel' ||
     tipoAtivo === 'renda-fixa' ||
     tipoAtivo === 'renda-fixa-posfixada' ||
     tipoAtivo === 'renda-fixa-hibrida'
@@ -1063,6 +1084,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     } else if (tipoAtivo === 'personalizado') {
       baseName = (nomePersonalizado || '').trim() || 'Personalizado';
       baseSymbol = 'PERSONALIZADO';
+    } else if (tipoAtivo === 'imovel') {
+      baseName = (nomePersonalizado || '').trim() || 'Imóvel / Bem';
+      baseSymbol = 'IMOVEL';
     } else if (
       tipoAtivo === 'renda-fixa' ||
       tipoAtivo === 'renda-fixa-posfixada' ||
@@ -1096,7 +1120,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     );
 
     let assetName = '';
-    if (tipoAtivo === 'personalizado') {
+    if (tipoAtivo === 'imovel') {
+      // Nome limpo — é o rótulo exibido na aba Imóveis & Bens.
+      assetName = baseName;
+    } else if (tipoAtivo === 'personalizado') {
       // Para personalizado, usar o nome fornecido pelo usuário
       const valorTotal = quantidade * precoUnitario;
       const valorFormatado = valorTotal
@@ -1140,8 +1167,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         symbol: assetSymbol,
         name: assetName,
         type:
-          tipoAtivo === 'personalizado'
-            ? 'personalizado'
+          tipoAtivo === 'personalizado' || tipoAtivo === 'imovel'
+            ? tipoAtivo
             : tipoAtivo === 'renda-fixa' ||
                 tipoAtivo === 'renda-fixa-posfixada' ||
                 tipoAtivo === 'renda-fixa-hibrida'
@@ -1569,6 +1596,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     valorCalculado = quantidade * precoUnitario;
     quantidadeFinal = quantidade;
     precoFinal = precoUnitario;
+  } else if (tipoAtivo === 'imovel') {
+    // Unidade única: o valor do bem inteiro no preço.
+    valorCalculado = precoUnitario;
+    quantidadeFinal = 1;
+    precoFinal = precoUnitario;
   } else if (
     tipoAtivo === 'conta-corrente' ||
     tipoAtivo === 'poupanca' ||
@@ -1820,12 +1852,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   // Verificar se asset foi criado/encontrado (consolidação Stock → Asset:
   // ações/FIIs agora também passam pela tabela Asset).
-  if (!isReserva && !isPersonalizado && !isRendaFixa && !asset) {
+  if (!isReserva && !isPersonalizado && !isImovel && !isRendaFixa && !asset) {
     return NextResponse.json({ error: 'Asset não encontrado' }, { status: 404 });
   }
   if (
     (isReserva ||
       isPersonalizado ||
+      isImovel ||
       isRendaFixa ||
       isContaCorrente ||
       isPoupanca ||
@@ -1836,13 +1869,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   ) {
     const tipoErro = isPersonalizado
       ? 'personalizado'
-      : isRendaFixa || isTesouroRendaFixa
-        ? 'renda fixa'
-        : isContaCorrente
-          ? 'conta corrente'
-          : isPoupanca
-            ? 'poupança'
-            : 'reserva';
+      : isImovel
+        ? 'imóvel/bem'
+        : isRendaFixa || isTesouroRendaFixa
+          ? 'renda fixa'
+          : isContaCorrente
+            ? 'conta corrente'
+            : isPoupanca
+              ? 'poupança'
+              : 'reserva';
     return NextResponse.json({ error: `Erro ao criar asset para ${tipoErro}` }, { status: 500 });
   }
 
@@ -2078,6 +2113,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       if (
         isReserva ||
         isPersonalizado ||
+        isImovel ||
         isRendaFixa ||
         isTesouroReserva ||
         isTesouroRendaFixa ||

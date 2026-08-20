@@ -8,6 +8,7 @@ import Step4ReservaFields from './Step4ReservaFields';
 import Step4ContaCorrentePoupancaFields from './Step4ContaCorrentePoupancaFields';
 import Step4MoedasCriptosFields from './Step4MoedasCriptosFields';
 import Step4PersonalizadoFields from './Step4PersonalizadoFields';
+import Step4ImovelFields from './Step4ImovelFields';
 import Step4RendaFixaFields from './Step4RendaFixaFields';
 import Step4TesouroDiretoFields from './Step4TesouroDiretoFields';
 import Step4FundoDebenturePrevidenciaFields from './Step4FundoDebenturePrevidenciaFields';
@@ -142,6 +143,9 @@ export default function Step4AssetInfo({
 
       case 'personalizado':
         return <Step4PersonalizadoFields {...fieldProps} />;
+
+      case 'imovel':
+        return <Step4ImovelFields {...fieldProps} />;
 
       case 'renda-fixa':
       case 'renda-fixa-posfixada':
