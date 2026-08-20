@@ -22,6 +22,20 @@ const mockPrisma = vi.hoisted(() => ({
 }));
 
 const mockBuildPatrimonio = vi.hoisted(() => vi.fn());
+// Snapshots sem cobertura nos testes → rota cai no rebuild (mockBuildPatrimonio)
+const mockLoadSnapshots = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    historicoPatrimonio: [],
+    historicoTWR: [],
+    historicoTWRPeriodo: [],
+    proventosAcumuladosByDay: new Map(),
+    coverageOk: false,
+    coverageReason: 'no-rows',
+  }),
+);
+const mockLoadProventosByDay = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ proventosByDay: new Map(), total: 0 }),
+);
 const mockFiPricer = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ buildValueSeriesForAsset: vi.fn() }),
 );
@@ -39,6 +53,14 @@ vi.mock('@/lib/prisma', () => ({ default: mockPrisma, prisma: mockPrisma }));
 vi.mock('@/services/portfolio/patrimonioHistoricoBuilder', () => ({
   buildPatrimonioHistorico: mockBuildPatrimonio,
   filterInvestmentsExclReservas: (xs: unknown[]) => xs,
+  getRawPatrimonioTimelineStart: () => new Date('2024-01-01'),
+  normalizeDateStart: (d: Date) => new Date(d),
+}));
+vi.mock('@/services/portfolio/portfolioSnapshotReader', () => ({
+  loadHistoricoFromSnapshots: mockLoadSnapshots,
+}));
+vi.mock('@/services/portfolio/proventosByDay', () => ({
+  loadProventosByDay: mockLoadProventosByDay,
 }));
 vi.mock('@/services/portfolio/fixedIncomePricing', () => ({
   createFixedIncomePricer: mockFiPricer,
@@ -99,6 +121,29 @@ describe('GET /api/analises/risco-retorno — métricas por ativo', () => {
       historicoTWRPeriodo: [],
       cashFlowsByDay: new Map(),
     });
+  });
+
+  it('ticket 20/08: com snapshots cobrindo, usa a série deles e NÃO reconstrói', async () => {
+    // Mesma fonte da Rentabilidade Geral: snapshot-primário. TWR 0→10% em 2
+    // pontos de meses distintos → retorno acumulado 10% (sem anualizar, <12m).
+    mockLoadSnapshots.mockResolvedValueOnce({
+      historicoPatrimonio: [],
+      historicoTWR: [
+        { data: Date.UTC(2026, 5, 30), value: 0 },
+        { data: Date.UTC(2026, 6, 31), value: 10 },
+      ],
+      historicoTWRPeriodo: [],
+      proventosAcumuladosByDay: new Map(),
+      coverageOk: true,
+      coverageReason: 'ok',
+    });
+    mockGetAssetHistory.mockResolvedValue([]);
+
+    const res = await GET(createRequest());
+    const body = await res.json();
+
+    expect(mockBuildPatrimonio).not.toHaveBeenCalled();
+    expect(body.carteira.retornoAnual).toBeCloseTo(10, 1);
   });
 
   it('inclui sharpe/vol/retornoAnual/retornoCDI por ativo na sensibilidade', async () => {

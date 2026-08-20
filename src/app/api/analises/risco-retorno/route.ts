@@ -7,7 +7,11 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import {
   buildPatrimonioHistorico,
   filterInvestmentsExclReservas,
+  getRawPatrimonioTimelineStart,
+  normalizeDateStart,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
+import { loadHistoricoFromSnapshots } from '@/services/portfolio/portfolioSnapshotReader';
+import { loadProventosByDay } from '@/services/portfolio/proventosByDay';
 import { normalizeInvestmentItemValues } from '@/utils/cashflowFilters';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import type { FixedIncomeAssetWithAsset } from '@/services/portfolio/patrimonioHistoricoBuilder';
@@ -30,9 +34,10 @@ const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
  * Versão do algoritmo de cálculo. Bumpar invalida todo o cache existente sem precisar
  * mexer no DB: o hash entra como prefixo nas chaves, então linhas antigas viram órfãs
  * e qualquer request recomputa do zero. Bump quando a fórmula de beta/risco mudar de
- * forma observável aos usuários (ex.: 1 → 2 quando beta migrou de mensal para diário).
+ * forma observável aos usuários (ex.: 1 → 2 quando beta migrou de mensal para diário;
+ * 2 → 3 quando a série passou a ser snapshot-primário com proventos como renda).
  */
-const ALGORITHM_VERSION = 2;
+const ALGORITHM_VERSION = 3;
 
 /** Hash estável da composição: invalida o cache quando posição/preço médio muda. */
 function computePortfolioHash(
@@ -82,11 +87,13 @@ interface RiscoRetornoResponse {
 function calcularRetornosMensaisTWR(
   historicoTWR: Array<{ data: number; value: number }>,
 ): Array<{ year: number; month: number; retorno: number }> {
-  // Agrupa por mês (pega último valor TWR acumulado de cada mês)
+  // Agrupa por mês (pega último valor TWR acumulado de cada mês). Bucket em
+  // UTC: os pontos são meia-noite UTC — acessores locais em BRT jogavam o dia
+  // 1º pro mês anterior (mesma classe do bug de meses duplicados, PR #103).
   const porMes = new Map<string, { data: number; twrAcumulado: number }>();
   for (const item of historicoTWR) {
     const d = new Date(item.data);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
     porMes.set(key, { data: item.data, twrAcumulado: item.value });
   }
 
@@ -308,19 +315,63 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     fiPricer,
   });
 
-  // Constrói histórico de patrimônio com TWR (até 36 meses)
-  const built = await buildPatrimonioHistorico({
-    portfolio,
-    fixedIncomeAssets,
+  // Série TWR da MESMA fonte da Rentabilidade Geral (ticket 20/08/2026):
+  // snapshots diários primário, rebuild como fallback. Antes a rota fazia um
+  // rebuild próprio SEM proventos como renda e COM patch de totais live —
+  // numa carteira dividendeira o "retorno anual" saía muito abaixo do card
+  // "No ano"/"Do início" da Rentabilidade Geral (demo: 1,98% vs 7,47% no ano).
+  const hoje = normalizeDateStart(new Date());
+  const rawTimelineStart = getRawPatrimonioTimelineStart(
     stockTransactions,
-    investmentsExclReservas: cashflowInvestments,
-    saldoBrutoAtual: saldoBruto,
-    valorAplicadoAtual: valorAplicado,
-    maxHistoricoMonths: rangeMonths,
-    patchLastDayWithLiveTotals: true,
-    fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
-    implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
+    portfolio,
+    cashflowInvestments,
+    fixedIncomeAssets,
+    new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1),
+  );
+  const activityCandidates: number[] = [];
+  if (stockTransactions.length > 0) {
+    activityCandidates.push(new Date(stockTransactions[0].date).getTime());
+  }
+  for (const fi of fixedIncomeAssets) {
+    const t = new Date(fi.startDate).getTime();
+    if (Number.isFinite(t)) activityCandidates.push(t);
+  }
+  cashflowInvestments.forEach((inv) => {
+    (inv.values || []).forEach((v) => {
+      activityCandidates.push(new Date(v.year, v.month, 1).getTime());
+    });
   });
+  const firstActivityDate =
+    activityCandidates.length > 0 ? new Date(Math.min(...activityCandidates)) : undefined;
+
+  let historicoTWR: Array<{ data: number; value: number }> | null = null;
+  const snap = await loadHistoricoFromSnapshots(targetUserId, rawTimelineStart, hoje, {
+    firstActivityDate,
+  });
+  if (snap.coverageOk && snap.historicoTWR.length > 0) {
+    historicoTWR = snap.historicoTWR;
+  }
+
+  if (!historicoTWR) {
+    // Fallback alinhado ao do /api/carteira/resumo: proventos entram como
+    // renda no TWR e o patch de totais live fica DESLIGADO (criava degrau
+    // artificial no último ponto e inflava a volatilidade).
+    const { proventosByDay } = await loadProventosByDay(targetUserId);
+    const built = await buildPatrimonioHistorico({
+      portfolio,
+      fixedIncomeAssets,
+      stockTransactions,
+      investmentsExclReservas: cashflowInvestments,
+      saldoBrutoAtual: saldoBruto,
+      valorAplicadoAtual: valorAplicado,
+      maxHistoricoMonths: rangeMonths,
+      patchLastDayWithLiveTotals: false,
+      fixedIncomeValueSeriesBuilder: fiPricer.buildValueSeriesForAsset,
+      implicitCdiValueSeriesBuilder: fiPricer.buildImplicitCdiValueSeries,
+      proventosByDay,
+    });
+    historicoTWR = built.historicoTWR;
+  }
 
   // Busca CDI dos últimos 3 anos (para cobrir dados anuais)
   const tresAnosAtras = new Date();
@@ -339,8 +390,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const cdiFatorMensal = buildCdiFatorMensal(cdiRecords);
 
   // Calcula retornos mensais (retorno + CDI) e diários (volatilidade) a partir do TWR.
-  const retornosMensais = calcularRetornosMensaisTWR(built.historicoTWR);
-  const retornosDiarios = calcularRetornosDiariosTWR(built.historicoTWR);
+  const retornosMensais = calcularRetornosMensaisTWR(historicoTWR);
+  const retornosDiarios = calcularRetornosDiariosTWR(historicoTWR);
 
   // Métricas gerais (carteira — todos os meses disponíveis). CDI alinhado ao mesmo período
   // dos retornos: para 6 meses, comparamos contra CDI de 6 meses; para >=12, anualizamos
@@ -361,7 +412,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   for (const ano of anosDisponiveis) {
     const retornosMesDoAno = retornosMensais.filter((r) => r.year === ano).map((r) => r.retorno);
     const retornosDiaDoAno = retornosDiarios
-      .filter((r) => new Date(r.data).getFullYear() === ano)
+      .filter((r) => new Date(r.data).getUTCFullYear() === ano)
       .map((r) => r.retorno);
 
     // CDI real acumulado do ano (jan 1 até dez 31 ou hoje)
