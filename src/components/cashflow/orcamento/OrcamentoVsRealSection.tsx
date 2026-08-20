@@ -210,9 +210,14 @@ export default function OrcamentoVsRealSection() {
           o subtítulo "Resumo por Categoria" e a tabela em largura total. */}
       <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
         <OrcamentoChart linhas={linhas} />
+        {/* Visão Mês: Orçado × Real por categoria do mês selecionado;
+            Acumulado: mensal Jan–Dez com o Real empilhado por categoria. */}
         <OrcamentoMensalChart
+          visao={visao}
+          mes={mes}
+          modoReal={modoReal}
+          categorias={data.categorias}
           orcadoMensal={data.totais.metaMensal}
-          realPorMes={data.totais.realPorMes[modoReal]}
         />
       </div>
 
