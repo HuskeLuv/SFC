@@ -19,6 +19,11 @@ import PieChartCarteiraInvestimentos from '@/components/charts/pie/PieChartCarte
 import LineChartCarteiraHistorico from '@/components/charts/line/LineChartCarteiraHistorico';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { utcMidnight, dropCurrentDayUtc } from '@/utils/utcDay';
+import { useQuery } from '@tanstack/react-query';
+import { calcularRentabilidade } from '@/components/analises/RentabilidadeResumo';
+import ResumoExecutivo from './ResumoExecutivo';
+import PosicaoConsolidada, { type PosicaoSecao } from './PosicaoConsolidada';
+import MovimentacoesTable, { type Movimentacao } from './MovimentacoesTable';
 
 const formatDateLabel = (date: Date | null) => (date ? date.toLocaleDateString('pt-BR') : '--');
 
@@ -48,7 +53,6 @@ export default function RelatoriosPage() {
     useCarteiraHistorico(startTimestamp);
   const { indices: indices1d, loading: loadingIndices } = useIndices('1y', startTimestamp);
   const { indices: indices1mo } = useIndices('1mo', startTimestamp);
-  const { indices: indices1y } = useIndices('1y', startTimestamp);
   const {
     proventos,
     grouped,
@@ -58,6 +62,33 @@ export default function RelatoriosPage() {
   const cashflowProcessed = useProcessedData(cashflowData);
   const { grouped: instituicaoGrouped, loading: loadingInstituicaoDistribuicao } =
     useInstituicaoDistribuicao();
+  const { total: proventosTotal } = useProventos(startDateISO, endDateISO, 'ativo');
+
+  // Posição consolidada (por categoria → ativo) — mesma fonte da tela Histórico.
+  const { data: posicaoData } = useQuery({
+    queryKey: ['relatorios', 'posicao'],
+    queryFn: async ({ signal }) => {
+      const res = await fetch('/api/historico/ativos', { credentials: 'include', signal });
+      if (!res.ok) throw new Error('Erro ao carregar posição consolidada');
+      return res.json() as Promise<{ secoes: PosicaoSecao[] }>;
+    },
+  });
+
+  // Movimentações do período (extrato de compras/vendas — formato Gorila/Kinvo).
+  const { data: movimentacoesData } = useQuery({
+    queryKey: ['relatorios', 'movimentacoes', startDateISO, endDateISO],
+    queryFn: async ({ signal }) => {
+      const params = new URLSearchParams();
+      if (startDateISO) params.set('start', startDateISO);
+      if (endDateISO) params.set('end', endDateISO);
+      const res = await fetch(`/api/relatorios/movimentacoes?${params.toString()}`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!res.ok) throw new Error('Erro ao carregar movimentações');
+      return res.json() as Promise<{ movimentacoes: Movimentacao[]; totalNoPeriodo: number }>;
+    },
+  });
 
   const filterCarteiraByRange = useCallback(
     <T extends { date: number }>(data: T[]) => {
@@ -108,15 +139,6 @@ export default function RelatoriosPage() {
         data: filterIndicesByEnd(index.data),
       })),
     [indices1mo, filterIndicesByEnd],
-  );
-
-  const filteredIndices1y = useMemo(
-    () =>
-      indices1y.map((index) => ({
-        ...index,
-        data: filterIndicesByEnd(index.data),
-      })),
-    [indices1y, filterIndicesByEnd],
   );
 
   const filteredPatrimonio = useMemo(() => {
@@ -240,6 +262,71 @@ export default function RelatoriosPage() {
     return buildRows(groups);
   }, [cashflowProcessed, startDate, endDate]);
 
+  // ===== Resumo Executivo (ticket 20/08/2026 — números-chave do período) =====
+  const resumoExecutivo = useMemo(() => {
+    const fimTs = endTimestamp ?? Number.MAX_SAFE_INTEGER;
+    const inicioTs = startTimestamp ?? 0;
+
+    const patrimonioInicio = filteredPatrimonio[0]?.saldoBruto ?? null;
+    const patrimonioFim =
+      filteredPatrimonio[filteredPatrimonio.length - 1]?.saldoBruto ?? resumo?.saldoBruto ?? 0;
+
+    // TWR do período: mesma régua do card da Análise (razão entre acumulados).
+    const twrSerie = (resumo?.historicoTWR ?? []).map((t) => ({ date: t.data, value: t.value }));
+    const rentabilidadePeriodo =
+      twrSerie.length > 0 ? calcularRentabilidade(twrSerie, inicioTs, fimTs) : null;
+
+    const cdiSerie = filteredIndices1d.find((i) => i.name === 'CDI')?.data ?? [];
+    const cdiPeriodo =
+      cdiSerie.length > 0
+        ? calcularRentabilidade(
+            cdiSerie.filter(
+              (ponto): ponto is { date: number; value: number } => typeof ponto?.value === 'number',
+            ),
+            inicioTs,
+            fimTs,
+          )
+        : null;
+
+    // Aportes líquidos: compras − vendas do período, sem operações marcadas
+    // como "dinheiro já estava investido" (não passaram pelo caixa) e sem
+    // Imóveis & Bens — a série de patrimônio investido também os exclui, e
+    // misturar distorceria o Resultado (Δ patrimônio − aportes).
+    const movs = movimentacoesData?.movimentacoes;
+    const aportesLiquidosPeriodo = movs
+      ? Math.round(
+          movs.reduce((sum, mov) => {
+            if (mov.jaInvestido || mov.tipoAtivo === 'imovel') return sum;
+            return sum + (mov.operacao === 'compra' ? mov.total : -mov.total);
+          }, 0) * 100,
+        ) / 100
+      : null;
+
+    // Resultado financeiro (P&L, formato Gorila): Δ patrimônio − aportes líquidos.
+    const resultadoPeriodo =
+      patrimonioInicio !== null && aportesLiquidosPeriodo !== null
+        ? Math.round((patrimonioFim - patrimonioInicio - aportesLiquidosPeriodo) * 100) / 100
+        : null;
+
+    return {
+      patrimonioFim,
+      resultadoPeriodo,
+      rentabilidadePeriodo,
+      cdiPeriodo,
+      proventosPeriodo: proventosTotal ?? 0,
+      aportesLiquidosPeriodo,
+    };
+  }, [
+    filteredPatrimonio,
+    resumo?.historicoTWR,
+    resumo?.saldoBruto,
+    filteredIndices1d,
+    movimentacoesData,
+    proventosTotal,
+    startTimestamp,
+    endTimestamp,
+  ]);
+
   const formatCurrencyValue = (value: number) =>
     value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -335,10 +422,20 @@ export default function RelatoriosPage() {
       ) : (
         <>
           <div className="space-y-8">
+            {/* Cabeçalho do relatório (aparece na impressão/PDF) */}
+            <div className="hidden print:block">
+              <h1 className="text-2xl font-bold text-gray-900">
+                Relatório da Carteira — My Finance
+              </h1>
+              <p className="text-sm text-gray-500">
+                {periodLabel} · Gerado em {new Date().toLocaleDateString('pt-BR')}
+              </p>
+            </div>
+
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Rentabilidade da Carteira
+                  Resumo Executivo
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
               </div>
@@ -350,6 +447,28 @@ export default function RelatoriosPage() {
               >
                 Exportar PDF
               </Button>
+            </div>
+            <div className="avoid-break">
+              <ResumoExecutivo {...resumoExecutivo} />
+            </div>
+
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Posição Consolidada
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Valores atuais por categoria e ativo
+              </p>
+            </div>
+            <ComponentCard title="Posição Consolidada" className="avoid-break">
+              <PosicaoConsolidada secoes={posicaoData?.secoes ?? []} />
+            </ComponentCard>
+
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Rentabilidade da Carteira
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
             </div>
             <div className="space-y-6">
               <ComponentCard title="Rentabilidade Por Dia" className="avoid-break">
@@ -366,13 +485,6 @@ export default function RelatoriosPage() {
                   carteiraData={filteredCarteiraHistorico}
                   indicesData={filteredIndices1mo}
                   period="1mo"
-                />
-              </ComponentCard>
-              <ComponentCard title="Rentabilidade Por Ano" className="avoid-break">
-                <RentabilidadeChart
-                  carteiraData={filteredCarteiraHistorico}
-                  indicesData={filteredIndices1y}
-                  period="1y"
                 />
               </ComponentCard>
             </div>
@@ -451,6 +563,19 @@ export default function RelatoriosPage() {
                   Sem dados para o período selecionado.
                 </div>
               )}
+            </ComponentCard>
+
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Movimentações do Período
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
+            </div>
+            <ComponentCard title="Movimentações" className="avoid-break">
+              <MovimentacoesTable
+                movimentacoes={movimentacoesData?.movimentacoes ?? []}
+                totalNoPeriodo={movimentacoesData?.totalNoPeriodo ?? 0}
+              />
             </ComponentCard>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -536,24 +661,6 @@ export default function RelatoriosPage() {
                   </TableBody>
                 </Table>
               </div>
-            </ComponentCard>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Comparativo com Índices
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
-              </div>
-            </div>
-            <ComponentCard title="Comparativo com Índices" className="avoid-break">
-              <RentabilidadeChart
-                carteiraData={[]}
-                indicesData={filteredIndices1d}
-                period="1d"
-                startTimestamp={startTimestamp}
-                endTimestamp={endTimestamp}
-              />
             </ComponentCard>
           </div>
         </>
