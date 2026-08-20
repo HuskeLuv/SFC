@@ -6,32 +6,17 @@ import ApexChartWrapper from '@/components/charts/ApexChartWrapper';
 import { useTheme } from '@/context/ThemeContext';
 import { formatBRL } from '@/utils/format';
 import type { OrcamentoLinha } from './OrcamentoTable';
+import { coresPorNome } from './orcamentoCores';
 
 /**
  * Donut de distribuição por categoria, espelhando o gráfico de rosca da
  * planilha modelo (total no centro). Toggle Real (padrão) × Orçado; fatias
  * em R$ da janela selecionada (mês ou acumulado).
  *
- * Cores POR NOME de categoria, extraídas do próprio donut da planilha
- * (xl/charts/chart1.xml — cada fatia tem cor explícita); categorias que não
- * existem no modelo caem nos accents do tema da mesma planilha. Mapear por
- * nome mantém a cor da categoria estável ao alternar Real/Orçado.
+ * Cores por nome de categoria em `orcamentoCores` (compartilhadas com o
+ * gráfico de barras) — mapear por nome mantém a cor da categoria estável ao
+ * alternar Real/Orçado e entre os dois gráficos.
  */
-
-const CORES_PLANILHA: Record<string, string> = {
-  Habitação: '#9E8A58',
-  Transporte: '#61D836',
-  Saúde: '#929292',
-  'Despesas Pessoais': '#4472C4',
-  Lazer: '#FFC000',
-  'Despesas Financeiras': '#E6E0D2',
-  Agradecimentos: '#404040',
-  'Despesas Empresa': '#E6E0D2',
-  'Planejamento Financeiro': '#685B3A',
-};
-
-// Accents do tema da planilha (theme1.xml), para categorias fora do modelo.
-const CORES_FALLBACK = ['#00A2FF', '#16E7CF', '#FFD932', '#FF644E', '#FF42A1', '#5E5E5E'];
 
 type Serie = 'orcado' | 'real';
 
@@ -51,10 +36,7 @@ export default function OrcamentoChart({ linhas }: OrcamentoChartProps) {
         valor: serie === 'orcado' ? (l.metaJanela ?? 0) : l.real,
       }))
       .filter((f) => f.valor > 0);
-    let fallbackIdx = 0;
-    const coresFatias = fatias.map(
-      (f) => CORES_PLANILHA[f.nome] ?? CORES_FALLBACK[fallbackIdx++ % CORES_FALLBACK.length],
-    );
+    const coresFatias = coresPorNome(fatias.map((f) => f.nome));
     return {
       labels: fatias.map((f) => f.nome),
       valores: fatias.map((f) => f.valor),
