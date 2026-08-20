@@ -156,6 +156,15 @@ export default function Step5Confirmation({
           </>
         );
 
+      case 'imovel':
+        return (
+          <>
+            {renderFieldValue('Data de Aquisição', formData.dataInicio, formatDate)}
+            {renderFieldValue('Nome do Imóvel ou Bem', formData.nomePersonalizado)}
+            {renderFieldValue('Valor de Aquisição', formData.precoUnitario, formatCurrency)}
+          </>
+        );
+
       case 'poupanca':
         return (
           <>

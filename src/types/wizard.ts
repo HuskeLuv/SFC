@@ -240,6 +240,7 @@ export const TIPOS_ATIVO_PERMITIDOS = [
   'reit',
   'stock',
   'opcoes',
+  'imovel',
 ] as const;
 
 export type TipoAtivoPermitido = (typeof TIPOS_ATIVO_PERMITIDOS)[number];
@@ -268,6 +269,9 @@ export const TIPOS_ATIVO = [
   { value: 'tesouro-direto', label: 'Tesouro Direto' },
   { value: 'personalizado', label: 'Personalizado' },
   { value: 'opcoes', label: 'Opções' },
+  // Patrimônio, não investimento: compõe a Carteira Consolidada e o Balanço
+  // Patrimonial; fica FORA da rentabilidade (ticket 20/08/2026).
+  { value: 'imovel', label: 'Imóveis & Bens' },
 ];
 
 export const RENDA_FIXA_TIPOS = [

@@ -734,6 +734,53 @@ describe('buildPatrimonioHistorico', () => {
     }
   });
 
+  it('ticket 20/08: imóvel/bem fica FORA da série e dos fluxos de rentabilidade', async () => {
+    const txAcao = {
+      id: 'tx-acao',
+      date: new Date(Date.UTC(2025, 0, 15)),
+      type: 'compra',
+      quantity: 10,
+      price: 100,
+      total: 1000,
+      asset: { symbol: 'PETR4', name: 'Petrobras', type: 'stock' },
+      stockId: 'stock-1',
+      assetId: null,
+      userId: 'user-1',
+      portfolioId: 'port-1',
+    } as unknown as StockTransactionWithRelations;
+    const txImovel = {
+      ...txAcao,
+      id: 'tx-imovel',
+      quantity: 1,
+      price: 350000,
+      total: 350000,
+      asset: { symbol: 'IMOVEL-1', name: 'Apartamento', type: 'imovel' },
+    } as unknown as StockTransactionWithRelations;
+
+    const endDate = new Date(Date.UTC(2025, 0, 17));
+    const comImovel = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [txAcao, txImovel],
+      saldoBrutoAtual: 1000,
+      valorAplicadoAtual: 1000,
+      timelineEndDate: endDate,
+    });
+    const semImovel = await buildPatrimonioHistorico({
+      ...emptyParams,
+      stockTransactions: [txAcao],
+      saldoBrutoAtual: 1000,
+      valorAplicadoAtual: 1000,
+      timelineEndDate: endDate,
+    });
+
+    // Série e TWR idênticos com ou sem o imóvel (patrimônio ≠ investimento).
+    expect(comImovel.historicoPatrimonio).toEqual(semImovel.historicoPatrimonio);
+    expect(comImovel.historicoTWR).toEqual(semImovel.historicoTWR);
+    // Nenhum fluxo externo do imóvel.
+    const dia = comImovel.historicoPatrimonio[0]?.data;
+    expect(comImovel.cashFlowsByDay.get(dia)).toEqual(semImovel.cashFlowsByDay.get(dia));
+  });
+
   it('carteira SÓ com transação futura: série vazia (nada realizado ainda)', async () => {
     const txFutura = {
       id: 'tx-futura',

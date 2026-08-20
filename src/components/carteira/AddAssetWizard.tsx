@@ -248,6 +248,10 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         );
       }
 
+      if (tipoAtivo === 'imovel') {
+        return !!(dataInicio && formData.nomePersonalizado && formData.precoUnitario > 0);
+      }
+
       if (
         tipoAtivo === 'renda-fixa' ||
         tipoAtivo === 'renda-fixa-posfixada' ||
@@ -527,7 +531,10 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               } else if (formData.tipoAtivo === 'reserva-emergencia') {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === 'RESERVA-EMERG');
               } else {
-                isValid = !!formData.assetId || formData.tipoAtivo === 'personalizado';
+                isValid =
+                  !!formData.assetId ||
+                  formData.tipoAtivo === 'personalizado' ||
+                  formData.tipoAtivo === 'imovel';
               }
             }
             break;
@@ -547,6 +554,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const proceedToNextStep = () => {
     const skipStep3 =
       formData.tipoAtivo === 'personalizado' ||
+      formData.tipoAtivo === 'imovel' ||
       formData.tipoAtivo === 'conta-corrente' ||
       formData.tipoAtivo === 'poupanca';
 
@@ -560,6 +568,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const handleNext = () => {
     const skipStep3 =
       formData.tipoAtivo === 'personalizado' ||
+      formData.tipoAtivo === 'imovel' ||
       formData.tipoAtivo === 'conta-corrente' ||
       formData.tipoAtivo === 'poupanca';
     // Passo de Informações (onde a cotação é digitada): normal = índice 3,
@@ -585,6 +594,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const handlePrevious = () => {
     const skipStep3 =
       formData.tipoAtivo === 'personalizado' ||
+      formData.tipoAtivo === 'imovel' ||
       formData.tipoAtivo === 'conta-corrente' ||
       formData.tipoAtivo === 'poupanca';
 
@@ -686,6 +696,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       } else if (apiFormData.tipoAtivo === 'opcoes') {
         apiFormData.valorInvestido =
           apiFormData.quantidade * apiFormData.cotacaoUnitaria + (apiFormData.taxaCorretagem || 0);
+      } else if (apiFormData.tipoAtivo === 'imovel') {
+        // Imóveis & Bens: unidade única — o valor do bem vai inteiro no preço.
+        apiFormData.quantidade = 1;
+        apiFormData.valorInvestido = apiFormData.precoUnitario;
+        apiFormData.metodo = 'valor';
       }
 
       const response = await csrfFetch('/api/carteira/operacao', {
@@ -726,9 +741,10 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     };
 
     const isPersonalizado = formData.tipoAtivo === 'personalizado';
+    const isImovel = formData.tipoAtivo === 'imovel';
     const isContaCorrente = formData.tipoAtivo === 'conta-corrente';
     const isPoupanca = formData.tipoAtivo === 'poupanca';
-    const skipStep3 = isPersonalizado || isContaCorrente || isPoupanca;
+    const skipStep3 = isPersonalizado || isImovel || isContaCorrente || isPoupanca;
     const isAporte = formData.operacao === 'aporte';
 
     switch (currentStep) {
@@ -778,6 +794,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
 
   const skipStep3 =
     formData.tipoAtivo === 'personalizado' ||
+    formData.tipoAtivo === 'imovel' ||
     formData.tipoAtivo === 'conta-corrente' ||
     formData.tipoAtivo === 'poupanca';
 
