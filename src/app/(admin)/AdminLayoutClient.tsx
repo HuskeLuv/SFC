@@ -7,6 +7,7 @@ import AppSidebar from '@/layout/AppSidebar';
 import Backdrop from '@/layout/Backdrop';
 import MobileSidebarTrigger from '@/layout/MobileSidebarTrigger';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
+import VersionWatcher from '@/components/common/VersionWatcher';
 import React from 'react';
 
 /**
@@ -46,6 +47,8 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>
         </div>
+        {/* Deploy novo com aba aberta: banner + reload na próxima navegação */}
+        <VersionWatcher />
       </div>
     </CashflowYearProvider>
   );
