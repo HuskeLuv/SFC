@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
+import DatePicker from '@/components/form/date-picker';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
@@ -165,14 +166,25 @@ export default function Step4FundoDebenturePrevidenciaFields({
       )}
       {formData.tipoAtivo === 'debenture' && formData.tipoDebenture && (
         <>
-          <BusinessDayDatePicker
-            id="dataVencimento"
-            label="Data de Vencimento"
-            placeholder="Opcional — em branco, consideramos 10 anos"
-            value={formData.dataVencimento}
-            onChange={(iso) => handleInputChange('dataVencimento', iso)}
-            error={errors.dataVencimento}
-          />
+          {/* Vencimento é data FUTURA por natureza — não usar BusinessDayDatePicker,
+              que trava em hoje (maxDate) por ser pensado p/ datas de operação.
+              Mesmo padrão do Step4RendaFixaFields. */}
+          <div>
+            <DatePicker
+              id="dataVencimento"
+              label="Data de Vencimento"
+              placeholder="Opcional — em branco, consideramos 10 anos"
+              defaultDate={formData.dataVencimento}
+              onChange={(selectedDates) => {
+                if (selectedDates && selectedDates.length > 0) {
+                  handleInputChange('dataVencimento', selectedDates[0].toISOString().split('T')[0]);
+                }
+              }}
+            />
+            {errors.dataVencimento && (
+              <p className="mt-1 text-sm text-red-500">{errors.dataVencimento}</p>
+            )}
+          </div>
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input
               type="checkbox"
