@@ -89,13 +89,20 @@ function applyRateLimitHeaders(
  *  - base-uri 'self': proteção contra base tag injection.
  *  - upgrade-insecure-requests: força HTTPS em recursos opcionais.
  */
+// Área Educacional (ticket 21/08/2026): os vídeos dos cursos são hospedados na
+// VTurb (ConverteAI) — o embed JS injeta scripts de *.converteai.net e o player
+// carrega mídia HLS via XHR/blob. Se o primeiro embed real falhar por CSP,
+// conferir no console qual domínio de CDN faltou e adicioná-lo aqui.
+const VTURB_HOSTS = 'https://*.converteai.net';
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${VTURB_HOSTS}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  `connect-src 'self' ${VTURB_HOSTS}`,
+  `media-src 'self' blob: ${VTURB_HOSTS}`,
   "frame-ancestors 'none'",
   "form-action 'self'",
   "base-uri 'self'",

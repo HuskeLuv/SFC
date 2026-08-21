@@ -18,6 +18,7 @@ import {
   TimeIcon,
   UserCircleIcon,
   DocsIcon,
+  VideoIcon,
 } from '../icons/index';
 import SidebarFooter from './SidebarFooter';
 import CashflowYearSelect from './CashflowYearSelect';
@@ -79,6 +80,11 @@ const MAIN_NAV_ITEMS: NavItem[] = [
     icon: <DocsIcon />,
     name: 'Relatórios',
     path: '/relatorios',
+  },
+  {
+    icon: <VideoIcon />,
+    name: 'Educação',
+    path: '/educacao',
   },
 ];
 

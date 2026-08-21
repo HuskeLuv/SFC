@@ -116,6 +116,11 @@ model User {
   cashflowOrcamentos            CashflowOrcamento[]           @relation("CashflowOrcamentoUser")
   saudeFinanceiraSnapshots      SaudeFinanceiraSnapshot[]     @relation("SaudeFinanceiraSnapshotUser")
   seguroApolices                SeguroApolice[]               @relation("SeguroApoliceUser")
+  lessonProgresses              LessonProgress[]              @relation("LessonProgressUser")
+  // Nível de acesso do usuário (paywall futuro): 0 = gratuito; níveis maiores
+  // liberam conteúdos/seções com requiredLevel <= accessLevel. Ver
+  // src/utils/accessLevel.ts.
+  accessLevel                   Int                           @default(0)
 }
 
 /**
@@ -238,26 +243,26 @@ model AlocacaoConfig {
 }
 
 model CashflowGroup {
-  id         String          @id @default(uuid())
+  id         String              @id @default(uuid())
   userId     String? // null se for grupo padrão (template)
-  user       User?           @relation(fields: [userId], references: [id])
+  user       User?               @relation(fields: [userId], references: [id])
   name       String
   type       String // 'entrada', 'despesa' ou 'investimento'
   parentId   String? // FK para outro grupo (subgrupo)
-  parent     CashflowGroup?  @relation("SubGroups", fields: [parentId], references: [id])
-  children   CashflowGroup[] @relation("SubGroups")
+  parent     CashflowGroup?      @relation("SubGroups", fields: [parentId], references: [id])
+  children   CashflowGroup[]     @relation("SubGroups")
   items      CashflowItem[]
-  orderIndex Int             @default(0)
+  orderIndex Int                 @default(0)
   // Override layer: quando setado, esta linha personaliza o template apontado.
   // Permite link estável entre override e template (mais robusto que match por nome).
   templateId String?
-  template   CashflowGroup?  @relation("GroupOverride", fields: [templateId], references: [id])
-  overrides  CashflowGroup[] @relation("GroupOverride")
+  template   CashflowGroup?      @relation("GroupOverride", fields: [templateId], references: [id])
+  overrides  CashflowGroup[]     @relation("GroupOverride")
   // Tombstone: usuário ocultou um template. Override row com hidden=true some do tree.
-  hidden     Boolean         @default(false)
+  hidden     Boolean             @default(false)
   orcamentos CashflowOrcamento[] @relation("CashflowOrcamentoGroup")
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
 
   @@unique([userId, templateId])
   @@index([userId])
@@ -266,23 +271,23 @@ model CashflowGroup {
 }
 
 model CashflowItem {
-  id          String         @id @default(uuid())
+  id          String                @id @default(uuid())
   userId      String? // null se for item padrão (template)
-  user        User?          @relation(fields: [userId], references: [id])
+  user        User?                 @relation(fields: [userId], references: [id])
   groupId     String
-  group       CashflowGroup  @relation(fields: [groupId], references: [id])
+  group       CashflowGroup         @relation(fields: [groupId], references: [id])
   name        String
   significado String? // explicação opcional
   rank        String? // ordem de importância (essencial, normal, etc.)
   // Posição da linha dentro do grupo (reordenável pelo usuário, ago/2026).
   // Backfill da migração preservou a ordem alfabética que era exibida antes.
-  orderIndex  Int            @default(0)
+  orderIndex  Int                   @default(0)
   // Override layer: quando setado, esta linha personaliza o item-template apontado.
   templateId  String?
-  template    CashflowItem?  @relation("ItemOverride", fields: [templateId], references: [id])
-  overrides   CashflowItem[] @relation("ItemOverride")
+  template    CashflowItem?         @relation("ItemOverride", fields: [templateId], references: [id])
+  overrides   CashflowItem[]        @relation("ItemOverride")
   // Tombstone: usuário ocultou um item-template.
-  hidden      Boolean        @default(false)
+  hidden      Boolean               @default(false)
   // Vínculo opcional com um objetivo do Planejamento de Sonhos. Quando setado,
   // esta linha é espelho do sonho (somente-leitura no fluxo de caixa) e seus
   // valores mensais são o aporte mensal (pmt) sincronizado pelo planejamento.
@@ -293,8 +298,8 @@ model CashflowItem {
   // são as parcelas do cronograma SAC/Price sincronizadas pela área de Dívidas.
   dividaId    String?               @unique
   divida      Divida?               @relation(fields: [dividaId], references: [id], onDelete: SetNull)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
 
   values CashflowValue[]
 
@@ -671,7 +676,6 @@ model ImpersonationSession {
  * por seção do app. `changes` guarda os pares antes/depois já filtrados por
  * allowlist — nunca senhas, hashes ou segredos TOTP. Retenção: 365 dias
  * (cron lgpd-retention).
- *
  * Undo: `snapshot` guarda o estado pré-mutação ({ v, kind, data, meta })
  * allowlisted, gravado em exclusões/upserts para permitir reverter; nunca é
  * exposto na API de listagem. Entrada desfeita ganha `undoneAt`/`undoneById`;
@@ -770,7 +774,6 @@ model CashflowPatrimonioSnapshot {
 }
 
 // ===== ECONOMIC INDEXES MODULE =====
-
 
 model EconomicIndex {
   id        String   @id @default(uuid())
@@ -935,7 +938,7 @@ model PlanejamentoObjetivo {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  entries PlanejamentoObjetivoEntry[]
+  entries      PlanejamentoObjetivoEntry[]
   // Linha espelhada no fluxo de caixa (grupo "Planejamento Financeiro"). O
   // sonho é a fonte: o aporte mensal (pmt) é gravado nessa linha.
   cashflowItem CashflowItem?
@@ -1076,7 +1079,7 @@ model Divida {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  pagamentos DividaPagamento[]
+  pagamentos   DividaPagamento[]
   // Linha-espelho no fluxo de caixa (grupo "Dívidas"). A dívida é a fonte:
   // as parcelas do cronograma são gravadas nessa linha (só financiamentos).
   cashflowItem CashflowItem?
@@ -1132,4 +1135,70 @@ model LoginEvent {
   @@index([email, createdAt])
   @@index([createdAt])
   @@map("login_events")
+}
+
+// ===== Área Educacional (cursos Escolhi Ser Rico, vídeos hospedados na VTurb) =====
+
+model Course {
+  id            String         @id @default(uuid())
+  slug          String         @unique
+  title         String
+  description   String?
+  coverUrl      String?
+  // Nível mínimo p/ assistir (paywall futuro): 0 = gratuito. Ver accessLevel.ts.
+  requiredLevel Int            @default(0)
+  orderIndex    Int            @default(0)
+  published     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  modules       CourseModule[]
+
+  @@map("courses")
+}
+
+model CourseModule {
+  id         String         @id @default(uuid())
+  courseId   String
+  course     Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title      String
+  orderIndex Int            @default(0)
+  lessons    CourseLesson[]
+
+  @@index([courseId])
+  @@map("course_modules")
+}
+
+model CourseLesson {
+  id              String           @id @default(uuid())
+  moduleId        String
+  module          CourseModule     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  // Snippet de embed JS copiado do painel VTurb (Meus Vídeos → Embed → JS).
+  // Null = aula ainda sem vídeo conectado (player mostra placeholder).
+  vturbEmbed      String?
+  durationSeconds Int?
+  orderIndex      Int              @default(0)
+  // Override por aula (ex.: 1ª aula gratuita num curso pago). Vale o MAIOR
+  // entre requiredLevel do curso e da aula.
+  requiredLevel   Int              @default(0)
+  progresses      LessonProgress[]
+
+  @@index([moduleId])
+  @@map("course_lessons")
+}
+
+model LessonProgress {
+  id          String       @id @default(uuid())
+  userId      String
+  user        User         @relation("LessonProgressUser", fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@map("lesson_progress")
 }
