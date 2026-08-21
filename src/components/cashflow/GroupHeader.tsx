@@ -142,14 +142,14 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
 
   // Formatação condicional do % Receita da linha "Despesas Fixas e Variáveis" —
   // faixas do ticket QA 19/08/2026: ≤80% azul · (80,90]% amarelo · (90,100]%
-  // vermelho claro · >100% vermelho forte. Colore só o NÚMERO (ajuste QA
-  // 19/08); o fundo segue a cor da linha (#800000), então os tons são vivos
-  // pra manter contraste no fundo escuro.
+  // vermelho claro · >100% vermelho forte. Ajuste QA 21/08: a CÉLULA inteira
+  // ganha o fundo da faixa (como na planilha) — só o número colorido ficava
+  // "apagado" na linha #800000. Texto branco/preto conforme o contraste.
   const despesasPercentStyle = (pct: number): React.CSSProperties => {
-    if (pct <= 80) return { color: '#4DA3FF' };
-    if (pct <= 90) return { color: '#FFD54D' };
-    if (pct <= 100) return { color: '#FFA3A3' };
-    return { color: '#FF2E2E' };
+    if (pct <= 80) return { backgroundColor: '#2E7DFF', color: '#FFFFFF' };
+    if (pct <= 90) return { backgroundColor: '#FFD54D', color: '#000000' };
+    if (pct <= 100) return { backgroundColor: '#FF9B9B', color: '#000000' };
+    return { backgroundColor: '#FF0000', color: '#FFFFFF' };
   };
   const percentConditionalStyle =
     isMainDespesasGroup && groupPercentage > 0 ? despesasPercentStyle(groupPercentage) : undefined;
