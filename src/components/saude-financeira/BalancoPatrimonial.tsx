@@ -10,6 +10,18 @@ import { TIPO_LABELS } from '@/components/dividas/utils';
 import type { DividaTipo } from '@/hooks/useDividas';
 import { formatBRL, formatPercent, tendenciaSeta } from './utils';
 
+// Linhas-modelo do lado Passivo (formato planilha): tipos exibidos zerados
+// quando não há dívida cadastrada. Não usar TIPOS_ROTATIVA/TIPOS_FINANCIAMENTO
+// aqui — 'emprestimo_pessoal' e 'outro' constam nas duas listas e duplicariam
+// a linha nos dois quadrantes. Na planilha, empréstimo pessoal fica no longo.
+const TIPOS_MODELO_CURTO: readonly DividaTipo[] = ['cheque_especial', 'cartao_credito'];
+const TIPOS_MODELO_LONGO: readonly DividaTipo[] = [
+  'financiamento_imobiliario',
+  'financiamento_veiculo',
+  'emprestimo_pessoal',
+  'consignado',
+];
+
 interface BalancoPatrimonialProps {
   indicadores: SaudeFinanceiraIndicadores;
   composicao: SaudeFinanceiraPayload['composicao'];
@@ -33,7 +45,11 @@ function ItemCells({ item }: { item: Item | undefined }) {
   return (
     <>
       <td className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300">{item.label}</td>
-      <td className="whitespace-nowrap px-3 py-1 text-right text-sm font-medium text-gray-900 dark:text-white/90">
+      <td
+        className={`whitespace-nowrap px-3 py-1 text-right text-sm font-medium ${
+          item.valor === 0 ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white/90'
+        }`}
+      >
         {formatBRL(item.valor)}
       </td>
     </>
@@ -81,8 +97,21 @@ export default function BalancoPatrimonial({
     label: `${p.nome} (${TIPO_LABELS[p.tipo as DividaTipo] ?? p.tipo})`,
     valor: p.saldo,
   });
-  const passivosCurto = composicao.passivos.filter((p) => p.prazo === 'curto').map(passivoItem);
-  const passivosLongo = composicao.passivos.filter((p) => p.prazo === 'longo').map(passivoItem);
+  // Formato planilha (ticket 21/08/2026): tipos de dívida SEM cadastro também
+  // aparecem, zerados ("Outro" só aparece com dívida real). Reais vêm antes.
+  const tiposCadastrados = new Set(composicao.passivos.map((p) => p.tipo as DividaTipo));
+  const placeholdersPassivo = (tipos: readonly DividaTipo[]): Item[] =>
+    tipos
+      .filter((t) => !tiposCadastrados.has(t))
+      .map((t) => ({ key: `modelo-${t}`, label: TIPO_LABELS[t], valor: 0 }));
+  const passivosCurto = [
+    ...composicao.passivos.filter((p) => p.prazo === 'curto').map(passivoItem),
+    ...placeholdersPassivo(TIPOS_MODELO_CURTO),
+  ];
+  const passivosLongo = [
+    ...composicao.passivos.filter((p) => p.prazo === 'longo').map(passivoItem),
+    ...placeholdersPassivo(TIPOS_MODELO_LONGO),
+  ];
 
   const pares = (a: Item[], b: Item[]): Array<[Item | undefined, Item | undefined]> =>
     Array.from({ length: Math.max(a.length, b.length, 1) }, (_, i) => [a[i], b[i]]);

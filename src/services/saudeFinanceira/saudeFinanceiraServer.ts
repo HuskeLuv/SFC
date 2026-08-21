@@ -402,9 +402,11 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
     config,
   );
 
-  // Composição pro bloco de balanço da UI (linhas zeradas ficam de fora).
-  const linha = (chave: string, label: string, valor: number): ComposicaoLinha[] =>
-    valor > 0 ? [{ chave, label, valor: round2(valor) }] : [];
+  // Composição pro bloco de balanço da UI. Formato planilha (ticket 21/08/2026):
+  // TODAS as linhas do modelo aparecem, zeradas quando não há valor registrado.
+  const linha = (chave: string, label: string, valor: number): ComposicaoLinha[] => [
+    { chave, label, valor: round2(valor) },
+  ];
   const altaLiquidez: ComposicaoLinha[] = [
     ...linha(
       'reservaEmergencia',
