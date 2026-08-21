@@ -91,6 +91,71 @@ describe('getDividends', () => {
       expect(result).toHaveLength(1);
       expect(result[0].valorUnitario).toBe(0.5); // keeps first
     });
+
+    // Fantasma "competência mensal" (limpeza prod 21/08/2026): dataCom == date
+    // no dia 01. Ignorado quando o mesmo mês tem evento real; mantido quando é
+    // a única cobertura do mês (histórico longo pré-BRAPI).
+    it('ignora fantasma mensal (dataCom==date dia 01) quando o mês tem evento real', async () => {
+      const fantasma = makeDbRow(
+        new Date('2026-01-01T00:00:00Z'),
+        'RENDIMENTO',
+        234.62,
+        new Date('2026-01-01T00:00:00Z'),
+      );
+      const real = makeDbRow(
+        new Date('2026-01-23T00:00:00Z'),
+        'RENDIMENTO',
+        0.92,
+        new Date('2026-01-16T00:00:00Z'),
+      );
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([fantasma, real]);
+
+      const result = await getDividends('XPML11');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].valorUnitario).toBe(0.92);
+    });
+
+    it('mantém fantasma mensal quando é a única cobertura do mês', async () => {
+      const soFantasma = makeDbRow(
+        new Date('2017-03-01T00:00:00Z'),
+        'RENDIMENTO',
+        0.85,
+        new Date('2017-03-01T00:00:00Z'),
+      );
+      const realOutroMes = makeDbRow(
+        new Date('2017-04-25T00:00:00Z'),
+        'RENDIMENTO',
+        0.9,
+        new Date('2017-04-18T00:00:00Z'),
+      );
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([soFantasma, realOutroMes]);
+
+      const result = await getDividends('XPML11');
+
+      expect(result).toHaveLength(2);
+      expect(result[0].valorUnitario).toBe(0.85);
+    });
+
+    it('dia 01 com dataCom anterior NÃO é fantasma (pagamento legítimo no 1º dia útil)', async () => {
+      const legitimoDia1 = makeDbRow(
+        new Date('2025-12-01T00:00:00Z'),
+        'RENDIMENTO',
+        1.1,
+        new Date('2025-11-24T00:00:00Z'),
+      );
+      const real = makeDbRow(
+        new Date('2025-12-23T00:00:00Z'),
+        'RENDIMENTO',
+        0.92,
+        new Date('2025-12-16T00:00:00Z'),
+      );
+      mockPrisma.assetDividendHistory.findMany.mockResolvedValue([legitimoDia1, real]);
+
+      const result = await getDividends('XPML11');
+
+      expect(result).toHaveLength(2);
+    });
   });
 
   // ── BRAPI fallback ──

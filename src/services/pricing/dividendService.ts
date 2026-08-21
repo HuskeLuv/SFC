@@ -244,15 +244,35 @@ export interface CorporateActionEntry {
 // ================== DIVIDEND FUNCTIONS ==================
 
 /**
- * Busca dividendos do banco para um símbolo.
+ * Assinatura de evento-fantasma "competência mensal" (limpeza prod 21/08/2026):
+ * data-com IGUAL à data de pagamento E dia 01 — nunca acontece em evento real
+ * (a data-com antecede o pagamento; houve "pagamentos" em 01/01 e 01/05,
+ * feriados). Um backfill antigo gravou uma série mensal inteira assim, dobrando
+ * a renda nos meses em que o evento real também existe.
+ */
+const isPhantomMonthlyRow = (r: { date: Date; dataCom: Date | null }): boolean =>
+  r.dataCom != null && r.dataCom.getTime() === r.date.getTime() && r.date.getUTCDate() === 1;
+
+const utcMonthKey = (d: Date): string => `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
+
+/**
+ * Busca dividendos do banco para um símbolo. Ignora linhas com assinatura de
+ * fantasma mensal quando o mesmo mês tem um evento real — cinto e suspensório
+ * caso um dataset assim volte a entrar no banco.
  */
 const getDividendsFromDb = async (symbol: string): Promise<DividendEntry[]> => {
   const variants = getDbSymbolVariants(symbol);
-  const rows = await prisma.assetDividendHistory.findMany({
+  const allRows = await prisma.assetDividendHistory.findMany({
     where: { symbol: { in: variants } },
     orderBy: { date: 'asc' },
     select: { date: true, dataCom: true, tipo: true, valorUnitario: true },
   });
+  const mesesComEventoReal = new Set(
+    allRows.filter((r) => !isPhantomMonthlyRow(r)).map((r) => utcMonthKey(r.date)),
+  );
+  const rows = allRows.filter(
+    (r) => !(isPhantomMonthlyRow(r) && mesesComEventoReal.has(utcMonthKey(r.date))),
+  );
   const byKey = new Map<string, DividendEntry>();
   for (const r of rows) {
     const key = `${r.date.getTime()}\0${r.tipo}`;
