@@ -3,6 +3,12 @@ import React, { useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import ApexChartWrapper from '../ApexChartWrapper';
 import { useTheme } from '@/context/ThemeContext';
+import { CATEGORIA_CORES, CATEGORIA_LABELS, SECOES_ORDEM } from '@/lib/carteiraCategoryColors';
+
+// Categorias do donut na ordem canônica das seções (Imóveis & Bens fica fora
+// da distribuição de investimentos). Cores/labels vêm do mapeamento central —
+// paleta My Finance PARTE 2 (ticket 21/08/2026).
+const CATEGORIAS_DONUT = SECOES_ORDEM.filter((c) => c !== 'imoveisBens');
 
 interface PieChartCarteiraInvestimentosProps {
   distribuicao: {
@@ -93,46 +99,19 @@ export default function PieChartCarteiraInvestimentos({
   // Chart configuration - memoized to prevent unnecessary re-renders
   const options: ApexOptions = useMemo(
     () => ({
-      colors: [
-        '#4F81BD', // Reserva de Emergência
-        '#DDD9C3', // Reserva de Oportunidade
-        // #12 (checklist mai/28): cor anterior #404040 ficava indistinguível
-        // tanto da fonte preta da legenda em light mode quanto do fundo
-        // escuro em dark mode. #64748B (slate-500) contrasta nos dois.
-        '#64748B', // Renda Fixa
-        '#B9CDE5', // FIM/FIA
-        '#9E8A58', // FII's
-        '#FFC000', // Ações
-        // 1.11: era #9E8A58, mesma cor dos FII's — fatias indistinguíveis.
-        '#7030A0', // STOCKS
-        '#FFFF00', // REIT's
-        '#E46C0A', // ETF's
-        '#C4BD97', // Moedas, Criptomoedas & Outros
-        '#EEECE1', // Previdência e Seguros
-        '#00CCFF', // Opções
-      ],
-      labels: [
-        'Reserva de Emergência',
-        'Reserva de Oportunidade',
-        'Renda Fixa',
-        'FIM/FIA',
-        "FII's",
-        'Ações',
-        'Stocks',
-        "REIT's",
-        "ETF's",
-        'Moedas, Criptomoedas & outros',
-        'Previdência e Seguros',
-        'Opções',
-      ],
+      colors: CATEGORIAS_DONUT.map((c) => CATEGORIA_CORES[c]),
+      labels: CATEGORIAS_DONUT.map((c) => CATEGORIA_LABELS[c]),
       chart: {
         fontFamily: 'Outfit, sans-serif',
         type: 'donut',
       },
+      // Com a paleta só de azuis, o contorno fino delimita fatias de tons
+      // próximos — e no dark mode impede que os azuis escuros da paleta
+      // (seguranca e derivados) sumam no fundo do card.
       stroke: {
-        show: false,
-        width: 4,
-        colors: ['transparent'],
+        show: true,
+        width: 1,
+        colors: [isDarkMode ? '#6B7280' : '#FFFFFF'],
       },
       plotOptions: {
         pie: {
@@ -253,20 +232,10 @@ export default function PieChartCarteiraInvestimentos({
   );
 
   const series = useMemo(
-    () => [
-      Number(distribuicao.reservaEmergencia.percentual.toFixed(2)),
-      Number(distribuicao.reservaOportunidade.percentual.toFixed(2)),
-      Number(distribuicao.rendaFixaFundos.percentual.toFixed(2)),
-      Number(distribuicao.fimFia.percentual.toFixed(2)),
-      Number(distribuicao.fiis.percentual.toFixed(2)),
-      Number(distribuicao.acoes.percentual.toFixed(2)),
-      Number(distribuicao.stocks.percentual.toFixed(2)),
-      Number(distribuicao.reits.percentual.toFixed(2)),
-      Number(distribuicao.etfs.percentual.toFixed(2)),
-      Number(distribuicao.moedasCriptos.percentual.toFixed(2)),
-      Number(distribuicao.previdenciaSeguros.percentual.toFixed(2)),
-      Number(distribuicao.opcoes.percentual.toFixed(2)),
-    ],
+    () =>
+      CATEGORIAS_DONUT.map((c) =>
+        Number((distribuicao[c as keyof typeof distribuicao]?.percentual ?? 0).toFixed(2)),
+      ),
     [distribuicao],
   );
 
