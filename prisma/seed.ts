@@ -311,6 +311,62 @@ async function seedDemoUsers() {
   console.log('✅ Usuários de demonstração criados.\n');
 }
 
+// ===== ÁREA EDUCACIONAL =====
+
+async function seedEducacao() {
+  const curso = await prisma.course.upsert({
+    where: { slug: 'educacao-financeira-do-zero' },
+    update: {},
+    create: {
+      slug: 'educacao-financeira-do-zero',
+      title: 'Educação Financeira do Zero',
+      description:
+        'O método Escolhi Ser Rico para organizar suas finanças: saia das dívidas, monte sua reserva e comece a investir.',
+      requiredLevel: 0,
+      orderIndex: 0,
+      published: true,
+    },
+  });
+
+  // Só cria os módulos/aulas na primeira execução — depois o conteúdo é
+  // gerenciado direto no banco (admin UI é fase 2).
+  const existingModules = await prisma.courseModule.count({ where: { courseId: curso.id } });
+  if (existingModules > 0) {
+    console.log('✅ Área Educacional já populada.\n');
+    return;
+  }
+
+  const modulos: Array<{ title: string; aulas: string[] }> = [
+    {
+      title: 'Módulo 1 — Comece por aqui',
+      aulas: ['Boas-vindas ao Escolhi Ser Rico', 'Como funciona o método'],
+    },
+    {
+      title: 'Módulo 2 — Organizando suas finanças',
+      aulas: ['Diagnóstico financeiro', 'Montando seu fluxo de caixa', 'Saindo das dívidas'],
+    },
+  ];
+
+  for (const [mIdx, mod] of modulos.entries()) {
+    const courseModule = await prisma.courseModule.create({
+      data: { courseId: curso.id, title: mod.title, orderIndex: mIdx },
+    });
+    for (const [aIdx, titulo] of mod.aulas.entries()) {
+      await prisma.courseLesson.create({
+        data: {
+          moduleId: courseModule.id,
+          title: titulo,
+          orderIndex: aIdx,
+          requiredLevel: 0,
+          // vturbEmbed fica null até colar o snippet do painel VTurb
+        },
+      });
+    }
+  }
+
+  console.log('✅ Área Educacional criada (curso de exemplo).\n');
+}
+
 // ===== MAIN SEED FUNCTION =====
 
 async function main() {
@@ -327,6 +383,11 @@ async function main() {
 
     // Executar seed de usuários de demonstração
     await seedDemoUsers();
+
+    // Área Educacional: curso de exemplo (Escolhi Ser Rico). Idempotente por
+    // slug; as aulas ficam sem vturbEmbed até o Pedro colar os snippets do
+    // painel VTurb (Meus Vídeos → Embed → JS).
+    await seedEducacao();
 
     // Nota: Ações (stocks) e moedas são adicionadas pelo cron de sincronização (brapiSync)
 

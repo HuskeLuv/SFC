@@ -71,6 +71,11 @@ export const queryKeys = {
     evolucao: () => [...queryKeys.saudeFinanceira.all, 'evolucao'] as const,
     seguros: () => [...queryKeys.saudeFinanceira.all, 'seguros'] as const,
   },
+  educacao: {
+    all: ['educacao'] as const,
+    cursos: () => [...queryKeys.educacao.all, 'cursos'] as const,
+    curso: (slug: string) => [...queryKeys.educacao.all, 'curso', slug] as const,
+  },
   ir: {
     all: ['ir'] as const,
     resumoAnual: (year: number) => [...queryKeys.ir.all, 'resumoAnual', year] as const,
