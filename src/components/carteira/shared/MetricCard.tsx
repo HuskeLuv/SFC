@@ -22,10 +22,15 @@ const MetricCard: React.FC<MetricCardProps> = ({
   change,
   changeDirection,
 }) => {
+  // Paleta My Finance PARTE 2 (ticket 21/08/2026): os cards saem dos pastéis
+  // verde/amarelo/azul genéricos e entram na família de azuis da marca —
+  // outside (#0079F2), patrimonio (#396CAA) e escolha (#EAEAEA) como tints;
+  // texto no azul segurança (#314666). 'error' continua vermelho (semântico,
+  // ex.: Patrimônio Líquido negativo).
   const colorClasses = {
-    primary: 'bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100',
-    success: 'bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100',
-    warning: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100',
+    primary: 'bg-[#0079F2]/10 text-[#314666] dark:bg-[#0079F2]/20 dark:text-blue-100',
+    success: 'bg-[#396CAA]/15 text-[#314666] dark:bg-[#396CAA]/25 dark:text-blue-100',
+    warning: 'bg-[#EAEAEA] text-[#2D2D2D] dark:bg-white/10 dark:text-gray-100',
     error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
   };
 

@@ -187,7 +187,9 @@ export default function LineChartCarteiraHistorico({
         position: 'top',
         horizontalAlign: 'left',
       },
-      colors: ['#10B981', '#465FFF'],
+      // Paleta My Finance (ticket 21/08/2026): Valor Aplicado = tranquilidade
+      // (azul suave, custo), Valor Atual = outside (azul-assinatura, destaque).
+      colors: ['#6E9DC4', '#0079F2'],
       chart: {
         fontFamily: 'Outfit, sans-serif',
         height: 335,
@@ -306,7 +308,7 @@ export default function LineChartCarteiraHistorico({
         gradient: {
           opacityFrom: 0.55,
           opacityTo: 0,
-          gradientToColors: ['#465FFF'],
+          gradientToColors: ['#6E9DC4', '#0079F2'],
         },
       },
       grid: {

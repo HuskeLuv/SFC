@@ -7,6 +7,12 @@ import EditableTextCell from './EditableTextCell';
 import Alert from '../ui/alert/Alert';
 import ComponentCard from '../common/ComponentCard';
 import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
+import { MYFINANCE_BRAND } from '@/constants/brandColors';
+
+// Paleta My Finance PARTE 2 (ticket 21/08/2026): cabeçalho da tabela no azul
+// segurança da marca (antes dourado #9E8A58), mesmo formato do Balanço
+// Patrimonial da Saúde Financeira.
+const ALOCACAO_HEADER_BG = MYFINANCE_BRAND.seguranca;
 
 interface AlocacaoAtivo {
   categoria: string;
@@ -277,7 +283,7 @@ export default function AlocacaoAtivosTable({
               position: 'sticky',
               top: 0,
               zIndex: 400,
-              backgroundColor: '#9E8A58',
+              backgroundColor: ALOCACAO_HEADER_BG,
               isolation: 'isolate',
             }}
           >
@@ -286,14 +292,14 @@ export default function AlocacaoAtivosTable({
               style={{
                 fontFamily: 'Calibri, sans-serif',
                 fontSize: '12px',
-                backgroundColor: '#9E8A58',
+                backgroundColor: ALOCACAO_HEADER_BG,
               }}
             >
               <TableCell
                 isHeader
                 rowSpan={2}
                 className="px-2 border border-black text-left h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">Classe de ativos</p>
               </TableCell>
@@ -301,7 +307,7 @@ export default function AlocacaoAtivosTable({
                 isHeader
                 rowSpan={2}
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">TOTAL</p>
               </TableCell>
@@ -309,7 +315,7 @@ export default function AlocacaoAtivosTable({
                 isHeader
                 rowSpan={2}
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">% Atual</p>
               </TableCell>
@@ -317,7 +323,7 @@ export default function AlocacaoAtivosTable({
                 isHeader
                 colSpan={2}
                 className="px-2 border-t border-l border-r border-b border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">Alocação</p>
               </TableCell>
@@ -325,7 +331,7 @@ export default function AlocacaoAtivosTable({
                 isHeader
                 rowSpan={2}
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">% TARGET</p>
               </TableCell>
@@ -333,7 +339,7 @@ export default function AlocacaoAtivosTable({
                 isHeader
                 rowSpan={2}
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">Quanto Falta</p>
               </TableCell>
@@ -341,7 +347,7 @@ export default function AlocacaoAtivosTable({
                 isHeader
                 rowSpan={2}
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap w-36"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">
                   <span className="block">Necessidade de</span>
@@ -352,7 +358,7 @@ export default function AlocacaoAtivosTable({
                 isHeader
                 rowSpan={2}
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">Descrição</p>
               </TableCell>
@@ -362,20 +368,20 @@ export default function AlocacaoAtivosTable({
               style={{
                 fontFamily: 'Calibri, sans-serif',
                 fontSize: '12px',
-                backgroundColor: '#9E8A58',
+                backgroundColor: ALOCACAO_HEADER_BG,
               }}
             >
               <TableCell
                 isHeader
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">Mínimo</p>
               </TableCell>
               <TableCell
                 isHeader
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
                 <p className="font-bold text-black text-xs whitespace-nowrap">Máximo</p>
               </TableCell>
