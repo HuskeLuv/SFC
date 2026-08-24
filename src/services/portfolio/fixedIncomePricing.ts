@@ -254,13 +254,23 @@ export const createFixedIncomePricer = async (
     return rows;
   };
 
+  // IPCA é mensal e datado no dia 1º do mês de referência. Buscar com
+  // `gte: earliestStart` exclui a linha do mês da aplicação sempre que o FI
+  // começa depois do dia 1º (ex.: aplicação em 02/02 nunca via o IPCA datado
+  // 01/02) — o mês ficava na fila de pendentes sem taxa e era descartado em
+  // silêncio, perdendo o primeiro mês de inflação de todo IPCA+. Ancora a
+  // busca no dia 1º do mês da aplicação.
+  const ipcaFetchStart = new Date(
+    Date.UTC(earliestStart.getUTCFullYear(), earliestStart.getUTCMonth(), 1),
+  );
+
   const [cdiRows, ipcaRows, tesouroRows] = earliestStart
     ? await Promise.all([
         hasCdiLinked
           ? fetchCdiRows(earliestStart, today)
           : Promise.resolve([] as EconomicIndexRow[]),
         hasIpcaLinked
-          ? fetchIpcaRows(earliestStart, today)
+          ? fetchIpcaRows(ipcaFetchStart, today)
           : Promise.resolve([] as EconomicIndexRow[]),
         tesouroAssets.length > 0
           ? fetchTesouroRows(
