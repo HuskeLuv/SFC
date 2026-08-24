@@ -77,6 +77,62 @@ describe('resolveProventoEvents', () => {
     expect(res.events[0].bookingDay).toBe(Date.UTC(2024, 2, 15));
   });
 
+  // Ticket 24/08 (CSMG3 × Gorila): dividendo com data-com PRÉ-split pago PÓS-split.
+  // A quantidade elegível é a da data-com (500, mesma escala do valorUnitario da
+  // época) — usar a data de pagamento pegava a quantidade pós-split (1.500) e
+  // pagava 3× (R$ 9.731 em vez de R$ 3.243).
+  it('usa a quantidade da DATA-COM quando um split ocorre entre data-com e pagamento', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        date: d('2020-06-02'),
+        type: 'compra',
+        quantity: 500,
+        notes: null,
+        asset: { symbol: 'CSMG3' },
+      },
+    ]);
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+      { date: d('2020-11-26'), type: 'DESDOBRAMENTO', factor: 3 },
+    ]);
+    mockGetDividends.mockResolvedValue([
+      {
+        date: d('2020-12-10'),
+        dataCom: d('2020-11-19'),
+        tipo: 'Dividendo',
+        valorUnitario: 6.4876595,
+      },
+    ]);
+
+    const res = await resolveProventoEvents('u1');
+    expect(res.events).toHaveLength(1);
+    // 500 × 6,4876595 = 3.243,83 (não 1.500 × 6,4876595 = 9.731,49)
+    expect(res.events[0].net).toBeCloseTo(3243.82975, 4);
+  });
+
+  it('não paga provento cuja data-com é anterior à primeira compra', async () => {
+    // Comprou ENTRE a data-com e o pagamento: não é elegível (qty na data-com = 0).
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        date: d('2020-11-25'),
+        type: 'compra',
+        quantity: 500,
+        notes: null,
+        asset: { symbol: 'CSMG3' },
+      },
+    ]);
+    mockGetDividends.mockResolvedValue([
+      {
+        date: d('2020-12-10'),
+        dataCom: d('2020-11-19'),
+        tipo: 'Dividendo',
+        valorUnitario: 6.4876595,
+      },
+    ]);
+
+    const res = await resolveProventoEvents('u1');
+    expect(res.events).toHaveLength(0);
+  });
+
   it('exDay cai no pagamento quando a data-com é desconhecida', async () => {
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
       {

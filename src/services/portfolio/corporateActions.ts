@@ -130,6 +130,24 @@ export function buildQuantityTimeline(
   ).timeline;
 }
 
+/**
+ * Quantidade elegível para um provento: a posição na DATA-COM (fallback: data de
+ * pagamento quando a data-com é desconhecida). A elegibilidade E a escala do
+ * `valorUnitario` (por ação da época do anúncio) são da data-com — ancorar na
+ * data de pagamento mistura escalas quando um split ocorre entre as duas datas
+ * (ticket 24/08: CSMG3 dividendo R$ 6,4876/ação com data-com 19/11/2020, posição
+ * de 500 ações, pago em 10/12/2020 já pós-split 3:1 → saía 1.500 × 6,4876 =
+ * R$ 9.731, 3× o correto) e erra a elegibilidade de quem comprou ou vendeu entre
+ * a data-com e o pagamento.
+ */
+export function quantityAtProventoDate(
+  timeline: TimelinePoint[],
+  dataCom: Date | null | undefined,
+  paymentDate: Date,
+): number {
+  return quantityAtDate(timeline, (dataCom ?? paymentDate).getTime());
+}
+
 /** Busca binária: última quantidade conhecida em `dateMs` ou antes. */
 export function quantityAtDate(timeline: TimelinePoint[], dateMs: number): number {
   if (timeline.length === 0) return 0;
