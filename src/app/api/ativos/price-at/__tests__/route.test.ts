@@ -63,6 +63,25 @@ describe('GET /api/ativos/price-at (#3 / D.3 checklist mai/28)', () => {
     expect(data.price).toBeCloseTo(60, 5); // 6 × 10 = preço cru daquele dia
   });
 
+  // Ticket 24/08 (PRIO3/CSMG3 vs Gorila): linha do COTAHIST já é CRUA — multiplicar
+  // pelos eventos posteriores dobra o ajuste (33,59 virava sugestão de 167,95 e o
+  // aporte ficava 5× o real).
+  it('NÃO des-ajusta linha de fonte CRUA (COTAHIST) mesmo com split posterior', async () => {
+    mockPrisma.assetPriceHistory.findFirst.mockResolvedValue({
+      date: new Date('2020-06-02T00:00:00Z'),
+      price: 33.59,
+      source: 'B3_COTAHIST',
+    });
+    // split 5:1 em 2021-05-06 (depois da data) — não deve multiplicar
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+      { date: new Date('2021-05-06T00:00:00Z'), factor: 5 },
+    ]);
+
+    const res = await GET(req('symbol=PRIO3&date=2020-06-02'));
+    const data = await res.json();
+    expect(data.price).toBeCloseTo(33.59, 5); // cru permanece cru
+  });
+
   it('NÃO altera o preço quando o split é ANTERIOR à data', async () => {
     mockPrisma.assetPriceHistory.findFirst.mockResolvedValue({
       date: new Date('2025-08-01T00:00:00Z'),

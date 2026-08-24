@@ -51,3 +51,18 @@ export const canOverwrite = (existing: string | null | undefined, incoming: stri
   if (existing == null || normalizeSource(existing) === '') return true;
   return sourceRank(incoming) <= sourceRank(existing);
 };
+
+/**
+ * Fontes que gravam preço CRU (como negociado no dia), NÃO split-adjusted.
+ * O COTAHIST da B3 registra o preço da época: um split posterior NÃO reescreve
+ * o histórico (MXRF11 R$95→R$9 aparece como degrau real na série). Já a BRAPI
+ * entrega a série re-ajustada a cada evento. Consumidores que convertem entre
+ * escala crua ↔ ajustada (price-at, splitAdjustRawRows) precisam ramificar por
+ * fonte — tratar linha crua como ajustada dobra o ajuste (ticket 24/08: PRIO3
+ * 02/06/2020 cru R$33,59 virava sugestão de R$167,95 = 33,59 × split 5:1).
+ */
+const RAW_PRICE_SOURCES = new Set(['B3_COTAHIST']);
+
+/** A linha de preço desta fonte está em escala CRUA (não split-adjusted)? */
+export const isRawPriceSource = (s: string | null | undefined): boolean =>
+  RAW_PRICE_SOURCES.has(normalizeSource(s));

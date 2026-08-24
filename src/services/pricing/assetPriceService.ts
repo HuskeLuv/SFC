@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporateActions';
 import { fetchQuotes, fetchCryptoQuotes, fetchCurrencyQuotes } from './brapiQuote';
-import { canOverwrite } from './sourcePrecedence';
+import { canOverwrite, isRawPriceSource } from './sourcePrecedence';
 import { Decimal } from '@prisma/client/runtime/library';
 
 const normalizeDateToDayStart = (date: Date): Date => {
@@ -376,8 +376,6 @@ export const persistPriceFromBrapi = async (
  * Busca histórico de preços de um ativo: banco primeiro, fallback BRAPI com persistência.
  * Quando o banco tem dados parciais (lacunas), busca na BRAPI para preencher e persiste.
  */
-/** Fontes de preço histórico que guardam preço CRU (não split-adjusted). */
-const RAW_PRICE_SOURCES = new Set(['B3_COTAHIST']);
 
 /**
  * Normaliza o histórico para escala split-ADJUSTED consistente. O COTAHIST grava
@@ -391,7 +389,7 @@ const splitAdjustRawRows = async (
   symbol: string,
   rows: Array<{ date: number; value: number; source: string }>,
 ): Promise<Array<{ date: number; value: number }>> => {
-  if (!rows.some((r) => RAW_PRICE_SOURCES.has(r.source))) {
+  if (!rows.some((r) => isRawPriceSource(r.source))) {
     return rows.map(({ date, value }) => ({ date, value }));
   }
   const cas = await prisma.assetCorporateAction.findMany({
@@ -407,7 +405,7 @@ const splitAdjustRawRows = async (
     events.reduce((f, e) => (e.day > dayMs ? f * e.factor : f), 1);
 
   return rows.map((r) => {
-    if (!RAW_PRICE_SOURCES.has(r.source)) return { date: r.date, value: r.value };
+    if (!isRawPriceSource(r.source)) return { date: r.date, value: r.value };
     const f = cumFactorAfter(normalizeDateToDayStart(new Date(r.date)).getTime());
     return { date: r.date, value: f !== 1 ? r.value / f : r.value };
   });
