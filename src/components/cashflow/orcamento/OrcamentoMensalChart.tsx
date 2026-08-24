@@ -8,6 +8,7 @@ import { MONTHS } from '@/constants/cashflow';
 import { formatBRL } from '@/utils/format';
 import type { OrcamentoCategoria } from '@/services/cashflow/orcamentoVsReal';
 import { coresPorNome } from './orcamentoCores';
+import { MYFINANCE_BRAND } from '@/constants/brandColors';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -20,11 +21,13 @@ const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false })
  *   EMPILHADA por categoria (formato do gráfico de proventos), ao lado da
  *   barra única do Orçado (grouped+stacked via `group` por série).
  *
- * Orçado dourado #9E8A58 (chart2.xml da planilha modelo); categorias nas
- * mesmas cores do donut (`orcamentoCores`); Real do modo Mês na cor de texto.
+ * Paleta My Finance (ticket 24/08/2026): Orçado em cinza-transparencia
+ * (#CCCCCC, neutro — é o plano); Real do modo Mês no azul-assinatura
+ * (#0079F2); categorias nas mesmas cores do donut (`orcamentoCores`).
  */
 
-const COLOR_ORCADO = '#9E8A58';
+const COLOR_ORCADO = MYFINANCE_BRAND.transparencia;
+const COLOR_REAL = MYFINANCE_BRAND.outside;
 
 interface OrcamentoMensalChartProps {
   visao: 'mes' | 'ano';
@@ -45,7 +48,6 @@ export default function OrcamentoMensalChart({
 }: OrcamentoMensalChartProps) {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
-  const colorReal = isDarkMode ? '#E5E7EB' : '#1D2939';
 
   // Visão MÊS: uma coluna por categoria com meta ou gasto no mês.
   const porCategoria = useMemo(() => {
@@ -111,7 +113,7 @@ export default function OrcamentoMensalChart({
     if (visao === 'mes') {
       return {
         ...base,
-        colors: [COLOR_ORCADO, colorReal],
+        colors: [COLOR_ORCADO, COLOR_REAL],
         plotOptions: { bar: { columnWidth: '55%', borderRadius: 2 } },
         xaxis: {
           categories: porCategoria?.nomes ?? [],
@@ -150,7 +152,7 @@ export default function OrcamentoMensalChart({
         axisTicks: { show: false },
       },
     };
-  }, [visao, porCategoria, anual, colorReal, isDarkMode]);
+  }, [visao, porCategoria, anual, isDarkMode]);
 
   const series = useMemo(() => {
     if (visao === 'mes') {
