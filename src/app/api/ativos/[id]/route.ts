@@ -22,7 +22,7 @@ import {
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import {
   buildQuantityTimeline,
-  quantityAtDate,
+  quantityAtProventoDate,
   APPLICABLE_CORPORATE_ACTION_TYPES,
   isCorporateActionAuditTx,
 } from '@/services/portfolio/corporateActions';
@@ -544,8 +544,11 @@ export const GET = withErrorHandler(
         return true;
       })
       .map((d) => {
+        // Quantidade na DATA-COM (não no pagamento) — ver quantityAtProventoDate.
         const quantidade =
-          timeline.length > 0 ? quantityAtDate(timeline, d.date.getTime()) : portfolio.quantity;
+          timeline.length > 0
+            ? quantityAtProventoDate(timeline, d.dataCom, d.date)
+            : portfolio.quantity;
         if (quantidade <= 0) return null;
         return {
           data: d.date.toISOString(),

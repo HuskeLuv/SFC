@@ -5,7 +5,7 @@ import {
   APPLICABLE_CORPORATE_ACTION_TYPES,
   buildQuantityTimeline,
   isCorporateActionAuditTx,
-  quantityAtDate,
+  quantityAtProventoDate,
 } from '@/services/portfolio/corporateActions';
 
 /** Tipos de ativo de renda variável que pagam proventos (dividendo/JCP/rendimento). */
@@ -196,7 +196,8 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
           continue;
         }
 
-        const qty = quantityAtDate(timeline, d.date.getTime());
+        // Quantidade na DATA-COM (não no pagamento) — ver quantityAtProventoDate.
+        const qty = quantityAtProventoDate(timeline, d.dataCom, d.date);
         if (qty <= 0) continue;
         // Espelha ensurePortfolioProventosFromMarket: valorTotal arredondado a
         // 1e6, IRRF de JCP arredondado a centavo pela alíquota da data de pgto.

@@ -3,7 +3,7 @@ import { getDividends, isJcpType, getJcpIrrfRate } from '@/services/pricing/divi
 import {
   APPLICABLE_CORPORATE_ACTION_TYPES,
   buildQuantityTimeline,
-  quantityAtDate,
+  quantityAtProventoDate,
 } from '@/services/portfolio/corporateActions';
 
 // UTC-safe: setHours(0) é local-TZ e gera offset diferentes entre ambientes
@@ -89,8 +89,10 @@ export const ensurePortfolioProventosFromMarket = async (params: {
     if (dMs > hojeMs) continue;
     if (firstPurchaseDate > 0 && dMs < firstPurchaseDate) continue;
 
+    // Quantidade na DATA-COM (não no pagamento): elegibilidade e escala do
+    // valorUnitario são da data-com — ver quantityAtProventoDate.
     const quantidade =
-      timeline.length > 0 ? quantityAtDate(timeline, d.date.getTime()) : portfolioQuantity;
+      timeline.length > 0 ? quantityAtProventoDate(timeline, d.dataCom, d.date) : portfolioQuantity;
     if (quantidade <= 0) continue;
 
     const valorTotal = Math.round(quantidade * d.valorUnitario * 1e6) / 1e6;
