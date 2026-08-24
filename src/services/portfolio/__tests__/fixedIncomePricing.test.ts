@@ -161,6 +161,59 @@ describe('createFixedIncomePricer — Bug #15 (idempotência entre rotas)', () =
   });
 });
 
+// Ticket 24/08 (CDB IPCA+10% vs Gorila): a busca do IPCA usava `gte: startDate`
+// do FI, mas a linha do IPCA é datada no dia 1º do mês de referência — FI
+// aplicado depois do dia 1º nunca carregava o IPCA do mês da aplicação, a fila
+// de pendentes descartava o mês em silêncio e todo IPCA+ perdia o primeiro mês
+// de inflação (~0,86pp no caso do ticket).
+describe('IPCA — mês da aplicação (ticket 24/08)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.fixedIncomeAsset.findMany.mockResolvedValue([]);
+    mockPrisma.portfolio.findMany.mockResolvedValue([]);
+    mockPrisma.tesouroDiretoPrice.findMany.mockResolvedValue([]);
+    // Mock fiel ao DB: respeita o filtro where.date.gte/lte — essencial para
+    // capturar o bug de janela (um mock que devolve tudo mascara a regressão).
+    const ipcaRows = [
+      { date: new Date('2031-02-01'), value: 0.01 },
+      { date: new Date('2031-03-01'), value: 0.02 },
+      { date: new Date('2031-04-01'), value: 0 },
+      { date: new Date('2031-05-01'), value: 0 },
+    ];
+    mockPrisma.economicIndex.findMany.mockImplementation(
+      async (args: { where: { indexType: string; date?: { gte?: Date; lte?: Date } } }) => {
+        if (args.where.indexType !== 'IPCA') return [];
+        const gte = args.where.date?.gte?.getTime() ?? -Infinity;
+        const lte = args.where.date?.lte?.getTime() ?? Infinity;
+        return ipcaRows.filter((r) => r.date.getTime() >= gte && r.date.getTime() <= lte);
+      },
+    );
+  });
+
+  it('FI IPCA+ aplicado depois do dia 1º recebe o IPCA do mês da aplicação', async () => {
+    // IPCA + 0% (spread zero) isola o efeito: valor final = invested × Π(1+ipca_mês)
+    const fi = makeCdiPrefixadoFi({
+      type: 'CDB_HIB',
+      description: 'CDB IPCA+0%',
+      startDate: new Date('2031-02-02'), // depois do dia 1º — a linha 01/02 ficava fora da janela
+      maturityDate: new Date('2035-02-10'),
+      investedAmount: 50_000,
+      annualRate: 0,
+      indexer: 'IPCA',
+    });
+    const pricer = await createFixedIncomePricer('user-1', {
+      asOfDate: new Date('2031-06-15'),
+      preloadedAssets: [fi],
+      // Como na rota /api/ativos/[id]. Sem isto o default de portfolioStartDate
+      // (24 meses atrás do asOf) alarga a janela por acidente e mascara o bug —
+      // que na prática atingia FIs mais antigos que 24 meses (caso do ticket).
+      portfolioStartDate: fi.startDate,
+    });
+    // fev (1%) e mar (2%) aplicados nos cruzamentos de mês: 50.000 × 1.01 × 1.02
+    expect(pricer.getCurrentValue(fi)).toBe(51_510);
+  });
+});
+
 describe('Tesouro por valor — âncora de PU (report 10/08)', () => {
   const makeTesouroFi = (overrides: Partial<FixedIncomeAssetWithAsset> = {}) =>
     makeCdiPrefixadoFi({
