@@ -301,7 +301,7 @@ export default function AlocacaoAtivosTable({
                 className="px-2 border border-black text-left h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">Classe de ativos</p>
+                <p className="font-bold text-white text-xs whitespace-nowrap">Classe de ativos</p>
               </TableCell>
               <TableCell
                 isHeader
@@ -309,7 +309,7 @@ export default function AlocacaoAtivosTable({
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">TOTAL</p>
+                <p className="font-bold text-white text-xs whitespace-nowrap">TOTAL</p>
               </TableCell>
               <TableCell
                 isHeader
@@ -317,7 +317,7 @@ export default function AlocacaoAtivosTable({
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">% Atual</p>
+                <p className="font-bold text-white text-xs whitespace-nowrap">% Atual</p>
               </TableCell>
               <TableCell
                 isHeader
@@ -325,7 +325,7 @@ export default function AlocacaoAtivosTable({
                 className="px-2 border-t border-l border-r border-b border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">Alocação</p>
+                <p className="font-bold text-white text-xs whitespace-nowrap">Alocação</p>
               </TableCell>
               <TableCell
                 isHeader
@@ -333,7 +333,7 @@ export default function AlocacaoAtivosTable({
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">% TARGET</p>
+                <p className="font-bold text-white text-xs whitespace-nowrap">% TARGET</p>
               </TableCell>
               <TableCell
                 isHeader
@@ -341,7 +341,7 @@ export default function AlocacaoAtivosTable({
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">Quanto Falta</p>
+                <p className="font-bold text-white text-xs whitespace-nowrap">Quanto Falta</p>
               </TableCell>
               <TableCell
                 isHeader
@@ -349,7 +349,7 @@ export default function AlocacaoAtivosTable({
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap w-36"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">
+                <p className="font-bold text-white text-xs whitespace-nowrap">
                   <span className="block">Necessidade de</span>
                   <span className="block">aporte em</span>
                 </p>
@@ -360,7 +360,7 @@ export default function AlocacaoAtivosTable({
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">Descrição</p>
+                <p className="font-bold text-white text-xs whitespace-nowrap">Descrição</p>
               </TableCell>
             </TableRow>
             <TableRow
@@ -376,14 +376,14 @@ export default function AlocacaoAtivosTable({
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">Mínimo</p>
+                <p className="font-bold text-white text-xs whitespace-nowrap">Mínimo</p>
               </TableCell>
               <TableCell
                 isHeader
                 className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
                 style={{ backgroundColor: ALOCACAO_HEADER_BG }}
               >
-                <p className="font-bold text-black text-xs whitespace-nowrap">Máximo</p>
+                <p className="font-bold text-white text-xs whitespace-nowrap">Máximo</p>
               </TableCell>
             </TableRow>
           </TableHeader>
