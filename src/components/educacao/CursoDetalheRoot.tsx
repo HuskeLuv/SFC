@@ -284,7 +284,10 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
                         .
                       </p>
                     </div>
-                  ) : aulaExibida.vturbEmbed ? (
+                  ) : aulaExibida.vturbEmbed && deepLinkAplicado ? (
+                    // Só monta o player depois do deep-link (?aula=) ser aplicado:
+                    // antes disso aulaAtiva é o default e o embed de OUTRA aula
+                    // era injetado e descartado um render depois (2 player.js).
                     <div className="absolute inset-0 bg-black">
                       <VturbPlayer embed={aulaExibida.vturbEmbed} />
                     </div>
