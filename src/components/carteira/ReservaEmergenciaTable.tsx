@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table'
 import ComponentCard from '../common/ComponentCard';
 import { UiTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_EMERGENCIA_COLUMN_COUNT = 12;
@@ -193,92 +194,92 @@ export default function ReservaEmergenciaTable({
         <div className="max-w-full overflow-x-auto">
           <Table className="text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
             <TableHeader
-              style={{ backgroundColor: '#9E8A58' }}
+              style={{ backgroundColor: TABLE_HEADER_BG }}
               className="border-t border-gray-100 border-y"
             >
-              <TableRow style={{ backgroundColor: '#9E8A58' }}>
+              <TableRow style={{ backgroundColor: TABLE_HEADER_BG }}>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-left"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-left"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Nome dos Ativos
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-center"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Cot. Resgate
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-center"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Liq. Resgate
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-center"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Vencimento
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-center"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Benchmark
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Valor Inicial
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Aporte
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Resgate
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Valor Atual
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-center"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   % da Aba
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-center"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="px-2 py-2 font-bold text-black text-xs text-center"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Rentab.
                 </TableCell>

@@ -14,6 +14,7 @@ import {
 import { TableBody } from '@/components/ui/table';
 import { StandardTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_OPORTUNIDADE_COLUMN_COUNT = 13;
@@ -195,46 +196,46 @@ export default function ReservaOportunidadeTable({
       {/* Tabela principal */}
       <ComponentCard title="Reserva de Oportunidade - Detalhamento">
         <StandardTable>
-          <StandardTableHeader sticky headerBgColor="#9E8A58">
-            <StandardTableHeaderRow headerBgColor="#9E8A58">
-              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">
+          <StandardTableHeader sticky headerBgColor={TABLE_HEADER_BG}>
+            <StandardTableHeaderRow headerBgColor={TABLE_HEADER_BG}>
+              <StandardTableHeaderCell align="left" headerBgColor={TABLE_HEADER_BG}>
                 Nome dos Ativos
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
                 Cot. Resgate
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
                 Liq. Resgate
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
                 Vencimento
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
                 Benchmark
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 Valor Inicial
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 Aporte
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 Resgate
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 Valor Atual
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 % da Aba
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 <span className="block">Risco Por Ativo</span>
                 <span className="block">(Carteira Total)</span>
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 Rentab.
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
                 Observações
               </StandardTableHeaderCell>
             </StandardTableHeaderRow>

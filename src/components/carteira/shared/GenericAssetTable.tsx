@@ -7,9 +7,10 @@ import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import { MetricCard } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
+import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 const MIN_PLACEHOLDER_ROWS = 4;
-const HEADER_BG_COLOR = '#9E8A58';
+const HEADER_BG_COLOR = TABLE_HEADER_BG;
 const SECTION_BG_COLOR = '#808080';
 const TOTAL_BG_COLOR = '#404040';
 
@@ -491,7 +492,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
                   return (
                     <th
                       key={col.key}
-                      className={`px-2 py-2 font-bold text-black text-xs ${alignClass} ${col.headerClassName ?? ''}`}
+                      className={`px-2 py-2 font-bold text-white text-xs ${alignClass} ${col.headerClassName ?? ''}`}
                       style={{ backgroundColor: HEADER_BG_COLOR }}
                     >
                       {col.header}

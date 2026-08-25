@@ -19,3 +19,9 @@ export const MYFINANCE_BRAND = {
   /** #EAEAEA — cinza mais claro */
   escolha: '#EAEAEA',
 } as const;
+
+/**
+ * Fundo padrão dos cabeçalhos de tabela do app (ticket 25/08/2026: era o oliva
+ * #9E8A58 da planilha-base; texto sempre branco por cima).
+ */
+export const TABLE_HEADER_BG = MYFINANCE_BRAND.seguranca;

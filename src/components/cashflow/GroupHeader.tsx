@@ -10,6 +10,7 @@ import { SaveCancelButtons } from './SaveCancelButtons';
 import { ColorOption } from './ColorPickerButton';
 import { FIXED_COLUMN_BODY_STYLES } from './fixedColumns';
 import { CANONICAL_GROUPS, canonicalName } from '@/services/cashflow/groupMatchers';
+import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 interface GroupHeaderProps {
   group: CashflowGroup;
@@ -106,7 +107,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
             : isDespesasEmpresa
               ? '#17365D'
               : isPlanejamentoFinanceiro
-                ? '#9E8A58'
+                ? TABLE_HEADER_BG
                 : isInvestimentosGroup
                   ? // Aporte/Resgate: cinza-claro da planilha, RGB 201,204,204
                     // (ticket 19/08/2026 — era o verde #38761D)
