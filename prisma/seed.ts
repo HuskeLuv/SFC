@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { seedTemplates } from '../src/utils/cashflowTemplates';
 import { seedInstitutions } from './referenceData';
 import { CURSO_ESR_SLUG, MODULOS_TRILHA_ESR } from '../src/constants/educacaoModulos';
+import { AULAS_TRILHA_ESR, buildVturbEmbed } from '../src/constants/educacaoAulas';
 
 const prisma = new PrismaClient();
 
@@ -337,12 +338,9 @@ async function seedEducacao() {
     return;
   }
 
-  // Módulos da trilha (layout do Pedro, 25/08). Só os 2 primeiros têm aulas de
-  // exemplo — o conteúdo real (embeds VTurb) entra pelo banco.
-  const aulasPorModulo: Record<number, string[]> = {
-    0: ['Boas-vindas ao Escolhi Ser Rico', 'Como funciona o método'],
-    1: ['Diagnóstico financeiro', 'Montando seu fluxo de caixa', 'Saindo das dívidas'],
-  };
+  // Módulos da trilha (layout do Pedro, 25/08) + aulas reais com embed VTurb
+  // (src/constants/educacaoAulas.ts). Em banco existente use
+  // scripts/educacao/sync-aulas-trilha.ts.
 
   for (const [mIdx, mod] of MODULOS_TRILHA_ESR.entries()) {
     const courseModule = await prisma.courseModule.create({
@@ -354,14 +352,14 @@ async function seedEducacao() {
         orderIndex: mIdx,
       },
     });
-    for (const [aIdx, titulo] of (aulasPorModulo[mIdx] ?? []).entries()) {
+    for (const [aIdx, aula] of (AULAS_TRILHA_ESR[mIdx] ?? []).entries()) {
       await prisma.courseLesson.create({
         data: {
           moduleId: courseModule.id,
-          title: titulo,
+          title: aula.title,
+          vturbEmbed: buildVturbEmbed(aula.vturbId),
           orderIndex: aIdx,
           requiredLevel: 0,
-          // vturbEmbed fica null até colar o snippet do painel VTurb
         },
       });
     }

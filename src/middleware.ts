@@ -91,9 +91,13 @@ function applyRateLimitHeaders(
  */
 // Área Educacional (ticket 21/08/2026): os vídeos dos cursos são hospedados na
 // VTurb (ConverteAI) — o embed JS injeta scripts de *.converteai.net e o player
-// carrega mídia HLS via XHR/blob. Se o primeiro embed real falhar por CSP,
-// conferir no console qual domínio de CDN faltou e adicioná-lo aqui.
-const VTURB_HOSTS = 'https://*.converteai.net';
+// carrega mídia HLS via XHR/blob. Verificado com embed real (25/08/2026): além
+// de *.converteai.net (scripts, m3u8, segmentos, thumbnails) o player consulta
+// license.vturb.com (checagem de licença — sem ela o player loga erro), a.vturb.com
+// (analytics) e vt-h-*.b-cdn.net (CDN auxiliar). sentry.io (telemetria de erro da
+// VTurb) fica bloqueado de propósito. Se um vídeo novo falhar, conferir no
+// console qual host faltou e adicioná-lo aqui.
+const VTURB_HOSTS = 'https://*.converteai.net https://*.vturb.com https://*.b-cdn.net';
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
