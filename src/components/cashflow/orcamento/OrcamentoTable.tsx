@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatBRL, formatPct } from '@/utils/format';
-import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 export type OrcamentoTipoMeta = 'valor' | 'percentual';
 
@@ -218,7 +218,7 @@ export function OrcamentoTable({ linhas, investimentos, totais, onSaveMeta }: Or
           {/* Cabeçalho no azul seguranca da paleta (ticket 25/08 — antes oliva #9E8A58 da planilha-base) */}
           <tr
             className="border-b border-gray-200 text-xs uppercase tracking-wide text-white dark:border-gray-800"
-            style={{ backgroundColor: MYFINANCE_BRAND.seguranca }}
+            style={{ backgroundColor: TABLE_HEADER_BG }}
           >
             <th className="py-3 pl-4 pr-4 font-medium">Categoria</th>
             <th className="py-3 pr-4 text-right font-medium">Orçamento</th>

@@ -9,6 +9,7 @@ import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const PREVIDENCIA_SEGUROS_COLUMN_COUNT = 17;
@@ -287,108 +288,108 @@ export default function PrevidenciaSegurosTable({
             <thead>
               <tr
                 className="border-b border-gray-200 dark:border-gray-700"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: TABLE_HEADER_BG }}
               >
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-left whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-left whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Nome do Ativo
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Carência
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Cotação de Resgate
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Liquidação de Resgate
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Modalidade
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Subclasse
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Quantidade
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Preço Aquisição
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Valor Total
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Cotação em Tempo Real
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Valor Atualizado
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   % da Aba
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Objetivo
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Quanto Falta
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Nec. Aporte $
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Rentabilidade
                 </th>

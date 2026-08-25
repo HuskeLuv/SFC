@@ -24,6 +24,7 @@ import {
   StandardTableBodyCell,
   TableBody,
 } from '@/components/ui/table/StandardTable';
+import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 const SECTION_ORDER = ['fof', 'tvm', 'tijolo'] as const;
 const SECTION_NAMES: Record<string, string> = {
@@ -269,21 +270,21 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       {/* Aux table */}
       <ComponentCard title="Resumo de Aportes">
         <StandardTable>
-          <StandardTableHeader headerBgColor="#9E8A58">
-            <StandardTableHeaderRow headerBgColor="#9E8A58">
-              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">
+          <StandardTableHeader headerBgColor={TABLE_HEADER_BG}>
+            <StandardTableHeaderRow headerBgColor={TABLE_HEADER_BG}>
+              <StandardTableHeaderCell align="left" headerBgColor={TABLE_HEADER_BG}>
                 Ticker
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="left" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="left" headerBgColor={TABLE_HEADER_BG}>
                 Nome
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 Cotação Atual
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 Necessidade Aporte
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor="#9E8A58">
+              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
                 Lote Aproximado
               </StandardTableHeaderCell>
             </StandardTableHeaderRow>

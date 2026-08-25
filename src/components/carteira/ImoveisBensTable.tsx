@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const IMOVEIS_BENS_COLUMN_COUNT = 11;
@@ -258,72 +259,72 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
             <thead>
               <tr
                 className="border-b border-gray-200 dark:border-gray-700"
-                style={{ backgroundColor: '#9E8A58' }}
+                style={{ backgroundColor: TABLE_HEADER_BG }}
               >
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-left"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-left"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Nome do Ativo
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Cidade
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-center"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-center"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Mandato
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Quantidade
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Preço Aquisição
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Melhorias
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Valor Total
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Valor Atualizado
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   % da Aba
                 </th>
                 <th
-                  className="px-2 py-2 font-bold text-black text-xs text-right"
-                  style={{ backgroundColor: '#9E8A58' }}
+                  className="px-2 py-2 font-bold text-white text-xs text-right"
+                  style={{ backgroundColor: TABLE_HEADER_BG }}
                 >
                   Rentabilidade
                 </th>
