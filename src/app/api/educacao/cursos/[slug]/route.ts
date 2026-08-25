@@ -45,6 +45,8 @@ export const GET = withErrorHandler(
     const modulos = course.modules.map((mod) => ({
       id: mod.id,
       title: mod.title,
+      description: mod.description ?? null,
+      coverUrl: mod.coverUrl ?? null,
       aulas: mod.lessons.map((lesson) => {
         const requiredLevel = effectiveRequiredLevel(course.requiredLevel, lesson.requiredLevel);
         const bloqueada = !canAccess(accessLevel, requiredLevel);

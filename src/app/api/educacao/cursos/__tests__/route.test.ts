@@ -22,6 +22,13 @@ import { GET } from '../route';
 
 const BASE = 'http://localhost/api/educacao/cursos';
 
+const lesson = (id: string, durationSeconds = 600) => ({
+  id,
+  title: `Aula ${id}`,
+  durationSeconds,
+  requiredLevel: 0,
+});
+
 const makeCourse = (over: Record<string, unknown> = {}) => ({
   id: 'c-1',
   slug: 'curso-teste',
@@ -32,8 +39,14 @@ const makeCourse = (over: Record<string, unknown> = {}) => ({
   orderIndex: 0,
   published: true,
   modules: [
-    { id: 'm-1', lessons: [{ id: 'l-1' }, { id: 'l-2' }] },
-    { id: 'm-2', lessons: [{ id: 'l-3' }] },
+    {
+      id: 'm-1',
+      title: 'M1',
+      description: null,
+      coverUrl: null,
+      lessons: [lesson('l-1'), lesson('l-2')],
+    },
+    { id: 'm-2', title: 'M2', description: 'd', coverUrl: '/c.jpg', lessons: [lesson('l-3')] },
   ],
   ...over,
 });
@@ -66,8 +79,8 @@ describe('GET /api/educacao/cursos', () => {
 
   it('calcula progresso a partir das aulas concluídas', async () => {
     mockPrisma.lessonProgress.findMany.mockResolvedValue([
-      { lessonId: 'l-1' },
-      { lessonId: 'l-3' },
+      { lessonId: 'l-1', completedAt: new Date('2026-08-20'), updatedAt: new Date('2026-08-20') },
+      { lessonId: 'l-3', completedAt: new Date('2026-08-24'), updatedAt: new Date('2026-08-24') },
     ]);
 
     const res = await GET(new NextRequest(BASE));
@@ -75,6 +88,32 @@ describe('GET /api/educacao/cursos', () => {
 
     expect(data.cursos[0].aulasConcluidas).toBe(2);
     expect(data.cursos[0].progresso).toBe(67);
+    expect(data.cursos[0].modulosConcluidos).toBe(1);
+    expect(data.cursos[0].modulos[1]).toMatchObject({
+      id: 'm-2',
+      coverUrl: '/c.jpg',
+      status: 'concluido',
+      progresso: 100,
+      duracaoSegundos: 600,
+    });
+    // Última interação foi no m-2 (concluído) → retoma na primeira pendente: l-2.
+    expect(data.cursos[0].continuar).toMatchObject({
+      moduloId: 'm-1',
+      aulaId: 'l-2',
+      aulaIndex: 2,
+    });
+  });
+
+  it('trilha sem progresso: módulos não iniciados e continuar aponta pra 1ª aula', async () => {
+    const res = await GET(new NextRequest(BASE));
+    const data = await res.json();
+
+    expect(data.cursos[0].modulos.map((m: { status: string }) => m.status)).toEqual([
+      'nao_iniciado',
+      'nao_iniciado',
+    ]);
+    expect(data.cursos[0].duracaoSegundos).toBe(1800);
+    expect(data.cursos[0].continuar).toMatchObject({ moduloId: 'm-1', aulaId: 'l-1' });
   });
 
   it('marca curso como bloqueado quando requiredLevel > accessLevel do usuário', async () => {
@@ -84,6 +123,7 @@ describe('GET /api/educacao/cursos', () => {
     const data = await res.json();
 
     expect(data.cursos[0].bloqueado).toBe(true);
+    expect(data.cursos[0].continuar).toBeNull();
     expect(data.accessLevel).toBe(0);
   });
 

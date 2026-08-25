@@ -1157,12 +1157,15 @@ model Course {
 }
 
 model CourseModule {
-  id         String         @id @default(uuid())
-  courseId   String
-  course     Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  title      String
-  orderIndex Int            @default(0)
-  lessons    CourseLesson[]
+  id          String         @id @default(uuid())
+  courseId    String
+  course      Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  // Capa 16:9 do card na trilha (ex.: /educacao/modulos/01-boas-vindas.jpg).
+  coverUrl    String?
+  orderIndex  Int            @default(0)
+  lessons     CourseLesson[]
 
   @@index([courseId])
   @@map("course_modules")
