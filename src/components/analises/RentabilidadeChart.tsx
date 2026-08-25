@@ -574,6 +574,30 @@ export default function RentabilidadeChart({
   }, [series]);
 
   // Calcular número de anos únicos quando período for anual (após agrupamento)
+  /**
+   * Folga à direita do eixo X no gráfico diário (ticket 25/08/2026, "hover só
+   * vai até dia 22"). Com ~600 pontos em ~740px cada dia ocupa ~1,2px e o
+   * último ponto fica colado na borda do grid: só é capturado num único pixel
+   * e, passando dele, o Apex congela o tooltip no último dia que pegou (fim de
+   * semana forward-filled). Com a folga, todo o trecho à direita do último
+   * ponto cai no "mais próximo" = último dia, e o hover chega ao fim da série.
+   */
+  const xAxisMax = useMemo((): number | undefined => {
+    if (period !== '1d') return undefined;
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    series.forEach((s) => {
+      s.data.forEach((point) => {
+        if (Array.isArray(point) && typeof point[0] === 'number' && Number.isFinite(point[0])) {
+          if (point[0] < minX) minX = point[0];
+          if (point[0] > maxX) maxX = point[0];
+        }
+      });
+    });
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX <= minX) return undefined;
+    return maxX + (maxX - minX) * 0.025;
+  }, [series, period]);
+
   const uniqueYearsCount = useMemo(() => {
     if (period !== '1y') return undefined;
 
@@ -676,6 +700,7 @@ export default function RentabilidadeChart({
       xaxis: {
         type: 'datetime',
         tickAmount: period === '1y' ? uniqueYearsCount : 6,
+        ...(xAxisMax != null ? { max: xAxisMax } : {}),
         axisBorder: {
           show: false,
         },
@@ -848,6 +873,7 @@ export default function RentabilidadeChart({
     customColors,
     legendPosition,
     yAxisBounds,
+    xAxisMax,
     seriesColors,
   ]);
 
