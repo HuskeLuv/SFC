@@ -8,8 +8,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import type { ContinuarAula, ModuloTrilha } from '@/utils/educacaoTrilha';
 
-export interface CursoResumo {
+export type { ContinuarAula, ModuloTrilha };
+
+export interface CursoBase {
   id: string;
   slug: string;
   title: string;
@@ -20,6 +23,14 @@ export interface CursoResumo {
   totalAulas: number;
   aulasConcluidas: number;
   progresso: number;
+}
+
+export interface CursoResumo extends CursoBase {
+  duracaoSegundos: number;
+  modulos: ModuloTrilha[];
+  modulosConcluidos: number;
+  /** Aula sugerida no hero "Continue de onde parou"; null se bloqueado/concluído. */
+  continuar: ContinuarAula | null;
 }
 
 export interface AulaDetalhe {
@@ -37,10 +48,12 @@ export interface AulaDetalhe {
 export interface ModuloDetalhe {
   id: string;
   title: string;
+  description: string | null;
+  coverUrl: string | null;
   aulas: AulaDetalhe[];
 }
 
-export interface CursoDetalhe extends CursoResumo {
+export interface CursoDetalhe extends CursoBase {
   modulos: ModuloDetalhe[];
 }
 

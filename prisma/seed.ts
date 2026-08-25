@@ -2,6 +2,7 @@ import { PrismaClient, ConsultantClientStatus, UserRole } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { seedTemplates } from '../src/utils/cashflowTemplates';
 import { seedInstitutions } from './referenceData';
+import { CURSO_ESR_SLUG, MODULOS_TRILHA_ESR } from '../src/constants/educacaoModulos';
 
 const prisma = new PrismaClient();
 
@@ -315,10 +316,10 @@ async function seedDemoUsers() {
 
 async function seedEducacao() {
   const curso = await prisma.course.upsert({
-    where: { slug: 'educacao-financeira-do-zero' },
+    where: { slug: CURSO_ESR_SLUG },
     update: {},
     create: {
-      slug: 'educacao-financeira-do-zero',
+      slug: CURSO_ESR_SLUG,
       title: 'Educação Financeira do Zero',
       description:
         'O método Escolhi Ser Rico para organizar suas finanças: saia das dívidas, monte sua reserva e comece a investir.',
@@ -336,22 +337,24 @@ async function seedEducacao() {
     return;
   }
 
-  const modulos: Array<{ title: string; aulas: string[] }> = [
-    {
-      title: 'Módulo 1 — Comece por aqui',
-      aulas: ['Boas-vindas ao Escolhi Ser Rico', 'Como funciona o método'],
-    },
-    {
-      title: 'Módulo 2 — Organizando suas finanças',
-      aulas: ['Diagnóstico financeiro', 'Montando seu fluxo de caixa', 'Saindo das dívidas'],
-    },
-  ];
+  // Módulos da trilha (layout do Pedro, 25/08). Só os 2 primeiros têm aulas de
+  // exemplo — o conteúdo real (embeds VTurb) entra pelo banco.
+  const aulasPorModulo: Record<number, string[]> = {
+    0: ['Boas-vindas ao Escolhi Ser Rico', 'Como funciona o método'],
+    1: ['Diagnóstico financeiro', 'Montando seu fluxo de caixa', 'Saindo das dívidas'],
+  };
 
-  for (const [mIdx, mod] of modulos.entries()) {
+  for (const [mIdx, mod] of MODULOS_TRILHA_ESR.entries()) {
     const courseModule = await prisma.courseModule.create({
-      data: { courseId: curso.id, title: mod.title, orderIndex: mIdx },
+      data: {
+        courseId: curso.id,
+        title: mod.title,
+        description: mod.description,
+        coverUrl: mod.coverUrl,
+        orderIndex: mIdx,
+      },
     });
-    for (const [aIdx, titulo] of mod.aulas.entries()) {
+    for (const [aIdx, titulo] of (aulasPorModulo[mIdx] ?? []).entries()) {
       await prisma.courseLesson.create({
         data: {
           moduleId: courseModule.id,

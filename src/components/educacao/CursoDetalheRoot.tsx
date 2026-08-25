@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useCurso, useMarcarAula, type AulaDetalhe } from '@/hooks/useEducacao';
 import { accessLevelLabel } from '@/utils/accessLevel';
@@ -21,6 +21,28 @@ export default function CursoDetalheRoot({ slug }: { slug: string }) {
   const [aulaSelecionadaId, setAulaSelecionadaId] = useState<string | null>(null);
 
   const todasAulas = useMemo(() => curso?.modulos.flatMap((m) => m.aulas) ?? [], [curso]);
+
+  // Deep-link da home (cards da trilha / hero "continuar"): ?aula=<id> abre a
+  // aula; ?modulo=<id> abre a 1ª aula pendente do módulo (ou a 1ª dele).
+  // Lido de window.location uma vez pra não exigir useSearchParams+Suspense.
+  const [deepLinkAplicado, setDeepLinkAplicado] = useState(false);
+  useEffect(() => {
+    if (!curso || deepLinkAplicado) return;
+    setDeepLinkAplicado(true);
+    const params = new URLSearchParams(window.location.search);
+    const aulaParam = params.get('aula');
+    const moduloParam = params.get('modulo');
+    if (aulaParam && todasAulas.some((a) => a.id === aulaParam)) {
+      setAulaSelecionadaId(aulaParam);
+      return;
+    }
+    if (moduloParam) {
+      const modulo = curso.modulos.find((m) => m.id === moduloParam);
+      const alvo =
+        modulo?.aulas.find((a) => !a.bloqueada && !a.concluida) ?? modulo?.aulas[0] ?? null;
+      if (alvo) setAulaSelecionadaId(alvo.id);
+    }
+  }, [curso, todasAulas, deepLinkAplicado]);
 
   // Aula ativa: a selecionada, senão a primeira não-concluída desbloqueada,
   // senão a primeira desbloqueada.
