@@ -20,6 +20,7 @@ vi.mock('@/lib/prisma', () => ({
 /* ------------------------------------------------------------------ */
 
 import {
+  resolveIndexerPercent,
   normalizeDateStart,
   buildDailyTimeline,
   getTransactionValue,
@@ -45,6 +46,56 @@ beforeEach(() => {
 /* ================================================================== */
 /* normalizeDateStart                                                 */
 /* ================================================================== */
+
+describe('resolveIndexerPercent (ticket 25/08/2026 — LCI 135% CDI rendia 100%)', () => {
+  const base = { tesouroBondType: null as string | null };
+
+  it('legado pós-fixada bancária: indexerPercent=100 e annualRate=135 → 135', () => {
+    expect(
+      resolveIndexerPercent({ ...base, annualRate: 135, indexerPercent: 100 }, 'CDI', false),
+    ).toBe(135);
+  });
+
+  it('legado com indexerPercent nulo usa annualRate', () => {
+    expect(
+      resolveIndexerPercent({ ...base, annualRate: 110, indexerPercent: null }, 'CDI', false),
+    ).toBe(110);
+  });
+
+  it('indexerPercent explícito (≠100) prevalece sobre annualRate', () => {
+    expect(
+      resolveIndexerPercent({ ...base, annualRate: 13, indexerPercent: 120 }, 'CDI', false),
+    ).toBe(120);
+  });
+
+  it('annualRate=0 (reservas) ou =100 → mantém 100', () => {
+    expect(
+      resolveIndexerPercent({ ...base, annualRate: 0, indexerPercent: 100 }, 'CDI', false),
+    ).toBe(100);
+    expect(
+      resolveIndexerPercent({ ...base, annualRate: 100, indexerPercent: 100 }, 'CDI', false),
+    ).toBe(100);
+  });
+
+  it('híbrido e Tesouro não usam annualRate como % do indexador', () => {
+    expect(
+      resolveIndexerPercent({ ...base, annualRate: 6, indexerPercent: 100 }, 'IPCA', true),
+    ).toBe(100);
+    expect(
+      resolveIndexerPercent(
+        { tesouroBondType: 'SELIC', annualRate: 0.1, indexerPercent: 100 },
+        'CDI',
+        false,
+      ),
+    ).toBe(100);
+  });
+
+  it('PRE ignora a heurística', () => {
+    expect(
+      resolveIndexerPercent({ ...base, annualRate: 12, indexerPercent: null }, 'PRE', false),
+    ).toBe(100);
+  });
+});
 
 describe('normalizeDateStart', () => {
   // Pós-fix de TZ: a função ancora datas em UTC midnight (calendar day UTC) para
