@@ -2006,7 +2006,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       if (tipoAtivo === 'renda-fixa-hibrida') {
         indexerPercentForAsset = 100;
       } else if (tipoAtivo === 'renda-fixa-posfixada') {
-        indexerPercentForAsset = 100;
+        // Ticket 25/08/2026 (LCI 135% CDI × Gorila): em pós-fixada o campo do
+        // wizard é "Taxa sobre o Indexador (%)" — o valor digitado (ex.: 135) É o
+        // % do CDI/IPCA e precisa ir pra indexerPercent, que é o que o pricer
+        // compõe. Gravar 100 fixo deixava tudo rendendo 100% do CDI.
+        indexerPercentForAsset =
+          typeof taxaJurosAnual === 'number' && taxaJurosAnual > 0 ? taxaJurosAnual : 100;
       } else {
         indexerPercentForAsset = rendaFixaIndexerPercent ?? null;
       }

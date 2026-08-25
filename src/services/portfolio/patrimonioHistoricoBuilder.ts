@@ -191,6 +191,37 @@ export const getDayKey = (ts: number): number => {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 };
 
+/**
+ * % do indexador efetivo de um FI pós-fixado.
+ *
+ * Legado (F1.6, mai/2026 → ticket 25/08/2026): o wizard de pós-fixada gravava
+ * `indexerPercent = 100` fixo e a "Taxa sobre o Indexador (%)" digitada caía em
+ * `annualRate` (ignorado em pós-fixada). Uma LCI 135% CDI rendia 100% do CDI.
+ * Para emissão bancária pós-fixada (não híbrida, não Tesouro) com indexerPercent
+ * ausente/100 e annualRate diferente de 100, o annualRate é o % contratado —
+ * auto-cura os registros antigos sem migração de dados.
+ */
+export function resolveIndexerPercent(
+  fi: Pick<FixedIncomeAssetWithAsset, 'annualRate' | 'indexerPercent' | 'tesouroBondType'>,
+  indexer: string,
+  isHibrido: boolean,
+): number {
+  const stored = fi.indexerPercent != null ? Number(fi.indexerPercent) : null;
+  const annualRate = Number(fi.annualRate);
+  const isPosBancaria =
+    (indexer === 'CDI' || indexer === 'IPCA') && !isHibrido && !fi.tesouroBondType;
+  if (
+    isPosBancaria &&
+    (stored == null || stored === 100) &&
+    Number.isFinite(annualRate) &&
+    annualRate > 0 &&
+    annualRate !== 100
+  ) {
+    return annualRate;
+  }
+  return stored ?? 100;
+}
+
 /** Taxa diária do CDI (fração decimal, ex.: 0.000521 para ~13.65% a.a.) indexada por dayKey. */
 export type CdiDaily = Map<number, number>;
 
@@ -254,11 +285,11 @@ export const buildFixedIncomeFactorSeries = (
   const maturityTs = normalizeDateStart(new Date(fi.maturityDate)).getTime();
 
   const annualRate = Number(fi.annualRate) / 100;
-  const indexerPercent = fi.indexerPercent != null ? Number(fi.indexerPercent) / 100 : 1;
   const indexer = (fi.indexer || 'PRE').toUpperCase();
   const isHibrido = String(fi.type || '')
     .toUpperCase()
     .endsWith('_HIB');
+  const indexerPercent = resolveIndexerPercent(fi, indexer, isHibrido) / 100;
   const hasTesouroPU =
     Boolean(fi.tesouroBondType) &&
     Boolean(ctx.tesouroPU) &&
