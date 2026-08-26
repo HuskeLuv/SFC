@@ -24,6 +24,8 @@ export interface BaseQuantityAtivo extends BaseAtivo {
   quantoFalta: number;
   necessidadeAporte: number;
   dataUltimaAtualizacao?: Date;
+  /** Proventos líquidos já recebidos (R$) — entram na rentabilidade (auditoria B1, 25/08/2026). */
+  proventos?: number;
 }
 
 // Extended base for fund-type assets (rendaFixa, fimFia) that track by value, not quantity
@@ -43,6 +45,7 @@ export interface BaseSecao<T> {
 // Quantity sections add these totals
 export interface BaseQuantitySecaoTotals {
   totalQuantidade: number;
+  totalProventos?: number;
   totalValorAplicado: number;
   totalValorAtualizado: number;
   totalPercentualCarteira: number;
@@ -83,6 +86,7 @@ export interface BaseQuantityTotalGeral {
   quantoFalta: number;
   necessidadeAporte: number;
   rentabilidade: number;
+  proventos?: number;
 }
 
 // Base total geral for fund-type assets

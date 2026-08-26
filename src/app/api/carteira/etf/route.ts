@@ -12,6 +12,10 @@ import {
   CATEGORIA_ASSET_TYPE_FILTERS,
 } from '@/services/portfolio/itemValuation';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
+import {
+  aplicarProventosNosAtivos,
+  proventosRecebidosPorSymbol,
+} from '@/services/portfolio/proventosPorSymbol';
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
   const colors = [
@@ -106,6 +110,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         objetivo: item.objetivo ?? 0,
         quantoFalta: 0, // Calcular depois
         necessidadeAporte: 0, // Calcular depois
+        proventos: 0, // preenchido por aplicarProventosNosAtivos
         rentabilidade:
           item.totalInvested > 0
             ? round2(((valorAtualizado - item.totalInvested) / item.totalInvested) * 100)
@@ -117,6 +122,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   // Calcular totais gerais
   const totalQuantidade = etfAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+  // Auditoria 25/08/2026 (B1): proventos recebidos entram na rentabilidade da linha.
+  const proventosPorSymbol = await proventosRecebidosPorSymbol(targetUserId);
+  aplicarProventosNosAtivos(etfAtivos, proventosPorSymbol);
+  const totalProventos = etfAtivos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
   const totalValorAplicado = etfAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
   const totalValorAtualizado = etfAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
 
@@ -148,7 +157,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const rentabilidadeMedia = rentabilidadeAgregada(
     etfAtivos,
     (a) => a.valorTotal,
-    (a) => a.valorAtualizado,
+    (a) => a.valorAtualizado + (a.proventos ?? 0),
   );
 
   // Agrupar por região (Brasil e EUA)
@@ -170,12 +179,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     totalQuantoFalta: 0,
     totalNecessidadeAporte: 0,
     rentabilidadeMedia: 0,
+    totalProventos: 0,
   }));
 
   // Calcular valores das seções
   secoes.forEach((secao) => {
     secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+    secao.totalProventos = secao.ativos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
     secao.totalValorAtualizado = secao.ativos.reduce(
       (sum, ativo) => sum + ativo.valorAtualizado,
       0,
@@ -194,7 +205,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     secao.rentabilidadeMedia = rentabilidadeAgregada(
       secao.ativos,
       (a) => a.valorTotal,
-      (a) => a.valorAtualizado,
+      (a) => a.valorAtualizado + (a.proventos ?? 0),
     );
   });
 
@@ -205,10 +216,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     caixaParaInvestir: caixaParaInvestir,
     saldoInicioMes: totalValorAplicado,
     valorAtualizado: valorAtualizadoComCaixa,
-    rendimento: valorAtualizadoComCaixa - totalValorAplicado,
+    rendimento: valorAtualizadoComCaixa + totalProventos - totalValorAplicado,
     rentabilidade:
       totalValorAplicado > 0
-        ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+        ? ((valorAtualizadoComCaixa + totalProventos - totalValorAplicado) / totalValorAplicado) *
+          100
         : 0,
   };
 
@@ -245,6 +257,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       quantoFalta: totalQuantoFalta,
       necessidadeAporte: totalNecessidadeAporte,
       rentabilidade: rentabilidadeMedia,
+      proventos: totalProventos,
     },
     alocacaoAtivo,
     tabelaAuxiliar,

@@ -9,6 +9,10 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
+import {
+  aplicarProventosNosAtivos,
+  proventosRecebidosPorSymbol,
+} from '@/services/portfolio/proventosPorSymbol';
 // Função helper para validar e converter setor para SetorAcao
 function parseSetorAcao(setor: string | null | undefined): SetorAcao {
   const setoresValidos: SetorAcao[] = [
@@ -160,6 +164,10 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
 
   // Calcular totais gerais
   const totalQuantidade = acoesAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+  // Auditoria 25/08/2026 (B1): proventos recebidos entram na rentabilidade da linha.
+  const proventosPorSymbol = await proventosRecebidosPorSymbol(userId);
+  aplicarProventosNosAtivos(acoesAtivos, proventosPorSymbol);
+  const totalProventos = acoesAtivos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
   const totalValorAplicado = acoesAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
   const totalValorAtualizado = acoesAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
 
@@ -196,7 +204,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   const rentabilidadeMedia = rentabilidadeAgregada(
     acoesAtivos,
     (a) => a.valorTotal,
-    (a) => a.valorAtualizado,
+    (a) => a.valorAtualizado + (a.proventos ?? 0),
   );
 
   // Agrupar por estratégia (value, growth, risk)
@@ -231,6 +239,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   secoes.forEach((secao) => {
     secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+    secao.totalProventos = secao.ativos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
     secao.totalValorAtualizado = secao.ativos.reduce(
       (sum, ativo) => sum + ativo.valorAtualizado,
       0,
@@ -249,7 +258,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     secao.rentabilidadeMedia = rentabilidadeAgregada(
       secao.ativos,
       (a) => a.valorTotal,
-      (a) => a.valorAtualizado,
+      (a) => a.valorAtualizado + (a.proventos ?? 0),
     );
   });
 
@@ -265,10 +274,11 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     caixaParaInvestir: caixaParaInvestir,
     saldoInicioMes: totalValorAplicado, // Valor investido (base de cálculo)
     valorAtualizado: valorAtualizadoComCaixa, // Valor com cotação atual + caixa
-    rendimento: valorAtualizadoComCaixa - totalValorAplicado, // Ganho ou perda em R$
+    rendimento: valorAtualizadoComCaixa + totalProventos - totalValorAplicado, // Ganho ou perda em R$
     rentabilidade:
       totalValorAplicado > 0
-        ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+        ? ((valorAtualizadoComCaixa + totalProventos - totalValorAplicado) / totalValorAplicado) *
+          100
         : 0, // Percentual de ganho ou perda
   };
 
@@ -285,6 +295,7 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       quantoFalta: totalQuantoFalta,
       necessidadeAporte: totalNecessidadeAporte,
       rentabilidade: rentabilidadeMedia,
+      proventos: totalProventos,
     },
   };
 }

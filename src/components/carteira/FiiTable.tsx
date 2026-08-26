@@ -193,6 +193,14 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       ),
     },
     {
+      key: 'proventos',
+      header: 'Proventos',
+      align: 'right',
+      render: (a, f) => f.formatCurrency(a.proventos ?? 0),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalProventos ?? 0),
+      renderGrandTotal: (t, f) => f.formatCurrency((t?.proventos as number) || 0),
+    },
+    {
       key: 'rentabilidade',
       header: 'Rentabilidade',
       align: 'right',

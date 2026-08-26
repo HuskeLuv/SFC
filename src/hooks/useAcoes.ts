@@ -61,6 +61,7 @@ export const useAcoes = () => {
   ): AcaoSecao => {
     const totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     const totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+    const totalProventos = secao.ativos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
     const totalValorAtualizado = secao.ativos.reduce(
       (sum, ativo) => sum + ativo.valorAtualizado,
       0,
@@ -77,7 +78,7 @@ export const useAcoes = () => {
     const rentabilidadeMedia = rentabilidadeAgregada(
       secao.ativos,
       (a) => a.valorTotal,
-      (a) => a.valorAtualizado,
+      (a) => a.valorAtualizado + (a.proventos ?? 0),
     );
 
     return {
@@ -85,6 +86,7 @@ export const useAcoes = () => {
       totalQuantidade,
       totalValorAplicado,
       totalValorAtualizado,
+      totalProventos,
       totalPercentualCarteira,
       totalRisco,
       totalObjetivo,

@@ -170,6 +170,14 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       ),
     },
     {
+      key: 'proventos',
+      header: 'Proventos',
+      align: 'right',
+      render: (a, f) => f.formatCurrency(a.proventos ?? 0),
+      renderSectionTotal: (s, f) => f.formatCurrency(s.totalProventos ?? 0),
+      renderGrandTotal: (t, f) => f.formatCurrency((t?.proventos as number) || 0),
+    },
+    {
       key: 'rentabilidade',
       header: 'Rentabilidade',
       align: 'right',

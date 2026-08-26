@@ -8,6 +8,10 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
+import {
+  aplicarProventosNosAtivos,
+  proventosRecebidosPorSymbol,
+} from '@/services/portfolio/proventosPorSymbol';
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
   const colors = [
@@ -122,6 +126,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         objetivo: item.objetivo ?? 0,
         quantoFalta: 0,
         necessidadeAporte: 0,
+        proventos: 0, // preenchido por aplicarProventosNosAtivos
         rentabilidade:
           item.avgPrice > 0 ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 : 0,
         estrategia,
@@ -132,6 +137,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   // Calcular totais gerais
   const totalQuantidade = reitAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+  // Auditoria 25/08/2026 (B1): proventos recebidos entram na rentabilidade da linha.
+  const proventosPorSymbol = await proventosRecebidosPorSymbol(targetUserId);
+  aplicarProventosNosAtivos(reitAtivos, proventosPorSymbol);
+  const totalProventos = reitAtivos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
   const totalValorAplicado = reitAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
   const totalValorAtualizado = reitAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
 
@@ -166,7 +175,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const rentabilidadeMedia = rentabilidadeAgregada(
     reitAtivos,
     (a) => a.valorTotal,
-    (a) => a.valorAtualizado,
+    (a) => a.valorAtualizado + (a.proventos ?? 0),
   );
 
   // Agrupar por estratégia
@@ -199,6 +208,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       totalQuantoFalta: 0,
       totalNecessidadeAporte: 0,
       rentabilidadeMedia: 0,
+      totalProventos: 0,
     };
   });
 
@@ -206,6 +216,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   secoes.forEach((secao) => {
     secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+    secao.totalProventos = secao.ativos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
     secao.totalValorAtualizado = secao.ativos.reduce(
       (sum, ativo) => sum + ativo.valorAtualizado,
       0,
@@ -224,7 +235,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     secao.rentabilidadeMedia = rentabilidadeAgregada(
       secao.ativos,
       (a) => a.valorTotal,
-      (a) => a.valorAtualizado,
+      (a) => a.valorAtualizado + (a.proventos ?? 0),
     );
   });
 
@@ -235,10 +246,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     caixaParaInvestir: caixaParaInvestir,
     saldoInicioMes: totalValorAplicado,
     valorAtualizado: valorAtualizadoComCaixa,
-    rendimento: valorAtualizadoComCaixa - totalValorAplicado,
+    rendimento: valorAtualizadoComCaixa + totalProventos - totalValorAplicado,
     rentabilidade:
       totalValorAplicado > 0
-        ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+        ? ((valorAtualizadoComCaixa + totalProventos - totalValorAplicado) / totalValorAplicado) *
+          100
         : 0,
   };
 
@@ -284,6 +296,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       quantoFalta: totalQuantoFalta,
       necessidadeAporte: totalNecessidadeAporte,
       rentabilidade: rentabilidadeMedia,
+      proventos: totalProventos,
     },
     alocacaoAtivo,
     tabelaAuxiliar,
