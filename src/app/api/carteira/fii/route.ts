@@ -9,6 +9,10 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
+import {
+  aplicarProventosNosAtivos,
+  proventosRecebidosPorSymbol,
+} from '@/services/portfolio/proventosPorSymbol';
 // Funções auxiliares para cores
 function getSegmentColor(tipo: string): string {
   const colors: { [key: string]: string } = {
@@ -125,6 +129,10 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
 
   // Calcular totais gerais
   const totalQuantidade = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+  // Auditoria 25/08/2026 (B1): proventos recebidos entram na rentabilidade da linha.
+  const proventosPorSymbol = await proventosRecebidosPorSymbol(userId);
+  aplicarProventosNosAtivos(fiiAtivos, proventosPorSymbol);
+  const totalProventos = fiiAtivos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
   const totalValorAplicado = fiiAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
   const totalValorAtualizado = fiiAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
 
@@ -159,7 +167,7 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   const rentabilidadeMedia = rentabilidadeAgregada(
     fiiAtivos,
     (a) => a.valorTotal,
-    (a) => a.valorAtualizado,
+    (a) => a.valorAtualizado + (a.proventos ?? 0),
   );
 
   // Agrupar por tipo (fofi, tvm, tijolo)
@@ -195,6 +203,7 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   secoes.forEach((secao) => {
     secao.totalQuantidade = secao.ativos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
     secao.totalValorAplicado = secao.ativos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
+    secao.totalProventos = secao.ativos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
     secao.totalValorAtualizado = secao.ativos.reduce(
       (sum, ativo) => sum + ativo.valorAtualizado,
       0,
@@ -213,7 +222,7 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     secao.rentabilidadeMedia = rentabilidadeAgregada(
       secao.ativos,
       (a) => a.valorTotal,
-      (a) => a.valorAtualizado,
+      (a) => a.valorAtualizado + (a.proventos ?? 0),
     );
   });
 
@@ -224,10 +233,11 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     caixaParaInvestir: caixaParaInvestir,
     saldoInicioMes: totalValorAplicado,
     valorAtualizado: valorAtualizadoComCaixa,
-    rendimento: valorAtualizadoComCaixa - totalValorAplicado,
+    rendimento: valorAtualizadoComCaixa + totalProventos - totalValorAplicado,
     rentabilidade:
       totalValorAplicado > 0
-        ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+        ? ((valorAtualizadoComCaixa + totalProventos - totalValorAplicado) / totalValorAplicado) *
+          100
         : 0,
   };
 
@@ -281,6 +291,7 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
       quantoFalta: totalQuantoFalta,
       necessidadeAporte: totalNecessidadeAporte,
       rentabilidade: rentabilidadeMedia,
+      proventos: totalProventos,
     },
     alocacaoSegmento,
     alocacaoAtivo,
