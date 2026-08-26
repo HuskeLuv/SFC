@@ -138,6 +138,32 @@ describe('buildFixedIncomeFactorSeries', () => {
     expect(factors.get(timeline[5])).toBeCloseTo(1.0005, 10);
   });
 
+  it('CDI — dias úteis recentes sem publicação carregam o último CDI até ontem (B3)', () => {
+    // Timeline dos últimos 30 dias até ontem; CDI publicado só até 3 dias úteis atrás.
+    const hoje = new Date();
+    hoje.setUTCHours(0, 0, 0, 0);
+    const ontem = new Date(hoje.getTime() - 24 * 3600 * 1000);
+    const start = new Date(hoje.getTime() - 30 * 24 * 3600 * 1000);
+    const timeline = buildDailyTimeline(start, ontem).filter((d) => d < hoje.getTime());
+    const fi = makeFi({ startDate: start, annualRate: 0, indexer: 'CDI', indexerPercent: 100 });
+    const cdi: CdiDaily = new Map();
+    const publicados = timeline.slice(0, timeline.length - 3);
+    for (const day of publicados) cdi.set(day, 0.0005);
+
+    const factors = buildFixedIncomeFactorSeries(fi, timeline, { cdi });
+
+    const semFeriado = (d: number) =>
+      new Date(d).getUTCDay() !== 0 && new Date(d).getUTCDay() !== 6;
+    const diasCarregados = timeline.slice(timeline.length - 3).filter(semFeriado).length;
+    const esperado = Math.pow(1.0005, publicados.length + diasCarregados);
+    expect(factors.get(timeline[timeline.length - 1])).toBeCloseTo(esperado, 8);
+    // O último publicado não muda (só compõe os próprios dias)
+    expect(factors.get(publicados[publicados.length - 1])).toBeCloseTo(
+      Math.pow(1.0005, publicados.length),
+      8,
+    );
+  });
+
   it('IPCA + 5% a.a. — aplica IPCA ao cruzar de mês e spread prefixado diariamente', () => {
     const start = new Date(2025, 0, 2); // jan/2025
     const fi = makeFi({ startDate: start, annualRate: 5, indexer: 'IPCA' });
