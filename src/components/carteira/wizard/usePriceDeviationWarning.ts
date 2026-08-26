@@ -4,6 +4,7 @@ import {
   cleanAssetSymbol,
   computePriceDeviationWarning,
   DEFAULT_PRICE_DEVIATION_THRESHOLD,
+  type CorporateActionAfter,
   type PriceDeviationWarning,
 } from './priceDeviationWarning';
 
@@ -13,6 +14,7 @@ interface PriceAtResponse {
   effectiveDate: string;
   price: number;
   source: string;
+  corporateActionsAfter?: CorporateActionAfter[];
 }
 
 export interface UsePriceDeviationParams {
@@ -35,6 +37,8 @@ export interface PriceDeviationResult {
   referencePrice: number | null | undefined;
   /** Data efetiva do fechamento usado como referência (YYYY-MM-DD). */
   effectiveDate: string | null | undefined;
+  /** Eventos corporativos POSTERIORES à data (explicação de escala ajustada). */
+  corporateActionsAfter: CorporateActionAfter[] | null;
   /** True enquanto o fechamento histórico ainda está sendo buscado. */
   isLoading: boolean;
 }
@@ -77,18 +81,21 @@ export function usePriceDeviationWarning({
 
   let referencePrice: number | null | undefined;
   let warningDate: string | null | undefined;
+  let corporateActionsAfter: CorporateActionAfter[] | null = null;
   if (isHistoricMode) {
     if (historicQuery.isLoading) {
       return {
         warning: null,
         referencePrice: undefined,
         effectiveDate: undefined,
+        corporateActionsAfter: null,
         isLoading: true,
       };
     }
     if (historicQuery.data) {
       referencePrice = historicQuery.data.price;
       warningDate = historicQuery.data.effectiveDate;
+      corporateActionsAfter = historicQuery.data.corporateActionsAfter ?? null;
     } else {
       // 404 ou erro → cai pro currentPrice
       referencePrice = currentPrice;
@@ -103,5 +110,11 @@ export function usePriceDeviationWarning({
     threshold,
     warningDate,
   );
-  return { warning, referencePrice, effectiveDate: warningDate, isLoading: false };
+  return {
+    warning,
+    referencePrice,
+    effectiveDate: warningDate,
+    corporateActionsAfter,
+    isLoading: false,
+  };
 }

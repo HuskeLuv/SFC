@@ -21,6 +21,7 @@ import { usePriceDeviationWarning } from './wizard/usePriceDeviationWarning';
 import {
   DEFAULT_PRICE_DEVIATION_THRESHOLD,
   CRYPTO_PRICE_DEVIATION_THRESHOLD,
+  computeSplitScaleHint,
 } from './wizard/priceDeviationWarning';
 import PriceDeviationConfirmModal from './wizard/PriceDeviationConfirmModal';
 
@@ -928,6 +929,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           effectiveDate={priceDeviation.effectiveDate!}
           ratio={priceDeviation.warning!.ratio}
           direction={priceDeviation.warning!.direction}
+          splitHint={computeSplitScaleHint(
+            priceCheck!.enteredPrice,
+            priceDeviation.referencePrice,
+            priceDeviation.corporateActionsAfter,
+          )}
           onConfirm={handleConfirmPrice}
           onCancel={() => setPriceModalOpen(false)}
         />

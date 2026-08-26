@@ -40,6 +40,83 @@ export const formatDateBR = (iso: string): string => {
   return `${m[3]}/${m[2]}/${m[1]}`;
 };
 
+export interface CorporateActionAfter {
+  /** DESDOBRAMENTO | GRUPAMENTO | BONIFICACAO (ver APPLICABLE_CORPORATE_ACTION_TYPES). */
+  type: string;
+  /** Data do evento (YYYY-MM-DD). */
+  date: string;
+  /** Fator de quantidade: desdobramento 10:1 = 10; grupamento 1:10 = 0.1. */
+  factor: number;
+}
+
+export interface SplitScaleHint {
+  /** Descrição dos eventos, ex.: "desdobramento 10:1 em 06/03/2024". */
+  eventsLabel: string;
+  /** Fator acumulado dos eventos posteriores à data. */
+  cumFactor: number;
+}
+
+/** Rotula um evento corporativo pra mensagem do modal. */
+const describeCorporateAction = (ca: CorporateActionAfter): string => {
+  const data = formatDateBR(ca.date);
+  if (ca.type === 'GRUPAMENTO') {
+    const razao = Math.round(1 / ca.factor);
+    return `grupamento 1:${razao} em ${data}`;
+  }
+  if (ca.type === 'BONIFICACAO') {
+    const pct = Math.round((ca.factor - 1) * 100);
+    return `bonificação de ${pct}% em ${data}`;
+  }
+  const razao = Math.round(ca.factor);
+  return `desdobramento ${razao}:1 em ${data}`;
+};
+
+/**
+ * Detecta quando o preço digitado está na escala AJUSTADA de hoje em vez da
+ * escala da época (ticket 26/08: tester copiou 16,55 do gráfico pro BBAS3 de
+ * 07/07/2022, cujo fechamento cru era 33,13 — desdobramento 2:1 em 2024).
+ *
+ * Critério: existe fator acumulado ≠ 1 de eventos POSTERIORES à data e
+ * `entered × cumFactor ≈ reference` dentro da tolerância (a cotação ajustada
+ * do próprio dia é exatamente reference/cumFactor, então o match real fica
+ * a poucos % — 12% cobre vendor/dia vizinho sem gerar falso positivo).
+ *
+ * Retorna null quando não há eventos, o fator é ~1 ou a conta não fecha —
+ * aí o aviso genérico de casa decimal continua valendo.
+ */
+export function computeSplitScaleHint(
+  enteredPrice: number | null | undefined,
+  referencePrice: number | null | undefined,
+  actionsAfter: CorporateActionAfter[] | null | undefined,
+  tolerance = 0.12,
+): SplitScaleHint | null {
+  if (
+    enteredPrice == null ||
+    referencePrice == null ||
+    !Number.isFinite(enteredPrice) ||
+    !Number.isFinite(referencePrice) ||
+    enteredPrice <= 0 ||
+    referencePrice <= 0 ||
+    !actionsAfter?.length
+  ) {
+    return null;
+  }
+
+  const valid = actionsAfter.filter((ca) => Number.isFinite(ca.factor) && ca.factor > 0);
+  if (!valid.length) return null;
+
+  const cumFactor = valid.reduce((f, ca) => f * ca.factor, 1);
+  if (Math.abs(cumFactor - 1) < 0.05) return null;
+
+  const scaledBack = enteredPrice * cumFactor;
+  if (Math.abs(scaledBack - referencePrice) / referencePrice > tolerance) return null;
+
+  return {
+    eventsLabel: valid.map(describeCorporateAction).join(' e '),
+    cumFactor,
+  };
+}
+
 /**
  * Calcula o aviso quando `enteredPrice` divergir do `referencePrice` mais
  * que `threshold` (default 20%). Retorna `null` quando não há aviso a
