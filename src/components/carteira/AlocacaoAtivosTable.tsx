@@ -166,7 +166,10 @@ export default function AlocacaoAtivosTable({
         });
       } else {
         const diferenca = config.target - percentualAtual;
-        const valorNecessario = diferenca > 0 ? (diferenca / 100) * totalCarteira : 0;
+        // Necessidade em R$ sai dos VALORES, não do % exibido (arredondado a
+        // 2 casas no backend): 20,39% × total dava R$ 35 a menos que
+        // 50% × total − atual (auditoria Pedro 25/08/2026, item B6).
+        const valorNecessario = Math.max(0, (config.target / 100) * totalCarteira - value.valor);
         totalNecessidadeAporte += valorNecessario;
 
         dados.push({
