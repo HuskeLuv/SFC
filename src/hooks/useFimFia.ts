@@ -1,5 +1,6 @@
 import { useAssetData } from './useAssetData';
 import { FimFiaData, FimFiaAtivo, FimFiaSecao } from '@/types/fimFia';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 
 export const useFimFia = () => {
   const assetData = useAssetData<FimFiaData>({
@@ -69,10 +70,11 @@ export const useFimFia = () => {
       (sum, ativo) => sum + ativo.necessidadeAporte,
       0,
     );
-    const rentabilidadeMedia =
-      secao.ativos.length > 0
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-        : 0;
+    const rentabilidadeMedia = rentabilidadeAgregada(
+      secao.ativos,
+      (a) => a.valorInicialAplicado,
+      (a) => a.valorAtualizado,
+    );
 
     return {
       ...secao,

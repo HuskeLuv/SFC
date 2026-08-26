@@ -16,6 +16,7 @@ import {
   recordCaixaParaInvestirAtualizado,
   RENDA_FIXA_FIELD_LABELS,
 } from '@/services/changeHistory';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { payload, targetUserId, actingClient } = await requireAuthWithActing(request);
@@ -278,13 +279,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       0,
     );
     const percentualTotal = totalCarteira > 0 ? (totalValorAtualizado / totalCarteira) * 100 : 0;
-    const rentabilidadeMedia =
-      secao.ativos.length > 0
-        ? secao.ativos.reduce(
-            (sum: number, ativo: AtivoRendaFixa) => sum + ativo.rentabilidade,
-            0,
-          ) / secao.ativos.length
-        : 0;
+    const rentabilidadeMedia = rentabilidadeAgregada(
+      secao.ativos,
+      (a) => a.valorInicialAplicado,
+      (a) => a.valorAtualizado,
+    );
 
     return {
       ...secao,

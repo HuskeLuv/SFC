@@ -8,6 +8,7 @@ import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 // Funções auxiliares para cores
 function getSegmentColor(tipo: string): string {
   const colors: { [key: string]: string } = {
@@ -155,10 +156,11 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
   const totalQuantoFalta = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
   const totalNecessidadeAporte = fiiAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
   const totalRisco = fiiAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-  const rentabilidadeMedia =
-    fiiAtivos.length > 0
-      ? fiiAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / fiiAtivos.length
-      : 0;
+  const rentabilidadeMedia = rentabilidadeAgregada(
+    fiiAtivos,
+    (a) => a.valorTotal,
+    (a) => a.valorAtualizado,
+  );
 
   // Agrupar por tipo (fofi, tvm, tijolo)
   const tipos: ('fofi' | 'tvm' | 'tijolo')[] = ['fofi', 'tvm', 'tijolo'];
@@ -208,10 +210,11 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
       (sum, ativo) => sum + ativo.necessidadeAporte,
       0,
     );
-    secao.rentabilidadeMedia =
-      secao.ativos.length > 0
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-        : 0;
+    secao.rentabilidadeMedia = rentabilidadeAgregada(
+      secao.ativos,
+      (a) => a.valorTotal,
+      (a) => a.valorAtualizado,
+    );
   });
 
   // Calcular resumo

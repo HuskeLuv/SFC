@@ -20,6 +20,7 @@ import {
   fundoSubtipoFromAssetType,
   type FundoSubtipo,
 } from '@/lib/fundoTypes';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 const parseNotes = (notes?: string | null) => {
   if (!notes) return null;
   try {
@@ -279,11 +280,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         (sum: number, ativo: AtivoFundo) => sum + ativo.necessidadeAporte,
         0,
       ),
-      rentabilidadeMedia:
-        secao.ativos.length > 0
-          ? secao.ativos.reduce((sum: number, ativo: AtivoFundo) => sum + ativo.rentabilidade, 0) /
-            secao.ativos.length
-          : 0,
+      rentabilidadeMedia: rentabilidadeAgregada(
+        secao.ativos,
+        (a) => a.valorInicialAplicado,
+        (a) => a.valorAtualizado,
+      ),
     };
   });
 

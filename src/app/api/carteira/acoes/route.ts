@@ -8,6 +8,7 @@ import { getAssetPrices } from '@/services/pricing/assetPriceService';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 // Função helper para validar e converter setor para SetorAcao
 function parseSetorAcao(setor: string | null | undefined): SetorAcao {
   const setoresValidos: SetorAcao[] = [
@@ -192,10 +193,11 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     0,
   );
   const totalRisco = acoesAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-  const rentabilidadeMedia =
-    acoesAtivos.length > 0
-      ? acoesAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / acoesAtivos.length
-      : 0;
+  const rentabilidadeMedia = rentabilidadeAgregada(
+    acoesAtivos,
+    (a) => a.valorTotal,
+    (a) => a.valorAtualizado,
+  );
 
   // Agrupar por estratégia (value, growth, risk)
   const estrategias: ('value' | 'growth' | 'risk')[] = ['value', 'growth', 'risk'];
@@ -244,10 +246,11 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
       (sum, ativo) => sum + ativo.necessidadeAporte,
       0,
     );
-    secao.rentabilidadeMedia =
-      secao.ativos.length > 0
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-        : 0;
+    secao.rentabilidadeMedia = rentabilidadeAgregada(
+      secao.ativos,
+      (a) => a.valorTotal,
+      (a) => a.valorAtualizado,
+    );
   });
 
   // Calcular resumo

@@ -9,6 +9,7 @@ import type {
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 
 function getAtivoColor(label: string): string {
   const colors = [
@@ -116,8 +117,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const totalQuantoFalta = ativos.reduce((sum, a) => sum + a.quantoFalta, 0);
   const totalNecessidadeAporte = ativos.reduce((sum, a) => sum + a.necessidadeAporte, 0);
   const totalRisco = ativos.reduce((sum, a) => sum + a.riscoPorAtivo, 0);
-  const rentabilidadeMedia =
-    ativos.length > 0 ? ativos.reduce((sum, a) => sum + a.rentabilidade, 0) / ativos.length : 0;
+  const rentabilidadeMedia = rentabilidadeAgregada(
+    ativos,
+    (a) => a.valorTotal,
+    (a) => a.valorAtualizado,
+  );
 
   // Agrupar por ORIGEM: Previdência = fundos marcados (Asset.type='previdencia',
   // automático via CVM ou fundo manual com destino previdência); Seguros =
@@ -141,10 +145,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         totalObjetivo: ativosDaSecao.reduce((sum, a) => sum + a.objetivo, 0),
         totalQuantoFalta: ativosDaSecao.reduce((sum, a) => sum + a.quantoFalta, 0),
         totalNecessidadeAporte: ativosDaSecao.reduce((sum, a) => sum + a.necessidadeAporte, 0),
-        rentabilidadeMedia:
-          ativosDaSecao.length > 0
-            ? ativosDaSecao.reduce((sum, a) => sum + a.rentabilidade, 0) / ativosDaSecao.length
-            : 0,
+        rentabilidadeMedia: rentabilidadeAgregada(
+          ativosDaSecao,
+          (a) => a.valorTotal,
+          (a) => a.valorAtualizado,
+        ),
       };
     },
   );

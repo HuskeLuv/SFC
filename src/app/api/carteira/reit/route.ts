@@ -7,6 +7,7 @@ import { getAllIndicators } from '@/services/market/marketIndicatorService';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
   const colors = [
@@ -162,10 +163,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     0,
   );
   const totalRisco = reitAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-  const rentabilidadeMedia =
-    reitAtivos.length > 0
-      ? reitAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / reitAtivos.length
-      : 0;
+  const rentabilidadeMedia = rentabilidadeAgregada(
+    reitAtivos,
+    (a) => a.valorTotal,
+    (a) => a.valorAtualizado,
+  );
 
   // Agrupar por estratégia
   const REIT_SECTION_ORDER = ['value', 'growth', 'risk'] as const;
@@ -219,10 +221,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       (sum, ativo) => sum + ativo.necessidadeAporte,
       0,
     );
-    secao.rentabilidadeMedia =
-      secao.ativos.length > 0
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-        : 0;
+    secao.rentabilidadeMedia = rentabilidadeAgregada(
+      secao.ativos,
+      (a) => a.valorTotal,
+      (a) => a.valorAtualizado,
+    );
   });
 
   // Calcular resumo

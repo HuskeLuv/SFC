@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { imoveisBensPostSchema, validationError } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
 
@@ -76,11 +77,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     0,
   );
   const totalRisco = imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-  const rentabilidadeMedia =
-    imoveisBensAtivos.length > 0
-      ? imoveisBensAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) /
-        imoveisBensAtivos.length
-      : 0;
+  const rentabilidadeMedia = rentabilidadeAgregada(
+    imoveisBensAtivos,
+    (a) => a.valorTotal,
+    (a) => a.valorAtualizado,
+  );
 
   // Calcular resumo
   const resumo = {
