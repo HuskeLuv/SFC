@@ -273,6 +273,9 @@ const monthDistance = (a: string, b: string): number => {
  *
  * Após a data de vencimento, o fator é congelado no valor apurado no vencimento.
  */
+/** Janela em que dias úteis sem CDI publicado carregam o último CDI (B3). */
+const CDI_CARRY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 export const buildFixedIncomeFactorSeries = (
   fi: FixedIncomeAssetWithAsset,
   timeline: number[],
@@ -313,6 +316,14 @@ export const buildFixedIncomeFactorSeries = (
 
   let factor = 1;
   let lastCdi = 0;
+  // Último dia com CDI publicado e "hoje" (UTC) — base do carry-forward recente.
+  let ultimoCdiPublicado = Number.NEGATIVE_INFINITY;
+  ctx.cdi?.forEach((rate, dayKey) => {
+    if (rate != null && Number.isFinite(rate) && dayKey > ultimoCdiPublicado) {
+      ultimoCdiPublicado = dayKey;
+    }
+  });
+  const hojeUtc = normalizeDateStart(new Date()).getTime();
   let lastTesouroPU = ctx.tesouroPUAtStart ?? 0;
   // Pre-popula lastTesouroPU com o PU mais recente publicado (<= startTs).
   // Sem isso, posições compradas em dias sem publicação de PU (D+1 do BACEN
@@ -392,8 +403,23 @@ export const buildFixedIncomeFactorSeries = (
       // Só compõe em dias em que o BACEN realmente publicou taxa — sem
       // carry-forward em feriados (que gerava ~10 compoundings extras/ano).
       const cdiRate = ctx.cdi?.get(day);
+      // Exceção (auditoria Pedro 25/08/2026, item B3): o BACEN publica o CDI
+      // de D só em D+1 e o cron roda 06:00, então o acrual ficava sempre 1 dia
+      // útil atrás do Gorila (LCI −R$ 41,62 = exatamente 1 fator diário). Nos
+      // dias úteis RECENTES (janela de 7 dias, até ontem) depois do último CDI
+      // publicado, carrega o último CDI conhecido — quando o dado real chega, o
+      // recálculo diário substitui. Gaps históricos continuam sem compor.
+      const carregaCdiRecente =
+        cdiRate == null &&
+        lastCdi > 0 &&
+        day > ultimoCdiPublicado &&
+        day < hojeUtc &&
+        day >= hojeUtc - CDI_CARRY_WINDOW_MS &&
+        !isHolidayB3(day);
       if (cdiRate != null && Number.isFinite(cdiRate)) {
         lastCdi = cdiRate;
+      }
+      if ((cdiRate != null && Number.isFinite(cdiRate)) || carregaCdiRecente) {
         factor *= 1 + lastCdi * indexerPercent;
         // Para híbrido (CDI + X%), o spread (annualRate) é aplicado diariamente.
         // Em pós-fixada o annualRate é overload do "% do indexador" no wizard, então
