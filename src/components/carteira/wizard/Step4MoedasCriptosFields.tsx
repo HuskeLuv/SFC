@@ -58,6 +58,10 @@ export default function Step4MoedasCriptosFields({
             step="0.01"
           />
         </div>
+        <ReinvestimentoToggle
+          checked={!!formData.isReinvestimento}
+          onChange={(value) => handleInputChange('isReinvestimento', value)}
+        />
       </>
     );
   }
