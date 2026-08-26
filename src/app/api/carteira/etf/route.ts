@@ -11,6 +11,7 @@ import {
   valuatePortfolioItem,
   CATEGORIA_ASSET_TYPE_FILTERS,
 } from '@/services/portfolio/itemValuation';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 // Função auxiliar para cores
 function getAtivoColor(ticker: string): string {
   const colors = [
@@ -144,10 +145,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const totalQuantoFalta = etfAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
   const totalNecessidadeAporte = etfAtivos.reduce((sum, ativo) => sum + ativo.necessidadeAporte, 0);
   const totalRisco = etfAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
-  const rentabilidadeMedia =
-    etfAtivos.length > 0
-      ? etfAtivos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / etfAtivos.length
-      : 0;
+  const rentabilidadeMedia = rentabilidadeAgregada(
+    etfAtivos,
+    (a) => a.valorTotal,
+    (a) => a.valorAtualizado,
+  );
 
   // Agrupar por região (Brasil e EUA)
   const ETF_SECTION_ORDER = ['brasil', 'estados_unidos'] as const;
@@ -189,10 +191,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       (sum, ativo) => sum + ativo.necessidadeAporte,
       0,
     );
-    secao.rentabilidadeMedia =
-      secao.ativos.length > 0
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-        : 0;
+    secao.rentabilidadeMedia = rentabilidadeAgregada(
+      secao.ativos,
+      (a) => a.valorTotal,
+      (a) => a.valorAtualizado,
+    );
   });
 
   // Calcular resumo

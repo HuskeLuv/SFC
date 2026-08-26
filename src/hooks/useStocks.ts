@@ -1,5 +1,6 @@
 import { useAssetData } from './useAssetData';
 import { CarteiraStockData, CarteiraStockAtivo, CarteiraStockSecao } from '@/types/carteiraStocks';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 
 // Hook original para compatibilidade com componentes existentes
 export const useStocks = () => {
@@ -153,10 +154,11 @@ export const useCarteiraStocks = () => {
       (sum, ativo) => sum + ativo.necessidadeAporte,
       0,
     );
-    const rentabilidadeMedia =
-      secao.ativos.length > 0
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-        : 0;
+    const rentabilidadeMedia = rentabilidadeAgregada(
+      secao.ativos,
+      (a) => a.valorTotal,
+      (a) => a.valorAtualizado,
+    );
 
     return {
       ...secao,

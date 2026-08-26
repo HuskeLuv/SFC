@@ -8,6 +8,7 @@ import type { MoedaCriptoAtivo, MoedaCriptoSecao } from '@/types/moedas-criptos'
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 const mapAssetTypeToTipo = (assetType: string): 'moeda' | 'criptomoeda' | 'metal' | 'outro' => {
   if (assetType === 'crypto') return 'criptomoeda';
   if (assetType === 'currency') return 'moeda';
@@ -152,9 +153,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       totalObjetivo: filtrados.reduce((s, a) => s + a.objetivo, 0),
       totalQuantoFalta: filtrados.reduce((s, a) => s + a.quantoFalta, 0),
       totalNecessidadeAporte: filtrados.reduce((s, a) => s + a.necessidadeAporte, 0),
-      rentabilidadeMedia: filtrados.length
-        ? filtrados.reduce((s, a) => s + a.rentabilidade, 0) / filtrados.length
-        : 0,
+      rentabilidadeMedia: rentabilidadeAgregada(
+        filtrados,
+        (a) => a.valorTotal,
+        (a) => a.valorAtualizado,
+      ),
     };
   };
 
@@ -192,9 +195,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       objetivo: ativos.reduce((s, a) => s + a.objetivo, 0),
       quantoFalta: ativos.reduce((s, a) => s + a.quantoFalta, 0),
       necessidadeAporte: ativos.reduce((s, a) => s + a.necessidadeAporte, 0),
-      rentabilidade: ativos.length
-        ? ativos.reduce((s, a) => s + a.rentabilidade, 0) / ativos.length
-        : 0,
+      rentabilidade: rentabilidadeAgregada(
+        ativos,
+        (a) => a.valorTotal,
+        (a) => a.valorAtualizado,
+      ),
     },
     alocacaoAtivo: ativos.map((a) => ({
       ticker: a.ticker,

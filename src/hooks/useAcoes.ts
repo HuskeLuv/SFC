@@ -1,5 +1,6 @@
 import { useAssetData } from './useAssetData';
 import { AcaoData, AcaoAtivo, AcaoSecao } from '@/types/acoes';
+import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 
 export const useAcoes = () => {
   const assetData = useAssetData<AcaoData>({
@@ -73,10 +74,11 @@ export const useAcoes = () => {
       (sum, ativo) => sum + ativo.necessidadeAporte,
       0,
     );
-    const rentabilidadeMedia =
-      secao.ativos.length > 0
-        ? secao.ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / secao.ativos.length
-        : 0;
+    const rentabilidadeMedia = rentabilidadeAgregada(
+      secao.ativos,
+      (a) => a.valorTotal,
+      (a) => a.valorAtualizado,
+    );
 
     return {
       ...secao,
