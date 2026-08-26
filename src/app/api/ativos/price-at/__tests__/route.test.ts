@@ -127,6 +127,44 @@ describe('GET /api/ativos/price-at (#3 / D.3 checklist mai/28)', () => {
     expect(res.status).toBe(400);
   });
 
+  // Ticket 26/08 (BBAS3/GGRC11): tester digita o preço da escala AJUSTADA
+  // (copiado de gráfico) — o front precisa dos eventos posteriores à data
+  // pra explicar o desvio em vez do genérico "confira a casa decimal".
+  it('retorna corporateActionsAfter (eventos posteriores à data) mesmo em linha crua', async () => {
+    mockPrisma.assetPriceHistory.findFirst.mockResolvedValue({
+      date: new Date('2022-07-07T00:00:00Z'),
+      price: 33.13,
+      source: 'B3_COTAHIST',
+    });
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+      { type: 'DESDOBRAMENTO', date: new Date('2024-04-16T00:00:00Z'), factor: 2 },
+      // anterior à data — não deve aparecer
+      { type: 'DESDOBRAMENTO', date: new Date('2007-06-04T00:00:00Z'), factor: 3 },
+    ]);
+
+    const res = await GET(req('symbol=BBAS3&date=2022-07-07'));
+    const data = await res.json();
+    expect(data.price).toBeCloseTo(33.13, 5); // cru permanece cru
+    expect(data.corporateActionsAfter).toEqual([
+      { type: 'DESDOBRAMENTO', date: '2024-04-16', factor: 2 },
+    ]);
+  });
+
+  it('corporateActionsAfter vem vazio quando não há evento posterior', async () => {
+    mockPrisma.assetPriceHistory.findFirst.mockResolvedValue({
+      date: new Date('2025-08-01T00:00:00Z'),
+      price: 6.0,
+      source: 'BRAPI',
+    });
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([
+      { type: 'DESDOBRAMENTO', date: new Date('2025-05-12T00:00:00Z'), factor: 10 },
+    ]);
+
+    const res = await GET(req('symbol=HFOF11&date=2025-08-01'));
+    const data = await res.json();
+    expect(data.corporateActionsAfter).toEqual([]);
+  });
+
   it('normaliza symbol pra uppercase', async () => {
     mockPrisma.assetPriceHistory.findFirst.mockResolvedValue({
       date: new Date('2022-05-11T00:00:00Z'),

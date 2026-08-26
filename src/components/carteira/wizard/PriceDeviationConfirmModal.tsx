@@ -3,7 +3,7 @@ import React from 'react';
 import { Modal } from '@/components/ui/modal';
 import Button from '@/components/ui/button/Button';
 import { formatCurrency } from '@/utils/formatters';
-import { formatDateBR } from './priceDeviationWarning';
+import { formatDateBR, type SplitScaleHint } from './priceDeviationWarning';
 
 interface PriceDeviationConfirmModalProps {
   isOpen: boolean;
@@ -17,6 +17,12 @@ interface PriceDeviationConfirmModalProps {
   ratio: number;
   /** Se o preço informado está acima ou abaixo do fechamento. */
   direction: 'acima' | 'abaixo';
+  /**
+   * Presente quando o preço digitado bate com a escala AJUSTADA de hoje
+   * (papel desdobrou/grupou depois da data) — troca o "verifique a casa
+   * decimal" por uma explicação do evento (ticket 26/08: BBAS3/GGRC11).
+   */
+  splitHint?: SplitScaleHint | null;
   /** Confirma o preço informado e avança. */
   onConfirm: () => void;
   /** Fecha o popup pra o usuário corrigir o preço. */
@@ -35,6 +41,7 @@ export default function PriceDeviationConfirmModal({
   effectiveDate,
   ratio,
   direction,
+  splitHint,
   onConfirm,
   onCancel,
 }: PriceDeviationConfirmModalProps) {
@@ -51,8 +58,19 @@ export default function PriceDeviationConfirmModal({
           <span className="font-semibold">
             {pct}% {direction}
           </span>{' '}
-          do fechamento da data selecionada. Verifique se a casa decimal está correta.
+          do fechamento da data selecionada.
+          {!splitHint && ' Verifique se a casa decimal está correta.'}
         </p>
+
+        {splitHint && (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-100">
+            Este ativo teve <span className="font-semibold">{splitHint.eventsLabel}</span> — depois
+            da data informada. O preço digitado parece estar na escala atual (pós-evento). Para essa
+            data, informe o preço da época (
+            <span className="font-semibold">R$ {formatCurrency(referencePrice)}</span>) e a
+            quantidade da época; o sistema aplica o evento automaticamente.
+          </div>
+        )}
 
         <div className="mt-4 space-y-2 rounded-lg bg-gray-50 p-4 text-sm dark:bg-gray-800">
           <div className="flex items-center justify-between">

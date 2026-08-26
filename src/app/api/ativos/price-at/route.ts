@@ -74,20 +74,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // grava o preço CRU da época (devolvido como está). Multiplicar linha crua
   // dobra o ajuste — ticket 24/08: PRIO3 02/06/2020 (COTAHIST R$33,59, split
   // 5:1 em 2021) era sugerido como R$167,95 e o aporte ficava 5× o real.
+  const corporateActions = await prisma.assetCorporateAction.findMany({
+    where: { symbol, type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) } },
+    select: { type: true, date: true, factor: true },
+    orderBy: { date: 'asc' },
+  });
+  const rowMs = row.date.getTime();
+  const actionsAfter = corporateActions.filter(
+    (ca) => ca.date.getTime() > rowMs && Number.isFinite(ca.factor) && ca.factor > 0,
+  );
+
   let rawPrice = Number(row.price);
   if (!isRawPriceSource(row.source)) {
-    const corporateActions = await prisma.assetCorporateAction.findMany({
-      where: { symbol, type: { in: Array.from(APPLICABLE_CORPORATE_ACTION_TYPES) } },
-      select: { date: true, factor: true },
-    });
-    const rowMs = row.date.getTime();
-    const cumFactorAfter = corporateActions.reduce(
-      (f, ca) =>
-        ca.date.getTime() > rowMs && Number.isFinite(ca.factor) && ca.factor > 0
-          ? f * ca.factor
-          : f,
-      1,
-    );
+    const cumFactorAfter = actionsAfter.reduce((f, ca) => f * ca.factor, 1);
     rawPrice = rawPrice * cumFactorAfter;
   }
 
@@ -97,5 +96,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     effectiveDate: row.date.toISOString().split('T')[0],
     price: rawPrice,
     source: row.source,
+    // Eventos corporativos POSTERIORES à data — o front usa pra explicar
+    // quando o preço digitado está na escala ajustada de hoje (ticket 26/08:
+    // BBAS3 16,55×33,13 e GGRC11 13,52×133,33 eram preço de gráfico ajustado,
+    // não erro de casa decimal).
+    corporateActionsAfter: actionsAfter.map((ca) => ({
+      type: ca.type,
+      date: ca.date.toISOString().split('T')[0],
+      factor: ca.factor,
+    })),
   });
 });
