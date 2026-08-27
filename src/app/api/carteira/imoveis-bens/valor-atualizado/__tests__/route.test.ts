@@ -62,6 +62,48 @@ describe('POST /api/carteira/imoveis-bens/valor-atualizado', () => {
     );
   });
 
+  it('atualiza valor de ativo personalizado com sucesso (mesma aba Imóveis & Bens)', async () => {
+    mockPrisma.portfolio.findUnique.mockResolvedValue({
+      id: 'port-2',
+      userId: 'user-1',
+      quantity: 1000,
+      avgPrice: 1000,
+      totalInvested: 1000000,
+      asset: { type: 'personalizado', name: 'PERSONALIZADO - R$ 1.000.000' },
+    });
+    mockPrisma.portfolio.update.mockResolvedValue({});
+
+    const response = await POST(createPostRequest({ portfolioId: 'port-2', novoValor: 1100000 }));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(mockPrisma.portfolio.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'port-2' },
+        // avgPrice vira valor/quantidade — é o "valor atual por unidade" que a
+        // série de patrimônio usa para valorar imóveis/personalizados
+        data: expect.objectContaining({ totalInvested: 1100000, avgPrice: 1100 }),
+      }),
+    );
+  });
+
+  it('retorna 400 para tipos que não pertencem à aba Imóveis & Bens', async () => {
+    mockPrisma.portfolio.findUnique.mockResolvedValue({
+      id: 'port-3',
+      userId: 'user-1',
+      quantity: 100,
+      asset: { type: 'stock' },
+    });
+
+    const response = await POST(createPostRequest({ portfolioId: 'port-3', novoValor: 5000 }));
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toContain('apenas para imóveis e bens');
+    expect(mockPrisma.portfolio.update).not.toHaveBeenCalled();
+  });
+
   it('retorna 401 quando não autenticado', async () => {
     mockRequireAuthWithActing.mockRejectedValue(
       Object.assign(new Error('Não autorizado'), { status: 401 }),
