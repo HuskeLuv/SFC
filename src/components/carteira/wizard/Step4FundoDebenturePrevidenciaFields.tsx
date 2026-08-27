@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
@@ -7,11 +7,18 @@ import DatePicker from '@/components/form/date-picker';
 import BusinessDayDatePicker from './shared/BusinessDayDatePicker';
 import { Step4FieldsProps } from './step4Types';
 import ReinvestimentoToggle from './shared/ReinvestimentoToggle';
+import { useFundQuotaAt } from './useFundQuotaAt';
+import { formatDateBR } from './priceDeviationWarning';
 import {
   fundoSubtipoFromAssetType,
   FUNDO_SUBTIPO_LABEL,
   type FundoSubtipo,
 } from '@/lib/fundoTypes';
+
+/** Cotas de fundo são fracionárias (CVM publica VL_QUOTA com 8 casas). */
+const QTY_DECIMALS = 8;
+const roundQty = (n: number): number => Math.round(n * 10 ** QTY_DECIMALS) / 10 ** QTY_DECIMALS;
+const toInputString = (n: number): string => (n > 0 ? String(n).replace('.', ',') : '');
 
 export default function Step4FundoDebenturePrevidenciaFields({
   formData,
@@ -35,6 +42,101 @@ export default function Step4FundoDebenturePrevidenciaFields({
   const autoSubtipo: FundoSubtipo | null = isCvmFund
     ? fundoSubtipoFromAssetType(formData.assetType)
     : null;
+
+  // Ticket Pedro 27/08/2026: o cliente sabe quanto APLICOU ("R$ 5 mil pela
+  // XP"), não a quantidade de cotas. Pra fundo CVM o fluxo vira: valor aplicado
+  // → cota do dia (buscada na CVM) → quantidade = valor ÷ cota. Os três campos
+  // ficam editáveis e se recalculam entre si; strings locais evitam que o
+  // auto-preenchimento brigue com o cache de digitação do Step4AssetInfo.
+  const quotaLookup = useFundQuotaAt(
+    isCvmFund ? formData.ativo : null,
+    isCvmFund ? formData.dataCompra || null : null,
+  );
+  const [valorStr, setValorStr] = useState(() => toInputString(formData.valorInvestido));
+  const [cotaStr, setCotaStr] = useState(() => toInputString(formData.cotacaoUnitaria));
+  const [qtyStr, setQtyStr] = useState(() => toInputString(formData.quantidade));
+  const lastAutoQuotaSigRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isCvmFund || !quotaLookup.quota) return;
+    const { price, effectiveDate } = quotaLookup.quota;
+    const sig = `${formData.assetId}|${effectiveDate}|${price}`;
+    if (lastAutoQuotaSigRef.current === sig) return;
+    lastAutoQuotaSigRef.current = sig;
+    if (!(price > 0)) return;
+    setCotaStr(toInputString(price));
+    const patch: Partial<typeof formData> = { cotacaoUnitaria: price };
+    if (formData.valorInvestido > 0) {
+      const qty = roundQty(formData.valorInvestido / price);
+      patch.quantidade = qty;
+      setQtyStr(toInputString(qty));
+    } else if (formData.quantidade > 0) {
+      patch.valorInvestido = formData.quantidade * price;
+      setValorStr(toInputString(patch.valorInvestido));
+    }
+    onFormDataChange(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCvmFund, quotaLookup.quota, formData.assetId]);
+
+  const handleValorAplicado = (raw: string) => {
+    setValorStr(raw);
+    const valor = raw.trim() ? parseDecimalValue(raw) : 0;
+    if (valor === null) return;
+    const patch: Partial<typeof formData> = { valorInvestido: valor };
+    const cota = formData.cotacaoUnitaria || 0;
+    if (valor > 0 && cota > 0) {
+      const qty = roundQty(valor / cota);
+      patch.quantidade = qty;
+      setQtyStr(toInputString(qty));
+    }
+    onFormDataChange(patch);
+  };
+
+  const handleCotaManual = (raw: string) => {
+    setCotaStr(raw);
+    const cota = raw.trim() ? parseDecimalValue(raw) : 0;
+    if (cota === null) return;
+    const patch: Partial<typeof formData> = { cotacaoUnitaria: cota };
+    if (cota > 0 && formData.valorInvestido > 0) {
+      const qty = roundQty(formData.valorInvestido / cota);
+      patch.quantidade = qty;
+      setQtyStr(toInputString(qty));
+    } else if (cota > 0 && formData.quantidade > 0) {
+      patch.valorInvestido = formData.quantidade * cota;
+      setValorStr(toInputString(patch.valorInvestido));
+    }
+    onFormDataChange(patch);
+  };
+
+  const handleQtyManual = (raw: string) => {
+    setQtyStr(raw);
+    const qty = raw.trim() ? parseDecimalValue(raw) : 0;
+    if (qty === null) return;
+    const patch: Partial<typeof formData> = { quantidade: qty };
+    const cota = formData.cotacaoUnitaria || 0;
+    if (qty > 0 && cota > 0) {
+      patch.valorInvestido = qty * cota;
+      setValorStr(toInputString(patch.valorInvestido));
+    }
+    onFormDataChange(patch);
+  };
+
+  const cotaHint = (() => {
+    if (errors.cotacaoUnitaria) return errors.cotacaoUnitaria;
+    if (!isCvmFund) return undefined;
+    if (!formData.dataCompra) return 'Informe a data de compra para buscarmos a cota do dia.';
+    if (quotaLookup.isLoading) return 'Buscando a cota do dia na CVM…';
+    if (quotaLookup.quota) {
+      const dataCota = formatDateBR(quotaLookup.quota.effectiveDate);
+      const mesmaData = quotaLookup.quota.effectiveDate === formData.dataCompra;
+      return mesmaData
+        ? `Cota oficial CVM de ${dataCota}, preenchida automaticamente. Ajuste se o extrato mostrar outro valor.`
+        : `Última cota CVM disponível antes da data (${dataCota}), preenchida automaticamente. Ajuste se o extrato mostrar outro valor.`;
+    }
+    if (quotaLookup.notFound)
+      return 'Não encontramos a cota da CVM para essa data. Informe o valor da cota que consta no extrato da corretora.';
+    return undefined;
+  })();
 
   // Fundos da CVM são SEMPRE por cotas (qtd × preço da cota), como uma ação —
   // entrada por valor gerava posição qty=1 que não acompanha a cota. Força o
@@ -333,6 +435,57 @@ export default function Step4FundoDebenturePrevidenciaFields({
             step="0.01"
           />
         </div>
+      ) : isCvmFund ? (
+        <>
+          <div>
+            <Label htmlFor="valorInvestido">Valor Aplicado (R$) *</Label>
+            <Input
+              id="valorInvestido"
+              {...decimalInputProps}
+              placeholder="Ex: 5000,00"
+              value={valorStr}
+              onChange={(e) => handleValorAplicado(e.target.value)}
+              error={!!errors.valorInvestido}
+              hint={
+                errors.valorInvestido ??
+                'Quanto foi aplicado no fundo — o mesmo valor do comprovante da corretora.'
+              }
+              min="0"
+              step="0.01"
+            />
+          </div>
+          <div>
+            <Label htmlFor="cotacaoUnitaria">Cota do Dia (R$) *</Label>
+            <Input
+              id="cotacaoUnitaria"
+              {...decimalInputProps}
+              placeholder={quotaLookup.isLoading ? 'Buscando…' : 'Ex: 150,00'}
+              value={cotaStr}
+              onChange={(e) => handleCotaManual(e.target.value)}
+              error={!!errors.cotacaoUnitaria}
+              hint={cotaHint}
+              min="0"
+              step="0.00000001"
+            />
+          </div>
+          <div>
+            <Label htmlFor="quantidade">Quantidade de Cotas *</Label>
+            <Input
+              id="quantidade"
+              {...decimalInputProps}
+              placeholder="Calculada automaticamente"
+              value={qtyStr}
+              onChange={(e) => handleQtyManual(e.target.value)}
+              error={!!errors.quantidade}
+              hint={
+                errors.quantidade ??
+                'Calculada automaticamente: Valor Aplicado ÷ Cota do Dia. Pode ser ajustada.'
+              }
+              min="0"
+              step="0.00000001"
+            />
+          </div>
+        </>
       ) : (
         <>
           <div>

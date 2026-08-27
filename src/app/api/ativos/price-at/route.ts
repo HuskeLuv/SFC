@@ -25,6 +25,10 @@ import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { APPLICABLE_CORPORATE_ACTION_TYPES } from '@/services/portfolio/corporateActions';
 import { isRawPriceSource } from '@/services/pricing/sourcePrecedence';
+import { ensureCvmQuotaAt } from '@/services/pricing/cvmFundSync';
+
+/** Fundos do catálogo CVM têm symbol `CVM-{CNPJ14}` (cvmFundSync). */
+const CVM_SYMBOL_PREFIX = 'CVM-';
 
 const yyyyMmDdRegex = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -46,6 +50,30 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const target = new Date(Date.UTC(y, m - 1, d));
   if (!Number.isFinite(target.getTime())) {
     return NextResponse.json({ error: 'Data inválida' }, { status: 400 });
+  }
+
+  // Fundo CVM: a cota oficial mora em CvmFundQuota (não em AssetPriceHistory,
+  // que só recebe a série depois que alguém tem posição e o sync roda). Busca
+  // lá e, se o fundo ainda não foi sincronizado, baixa o INF_DIARIO do mês
+  // sob demanda — ticket Pedro 27/08/2026: wizard por "valor aplicado" precisa
+  // da cota do dia pra derivar a quantidade de cotas no cadastro.
+  if (symbol.startsWith(CVM_SYMBOL_PREFIX)) {
+    const cnpj = symbol.slice(CVM_SYMBOL_PREFIX.length);
+    const quota = await ensureCvmQuotaAt(cnpj, target);
+    if (!quota) {
+      return NextResponse.json(
+        { error: 'Sem cota CVM pra essa data', symbol, date: dateParam },
+        { status: 404 },
+      );
+    }
+    return NextResponse.json({
+      symbol,
+      date: dateParam,
+      effectiveDate: quota.date.toISOString().split('T')[0],
+      price: quota.quotaValue,
+      source: 'CVM',
+      corporateActionsAfter: [],
+    });
   }
 
   // Janela de 30 dias antes do alvo cobre fins de semana longos, feriados
