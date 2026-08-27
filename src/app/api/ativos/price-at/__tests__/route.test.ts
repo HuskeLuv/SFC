@@ -14,8 +14,11 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
   }),
 );
 
+const mockEnsureCvmQuotaAt = vi.hoisted(() => vi.fn());
+
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+vi.mock('@/services/pricing/cvmFundSync', () => ({ ensureCvmQuotaAt: mockEnsureCvmQuotaAt }));
 
 import { GET } from '../route';
 
@@ -175,5 +178,51 @@ describe('GET /api/ativos/price-at (#3 / D.3 checklist mai/28)', () => {
     expect(mockPrisma.assetPriceHistory.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ symbol: 'PETR4' }) }),
     );
+  });
+
+  // Ticket Pedro 27/08/2026: wizard de fundo por "valor aplicado" precisa da
+  // cota do dia — fundo CVM (symbol CVM-<cnpj>) lê CvmFundQuota via
+  // ensureCvmQuotaAt (download sob demanda), não AssetPriceHistory.
+  describe('fundo CVM (symbol CVM-<cnpj>)', () => {
+    it('devolve a cota CVM da data com source CVM e sem tocar em AssetPriceHistory', async () => {
+      mockEnsureCvmQuotaAt.mockResolvedValue({
+        date: new Date('2024-06-26T00:00:00Z'),
+        quotaValue: 12.34567891,
+      });
+
+      const res = await GET(req('symbol=CVM-12345678000190&date=2024-06-26'));
+      const data = await res.json();
+      expect(res.status).toBe(200);
+      expect(mockEnsureCvmQuotaAt).toHaveBeenCalledWith(
+        '12345678000190',
+        new Date('2024-06-26T00:00:00Z'),
+      );
+      expect(data).toMatchObject({
+        symbol: 'CVM-12345678000190',
+        date: '2024-06-26',
+        effectiveDate: '2024-06-26',
+        price: 12.34567891,
+        source: 'CVM',
+        corporateActionsAfter: [],
+      });
+      expect(mockPrisma.assetPriceHistory.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('effectiveDate anterior quando a cota do dia exato não existe (fim de semana)', async () => {
+      mockEnsureCvmQuotaAt.mockResolvedValue({
+        date: new Date('2024-06-21T00:00:00Z'),
+        quotaValue: 10,
+      });
+      const res = await GET(req('symbol=CVM-12345678000190&date=2024-06-23'));
+      const data = await res.json();
+      expect(data.effectiveDate).toBe('2024-06-21');
+      expect(data.date).toBe('2024-06-23');
+    });
+
+    it('404 quando a CVM não tem cota (ex.: data anterior a 2021, fora do formato mensal)', async () => {
+      mockEnsureCvmQuotaAt.mockResolvedValue(null);
+      const res = await GET(req('symbol=CVM-12345678000190&date=2019-03-01'));
+      expect(res.status).toBe(404);
+    });
   });
 });

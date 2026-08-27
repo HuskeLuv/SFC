@@ -239,61 +239,7 @@ export async function runCvmFundSync(opts?: { monthsBack?: number }): Promise<Cv
     monthsToFetch.push(getYYYYMM(new Date(now.getFullYear(), now.getMonth() - i, 1)));
   }
 
-  const filteredRows: CvmDailyRow[] = [];
-  let anyMonthOk = false;
-
-  const { monthly, histYears, histMonths } = splitMonthsForCvmFetch(monthsToFetch);
-
-  for (const month of monthly) {
-    const url = CVM_DAILY_URL(month);
-    try {
-      logger.info(`📥 Tentando baixar: ${url}`);
-      const response = await axios.get(url, {
-        responseType: 'arraybuffer',
-        timeout: 30000,
-      });
-      const zipBuffer: ArrayBuffer = response.data;
-      anyMonthOk = true;
-      logger.info(`✅ ZIP ${month}: ${(zipBuffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
-
-      const csvRows = extractCsvFromZip(Buffer.from(zipBuffer));
-      collectDailyRows(csvRows, targetCnpjs, null, filteredRows);
-    } catch (err) {
-      const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
-      logger.warn(`⚠️  Falha ao baixar/processar mês ${month} (status: ${status})`);
-    }
-  }
-
-  // Fallback HIST: meses < 2021-01 vêm do ZIP ANUAL (2000-2020). Cada ZIP traz
-  // um CSV por mês — processamos entrada a entrada (pula meses fora da janela
-  // pelo nome do arquivo) pra não segurar o ano inteiro em memória.
-  for (const year of histYears) {
-    const url = CVM_HIST_URL(year);
-    try {
-      logger.info(`📥 Tentando baixar (HIST anual): ${url}`);
-      const response = await axios.get(url, {
-        responseType: 'arraybuffer',
-        timeout: CVM_HIST_TIMEOUT_MS,
-      });
-      const zipBuffer: ArrayBuffer = response.data;
-      anyMonthOk = true;
-      logger.info(`✅ ZIP HIST ${year}: ${(zipBuffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
-
-      const zip = new AdmZip(Buffer.from(zipBuffer));
-      for (const entry of zip.getEntries()) {
-        if (!entry.entryName.endsWith('.csv')) continue;
-        const monthMatch = entry.entryName.match(/(\d{6})\.csv$/);
-        if (monthMatch && !histMonths.has(monthMatch[1])) continue;
-        const csvRows = parseCsvText(entry.getData().toString('latin1'));
-        // Filtro por mês também nas linhas: cobre entradas sem YYYYMM no nome.
-        collectDailyRows(csvRows, targetCnpjs, histMonths, filteredRows);
-      }
-    } catch (err) {
-      const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
-      logger.warn(`⚠️  Falha ao baixar/processar HIST ${year} (status: ${status})`);
-    }
-  }
-
+  const { rows: filteredRows, anyMonthOk } = await downloadCvmDailyRows(monthsToFetch, targetCnpjs);
   if (!anyMonthOk) {
     throw new Error('Não foi possível baixar o arquivo CVM INF_DIARIO para nenhum mês');
   }
@@ -303,62 +249,10 @@ export async function runCvmFundSync(opts?: { monthsBack?: number }): Promise<Cv
   );
 
   // 5. Upsert in batches
-  for (let i = 0; i < filteredRows.length; i += BATCH_SIZE) {
-    const batch = filteredRows.slice(i, i + BATCH_SIZE);
-
-    try {
-      // Check existing for counting
-      const existingKeys = await prisma.cvmFundQuota.findMany({
-        where: {
-          OR: batch.map((r) => ({ cnpj: r.cnpj, date: r.date })),
-        },
-        select: { cnpj: true, date: true },
-      });
-
-      const existingSet = new Set(existingKeys.map((k) => `${k.cnpj}|${k.date.toISOString()}`));
-
-      const operations = batch.map((row) =>
-        prisma.cvmFundQuota.upsert({
-          where: {
-            cnpj_date: { cnpj: row.cnpj, date: row.date },
-          },
-          update: {
-            quotaValue: new Decimal(row.quotaValue),
-            netWorth: row.netWorth !== null ? new Decimal(row.netWorth) : null,
-            totalValue: row.totalValue !== null ? new Decimal(row.totalValue) : null,
-            shareholders: row.shareholders,
-            dailyInflow: row.dailyInflow !== null ? new Decimal(row.dailyInflow) : null,
-            dailyOutflow: row.dailyOutflow !== null ? new Decimal(row.dailyOutflow) : null,
-            updatedAt: new Date(),
-          },
-          create: {
-            cnpj: row.cnpj,
-            date: row.date,
-            quotaValue: new Decimal(row.quotaValue),
-            netWorth: row.netWorth !== null ? new Decimal(row.netWorth) : null,
-            totalValue: row.totalValue !== null ? new Decimal(row.totalValue) : null,
-            shareholders: row.shareholders,
-            dailyInflow: row.dailyInflow !== null ? new Decimal(row.dailyInflow) : null,
-            dailyOutflow: row.dailyOutflow !== null ? new Decimal(row.dailyOutflow) : null,
-          },
-        }),
-      );
-
-      await prisma.$transaction(operations);
-
-      for (const row of batch) {
-        const key = `${row.cnpj}|${row.date.toISOString()}`;
-        if (existingSet.has(key)) {
-          updated++;
-        } else {
-          inserted++;
-        }
-      }
-    } catch (batchErr) {
-      logger.error(`❌ Erro no batch ${i}-${i + batch.length}:`, batchErr);
-      errors += batch.length;
-    }
-  }
+  const upsertResult = await upsertCvmDailyRows(filteredRows);
+  inserted += upsertResult.inserted;
+  updated += upsertResult.updated;
+  errors += upsertResult.errors;
 
   // 6. Bridge: update Asset.currentPrice for fund assets
   fundsProcessed = await bridgeCvmToAssetPrices(fundAssets);
@@ -443,6 +337,212 @@ async function bridgeCvmToAssetPrices(
 
   logger.info(`   ✅ ${bridged} fundos atualizados com cota CVM (série completa no histórico)`);
   return bridged;
+}
+
+/**
+ * Baixa os ZIPs INF_DIARIO dos meses pedidos (mensal >= 2021-01; anual HIST
+ * antes disso) e devolve só as linhas dos CNPJs alvo. Compartilhado entre o
+ * sync em lote (cron/registro) e o lookup sob demanda de UMA cota
+ * (`ensureCvmQuotaAt`, wizard de fundo por valor aplicado).
+ */
+export async function downloadCvmDailyRows(
+  monthsToFetch: string[],
+  targetCnpjs: Set<string>,
+): Promise<{ rows: CvmDailyRow[]; anyMonthOk: boolean }> {
+  const filteredRows: CvmDailyRow[] = [];
+  let anyMonthOk = false;
+
+  const { monthly, histYears, histMonths } = splitMonthsForCvmFetch(monthsToFetch);
+
+  for (const month of monthly) {
+    const url = CVM_DAILY_URL(month);
+    try {
+      logger.info(`📥 Tentando baixar: ${url}`);
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: 30000,
+      });
+      const zipBuffer: ArrayBuffer = response.data;
+      anyMonthOk = true;
+      logger.info(`✅ ZIP ${month}: ${(zipBuffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
+
+      const csvRows = extractCsvFromZip(Buffer.from(zipBuffer));
+      collectDailyRows(csvRows, targetCnpjs, null, filteredRows);
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
+      logger.warn(`⚠️  Falha ao baixar/processar mês ${month} (status: ${status})`);
+    }
+  }
+
+  // Fallback HIST: meses < 2021-01 vêm do ZIP ANUAL (2000-2020). Cada ZIP traz
+  // um CSV por mês — processamos entrada a entrada (pula meses fora da janela
+  // pelo nome do arquivo) pra não segurar o ano inteiro em memória.
+  for (const year of histYears) {
+    const url = CVM_HIST_URL(year);
+    try {
+      logger.info(`📥 Tentando baixar (HIST anual): ${url}`);
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: CVM_HIST_TIMEOUT_MS,
+      });
+      const zipBuffer: ArrayBuffer = response.data;
+      anyMonthOk = true;
+      logger.info(`✅ ZIP HIST ${year}: ${(zipBuffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
+
+      const zip = new AdmZip(Buffer.from(zipBuffer));
+      for (const entry of zip.getEntries()) {
+        if (!entry.entryName.endsWith('.csv')) continue;
+        const monthMatch = entry.entryName.match(/(\d{6})\.csv$/);
+        if (monthMatch && !histMonths.has(monthMatch[1])) continue;
+        const csvRows = parseCsvText(entry.getData().toString('latin1'));
+        // Filtro por mês também nas linhas: cobre entradas sem YYYYMM no nome.
+        collectDailyRows(csvRows, targetCnpjs, histMonths, filteredRows);
+      }
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : 'unknown';
+      logger.warn(`⚠️  Falha ao baixar/processar HIST ${year} (status: ${status})`);
+    }
+  }
+
+  return { rows: filteredRows, anyMonthOk };
+}
+
+/**
+ * Upsert das linhas em CvmFundQuota, em lotes. Devolve contagem p/ log.
+ */
+export async function upsertCvmDailyRows(
+  filteredRows: CvmDailyRow[],
+): Promise<{ inserted: number; updated: number; errors: number }> {
+  let inserted = 0;
+  let updated = 0;
+  let errors = 0;
+  for (let i = 0; i < filteredRows.length; i += BATCH_SIZE) {
+    const batch = filteredRows.slice(i, i + BATCH_SIZE);
+
+    try {
+      // Check existing for counting
+      const existingKeys = await prisma.cvmFundQuota.findMany({
+        where: {
+          OR: batch.map((r) => ({ cnpj: r.cnpj, date: r.date })),
+        },
+        select: { cnpj: true, date: true },
+      });
+
+      const existingSet = new Set(existingKeys.map((k) => `${k.cnpj}|${k.date.toISOString()}`));
+
+      const operations = batch.map((row) =>
+        prisma.cvmFundQuota.upsert({
+          where: {
+            cnpj_date: { cnpj: row.cnpj, date: row.date },
+          },
+          update: {
+            quotaValue: new Decimal(row.quotaValue),
+            netWorth: row.netWorth !== null ? new Decimal(row.netWorth) : null,
+            totalValue: row.totalValue !== null ? new Decimal(row.totalValue) : null,
+            shareholders: row.shareholders,
+            dailyInflow: row.dailyInflow !== null ? new Decimal(row.dailyInflow) : null,
+            dailyOutflow: row.dailyOutflow !== null ? new Decimal(row.dailyOutflow) : null,
+            updatedAt: new Date(),
+          },
+          create: {
+            cnpj: row.cnpj,
+            date: row.date,
+            quotaValue: new Decimal(row.quotaValue),
+            netWorth: row.netWorth !== null ? new Decimal(row.netWorth) : null,
+            totalValue: row.totalValue !== null ? new Decimal(row.totalValue) : null,
+            shareholders: row.shareholders,
+            dailyInflow: row.dailyInflow !== null ? new Decimal(row.dailyInflow) : null,
+            dailyOutflow: row.dailyOutflow !== null ? new Decimal(row.dailyOutflow) : null,
+          },
+        }),
+      );
+
+      await prisma.$transaction(operations);
+
+      for (const row of batch) {
+        const key = `${row.cnpj}|${row.date.toISOString()}`;
+        if (existingSet.has(key)) {
+          updated++;
+        } else {
+          inserted++;
+        }
+      }
+    } catch (batchErr) {
+      logger.error(`❌ Erro no batch ${i}-${i + batch.length}:`, batchErr);
+      errors += batch.length;
+    }
+  }
+
+  return { inserted, updated, errors };
+}
+
+// ================== ON-DEMAND QUOTA LOOKUP ==================
+
+export interface CvmQuotaAt {
+  /** Data da cota efetivamente encontrada (pode ser anterior à pedida). */
+  date: Date;
+  quotaValue: number;
+}
+
+/** Cota mais recente do fundo em [target−30d, target] já gravada no banco. */
+export async function findCvmQuotaAt(cnpj: string, target: Date): Promise<CvmQuotaAt | null> {
+  const windowStart = new Date(target.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const row = await prisma.cvmFundQuota.findFirst({
+    where: { cnpj: normalizeCnpj(cnpj), date: { gte: windowStart, lte: target } },
+    orderBy: { date: 'desc' },
+    select: { date: true, quotaValue: true },
+  });
+  if (!row) return null;
+  return { date: row.date, quotaValue: Number(row.quotaValue) };
+}
+
+/** Dedup de downloads concorrentes do mesmo (cnpj, mês) — o ZIP mensal tem ~10 MB. */
+const inflightQuotaFetch = new Map<string, Promise<void>>();
+
+/**
+ * Cota do fundo na data (ou a última anterior, até 30 dias). Se o banco ainda
+ * não tem a cota — fundo que ninguém na plataforma possui, portanto fora do
+ * cron `cvm-fund-sync` — baixa o INF_DIARIO do mês (e do anterior) filtrado
+ * por ESTE CNPJ e persiste em CvmFundQuota antes de responder.
+ *
+ * Motivação (ticket Pedro 27/08/2026): o cliente sabe quanto aplicou
+ * ("R$ 5 mil pela XP"), não a quantidade de cotas — o wizard precisa da cota
+ * do dia pra derivar `quantidade = valor ÷ cota` já no cadastro, antes de
+ * existir posição que dispare o sync em background.
+ *
+ * Limite: só o formato MENSAL (>= 2021-01). Datas anteriores caem no ZIP
+ * anual HIST (centenas de MB) — inviável numa requisição interativa; devolve
+ * null e o front pede a cota manualmente.
+ */
+export async function ensureCvmQuotaAt(cnpj: string, target: Date): Promise<CvmQuotaAt | null> {
+  const normalized = normalizeCnpj(cnpj);
+  const cached = await findCvmQuotaAt(normalized, target);
+  if (cached) return cached;
+
+  const targetMonth = getYYYYMM(new Date(target.getUTCFullYear(), target.getUTCMonth(), 1));
+  const prevMonth = getYYYYMM(new Date(target.getUTCFullYear(), target.getUTCMonth() - 1, 1));
+  const nowMonth = getYYYYMM(new Date());
+
+  // Sequencial, mês alvo primeiro: cada ZIP mensal tem ~10 MB, e na maioria
+  // dos casos a cota está no próprio mês (medido: ~9 s por mês em dev). O
+  // anterior só entra quando a data cai no início do mês/feriado emendado.
+  for (const month of [targetMonth, prevMonth]) {
+    if (month < CVM_MONTHLY_SINCE || month > nowMonth) continue;
+    const key = `${normalized}|${month}`;
+    let job = inflightQuotaFetch.get(key);
+    if (!job) {
+      job = (async () => {
+        const { rows } = await downloadCvmDailyRows([month], new Set([normalized]));
+        if (rows.length > 0) await upsertCvmDailyRows(rows);
+      })().finally(() => inflightQuotaFetch.delete(key));
+      inflightQuotaFetch.set(key, job);
+    }
+    await job;
+    const found = await findCvmQuotaAt(normalized, target);
+    if (found) return found;
+  }
+
+  return null;
 }
 
 // ================== FUND CATALOG SYNC ==================
