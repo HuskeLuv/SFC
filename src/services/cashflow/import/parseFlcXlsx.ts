@@ -130,6 +130,20 @@ const LINHAS_IGNORADAS: Record<string, string> = {
   'rendimentos recebidos': 'automático no app (proventos da carteira)',
 };
 
+/**
+ * Linha de resumo de orçamento das cópias personalizadas ("Orçado - Real =
+ * Saldo para consumo", fórmula =$C$<âncora>-<mês> ao fim de cada seção de
+ * despesa). É aritmética simples (não SUM), então caía na regra de "fórmula
+ * importada pelo resultado" e entrava como item NEGATIVO que anulava a seção
+ * inteira (report 27/08/2026 — planilha "FLC Lima D."). Prefixo cobre
+ * variações de sufixo entre cópias de clientes.
+ */
+const motivoLinhaIgnorada = (norm: string): string | undefined =>
+  LINHAS_IGNORADAS[norm] ??
+  (norm.startsWith('orcado real saldo')
+    ? 'resumo Orçado × Real da planilha — o orçamento é acompanhado no app em Orçado vs Real'
+    : undefined);
+
 const MESES_COLS = Array.from({ length: 12 }, (_, i) => 5 + i); // F..Q
 const MAX_LINHAS = 2000;
 
@@ -302,8 +316,9 @@ export const parseFlcXlsx = (buffer: Buffer | Uint8Array): FlcParseResult => {
     const norm = normalizeLabel(label);
     const meses = lerMeses(ws, r, coresPorCelula);
 
-    if (LINHAS_IGNORADAS[norm]) {
-      ignorados.push({ linha: r, label, motivo: LINHAS_IGNORADAS[norm], valores: meses.valores });
+    const motivoIgnorada = motivoLinhaIgnorada(norm);
+    if (motivoIgnorada) {
+      ignorados.push({ linha: r, label, motivo: motivoIgnorada, valores: meses.valores });
       continue;
     }
 

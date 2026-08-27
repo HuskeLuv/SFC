@@ -217,6 +217,28 @@ describe('parseFlcXlsx — cópias personalizadas de cliente', () => {
     expect(ign?.motivo).toContain('computada');
   });
 
+  it('linha "Orçado - Real = Saldo para consumo" vai para ignorados (report 27/08: planilha Lima D.)', () => {
+    // Cópias personalizadas fecham cada seção de despesa com uma linha-fórmula
+    // "=$C$<âncora>-<mês>" (orçado − real). É aritmética simples, então caía na
+    // regra de fórmula-importada-pelo-resultado e entrava como item NEGATIVO
+    // que anulava a seção inteira.
+    const spec = modeloSpec();
+    const idx = spec.findIndex((l) => l.tipo === 'item' && l.label === 'Supermercado');
+    spec.splice(idx + 1, 0, {
+      tipo: 'item',
+      label: ' Orçado  -  Real = Saldo para consumo',
+      formula: true,
+      valores: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i, -2000])),
+    });
+    const result = parseFlcXlsx(buildFlcWorkbook(spec));
+
+    expect(secao(result, 'habitacao').itens.map((i) => i.label)).not.toContain(
+      ' Orçado  -  Real = Saldo para consumo',
+    );
+    const ign = result.ignorados.find((i) => i.label.includes('Orçado'));
+    expect(ign?.motivo).toContain('Orçado × Real');
+  });
+
   it('item com fórmula ARITMÉTICA importa o resultado cacheado (report ago/2026: =anual/12)', () => {
     // Caso real: Conta de energia/IPVA/Seguro Carro escritos como "=2980/12"
     // eram descartados em bloco e o total da seção não batia.
