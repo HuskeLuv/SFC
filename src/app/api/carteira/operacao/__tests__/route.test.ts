@@ -199,6 +199,56 @@ describe('POST /api/carteira/operacao', () => {
       expect(data.error).toContain('rendaFixaTipo');
     });
 
+    it('imovel: cria sem instituicaoId (Imóveis & Bens não têm instituição financeira)', async () => {
+      const imovelAsset = { id: 'asset-imovel', symbol: 'IMOVEL-1', name: 'Casa', type: 'imovel' };
+      mockPrisma.asset.create.mockResolvedValue(imovelAsset);
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'imovel',
+          dataInicio: '2024-01-15',
+          nomePersonalizado: 'Casa de Praia',
+          precoUnitario: 500000,
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(201);
+      expect(data.success).toBe(true);
+      // Sem lookup de instituição — não há id para buscar
+      expect(mockPrisma.institution.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('imovel: trata instituicaoId vazio ("") como ausente', async () => {
+      const imovelAsset = { id: 'asset-imovel', symbol: 'IMOVEL-1', name: 'Casa', type: 'imovel' };
+      mockPrisma.asset.create.mockResolvedValue(imovelAsset);
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'imovel',
+          instituicaoId: '',
+          dataInicio: '2024-01-15',
+          nomePersonalizado: 'Casa de Praia',
+          precoUnitario: 500000,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.institution.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('não-imovel continua exigindo instituicaoId', async () => {
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'personalizado',
+          dataInicio: '2024-01-15',
+          nomePersonalizado: 'Coleção',
+          quantidade: 1,
+          precoUnitario: 1000,
+          metodo: 'valor',
+        }),
+      );
+      const data = await response.json();
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('instituicaoId');
+    });
+
     it('retorna 404 quando usuário não existe', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       const response = await POST(
