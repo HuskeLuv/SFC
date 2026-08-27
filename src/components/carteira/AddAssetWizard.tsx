@@ -121,6 +121,29 @@ const STEPS: WizardStep[] = [
 ];
 
 /**
+ * Passos visíveis para o estado atual do formulário. Fluxos de compra com
+ * asset manual (personalizado, imóvel, conta-corrente, poupança) pulam o
+ * passo "Ativo"; Imóveis & Bens também pula "Instituição" — é patrimônio,
+ * não investimento custodiado (ticket 27/08/2026). O fluxo de aporte usa
+ * sempre os 5 passos (o tipo vem de /api/carteira/aporte/tipos e o passo
+ * "Ativo" é a escolha da posição existente).
+ */
+function getVisibleStepIds(formData: WizardFormData): string[] {
+  if (formData.operacao === 'aporte') {
+    return STEPS.map((step) => step.id);
+  }
+  const skipAssetStep =
+    formData.tipoAtivo === 'personalizado' ||
+    formData.tipoAtivo === 'imovel' ||
+    formData.tipoAtivo === 'conta-corrente' ||
+    formData.tipoAtivo === 'poupanca';
+  const skipInstitutionStep = formData.tipoAtivo === 'imovel';
+  return STEPS.map((step) => step.id).filter(
+    (id) => !(id === 'asset' && skipAssetStep) && !(id === 'institution' && skipInstitutionStep),
+  );
+}
+
+/**
  * Mapeia o tipo de ativo para os parâmetros de checagem de divergência de
  * preço, espelhando exatamente o que o PriceDeviationHint usa em cada
  * Step4*Fields (ações/FII/ETF usam cotacaoUnitaria + threshold padrão;
@@ -551,33 +574,19 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     );
   }, [formData]);
 
-  const proceedToNextStep = () => {
-    const skipStep3 =
-      formData.tipoAtivo === 'personalizado' ||
-      formData.tipoAtivo === 'imovel' ||
-      formData.tipoAtivo === 'conta-corrente' ||
-      formData.tipoAtivo === 'poupanca';
+  const visibleStepIds = getVisibleStepIds(formData);
+  const currentStepId = visibleStepIds[currentStep];
 
-    if (skipStep3 && currentStep === 2) {
-      setCurrentStep(3);
-    } else if (currentStep < steps.length - 1) {
+  const proceedToNextStep = () => {
+    if (currentStep < visibleStepIds.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   };
 
   const handleNext = () => {
-    const skipStep3 =
-      formData.tipoAtivo === 'personalizado' ||
-      formData.tipoAtivo === 'imovel' ||
-      formData.tipoAtivo === 'conta-corrente' ||
-      formData.tipoAtivo === 'poupanca';
-    // Passo de Informações (onde a cotação é digitada): normal = índice 3,
-    // fluxos que pulam o Step3 = índice 2.
-    const isInfoStep = skipStep3 ? currentStep === 2 : currentStep === 3;
-
-    // Ao sair do passo de Informações com divergência de preço não
-    // confirmada, abre o popup em vez de avançar.
-    if (isInfoStep && hasHistoricClose && !isPriceConfirmed) {
+    // Ao sair do passo de Informações (onde a cotação é digitada) com
+    // divergência de preço não confirmada, abre o popup em vez de avançar.
+    if (currentStepId === 'info' && hasHistoricClose && !isPriceConfirmed) {
       setPriceModalOpen(true);
       return;
     }
@@ -592,15 +601,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   };
 
   const handlePrevious = () => {
-    const skipStep3 =
-      formData.tipoAtivo === 'personalizado' ||
-      formData.tipoAtivo === 'imovel' ||
-      formData.tipoAtivo === 'conta-corrente' ||
-      formData.tipoAtivo === 'poupanca';
-
-    if (skipStep3 && currentStep === 3) {
-      setCurrentStep(1);
-    } else if (currentStep > 0) {
+    if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
   };
@@ -740,51 +741,31 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       onErrorsChange: handleErrorsChange,
     };
 
-    const isPersonalizado = formData.tipoAtivo === 'personalizado';
-    const isImovel = formData.tipoAtivo === 'imovel';
-    const isContaCorrente = formData.tipoAtivo === 'conta-corrente';
-    const isPoupanca = formData.tipoAtivo === 'poupanca';
-    const skipStep3 = isPersonalizado || isImovel || isContaCorrente || isPoupanca;
     const isAporte = formData.operacao === 'aporte';
 
-    switch (currentStep) {
-      case 0:
+    switch (currentStepId) {
+      case 'asset-type':
         return <Step1AssetType {...stepProps} />;
-      case 1:
+      case 'institution':
         return isAporte ? (
           <Step2AporteInstitution {...stepProps} />
         ) : (
           <Step2Institution {...stepProps} />
         );
-      case 2:
-        if (skipStep3) {
-          return <Step4AssetInfo {...stepProps} />;
-        }
+      case 'asset':
         return isAporte ? <Step3AporteAsset {...stepProps} /> : <Step3Asset {...stepProps} />;
-      case 3:
-        if (skipStep3) {
-          return (
-            <Step5Confirmation
-              {...stepProps}
-              onSubmit={handleSubmit}
-              loading={loading}
-              autoSubmit={isPersonalizado}
-            />
-          );
-        }
+      case 'info':
         return isAporte ? <Step4AporteInfo {...stepProps} /> : <Step4AssetInfo {...stepProps} />;
-      case 4:
+      case 'confirmation':
         if (isAporte) {
           return <Step5AporteConfirmation {...stepProps} />;
         }
-        // Auto-submit apenas para personalizado
-        const shouldAutoSubmit = formData.tipoAtivo === 'personalizado';
         return (
           <Step5Confirmation
             {...stepProps}
             onSubmit={handleSubmit}
             loading={loading}
-            autoSubmit={shouldAutoSubmit}
+            autoSubmit={formData.tipoAtivo === 'personalizado'}
           />
         );
       default:
@@ -792,39 +773,17 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     }
   };
 
-  const skipStep3 =
-    formData.tipoAtivo === 'personalizado' ||
-    formData.tipoAtivo === 'imovel' ||
-    formData.tipoAtivo === 'conta-corrente' ||
-    formData.tipoAtivo === 'poupanca';
-
-  const canProceed = (() => {
-    if (skipStep3) {
-      if (currentStep === 0) return steps[0]?.isValid || false;
-      if (currentStep === 1) return steps[1]?.isValid || false;
-      if (currentStep === 2) return steps[3]?.isValid || false;
-      if (currentStep === 3) return true;
-    }
-    return steps[currentStep]?.isValid || false;
-  })();
-
-  const isLastStep = skipStep3 ? currentStep === 3 : currentStep === steps.length - 1;
+  const currentStepMeta = steps.find((step) => step.id === currentStepId);
+  const canProceed = currentStepMeta?.isValid || false;
+  const isLastStep = currentStep === visibleStepIds.length - 1;
 
   return (
     <Sidebar isOpen={isOpen} onClose={handleCancel} title="Adicionar Ativo à Carteira" noBackdrop>
       <div className="space-y-6">
         {/* Progress Indicator */}
         {(() => {
-          const totalSteps = skipStep3 ? 4 : 5;
-          const currentStepNumber = skipStep3
-            ? currentStep === 0
-              ? 1
-              : currentStep === 1
-                ? 2
-                : currentStep === 2
-                  ? 3
-                  : 4
-            : currentStep + 1;
+          const totalSteps = visibleStepIds.length;
+          const currentStepNumber = currentStep + 1;
 
           return (
             <div className="space-y-2">
@@ -845,36 +804,14 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         })()}
 
         {/* Step Title */}
-        {(() => {
-          let stepTitle = '';
-          let stepDescription = '';
-
-          if (skipStep3) {
-            if (currentStep === 0) {
-              stepTitle = steps[0].title;
-              stepDescription = steps[0].description;
-            } else if (currentStep === 1) {
-              stepTitle = steps[1].title;
-              stepDescription = steps[1].description;
-            } else if (currentStep === 2) {
-              stepTitle = steps[3].title; // Info
-              stepDescription = steps[3].description;
-            } else if (currentStep === 3) {
-              stepTitle = steps[4].title; // Confirmation
-              stepDescription = steps[4].description;
-            }
-          } else {
-            stepTitle = steps[currentStep]?.title || '';
-            stepDescription = steps[currentStep]?.description || '';
-          }
-
-          return (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{stepTitle}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{stepDescription}</p>
-            </div>
-          );
-        })()}
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {currentStepMeta?.title || ''}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {currentStepMeta?.description || ''}
+          </p>
+        </div>
 
         {/* Step Content */}
         <div className="min-h-[400px]">{renderCurrentStep()}</div>

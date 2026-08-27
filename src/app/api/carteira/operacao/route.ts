@@ -35,7 +35,13 @@ class TituloEmOutraContaError extends Error {}
 const operacaoBaseSchema = z
   .object({
     tipoAtivo: z.string().min(1).max(100),
-    instituicaoId: z.string().min(1).max(255),
+    // Imóveis & Bens não têm instituição financeira custodiante (ticket
+    // 27/08/2026) — o wizard não envia o campo ('' vira undefined). A
+    // obrigatoriedade para os demais tipos é validada adiante.
+    instituicaoId: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(1).max(255).optional(),
+    ),
     assetId: z.string().max(255).optional(),
     ativo: z.string().max(255).optional(),
     dataCompra: z.string().optional(),
@@ -210,7 +216,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // Imóveis & Bens (ticket 20/08/2026): patrimônio, não investimento — asset
   // manual próprio, fora da rentabilidade (exclusão no builder de séries).
   const isImovel = tipoAtivo === 'imovel';
-  if (!tipoAtivo || !instituicaoId) {
+  if (!tipoAtivo || (!instituicaoId && !isImovel)) {
     return NextResponse.json(
       {
         error: 'Campos obrigatórios: tipoAtivo, instituicaoId',
@@ -977,8 +983,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         },
       });
     }
-  } else {
-    // Para outros tipos, buscar pelo ID fornecido
+  } else if (instituicaoId) {
+    // Para outros tipos, buscar pelo ID fornecido. Imóveis & Bens chegam sem
+    // instituição (não há custodiante) — instituicao permanece null e as notes
+    // gravam sem instituicaoId (resgate/aporte usam o balde "não informada").
     instituicao = await prisma.institution.findUnique({
       where: { id: instituicaoId },
     });
