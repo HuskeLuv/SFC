@@ -67,7 +67,7 @@ const ADDITIONAL_INSTITUTIONS: Array<{
   // ─── Fintechs e bancos digitais ───
   { code: '290', name: 'PagBank — PagSeguro Digital', cnpj: '08561701000101' },
   { code: '380-PIC', name: 'PicPay — Banco PicPay', cnpj: '22896431000110' },
-  { code: '323', name: 'Banco Mercado Pago (Mercado Bitcoin)', cnpj: '10573521000191' },
+  { code: '323', name: 'Mercado Pago (Mercado Livre)', cnpj: '10573521000191' },
   { code: '197', name: 'Stone Pagamentos', cnpj: '16501555000157' },
   { code: '218', name: 'Banco BS2', cnpj: '71027866000134' },
   { code: '332', name: 'Acesso Soluções de Pagamento (Banco Neon)', cnpj: '13140088000199' },
@@ -96,7 +96,7 @@ const ADDITIONAL_INSTITUTIONS: Array<{
   { code: 'INT-REMESSA', name: 'Remessa Online', cnpj: null },
 
   // ─── Bancos médios e cooperativos ───
-  { code: '637', name: 'Banco Sofisa', cnpj: null },
+  { code: '637', name: 'Banco Sofisa (Sofisa Direto)', cnpj: '60889128000180' },
   { code: '643', name: 'Banco Pine', cnpj: null },
   { code: '243', name: 'Banco Master', cnpj: null },
   { code: '082', name: 'Banco Topázio', cnpj: null },
@@ -125,6 +125,10 @@ const ADDITIONAL_INSTITUTIONS: Array<{
   { code: 'CRP-KRAKEN', name: 'Kraken', cnpj: null },
   { code: 'CRP-BIPA', name: 'Bipa', cnpj: null },
   { code: 'CRP-RIPIO', name: 'Ripio Brasil', cnpj: null },
+  { code: 'CRP-CRYPTOCOM', name: 'Crypto.com', cnpj: null },
+  { code: 'CRP-BYBIT', name: 'Bybit', cnpj: null },
+  { code: 'CRP-BITGET', name: 'Bitget', cnpj: null },
+  { code: 'CRP-MYNT', name: 'Mynt (BTG Pactual)', cnpj: null },
 
   // ─── Outras instituições relevantes ───
   { code: 'OTH-WALLET', name: 'Carteira em casa (custódia direta)', cnpj: null },
