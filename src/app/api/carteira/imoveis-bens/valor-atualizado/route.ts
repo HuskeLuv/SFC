@@ -32,8 +32,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
   }
 
-  // Verificar se é um imóvel/bem
-  const isImovelBem = portfolio.asset?.type === 'imovel';
+  // Verificar se é um imóvel/bem. A aba Imóveis & Bens lista os tipos
+  // 'imovel' E 'personalizado' (mesmo filtro do GET) — o guard só com
+  // 'imovel' rejeitava a edição de valor dos personalizados (ticket
+  // 27/08/2026). Personalizado com acompanhamento "por valor" depende
+  // exatamente desta edição mensal.
+  const isImovelBem =
+    portfolio.asset?.type === 'imovel' || portfolio.asset?.type === 'personalizado';
 
   if (!isImovelBem) {
     return NextResponse.json({ error: 'Esta API é apenas para imóveis e bens' }, { status: 400 });
