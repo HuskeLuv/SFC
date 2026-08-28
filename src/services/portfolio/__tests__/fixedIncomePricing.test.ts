@@ -5,12 +5,20 @@ const mockPrisma = vi.hoisted(() => ({
   portfolio: { findMany: vi.fn() },
   economicIndex: { findMany: vi.fn() },
   tesouroDiretoPrice: { findMany: vi.fn() },
+  stockTransaction: { findMany: vi.fn() },
 }));
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 
 import { createFixedIncomePricer } from '../fixedIncomePricing';
 import type { FixedIncomeAssetWithAsset } from '../patrimonioHistoricoBuilder';
+
+// O pricer consulta as transações do ativo pra montar as tranches — default vazio
+// (caminho legado). Roda antes dos beforeEach aninhados; clearAllMocks preserva
+// implementações, então o stub sobrevive.
+beforeEach(() => {
+  mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
+});
 
 const makeCdiPrefixadoFi = (overrides: Partial<FixedIncomeAssetWithAsset> = {}) =>
   ({
@@ -211,6 +219,147 @@ describe('IPCA — mês da aplicação (ticket 24/08)', () => {
     });
     // fev (1%) e mar (2%) aplicados nos cruzamentos de mês: 50.000 × 1.01 × 1.02
     expect(pricer.getCurrentValue(fi)).toBe(51_510);
+  });
+});
+
+// Ticket 28/08/2026 (CDB com aportes/resgates, carteira Willie): a série valia
+// `investedAmount TOTAL × fator` desde o startDate — nenhum salto no dia do
+// aporte, e o TWR interpretava cada aporte como perda de −F/(V+F) (degraus até
+// −81%). Com 2+ movimentações o pricer agora replaya tranches: cada aporte
+// rende a partir do SEU dia; resgate remove o valor resgatado no dia.
+describe('Tranches — aportes/resgates rendem do próprio dia (ticket 28/08)', () => {
+  const trancheTx = (
+    type: 'compra' | 'venda',
+    date: string,
+    total: number,
+    assetId = 'asset-1',
+  ) => ({
+    assetId,
+    type,
+    quantity: 1,
+    price: total,
+    total,
+    date: new Date(date),
+    notes: null,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.fixedIncomeAsset.findMany.mockResolvedValue([]);
+    mockPrisma.portfolio.findMany.mockResolvedValue([]);
+    mockPrisma.economicIndex.findMany.mockResolvedValue([]);
+    mockPrisma.tesouroDiretoPrice.findMany.mockResolvedValue([]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
+  });
+
+  it('aporte posterior rende só do dia do aporte: multi-tranche = soma de posições isoladas', async () => {
+    const asOf = new Date('2026-01-02');
+    // Posição real: compra 1.000 em 02/01/2024 + aporte 1.000 em 02/01/2025.
+    const fi = makeCdiPrefixadoFi({ investedAmount: 2000 });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      trancheTx('compra', '2024-01-02', 1000),
+      trancheTx('compra', '2025-01-02', 1000),
+    ]);
+    const pricer = await createFixedIncomePricer('user-1', {
+      asOfDate: asOf,
+      preloadedAssets: [fi],
+    });
+
+    // Referência: duas posições single-tranche equivalentes (caminho legado).
+    const fiA = makeCdiPrefixadoFi({ id: 'fi-a', assetId: 'asset-a', investedAmount: 1000 });
+    const fiB = makeCdiPrefixadoFi({
+      id: 'fi-b',
+      assetId: 'asset-b',
+      investedAmount: 1000,
+      startDate: new Date('2025-01-02'),
+    });
+    const pricerRef = await createFixedIncomePricer('user-1', {
+      asOfDate: asOf,
+      preloadedAssets: [fiA, fiB],
+    });
+
+    const esperado = pricerRef.getCurrentValue(fiA) + pricerRef.getCurrentValue(fiB);
+    // Tolerância de ~1 dia de juro: a tranche compõe D+0 enquanto o PRE
+    // standalone compõe D+1 — diferença de convenção de 1 dia por aporte.
+    expect(Math.abs(pricer.getCurrentValue(fi) - esperado)).toBeLessThan(1.5);
+    // E é MENOR que o caminho antigo (2.000 × fator de 2 anos), que dava
+    // rendimento de 2 anos ao aporte que ficou aplicado só 1.
+    const fiLegado = makeCdiPrefixadoFi({ id: 'fi-l', assetId: 'asset-l', investedAmount: 2000 });
+    const legado = pricerRef.getCurrentValue(fiLegado);
+    expect(pricer.getCurrentValue(fi)).toBeLessThan(legado);
+  });
+
+  it('série salta exatamente o valor aportado no dia do aporte (TWR neutro)', async () => {
+    const fi = makeCdiPrefixadoFi({ investedAmount: 2000 });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      trancheTx('compra', '2024-01-02', 1000),
+      trancheTx('compra', '2025-01-02', 1000),
+    ]);
+    const pricer = await createFixedIncomePricer('user-1', {
+      asOfDate: new Date('2026-01-02'),
+      preloadedAssets: [fi],
+    });
+
+    const timeline: number[] = [];
+    for (
+      let d = new Date('2024-01-02').getTime();
+      d <= new Date('2026-01-02').getTime();
+      d += 24 * 60 * 60 * 1000
+    ) {
+      const dow = new Date(d).getUTCDay();
+      if (dow !== 0 && dow !== 6) timeline.push(d);
+    }
+    const series = pricer.buildValueSeriesForAsset(fi, timeline);
+    const byDay = new Map(series.map((p) => [p.date, p.value]));
+    const aporteDay = new Date('2025-01-02').getTime();
+    const prevDay = new Date('2024-12-31').getTime();
+    const jump = (byDay.get(aporteDay) ?? 0) - (byDay.get(prevDay) ?? 0);
+    // Salto = aporte (1.000) + rendimento de ~2 dias da tranche antiga (poucos reais).
+    expect(jump).toBeGreaterThanOrEqual(1000);
+    expect(jump).toBeLessThan(1010);
+    // Antes do aporte a série vale só a 1ª tranche corrigida (~1.000×fator), não os 2.000.
+    expect(byDay.get(prevDay)!).toBeLessThan(1200);
+    expect(byDay.get(prevDay)!).toBeGreaterThan(1000);
+  });
+
+  it('resgate reduz a série exatamente pelo valor resgatado no dia', async () => {
+    const fi = makeCdiPrefixadoFi({ investedAmount: 1500 });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      trancheTx('compra', '2024-01-02', 2000),
+      trancheTx('venda', '2025-01-02', 500),
+    ]);
+    const pricer = await createFixedIncomePricer('user-1', {
+      asOfDate: new Date('2026-01-02'),
+      preloadedAssets: [fi],
+    });
+    const timeline = [new Date('2024-12-31').getTime(), new Date('2025-01-02').getTime()];
+    const series = pricer.buildValueSeriesForAsset(fi, timeline);
+    const drop = series[0].value - series[1].value;
+    // Queda = resgate (500) − rendimento de ~2 dias (poucos reais).
+    expect(drop).toBeGreaterThan(490);
+    expect(drop).toBeLessThanOrEqual(500);
+  });
+
+  it('lançamento único mantém o caminho legado (investedAmount × fator)', async () => {
+    const fi = makeCdiPrefixadoFi({ investedAmount: 5000 });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      trancheTx('compra', '2024-01-02', 4000), // total ≠ investedAmount editado à mão
+    ]);
+    const pricer = await createFixedIncomePricer('user-1', {
+      asOfDate: new Date('2025-06-15'),
+      preloadedAssets: [fi],
+    });
+    const pricerSemTx = await createFixedIncomePricer('user-1', {
+      asOfDate: new Date('2025-06-15'),
+      preloadedAssets: [
+        makeCdiPrefixadoFi({ id: 'fi-s', assetId: 'asset-s', investedAmount: 5000 }),
+      ],
+    });
+    expect(pricer.getCurrentValue(fi)).toBe(
+      pricerSemTx.getCurrentValue(
+        makeCdiPrefixadoFi({ id: 'fi-s', assetId: 'asset-s', investedAmount: 5000 }),
+      ),
+    );
   });
 });
 
