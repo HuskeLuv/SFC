@@ -4,6 +4,7 @@ import { getTtlCache } from '@/lib/simpleTtlCache';
 import {
   buildDailyTimeline,
   buildFixedIncomeFactorSeries,
+  getTransactionValue,
   normalizeDateStart,
   type CdiDaily,
   type FixedIncomeAssetWithAsset,
@@ -11,6 +12,7 @@ import {
   type PortfolioWithRelations,
   type TesouroPU,
 } from './patrimonioHistoricoBuilder';
+import { isCorporateActionAuditTx } from './corporateActions';
 
 // Caches globais para as séries de taxa/PU. Não dependem de userId — todos os
 // usuários veem os mesmos dados, e o cron de ingestão (BACEN/Tesouro) atualiza
@@ -197,6 +199,58 @@ export const createFixedIncomePricer = async (
     }
   };
 
+  // Tranches por assetId: replay das movimentações reais (aporte/resgate) do
+  // ativo. Com múltiplos lançamentos, cada parcela precisa render a partir do
+  // SEU dia — não do startDate do registro. Sem isso a série histórica valia
+  // `investedAmount TOTAL × fator` desde o início: nenhum salto no dia do
+  // aporte, e o TWR interpretava cada aporte como perda de −F/(V+F) (ticket
+  // 28/08/2026: CDB com 6 aportes exibia TWR −81% em degraus). Com um único
+  // lançamento o caminho legado (investedAmount × fator) é idêntico e
+  // permanece — respeita edições manuais de investedAmount sem transação.
+  const tranchesByAssetId = new Map<string, Array<{ ts: number; amount: number }>>();
+  if (fixedIncomeAssets.length > 0) {
+    const txRows = await safeFindMany(() =>
+      prisma.stockTransaction.findMany({
+        where: { userId, assetId: { in: fixedIncomeAssets.map((fi) => fi.assetId) } },
+        orderBy: { date: 'asc' },
+        select: {
+          assetId: true,
+          type: true,
+          quantity: true,
+          price: true,
+          total: true,
+          date: true,
+          notes: true,
+        },
+      }),
+    );
+    for (const tx of txRows) {
+      if (!tx.assetId) continue;
+      if (tx.type !== 'compra' && tx.type !== 'venda') continue;
+      // Linhas de auditoria de evento corporativo são display-only.
+      if (isCorporateActionAuditTx(tx.notes)) continue;
+      const amount = getTransactionValue({
+        total: Number(tx.total),
+        quantity: Number(tx.quantity),
+        price: Number(tx.price),
+      });
+      if (!(amount > 0)) continue;
+      const list = tranchesByAssetId.get(tx.assetId) ?? [];
+      list.push({
+        ts: normalizeDateStart(tx.date).getTime(),
+        amount: tx.type === 'venda' ? -amount : amount,
+      });
+      tranchesByAssetId.set(tx.assetId, list);
+    }
+  }
+
+  const getTranches = (
+    fi: FixedIncomeAssetWithAsset,
+  ): Array<{ ts: number; amount: number }> | null => {
+    const list = tranchesByAssetId.get(fi.assetId);
+    return list && list.length >= 2 ? list : null;
+  };
+
   // Helpers que consultam cache global antes de bater no DB. Chave inclui o intervalo
   // de datas (start..end) em granularidade de dia — duas requisições no mesmo dia com
   // o mesmo earliestStart compartilham o resultado. Tesouro também inclui os bondType
@@ -366,6 +420,49 @@ export const createFixedIncomePricer = async (
     });
   };
 
+  /**
+   * Série de valor por tranches: value(day) = Σ amount_i × factor(day)/factor(anchor_i),
+   * onde anchor_i é o primeiro dia útil do timeline >= data da transação (mesma
+   * convenção shiftToBusinessDay do builder de séries). No dia do aporte o valor
+   * "salta" exatamente o valor aportado — no TWR o salto e o fluxo se cancelam e
+   * sobra só o rendimento. Resgate remove o valor resgatado corrigido do dia.
+   * O timeline é estendido até a tranche mais antiga quando o recorte pedido
+   * começa depois dela, para não perder o rendimento acumulado pré-recorte.
+   */
+  const buildTrancheValueSeries = (
+    fi: FixedIncomeAssetWithAsset,
+    tranches: Array<{ ts: number; amount: number }>,
+    requestedTimeline: number[],
+  ): Map<number, number> => {
+    const requestedStart = requestedTimeline[0];
+    const requestedEnd = requestedTimeline[requestedTimeline.length - 1];
+    const startTs = normalizeDateStart(new Date(fi.startDate)).getTime();
+    const fullStartTs = Math.min(startTs, tranches[0].ts, requestedStart);
+    const timeline =
+      fullStartTs < requestedStart
+        ? buildDailyTimeline(new Date(fullStartTs), new Date(requestedEnd))
+        : requestedTimeline;
+    const factors = buildFactorSeries(fi, timeline);
+    const requested = new Set(requestedTimeline);
+    const out = new Map<number, number>();
+    let baseSum = 0;
+    let trancheIdx = 0;
+    // Âncora no fator do dia útil ANTERIOR ao lançamento: a tranche compõe já
+    // no próprio dia (D+0, mesma convenção do factor builder) — com um único
+    // lançamento no startDate isso degenera exatamente no caminho legado.
+    let prevFactor = 1;
+    for (const day of timeline) {
+      const factor = factors.get(day) ?? 1;
+      while (trancheIdx < tranches.length && tranches[trancheIdx].ts <= day) {
+        baseSum += tranches[trancheIdx].amount / (prevFactor > 0 ? prevFactor : 1);
+        trancheIdx++;
+      }
+      if (requested.has(day)) out.set(day, Math.max(0, baseSum * factor));
+      prevFactor = factor;
+    }
+    return out;
+  };
+
   const getCurrentValue = (fixedIncome: FixedIncomeAssetWithAsset): number => {
     const start = normalizeDateStart(new Date(fixedIncome.startDate));
     const todayNorm = normalizeDateStart(today);
@@ -374,6 +471,13 @@ export const createFixedIncomePricer = async (
     }
     const timeline = buildDailyTimeline(start, todayNorm);
     if (timeline.length === 0) return fixedIncome.investedAmount;
+
+    const tranches = getTranches(fixedIncome);
+    if (tranches) {
+      const series = buildTrancheValueSeries(fixedIncome, tranches, timeline);
+      const last = series.get(timeline[timeline.length - 1]);
+      if (last != null) return Math.round(last * 100) / 100;
+    }
 
     const factors = buildFactorSeries(fixedIncome, timeline);
     const lastDay = timeline[timeline.length - 1];
@@ -384,6 +488,12 @@ export const createFixedIncomePricer = async (
 
   const buildValueSeriesForAsset = (fi: FixedIncomeAssetWithAsset, timeline: number[]) => {
     if (timeline.length === 0) return [] as Array<{ date: number; value: number }>;
+    const tranches = getTranches(fi);
+    if (tranches) {
+      const series = buildTrancheValueSeries(fi, tranches, timeline);
+      // Antes da primeira movimentação a posição não existia — value = 0.
+      return timeline.map((day) => ({ date: day, value: series.get(day) ?? 0 }));
+    }
     const factors = buildFactorSeries(fi, timeline);
     const startTs = normalizeDateStart(new Date(fi.startDate)).getTime();
     return timeline.map((day) => ({
