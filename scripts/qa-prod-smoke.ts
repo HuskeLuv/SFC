@@ -11,12 +11,16 @@
  * Env:
  *   SFC_BASE_URL    (default http://localhost:3000)
  *   QA_EMAIL        (default qa.teste@appmyfinance.com.br)
- *   QA_PASSWORD     (default QaTeste@2026)
+ *   QA_PASSWORD     (obrigatório)
  */
 
 const BASE_URL = process.env.SFC_BASE_URL || 'http://localhost:3000';
 const EMAIL = process.env.QA_EMAIL || 'qa.teste@appmyfinance.com.br';
-const PASSWORD = process.env.QA_PASSWORD || 'QaTeste@2026';
+const PASSWORD = process.env.QA_PASSWORD ?? '';
+if (!PASSWORD) {
+  console.error('QA_PASSWORD não definido — abortando.');
+  process.exit(1);
+}
 
 const MONTHS = ['2026-01-15', '2026-02-15', '2026-03-16', '2026-04-15', '2026-05-15'];
 

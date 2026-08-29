@@ -13,7 +13,11 @@
 
 const BASE_URL = process.env.SFC_BASE_URL || 'http://localhost:3000';
 const EMAIL = process.env.QA_EMAIL || 'qa.teste@appmyfinance.com.br';
-const PASSWORD = process.env.QA_PASSWORD || 'QaTeste@2026';
+const PASSWORD = process.env.QA_PASSWORD ?? '';
+if (!PASSWORD) {
+  console.error('QA_PASSWORD não definido — abortando.');
+  process.exit(1);
+}
 const YEAR = 2026;
 const JUN = 5; // índice do mês de junho (0-based)
 

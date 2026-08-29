@@ -5,7 +5,11 @@
  */
 const BASE_URL = process.env.SFC_BASE_URL || 'http://localhost:3000';
 const EMAIL = process.env.QA_EMAIL || 'qa.teste@appmyfinance.com.br';
-const PASSWORD = process.env.QA_PASSWORD || 'QaTeste@2026';
+const PASSWORD = process.env.QA_PASSWORD ?? '';
+if (!PASSWORD) {
+  console.error('QA_PASSWORD não definido — abortando.');
+  process.exit(1);
+}
 
 const cookies: Record<string, string> = {};
 function captureCookies(headers: Headers) {
@@ -47,7 +51,10 @@ async function api(path: string, init: { method?: string; body?: unknown } = {})
 
 async function main() {
   console.error(`→ base=${BASE_URL} user=${EMAIL}`);
-  const lg = await api('/api/auth/login', { method: 'POST', body: { email: EMAIL, password: PASSWORD } });
+  const lg = await api('/api/auth/login', {
+    method: 'POST',
+    body: { email: EMAIL, password: PASSWORD },
+  });
   if (!lg.ok) throw new Error(`login falhou: ${lg.status} ${lg.text?.slice(0, 120)}`);
   await api('/api/profile');
   const r = await api('/api/carteira/resumo');

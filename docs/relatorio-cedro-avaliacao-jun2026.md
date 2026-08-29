@@ -31,7 +31,7 @@ Socket persistente **não cabe em serverless** (Next/Vercel/Lambda). Mas GP/GCH/
 não precisam de stream: `connect → auth → comando → ler até terminador → desconectar`
 (job curto). Integração ideal = **worker/CLI Node standalone** fora do request do Next,
 acionado por cron ou sob demanda, gravando no mesmo banco que já usamos. Só o SQT
-*subscribe* (cotação em streaming) exigiria um worker vivo permanente — e para cotação
+_subscribe_ (cotação em streaming) exigiria um worker vivo permanente — e para cotação
 o **snapshot** (`SQT <ativo> N`) já resolve.
 
 O scaffolding deste relatório segue exatamente esse desenho: `scripts/cedro/cedroClient.ts`
@@ -44,16 +44,16 @@ O scaffolding deste relatório segue exatamente esse desenho: `scripts/cedro/ced
 
 Legenda de prioridade para o nosso caso: ⭐⭐⭐ resolve dor crônica · ⭐⭐ útil · ⭐ baixa.
 
-| Comando | O que faz | Pra nós | Uso |
-| --- | --- | --- | --- |
-| **GP** — Get Proventos | Proventos por ativo/mercado: tipo, valor, **data de início de pagamento**, data-ex, deliberação, **proporção antes/depois** (splits/grupamentos/bonificações), novo ticker (incorporação). Ordenável por data de pagamento (`DP`). | ⭐⭐⭐ | Resolve **dedup BRAPI+Yahoo**, **"provento no pagamento"** (metodologia Kinvo) e **split duplicado** (HFOF11 10:1). Alimenta `asset_dividend_history` (proventos) e `asset_corporate_actions` (eventos). |
-| **GCH** — Get Candles History | Candles diário/semanal/mensal/intradiário, histórico longo, flag **`NP` "no proventos"** (controla ajustado × não-ajustado). | ⭐⭐⭐ | **Série 10y** com fonte única + controle explícito de ajuste de split/provento. Alimenta `asset_price_history`. Hoje juntamos COTAHIST+BRAPI+Yahoo e ajustamos no read; Cedro daria a série coerente de uma fonte só. |
-| **MQC** — Market Quote Composition | Lista **todos os ativos** de um mercado (filtros por tipo/sub-tipo, ex.: `S 1124` = ETF renda fixa). | ⭐⭐ | Catálogo B3 + autocomplete do wizard. Complementa/valida `assets` (hoje via BRAPI `/quote/list` + CVM). |
-| **SQT** — Subscribe Quote | Cotação: snapshot (`N`) ou streaming. ~160 índices (último, bid/ask, OHLC, máx/mín dia/sem/mês/ano, fundamentos) + **200-215 exclusivos Tesouro Direto** (PU, taxa, indexador, taxa compra/venda). | ⭐⭐ | Snapshot pode complementar/substituir BRAPI para cotação **e** dá campos que **hoje não temos** (bid/ask, OHLC, máx/mín por janela, Tesouro com PU/taxa direto). |
-| **GQT** — Get Quote Trade | Negócios tick-a-tick do dia (preço, corretoras, agressor, condição do trade). | ⭐ | Não temos caso de uso (não fazemos book/tape). |
-| **PRT/PRTC** — Player Ranking | Ranking de corretoras por ativo (volume compra/venda, agressão). | ⭐ | Sem uso atual. |
-| **NEM/GNA/UNE** — Notícias | Agências e notícias (subscribe/histórico/corpo). | ⭐ | Fora de escopo. |
-| **USQ/UQT/URT/QUIT** | Cancelamentos e encerramento. | infra | Controle de sessão. |
+| Comando                            | O que faz                                                                                                                                                                                                                          | Pra nós | Uso                                                                                                                                                                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GP** — Get Proventos             | Proventos por ativo/mercado: tipo, valor, **data de início de pagamento**, data-ex, deliberação, **proporção antes/depois** (splits/grupamentos/bonificações), novo ticker (incorporação). Ordenável por data de pagamento (`DP`). | ⭐⭐⭐  | Resolve **dedup BRAPI+Yahoo**, **"provento no pagamento"** (metodologia Kinvo) e **split duplicado** (HFOF11 10:1). Alimenta `asset_dividend_history` (proventos) e `asset_corporate_actions` (eventos).              |
+| **GCH** — Get Candles History      | Candles diário/semanal/mensal/intradiário, histórico longo, flag **`NP` "no proventos"** (controla ajustado × não-ajustado).                                                                                                       | ⭐⭐⭐  | **Série 10y** com fonte única + controle explícito de ajuste de split/provento. Alimenta `asset_price_history`. Hoje juntamos COTAHIST+BRAPI+Yahoo e ajustamos no read; Cedro daria a série coerente de uma fonte só. |
+| **MQC** — Market Quote Composition | Lista **todos os ativos** de um mercado (filtros por tipo/sub-tipo, ex.: `S 1124` = ETF renda fixa).                                                                                                                               | ⭐⭐    | Catálogo B3 + autocomplete do wizard. Complementa/valida `assets` (hoje via BRAPI `/quote/list` + CVM).                                                                                                               |
+| **SQT** — Subscribe Quote          | Cotação: snapshot (`N`) ou streaming. ~160 índices (último, bid/ask, OHLC, máx/mín dia/sem/mês/ano, fundamentos) + **200-215 exclusivos Tesouro Direto** (PU, taxa, indexador, taxa compra/venda).                                 | ⭐⭐    | Snapshot pode complementar/substituir BRAPI para cotação **e** dá campos que **hoje não temos** (bid/ask, OHLC, máx/mín por janela, Tesouro com PU/taxa direto).                                                      |
+| **GQT** — Get Quote Trade          | Negócios tick-a-tick do dia (preço, corretoras, agressor, condição do trade).                                                                                                                                                      | ⭐      | Não temos caso de uso (não fazemos book/tape).                                                                                                                                                                        |
+| **PRT/PRTC** — Player Ranking      | Ranking de corretoras por ativo (volume compra/venda, agressão).                                                                                                                                                                   | ⭐      | Sem uso atual.                                                                                                                                                                                                        |
+| **NEM/GNA/UNE** — Notícias         | Agências e notícias (subscribe/histórico/corpo).                                                                                                                                                                                   | ⭐      | Fora de escopo.                                                                                                                                                                                                       |
+| **USQ/UQT/URT/QUIT**               | Cancelamentos e encerramento.                                                                                                                                                                                                      | infra   | Controle de sessão.                                                                                                                                                                                                   |
 
 ### Detalhe dos campos que importam
 
@@ -83,6 +83,7 @@ externos só em cron/backfill; precedência centralizada em
 → BRAPI(2) → YAHOO(3)`.
 
 ### 3.1 Proventos / dividendos (dividendo, JCP, rendimento FII, amortização)
+
 - **Cedro:** GP — payment date nativa, data-ex, tipo granular, dedup pela fonte única.
 - **Hoje:** BRAPI (primária, recente) → Yahoo (antigos). Serviço `dividendService.ts`,
   tabela `AssetDividendHistory` (unique `[symbol, date, tipo]`, `date`=pagamento,
@@ -92,6 +93,7 @@ externos só em cron/backfill; precedência centralizada em
   split; o casamento das duas exige heurística. GP traz pagamento + ex + tipo de uma fonte.
 
 ### 3.2 Eventos corporativos / splits (desdobramento, grupamento, bonificação, incorporação)
+
 - **Cedro:** GP devolve o evento com **proporção antes/depois** explícita e novo ticker.
 - **Hoje:** **Yahoo** (canônico p/ splits — BRAPI free não traz split), BRAPI (só
   bonificação/subscrição). `yahooCorporateActions.ts` + dedup em `corporateActionsDedup.ts`
@@ -103,6 +105,7 @@ externos só em cron/backfill; precedência centralizada em
   remove a heurística de dedup e a fragilidade do scraping.
 
 ### 3.3 Candles / histórico de preço (OHLC diário, série longa, ajustado × não)
+
 - **Cedro:** GCH com OHLC completo + flag `NP` para controlar ajuste.
 - **Hoje:** guardamos **só fechamento** em `AssetPriceHistory` (unique `[symbol, date]`,
   com `source`). Composição: **COTAHIST** (2016-2020, oficial, **bruto**) + **BRAPI**
@@ -114,18 +117,21 @@ externos só em cron/backfill; precedência centralizada em
   Bônus: ganharíamos OHLC (hoje inexistente).
 
 ### 3.4 Cotação atual
+
 - **Cedro:** SQT snapshot — último, **bid/ask**, **OHLC**, máx/mín por janela, fundamentos.
 - **Hoje:** **só último preço** (BRAPI). `brapiQuote.ts`; `Asset.currentPrice`;
   `MarketIndicatorCache` (IBOV/USD/BTC/ETH, TTL 15min). Sem bid/ask, sem OHLC snapshot.
 - **Cedro adiciona:** bid/ask e OHLC que hoje não temos. (Cotação em si BRAPI já cobre.)
 
 ### 3.5 Catálogo / cobertura de mercado
+
 - **Cedro:** MQC — lista completa por mercado/tipo/sub-tipo.
 - **Hoje:** BRAPI `/quote/list` (ações/FII/ETF/BDR/unit) + CVM (fundos RCVM 175).
   Tabela `Asset`; autocomplete em `/api/assets`. Cron `brapi-sync/catalog`, `cvm-*`.
 - **Cedro:** redundante com BRAPI+CVM, mas serve de validação cruzada.
 
 ### 3.6 Tesouro Direto
+
 - **Cedro:** SQT campos 200-215 (PU, taxa, indexador) em tempo real/snapshot.
 - **Hoje:** Tesouro Transparente (CSV oficial). `tesouroDiretoSync.ts`, tabela
   `TesouroDiretoPrice` (buyRate/sellRate, buyPU/sellPU/basePU; indexador embutido no
@@ -135,14 +141,14 @@ externos só em cron/backfill; precedência centralizada em
 
 ### Resumo executivo do §3
 
-| Tipo de dado | Cedro | Fonte atual | Veredito preliminar |
-| --- | --- | --- | --- |
-| Proventos | **GP** ⭐⭐⭐ | BRAPI→Yahoo | **Forte candidato a substituir** (uma fonte, payment date + ex + tipo) |
-| Splits/eventos | **GP** ⭐⭐⭐ | Yahoo(+BRAPI) | **Forte candidato** (proporção explícita; mata dedup frágil e bug HFOF11) |
-| Candles/série | **GCH** ⭐⭐⭐ | COTAHIST+BRAPI+Yahoo | **Avaliar substituir** (uma fonte + ajuste controlado; ataca resíduo Kinvo) |
-| Cotação | SQT ⭐⭐ | BRAPI | Complementar (bid/ask, OHLC novos); BRAPI já basta no essencial |
-| Catálogo | MQC ⭐⭐ | BRAPI+CVM | Validação cruzada; não substitui |
-| Tesouro | SQT 200-215 ⭐ | Tesouro Transparente | Manter oficial; Cedro só p/ intraday |
+| Tipo de dado   | Cedro          | Fonte atual          | Veredito preliminar                                                         |
+| -------------- | -------------- | -------------------- | --------------------------------------------------------------------------- |
+| Proventos      | **GP** ⭐⭐⭐  | BRAPI→Yahoo          | **Forte candidato a substituir** (uma fonte, payment date + ex + tipo)      |
+| Splits/eventos | **GP** ⭐⭐⭐  | Yahoo(+BRAPI)        | **Forte candidato** (proporção explícita; mata dedup frágil e bug HFOF11)   |
+| Candles/série  | **GCH** ⭐⭐⭐ | COTAHIST+BRAPI+Yahoo | **Avaliar substituir** (uma fonte + ajuste controlado; ataca resíduo Kinvo) |
+| Cotação        | SQT ⭐⭐       | BRAPI                | Complementar (bid/ask, OHLC novos); BRAPI já basta no essencial             |
+| Catálogo       | MQC ⭐⭐       | BRAPI+CVM            | Validação cruzada; não substitui                                            |
+| Tesouro        | SQT 200-215 ⭐ | Tesouro Transparente | Manter oficial; Cedro só p/ intraday                                        |
 
 ---
 
@@ -168,13 +174,16 @@ Construído e versionado em `scripts/cedro/`:
 cause da auth.
 
 ### Como rodar
+
 Credenciais no `.env` (gitignored): `CEDRO_HOST/PORT/USER/PASS/SOFTWARE_KEY`.
+
 ```bash
 node --env-file=.env --import tsx scripts/cedro/smoke.ts
 # um ativo só:  ... scripts/cedro/smoke.ts HFOF11
 # debug do tráfego cru:  CEDRO_DEBUG=1 node --env-file=.env --import tsx ...
 ```
-> ⚠️ `SOFTWARE_KEY=cedro_crystal` (não vazia) e **aspas na senha**: `CEDRO_PASS="socket#656"`
+
+> ⚠️ `SOFTWARE_KEY=cedro_crystal` (não vazia) e **aspas na senha**: `CEDRO_PASS="senha#123"`
 > — o `#` sem aspas é tratado como comentário pelo `--env-file` (ver §6).
 
 ---
@@ -186,12 +195,12 @@ O que a Cedro entregou, por tipo de dado:
 
 ### 5.1 Proventos (GP) — ✅ entrega o que precisamos
 
-| Ativo | Total | Composição (tipos) | Campos por linha |
-| --- | --- | --- | --- |
-| **HFOF11** | 110 | RENDIMENTO 97 · SUBSCRIÇÃO 12 · DESDOBRAMENTO 1 | pag, **com**, ex, deliberação, valor, tipo, hash |
-| **MXRF11** | 137 | RENDIMENTO 132 · SUBSCRIÇÃO 5 | idem |
-| **ITSA4** | 151 | JCP 98 · DIVIDENDO 40 · SUBSCRIÇÃO 5 · BONIFICAÇÃO 4 · LEILÃO FRAÇÕES 4 | idem |
-| **PETR4** | 122 | DIVIDENDO 46 · RENDIMENTO 38 · JCP 31 · ATUALIZAÇÃO 7 | idem |
+| Ativo      | Total | Composição (tipos)                                                      | Campos por linha                                 |
+| ---------- | ----- | ----------------------------------------------------------------------- | ------------------------------------------------ |
+| **HFOF11** | 110   | RENDIMENTO 97 · SUBSCRIÇÃO 12 · DESDOBRAMENTO 1                         | pag, **com**, ex, deliberação, valor, tipo, hash |
+| **MXRF11** | 137   | RENDIMENTO 132 · SUBSCRIÇÃO 5                                           | idem                                             |
+| **ITSA4**  | 151   | JCP 98 · DIVIDENDO 40 · SUBSCRIÇÃO 5 · BONIFICAÇÃO 4 · LEILÃO FRAÇÕES 4 | idem                                             |
+| **PETR4**  | 122   | DIVIDENDO 46 · RENDIMENTO 38 · JCP 31 · ATUALIZAÇÃO 7                   | idem                                             |
 
 Cada provento traz **data-pagamento, data-com e data-ex separadas** (verificado:
 RENDIMENTO HFOF11 com 29/05, ex 01/06, pag 15/06) + **tipo granular** (JCP distinto de
@@ -222,12 +231,12 @@ cobertura de eventos FII antigos).
 
 ### 5.3 Candles / série histórica (GCH) — ✅ ajustado; ⚠️ não-ajustado indisponível no trial
 
-| Ativo | Candles (ajustado, diário) | Cobertura | OHLC |
-| --- | --- | --- | --- |
-| **HFOF11** | 2.071 | 2018-03-01 (4,23) → 2026-06-30 (6,56) | completo |
-| **MXRF11** | 3.098 | 2014-01-02 (2,53) → 2026-06-30 (9,73) | completo |
-| **ITSA4** | 3.099 | 2014-01-02 (2,04) → 2026-06-30 (13,44) | completo |
-| **PETR4** | 3.099 | 2014-01-02 (4,02) → 2026-06-30 (37,81) | completo |
+| Ativo      | Candles (ajustado, diário) | Cobertura                              | OHLC     |
+| ---------- | -------------------------- | -------------------------------------- | -------- |
+| **HFOF11** | 2.071                      | 2018-03-01 (4,23) → 2026-06-30 (6,56)  | completo |
+| **MXRF11** | 3.098                      | 2014-01-02 (2,53) → 2026-06-30 (9,73)  | completo |
+| **ITSA4**  | 3.099                      | 2014-01-02 (2,04) → 2026-06-30 (13,44) | completo |
+| **PETR4**  | 3.099                      | 2014-01-02 (4,02) → 2026-06-30 (37,81) | completo |
 
 Série longa, **coerente e de uma só fonte** (hoje costuramos COTAHIST 2016-2020 +
 BRAPI 2021+ + Yahoo) e com **OHLC completo** — hoje só guardamos fechamento.
@@ -269,13 +278,13 @@ robustez do harness para MQC.
 
 ### 5.6 Resumo da captura
 
-| Tipo | Evidência ao vivo | Veredito |
-| --- | --- | --- |
-| Proventos (GP) | 110-151 proventos/ativo, pag+com+ex+tipo, fonte única | ✅ **substituir** BRAPI→Yahoo |
-| Splits (GP) | tipa correto + fator cross-valida, mas **perdeu o split MXRF11/2017** (§5.7) | ⚠️ **união Cedro ∪ Yahoo** (não substitui) |
-| Candles (GCH) | default = ajustado split+provento (≠ nosso nominal); **NP sem histórico no trial** | ⚠️ **não drop-in**; prod COTAHIST já cobre |
-| Cotação (SQT) | snapshot OK (último/fech.ant/descrição) | complementar |
-| Catálogo (MQC) | 228k/85k entradas c/ opções; terminador instável | validação cruzada; hardening pendente |
+| Tipo           | Evidência ao vivo                                                                  | Veredito                                   |
+| -------------- | ---------------------------------------------------------------------------------- | ------------------------------------------ |
+| Proventos (GP) | 110-151 proventos/ativo, pag+com+ex+tipo, fonte única                              | ✅ **substituir** BRAPI→Yahoo              |
+| Splits (GP)    | tipa correto + fator cross-valida, mas **perdeu o split MXRF11/2017** (§5.7)       | ⚠️ **união Cedro ∪ Yahoo** (não substitui) |
+| Candles (GCH)  | default = ajustado split+provento (≠ nosso nominal); **NP sem histórico no trial** | ⚠️ **não drop-in**; prod COTAHIST já cobre |
+| Cotação (SQT)  | snapshot OK (último/fech.ant/descrição)                                            | complementar                               |
+| Catálogo (MQC) | 228k/85k entradas c/ opções; terminador instável                                   | validação cruzada; hardening pendente      |
 
 ### 5.7 Diff quantitativo — dev + **prod (RDS)** — 2026-06-30
 
@@ -285,14 +294,14 @@ SSM, read-only)** para o que o dev não tinha (série COTAHIST profunda + nomina
 
 **(a) Eventos corporativos — fator bate, Cedro tipa melhor, mas ❗ Cedro PERDEU um split**
 
-| Ativo / data | Cedro | Nosso (fonte) | Veredito |
-| --- | --- | --- | --- |
-| HFOF11 · 2025-05-12 | DESDOBRAMENTO, valor 900% | DESDOBRAMENTO factor 10 (Yahoo) | ✅ bate (1:10); evento único dos dois lados |
-| ITSA4 · 2022-11 | BONIFICAÇÃO 10% | DESDOBRAMENTO 1.10 (Yahoo) | ⚠️ fator bate, **tipo diverge** — Cedro correto |
-| ITSA4 · 2023/2024 | BONIFICAÇÃO 5% | DESDOBRAMENTO 1.05 (Yahoo) | idem |
-| ITSA4 · 2025-12 | BONIFICAÇÃO 2% | DESDOBRAMENTO 1.02 (Yahoo) | idem |
-| MXRF11 · 2017-05-17 | — (**nenhum**) | DESDOBRAMENTO factor 10 (Yahoo) | ❗ **split é REAL** (prod COTAHIST: nominal **R$ 89,11** dez/2016 → **R$ 9,98** jun/2017) — **Cedro não reporta o evento** |
-| PETR4 · 2014+ | — | — | ✅ consistente (sem evento no período) |
+| Ativo / data        | Cedro                     | Nosso (fonte)                   | Veredito                                                                                                                   |
+| ------------------- | ------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| HFOF11 · 2025-05-12 | DESDOBRAMENTO, valor 900% | DESDOBRAMENTO factor 10 (Yahoo) | ✅ bate (1:10); evento único dos dois lados                                                                                |
+| ITSA4 · 2022-11     | BONIFICAÇÃO 10%           | DESDOBRAMENTO 1.10 (Yahoo)      | ⚠️ fator bate, **tipo diverge** — Cedro correto                                                                            |
+| ITSA4 · 2023/2024   | BONIFICAÇÃO 5%            | DESDOBRAMENTO 1.05 (Yahoo)      | idem                                                                                                                       |
+| ITSA4 · 2025-12     | BONIFICAÇÃO 2%            | DESDOBRAMENTO 1.02 (Yahoo)      | idem                                                                                                                       |
+| MXRF11 · 2017-05-17 | — (**nenhum**)            | DESDOBRAMENTO factor 10 (Yahoo) | ❗ **split é REAL** (prod COTAHIST: nominal **R$ 89,11** dez/2016 → **R$ 9,98** jun/2017) — **Cedro não reporta o evento** |
+| PETR4 · 2014+       | —                         | —                               | ✅ consistente (sem evento no período)                                                                                     |
 
 > **Achado-chave (reverte o §5.2):** a divergência do MXRF11 **não era erro do Yahoo** —
 > o split 10:1 de 2017 é **real**, confirmado pelo nominal COTAHIST de prod. A Cedro
@@ -307,12 +316,12 @@ Yahoo rotula como "desdobramento" — relevante para IR/custo de aquisição.
 
 **(b) Proventos — Cedro mais completo no período + data-com nativa** (prod ≈ dev)
 
-| Ativo | Cedro (2014+) | Nosso (prod) | data-com preenchida |
-| --- | --- | --- | --- |
-| HFOF11 | 110 | 51 (Yahoo+BRAPI) | parcial (Yahoo não traz com) |
-| MXRF11 | 137 | 109 (BRAPI) | 109/109 |
-| ITSA4 | 151 | 207 (BRAPI, desde 1996) | 207/207 |
-| PETR4 | 122 | 152 (BRAPI, desde 1996) | 152/152 |
+| Ativo  | Cedro (2014+) | Nosso (prod)            | data-com preenchida          |
+| ------ | ------------- | ----------------------- | ---------------------------- |
+| HFOF11 | 110           | 51 (Yahoo+BRAPI)        | parcial (Yahoo não traz com) |
+| MXRF11 | 137           | 109 (BRAPI)             | 109/109                      |
+| ITSA4  | 151           | 207 (BRAPI, desde 1996) | 207/207                      |
+| PETR4  | 122           | 152 (BRAPI, desde 1996) | 152/152                      |
 
 Para **FIIs** (HFOF11), a Cedro tem ~2× mais proventos no período e data-com em todos —
 onde hoje dependemos do Yahoo (sem data-com). Para ações de histórico longo a contagem
@@ -320,12 +329,12 @@ nossa é maior só pela janela (BRAPI vai a 1996; a captura Cedro usou `DESDE=20
 
 **(c) Série de preço — agora contra PROD (que tem a profundidade)**
 
-| Ativo | Cedro (GCH default) | Prod `asset_price_history` (nominal) |
-| --- | --- | --- |
+| Ativo  | Cedro (GCH default)                     | Prod `asset_price_history` (nominal)                 |
+| ------ | --------------------------------------- | ---------------------------------------------------- |
 | HFOF11 | 2.071 candles (2018→); **4,23** em 2018 | 2.071 (2018→); **nominal R$ 100** em 2018 (COTAHIST) |
-| MXRF11 | 3.098 (2014→); 2,53 em 2014 | 2.604 (2016→); nominal **R$ 83-89** em 2016 |
-| ITSA4 | 3.099 (2014→) | 2.604 (2016→); COTAHIST→BRAPI |
-| PETR4 | 3.099 (2014→) | 2.605 (2016→); COTAHIST→BRAPI |
+| MXRF11 | 3.098 (2014→); 2,53 em 2014             | 2.604 (2016→); nominal **R$ 83-89** em 2016          |
+| ITSA4  | 3.099 (2014→)                           | 2.604 (2016→); COTAHIST→BRAPI                        |
+| PETR4  | 3.099 (2014→)                           | 2.605 (2016→); COTAHIST→BRAPI                        |
 
 > **Mismatch de semântica (reverte o §5.3):** o **GCH default da Cedro é ajustado por
 > SPLIT + PROVENTOS** (total-return-like) — HFOF11 marca **4,23** em 2018 vs **nominal
@@ -336,6 +345,7 @@ nossa é maior só pela janela (BRAPI vai a 1996; a captura Cedro usou `DESDE=20
 > fonte oficial) e a Cedro só agregaria 2014-2015 + OHLC (com a ressalva do ajuste).
 
 **Conclusão revisada do diff (após prod):**
+
 - **Proventos (GP):** ganho real e sólido — mais completo p/ FII + data-com nativa. ✅
 - **Splits/eventos (GP):** Cedro **tipa melhor** e **cross-valida o fator**, MAS **perdeu
   o split 10:1 do MXRF11/2017** → **não é completo**; manter **Cedro ∪ Yahoo**. ⚠️
@@ -353,11 +363,11 @@ Eram **duas causas somadas**:
    `[ENTER]`"), mas a conta **tem** software key: **`cedro_crystal`** (campo "Chave" no
    Cedro Crystal). Com a chave vazia → `Invalid Login.`
 2. **`#` na senha truncado pelo `--env-file`.** O parser de `--env-file` do Node trata
-   `#` como início de comentário, então `CEDRO_PASS=socket#656` virava `socket` → login
-   inválido. **Correção: aspas** — `CEDRO_PASS="socket#656"`.
+   `#` como início de comentário, então `CEDRO_PASS=senha#123` virava `socket` → login
+   inválido. **Correção: aspas** — `CEDRO_PASS="senha#123"`.
 
 Credenciais finais (em `.env`, gitignored): host `cd102.cedrotech.com`, porta 81, user
-`myfinance`, pass `socket#656`, **key `cedro_crystal`**. Autenticação confirmada ao vivo
+`myfinance`, pass `senha#123`, **key `cedro_crystal`**. Autenticação confirmada ao vivo
 (`You are connected`) e captura realizada (§5).
 
 ---
@@ -389,6 +399,7 @@ retorno; **eventos** via Cedro só somando ao Yahoo; **série de preço** não j
 no trial atual. Reavaliar GCH se o plano pago liberar `NP` com histórico.
 
 **Próximos passos, em ordem:**
+
 1. ✅ ~~Destravar auth~~ · ✅ ~~smoke + §5~~ · ✅ ~~diff quantitativo (dev + prod) → §5.7~~.
 2. **Investigar a divergência MXRF11/2017 fechada** (split real; Cedro não expõe via GP)
    — decidir regra de **união Cedro ∪ Yahoo** para `asset_corporate_actions`.
