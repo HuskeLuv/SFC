@@ -13,6 +13,9 @@ import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
  */
 
 const valuesInclude = (valuesFilter: { userId: string; year: number }) => ({
+  // Só itens do próprio usuário ou do template: um item de terceiro apontando
+  // para este grupo (dado corrompido / abuso antigo) nunca deve ser exibido.
+  where: { OR: [{ userId: valuesFilter.userId }, { userId: null }] },
   orderBy: [{ orderIndex: 'asc' as const }, { name: 'asc' as const }],
   include: {
     values: {
@@ -29,13 +32,16 @@ export async function getMergedCashflowGroups(
   const valuesFilter = { userId: targetUserId, year };
   const items = valuesInclude(valuesFilter);
 
+  const ownedOrTemplate = { OR: [{ userId: targetUserId }, { userId: null }] };
   const nestedInclude = {
     items,
     children: {
+      where: ownedOrTemplate,
       orderBy: { orderIndex: 'asc' as const },
       include: {
         items,
         children: {
+          where: ownedOrTemplate,
           orderBy: { orderIndex: 'asc' as const },
           include: { items },
         },
