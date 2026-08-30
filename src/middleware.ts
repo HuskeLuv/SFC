@@ -27,7 +27,8 @@ function isPublicRoute(pathname: string): boolean {
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/public') ||
     pathname.startsWith('/api/institutions') ||
-    pathname.startsWith('/api/assets') ||
+    // /api/assets NÃO é público: a tabela Asset também guarda ativos manuais
+    // nomeados pelos usuários (auditoria 29/08/2026, achado 1.1).
     pathname.startsWith('/api/emissores') ||
     // Vercel Cron requests carry no JWT cookie — the route itself authenticates
     // via Authorization: Bearer CRON_SECRET, so let them pass the JWT gate.
