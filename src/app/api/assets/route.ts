@@ -18,7 +18,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search') || '';
   const tipo = searchParams.get('tipo') || '';
-  const limit = parseInt(searchParams.get('limit') || '20');
+  const MAX_LIMIT = 100;
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20') || 20, 1), MAX_LIMIT);
 
   // Helper de busca por symbol/name (case-insensitive)
   const buildSearchClause = (s: string): Record<string, unknown> | undefined => {
@@ -260,7 +261,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // ──────────────────────────────────────────────────────────────────────
   // Demais tipos (etf, reit, bdr, debenture, criptoativo, moeda, etc.)
   // ──────────────────────────────────────────────────────────────────────
-  const baseFilters: Record<string, unknown> = {};
+  // Ativos criados por usuários (personalizado, imóvel, RF manual, reservas)
+  // vivem na mesma tabela com source='manual' e carregam nome/valor/data
+  // digitados pelo dono — nunca entram no autocomplete de catálogo.
+  const baseFilters: Record<string, unknown> = { source: { not: 'manual' } };
 
   if (tipo) {
     const tipoMapping: Record<string, string[]> = {
@@ -286,7 +290,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   let whereClause: Record<string, unknown>;
   if (search) {
     const andConditions: Record<string, unknown>[] = [];
-    if (Object.keys(baseFilters).length > 0) andConditions.push(baseFilters);
+    andConditions.push(baseFilters);
     andConditions.push({
       OR: [
         { symbol: { contains: search, mode: 'insensitive' } },
@@ -295,7 +299,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     });
     whereClause = { AND: andConditions };
   } else {
-    whereClause = Object.keys(baseFilters).length > 0 ? baseFilters : {};
+    whereClause = baseFilters;
   }
 
   const assets = await prisma.asset.findMany({

@@ -68,6 +68,12 @@ describe('Middleware', () => {
       expect(res.status).not.toBe(307);
     });
 
+    it('should require JWT on /api/assets (catálogo contém ativos manuais de usuários)', async () => {
+      const res = await middleware(createRequest('/api/assets?search=apartamento'));
+      expect(res.status).toBe(307);
+      expect(new URL(res.headers.get('location')!).pathname).toBe('/signin');
+    });
+
     it('should allow /api/public routes without JWT token', async () => {
       const res = await middleware(createRequest('/api/public/health'));
       expect(res.status).not.toBe(307);
