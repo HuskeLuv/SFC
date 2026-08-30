@@ -12,6 +12,10 @@ const outfit = Outfit({
   subsets: ['latin'],
 });
 
+// CSP com nonce por request exige render dinâmico em todas as rotas: uma
+// página pré-renderizada no build teria scripts inline sem nonce e quebraria.
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   icons: {
     icon: '/images/logo/logo-icon.svg',

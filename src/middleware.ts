@@ -75,9 +75,9 @@ function applyRateLimitHeaders(
  *
  * Diretivas:
  *  - default-src 'self': bloqueia tudo que não seja do próprio domínio.
- *  - script-src: 'self' + 'unsafe-inline' (necessário pro Next.js
- *    inline scripts de hidratação) + 'unsafe-eval' (ApexCharts usa Function
- *    construtor). Quando migrar pra nonces, isso some.
+ *  - script-src: 'self' + nonce por request + 'strict-dynamic' (scripts
+ *    inline do Next.js recebem o nonce; chunks e scripts criados por eles
+ *    herdam a confiança) + 'unsafe-eval' (ApexCharts usa Function construtor).
  *  - style-src 'self' + 'unsafe-inline': TailAdmin + flatpickr injetam
  *    estilos inline.
  *  - img-src: 'self' + data: (QR codes/avatars base64) + https: (logos
@@ -98,31 +98,63 @@ function applyRateLimitHeaders(
 // VTurb) fica bloqueado de propósito. Se um vídeo novo falhar, conferir no
 // console qual host faltou e adicioná-lo aqui.
 const VTURB_HOSTS = 'https://*.converteai.net https://*.vturb.com https://*.b-cdn.net';
+// Scripts só de converteai/vturb — *.b-cdn.net é CDN compartilhado (qualquer
+// cliente Bunny hospeda lá) e fica apenas em connect/media (auditoria 29/08/2026).
+const VTURB_SCRIPT_HOSTS = 'https://*.converteai.net https://*.vturb.com';
 
-const CONTENT_SECURITY_POLICY = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${VTURB_HOSTS}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https:",
-  "font-src 'self' data:",
-  `connect-src 'self' ${VTURB_HOSTS}`,
-  `media-src 'self' blob: ${VTURB_HOSTS}`,
-  "frame-ancestors 'none'",
-  "form-action 'self'",
-  "base-uri 'self'",
-  'upgrade-insecure-requests',
-].join('; ');
+/**
+ * Nonce por request (auditoria 29/08/2026, achado 5.2): `script-src` deixa de
+ * usar 'unsafe-inline'. O Next.js lê o nonce do header Content-Security-Policy
+ * do REQUEST e o aplica nos próprios scripts inline de hidratação; 'strict-dynamic'
+ * estende a confiança aos chunks carregados por eles e aos scripts que o
+ * VturbPlayer cria via createElement. 'unsafe-eval' permanece por causa do
+ * ApexCharts (Function construtor).
+ */
+function generateNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+function buildContentSecurityPolicy(nonce: string): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' ${VTURB_SCRIPT_HOSTS}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self' data:",
+    `connect-src 'self' ${VTURB_HOSTS}`,
+    `media-src 'self' blob: ${VTURB_HOSTS}`,
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "base-uri 'self'",
+    'upgrade-insecure-requests',
+  ].join('; ');
+}
+
+/**
+ * Cria a resposta "passa adiante" propagando nonce + CSP nos headers do
+ * request, que é de onde o Next.js os lê ao renderizar.
+ */
+function nextWithNonce(request: NextRequest, nonce: string): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', buildContentSecurityPolicy(nonce));
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
 
 /** Apply security headers to a response. */
-function setSecurityHeaders(response: NextResponse, request: NextRequest): void {
+function setSecurityHeaders(
+  response: NextResponse,
+  request: NextRequest,
+  nonce: string = generateNonce(),
+): void {
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-  // LGPD ATENÇÃO: CSP + HSTS.
-  // CSP em modo permissivo por ora (unsafe-inline/unsafe-eval) pra não
-  // quebrar Next.js inline scripts e ApexCharts. Próxima iteração: nonces.
-  response.headers.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  // LGPD ATENÇÃO: CSP (nonce por request) + HSTS.
+  response.headers.set('Content-Security-Policy', buildContentSecurityPolicy(nonce));
   // HSTS apenas em produção — em dev local sobre HTTP, o browser
   // memoriza preload e impede acesso futuro via HTTP.
   if (process.env.NODE_ENV === 'production') {
@@ -171,8 +203,9 @@ export async function middleware(request: NextRequest) {
 
   // --- Public routes: allow through without auth ---
   if (isPublicRoute(pathname)) {
-    const response = NextResponse.next();
-    setSecurityHeaders(response, request);
+    const nonce = generateNonce();
+    const response = nextWithNonce(request, nonce);
+    setSecurityHeaders(response, request, nonce);
     applyRateLimitHeaders(response, rateLimitHeaders);
     return response;
   }
@@ -216,8 +249,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // --- Ensure CSRF cookie is set (for all authenticated responses) ---
-  const response = NextResponse.next();
-  setSecurityHeaders(response, request);
+  const nonce = generateNonce();
+  const response = nextWithNonce(request, nonce);
+  setSecurityHeaders(response, request, nonce);
   applyRateLimitHeaders(response, rateLimitHeaders);
   if (!request.cookies.get(CSRF_COOKIE_NAME)) {
     response.cookies.set(CSRF_COOKIE_NAME, generateCsrfToken(), {
