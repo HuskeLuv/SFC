@@ -500,9 +500,10 @@ export async function getItemForUser(itemId: string, userId: string): Promise<Ca
   });
   if (overrideByTemplate) return overrideByTemplate;
 
-  // 3) template original
-  const templateItem = await prisma.cashflowItem.findUnique({
-    where: { id: itemId },
+  // 3) template original — OBRIGATORIAMENTE userId = null. Sem esse filtro um
+  // item de outro usuário seria devolvido como se fosse template (IDOR).
+  const templateItem = await prisma.cashflowItem.findFirst({
+    where: { id: itemId, userId: null },
   });
   return templateItem;
 }
@@ -545,11 +546,22 @@ export async function getGroupForUser(
   });
   if (overrideByTemplate) return overrideByTemplate;
 
-  // 3) template original
-  const templateGroup = await prisma.cashflowGroup.findUnique({
-    where: { id: groupId },
+  // 3) template original — OBRIGATORIAMENTE userId = null (ver getItemForUser).
+  const templateGroup = await prisma.cashflowGroup.findFirst({
+    where: { id: groupId, userId: null },
   });
   return templateGroup;
+}
+
+/**
+ * Resolve um `groupId` vindo do cliente para o id de um grupo que PERTENCE ao
+ * usuário: grupo próprio → o próprio id; template → personaliza e devolve o
+ * override; grupo de outro usuário / inexistente → null.
+ */
+export async function resolveOwnedGroupId(groupId: string, userId: string): Promise<string | null> {
+  const group = await getGroupForUser(groupId, userId);
+  if (!group) return null;
+  return group.userId === null ? personalizeGroup(group.id, userId) : group.id;
 }
 
 /**

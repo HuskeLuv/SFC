@@ -30,6 +30,7 @@ const mockGetItemForUser = vi.hoisted(() => vi.fn());
 const mockGetGroupForUser = vi.hoisted(() => vi.fn());
 const mockHideTemplateGroup = vi.hoisted(() => vi.fn());
 const mockHideTemplateItem = vi.hoisted(() => vi.fn());
+const mockResolveOwnedGroupId = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@prisma/client', () => ({ Prisma: {} }));
@@ -47,6 +48,7 @@ vi.mock('@/utils/cashflowPersonalization', () => ({
   getGroupForUser: mockGetGroupForUser,
   hideTemplateGroup: mockHideTemplateGroup,
   hideTemplateItem: mockHideTemplateItem,
+  resolveOwnedGroupId: mockResolveOwnedGroupId,
 }));
 vi.mock('@/services/impersonationLogger', () => ({
   logDataUpdate: vi.fn(),
@@ -209,6 +211,85 @@ describe('PATCH /api/cashflow/update — CRUD operations', () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
+  });
+});
+
+describe('PATCH /api/cashflow/update — isolamento por usuário (IDOR, auditoria 29/08/2026)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('mover item para groupId de outro usuário → 404 e nada é gravado', async () => {
+    mockGetItemForUser.mockResolvedValue({ id: 'item-1', userId: 'user-123' });
+    mockResolveOwnedGroupId.mockResolvedValue(null); // grupo alheio / inexistente
+
+    const response = await PATCH(
+      createRequest({
+        operation: 'update',
+        type: 'item',
+        id: 'item-1',
+        data: { groupId: 'group-of-user-B' },
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(mockResolveOwnedGroupId).toHaveBeenCalledWith('group-of-user-B', 'user-123');
+    expect(mockPrisma.cashflowItem.update).not.toHaveBeenCalled();
+  });
+
+  it('mover item para grupo template grava no override PERSONALIZADO, nunca no template', async () => {
+    mockGetItemForUser.mockResolvedValue({ id: 'item-1', userId: 'user-123' });
+    mockResolveOwnedGroupId.mockResolvedValue('group-override-1');
+    mockPrisma.cashflowItem.update.mockResolvedValue({ id: 'item-1', values: [] });
+
+    const response = await PATCH(
+      createRequest({
+        operation: 'update',
+        type: 'item',
+        id: 'item-1',
+        data: { groupId: 'group-template-1' },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'item-1', userId: 'user-123' },
+        data: expect.objectContaining({ groupId: 'group-override-1' }),
+      }),
+    );
+  });
+
+  it('criar grupo com parentId de outro usuário → 404', async () => {
+    mockResolveOwnedGroupId.mockResolvedValue(null);
+
+    const response = await PATCH(
+      createRequest({
+        operation: 'create',
+        type: 'group',
+        data: { name: 'Sub', type: 'saida', parentId: 'group-of-user-B' },
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(mockPrisma.cashflowGroup.create).not.toHaveBeenCalled();
+  });
+
+  it('atualizar grupo com parentId de outro usuário → 404', async () => {
+    mockGetGroupForUser.mockResolvedValue({ id: 'group-1', userId: 'user-123' });
+    mockResolveOwnedGroupId.mockResolvedValue(null);
+
+    const response = await PATCH(
+      createRequest({
+        operation: 'update',
+        type: 'group',
+        id: 'group-1',
+        data: { parentId: 'group-of-user-B' },
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(mockPrisma.cashflowGroup.update).not.toHaveBeenCalled();
   });
 });
 

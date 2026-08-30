@@ -154,6 +154,25 @@ describe('PUT /api/cashflow/batch-update', () => {
     expect(data.results.every((r: { success: boolean }) => r.success)).toBe(true);
   });
 
+  it('update de nome/significado/rank sempre filtra por userId (IDOR, auditoria 29/08/2026)', async () => {
+    // Mesmo que ensurePersonalizedItem devolva um id, o update precisa ser
+    // escopado ao usuário: item de terceiro nunca pode ser alterado.
+    mockEnsurePersonalizedItem.mockResolvedValue({
+      itemId: 'item-of-user-B',
+      item: { id: 'item-of-user-B', userId: 'user-B', groupId: 'g' },
+    });
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ objetivoId: null, dividaId: null });
+    mockPrisma.cashflowItem.update.mockResolvedValue({});
+
+    await PUT(
+      createRequest({ groupId: 'g', updates: [{ itemId: 'item-of-user-B', name: 'hackeado' }] }),
+    );
+
+    expect(mockPrisma.cashflowItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'item-of-user-B', userId: 'user-123' } }),
+    );
+  });
+
   it('lida com array de updates vazio graciosamente', async () => {
     const response = await PUT(
       createRequest({

@@ -215,7 +215,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
 
           if (Object.keys(itemUpdateData).length > 0) {
             await prisma.cashflowItem.update({
-              where: { id: finalItemId },
+              where: { id: finalItemId, userId: targetUserId },
               data: itemUpdateData,
             });
           }

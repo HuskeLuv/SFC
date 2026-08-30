@@ -8,6 +8,7 @@ import {
   personalizeItem,
   getItemForUser,
   getGroupForUser,
+  resolveOwnedGroupId,
   hideTemplateGroup,
   hideTemplateItem,
 } from '@/utils/cashflowPersonalization';
@@ -248,13 +249,24 @@ async function handleGroupOperation(
       };
     }
 
+    let parentId: string | null = null;
+    if (data.parentId) {
+      parentId = await resolveOwnedGroupId(data.parentId, userId);
+      if (!parentId) {
+        return {
+          response: NextResponse.json({ error: 'Grupo pai não encontrado' }, { status: 404 }),
+          outcome: {},
+        };
+      }
+    }
+
     const newGroup = await prisma.cashflowGroup.create({
       data: {
         userId,
         name: data.name,
         type: data.type,
         orderIndex: data.orderIndex || 0,
-        parentId: data.parentId || null,
+        parentId,
       },
       include: {
         items: true,
@@ -301,7 +313,20 @@ async function handleGroupOperation(
     if (data.type) updateData.type = data.type;
     if (data.orderIndex !== undefined && data.orderIndex !== null)
       updateData.orderIndex = data.orderIndex;
-    if (data.parentId !== undefined) updateData.parentId = data.parentId;
+    if (data.parentId !== undefined) {
+      if (data.parentId) {
+        const ownedParentId = await resolveOwnedGroupId(data.parentId, userId);
+        if (!ownedParentId) {
+          return {
+            response: NextResponse.json({ error: 'Grupo pai não encontrado' }, { status: 404 }),
+            outcome: {},
+          };
+        }
+        updateData.parentId = ownedParentId;
+      } else {
+        updateData.parentId = null;
+      }
+    }
     // Update implícito desfaz tombstone: editar uma linha oculta significa que
     // o usuário a quer de volta.
     updateData.hidden = false;
@@ -556,6 +581,21 @@ async function handleItemOperation(
       finalItemId = await personalizeItem(item.id, userId);
     }
 
+    // Mover de grupo: o destino precisa pertencer ao usuário (template é
+    // personalizado antes). Sem isso um item podia ser plantado no grupo de
+    // outro usuário ou num template compartilhado por todos.
+    let targetGroupId: string | undefined;
+    if (data.groupId) {
+      const owned = await resolveOwnedGroupId(data.groupId, userId);
+      if (!owned) {
+        return {
+          response: NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 }),
+          outcome: {},
+        };
+      }
+      targetGroupId = owned;
+    }
+
     // Atualizar apenas itens personalizados do usuário. Update implícito
     // desfaz tombstone (editar uma linha oculta a "ressuscita").
     const updatedItem = await prisma.cashflowItem.update({
@@ -567,7 +607,7 @@ async function handleItemOperation(
         ...(data.name && { name: data.name }),
         ...(data.significado !== undefined && { significado: data.significado }),
         ...(data.rank !== undefined && { rank: data.rank }),
-        ...(data.groupId && { groupId: data.groupId }),
+        ...(targetGroupId && { groupId: targetGroupId }),
         hidden: false,
       },
       include: {
