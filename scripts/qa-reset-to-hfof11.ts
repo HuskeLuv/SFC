@@ -6,7 +6,11 @@
  */
 const BASE_URL = process.env.SFC_BASE_URL || 'http://localhost:3000';
 const EMAIL = process.env.QA_EMAIL || 'qa.teste@appmyfinance.com.br';
-const PASSWORD = process.env.QA_PASSWORD || 'QaTeste@2026';
+const PASSWORD = process.env.QA_PASSWORD ?? '';
+if (!PASSWORD) {
+  console.error('QA_PASSWORD não definido — abortando.');
+  process.exit(1);
+}
 
 const CARTEIRA_ENDPOINTS = [
   'acoes',
@@ -134,7 +138,9 @@ async function main() {
   );
 
   // 3) Conferir
-  const chk = collectRows((await api('/api/carteira/fii')).json).filter((r) => r.ticker === 'HFOF11');
+  const chk = collectRows((await api('/api/carteira/fii')).json).filter(
+    (r) => r.ticker === 'HFOF11',
+  );
   const acoes = collectRows((await api('/api/carteira/acoes')).json);
   console.log(`\nEstado final: HFOF11 presente=${chk.length > 0}; ações restantes=${acoes.length}`);
 }

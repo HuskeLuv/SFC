@@ -11,8 +11,8 @@
  *   CEDRO_DEBUG=1 ...      # loga tráfego cru
  *
  * ⚠️ Gotcha: o parser de --env-file do Node trata `#` como comentário. Se a
- * senha tem `#` (ex.: socket#656), ASPAS são obrigatórias no .env:
- *   CEDRO_PASS="socket#656"   (sem aspas vira "socket" → Invalid Login).
+ * senha tem `#` (ex.: senha#123), ASPAS são obrigatórias no .env:
+ *   CEDRO_PASS="senha#123"   (sem aspas vira "socket" → Invalid Login).
  * Software Key = cedro_crystal (NÃO vazia — esse era o "Invalid Login" inicial).
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -44,7 +44,10 @@ const CASES: CaseDef[] = [
 const HOJE = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 const DESDE = '20140101';
 
-async function safe<T>(label: string, fn: () => Promise<T>): Promise<{ ok: boolean; data?: T; error?: string }> {
+async function safe<T>(
+  label: string,
+  fn: () => Promise<T>,
+): Promise<{ ok: boolean; data?: T; error?: string }> {
   try {
     const data = await fn();
     return { ok: true, data };
@@ -81,7 +84,11 @@ async function main() {
   if (mqc.ok && mqc.data) {
     const ativos = parseMqc(mqc.data);
     console.log(`  ✓ ${ativos.length} ativos. Amostra: ${ativos.slice(0, 8).join(', ')}`);
-    resultados.mqc = { totalAtivos: ativos.length, amostra: ativos.slice(0, 30), raw: mqc.data.slice(0, 4000) };
+    resultados.mqc = {
+      totalAtivos: ativos.length,
+      amostra: ativos.slice(0, 30),
+      raw: mqc.data.slice(0, 4000),
+    };
   } else {
     resultados.mqc = { error: mqc.error };
   }
@@ -95,13 +102,18 @@ async function main() {
     const sqt = await safe('SQT', () => client.sendCommand(`SQT ${t} N`, CedroClient.doneOn.bang));
     if (sqt.ok && sqt.data) {
       const q = parseQuote(sqt.data);
-      console.log(`  SQT: último=${q?.ultimoPreco} fechAnt=${q?.fechamentoAnterior} desc=${q?.descricao}`);
+      console.log(
+        `  SQT: último=${q?.ultimoPreco} fechAnt=${q?.fechamentoAnterior} desc=${q?.descricao}`,
+      );
       r.sqt = { parsed: q, raw: sqt.data.slice(0, 2000) };
     } else r.sqt = { error: sqt.error };
 
     // GP proventos + eventos corporativos (ordenado por data de pagamento)
     const gp = await safe('GP', () =>
-      client.sendCommand(`GP D gp${t.slice(0, 4)} ${DESDE} ${HOJE} ${t} DP`, CedroClient.doneOn.end),
+      client.sendCommand(
+        `GP D gp${t.slice(0, 4)} ${DESDE} ${HOJE} ${t} DP`,
+        CedroClient.doneOn.end,
+      ),
     );
     if (gp.ok && gp.data) {
       const provs = parseProventos(gp.data);
@@ -117,7 +129,10 @@ async function main() {
 
     // GCH candles diários AJUSTADOS (série longa)
     const gch = await safe('GCH', () =>
-      client.sendCommand(`GCH ${t} H gc${t.slice(0, 4)} D ${DESDE}0000 ${HOJE}2359`, CedroClient.doneOn.colonE),
+      client.sendCommand(
+        `GCH ${t} H gc${t.slice(0, 4)} D ${DESDE}0000 ${HOJE}2359`,
+        CedroClient.doneOn.colonE,
+      ),
     );
     if (gch.ok && gch.data) {
       const candles = parseCandles(gch.data);
@@ -136,11 +151,16 @@ async function main() {
     // (snapshot não-ajustado), não a série histórica — verificado ao vivo em
     // 2026-06-30 (limitação de plano). A série longa vem do GCH ajustado acima.
     const gchNp = await safe('GCH NP', () =>
-      client.sendCommand(`GCH ${t} NP H gn${t.slice(0, 4)} D ${DESDE}0000 ${HOJE}2359`, CedroClient.doneOn.colonE),
+      client.sendCommand(
+        `GCH ${t} NP H gn${t.slice(0, 4)} D ${DESDE}0000 ${HOJE}2359`,
+        CedroClient.doneOn.colonE,
+      ),
     );
     if (gchNp.ok && gchNp.data) {
       const candles = parseCandles(gchNp.data);
-      console.log(`  GCH(NP): ${candles.length} candle (snapshot não-ajustado; NP não dá série neste trial)`);
+      console.log(
+        `  GCH(NP): ${candles.length} candle (snapshot não-ajustado; NP não dá série neste trial)`,
+      );
       r.gch_np_snapshot = { nota: 'NP retorna só o candle mais recente neste trial', candles };
     } else r.gch_np_snapshot = { error: gchNp.error };
 
