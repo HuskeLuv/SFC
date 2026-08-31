@@ -1,45 +1,34 @@
 import { NextRequest } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { ConsultantClientStatus, UserRole } from '@prisma/client';
+import { ConsultantClientStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
-
-type ApiError = {
-  status: number;
-  message: string;
-};
+import { requireRole } from '@/utils/auth';
+import { ApiError } from '@/utils/apiErrorHandler';
 
 export type AuthenticatedConsultant = {
   consultantId: string;
   userId: string;
 };
 
+/**
+ * Autentica um consultor: JWT válido + role consultant + perfil Consultant.
+ *
+ * Reescrito sobre requireRole (auditoria 29/08/2026, achado 2.5):
+ * - o lookup do perfil usa APENAS userId — o OR anterior também casava
+ *   Consultant.id com o id do User do JWT, misturando espaços de id;
+ * - os erros agora são ApiError de verdade: antes eram objetos puros que o
+ *   withErrorHandler não reconhecia e viravam 500 genérico.
+ */
 export const authenticateConsultant = async (
   request: NextRequest,
 ): Promise<AuthenticatedConsultant> => {
-  const token = request.cookies.get('token')?.value;
-  if (!token) {
-    throw <ApiError>{ status: 401, message: 'Não autenticado' };
-  }
-
-  let payload: { id: string; email: string; role: UserRole };
-  try {
-    payload = jwt.verify(token, process.env.JWT_SECRET as string) as typeof payload;
-  } catch {
-    throw <ApiError>{ status: 401, message: 'Token inválido' };
-  }
-
-  if (payload.role !== UserRole.consultant) {
-    throw <ApiError>{ status: 403, message: 'Acesso restrito a consultores' };
-  }
+  const payload = requireRole(request, 'consultant');
 
   const consultant = await prisma.consultant.findFirst({
-    where: {
-      OR: [{ id: payload.id }, { userId: payload.id }],
-    },
+    where: { userId: payload.id },
   });
 
   if (!consultant) {
-    throw <ApiError>{ status: 403, message: 'Perfil de consultor não encontrado' };
+    throw new ApiError(403, 'Perfil de consultor não encontrado');
   }
 
   return {
@@ -50,7 +39,7 @@ export const authenticateConsultant = async (
 
 export const assertClientOwnership = async (consultantId: string, clientId: string) => {
   if (!clientId) {
-    throw <ApiError>{ status: 400, message: 'Cliente não informado' };
+    throw new ApiError(400, 'Cliente não informado');
   }
 
   const assignment = await prisma.clientConsultant.findFirst({
@@ -62,7 +51,7 @@ export const assertClientOwnership = async (consultantId: string, clientId: stri
   });
 
   if (!assignment) {
-    throw <ApiError>{ status: 404, message: 'Cliente não vinculado ao consultor' };
+    throw new ApiError(404, 'Cliente não vinculado ao consultor');
   }
 
   return assignment;

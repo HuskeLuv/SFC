@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
 import type { UserRole } from '@prisma/client';
 import { resolveActingContext } from '@/utils/consultantActing';
+import { ApiError } from '@/utils/apiErrorHandler';
 
 export interface JWTPayload {
   id: string;
@@ -14,7 +15,7 @@ export interface JWTPayload {
 export function verifyJWT(request: NextRequest): JWTPayload | null {
   try {
     const token = request.cookies.get('token')?.value;
-    
+
     if (!token) {
       return null;
     }
@@ -28,13 +29,25 @@ export function verifyJWT(request: NextRequest): JWTPayload | null {
 
 export function requireAuth(request: NextRequest): JWTPayload {
   const payload = verifyJWT(request);
-  
+
   if (!payload) {
     throw new Error('Não autorizado');
   }
-  
+
   return payload;
-} 
+}
+
+/**
+ * requireAuth + exigência de role (auditoria 29/08/2026, achado 2.5).
+ * Lança ApiError(403) — rotas sob withErrorHandler respondem JSON padronizado.
+ */
+export function requireRole(request: NextRequest, role: JWTPayload['role']): JWTPayload {
+  const payload = requireAuth(request);
+  if (payload.role !== role) {
+    throw new ApiError(403, 'Acesso negado');
+  }
+  return payload;
+}
 
 export interface AuthWithActingResult {
   payload: JWTPayload;

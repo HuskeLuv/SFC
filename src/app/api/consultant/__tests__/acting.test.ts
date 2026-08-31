@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import { ApiError } from '@/utils/apiErrorHandler';
 
 const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
@@ -109,29 +110,25 @@ describe('POST /api/consultant/acting', () => {
   });
 
   it('retorna erro quando consultor nao autenticado', async () => {
-    mockAuthenticateConsultant.mockRejectedValue({
-      status: 403,
-      message: 'Acesso restrito a consultores',
-    });
+    mockAuthenticateConsultant.mockRejectedValue(new ApiError(403, 'Acesso negado'));
 
     const response = await POST(createPostRequest({ clientId: 'client-1' }));
     const data = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(data.error).toBeDefined();
+    expect(response.status).toBe(403);
+    expect(data.error).toBe('Acesso negado');
   });
 
   it('retorna erro quando cliente nao vinculado', async () => {
-    mockAssertClientOwnership.mockRejectedValue({
-      status: 404,
-      message: 'Cliente não vinculado ao consultor',
-    });
+    mockAssertClientOwnership.mockRejectedValue(
+      new ApiError(404, 'Cliente não vinculado ao consultor'),
+    );
 
     const response = await POST(createPostRequest({ clientId: 'client-1' }));
     const data = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(data.error).toBeDefined();
+    expect(response.status).toBe(404);
+    expect(data.error).toBe('Cliente não vinculado ao consultor');
   });
 });
 
