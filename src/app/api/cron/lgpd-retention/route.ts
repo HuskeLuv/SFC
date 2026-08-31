@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { requireCronSecret } from '@/utils/cronAuth';
 
 const DAYS = 24 * 60 * 60 * 1000;
 const INVITE_TTL_DAYS = 30;
@@ -31,14 +32,7 @@ const LOGIN_EVENT_TTL_DAYS = 90;
 const USER_CHANGE_LOG_TTL_DAYS = 365;
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET não configurado' }, { status: 503 });
-  }
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  requireCronSecret(request);
 
   const now = Date.now();
   const inviteCutoff = new Date(now - INVITE_TTL_DAYS * DAYS);

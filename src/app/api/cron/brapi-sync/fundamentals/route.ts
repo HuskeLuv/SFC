@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncFundamentalsForSymbols } from '@/services/pricing/fundamentalsService';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { requireCronSecret } from '@/utils/cronAuth';
 
 /**
  * Cron diário: sincroniza fundamentos (P/L, Beta, Dividend Yield) na tabela
@@ -23,15 +24,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * ativos), com BRAPI a ~150ms por batch fica em ~30s. Margem confortável.
  */
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET não configurado' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  requireCronSecret(request);
 
   const startTime = Date.now();
 

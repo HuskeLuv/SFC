@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { applyCorporateActionsToUserPositions } from '@/services/portfolio/applyCorporateActions';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { requireCronSecret } from '@/utils/cronAuth';
 
 /**
  * Cron diário: aplica AssetCorporateAction (splits/grupamentos/bonificações)
@@ -21,15 +22,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * id e pulam.
  */
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET não configurado' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  requireCronSecret(request);
 
   const startTime = Date.now();
   logger.info('🏦 Aplicando corporate actions a Portfolios...');

@@ -19,9 +19,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     orderBy: {
       createdAt: 'desc',
     },
+    // sessionToken NÃO sai daqui: é credencial de impersonation — vazá-lo na
+    // resposta permitiria sequestrar a sessão (auditoria 29/08/2026, achado 1.4).
     select: {
       id: true,
-      sessionToken: true,
       clientId: true,
       createdAt: true,
       expiresAt: true,
@@ -45,7 +46,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const client = clientMap.get(session.clientId);
     return {
       id: session.id,
-      sessionToken: session.sessionToken,
       clientId: session.clientId,
       clientName: client?.name ?? 'Cliente',
       clientEmail: client?.email ?? '',
