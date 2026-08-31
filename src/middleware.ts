@@ -36,6 +36,12 @@ function isPublicRoute(pathname: string): boolean {
     pathname === '/api/health' ||
     pathname === '/signin' ||
     pathname === '/signup' ||
+    pathname === '/reset-password' ||
+    // Páginas legais são públicas (LGPD #1) e agora passam pelo middleware
+    // para receber CSP + security headers (auditoria 29/08/2026, follow-up).
+    pathname === '/politica-de-privacidade' ||
+    pathname === '/termos-de-uso' ||
+    pathname === '/subprocessadores' ||
     pathname === '/favicon.ico' ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/public') ||
@@ -221,14 +227,27 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  let jwtPayload: { role?: string };
   try {
-    await jwtVerify(tokenCookie.value, getJwtSecret());
+    const { payload } = await jwtVerify(tokenCookie.value, getJwtSecret());
+    jwtPayload = payload as { role?: string };
   } catch {
     // Token is invalid or expired — clear it and redirect
     const url = request.nextUrl.clone();
     url.pathname = '/signin';
     const response = NextResponse.redirect(url);
     response.cookies.delete('token');
+    setSecurityHeaders(response, request);
+    return response;
+  }
+
+  // --- Páginas do consultor exigem role consultant (auditoria 29/08/2026, 2.3) ---
+  // As APIs /api/consultant já validam via authenticateConsultant; aqui é a
+  // camada de página, que antes só exigia login.
+  if (pathname.startsWith('/consultor') && jwtPayload.role !== 'consultant') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    const response = NextResponse.redirect(url);
     setSecurityHeaders(response, request);
     return response;
   }
@@ -268,8 +287,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Páginas legais (políticas, termos, subprocessadores) acessíveis sem
-    // login — usuário precisa lê-las antes de aceitar/cadastrar (LGPD #1).
-    '/((?!_next|public|favicon.ico|signin|signup|test|politica-de-privacidade|termos-de-uso|subprocessadores).*)',
+    // signin/signup e páginas legais AGORA passam pelo middleware (eram um
+    // gap sem CSP/headers — auditoria 29/08/2026): continuam públicas via
+    // isPublicRoute, mas recebem os security headers como todo o resto.
+    '/((?!_next|public|favicon.ico|test).*)',
   ],
 };
