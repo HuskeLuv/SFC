@@ -273,4 +273,63 @@ describe('GET /api/cashflow/structure', () => {
     expect(data[0].items[0].id).toBe('legacy-item');
     expect(data[0].items[0].significado).toBe('legado');
   });
+
+  it('Caso F: nos na profundidade maxima do include (sem items/children) nao quebram o merge', async () => {
+    // O include do Prisma só carrega 3 níveis de grupos: o neto chega SEM as
+    // propriedades items/children. Regressão do 500 "groups is not iterable".
+    const deepGrandchild = {
+      id: 'user-neto',
+      name: 'Neto',
+      type: 'saida',
+      userId: 'user-123',
+      parentId: 'user-filho',
+      orderIndex: 0,
+      templateId: null,
+      hidden: false,
+      // sem items nem children, como o Prisma devolve na profundidade máxima
+    };
+    const userRoot = {
+      id: 'user-raiz',
+      name: 'Despesas Custom',
+      type: 'saida',
+      userId: 'user-123',
+      parentId: null,
+      orderIndex: 5,
+      templateId: null,
+      hidden: false,
+      items: [],
+      children: [
+        {
+          id: 'user-filho',
+          name: 'Filho',
+          type: 'saida',
+          userId: 'user-123',
+          parentId: 'user-raiz',
+          orderIndex: 0,
+          templateId: null,
+          hidden: false,
+          items: [],
+          children: [deepGrandchild],
+        },
+      ],
+    };
+
+    mockPrisma.cashflowGroup.findMany
+      .mockResolvedValueOnce([buildTemplateGroup()]) // templates
+      // userRows traz TODOS os grupos do usuário (não só raízes): os nós
+      // aninhados também aparecem como linhas próprias, cada um com o include.
+      .mockResolvedValueOnce([userRoot, userRoot.children[0], deepGrandchild]);
+
+    const response = await GET(createRequest());
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    const custom = data.find((g: { id: string }) => g.id === 'user-raiz');
+    expect(custom).toBeDefined();
+    expect(custom.children[0].id).toBe('user-filho');
+    expect(custom.children[0].children[0].id).toBe('user-neto');
+    // Saída normalizada: mesmo sem as propriedades no input, o tree devolve arrays.
+    expect(custom.children[0].children[0].children).toEqual([]);
+    expect(custom.children[0].children[0].items).toEqual([]);
+  });
 });
