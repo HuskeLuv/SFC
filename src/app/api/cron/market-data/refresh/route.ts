@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runRefreshCycle } from '@/services/pricing/marketDataBackfill';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { requireCronSecret } from '@/utils/cronAuth';
 
 /**
  * Cron: mantém `asset_dividend_history` + `asset_corporate_actions` frescos pra
@@ -13,15 +14,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * inteiro. Idempotente (upserts) e não-destrutivo (sem delete+refetch).
  */
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET não configurado' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  requireCronSecret(request);
 
   const result = await runRefreshCycle();
   return NextResponse.json(result);

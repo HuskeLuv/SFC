@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProventosFromMarket';
 import { CORPORATE_ACTION_NOTE_MARKER } from '@/services/portfolio/corporateActions';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { requireCronSecret } from '@/utils/cronAuth';
 
 /**
  * Cron diário: MATERIALIZA `PortfolioProvento` (camada de override/exibição) a
@@ -16,15 +17,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * Itera só posições detidas (Portfolio), não o catálogo inteiro.
  */
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET não configurado' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  requireCronSecret(request);
 
   const portfolios = await prisma.portfolio.findMany({
     where: { asset: { type: { in: ['stock', 'fii', 'etf', 'reit', 'fim-fia'] } } },

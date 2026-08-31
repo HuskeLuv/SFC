@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { runTesouroDiretoSync } from '@/services/pricing/tesouroDiretoSync';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { requireCronSecret } from '@/utils/cronAuth';
 
 /**
  * Cron HTTP: GET com Authorization: Bearer CRON_SECRET
@@ -14,15 +15,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
  * Agendado em vercel.json (06:15 UTC).
  */
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET não configurado' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  requireCronSecret(request);
 
   try {
     const result = await runTesouroDiretoSync();

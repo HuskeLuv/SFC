@@ -3,19 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { runPortfolioSnapshotsJob } from '@/services/portfolio/portfolioSnapshotPersistence';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { requireCronSecret } from '@/utils/cronAuth';
 /**
  * Cron HTTP (ex.: Vercel): GET com Authorization: Bearer CRON_SECRET
  */
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET não configurado' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  requireCronSecret(request);
 
   try {
     const result = await runPortfolioSnapshotsJob();
