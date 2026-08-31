@@ -308,6 +308,78 @@ describe('PUT /api/cashflow/batch-update', () => {
     expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledTimes(2);
   });
 
+  it('fórmula: servidor reavalia e grava o valor computado por ele', async () => {
+    mockEnsurePersonalizedItem.mockResolvedValue({ itemId: 'item-1', item: {} });
+    mockPrisma.cashflowValue.upsert.mockResolvedValue({});
+
+    const response = await PUT(
+      createRequest({
+        groupId: 'g1',
+        year: 2026,
+        updates: [
+          {
+            itemId: 'item-1',
+            // value adulterado (999): o que vale é a fórmula, reavaliada no servidor.
+            values: [{ month: 1, value: 999, formula: '=200+30+50+60' }],
+          },
+        ],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ value: 340, formula: '=200+30+50+60' }),
+        create: expect.objectContaining({ value: 340, formula: '=200+30+50+60' }),
+      }),
+    );
+  });
+
+  it('fórmula: null limpa a fórmula mantendo o valor', async () => {
+    mockEnsurePersonalizedItem.mockResolvedValue({ itemId: 'item-1', item: {} });
+    mockPrisma.cashflowValue.upsert.mockResolvedValue({});
+
+    const response = await PUT(
+      createRequest({
+        groupId: 'g1',
+        updates: [{ itemId: 'item-1', values: [{ month: 1, value: 150, formula: null }] }],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.cashflowValue.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ value: 150, formula: null }),
+      }),
+    );
+  });
+
+  it('fórmula inválida (só possível fora da UI) ignora a célula', async () => {
+    mockEnsurePersonalizedItem.mockResolvedValue({ itemId: 'item-1', item: {} });
+    mockPrisma.cashflowValue.upsert.mockResolvedValue({});
+
+    const response = await PUT(
+      createRequest({
+        groupId: 'g1',
+        updates: [{ itemId: 'item-1', values: [{ month: 1, value: 100, formula: '=10/0' }] }],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockPrisma.cashflowValue.upsert).not.toHaveBeenCalled();
+  });
+
+  it('fórmula sem prefixo = é rejeitada pela validação', async () => {
+    const response = await PUT(
+      createRequest({
+        groupId: 'g1',
+        updates: [{ itemId: 'item-1', values: [{ month: 1, value: 100, formula: '200+30' }] }],
+      }),
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   it('personaliza item template antes de atualizar', async () => {
     const templateItem = { id: 'tpl-item-1', name: 'Salario', userId: null, groupId: 'g1' };
     mockEnsurePersonalizedItem.mockResolvedValue({

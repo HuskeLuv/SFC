@@ -159,6 +159,8 @@ export const cashflowBatchUpdateSchema = z.object({
               month: z.number().int().min(0).max(11),
               value: z.number().finite(),
               color: z.string().max(50).nullable().optional(),
+              // Fórmula estilo Excel da célula (ticket 31/08/2026). null limpa.
+              formula: z.string().trim().max(500).regex(/^=/).nullable().optional(),
             }),
           )
           .optional(),

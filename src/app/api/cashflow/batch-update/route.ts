@@ -12,6 +12,7 @@ import { checkOrcamentoAlertasSafe } from '@/services/cashflow/orcamentoAlertas'
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import { invalidatePortfolioSnapshots } from '@/services/portfolio/portfolioRecalculation';
 import { recordChange } from '@/services/changeHistory';
+import { evaluateFormula } from '@/utils/formulaParser';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
@@ -229,12 +230,22 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
             month: number;
             numericValue: number;
             color?: string | null;
+            formula?: string | null;
           }> = [];
-          for (const { month, value, color } of values) {
+          for (const { month, value, color, formula } of values) {
             if (typeof month !== 'number' || month < 0 || month > 11) continue;
-            const numericValue = parseFloat(value.toString());
+            let numericValue = parseFloat(value.toString());
+            if (typeof formula === 'string') {
+              // Fórmula da célula (ticket 31/08/2026): o SERVIDOR reavalia com o
+              // mesmo parser do front e grava o valor computado por ele —
+              // fórmula e valor nunca divergem. Inválida (só possível fora da
+              // UI) → célula ignorada, como os demais valores malformados.
+              const result = evaluateFormula(formula);
+              if (!result.ok) continue;
+              numericValue = result.value;
+            }
             if (!Number.isFinite(numericValue)) continue;
-            validValues.push({ month, numericValue, color });
+            validValues.push({ month, numericValue, color, formula });
           }
 
           if (validValues.length > 0) {
@@ -244,8 +255,9 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
           }
 
           await Promise.all(
-            validValues.map(({ month, numericValue, color }) => {
+            validValues.map(({ month, numericValue, color, formula }) => {
               const colorOverride = color !== undefined ? { color } : {};
+              const formulaOverride = formula !== undefined ? { formula } : {};
               return prisma.cashflowValue.upsert({
                 where: {
                   itemId_userId_year_month: {
@@ -255,7 +267,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
                     month,
                   },
                 },
-                update: { value: numericValue, ...colorOverride },
+                update: { value: numericValue, ...colorOverride, ...formulaOverride },
                 create: {
                   itemId: finalItemId,
                   userId: targetUserId,
@@ -263,6 +275,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
                   month,
                   value: numericValue,
                   color: color !== undefined ? color : null,
+                  formula: formula !== undefined ? formula : null,
                 },
               });
             }),

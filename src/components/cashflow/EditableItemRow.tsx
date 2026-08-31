@@ -18,7 +18,7 @@ interface EditableItemRowProps {
   isEditing: boolean;
   onUpdateField: (
     itemId: string,
-    field: 'name' | 'significado' | 'rank' | 'monthlyValue',
+    field: 'name' | 'significado' | 'rank' | 'monthlyValue' | 'monthlyFormula',
     value: string | number | null,
     monthIndex?: number,
   ) => void;
@@ -81,12 +81,14 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
     return 'text-black dark:text-black';
   };
 
-  // Obter cores originais do item
+  // Obter cores e fórmulas originais do item
   const originalColors = Array(12).fill(null) as (string | null)[];
+  const originalFormulas = Array(12).fill(null) as (string | null)[];
   if (item.values) {
     item.values.forEach((value) => {
       if (value.month >= 0 && value.month < 12) {
         originalColors[value.month] = value.color || null;
+        originalFormulas[value.month] = value.formula || null;
       }
     });
   }
@@ -99,10 +101,12 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
     rank: item.rank,
     monthlyValues: itemTotals,
     monthlyColors: originalColors,
+    monthlyFormulas: originalFormulas,
   };
 
   // Usar cores dos dados editados se disponíveis, senão usar cores originais
   const monthlyColors = editedData?.monthlyColors || originalColors;
+  const monthlyFormulas = editedData?.monthlyFormulas || originalFormulas;
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onUpdateField(item.id, 'name', e.target.value);
@@ -119,6 +123,17 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
 
   const handleMonthlyValueChange = (monthIndex: number, value: number) => {
     onUpdateField(item.id, 'monthlyValue', value, monthIndex);
+  };
+
+  // Blur de célula em modo fórmula: grava o valor calculado + a fórmula (ou
+  // null, quando o usuário voltou a digitar número puro).
+  const handleMonthlyFormulaChange = (
+    monthIndex: number,
+    formula: string | null,
+    value: number,
+  ) => {
+    onUpdateField(item.id, 'monthlyValue', value, monthIndex);
+    onUpdateField(item.id, 'monthlyFormula', formula, monthIndex);
   };
 
   // Calcular total anual a partir dos valores mensais editados
@@ -292,6 +307,10 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
                   <CurrencyInput
                     value={value}
                     onChange={(newValue) => handleMonthlyValueChange(index, newValue)}
+                    formula={monthlyFormulas[index]}
+                    onFormulaChange={(formula, newValue) =>
+                      handleMonthlyFormulaChange(index, formula, newValue)
+                    }
                     className="text-right"
                     style={cellColor ? { color: cellColor } : undefined}
                     onClick={(e) => {

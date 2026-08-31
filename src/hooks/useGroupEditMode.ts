@@ -10,6 +10,7 @@ export interface EditableItemData {
   rank: string | null;
   monthlyValues: number[]; // 12 valores mensais
   monthlyColors: (string | null)[]; // 12 cores mensais (formato CSS)
+  monthlyFormulas: (string | null)[]; // 12 fórmulas (ex.: '=200+30'); null = número puro
 }
 
 export interface GroupEditState {
@@ -55,10 +56,12 @@ export const useGroupEditMode = () => {
       // Criar array de 12 valores mensais (0-11 para janeiro-dezembro)
       const monthlyValues = Array(12).fill(0);
       const monthlyColors = Array(12).fill(null) as (string | null)[];
+      const monthlyFormulas = Array(12).fill(null) as (string | null)[];
       item.values?.forEach((value: CashflowValue) => {
         if (value.month >= 0 && value.month < 12) {
           monthlyValues[value.month] = value.value;
           monthlyColors[value.month] = value.color || null;
+          monthlyFormulas[value.month] = value.formula || null;
         }
       });
 
@@ -69,6 +72,7 @@ export const useGroupEditMode = () => {
         rank: item.rank,
         monthlyValues,
         monthlyColors,
+        monthlyFormulas,
       });
     });
 
@@ -134,7 +138,7 @@ export const useGroupEditMode = () => {
   const updateItemField = useCallback(
     (
       itemId: string,
-      field: 'name' | 'significado' | 'rank' | 'monthlyValue',
+      field: 'name' | 'significado' | 'rank' | 'monthlyValue' | 'monthlyFormula',
       value: string | number | null,
       monthIndex?: number,
     ) => {
@@ -155,6 +159,10 @@ export const useGroupEditMode = () => {
         } else if (field === 'monthlyValue' && typeof monthIndex === 'number') {
           updated.monthlyValues = [...updated.monthlyValues];
           updated.monthlyValues[monthIndex] = typeof value === 'number' ? value : 0;
+        } else if (field === 'monthlyFormula' && typeof monthIndex === 'number') {
+          updated.monthlyFormulas = [...updated.monthlyFormulas];
+          updated.monthlyFormulas[monthIndex] =
+            typeof value === 'string' && value.trim() !== '' ? value : null;
         }
 
         newMap.set(itemId, updated);
@@ -193,10 +201,12 @@ export const useGroupEditMode = () => {
     originalItems.forEach((item) => {
       const monthlyValues = Array(12).fill(0);
       const monthlyColors = Array(12).fill(null) as (string | null)[];
+      const monthlyFormulas = Array(12).fill(null) as (string | null)[];
       item.values?.forEach((value: CashflowValue) => {
         if (value.month >= 0 && value.month < 12) {
           monthlyValues[value.month] = value.value;
           monthlyColors[value.month] = value.color || null;
+          monthlyFormulas[value.month] = value.formula || null;
         }
       });
 
@@ -207,6 +217,7 @@ export const useGroupEditMode = () => {
         rank: item.rank,
         monthlyValues,
         monthlyColors,
+        monthlyFormulas,
       });
     });
 
@@ -262,7 +273,7 @@ export const useGroupEditMode = () => {
           name?: string;
           significado?: string | null;
           rank?: string | null;
-          values?: Array<{ month: number; value: number }>;
+          values?: Array<{ month: number; value: number; formula?: string | null }>;
         }>;
         deletes: string[];
       } = {
@@ -289,7 +300,7 @@ export const useGroupEditMode = () => {
           name?: string;
           significado?: string | null;
           rank?: string | null;
-          values?: Array<{ month: number; value: number }>;
+          values?: Array<{ month: number; value: number; formula?: string | null }>;
         } = { itemId: item.id };
         let hasChanges = false;
 
@@ -311,38 +322,60 @@ export const useGroupEditMode = () => {
         // Verificar mudanças nos valores mensais e cores
         const originalValues = new Map<number, number>();
         const originalColors = new Map<number, string | null>();
+        const originalFormulas = new Map<number, string | null>();
         item.values?.forEach((value: CashflowValue) => {
           if (value.month >= 0 && value.month < 12) {
             originalValues.set(value.month, value.value);
             originalColors.set(value.month, value.color || null);
+            originalFormulas.set(value.month, value.formula || null);
           }
         });
 
-        const valueChanges: Array<{ month: number; value: number; color?: string | null }> = [];
+        const valueChanges: Array<{
+          month: number;
+          value: number;
+          color?: string | null;
+          formula?: string | null;
+        }> = [];
         edited.monthlyValues.forEach((newValue, monthIndex) => {
           const originalValue = originalValues.get(monthIndex) || 0;
           const originalColor = originalColors.get(monthIndex) || null;
           const newColor = edited.monthlyColors[monthIndex] || null;
+          const originalFormula = originalFormulas.get(monthIndex) || null;
+          const newFormula = edited.monthlyFormulas[monthIndex] || null;
 
           const valueChanged = Math.abs(newValue - originalValue) > 0.01;
           const colorChanged = newColor !== originalColor;
+          const formulaChanged = newFormula !== originalFormula;
 
           // Incluir na lista de mudanças se:
           // 1. O valor mudou, OU
           // 2. A cor mudou, OU
-          // 3. Há uma cor definida e não havia registro antes (novo registro com cor)
+          // 3. A fórmula mudou (inclusive limpar fórmula digitando número puro), OU
+          // 4. Há uma cor definida e não havia registro antes (novo registro com cor)
           const hasOriginalValue = originalValues.has(monthIndex);
           const shouldInclude =
-            valueChanged || colorChanged || (newColor !== null && !hasOriginalValue);
+            valueChanged ||
+            colorChanged ||
+            formulaChanged ||
+            (newColor !== null && !hasOriginalValue);
 
           if (shouldInclude) {
-            const change: { month: number; value: number; color?: string | null } = {
+            const change: {
+              month: number;
+              value: number;
+              color?: string | null;
+              formula?: string | null;
+            } = {
               month: monthIndex,
               value: newValue,
             };
             // Sempre incluir a cor se ela mudou ou se há uma cor definida
             if (colorChanged || (newColor !== null && !hasOriginalValue)) {
               change.color = newColor;
+            }
+            if (formulaChanged) {
+              change.formula = newFormula;
             }
             valueChanges.push(change);
             hasChanges = true;
