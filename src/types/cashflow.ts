@@ -5,6 +5,7 @@ export interface CashflowValue {
   year: number;
   month: number; // 0 = Jan, 11 = Dez
   value: number;
+  formula?: string | null; // Fórmula estilo Excel que gerou o valor (ex.: '=200+30+50')
   color?: string | null; // Cor do texto (formato CSS: #000000, green, red, etc.)
   comment?: string | null; // Comentário da célula
   createdAt?: Date;

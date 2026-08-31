@@ -1,9 +1,21 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
+import { evaluateFormula, isFormula } from '@/utils/formulaParser';
 
 interface CurrencyInputProps {
   value: number;
   onChange: (value: number) => void;
+  /**
+   * Fórmula persistida da célula (ex.: '=200+30+50'). Quando presente, focar a
+   * célula mostra a fórmula (estilo Excel) em vez do número.
+   */
+  formula?: string | null;
+  /**
+   * Habilita o modo fórmula: digitar '=' inicia uma expressão que é avaliada no
+   * blur. Chamado no blur com a fórmula final (null quando número puro) e o
+   * valor calculado. Sem esse callback o comportamento é 100% o antigo.
+   */
+  onFormulaChange?: (formula: string | null, value: number) => void;
   className?: string;
   placeholder?: string;
   disabled?: boolean;
@@ -15,6 +27,8 @@ interface CurrencyInputProps {
 export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   value,
   onChange,
+  formula = null,
+  onFormulaChange,
   className = '',
   placeholder = '0',
   disabled = false,
@@ -24,7 +38,9 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
 }) => {
   const [displayValue, setDisplayValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [formulaError, setFormulaError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const formulaEnabled = !!onFormulaChange;
 
   // Converte número para formato brasileiro (apenas para exibição quando não está focado)
   const formatToBrazilian = (num: number): string => {
@@ -63,6 +79,13 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
     // Durante a edição, permite digitar livremente
     setDisplayValue(inputValue);
 
+    // Modo fórmula: não converte a expressão em número a cada tecla — a
+    // avaliação acontece no blur (estilo Excel).
+    if (formulaEnabled && isFormula(inputValue)) {
+      return;
+    }
+    if (formulaError) setFormulaError(null);
+
     // Converte e atualiza o valor numérico
     const numValue = parseToNumber(inputValue);
     onChange(numValue);
@@ -70,17 +93,46 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     setIsFocused(true);
-    // Ao focar, mostra apenas o número sem formatação
-    setDisplayValue(value === 0 ? '' : value.toString().replace('.', ','));
+    // Célula com fórmula: editar mostra a fórmula, não o resultado.
+    if (formulaEnabled && formula) {
+      setDisplayValue(formula);
+    } else {
+      // Ao focar, mostra apenas o número sem formatação
+      setDisplayValue(value === 0 ? '' : value.toString().replace('.', ','));
+    }
     e.target.select();
   };
 
   const handleBlur = () => {
     setIsFocused(false);
+
+    if (formulaEnabled && isFormula(displayValue)) {
+      const result = evaluateFormula(displayValue);
+      if (result.ok) {
+        setFormulaError(null);
+        setDisplayValue(formatToBrazilian(result.value));
+        onChange(result.value);
+        onFormulaChange!(displayValue.trim(), result.value);
+      } else {
+        // Fórmula inválida: mantém o texto digitado com aviso visual e NÃO
+        // altera o valor salvo (decisão aprovada no plano do ticket).
+        setFormulaError(result.error);
+      }
+      if (externalOnBlur) {
+        externalOnBlur();
+      }
+      return;
+    }
+
+    setFormulaError(null);
     // Ao perder o foco, formata como monetário
     const numValue = parseToNumber(displayValue);
     setDisplayValue(formatToBrazilian(numValue));
     onChange(numValue);
+    // Número puro digitado numa célula que tinha fórmula: limpa a memória.
+    if (formulaEnabled && formula) {
+      onFormulaChange!(null, numValue);
+    }
     // Chamar callback externo se fornecido
     if (externalOnBlur) {
       externalOnBlur();
@@ -99,7 +151,12 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
       onClick={onClick}
       placeholder={placeholder}
       disabled={disabled}
-      className={`w-full px-2 py-1 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-right ${className}`}
+      title={formulaError ? `Fórmula inválida: ${formulaError}` : formula || undefined}
+      className={`w-full px-2 py-1 text-xs border rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 text-right ${
+        formulaError
+          ? 'border-red-500 focus:ring-red-500 text-red-600 dark:text-red-400'
+          : 'border-brand-500 focus:ring-brand-500'
+      } ${className}`}
       style={{
         appearance: 'none',
         MozAppearance: 'textfield',
