@@ -310,8 +310,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // rentabilidade é TOTAL (capital + renda), igual à metodologia do Kinvo.
   // Sem isso, ativos com dividendo apareciam com retorno só de capital — ex.:
   // um FII que rendeu +35% com proventos aparecia como -12% (só o preço).
-  // Proventos por dia (líquido de IRRF) — alimentam a SÉRIE de rentabilidade
-  // (historicoTWR/MWR) além do card, pra ser retorno TOTAL (capital + renda).
+  // Proventos por dia (BRUTOS, na data-com, incl. provisionados — convenção
+  // Gorila 31/08/2026) — alimentam a SÉRIE de rentabilidade (historicoTWR/MWR)
+  // além do card, pra ser retorno TOTAL (capital + renda).
   const { proventosByDay, total: proventosRecebidos } = await loadProventosByDay(targetUserId);
 
   const rentabilidade =

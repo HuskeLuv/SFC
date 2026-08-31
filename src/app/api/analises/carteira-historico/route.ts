@@ -242,17 +242,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
-  // Proventos (líquidos de IRRF) entram como CAIXA/direito-a-receber no
-  // `bookingDay` (= data de PAGAMENTO snapada pro pregão), espelhando o Kinvo, que
-  // credita o provento no pagamento. NÃO são cashflow (não entram em
-  // cashFlowsByDay): são retorno. (`bookingDay` já vem snapado pro pregão.)
+  // Proventos BRUTOS entram como renda no `bookingDay` (= DATA-COM snapada pro
+  // pregão), espelhando o Gorila (decisão de produto 31/08/2026) — inclui
+  // provisionados (data-com passada, pagamento futuro). NÃO são cashflow (não
+  // entram em cashFlowsByDay): são retorno.
   const proventosByDay = new Map<number, number>();
   const { events: proventoEvents } = await resolveProventoEvents(targetUserId);
   for (const ev of proventoEvents) {
-    if (!(ev.net > 0)) continue;
+    if (!(ev.gross > 0)) continue;
     const dayKey = ev.bookingDay;
     if (dayKey < timelineStart.getTime() || dayKey > today.getTime()) continue;
-    proventosByDay.set(dayKey, (proventosByDay.get(dayKey) || 0) + ev.net);
+    proventosByDay.set(dayKey, (proventosByDay.get(dayKey) || 0) + ev.gross);
   }
 
   const entries = await Promise.all(

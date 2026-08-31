@@ -6,14 +6,14 @@ vi.mock('../resolveProventos', () => ({ resolveProventoEvents: mockResolve }));
 import { aplicarProventosNosAtivos, proventosRecebidosPorSymbol } from '../proventosPorSymbol';
 
 describe('proventosPorSymbol (auditoria 25/08 — B1/T2)', () => {
-  it('soma o líquido dos eventos por ticker', async () => {
+  it('soma o BRUTO dos eventos por ticker (convenção Gorila 31/08)', async () => {
     mockResolve.mockResolvedValueOnce({
       events: [
-        { symbol: 'XPML11', net: 100 },
-        { symbol: 'XPML11', net: 50.5 },
-        { symbol: 'HGLG11', net: 10 },
+        { symbol: 'XPML11', net: 100, gross: 100 },
+        { symbol: 'XPML11', net: 50.5, gross: 50.5 },
+        { symbol: 'HGLG11', net: 8.5, gross: 10 },
       ],
-      total: 160.5,
+      total: 159,
     });
     const m = await proventosRecebidosPorSymbol('u1');
     expect(m.get('XPML11')).toBeCloseTo(150.5, 6);

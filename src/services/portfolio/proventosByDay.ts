@@ -1,34 +1,38 @@
 import { resolveProventoEvents } from '@/services/portfolio/resolveProventos';
 
 export interface ProventosByDayResult {
-  /** Proventos recebidos por dia (chave = dia normalizado UTC, valor = soma líquida de IRRF). */
+  /** Proventos por dia (chave = dia normalizado UTC, valor = soma BRUTA do dia). */
   proventosByDay: Map<number, number>;
-  /** Total recebido no período (líquido de IRRF). */
+  /** Total bruto do período (inclui provisionados com data-com passada). */
   total: number;
 }
 
 /**
- * Carrega os proventos recebidos de um usuário (líquidos de IRRF, até hoje),
- * agrupados pelo dia de PROVISIONAMENTO da série (`e.bookingDay`).
+ * Carrega os proventos de um usuário agrupados pelo dia de PROVISIONAMENTO da
+ * série (`e.bookingDay` = DATA-COM snapada pro pregão B3) e em valor BRUTO
+ * (antes do IRRF de JCP).
  *
- * Usado para que a SÉRIE de rentabilidade (historicoTWR/MWR) seja retorno TOTAL
- * (capital + renda), igual à metodologia do Kinvo e ao número do card. Sem isso,
- * um ativo que caiu de preço mas pagou dividendos aparecia só com o retorno de
- * capital no gráfico (ex.: FII -11% no preço, mas +7% total com proventos).
+ * Usado para que a SÉRIE de rentabilidade (historicoTWR/MWR) e o card do resumo
+ * sejam retorno TOTAL (capital + renda) na CONVENÇÃO GORILA — decisão de produto
+ * de 31/08/2026 ("as rentabilidades devem bater com o Gorila"): provento bruto,
+ * alocado na data-com, incluindo provisionados (data-com passada, pagamento
+ * futuro). Antes (convenção Kinvo) usava líquido de IRRF creditado no pagamento.
  *
- * Agrupa pelo `bookingDay` (= data de PAGAMENTO snapada pro pregão B3), espelhando
- * o Kinvo, que credita o provento no pagamento (não na data-ex). O `total` (renda
- * acumulada, paridade com Kinvo) independe da data — só soma net.
+ * Consumidores de CAIXA REAL (dinheiro recebido de fato) NÃO devem usar este
+ * módulo — devem ler os events de `resolveProventoEvents` filtrando
+ * `paymentDay <= hoje` e somando `net`.
  *
  * A fonte é o HISTÓRICO GLOBAL (`resolveProventoEvents` → `asset_dividend_history`),
  * não a materialização por-usuário `PortfolioProvento`, para eliminar a janela em
  * que usuário novo via drawdown-fantasma antes da materialização rodar.
  */
 export const loadProventosByDay = async (userId: string): Promise<ProventosByDayResult> => {
-  const { events, total } = await resolveProventoEvents(userId);
+  const { events } = await resolveProventoEvents(userId);
   const proventosByDay = new Map<number, number>();
+  let total = 0;
   for (const e of events) {
-    proventosByDay.set(e.bookingDay, (proventosByDay.get(e.bookingDay) ?? 0) + e.net);
+    proventosByDay.set(e.bookingDay, (proventosByDay.get(e.bookingDay) ?? 0) + e.gross);
+    total += e.gross;
   }
   return { proventosByDay, total };
 };

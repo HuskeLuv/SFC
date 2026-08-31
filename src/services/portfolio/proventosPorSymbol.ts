@@ -2,9 +2,10 @@ import { logger } from '@/lib/logger';
 import { resolveProventoEvents } from './resolveProventos';
 
 /**
- * Total LÍQUIDO de proventos já recebidos (pagos até hoje) por ticker do
- * usuário — mesma fonte da aba Análise > Proventos (`resolveProventoEvents`:
- * quantidade elegível na data-com, IRRF de JCP, overrides manuais e dismiss).
+ * Total BRUTO de proventos por ticker do usuário — mesma fonte da aba
+ * Análise > Proventos (`resolveProventoEvents`: quantidade elegível na
+ * data-com, overrides manuais e dismiss). Inclui provisionados (data-com
+ * passada, pagamento futuro) — convenção Gorila, decisão de produto 31/08/2026.
  *
  * Auditoria Pedro 25/08/2026 (item B1): as abas de renda variável mostravam
  * rentabilidade só de preço — FIIs "−4,52%" com ≈ R$ 50 mil de rendimentos
@@ -15,7 +16,7 @@ export const proventosRecebidosPorSymbol = async (userId: string): Promise<Map<s
   try {
     const { events } = await resolveProventoEvents(userId);
     for (const e of events) {
-      porSymbol.set(e.symbol, (porSymbol.get(e.symbol) ?? 0) + e.net);
+      porSymbol.set(e.symbol, (porSymbol.get(e.symbol) ?? 0) + e.gross);
     }
   } catch (error: unknown) {
     // Proventos são complemento da aba: falha aqui não pode derrubar a tabela.
