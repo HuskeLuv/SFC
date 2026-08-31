@@ -51,11 +51,11 @@ describe('resolveProventoEvents', () => {
 
     const res = await resolveProventoEvents('u1');
     expect(res.events).toHaveLength(1);
-    expect(res.events[0]).toMatchObject({ symbol: 'ITSA4', tipo: 'Dividendo', net: 50 });
+    expect(res.events[0]).toMatchObject({ symbol: 'ITSA4', tipo: 'Dividendo', net: 50, gross: 50 });
     expect(res.total).toBeCloseTo(50, 6);
   });
 
-  it('ancora na DATA-EX (data-com + 1) pro Total Return, preservando paymentDay', async () => {
+  it('provisiona na DATA-COM (convenção Gorila), preservando paymentDay e exDay', async () => {
     mockPrisma.stockTransaction.findMany.mockResolvedValue([
       {
         date: d('2024-01-10'),
@@ -72,9 +72,51 @@ describe('resolveProventoEvents', () => {
     // data-com 29/02 → data-ex (preço cai) = 01/03; pagamento permanece 15/03.
     expect(res.events[0].exDay).toBe(Date.UTC(2024, 2, 1));
     expect(res.events[0].paymentDay).toBe(Date.UTC(2024, 2, 15));
-    // A SÉRIE provisiona no PAGAMENTO (espelha o Kinvo), não na data-ex.
-    // 15/03/2024 é sexta (pregão) → bookingDay = o próprio pagamento.
-    expect(res.events[0].bookingDay).toBe(Date.UTC(2024, 2, 15));
+    // A SÉRIE provisiona na DATA-COM (convenção Gorila, 31/08/2026).
+    // 29/02/2024 é quinta (pregão) → bookingDay = a própria data-com.
+    expect(res.events[0].bookingDay).toBe(Date.UTC(2024, 1, 29));
+  });
+
+  it('inclui provento PROVISIONADO (data-com passada, pagamento futuro)', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        date: d('2024-01-10'),
+        type: 'compra',
+        quantity: 100,
+        notes: null,
+        asset: { symbol: 'ITSA4' },
+      },
+    ]);
+    const futuro = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    mockGetDividends.mockResolvedValue([
+      { date: futuro, dataCom: d('2024-04-15'), tipo: 'Dividendo', valorUnitario: 0.5 },
+    ]);
+
+    const res = await resolveProventoEvents('u1');
+    expect(res.events).toHaveLength(1);
+    expect(res.events[0]).toMatchObject({ symbol: 'ITSA4', gross: 50 });
+    // Provisionado ancora na data-com (15/04/2024, segunda, pregão).
+    expect(res.events[0].bookingDay).toBe(Date.UTC(2024, 3, 15));
+  });
+
+  it('NÃO inclui provento cuja data-com ainda não chegou', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        date: d('2024-01-10'),
+        type: 'compra',
+        quantity: 100,
+        notes: null,
+        asset: { symbol: 'ITSA4' },
+      },
+    ]);
+    const dataComFutura = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    const pagamentoFuturo = new Date(Date.now() + 40 * 24 * 60 * 60 * 1000);
+    mockGetDividends.mockResolvedValue([
+      { date: pagamentoFuturo, dataCom: dataComFutura, tipo: 'Dividendo', valorUnitario: 0.5 },
+    ]);
+
+    const res = await resolveProventoEvents('u1');
+    expect(res.events).toHaveLength(0);
   });
 
   // Ticket 24/08 (CSMG3 × Gorila): dividendo com data-com PRÉ-split pago PÓS-split.
@@ -205,8 +247,9 @@ describe('resolveProventoEvents', () => {
     ]);
 
     const res = await resolveProventoEvents('u1');
-    // 100 × 1 = 100 bruto; IRRF 15% = 15 → líquido 85.
+    // 100 × 1 = 100 bruto; IRRF 15% = 15 → líquido 85. `gross` preserva o bruto.
     expect(res.events[0].net).toBeCloseTo(85, 6);
+    expect(res.events[0].gross).toBeCloseTo(100, 6);
   });
 
   it('dismissed suprime o evento-base', async () => {

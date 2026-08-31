@@ -27,17 +27,20 @@ export interface ProventoEvent {
    */
   exDay: number;
   /**
-   * Dia em que a SÉRIE de rentabilidade provisiona o provento — data de PAGAMENTO
-   * snapada pro pregão B3 (on-or-after). Espelha a metodologia do Kinvo, que credita
-   * o provento no PAGAMENTO (não na data-ex). Trade-off aceito: reintroduz um pequeno
-   * "dente" entre a data-ex (quando o preço cai) e o pagamento; em troca, a linha bate
-   * com o Kinvo. O snap pro pregão é CRÍTICO: a timeline do builder só tem dias úteis,
-   * então um pagamento em fim de semana/feriado seria descartado da série.
+   * Dia em que a SÉRIE de rentabilidade provisiona o provento — DATA-COM snapada
+   * pro pregão B3 (on-or-after); fallback = pagamento quando a data-com é
+   * desconhecida. Espelha a metodologia do GORILA (decisão de produto 31/08/2026):
+   * o provento conta no mês da data-com e o provisionado (data-com passada,
+   * pagamento futuro) já entra na rentabilidade. O snap pro pregão é CRÍTICO: a
+   * timeline do builder só tem dias úteis, então uma data fora de pregão seria
+   * descartada da série.
    */
   bookingDay: number;
   tipo: string;
   /** Valor recebido líquido de IRRF (R$). */
   net: number;
+  /** Valor BRUTO (antes do IRRF de JCP, R$) — usado nas rentabilidades (convenção Gorila). */
+  gross: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -53,7 +56,11 @@ const exDayFromDataCom = (dataCom: Date | null, fallbackMs: number): number =>
 
 export interface ResolveProventosResult {
   events: ProventoEvent[];
-  /** Soma líquida de todos os eventos até hoje (R$). */
+  /**
+   * Soma líquida de todos os eventos (R$). Inclui provisionados (data-com
+   * passada, pagamento futuro) — consumidores de CAIXA devem filtrar por
+   * `paymentDay <= hoje` (ex.: consultantService).
+   */
   total: number;
 }
 
@@ -131,7 +138,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
   const dismissedKeys = new Set<string>();
   const manualOverrides = new Map<
     string,
-    { net: number; symbol: string; paymentDay: number; tipo: string }
+    { net: number; gross: number; symbol: string; paymentDay: number; tipo: string }
   >();
   for (const r of overrideRows) {
     const symbol = r.portfolio?.asset?.symbol;
@@ -143,8 +150,9 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
       continue;
     }
     if (r.source === 'manual') {
-      const net = (r.valorTotal ?? 0) - (r.impostoRenda ?? 0);
-      manualOverrides.set(key, { net, symbol, paymentDay: day, tipo: r.tipo });
+      const gross = r.valorTotal ?? 0;
+      const net = gross - (r.impostoRenda ?? 0);
+      manualOverrides.set(key, { net, gross, symbol, paymentDay: day, tipo: r.tipo });
     }
   }
 
@@ -173,10 +181,15 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
       for (const d of dividends) {
         const payDay = normalizeDateStart(d.date);
         const dMs = payDay.getTime();
-        if (dMs > hojeMs || dMs < firstPurchase) continue;
         const exMs = exDayFromDataCom(d.dataCom, dMs);
-        // A série provisiona no PAGAMENTO (espelha o Kinvo), snapado pro pregão B3.
-        const bookingMs = nextBusinessDayB3(dMs);
+        // A série provisiona na DATA-COM (convenção Gorila, decisão de produto
+        // 31/08/2026), snapada pro pregão B3; sem data-com, cai no pagamento.
+        const bookingMs = d.dataCom
+          ? nextBusinessDayB3(normalizeDateStart(d.dataCom).getTime())
+          : nextBusinessDayB3(dMs);
+        // Filtra pela data-com (não pelo pagamento): provento com data-com passada
+        // e pagamento futuro é PROVISIONADO e conta na rentabilidade (Gorila).
+        if (bookingMs > hojeMs || dMs < firstPurchase) continue;
 
         const key = overrideKey(symbol, dMs, d.tipo);
         if (dismissedKeys.has(key)) continue; // usuário deletou explicitamente
@@ -192,6 +205,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
             bookingDay: bookingMs,
             tipo: d.tipo,
             net: manual.net,
+            gross: manual.gross,
           });
           continue;
         }
@@ -212,6 +226,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
           bookingDay: bookingMs,
           tipo: d.tipo,
           net: valorTotal - imposto,
+          gross: valorTotal,
         });
       }
       return out;
@@ -232,6 +247,7 @@ export const resolveProventoEvents = async (userId: string): Promise<ResolveProv
       bookingDay: nextBusinessDayB3(m.paymentDay),
       tipo: m.tipo,
       net: m.net,
+      gross: m.gross,
     });
   }
 

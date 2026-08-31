@@ -580,12 +580,13 @@ export type BuildPatrimonioHistoricoParams = {
   /** Fim da linha do tempo (ex.: ontem no job diário). Default: hoje. */
   timelineEndDate?: Date;
   /**
-   * Proventos recebidos (líquidos de IRRF) por dia (chave = dia normalizado UTC,
-   * valor = soma do dia). Entram no RETORNO como renda DO DIA do booking
-   * (incomeByDay do calculateHistoricoTWR), NÃO como fluxo de caixa nem como
-   * caixa acumulado na base — dividendo é retorno interno do período. Sem isso a
-   * série de rentabilidade fica só com o preço (ex.: FII que caiu 11% mas pagou
-   * 18% de dividendo aparecia como -11% no gráfico). Padrão Gorila/Kinvo.
+   * Proventos BRUTOS por dia (chave = dia normalizado UTC, valor = soma do dia;
+   * booking na DATA-COM, incl. provisionados — convenção Gorila 31/08/2026).
+   * Entram no RETORNO como renda DO DIA do booking (incomeByDay do
+   * calculateHistoricoTWR), NÃO como fluxo de caixa nem como caixa acumulado na
+   * base — dividendo é retorno interno do período. Sem isso a série de
+   * rentabilidade fica só com o preço (ex.: FII que caiu 11% mas pagou 18% de
+   * dividendo aparecia como -11% no gráfico).
    */
   proventosByDay?: Map<number, number>;
 };
