@@ -279,6 +279,31 @@ describe('Middleware', () => {
       );
     });
 
+    it('CSP usa nonce por request + strict-dynamic, sem unsafe-inline em script-src', async () => {
+      const res = await middleware(createRequest('/signin'));
+      const csp = res.headers.get('Content-Security-Policy')!;
+      const scriptSrc = csp.split(';').find((d) => d.trim().startsWith('script-src'))!;
+      expect(scriptSrc).toMatch(/'nonce-[A-Za-z0-9+/=]{16,}'/);
+      expect(scriptSrc).toContain("'strict-dynamic'");
+      expect(scriptSrc).not.toContain("'unsafe-inline'");
+      expect(scriptSrc).not.toContain('b-cdn.net');
+      // nonce propagado ao request (é de onde o Next.js lê para os scripts inline)
+      const nonce = scriptSrc.match(/'nonce-([^']+)'/)![1];
+      expect(res.headers.get('x-middleware-request-x-nonce')).toBe(nonce);
+      expect(res.headers.get('x-middleware-request-content-security-policy')).toBe(csp);
+    });
+
+    it('nonce é diferente a cada request', async () => {
+      const a = (await middleware(createRequest('/signin'))).headers.get(
+        'x-middleware-request-x-nonce',
+      );
+      const b = (await middleware(createRequest('/signin'))).headers.get(
+        'x-middleware-request-x-nonce',
+      );
+      expect(a).toBeTruthy();
+      expect(a).not.toBe(b);
+    });
+
     it('should include security headers on authenticated responses', async () => {
       const res = await middleware(createRequest('/dashboard', { cookies: { token: VALID_JWT } }));
       expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');

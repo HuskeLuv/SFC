@@ -72,9 +72,11 @@ const nextConfig: NextConfig = {
             key: 'X-Frame-Options',
             value: 'DENY',
           },
+          // X-XSS-Protection removido: obsoleto (ignorado por browsers atuais e
+          // vetor de side-channel em Chrome antigo). A proteção real é a CSP.
           {
             key: 'X-XSS-Protection',
-            value: '1; mode=block',
+            value: '0',
           },
         ],
       },
