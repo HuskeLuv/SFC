@@ -8,8 +8,10 @@ import prisma from '@/lib/prisma';
 // - Fallback back-compat: clones físicos antigos (sem templateId) ainda batem por nome+path.
 export async function getUserCashflowStructure(userId: string) {
   try {
+    // items/children opcionais: o include abaixo só cobre 3 níveis de grupos —
+    // nós na profundidade máxima chegam sem essas propriedades.
     type GroupRow = Awaited<ReturnType<typeof prisma.cashflowGroup.findMany>>[number] & {
-      items: {
+      items?: {
         id: string;
         name: string;
         rank: string | null;
@@ -19,7 +21,7 @@ export async function getUserCashflowStructure(userId: string) {
         hidden: boolean;
         groupId: string;
       }[];
-      children: GroupRow[];
+      children?: GroupRow[];
     };
 
     const include = {
@@ -74,6 +76,8 @@ type MergeableItem = {
   groupId: string;
 };
 
+// items/children são opcionais: o include do Prisma só carrega 3 níveis de
+// grupos, então nós na profundidade máxima chegam sem essas propriedades.
 type MergeableGroup = {
   id: string;
   name: string;
@@ -83,16 +87,16 @@ type MergeableGroup = {
   userId: string | null;
   templateId: string | null;
   hidden: boolean;
-  items: MergeableItem[];
-  children: MergeableGroup[];
+  items?: MergeableItem[];
+  children?: MergeableGroup[];
 };
 
 function markTemplate<T extends MergeableGroup>(group: T): T & { isTemplate: boolean } {
   return {
     ...group,
     isTemplate: true,
-    items: group.items.map((i) => ({ ...i, isTemplate: true })),
-    children: group.children.map((c) => markTemplate(c)),
+    items: (group.items ?? []).map((i) => ({ ...i, isTemplate: true })),
+    children: (group.children ?? []).map((c) => markTemplate(c)),
   } as T & { isTemplate: boolean };
 }
 
@@ -109,11 +113,11 @@ function mergeStructure(templates: MergeableGroup[], userRows: MergeableGroup[])
     for (const g of groups) {
       if (g.templateId) userByTemplateId.set(g.templateId, g);
       userByPathName.set(`${parentKey}|${g.name}`, g);
-      for (const it of g.items) {
+      for (const it of g.items ?? []) {
         if (it.templateId) userItemByTemplateId.set(it.templateId, it);
         userItemByGroupAndName.set(`${g.id}|${it.name}`, it);
       }
-      indexUser(g.children, `${parentKey}|${g.name}`);
+      indexUser(g.children ?? [], `${parentKey}|${g.name}`);
     }
   };
   indexUser(userRows, '');
@@ -158,7 +162,7 @@ function mergeStructure(templates: MergeableGroup[], userRows: MergeableGroup[])
     };
 
     const mergedItems: MergeableItem[] = [];
-    for (const tplItem of template.items) {
+    for (const tplItem of template.items ?? []) {
       const userItem = matchUserItem(tplItem);
       if (userItem?.hidden) continue;
       if (userItem) {
@@ -183,7 +187,7 @@ function mergeStructure(templates: MergeableGroup[], userRows: MergeableGroup[])
 
     // Custom-puro items dentro do override-group (templateId=null, sem match com template).
     if (override) {
-      for (const userItem of override.items) {
+      for (const userItem of override.items ?? []) {
         if (consumedUserItemIds.has(userItem.id)) continue;
         if (userItem.hidden) continue;
         if (userItem.templateId) continue; // já era override; se chegou aqui é porque template sumiu
@@ -195,14 +199,14 @@ function mergeStructure(templates: MergeableGroup[], userRows: MergeableGroup[])
     }
 
     const mergedChildren: MergeableGroup[] = [];
-    for (const tplChild of template.children) {
+    for (const tplChild of template.children ?? []) {
       const merged = mergeGroup(tplChild, pathKey);
       if (merged) mergedChildren.push(merged);
     }
 
     // Custom-puro grupos-filhos dentro do override-group.
     if (override) {
-      for (const userChild of override.children) {
+      for (const userChild of override.children ?? []) {
         if (consumedUserGroupIds.has(userChild.id)) continue;
         if (userChild.hidden) continue;
         if (userChild.templateId) continue;
@@ -224,10 +228,10 @@ function mergeStructure(templates: MergeableGroup[], userRows: MergeableGroup[])
   const buildPureCustomTree = (g: MergeableGroup): MergeableGroup =>
     ({
       ...g,
-      items: g.items
+      items: (g.items ?? [])
         .filter((i) => !i.hidden)
         .map((i) => ({ ...i, isTemplate: false }) as MergeableItem & { isTemplate: boolean }),
-      children: g.children.filter((c) => !c.hidden).map((c) => buildPureCustomTree(c)),
+      children: (g.children ?? []).filter((c) => !c.hidden).map((c) => buildPureCustomTree(c)),
       isTemplate: false,
     }) as MergeableGroup & { isTemplate: boolean };
 
