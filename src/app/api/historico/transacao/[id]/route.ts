@@ -173,7 +173,9 @@ export const DELETE = withErrorHandler(
     // O recálculo deleta Portfolio + FixedIncomeAsset quando a última transação
     // some — o snapshot precisa dos dois pro undo recriar a posição inteira.
     const fixedIncome = transaction.assetId
-      ? await prisma.fixedIncomeAsset.findUnique({ where: { assetId: transaction.assetId } })
+      ? await prisma.fixedIncomeAsset.findFirst({
+          where: { assetId: transaction.assetId, userId: targetUserId },
+        })
       : null;
 
     const snapshotCutoff = transaction.date;

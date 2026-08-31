@@ -444,7 +444,9 @@ export const GET = withErrorHandler(
     }
 
     const fixedIncome = portfolio.assetId
-      ? await prisma.fixedIncomeAsset.findUnique({ where: { assetId: portfolio.assetId } })
+      ? await prisma.fixedIncomeAsset.findFirst({
+          where: { assetId: portfolio.assetId, userId: targetUserId },
+        })
       : null;
 
     if (fixedIncome) {

@@ -100,7 +100,7 @@ async function recreateFixedIncomeIfMissing(
   assetId: string,
   fi: SnapshotFixedIncome,
 ): Promise<void> {
-  const existing = await prisma.fixedIncomeAsset.findUnique({ where: { assetId } });
+  const existing = await prisma.fixedIncomeAsset.findFirst({ where: { assetId, userId } });
   if (existing) return;
   await prisma.fixedIncomeAsset.create({
     data: {

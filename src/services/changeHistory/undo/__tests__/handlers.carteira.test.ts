@@ -5,7 +5,7 @@ import type { UserChangeLog } from '@prisma/client';
 const mockPrisma = vi.hoisted(() => ({
   stockTransaction: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
   portfolio: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
-  fixedIncomeAsset: { findUnique: vi.fn(), create: vi.fn() },
+  fixedIncomeAsset: { findFirst: vi.fn(), create: vi.fn() },
   asset: { findUnique: vi.fn() },
   planejamentoObjetivo: { findUnique: vi.fn() },
   portfolioProvento: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
@@ -190,7 +190,7 @@ describe('transacao.excluir (recreate-from-snapshot)', () => {
     mockPrisma.asset.findUnique.mockResolvedValue({ id: 'asset-1' });
     mockPrisma.portfolio.findFirst.mockResolvedValue(null); // recalc deletou a posição
     mockPrisma.portfolio.create.mockResolvedValue({ id: 'port-1' });
-    mockPrisma.fixedIncomeAsset.findUnique.mockResolvedValue(null);
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
 
     await CARTEIRA_UNDO_HANDLERS['transacao.excluir'].execute({ request, auth, entry: entry() });
 
@@ -222,7 +222,7 @@ describe('transacao.excluir (recreate-from-snapshot)', () => {
   it('409 quando a transação já foi restaurada (P2002)', async () => {
     mockPrisma.asset.findUnique.mockResolvedValue({ id: 'asset-1' });
     mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
-    mockPrisma.fixedIncomeAsset.findUnique.mockResolvedValue({ id: 'fi-1' });
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue({ id: 'fi-1' });
     mockPrisma.stockTransaction.create.mockRejectedValueOnce({ code: 'P2002' });
 
     await expect(

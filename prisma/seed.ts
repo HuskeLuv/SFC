@@ -371,6 +371,16 @@ async function seedEducacao() {
 // ===== MAIN SEED FUNCTION =====
 
 async function main() {
+  // Guard anti-produção: o seed apaga/recria dados de demonstração e NUNCA
+  // deve rodar contra o RDS de prod (auditoria 29/08/2026, achado 4.4).
+  const dbUrl = process.env.DATABASE_URL ?? '';
+  if (/rds\.amazonaws\.com/i.test(dbUrl) && process.env.SEED_ALLOW_PROD !== '1') {
+    throw new Error(
+      'Guard anti-RDS: DATABASE_URL aponta para RDS (produção). Seed abortado — ' +
+        'exporte SEED_ALLOW_PROD=1 apenas se for realmente intencional.',
+    );
+  }
+
   try {
     console.log('🌱 Iniciando seed do banco de dados...\n');
 

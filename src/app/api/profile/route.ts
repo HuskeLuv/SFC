@@ -50,7 +50,17 @@ const patchSchema = z
   .object({
     name: z.string().trim().min(1).max(255).optional(),
     email: z.string().email().max(255).optional(),
-    avatarUrl: z.string().url().max(2048).nullable().optional(),
+    // Só https:// ou data:image/ — .url() sozinho aceita javascript: e
+    // http: (auditoria 29/08/2026, achado 5.5).
+    avatarUrl: z
+      .string()
+      .url()
+      .max(2048)
+      .refine((u) => u.startsWith('https://') || u.startsWith('data:image/'), {
+        message: 'avatarUrl deve começar com https:// ou data:image/',
+      })
+      .nullable()
+      .optional(),
     currentPassword: z.string().min(1).optional(),
     newPassword: passwordPolicy.optional(),
   })
