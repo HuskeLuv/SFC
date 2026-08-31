@@ -7,12 +7,10 @@ const mockPrisma = vi.hoisted(() => ({
   cashflowGroup: { findMany: vi.fn() },
 }));
 
-const mockRequireAuth = vi.hoisted(() =>
-  vi.fn().mockReturnValue({ id: 'user-123', email: 'test@test.com', role: 'user' }),
-);
+const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({
-  requireAuth: mockRequireAuth,
+  requireAuthWithActing: mockRequireAuthWithActing,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -53,14 +51,16 @@ const buildTemplateGroup = (overrides: Partial<Record<string, unknown>> = {}) =>
 describe('GET /api/cashflow/structure', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequireAuth.mockReturnValue({ id: 'user-123', email: 'test@test.com', role: 'user' });
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
+      targetUserId: 'user-123',
+      actingClient: null,
+    });
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-123', email: 'test@test.com' });
   });
 
   it('retorna 401 quando nao autenticado', async () => {
-    mockRequireAuth.mockImplementation(() => {
-      throw new Error('Não autorizado');
-    });
+    mockRequireAuthWithActing.mockRejectedValue(new Error('Não autorizado'));
 
     const response = await GET(createRequest());
     const data = await response.json();

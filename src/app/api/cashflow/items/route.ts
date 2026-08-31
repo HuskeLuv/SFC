@@ -1,26 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
+import { requireAuthWithActing } from '@/utils/auth';
 import { personalizeGroup, getGroupForUser } from '@/utils/cashflowPersonalization';
 import { cashflowItemCreateSchema, validationError } from '@/utils/validation-schemas';
 import { recordChange, diffFields, CASHFLOW_FIELD_LABELS } from '@/services/changeHistory';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 
-// Rota autenticada via JWT direto (sem impersonation) — o histórico registra
-// o próprio usuário como dono e ator (mesmo padrão de /api/profile).
-const selfAuth = (userId: string) => ({
-  payload: { id: userId },
-  targetUserId: userId,
-  actingClient: null,
-});
+// Migrada de jwt.verify artesanal (que virava 500 em token inválido) para
+// requireAuthWithActing — consultor atuando cria o item PARA o cliente e o
+// histórico registra ator (consultor) e dono (cliente) corretamente
+// (auditoria 29/08/2026, achados 1.3/2.2).
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const token = request.cookies.get('token')?.value;
-  if (!token) {
-    return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
-  }
-
-  const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; email: string };
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const body = await request.json();
   const parsed = cashflowItemCreateSchema.safeParse(body);
   if (!parsed.success) {
@@ -34,7 +27,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   // Buscar grupo (pode ser template ou personalizado)
-  const group = await getGroupForUser(groupId, payload.id);
+  const group = await getGroupForUser(groupId, targetUserId);
   if (!group) {
     return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 });
   }
@@ -42,7 +35,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // Se grupo é template, personalizar antes de adicionar item
   let finalGroupId = group.id;
   if (group.userId === null) {
-    finalGroupId = await personalizeGroup(group.id, payload.id);
+    finalGroupId = await personalizeGroup(group.id, targetUserId);
   }
 
   // Get the highest rank in the group to set the new item's rank
@@ -52,7 +45,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // Create the new item (sempre personalizado quando criado pelo usuário)
   const newItem = await prisma.cashflowItem.create({
     data: {
-      userId: payload.id, // Sempre personalizado quando criado pelo usuário
+      userId: targetUserId, // Sempre personalizado quando criado pelo usuário
       name: (name || descricao)!,
       significado: significado || null,
       groupId: finalGroupId,
@@ -60,14 +53,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
     include: {
       values: {
-        where: { userId: payload.id },
+        where: { userId: targetUserId },
       },
     },
   });
 
   await recordChange({
     request,
-    auth: selfAuth(payload.id),
+    auth,
     section: 'fluxo-caixa',
     action: 'item.criar',
     entity: 'item',
