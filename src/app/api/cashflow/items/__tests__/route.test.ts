@@ -7,16 +7,13 @@ const mockPrisma = vi.hoisted(() => ({
   userChangeLog: { create: vi.fn() },
 }));
 
-const mockJwtVerify = vi.hoisted(() =>
-  vi.fn().mockReturnValue({ id: 'user-123', email: 'test@test.com' }),
-);
+const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());
 
 const mockGetGroupForUser = vi.hoisted(() => vi.fn());
 const mockPersonalizeGroup = vi.hoisted(() => vi.fn());
 
-vi.mock('jsonwebtoken', () => ({
-  default: { verify: mockJwtVerify },
-  verify: mockJwtVerify,
+vi.mock('@/utils/auth', () => ({
+  requireAuthWithActing: mockRequireAuthWithActing,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -43,7 +40,11 @@ const createPostRequest = (body: Record<string, unknown>) => {
 describe('POST /api/cashflow/items', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockJwtVerify.mockReturnValue({ id: 'user-123', email: 'test@test.com' });
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-123', email: 'test@test.com', role: 'user' },
+      targetUserId: 'user-123',
+      actingClient: null,
+    });
   });
 
   it('cria item com sucesso em grupo personalizado', async () => {
@@ -96,19 +97,14 @@ describe('POST /api/cashflow/items', () => {
     expect(data.groupId).toBe('personalized-group-1');
   });
 
-  it('retorna 401 quando token nao fornecido', async () => {
-    const url = new URL('http://localhost/api/cashflow/items');
-    const req = new NextRequest(url, {
-      method: 'POST',
-      body: JSON.stringify({ groupId: 'g1', name: 'Test' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
+  it('retorna 401 quando nao autenticado', async () => {
+    mockRequireAuthWithActing.mockRejectedValue(new Error('Não autorizado'));
 
-    const response = await POST(req);
+    const response = await POST(createPostRequest({ groupId: 'g1', name: 'Test' }));
     const data = await response.json();
 
     expect(response.status).toBe(401);
-    expect(data.error).toContain('Token');
+    expect(data.error).toContain('Não autorizado');
   });
 
   it('retorna erro de validacao quando campos obrigatorios ausentes', async () => {

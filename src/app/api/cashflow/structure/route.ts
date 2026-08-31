@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/utils/auth';
+import { requireAuthWithActing } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { getUserCashflowStructure } from '@/utils/cashflowSetup';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 // Buscar estrutura do cashflow do usuário
 export const GET = withErrorHandler(async (req: NextRequest) => {
-  // Verificar autenticação
-  const payload = requireAuth(req);
+  // Verificar autenticação (impersonation-aware — consultor atuando lê a
+  // estrutura do cliente; auditoria 29/08/2026, achados 1.3/2.2)
+  const { targetUserId } = await requireAuthWithActing(req);
 
   const user = await prisma.user.findUnique({
-    where: { email: payload.email },
+    where: { id: targetUserId },
   });
 
   if (!user) {

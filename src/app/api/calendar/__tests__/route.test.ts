@@ -5,25 +5,25 @@ const mockPrisma = vi.hoisted(() => ({
   event: { findMany: vi.fn() },
 }));
 
-const mockJwtVerify = vi.hoisted(() => vi.fn());
+const mockRequireAuthWithActing = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ default: mockPrisma }));
-vi.mock('jsonwebtoken', () => ({ default: { verify: mockJwtVerify } }));
+vi.mock('@/utils/auth', () => ({
+  requireAuthWithActing: mockRequireAuthWithActing,
+}));
 
 import { GET } from '../route';
 
-const createRequest = (token?: string) => {
-  const req = new NextRequest('http://localhost/api/calendar', { method: 'GET' });
-  if (token) {
-    req.cookies.set('token', token);
-  }
-  return req;
-};
+const createRequest = () => new NextRequest('http://localhost/api/calendar', { method: 'GET' });
 
 describe('GET /api/calendar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockJwtVerify.mockReturnValue({ id: 'user-1', email: 'test@test.com', role: 'user' });
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-1', email: 'test@test.com', role: 'user' },
+      targetUserId: 'user-1',
+      actingClient: null,
+    });
   });
 
   it('retorna eventos do usuário', async () => {
@@ -33,15 +33,37 @@ describe('GET /api/calendar', () => {
     ];
     mockPrisma.event.findMany.mockResolvedValue(mockEvents);
 
-    const response = await GET(createRequest('valid-token'));
+    const response = await GET(createRequest());
     const data = await response.json();
 
     expect(response.status).toBe(200);
     expect(data).toHaveLength(2);
     expect(data[0].id).toBe('evt-1');
+    expect(mockPrisma.event.findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      take: 500,
+    });
+  });
+
+  it('consultor atuando enxerga a agenda do cliente', async () => {
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'consultant-1', email: 'c@test.com', role: 'consultant' },
+      targetUserId: 'client-1',
+      actingClient: { id: 'client-1', name: 'Cliente', email: 'cli@test.com' },
+    });
+    mockPrisma.event.findMany.mockResolvedValue([]);
+
+    await GET(createRequest());
+
+    expect(mockPrisma.event.findMany).toHaveBeenCalledWith({
+      where: { userId: 'client-1' },
+      take: 500,
+    });
   });
 
   it('retorna 401 sem token', async () => {
+    mockRequireAuthWithActing.mockRejectedValue(new Error('Não autorizado'));
+
     const response = await GET(createRequest());
     const data = await response.json();
 
@@ -52,7 +74,7 @@ describe('GET /api/calendar', () => {
   it('retorna lista vazia quando não há eventos', async () => {
     mockPrisma.event.findMany.mockResolvedValue([]);
 
-    const response = await GET(createRequest('valid-token'));
+    const response = await GET(createRequest());
     const data = await response.json();
 
     expect(response.status).toBe(200);

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import { ApiError } from '@/utils/apiErrorHandler';
 
 const mockAuthenticateConsultant = vi.hoisted(() => vi.fn());
 const mockGetClientsByConsultant = vi.hoisted(() => vi.fn());
@@ -55,25 +56,22 @@ describe('GET /api/consultant/clients', () => {
   });
 
   it('retorna 401 quando nao autenticado', async () => {
-    mockAuthenticateConsultant.mockRejectedValue({ status: 401, message: 'Não autenticado' });
+    mockAuthenticateConsultant.mockRejectedValue(new ApiError(401, 'Não autorizado'));
 
     const response = await GET(createRequest());
     const data = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(data.error).toBeDefined();
+    expect(response.status).toBe(401);
+    expect(data.error).toBe('Não autorizado');
   });
 
   it('retorna 403 quando usuario nao e consultor', async () => {
-    mockAuthenticateConsultant.mockRejectedValue({
-      status: 403,
-      message: 'Acesso restrito a consultores',
-    });
+    mockAuthenticateConsultant.mockRejectedValue(new ApiError(403, 'Acesso negado'));
 
     const response = await GET(createRequest());
     const data = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(data.error).toBeDefined();
+    expect(response.status).toBe(403);
+    expect(data.error).toBe('Acesso negado');
   });
 });

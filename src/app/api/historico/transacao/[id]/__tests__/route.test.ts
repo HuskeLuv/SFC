@@ -13,7 +13,7 @@ const mockPrisma = vi.hoisted(() => ({
     updateMany: vi.fn(),
     deleteMany: vi.fn(),
     // DELETE captura o FixedIncomeAsset pro snapshot de undo.
-    findUnique: vi.fn().mockResolvedValue(null),
+    findFirst: vi.fn().mockResolvedValue(null),
   },
   // Bug #04: recalc consulta Asset pra eventualmente regenerar o name de RF.
   asset: { findUnique: vi.fn().mockResolvedValue(null), update: vi.fn().mockResolvedValue({}) },
