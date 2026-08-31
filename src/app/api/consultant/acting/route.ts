@@ -104,6 +104,9 @@ export const DELETE = withErrorHandler(async (request: NextRequest) => {
       await prisma.impersonationSession.updateMany({
         where: {
           sessionToken,
+          // Escopar pelo dono: um consultor não encerra sessão de outro
+          // (auditoria 29/08/2026, achado 2.1).
+          consultantId: consultant.userId,
           endedAt: null,
         },
         data: {

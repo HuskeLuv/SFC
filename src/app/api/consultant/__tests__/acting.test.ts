@@ -163,7 +163,7 @@ describe('DELETE /api/consultant/acting', () => {
     expect(setCookie).toContain('Max-Age=0');
 
     expect(mockPrisma.impersonationSession.updateMany).toHaveBeenCalledWith({
-      where: { sessionToken: 'session-token-123', endedAt: null },
+      where: { sessionToken: 'session-token-123', consultantId: 'user-1', endedAt: null },
       data: { endedAt: expect.any(Date) },
     });
 
