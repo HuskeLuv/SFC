@@ -21,6 +21,7 @@ import {
   type FixedIncomeAssetWithAsset,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
+import { proventosRecebidosPorSymbol } from '@/services/portfolio/proventosPorSymbol';
 import {
   buildQuantityTimeline,
   quantityAtProventoDate,
@@ -487,7 +488,13 @@ export const GET = withErrorHandler(
     const cotacaoAtual = quotes.get(ticker) ?? portfolio.avgPrice;
     const saldoBruto = portfolio.quantity * cotacaoAtual;
     const valorAplicado = portfolio.totalInvested;
-    const resultado = saldoBruto - valorAplicado;
+    const resultadoPreco = saldoBruto - valorAplicado;
+    const rentabilidadePreco = valorAplicado > 0 ? (resultadoPreco / valorAplicado) * 100 : 0;
+    // Ticket 01/09/2026 (BBSE3: MF 40,84% × Gorila 108,98%): os cards da página
+    // mostravam só preço. Mesma convenção das abas (auditoria B1 25/08): retorno
+    // total = preço + proventos brutos na data-com (incl. provisionados).
+    const proventosRecebidos = (await proventosRecebidosPorSymbol(targetUserId)).get(ticker) ?? 0;
+    const resultado = resultadoPreco + proventosRecebidos;
     const rentabilidade = valorAplicado > 0 ? (resultado / valorAplicado) * 100 : 0;
 
     const transacoes = transactions.map((tx) => ({
@@ -785,6 +792,9 @@ export const GET = withErrorHandler(
         saldoBruto,
         rentabilidade,
         resultado,
+        rentabilidadePreco,
+        resultadoPreco,
+        proventosRecebidos,
         cotacaoAtual,
       },
       transacoes,
