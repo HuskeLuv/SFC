@@ -7,8 +7,13 @@ const mockPrisma = vi.hoisted(() => ({
   portfolio: { findFirst: vi.fn() },
   stockTransaction: { findMany: vi.fn(), update: vi.fn() },
   institution: { findUnique: vi.fn() },
+  fixedIncomeAsset: { findFirst: vi.fn().mockResolvedValue(null) },
+  assetCorporateAction: { findMany: vi.fn().mockResolvedValue([]) },
   $transaction: vi.fn(),
 }));
+
+const mockGetAssetPrices = vi.hoisted(() => vi.fn().mockResolvedValue(new Map()));
+const mockProventosPorSymbol = vi.hoisted(() => vi.fn().mockResolvedValue(new Map()));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
@@ -22,7 +27,7 @@ vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActin
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 // Mocks pra não importar todo o universo do GET (que arrastaria pricer/dividends/etc).
 vi.mock('@/services/pricing/assetPriceService', () => ({
-  getAssetPrices: vi.fn().mockResolvedValue(new Map()),
+  getAssetPrices: mockGetAssetPrices,
   getAssetHistory: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('@/services/pricing/dividendService', () => ({
@@ -31,9 +36,94 @@ vi.mock('@/services/pricing/dividendService', () => ({
 vi.mock('@/services/pricing/fundamentalsService', () => ({
   getFundamentals: vi.fn().mockResolvedValue({ pl: null, beta: null, dividendYield: null }),
 }));
+vi.mock('@/services/portfolio/proventosPorSymbol', () => ({
+  proventosRecebidosPorSymbol: mockProventosPorSymbol,
+}));
 
-import { PATCH } from '../route';
+import { GET, PATCH } from '../route';
 import { parseRangeMonths } from '@/utils/rangeQuery';
+
+// Ticket 01/09/2026 (BBSE3): cards da página do ativo mostravam só preço
+// (40,84%) enquanto o Gorila incluía os proventos (108,98%). Agora `posicao`
+// segue a convenção das abas: resultado/rentabilidade = preço + proventos.
+describe('GET /api/ativos/[id] — rentabilidade com proventos', () => {
+  const callGET = (id = 'pf-1') =>
+    GET(new NextRequest(`http://localhost/api/ativos/${id}`), {
+      params: Promise.resolve({ id }),
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireAuthWithActing.mockResolvedValue({
+      payload: { id: 'user-1', email: 'u@t.com', role: 'user' },
+      targetUserId: 'user-1',
+      actingClient: null,
+    });
+    mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
+    mockPrisma.assetCorporateAction.findMany.mockResolvedValue([]);
+    mockPrisma.institution.findUnique.mockResolvedValue(null);
+    mockPrisma.portfolio.findFirst.mockResolvedValue({
+      id: 'pf-1',
+      userId: 'user-1',
+      assetId: 'asset-bbse3',
+      quantity: 1000,
+      avgPrice: 27.62,
+      totalInvested: 27620,
+      lastUpdate: new Date('2020-06-09'),
+      planejamentoObjetivoId: null,
+      vinculoAposentadoria: false,
+      asset: {
+        id: 'asset-bbse3',
+        symbol: 'BBSE3',
+        name: 'BB Seguridade',
+        type: 'stock',
+        source: 'manual',
+      },
+    });
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      {
+        id: 'tx-1',
+        type: 'compra',
+        quantity: 1000,
+        price: 27.62,
+        total: 27620,
+        date: new Date('2020-06-09'),
+        fees: 0,
+        notes: null,
+      },
+    ]);
+    mockGetAssetPrices.mockResolvedValue(new Map([['BBSE3', 38.9]]));
+  });
+
+  it('resultado e rentabilidade incluem os proventos brutos; só-preço fica exposto à parte', async () => {
+    mockProventosPorSymbol.mockResolvedValue(new Map([['BBSE3', 18820.02]]));
+
+    const res = await callGET();
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.posicao.saldoBruto).toBeCloseTo(38900, 2);
+    expect(data.posicao.valorAplicado).toBe(27620);
+    expect(data.posicao.resultadoPreco).toBeCloseTo(11280, 2);
+    expect(data.posicao.rentabilidadePreco).toBeCloseTo(40.84, 1);
+    expect(data.posicao.proventosRecebidos).toBeCloseTo(18820.02, 2);
+    // (38.900 + 18.820,02 − 27.620) / 27.620 = 108,98% — o "TIR" do Gorila
+    expect(data.posicao.resultado).toBeCloseTo(30100.02, 2);
+    expect(data.posicao.rentabilidade).toBeCloseTo(108.98, 1);
+  });
+
+  it('sem proventos, resultado e rentabilidade continuam iguais ao só-preço', async () => {
+    mockProventosPorSymbol.mockResolvedValue(new Map());
+
+    const res = await callGET();
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.posicao.proventosRecebidos).toBe(0);
+    expect(data.posicao.resultado).toBeCloseTo(data.posicao.resultadoPreco, 6);
+    expect(data.posicao.rentabilidade).toBeCloseTo(40.84, 1);
+  });
+});
 
 const createPatchRequest = (body: object) =>
   new NextRequest('http://localhost/api/ativos/pf-1', {

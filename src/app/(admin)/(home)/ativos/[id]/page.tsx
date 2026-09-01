@@ -86,8 +86,13 @@ interface AtivoData {
     precoMedio: number;
     valorAplicado: number;
     saldoBruto: number;
+    /** Retorno total: preço + proventos (mesma convenção das abas da carteira). */
     rentabilidade: number;
     resultado: number;
+    /** Só preço — renda fixa não envia (sem proventos). */
+    rentabilidadePreco?: number;
+    resultadoPreco?: number;
+    proventosRecebidos?: number;
     cotacaoAtual: number;
   };
   transacoes: Array<{
@@ -423,6 +428,12 @@ function AtivoDetalheContent() {
           title="Rentabilidade"
           value={formatPercentage(data.posicao.rentabilidade)}
           color={data.posicao.rentabilidade >= 0 ? 'success' : 'error'}
+          change={
+            (data.posicao.proventosRecebidos ?? 0) > 0
+              ? `preço ${formatPercentage(data.posicao.rentabilidadePreco ?? 0)} + proventos`
+              : undefined
+          }
+          changeDirection="neutral"
         />
         <MetricCard title="Última cotação" value={formatCurrency(data.posicao.cotacaoAtual)} />
         <MetricCard title="Valor aplicado" value={formatCurrency(data.posicao.valorAplicado)} />
@@ -431,6 +442,12 @@ function AtivoDetalheContent() {
           title="Resultado"
           value={formatCurrency(data.posicao.resultado)}
           color={data.posicao.resultado >= 0 ? 'success' : 'error'}
+          change={
+            (data.posicao.proventosRecebidos ?? 0) > 0
+              ? `inclui ${formatCurrency(data.posicao.proventosRecebidos ?? 0)} de proventos`
+              : undefined
+          }
+          changeDirection="neutral"
         />
       </div>
 
