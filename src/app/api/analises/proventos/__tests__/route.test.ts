@@ -1048,4 +1048,98 @@ describe('GET /api/analises/proventos', () => {
     // Garante que nenhuma data com prefixo "197" (epoch zero) vazou pro payload.
     expect(data.proventos.every((p: { data: string }) => !p.data.startsWith('19'))).toBe(true);
   });
+
+  // Seletor de data-base (ticket 28/08 "MF ≠ Gorila", 01/09/2026): por
+  // pagamento (default) o provento cai no mês do pagamento e provisionados
+  // ficam fora; por data-com cai no mês da data-com e o provisionado (direito
+  // adquirido, pagamento futuro) ENTRA no histórico — convenção Gorila.
+  describe('dataBase (pagamento × data-com)', () => {
+    const now = new Date();
+    const purchaseDate = new Date(now.getTime() - 120 * 86400000);
+    // JCP "provisionado": data-com há 20 dias, pagamento daqui a 40 dias.
+    const dataComPassada = new Date(now.getTime() - 20 * 86400000);
+    const pagamentoFuturo = new Date(now.getTime() + 40 * 86400000);
+    // Dividendo comum já pago: data-com há 70 dias, pago há 50.
+    const dataComAntiga = new Date(now.getTime() - 70 * 86400000);
+    const pagamentoPassado = new Date(now.getTime() - 50 * 86400000);
+
+    const seedCarteira = () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          userId: 'user-123',
+          quantity: 100,
+          totalInvested: 3000,
+          avgPrice: 30,
+          lastUpdate: purchaseDate,
+          stockId: 'stock-1',
+          assetId: 'asset-1',
+          asset: { id: 'asset-1', symbol: 'ITSA4', name: 'Itausa', type: 'stock' },
+        },
+      ]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          id: 'tx-1',
+          userId: 'user-123',
+          type: 'compra',
+          quantity: 100,
+          price: 30,
+          total: 3000,
+          date: purchaseDate,
+          stockId: 'stock-1',
+          assetId: 'asset-1',
+          asset: { symbol: 'ITSA4', name: 'Itausa', type: 'stock' },
+        },
+      ]);
+      mockGetAssetPrices.mockResolvedValue(new Map([['ITSA4', 35]]));
+      mockGetDividends.mockResolvedValue([
+        { date: pagamentoPassado, dataCom: dataComAntiga, tipo: 'Dividendo', valorUnitario: 0.5 },
+        { date: pagamentoFuturo, dataCom: dataComPassada, tipo: 'JCP', valorUnitario: 1 },
+      ]);
+    };
+
+    it('default (pagamento): provisionado fica fora do histórico e vai pra "a receber"', async () => {
+      seedCarteira();
+      const response = await GET(createRequest());
+      const data = await response.json();
+
+      expect(data.proventos.length).toBe(1);
+      expect(data.proventos[0].tipo).toBe('Dividendo');
+      expect(data.proventos[0].data).toBe(pagamentoPassado.toISOString());
+      expect(data.total).toBe(50);
+      expect(data.kpis.aReceber.futuro).toBe(100);
+    });
+
+    it('dataBase=datacom: provento cai no mês da data-com e o provisionado entra no histórico', async () => {
+      seedCarteira();
+      const response = await GET(createRequest({ dataBase: 'datacom' }));
+      const data = await response.json();
+
+      expect(data.proventos.length).toBe(2);
+      const dividendo = data.proventos.find((p: { tipo: string }) => p.tipo === 'Dividendo');
+      const jcp = data.proventos.find((p: { tipo: string }) => p.tipo === 'JCP');
+      // `data` = data-com; pagamento continua exposto em `dataPagamento`.
+      expect(dividendo.data).toBe(dataComAntiga.toISOString());
+      expect(dividendo.dataPagamento).toBe(pagamentoPassado.toISOString());
+      expect(jcp.data).toBe(dataComPassada.toISOString());
+      expect(jcp.status).toBe('a_receber'); // direito adquirido, ainda não pago
+      expect(data.total).toBe(150); // 50 + 100
+      expect(data.kpis.rendaAcumulada.periodo).toBe(150);
+      // "A receber" segue pela data de pagamento nos dois modos.
+      expect(data.kpis.aReceber.futuro).toBe(100);
+    });
+
+    it('dataBase=datacom respeita o filtro de período pela data-com', async () => {
+      seedCarteira();
+      // Janela que contém a data-com do JCP (há 20 dias) mas não a do dividendo (há 70).
+      const startDate = new Date(now.getTime() - 30 * 86400000).toISOString();
+      const response = await GET(
+        createRequest({ dataBase: 'datacom', startDate, endDate: now.toISOString() }),
+      );
+      const data = await response.json();
+
+      expect(data.proventos.length).toBe(1);
+      expect(data.proventos[0].tipo).toBe('JCP');
+    });
+  });
 });

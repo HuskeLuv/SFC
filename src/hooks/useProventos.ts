@@ -1,9 +1,15 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 
+/** Data-base do histórico: mês do pagamento (caixa, default) ou da data-com (Gorila). */
+export type ProventosDataBase = 'pagamento' | 'datacom';
+
 export interface ProventoData {
   id: string;
+  /** Data em que o provento cai no histórico (pagamento ou data-com, conforme `dataBase`). */
   data: string;
+  dataPagamento?: string;
+  dataCom?: string | null;
   symbol: string;
   ativo: string;
   tipo: string;
@@ -127,6 +133,7 @@ export const useProventos = (
   startDate?: string,
   endDate?: string,
   groupBy: 'ativo' | 'classe' | 'tipo' = 'ativo',
+  dataBase: ProventosDataBase = 'pagamento',
 ): UseProventosResult => {
   const {
     data = emptyResponse,
@@ -135,7 +142,7 @@ export const useProventos = (
     error: queryError,
     refetch: queryRefetch,
   } = useQuery<ProventosResponse>({
-    queryKey: [...queryKeys.proventos.all, startDate, endDate, groupBy],
+    queryKey: [...queryKeys.proventos.all, startDate, endDate, groupBy, dataBase],
     // Mantém os dados anteriores visíveis enquanto um novo período/grupo é buscado.
     // Sem isso, cada clique em pílula troca a queryKey e isLoading volta a true,
     // fazendo a página inteira piscar o spinner.
@@ -145,6 +152,7 @@ export const useProventos = (
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       params.append('groupBy', groupBy);
+      if (dataBase === 'datacom') params.append('dataBase', 'datacom');
 
       const response = await fetch(`/api/analises/proventos?${params.toString()}`, { signal });
 
