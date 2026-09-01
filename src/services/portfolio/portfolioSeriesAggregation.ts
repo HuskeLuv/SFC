@@ -1,3 +1,5 @@
+import { monthKeyUtc } from '@/utils/utcDay';
+
 export const CHART_MAX_POINTS = 500;
 
 export type PatrimonioPoint = { data: number; valorAplicado: number; saldoBruto: number };
@@ -71,6 +73,29 @@ export const downsampleUniform = <T>(arr: T[], maxPoints: number): T[] => {
   return out;
 };
 
+/**
+ * Downsample uniforme que PRESERVA o último ponto de cada mês (UTC). O gráfico
+ * mensal/anual do front agrupa a série por mês e usa o último ponto de cada
+ * bucket como "fechamento" — o uniforme puro descartava esse ponto e a barra
+ * de agosto saía como 29/07→31/08 (+0,31% em vez de −1,27%, qa.teste.gorila
+ * 01/09/2026). Custo: até +1 ponto por mês além de `maxPoints`.
+ */
+export const downsampleKeepingMonthEnds = <T>(
+  arr: T[],
+  maxPoints: number,
+  getTs: (item: T) => number,
+): T[] => {
+  if (arr.length <= maxPoints) return arr;
+  if (maxPoints < 2) return [arr[arr.length - 1]!];
+  const keep = new Set<number>();
+  const step = (arr.length - 1) / (maxPoints - 1);
+  for (let i = 0; i < maxPoints; i++) keep.add(Math.round(i * step));
+  for (let i = 0; i + 1 < arr.length; i++) {
+    if (monthKeyUtc(getTs(arr[i]!)) !== monthKeyUtc(getTs(arr[i + 1]!))) keep.add(i);
+  }
+  return [...keep].sort((a, b) => a - b).map((i) => arr[i]!);
+};
+
 export type ChartGranularity = 'day' | 'month' | 'year';
 
 /**
@@ -117,10 +142,10 @@ export const applyChartAggregation = (
   }
 
   if (p.length > CHART_MAX_POINTS) {
-    p = downsampleUniform(p, CHART_MAX_POINTS);
+    p = downsampleKeepingMonthEnds(p, CHART_MAX_POINTS, (x) => x.data);
   }
   if (t.length > CHART_MAX_POINTS) {
-    t = downsampleUniform(t, CHART_MAX_POINTS);
+    t = downsampleKeepingMonthEnds(t, CHART_MAX_POINTS, (x) => x.data);
   }
 
   return { historicoPatrimonio: p, historicoTWR: t, granularity: g };
