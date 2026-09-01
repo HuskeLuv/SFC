@@ -4,6 +4,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetHistory } from '@/services/pricing/assetPriceService';
 import {
+  buildDailyPriceMap,
   buildDailyTimeline,
   calculateHistoricoTWR,
   normalizeDateStart,
@@ -25,32 +26,6 @@ interface IndexData {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-const buildDailyPriceMap = (history: IndexData[], timeline: number[], initialPrice?: number) => {
-  const sorted = [...history]
-    .filter((item) => Number.isFinite(item.value) && item.value > 0)
-    .sort((a, b) => a.date - b.date);
-  const map = new Map<number, number>();
-
-  let lastPrice =
-    Number.isFinite(initialPrice) && initialPrice && initialPrice > 0 ? initialPrice : undefined;
-  let historyIndex = 0;
-
-  for (const day of timeline) {
-    while (historyIndex < sorted.length) {
-      const historyDate = normalizeDateStart(new Date(sorted[historyIndex].date)).getTime();
-      if (historyDate > day) break;
-      lastPrice = sorted[historyIndex].value;
-      historyIndex += 1;
-    }
-
-    if (Number.isFinite(lastPrice) && lastPrice && lastPrice > 0) {
-      map.set(day, lastPrice);
-    }
-  }
-
-  return map;
-};
 
 const logSeriesStats = (data: IndexData[], name: string) => {
   if (data.length < 2) return;

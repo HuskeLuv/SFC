@@ -17,6 +17,7 @@ import { calcularIRRendaFixa } from '@/services/ir/fixedIncomeIR';
 import {
   buildDailyTimeline as buildBusinessDayTimeline,
   normalizeDateStart as normalizeDateStartShared,
+  PRICE_GAP_INTERPOLATION_MIN_DAYS,
   type FixedIncomeAssetWithAsset,
 } from '@/services/portfolio/patrimonioHistoricoBuilder';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
@@ -107,6 +108,9 @@ const resolveInstituicaoForPortfolio = async (
   return { id: null, nome: null };
 };
 
+// Mesma regra de gap do buildDailyPriceMap compartilhado (interpolação
+// geométrica em gaps longos), mas com a normalização de data LOCAL desta rota
+// — a timeline daqui é calendário local, não dia útil UTC.
 const buildDailyPriceMap = (
   history: Array<{ date: number; value: number }>,
   timeline: number[],
@@ -114,21 +118,32 @@ const buildDailyPriceMap = (
 ) => {
   const sorted = [...history]
     .filter((item) => Number.isFinite(item.value) && item.value > 0)
+    .map((item) => ({ date: normalizeDateStart(new Date(item.date)).getTime(), value: item.value }))
     .sort((a, b) => a.date - b.date);
   const map = new Map<number, number>();
   let lastPrice =
     Number.isFinite(initialPrice) && initialPrice && initialPrice > 0 ? initialPrice : undefined;
+  let lastPriceDate: number | null = null;
   let historyIndex = 0;
   for (const day of timeline) {
-    while (historyIndex < sorted.length) {
-      const historyDate = normalizeDateStart(new Date(sorted[historyIndex].date)).getTime();
-      if (historyDate > day) break;
+    while (historyIndex < sorted.length && sorted[historyIndex].date <= day) {
       lastPrice = sorted[historyIndex].value;
+      lastPriceDate = sorted[historyIndex].date;
       historyIndex += 1;
     }
-    if (Number.isFinite(lastPrice) && lastPrice && lastPrice > 0) {
-      map.set(day, lastPrice);
+    if (!Number.isFinite(lastPrice) || !lastPrice || lastPrice <= 0) continue;
+    let price = lastPrice;
+    const next = historyIndex < sorted.length ? sorted[historyIndex] : undefined;
+    if (
+      next &&
+      lastPriceDate != null &&
+      day > lastPriceDate &&
+      next.date - lastPriceDate > PRICE_GAP_INTERPOLATION_MIN_DAYS * DAY_MS
+    ) {
+      const t = (day - lastPriceDate) / (next.date - lastPriceDate);
+      price = lastPrice * Math.pow(next.value / lastPrice, t);
     }
+    map.set(day, price);
   }
   return map;
 };

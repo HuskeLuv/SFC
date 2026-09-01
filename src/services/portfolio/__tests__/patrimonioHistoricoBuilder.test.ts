@@ -299,6 +299,60 @@ describe('buildDailyPriceMap', () => {
     expect(map.get(timeline[2])).toBe(75);
     expect(map.get(timeline[3])).toBe(75);
   });
+
+  it('gap curto (<= 30 dias) entre pontos mantem forward-fill plano', () => {
+    const timeline = mkTimeline(new Date(2025, 0, 1), 21);
+    const history = [
+      { date: timeline[0], value: 100 },
+      { date: timeline[20], value: 200 },
+    ];
+    const map = buildDailyPriceMap(history, timeline);
+    expect(map.get(timeline[10])).toBe(100); // sem interpolação
+    expect(map.get(timeline[19])).toBe(100);
+    expect(map.get(timeline[20])).toBe(200);
+  });
+
+  it('gap longo (> 30 dias) interpola geometricamente entre os dois pontos', () => {
+    const timeline = mkTimeline(new Date(2025, 0, 1), 101);
+    const history = [
+      { date: timeline[0], value: 100 },
+      { date: timeline[100], value: 200 },
+    ];
+    const map = buildDailyPriceMap(history, timeline);
+    expect(map.get(timeline[0])).toBe(100);
+    // meio do gap: 100 × (200/100)^0.5 = √2 × 100
+    expect(map.get(timeline[50])).toBeCloseTo(100 * Math.sqrt(2), 6);
+    // véspera do dado real: já quase no preço novo — sem degrau no dia 100
+    expect(map.get(timeline[99])!).toBeGreaterThan(198);
+    expect(map.get(timeline[100])).toBe(200);
+  });
+
+  it('cenario do bug: preço da compra anos antes + primeira cota real recente não gera degrau', () => {
+    // fundo comprado a 1.54, primeira cota INF_DIARIO (2.89) ~6 anos depois
+    const timeline = mkTimeline(new Date(2020, 5, 2), 2100);
+    const history = [
+      { date: timeline[0], value: 1.54 },
+      { date: timeline[2050], value: 2.89 },
+    ];
+    const map = buildDailyPriceMap(history, timeline);
+    const vespera = map.get(timeline[2049])!;
+    const diaReal = map.get(timeline[2050])!;
+    // variação no dia da primeira cota real fica em ruído (<0,1%), não +87%
+    expect(diaReal / vespera - 1).toBeLessThan(0.001);
+    // e a valorização se distribui pelo período sem dado
+    expect(map.get(timeline[1025])!).toBeGreaterThan(1.54);
+    expect(map.get(timeline[1025])!).toBeLessThan(2.89);
+  });
+
+  it('depois do ultimo ponto conhecido continua forward-fill (sem extrapolar)', () => {
+    const timeline = mkTimeline(new Date(2025, 0, 1), 120);
+    const history = [
+      { date: timeline[0], value: 100 },
+      { date: timeline[60], value: 200 },
+    ];
+    const map = buildDailyPriceMap(history, timeline);
+    expect(map.get(timeline[119])).toBe(200); // flat após o último dado
+  });
 });
 
 /* ================================================================== */
