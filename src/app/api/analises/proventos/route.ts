@@ -34,7 +34,10 @@ const getDividendsCached = async (symbol: string): Promise<DividendEntry[]> => {
 };
 interface ProventoData {
   id: string;
+  /** Data-base (pagamento ou data-com, conforme `dataBase` da query). */
   data: string;
+  dataPagamento: string;
+  dataCom: string | null;
   symbol: string;
   ativo: string;
   tipo: string;
@@ -228,6 +231,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
   const groupBy = searchParams.get('groupBy') || 'ativo'; // ativo, classe, tipo
+  // Data-base do histórico (ticket 28/08 + seletor 01/09/2026): 'pagamento'
+  // (default, caixa recebido — convenção Kinvo) ou 'datacom' (mês em que o
+  // investidor ganhou o direito, incluindo provisionados — convenção Gorila).
+  // Vale para o histórico, gráfico e KPIs de renda; "a receber" segue sempre
+  // pela data de pagamento. Valores continuam LÍQUIDOS nos dois modos.
+  const usarDataCom = searchParams.get('dataBase') === 'datacom';
 
   const portfolio = await prisma.portfolio.findMany({
     where: { userId: targetUserId },
@@ -372,6 +381,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const proventos: ProventoData[] = [];
   const hojeMs = Date.now();
+  // Data em que o provento "cai" no histórico conforme a data-base escolhida.
+  // Sem data-com (legado pré-migration 20260511) cai no pagamento nos dois modos.
+  const dataBaseDe = (pagamento: Date, dataCom: Date | null | undefined): Date =>
+    usarDataCom && dataCom ? dataCom : pagamento;
   const allDividends = await Promise.all(
     portfolioAssets.map(async (asset) => {
       try {
@@ -408,22 +421,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       // Bug F1.2: descarta proventos com data inválida (epoch-zero, NaN, pré-Real)
       // antes que cheguem no payload e contaminem o gráfico de histórico.
       if (!isValidProventoDate(d.date)) return;
-      const dateTime = d.date.getTime();
+      const dataBase = dataBaseDe(d.date, d.dataCom);
+      const dateTime = dataBase.getTime();
       // Elegibilidade pela data-com (ex-date): investidor só recebe se possuía a posição
       // ANTES da data-com. Fallback para paymentDate quando data-com não está disponível
       // (entradas legadas pré-migration 20260511).
-      const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
+      const eligibilityDate = d.dataCom?.getTime() ?? d.date.getTime();
       if (purchaseDateTime && eligibilityDate < purchaseDateTime) return;
       if (startDateTime && dateTime < startDateTime) return;
       if (endDateTime && dateTime > endDateTime) return;
-      if (dateTime > hojeMs) return; // Apenas histórico (exclui a_receber)
+      // Apenas histórico: por pagamento exclui a_receber; por data-com inclui
+      // provisionados (direito já adquirido, pagamento futuro).
+      if (dateTime > hojeMs) return;
 
       // Dedup com PortfolioProvento (que pode ter sido editado pelo usuário ou
       // espelhado pelo mirror). Pula essa entrada BRAPI — o equivalente em
       // manualProventos será processado abaixo (single source of truth).
       if (manualProventoKeys.has(proventoDedupKey(asset.symbol, d.date, d.tipo))) return;
 
-      const quantidadeHistorica = getQuantityAtDate(timeline, dateTime);
+      const quantidadeHistorica = getQuantityAtDate(timeline, eligibilityDate);
       // Usar quantidade histórica; fallback para atual apenas se não há timeline (sem transações)
       const quantidade =
         quantidadeHistorica > 0 ? quantidadeHistorica : timeline.length === 0 ? asset.quantity : 0;
@@ -437,7 +453,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         Math.round(quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario) * 100) / 100;
       proventos.push({
         id: `${asset.symbol}-${dateTime}-${index}`,
-        data: d.date.toISOString(),
+        data: dataBase.toISOString(),
+        dataPagamento: d.date.toISOString(),
+        dataCom: d.dataCom ? d.dataCom.toISOString() : null,
         symbol: asset.symbol,
         ativo: asset.name || asset.symbol,
         tipo: d.tipo,
@@ -445,7 +463,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         valor,
         quantidade,
         valorUnitario: d.valorUnitarioLiquido ?? d.valorUnitario,
-        status: 'realizado' as const,
+        status: d.date.getTime() > hojeMs ? ('a_receber' as const) : ('realizado' as const),
       });
     });
   }
@@ -461,7 +479,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     // Bug F1.2: rejeita PortfolioProvento com dataPagamento inválida pelo mesmo
     // motivo do feed BRAPI — Jan 1970 no gráfico.
     if (!isValidProventoDate(mp.dataPagamento)) return;
-    const dateTime = mp.dataPagamento.getTime();
+    const dataBase = dataBaseDe(mp.dataPagamento, mp.dataCom);
+    const dateTime = dataBase.getTime();
     if (dateTime > hojeMs) return;
     if (startDateTime && dateTime < startDateTime) return;
     if (endDateTime && dateTime > endDateTime) return;
@@ -471,7 +490,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const valor = Math.round(liquido * 100) / 100;
     proventos.push({
       id: `manual-${mp.id}`,
-      data: mp.dataPagamento.toISOString(),
+      data: dataBase.toISOString(),
+      dataPagamento: mp.dataPagamento.toISOString(),
+      dataCom: mp.dataCom ? mp.dataCom.toISOString() : null,
       symbol,
       ativo: asset.name || symbol,
       tipo: mp.tipo,
@@ -479,7 +500,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       valor,
       quantidade,
       valorUnitario: quantidade > 0 ? liquido / quantidade : 0,
-      status: 'realizado' as const,
+      status: mp.dataPagamento.getTime() > hojeMs ? ('a_receber' as const) : ('realizado' as const),
     });
   });
 
@@ -510,13 +531,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     for (const d of dividends) {
       // Bug F1.2: filtra epoch-zero dos agregados de YoC/lifetime também.
       if (!isValidProventoDate(d.date)) continue;
-      const dateTime = d.date.getTime();
+      const dateTime = dataBaseDe(d.date, d.dataCom).getTime();
       if (dateTime > hojeMs) continue;
-      const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
+      const eligibilityDate = d.dataCom?.getTime() ?? d.date.getTime();
       if (purchaseDateTime && eligibilityDate < purchaseDateTime) continue;
       // Lacuna 3: dedup com PortfolioProvento (mesma chave do feed principal).
       if (manualProventoKeys.has(proventoDedupKey(asset.symbol, d.date, d.tipo))) continue;
-      const qtdHist = getQuantityAtDate(timeline, dateTime);
+      const qtdHist = getQuantityAtDate(timeline, eligibilityDate);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
       const valor = quantidade * (d.valorUnitarioLiquido ?? d.valorUnitario);
@@ -529,7 +550,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
     if (!isValidProventoDate(mp.dataPagamento)) return;
-    const dateTime = mp.dataPagamento.getTime();
+    const dateTime = dataBaseDe(mp.dataPagamento, mp.dataCom).getTime();
     if (dateTime > hojeMs) return;
     const liquido = netValueOfManualProvento(mp);
     addLifetime(symbol, liquido, dateTime);
@@ -807,13 +828,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const purchaseDateTime = purchaseDateBySymbol.get(asset.symbol);
     for (const d of dividends) {
       if (!isValidProventoDate(d.date)) continue;
-      const dateTime = d.date.getTime();
+      const dateTime = dataBaseDe(d.date, d.dataCom).getTime();
       if (dateTime > hojeKpiMs) continue;
-      const eligibilityDate = d.dataCom?.getTime() ?? dateTime;
+      const eligibilityDate = d.dataCom?.getTime() ?? d.date.getTime();
       if (purchaseDateTime && eligibilityDate < purchaseDateTime) continue;
       // Lacuna 3: dedup com PortfolioProvento (manualProventos vai pra esse mesmo array abaixo).
       if (manualProventoKeys.has(proventoDedupKey(asset.symbol, d.date, d.tipo))) continue;
-      const qtdHist = getQuantityAtDate(timeline, dateTime);
+      const qtdHist = getQuantityAtDate(timeline, eligibilityDate);
       const quantidade = qtdHist > 0 ? qtdHist : timeline.length === 0 ? asset.quantity : 0;
       if (quantidade <= 0) continue;
       proventosRealizadosTodos.push({
@@ -829,7 +850,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const symbol = pf?.asset?.symbol;
     if (!symbol || isBlockedSymbol(symbol)) return;
     if (!isValidProventoDate(mp.dataPagamento)) return;
-    const dateTime = mp.dataPagamento.getTime();
+    const dateTime = dataBaseDe(mp.dataPagamento, mp.dataCom).getTime();
     if (dateTime > hojeKpiMs) return;
     proventosRealizadosTodos.push({ data: dateTime, valor: netValueOfManualProvento(mp) });
   });

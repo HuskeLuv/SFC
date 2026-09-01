@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import ComponentCard from '@/components/common/ComponentCard';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
-import { useProventos } from '@/hooks/useProventos';
+import { useProventos, type ProventosDataBase } from '@/hooks/useProventos';
 import ProventosHistoricoChart from './ProventosHistoricoChart';
 import ProventosDistribuicao from './ProventosDistribuicao';
 import ProventosKpiCard from './ProventosKpiCard';
@@ -17,6 +17,23 @@ const PERIOD_OPTIONS: Array<{ value: PeriodPill; label: string }> = [
   { value: '24m', label: '24 meses' },
   { value: '36m', label: '36 meses' },
   { value: 'inicio', label: 'Do início' },
+];
+
+// Seletor de data-base (ticket 28/08 "MF ≠ Gorila", decisão 01/09/2026):
+// pagamento = caixa recebido (Kinvo); data-com = mês do direito, incl.
+// provisionados (Gorila "Distribuição nos últimos 12 meses").
+const DATA_BASE_OPTIONS: Array<{ value: ProventosDataBase; label: string; title: string }> = [
+  {
+    value: 'pagamento',
+    label: 'Data de pagamento',
+    title: 'Provento no mês em que o dinheiro foi recebido',
+  },
+  {
+    value: 'datacom',
+    label: 'Data-com',
+    title:
+      'Provento no mês da data-com (direito adquirido), incluindo os ainda não pagos — como no Gorila',
+  },
 ];
 
 // Acessores UTC: as datas formatadas aqui são UTC-midnight (ISO 'YYYY-MM-DD'
@@ -57,6 +74,7 @@ const resolvePeriodRange = (pill: PeriodPill): { startDate?: string; endDate?: s
 export default function ProventosConsolidado() {
   const [period, setPeriod] = useState<PeriodPill>('24m');
   const [groupBy, setGroupBy] = useState<GroupByType>('ativo');
+  const [dataBase, setDataBase] = useState<ProventosDataBase>('pagamento');
 
   const { startDate, endDate } = useMemo(() => resolvePeriodRange(period), [period]);
 
@@ -64,6 +82,7 @@ export default function ProventosConsolidado() {
     startDate,
     endDate,
     groupBy,
+    dataBase,
   );
 
   const periodLabel = useMemo(() => {
@@ -100,7 +119,7 @@ export default function ProventosConsolidado() {
 
   return (
     <div className="space-y-6">
-      {/* Period pills */}
+      {/* Data-base + Period pills */}
       <div className="flex flex-wrap items-center justify-end gap-2">
         {isFetching && !loading && (
           <span
@@ -112,6 +131,31 @@ export default function ProventosConsolidado() {
             Atualizando…
           </span>
         )}
+        <span className="text-sm text-gray-500 dark:text-gray-400">Data-base:</span>
+        <div
+          className="inline-flex items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
+          role="radiogroup"
+          aria-label="Data-base dos proventos"
+        >
+          {DATA_BASE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={dataBase === opt.value}
+              title={opt.title}
+              onClick={() => setDataBase(opt.value)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                dataBase === opt.value
+                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <span className="mx-1 hidden h-5 w-px bg-gray-200 sm:inline-block dark:bg-gray-700" />
         <span className="text-sm text-gray-500 dark:text-gray-400">Período:</span>
         {PERIOD_OPTIONS.map((opt) => (
           <button
