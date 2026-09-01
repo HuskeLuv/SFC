@@ -13,6 +13,10 @@ import {
   aplicarProventosNosAtivos,
   proventosRecebidosPorSymbol,
 } from '@/services/portfolio/proventosPorSymbol';
+/** Seções da aba FII, na ordem de exibição. 'infra' = FI-Infra listado (01/09/2026). */
+const TIPOS_FII_SECAO = ['fofi', 'tvm', 'tijolo', 'infra'] as const;
+type TipoFiiSecao = (typeof TIPOS_FII_SECAO)[number];
+
 // Funções auxiliares para cores
 function getSegmentColor(tipo: string): string {
   const colors: { [key: string]: string } = {
@@ -21,6 +25,7 @@ function getSegmentColor(tipo: string): string {
     tvm: '#10B981',
     tijolo: '#F59E0B',
     ijol: '#F59E0B', // Compatibilidade
+    infra: '#06B6D4',
     hibrido: '#8B5CF6',
     renda: '#EF4444',
   };
@@ -100,9 +105,9 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
       item.avgPrice > 0 ? ((cotacaoAtual - item.avgPrice) / item.avgPrice) * 100 : 0;
 
     // Usar tipo persistido no portfolio (tipoFii), fallback para 'fofi' quando não definido
-    const tipoFii: 'fofi' | 'tvm' | 'tijolo' = (
-      item.tipoFii && ['fofi', 'tvm', 'tijolo'].includes(item.tipoFii) ? item.tipoFii : 'fofi'
-    ) as 'fofi' | 'tvm' | 'tijolo';
+    const tipoFii: TipoFiiSecao = (
+      item.tipoFii && TIPOS_FII_SECAO.includes(item.tipoFii as TipoFiiSecao) ? item.tipoFii : 'fofi'
+    ) as TipoFiiSecao;
 
     return {
       id: item.id,
@@ -170,34 +175,32 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
     (a) => a.valorAtualizado + (a.proventos ?? 0),
   );
 
-  // Agrupar por tipo (fofi, tvm, tijolo)
-  const tipos: ('fofi' | 'tvm' | 'tijolo')[] = ['fofi', 'tvm', 'tijolo'];
-  const secoes: FiiSecao[] = tipos
-    .map((tipo) => {
-      const ativosDoTipo = fiiAtivos.filter((ativo) => ativo.tipo === tipo);
+  // Agrupar por tipo (fofi, tvm, tijolo, infra)
+  const secoes: FiiSecao[] = TIPOS_FII_SECAO.map((tipo) => {
+    const ativosDoTipo = fiiAtivos.filter((ativo) => ativo.tipo === tipo);
 
-      const nomesTipo = {
-        fofi: 'FOF (Fundos de Fundos)',
-        tvm: 'TVM (Títulos e Valores Mobiliários)',
-        tijolo: 'Tijolo',
-      };
+    const nomesTipo: Record<TipoFiiSecao, string> = {
+      fofi: 'FOF (Fundos de Fundos)',
+      tvm: 'TVM (Títulos e Valores Mobiliários)',
+      tijolo: 'Tijolo',
+      infra: 'Infra (Fundos de Infraestrutura)',
+    };
 
-      return {
-        tipo: tipo as TipoFii, // Tipo compatível com TipoFii
-        nome: nomesTipo[tipo],
-        ativos: ativosDoTipo,
-        totalQuantidade: 0,
-        totalValorAplicado: 0,
-        totalValorAtualizado: 0,
-        totalPercentualCarteira: 0,
-        totalRisco: 0,
-        totalObjetivo: 0,
-        totalQuantoFalta: 0,
-        totalNecessidadeAporte: 0,
-        rentabilidadeMedia: 0,
-      };
-    })
-    .filter((secao) => secao.ativos.length > 0); // Remover seções vazias
+    return {
+      tipo: tipo as TipoFii, // Tipo compatível com TipoFii
+      nome: nomesTipo[tipo],
+      ativos: ativosDoTipo,
+      totalQuantidade: 0,
+      totalValorAplicado: 0,
+      totalValorAtualizado: 0,
+      totalPercentualCarteira: 0,
+      totalRisco: 0,
+      totalObjetivo: 0,
+      totalQuantoFalta: 0,
+      totalNecessidadeAporte: 0,
+      rentabilidadeMedia: 0,
+    };
+  }).filter((secao) => secao.ativos.length > 0); // Remover seções vazias
 
   // Calcular valores das seções
   secoes.forEach((secao) => {

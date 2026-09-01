@@ -215,8 +215,11 @@ export const classifyByBrapiType = (
     // (ver src/lib/fundoTypes.ts) pra caírem na aba "Fundos", não em FII.
     case 'fi-agro':
       return 'fiagro';
+    // FI-Infra LISTADO (JURO11, KDIF11...) é negociado e rende como FII —
+    // decisão de produto 01/09/2026: vive na aba FII com subtipo "Infra".
+    // O 'fip-infra' fica só pros fundos CVM não listados (cvmFundSync).
     case 'fi-infra':
-      return 'fip-infra';
+      return 'fii';
     case 'fip':
       return 'fip';
     case 'fidc':
@@ -232,12 +235,32 @@ export const classifyByBrapiType = (
  * na heurística de nome (`classifyByName`) quando o subType é ambíguo/ausente.
  */
 const determineAssetType = (stock: BrapiStock): string => {
+  const name = stock.name?.toLowerCase() || '';
+  const symbol = stock.stock?.toLowerCase() || '';
+
+  // A BRAPI manda boa parte dos FI-Infra listados com subType 'etf' (BDIF11,
+  // CPTI11, XPID11...) — o nome é o sinal confiável e vence o subType.
+  if (isListedInfraFund(name, symbol)) return 'fii';
+
   const byBrapi = classifyByBrapiType(stock.type, stock.subType);
   if (byBrapi) return byBrapi;
 
-  const name = stock.name?.toLowerCase() || '';
-  const symbol = stock.stock?.toLowerCase() || '';
   return classifyByName(name, symbol, 'stock');
+};
+
+/**
+ * Fundo de infraestrutura LISTADO (ticker "11" + nome com "infraestrutura"/
+ * "infra"): FI-Infra da Lei 12.431 e FIC-FIDC de infra (KDIF11, IFRA11). Só
+ * considera listados — a palavra sozinha não faz de uma empresa um fundo.
+ */
+export const isListedInfraFund = (name: string, symbol: string): boolean => {
+  if (!symbol.toLowerCase().endsWith('11')) return false;
+  const norm = name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+  return norm.includes('infraestrutura') || /\binfra\b/.test(norm);
 };
 
 /**
@@ -265,6 +288,10 @@ export const classifyByName = (
   // como palavra. "imobil" cobre acentuado e não-acentuado.
   const isFiiByName = nameNoSpaces.includes('imobil') || /\bfii\b/.test(lowerName);
   if (isFiiByName) return 'fii';
+
+  // FI-Infra listado vive na aba FII (ver classifyByBrapiType). Checado antes
+  // do ETF: o refresh de nome no sync de preços não pode rebaixar pra 'etf'.
+  if (isListedInfraFund(lowerName, lowerSymbol)) return 'fii';
 
   // Units (BPAC11, SANB11, ENGI11, ALUP11 etc.) — BRAPI usa "Unit" ou "Units"
   // no longName. Word-bounded pra evitar matching com "United"/"unity".

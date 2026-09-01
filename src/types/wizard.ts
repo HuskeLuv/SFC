@@ -92,7 +92,7 @@ export interface WizardFormData {
   vencimento: string;
   benchmark: string;
   estrategia: 'value' | 'growth' | 'risk' | '';
-  tipoFii: 'fofi' | 'tvm' | 'tijolo' | '';
+  tipoFii: 'fofi' | 'tvm' | 'tijolo' | 'infra' | '';
 
   /** Para debênture: tipo (Pré, Pós ou Híbrida) - define em qual seção da aba Renda Fixa será exibida */
   tipoDebenture?: 'prefixada' | 'pos-fixada' | 'hibrida';

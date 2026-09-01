@@ -1,5 +1,31 @@
 import { describe, it, expect } from 'vitest';
-import { classifyByName, classifyByBrapiType } from '../brapiSync';
+import { classifyByName, classifyByBrapiType, isListedInfraFund } from '../brapiSync';
+
+describe('isListedInfraFund (ticket 01/09/2026 — BDIF11/CPTI11 não encontrados)', () => {
+  it('reconhece FI-Infra listado pelo nome (a BRAPI manda vários como subType "etf")', () => {
+    expect(
+      isListedInfraFund(
+        'btg pactual divida infra fi em cotas de fundos incentivados de investimento em infra rend fix cred priv',
+        'bdif11',
+      ),
+    ).toBe(true);
+    expect(isListedInfraFund('capitania infra fic fi infra rf cp', 'cpti11')).toBe(true);
+    expect(
+      isListedInfraFund(
+        'xp fundo de investimento em cotas de fundos incentivados de investimento em infraestrutura renda fixa',
+        'xpid11',
+      ),
+    ).toBe(true);
+    // acento e maiúsculas
+    expect(isListedInfraFund('Fundo de Infraestrutura Teste', 'ABCD11')).toBe(true);
+  });
+
+  it('não confunde empresa com "infra" no nome nem ativo fora do padrão "11"', () => {
+    expect(isListedInfraFund('infracommerce cxaas sa', 'ifcm3')).toBe(false);
+    expect(isListedInfraFund('ccr sa infraestrutura', 'ccro3')).toBe(false);
+    expect(isListedInfraFund('patria log fundo de investimento imobiliario', 'hglg11')).toBe(false);
+  });
+});
 
 describe('classifyByBrapiType (subType autoritativo da BRAPI)', () => {
   it('classifica FII pelo subType="fii" (HGLG11, VISC11, XPLG11...)', () => {
@@ -22,9 +48,13 @@ describe('classifyByBrapiType (subType autoritativo da BRAPI)', () => {
 
   it('mapeia fundos estruturados pros Asset.type do app', () => {
     expect(classifyByBrapiType('fund', 'fi-agro')).toBe('fiagro');
-    expect(classifyByBrapiType('fund', 'fi-infra')).toBe('fip-infra');
     expect(classifyByBrapiType('fund', 'fip')).toBe('fip');
     expect(classifyByBrapiType('fund', 'fidc')).toBe('fidc');
+  });
+
+  it('FI-Infra listado (subType "fi-infra") vira FII — aba FII, subtipo Infra (01/09/2026)', () => {
+    // JURO11, KDIF11, OGIN11 chegam como fund/fi-infra
+    expect(classifyByBrapiType('fund', 'fi-infra')).toBe('fii');
   });
 
   it('retorna null quando o subType é ambíguo/ausente (cai no classifyByName)', () => {
@@ -135,6 +165,27 @@ describe('classifyByName', () => {
         'Itau Fundo de Investimento em Cotas de Fundos de Investimento Direitos Creditorios',
         'IFRA11',
         'fii',
+      ),
+    ).toBe('fii');
+  });
+
+  it('FI-Infra listado vira FII pelo nome, mesmo que o tipo atual seja etf/fip-infra/stock', () => {
+    const bdif =
+      'BTG Pactual Divida Infra FI em Cotas de Fundos Incentivados de Investimento em Infra Rend Fix Cred Priv';
+    expect(classifyByName(bdif, 'BDIF11', 'etf')).toBe('fii');
+    expect(classifyByName('Capitania Infra FIC FI Infra RF CP', 'CPTI11', 'stock')).toBe('fii');
+    expect(
+      classifyByName(
+        'Sparta Infra Fundo de Investimento em Cotas de Fundos Incentivados de Investimento em Infraestrut Renda Fixa Cred Priv',
+        'JURO11',
+        'fip-infra',
+      ),
+    ).toBe('fii');
+    expect(
+      classifyByName(
+        'Kinea Infra Fundo Investimento Cotas Fundos Investimento Direitos Creditorios Infraestrutura',
+        'KDIF11',
+        'etf',
       ),
     ).toBe('fii');
   });

@@ -639,10 +639,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       );
     }
     // Validar tipoFii
-    if (!['fofi', 'tvm', 'tijolo'].includes(tipoFii)) {
+    if (!['fofi', 'tvm', 'tijolo', 'infra'].includes(tipoFii)) {
       return NextResponse.json(
         {
-          error: 'Tipo de FII deve ser: fofi, tvm ou tijolo',
+          error: 'Tipo de FII deve ser: fofi, tvm, tijolo ou infra',
         },
         { status: 400 },
       );
