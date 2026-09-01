@@ -10,7 +10,16 @@ import {
   TabelaAuxiliar,
 } from './base';
 
-export type TipoFii = 'fofi' | 'tvm' | 'tijolo' | 'fof' | 'ijol' | 'hibrido' | 'renda' | 'outros'; // Mantém tipos antigos para compatibilidade
+export type TipoFii =
+  | 'fofi'
+  | 'tvm'
+  | 'tijolo'
+  | 'infra'
+  | 'fof'
+  | 'ijol'
+  | 'hibrido'
+  | 'renda'
+  | 'outros'; // Mantém tipos antigos para compatibilidade
 
 export type SegmentoFii =
   | 'logistica'

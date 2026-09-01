@@ -454,7 +454,7 @@ function getSearchInstructions(tipoAtivo: string): string {
     'reserva-oportunidade': 'O ativo será criado automaticamente como Reserva de Oportunidade.',
     'acoes-brasil':
       'Digite pelo menos 2 caracteres para buscar ações (ex: PETR4, VALE3) ou BDRs (ex: AAPL34, MSFT34) listados na B3.',
-    fii: 'Digite pelo menos 2 caracteres do código do FII (ex: HGLG11, XPML11). Fundos Imobiliários investem em imóveis.',
+    fii: 'Digite pelo menos 2 caracteres do código do FII (ex: HGLG11, XPML11). Fundos de infraestrutura listados (FI-Infra: BDIF11, CPTI11, JURO11, KDIF11...) também ficam aqui.',
     etf: 'Digite pelo menos 2 caracteres do código do ETF (ex: BOVA11, SMAL11). ETFs replicam índices de mercado.',
     reit: 'Digite pelo menos 2 caracteres do código do REIT (ex: VICI, AMT). REITs são fundos imobiliários estrangeiros.',
     stock: 'Digite pelo menos 2 caracteres do ticker da ação internacional (ex: AAPL, MSFT).',

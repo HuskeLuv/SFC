@@ -26,11 +26,12 @@ import {
 } from '@/components/ui/table/StandardTable';
 import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
-const SECTION_ORDER = ['fof', 'tvm', 'tijolo'] as const;
+const SECTION_ORDER = ['fof', 'tvm', 'tijolo', 'infra'] as const;
 const SECTION_NAMES: Record<string, string> = {
   fof: 'FOF',
   tvm: 'TVM',
   tijolo: 'Tijolo',
+  infra: 'Infra',
 };
 const MIN_PLACEHOLDER_ROWS = 4;
 
@@ -59,6 +60,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     if (tipo === 'fofi' || tipo === 'fof') return 'fof';
     if (tipo === 'ijol' || tipo === 'tijolo') return 'tijolo';
     if (tipo === 'tvm') return 'tvm';
+    if (tipo === 'infra') return 'infra';
     return null;
   };
 

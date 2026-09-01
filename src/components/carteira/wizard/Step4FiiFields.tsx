@@ -32,6 +32,7 @@ export default function Step4FiiFields({
             { value: 'fofi', label: 'FOF (Fundos de Fundos)' },
             { value: 'tvm', label: 'TVM (Títulos e Valores Mobiliários)' },
             { value: 'tijolo', label: 'Tijolo' },
+            { value: 'infra', label: 'Infra (Fundos de Infraestrutura)' },
           ]}
           placeholder="Selecione o tipo"
           value={formData.tipoFii}
