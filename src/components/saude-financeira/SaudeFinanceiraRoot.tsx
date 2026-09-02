@@ -12,6 +12,7 @@ import FluxoCards from './FluxoCards';
 import MetasPatrimoniais from './MetasPatrimoniais';
 import BalancoPatrimonial from './BalancoPatrimonial';
 import EvolucaoChart from './EvolucaoChart';
+import GestaoRisco from './GestaoRisco';
 
 /**
  * Container raiz da Saúde Financeira: diagnóstico live derivado de carteira +
@@ -88,6 +89,10 @@ export default function SaudeFinanceiraRoot() {
       />
       <StatusHero indicadores={indicadores} tendencias={tendencias} />
       <EvolucaoChart />
+      {/* Aba 2 da planilha (seguros). Saiu no PR #87 (escopo aba 1) e voltou em
+          02/09/2026 a pedido do QA — o cadastro de apólices não tinha nenhuma
+          porta de entrada na UI. */}
+      <GestaoRisco />
     </div>
   );
 }
