@@ -1237,6 +1237,29 @@ describe('POST /api/carteira/operacao', () => {
   });
 
   describe('Fundo', () => {
+    // Ticket 02/09/2026: a validação de fundoDestino era hardcoded em
+    // FIM/FIA e rejeitava FIP/FIDC/Fiagro e as seções novas (Renda Fixa/Cambial).
+    it.each(['rf', 'cambial', 'fidc', 'fip-infra', 'previdencia-seguros'])(
+      'aceita fundo manual com destino %s',
+      async (fundoDestino) => {
+        const response = await POST(
+          createRequest({
+            tipoAtivo: 'fundo',
+            instituicaoId: 'inst-1',
+            assetId: 'FUNDO-MANUAL',
+            ativo: 'Fundo QA',
+            dataCompra: '2024-01-15',
+            valorInvestido: 1000,
+            metodo: 'valor',
+            fundoDestino,
+            cotizacaoResgate: 'D+30',
+            liquidacaoResgate: 'D+1',
+          }),
+        );
+        expect(response.status).toBe(201);
+      },
+    );
+
     it('adiciona fundo manual com sucesso', async () => {
       const response = await POST(
         createRequest({

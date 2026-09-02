@@ -28,6 +28,14 @@ import { aplicarVinculoPlanejamento, vinculoPlanejamentoFields } from '@/utils/p
 
 /** Valores de fundoDestino que viram seções na aba "Fundos". */
 const FUNDO_SUBTIPO_DESTINOS: Set<string> = new Set(FUNDO_SUBTIPO_ORDER);
+/** Todos os destinos aceitos pra tipoAtivo='fundo' (espelha o Select do wizard). */
+const FUNDO_DESTINOS_VALIDOS: Set<string> = new Set([
+  'reserva-emergencia',
+  'reserva-oportunidade',
+  'renda-fixa',
+  'previdencia-seguros',
+  ...FUNDO_SUBTIPO_ORDER,
+]);
 
 /** Título de catálogo (Tesouro) já vinculado a outra conta — vira 409 limpo. */
 class TituloEmOutraContaError extends Error {}
@@ -583,17 +591,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         { status: 400 },
       );
     }
-    if (
-      tipoAtivo === 'fundo' &&
-      (!fundoDestino ||
-        !['reserva-emergencia', 'reserva-oportunidade', 'renda-fixa', 'fim', 'fia'].includes(
-          fundoDestino,
-        ))
-    ) {
+    // Destinos válidos = os mesmos que o wizard oferece (Step4). A lista era
+    // hardcoded em FIM/FIA e rejeitava FIP/FIDC/Fiagro/Previdência e as seções
+    // novas (Renda Fixa/Cambial da aba Fundos).
+    if (tipoAtivo === 'fundo' && (!fundoDestino || !FUNDO_DESTINOS_VALIDOS.has(fundoDestino))) {
       return NextResponse.json(
         {
           error:
-            'Onde o fundo deve aparecer é obrigatório. Selecione Renda Fixa, Reserva de Emergência, Reserva de Oportunidade ou FIM/FIA.',
+            'Onde o fundo deve aparecer é obrigatório. Selecione Renda Fixa, Reserva de Emergência, Reserva de Oportunidade, Previdência e Seguros ou uma seção da aba Fundos.',
         },
         { status: 400 },
       );
