@@ -10,9 +10,27 @@ import RentabilidadeChart from './RentabilidadeChart';
 import RentabilidadeResumo from './RentabilidadeResumo';
 import { alinharSeriesComparativas } from './alinhamentoSeries';
 import { inicioUltimosNMeses, inicioDoAno } from '@/utils/periodWindow';
-import { utcMidnight } from '@/utils/utcDay';
+import { utcMidnight, todayUtcMidnight } from '@/utils/utcDay';
+import DatePicker from '@/components/form/date-picker';
+import Button from '@/components/ui/button/Button';
+import {
+  cortarNoFim,
+  indicesRangeParaInicio,
+  resolverPeriodoPersonalizado,
+  rotuloPeriodo,
+  toIsoDateUtc,
+  type PeriodoPersonalizado,
+} from './periodoPersonalizado';
 
-type RentabilidadeRangeValue = 'inicio' | 'ano' | '12m' | '2y' | '3y' | '5y' | '10y';
+type RentabilidadeRangeValue =
+  | 'inicio'
+  | 'ano'
+  | '12m'
+  | '2y'
+  | '3y'
+  | '5y'
+  | '10y'
+  | 'personalizado';
 type RentabilidadeMetric = 'mwr' | 'twr';
 
 const RENTABILIDADE_RANGE_OPTIONS: Array<{ value: RentabilidadeRangeValue; label: string }> = [
@@ -23,6 +41,8 @@ const RENTABILIDADE_RANGE_OPTIONS: Array<{ value: RentabilidadeRangeValue; label
   { value: '3y', label: 'Últimos 3 anos' },
   { value: '5y', label: 'Últimos 5 anos' },
   { value: '10y', label: 'Últimos 10 anos' },
+  // Ticket 02/09/2026 (Pedro, "igual ao Gorila"): data inicial + data final.
+  { value: 'personalizado', label: 'Personalizado…' },
 ];
 
 // Meia-noite UTC do dia-calendário selecionado: as séries de benchmark têm
@@ -31,12 +51,20 @@ const RENTABILIDADE_RANGE_OPTIONS: Array<{ value: RentabilidadeRangeValue; label
 // firstInvestmentDate (também UTC).
 const normalizeStartDate = (date: Date): number => utcMidnight(date);
 
-const getRangeStartDate = (range: RentabilidadeRangeValue, firstDate?: number) => {
+const getRangeStartDate = (
+  range: RentabilidadeRangeValue,
+  firstDate?: number,
+  personalizado?: PeriodoPersonalizado | null,
+) => {
   const now = new Date();
   const normalizedNow = normalizeStartDate(now);
 
   if (range === 'inicio') {
     return firstDate;
+  }
+  // Personalizado ainda não aplicado se comporta como "Do início".
+  if (range === 'personalizado') {
+    return personalizado?.inicio ?? firstDate;
   }
 
   let calculatedStart: number | undefined;
@@ -73,6 +101,15 @@ export default function RentabilidadeGeral() {
   // TWR como padrão: é a rentabilidade por cota (time-weighted) que o Kinvo e os
   // benchmarks usam — comparação apples-to-apples. O toggle MWR continua disponível.
   const [metric, setMetric] = useState<RentabilidadeMetric>('twr');
+  // Período personalizado: rascunho dos inputs (ISO) × intervalo APLICADO. Só o
+  // aplicado dispara refetch — evita uma chamada por clique no calendário.
+  const [personalizadoDraft, setPersonalizadoDraft] = useState<{ inicio: string; fim: string }>({
+    inicio: '',
+    fim: '',
+  });
+  const [personalizado, setPersonalizado] = useState<PeriodoPersonalizado | null>(null);
+  const [personalizadoErro, setPersonalizadoErro] = useState<string | null>(null);
+  const [personalizadoAviso, setPersonalizadoAviso] = useState<string | null>(null);
   const { resumo, loading: carteiraLoading } = useCarteiraResumoContext();
 
   // Calcular data do primeiro investimento (primeira data com valor não-zero do histórico)
@@ -88,7 +125,7 @@ export default function RentabilidadeGeral() {
   }, [resumo?.historicoPatrimonio]);
 
   const selectedRangeStart = useMemo(() => {
-    const rangeStart = getRangeStartDate(selectedRange, firstInvestmentDate);
+    const rangeStart = getRangeStartDate(selectedRange, firstInvestmentDate, personalizado);
     if (!rangeStart && firstInvestmentDate) {
       return firstInvestmentDate;
     }
@@ -99,10 +136,15 @@ export default function RentabilidadeGeral() {
       return Math.max(rangeStart, firstInvestmentDate);
     }
     return rangeStart;
-  }, [firstInvestmentDate, selectedRange]);
+  }, [firstInvestmentDate, selectedRange, personalizado]);
+
+  /** Fim da janela (ms UTC, inclusive) — só no personalizado; presets vão até o último fechamento. */
+  const selectedRangeEnd =
+    selectedRange === 'personalizado' && personalizado ? personalizado.fim : undefined;
 
   const hasHistoricoTWR = Array.isArray(resumo?.historicoTWR) && resumo.historicoTWR.length > 0;
-  const isPeriodoInicio = selectedRange === 'inicio';
+  const isPeriodoInicio =
+    selectedRange === 'inicio' || (selectedRange === 'personalizado' && !personalizado);
   const {
     data: carteiraHistoricoDiario,
     mwr: carteiraHistoricoDiarioMwr,
@@ -125,8 +167,11 @@ export default function RentabilidadeGeral() {
     if (selectedRange === '3y') return '3y';
     if (selectedRange === '5y') return '5y';
     if (selectedRange === '10y') return '10y';
+    if (selectedRange === 'personalizado' && personalizado) {
+      return indicesRangeParaInicio(personalizado.inicio, todayUtcMidnight());
+    }
     return '1y'; // "inicio" e default: 1y (indices API expande conforme startDate)
-  }, [selectedRange]);
+  }, [selectedRange, personalizado]);
   // Para os períodos "1d" e "1mo", passar a data do primeiro investimento
   const {
     indices: indices1d,
@@ -178,23 +223,27 @@ export default function RentabilidadeGeral() {
    */
   const carteiraParaChart = useMemo((): IndexData[] => {
     const useMwr = metric === 'mwr';
+    // Personalizado: TWR/MWR são cumulativos desde o início da janela, então
+    // cortar no fim escolhido devolve o retorno exato de [início, fim].
+    const fechar = (serie: IndexData[]) => cortarNoFim(dropCurrentDay(serie), selectedRangeEnd);
     if (hasHistoricoTWR && !isPeriodoInicio) {
       const periodo = useMwr ? rentabilidadePeriodoMwr : rentabilidadePeriodo;
-      if (periodo.length > 0) return dropCurrentDay(periodo);
+      if (periodo.length > 0) return fechar(periodo);
     }
     if (hasHistoricoTWR && isPeriodoInicio) {
       const serie = useMwr ? (resumo?.historicoMWR ?? []) : (resumo?.historicoTWR ?? []);
-      return dropCurrentDay(serie.map((item) => ({ date: item.data, value: item.value })));
+      return fechar(serie.map((item) => ({ date: item.data, value: item.value })));
     }
     const fallback = useMwr ? carteiraHistoricoDiarioMwr : carteiraHistoricoDiario;
     if (fallback && fallback.length > 0) {
-      return dropCurrentDay(fallback.map((item) => ({ date: item.date, value: item.value })));
+      return fechar(fallback.map((item) => ({ date: item.date, value: item.value })));
     }
     return [];
   }, [
     metric,
     hasHistoricoTWR,
     isPeriodoInicio,
+    selectedRangeEnd,
     rentabilidadePeriodo,
     rentabilidadePeriodoMwr,
     resumo?.historicoTWR,
@@ -214,7 +263,9 @@ export default function RentabilidadeGeral() {
   }, [isPeriodoInicio, carteiraParaChart]);
   const periodLabel = isPeriodoInicio
     ? undefined
-    : RENTABILIDADE_RANGE_OPTIONS.find((o) => o.value === selectedRange)?.label;
+    : selectedRange === 'personalizado' && personalizado
+      ? rotuloPeriodo(personalizado)
+      : RENTABILIDADE_RANGE_OPTIONS.find((o) => o.value === selectedRange)?.label;
 
   const filteredIndices1d = useMemo(
     () =>
@@ -223,11 +274,14 @@ export default function RentabilidadeGeral() {
             .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
             .map((index) => ({
               ...index,
-              data: dropCurrentDay(filterDataByStart(index.data, selectedRangeStart)),
+              data: cortarNoFim(
+                dropCurrentDay(filterDataByStart(index.data, selectedRangeStart)),
+                selectedRangeEnd,
+              ),
             }))
             .filter((index) => Array.isArray(index.data) && index.data.length > 0)
         : [],
-    [indices1d, selectedRangeStart],
+    [indices1d, selectedRangeStart, selectedRangeEnd],
   );
 
   const filteredIndices1mo = useMemo(
@@ -237,11 +291,14 @@ export default function RentabilidadeGeral() {
             .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
             .map((index) => ({
               ...index,
-              data: dropCurrentDay(filterDataByStart(index.data, selectedRangeStart)),
+              data: cortarNoFim(
+                dropCurrentDay(filterDataByStart(index.data, selectedRangeStart)),
+                selectedRangeEnd,
+              ),
             }))
             .filter((index) => Array.isArray(index.data) && index.data.length > 0)
         : [],
-    [indices1mo, selectedRangeStart],
+    [indices1mo, selectedRangeStart, selectedRangeEnd],
   );
 
   const filteredIndices1y = useMemo(
@@ -251,11 +308,14 @@ export default function RentabilidadeGeral() {
             .filter((index) => index && Array.isArray(index.data) && index.data.length > 0)
             .map((index) => ({
               ...index,
-              data: dropCurrentDay(filterDataByStart(index.data, selectedRangeStart)),
+              data: cortarNoFim(
+                dropCurrentDay(filterDataByStart(index.data, selectedRangeStart)),
+                selectedRangeEnd,
+              ),
             }))
             .filter((index) => Array.isArray(index.data) && index.data.length > 0)
         : [],
-    [indices1y, selectedRangeStart],
+    [indices1y, selectedRangeStart, selectedRangeEnd],
   );
 
   // Alinhamento canônico (alinhamentoSeries.ts): janela = janela da carteira,
@@ -290,7 +350,39 @@ export default function RentabilidadeGeral() {
   );
 
   const handleRangeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedRange(event.target.value as RentabilidadeRangeValue);
+    const value = event.target.value as RentabilidadeRangeValue;
+    setSelectedRange(value);
+    if (value === 'personalizado' && !personalizadoDraft.inicio && !personalizadoDraft.fim) {
+      // Sugestão inicial: 1º investimento → último fechamento.
+      const hoje = todayUtcMidnight();
+      setPersonalizadoDraft({
+        inicio: firstInvestmentDate ? toIsoDateUtc(firstInvestmentDate) : '',
+        fim: toIsoDateUtc(hoje),
+      });
+    }
+  };
+
+  const aplicarPersonalizado = () => {
+    const r = resolverPeriodoPersonalizado({
+      inicioIso: personalizadoDraft.inicio,
+      fimIso: personalizadoDraft.fim,
+      firstInvestmentDate,
+      hojeUtc: todayUtcMidnight(),
+    });
+    if (!r.ok) {
+      setPersonalizadoErro(r.erro);
+      return;
+    }
+    setPersonalizadoErro(null);
+    const avisos: string[] = [];
+    if (r.inicioClampado && firstInvestmentDate) {
+      avisos.push(
+        `A carteira começa em ${new Date(firstInvestmentDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}; o início foi ajustado.`,
+      );
+    }
+    if (r.fimClampado) avisos.push('A data final foi ajustada para hoje.');
+    setPersonalizadoAviso(avisos.length > 0 ? avisos.join(' ') : null);
+    setPersonalizado(r.periodo);
   };
 
   const loading =
@@ -392,6 +484,45 @@ export default function RentabilidadeGeral() {
           </select>
         </div>
       </div>
+      {selectedRange === 'personalizado' ? (
+        <div
+          className="flex flex-wrap items-end justify-end gap-3"
+          data-testid="rentabilidade-periodo-personalizado"
+        >
+          <div className="w-full max-w-[180px]">
+            <DatePicker
+              id="rentabilidade-periodo-inicio"
+              label="Data inicial"
+              placeholder="dd/mm/aaaa"
+              maxDate="today"
+              defaultDate={personalizadoDraft.inicio || undefined}
+              onChange={(_dates, dateStr) =>
+                setPersonalizadoDraft((d) => ({ ...d, inicio: dateStr }))
+              }
+            />
+          </div>
+          <div className="w-full max-w-[180px]">
+            <DatePicker
+              id="rentabilidade-periodo-fim"
+              label="Data final"
+              placeholder="dd/mm/aaaa"
+              maxDate="today"
+              defaultDate={personalizadoDraft.fim || undefined}
+              onChange={(_dates, dateStr) => setPersonalizadoDraft((d) => ({ ...d, fim: dateStr }))}
+            />
+          </div>
+          <Button size="sm" onClick={aplicarPersonalizado}>
+            Aplicar
+          </Button>
+          {personalizadoErro ? (
+            <p className="w-full text-right text-xs text-red-500">{personalizadoErro}</p>
+          ) : personalizadoAviso ? (
+            <p className="w-full text-right text-xs text-gray-500 dark:text-gray-400">
+              {personalizadoAviso}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Gráficos à esquerda — métrica controlada pelo toggle (MWR padrão / TWR comparativo) */}
         <div className="lg:col-span-2 space-y-6">
@@ -427,6 +558,7 @@ export default function RentabilidadeGeral() {
             periodReturn={periodReturn}
             periodLabel={periodLabel}
             fimJanela={alinhado1d.janela?.fim}
+            fimPersonalizado={selectedRangeEnd != null}
           />
         </div>
       </div>
