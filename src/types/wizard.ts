@@ -1,3 +1,5 @@
+import type { FundoSubtipo } from '@/lib/fundoTypes';
+
 export interface WizardStep {
   id: string;
   title: string;
@@ -97,20 +99,16 @@ export interface WizardFormData {
   /** Para debênture: tipo (Pré, Pós ou Híbrida) - define em qual seção da aba Renda Fixa será exibida */
   tipoDebenture?: 'prefixada' | 'pos-fixada' | 'hibrida';
 
-  /** Para fundo: subtipo da aba Fundos (FIM/FIA/FIP/FIP-Infra/FIDC/Fiagro) */
-  tipoFundo?: 'fim' | 'fia' | 'fip' | 'fip-infra' | 'fidc' | 'fiagro';
+  /** Para fundo: subtipo da aba Fundos (FIM/FIA/Renda Fixa/Cambial/FIP/FIP-Infra/FIDC/Fiagro) */
+  tipoFundo?: FundoSubtipo;
 
   /** Para fundo: onde o fundo deve aparecer (Renda Fixa, Reserva, ou subtipo da aba Fundos) */
   fundoDestino?:
     | 'reserva-emergencia'
     | 'reserva-oportunidade'
     | 'renda-fixa'
-    | 'fim'
-    | 'fia'
-    | 'fip'
-    | 'fip-infra'
-    | 'fidc'
-    | 'fiagro';
+    | 'previdencia-seguros'
+    | FundoSubtipo;
 
   /** Para fundo em Renda Fixa: tipo (Pré, Pós ou Híbrida) */
   fundoRendaFixaTipo?: 'prefixada' | 'pos-fixada' | 'hibrida';

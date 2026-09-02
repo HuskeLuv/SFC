@@ -21,6 +21,7 @@ import { getIndicator } from '@/services/market/marketIndicatorService';
 import { createFixedIncomePricer } from '@/services/portfolio/fixedIncomePricing';
 import { valuatePortfolioItem, type CategoriaCarteira } from '@/services/portfolio/itemValuation';
 import { isFundoType } from '@/lib/fundoTypes';
+import { liquidezTotalDias, pickLiquidezDeclarada } from '@/utils/liquidezResgate';
 import { resumoDivida } from '@/services/dividas/amortizacao';
 import { accruedIndexFactor } from '@/services/dividas/indexacaoDivida';
 import { toCalcInput, toPagamentoInputs } from '@/app/api/dividas/_lib/serializer';
@@ -42,6 +43,8 @@ import { getSaudeConfig } from './saudeFinanceiraConfig';
 
 /** Renda fixa com vencimento até este horizonte conta como alta liquidez. */
 const HORIZONTE_LIQUIDEZ_MESES = 12;
+/** Mesmo horizonte em dias, pro prazo de resgate declarado dos fundos (D+N). */
+const HORIZONTE_LIQUIDEZ_DIAS = 360;
 
 /** Métricas dashboardData que representam caixa disponível (alta liquidez). */
 const CAIXA_METRICS = [
@@ -230,6 +233,7 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
     prisma.stockTransaction.findMany({
       where: { userId, type: 'compra', notes: { not: null } },
       select: { assetId: true, notes: true },
+      orderBy: { date: 'desc' },
     }),
     getTwr12m(userId),
     getSaudeConfig(userId),
@@ -253,19 +257,34 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
   // Tesouro do catálogo destinado a reserva (transaction.notes.tesouroDestino) —
   // mesma convenção do resumo, senão o título soma em renda fixa e não na reserva.
   const tesouroReservaDestinoByAssetId = new Map<string, 'emergencia' | 'oportunidade'>();
+  // Notes das compras por ativo, da mais recente pra mais antiga — alimenta o
+  // prazo de resgate declarado dos fundos (ticket 02/09/2026).
+  const notesByAssetId = new Map<string, unknown[]>();
   for (const tx of stockTransactions) {
-    if (!tx.assetId || !tx.notes || tesouroReservaDestinoByAssetId.has(tx.assetId)) continue;
+    if (!tx.assetId || !tx.notes) continue;
+    let parsed: unknown = null;
     try {
-      const parsed = JSON.parse(tx.notes);
-      if (parsed?.tesouroDestino === 'reserva-oportunidade') {
-        tesouroReservaDestinoByAssetId.set(tx.assetId, 'oportunidade');
-      } else if (parsed?.tesouroDestino === 'reserva-emergencia') {
-        tesouroReservaDestinoByAssetId.set(tx.assetId, 'emergencia');
-      }
+      parsed = JSON.parse(tx.notes);
     } catch {
-      // nota malformada — ignora
+      continue; // nota malformada — ignora
+    }
+    const list = notesByAssetId.get(tx.assetId) ?? [];
+    list.push(parsed);
+    notesByAssetId.set(tx.assetId, list);
+    if (tesouroReservaDestinoByAssetId.has(tx.assetId)) continue;
+    const dest = (parsed as { tesouroDestino?: unknown } | null)?.tesouroDestino;
+    if (dest === 'reserva-oportunidade') {
+      tesouroReservaDestinoByAssetId.set(tx.assetId, 'oportunidade');
+    } else if (dest === 'reserva-emergencia') {
+      tesouroReservaDestinoByAssetId.set(tx.assetId, 'emergencia');
     }
   }
+  /** Prazo total (cotização + liquidação) declarado do fundo; null = não informado. */
+  const fundoLiquidezDias = (assetId: string | null): number | null => {
+    if (!assetId) return null;
+    const liq = pickLiquidezDeclarada(notesByAssetId.get(assetId) ?? []);
+    return liquidezTotalDias(liq.cotizacaoResgate, liq.liquidacaoResgate);
+  };
 
   // Cotações: mesmo filtro do resumo (assets manuais/reserva/FI ficam de fora).
   const fiPricer = await createFixedIncomePricer(userId, { preloadedAssets: fixedIncomeAssets });
@@ -319,6 +338,10 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
   };
   let rendaFixaAltaLiquidez = 0;
   let rendaFixaBaixaLiquidez = 0;
+  // Fundos (aba Fundos): split pelo prazo de resgate declarado. Sem prazo
+  // informado → baixa liquidez (conservador), como a planilha tratava todos.
+  let fundosAltaLiquidez = 0;
+  let fundosBaixaLiquidez = 0;
 
   for (const item of portfolio) {
     const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
@@ -341,6 +364,13 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
       } else {
         rendaFixaBaixaLiquidez += valuation.valorAtualBRL;
       }
+    } else if (valuation.categoria === 'fimFia') {
+      const dias = fundoLiquidezDias(item.assetId);
+      if (dias != null && dias <= HORIZONTE_LIQUIDEZ_DIAS) {
+        fundosAltaLiquidez += valuation.valorAtualBRL;
+      } else {
+        fundosBaixaLiquidez += valuation.valorAtualBRL;
+      }
     }
   }
 
@@ -350,10 +380,15 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
     porCategoria.reservaEmergencia +
     porCategoria.reservaOportunidade +
     rendaFixaAltaLiquidez +
+    fundosAltaLiquidez +
     caixaParaInvestir;
   const ativosBaixaLiquidez =
     rendaFixaBaixaLiquidez +
-    CATEGORIAS_BAIXA_LIQUIDEZ.reduce((sum, cat) => sum + porCategoria[cat], 0);
+    fundosBaixaLiquidez +
+    CATEGORIAS_BAIXA_LIQUIDEZ.filter((cat) => cat !== 'fimFia').reduce(
+      (sum, cat) => sum + porCategoria[cat],
+      0,
+    );
 
   // Passivos: saldo corrigido pelo índice realizado; 'c' = curto, 'm'/'l' = longo.
   const passivos: PassivoLinha[] = [];
@@ -419,12 +454,15 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
       porCategoria.reservaOportunidade,
     ),
     ...linha('rendaFixaAltaLiquidez', 'Renda Fixa até D+360', rendaFixaAltaLiquidez),
+    ...linha('fundosAltaLiquidez', 'Fundos até D+360', fundosAltaLiquidez),
     ...linha('caixaParaInvestir', 'Caixa para investir', caixaParaInvestir),
   ];
   const baixaLiquidez: ComposicaoLinha[] = [
     ...linha('rendaFixaBaixaLiquidez', 'Renda Fixa acima de D+360', rendaFixaBaixaLiquidez),
     ...CATEGORIAS_BAIXA_LIQUIDEZ.flatMap((cat) =>
-      linha(cat, CATEGORIA_LABELS[cat] ?? cat, porCategoria[cat]),
+      cat === 'fimFia'
+        ? linha(cat, 'Fundos acima de D+360 (ou sem prazo informado)', fundosBaixaLiquidez)
+        : linha(cat, CATEGORIA_LABELS[cat] ?? cat, porCategoria[cat]),
     ),
   ];
 

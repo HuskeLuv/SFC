@@ -24,3 +24,4 @@ export type {
 } from './GenericAssetTable';
 export { default as EditableObjetivoCell } from './EditableObjetivoCell';
 export { default as EditableValorCell } from './EditableValorCell';
+export { default as EditableTextCell } from './EditableTextCell';

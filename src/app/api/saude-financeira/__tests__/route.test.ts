@@ -256,6 +256,68 @@ describe('GET /api/saude-financeira', () => {
     expect(chaves).toContain('rendaFixaBaixaLiquidez');
   });
 
+  // Ticket 02/09/2026: fundo com prazo de resgate declarado (cotização +
+  // liquidação ≤ 360 dias) é curto prazo; sem prazo informado fica em longo.
+  it('fundos entram na liquidez pelo prazo de resgate declarado', async () => {
+    const fundo = (id: string, name: string) => ({
+      id,
+      symbol: `CVM-${id}`,
+      name,
+      type: 'fund-rf',
+      currency: 'BRL',
+      currentPrice: null,
+    });
+    mockPrisma.portfolio.findMany.mockResolvedValue([
+      portfolioItem({
+        assetId: 'f-d1',
+        quantity: 1,
+        avgPrice: 10000,
+        totalInvested: 10000,
+        asset: fundo('f-d1', 'Fundo RF D+1'),
+      }),
+      portfolioItem({
+        assetId: 'f-d360',
+        quantity: 1,
+        avgPrice: 20000,
+        totalInvested: 20000,
+        asset: fundo('f-d360', 'Fundo RF D+360'),
+      }),
+      portfolioItem({
+        assetId: 'f-sem',
+        quantity: 1,
+        avgPrice: 5000,
+        totalInvested: 5000,
+        asset: fundo('f-sem', 'Fundo sem prazo'),
+      }),
+    ]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      { assetId: 'f-d1', notes: JSON.stringify({ operation: { action: 'aporte' } }) },
+      {
+        assetId: 'f-d1',
+        notes: JSON.stringify({ cotizacaoResgate: 'D+0', liquidacaoResgate: 'D+1' }),
+      },
+      {
+        assetId: 'f-d360',
+        notes: JSON.stringify({ cotizacaoResgate: 'D+360', liquidacaoResgate: 'D+2' }),
+      },
+      { assetId: 'f-sem', notes: JSON.stringify({ tipoFundo: 'rf' }) },
+    ]);
+
+    const res = await GET(req());
+    const data = await res.json();
+
+    expect(data.indicadores.balanco.ativosAltaLiquidez).toBeCloseTo(10000, 2);
+    expect(data.indicadores.balanco.ativosBaixaLiquidez).toBeCloseTo(25000, 2);
+    const alta = data.composicao.altaLiquidez.find(
+      (l: { chave: string }) => l.chave === 'fundosAltaLiquidez',
+    );
+    const baixa = data.composicao.baixaLiquidez.find(
+      (l: { chave: string }) => l.chave === 'fimFia',
+    );
+    expect(alta?.valor).toBeCloseTo(10000, 2);
+    expect(baixa?.valor).toBeCloseTo(25000, 2);
+  });
+
   it('usa TWR 12m quando a série de performance cobre 12 meses', async () => {
     mockPrisma.portfolioPerformance.findFirst
       .mockResolvedValueOnce({ date: new Date('2026-08-12'), cumulativeReturn: 21.0 })

@@ -314,6 +314,8 @@ export default function Step5Confirmation({
                   'previdencia-seguros': 'Previdência e Seguros',
                   fim: 'FIM (Fundo Multimercado)',
                   fia: 'FIA (Fundo de Ações)',
+                  rf: 'Fundo de Renda Fixa',
+                  cambial: 'Fundo Cambial',
                   fip: 'FIP (Fundo de Participações)',
                   'fip-infra': 'FIP Infraestrutura',
                   fidc: 'FIDC',
@@ -321,6 +323,10 @@ export default function Step5Confirmation({
                 };
                 return labels[val as string] ?? val;
               })}
+            {formData.tipoAtivo === 'fundo' &&
+              renderFieldValue('Cotização do resgate', formData.cotizacaoResgate)}
+            {formData.tipoAtivo === 'fundo' &&
+              renderFieldValue('Liquidação do resgate', formData.liquidacaoResgate)}
             {formData.tipoAtivo === 'fundo' &&
               formData.fundoDestino === 'renda-fixa' &&
               formData.fundoRendaFixaTipo &&

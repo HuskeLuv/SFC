@@ -11,6 +11,7 @@ import { useFundQuotaAt } from './useFundQuotaAt';
 import { formatDateBR } from './priceDeviationWarning';
 import {
   fundoSubtipoFromAssetType,
+  isFundoSubtipo,
   FUNDO_SUBTIPO_LABEL,
   type FundoSubtipo,
 } from '@/lib/fundoTypes';
@@ -320,6 +321,8 @@ export default function Step4FundoDebenturePrevidenciaFields({
               { value: 'previdencia-seguros', label: 'Previdência e Seguros' },
               { value: 'fim', label: 'FIM (Fundo Multimercado)' },
               { value: 'fia', label: 'FIA (Fundo de Ações)' },
+              { value: 'rf', label: 'Fundo de Renda Fixa (aba Fundos)' },
+              { value: 'cambial', label: 'Fundo Cambial (aba Fundos)' },
               { value: 'fip', label: 'FIP (Fundo de Participações)' },
               { value: 'fip-infra', label: 'FIP Infraestrutura (Lei 12.431)' },
               { value: 'fidc', label: 'FIDC (Direitos Creditórios)' },
@@ -329,8 +332,7 @@ export default function Step4FundoDebenturePrevidenciaFields({
             value={formData.fundoDestino ?? ''}
             onChange={(value) => {
               handleInputChange('fundoDestino', value);
-              const subtipos: string[] = ['fim', 'fia', 'fip', 'fip-infra', 'fidc', 'fiagro'];
-              if (subtipos.includes(value)) {
+              if (isFundoSubtipo(value)) {
                 handleInputChange('tipoFundo', value);
               } else {
                 onFormDataChange({
@@ -381,6 +383,44 @@ export default function Step4FundoDebenturePrevidenciaFields({
           {errors.fundoRendaFixaTipo && (
             <p className="mt-1 text-sm text-red-500">{errors.fundoRendaFixaTipo}</p>
           )}
+        </div>
+      )}
+
+      {formData.tipoAtivo === 'fundo' && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">
+            Prazo de resgate
+          </h4>
+          <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            Conforme o regulamento do fundo. Define a liquidez no balanço patrimonial (até D+360 =
+            curto prazo).
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="cotizacaoResgate">Cotização do resgate *</Label>
+              <Input
+                id="cotizacaoResgate"
+                type="text"
+                placeholder="Ex: D+0, D+1, D+30"
+                value={formData.cotizacaoResgate}
+                onChange={(e) => handleInputChange('cotizacaoResgate', e.target.value)}
+                error={!!errors.cotizacaoResgate}
+                hint={errors.cotizacaoResgate}
+              />
+            </div>
+            <div>
+              <Label htmlFor="liquidacaoResgate">Liquidação do resgate *</Label>
+              <Input
+                id="liquidacaoResgate"
+                type="text"
+                placeholder="Ex: Imediata, D+1, D+2"
+                value={formData.liquidacaoResgate}
+                onChange={(e) => handleInputChange('liquidacaoResgate', e.target.value)}
+                error={!!errors.liquidacaoResgate}
+                hint={errors.liquidacaoResgate}
+              />
+            </div>
+          </div>
         </div>
       )}
 

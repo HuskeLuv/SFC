@@ -11,6 +11,7 @@ import {
   assetEntityLabel,
   recordCaixaParaInvestirAtualizado,
   ATIVO_VALOR_FIELD_LABELS,
+  RENDA_FIXA_FIELD_LABELS,
 } from '@/services/changeHistory';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 import {
@@ -18,6 +19,8 @@ import {
   FUNDO_SUBTIPO_ORDER,
   FUNDO_SUBTIPO_LABEL,
   fundoSubtipoFromAssetType,
+  isFundoCatchAllType,
+  isFundoSubtipo,
   type FundoSubtipo,
 } from '@/lib/fundoTypes';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
@@ -86,6 +89,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       : [];
 
   const latestCompraNotes = new Map<string, Record<string, unknown> | null>();
+  // Prazo de resgate (ticket 02/09/2026): gravado nas notes da compra pelo
+  // wizard ou pela edição inline (que escreve na compra mais recente). Um
+  // aporte também é 'compra' e não carrega os campos, então cada campo é
+  // resolvido pela transação mais recente que o tenha — não pela última.
+  const liquidezByAsset = new Map<
+    string,
+    { cotizacaoResgate?: string; liquidacaoResgate?: string }
+  >();
   const comprasMap = new Map<string, number>();
   const aportesMap = new Map<string, number>();
   const resgatesMap = new Map<string, number>();
@@ -109,6 +120,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       if (!latestCompraNotes.has(transaction.assetId)) {
         latestCompraNotes.set(transaction.assetId, notes);
       }
+      const liq = liquidezByAsset.get(transaction.assetId) ?? {};
+      for (const campo of ['cotizacaoResgate', 'liquidacaoResgate'] as const) {
+        const v = notes?.[campo];
+        if (liq[campo] === undefined && typeof v === 'string' && v.trim()) liq[campo] = v.trim();
+      }
+      liquidezByAsset.set(transaction.assetId, liq);
     } else if (transaction.type === 'venda') {
       resgatesMap.set(
         transaction.assetId,
@@ -154,20 +171,27 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           ? item.avgPrice * item.quantity
           : valorCalculado;
     const notes = assetId ? latestCompraNotes.get(assetId) : null;
+    const liquidez = assetId ? liquidezByAsset.get(assetId) : undefined;
 
     // Subtipo: prioridade pro Asset.type classificado (CVM/RCVM 175), fallback
-    // pro notes.tipoFundo (input antigo do wizard), default 'fim'.
-    const subtipoFromAsset = fundoSubtipoFromAssetType(item.asset?.type);
-    const subtipoFromNotes = FUNDO_SUBTIPO_ORDER.includes(notes?.tipoFundo as FundoSubtipo)
-      ? (notes?.tipoFundo as FundoSubtipo)
-      : null;
-    const tipoFundo: FundoSubtipo = subtipoFromAsset ?? subtipoFromNotes ?? 'fim';
+    // pro notes.tipoFundo (input do wizard), default 'fim'. Pra Asset.type
+    // catch-all ('fund'/'funds' = fundo manual ou CVM sem classificação) o
+    // wizard vence — senão um fundo manual marcado como FIA caía sempre em FIM.
+    const assetType = item.asset?.type;
+    const subtipoFromAsset = isFundoCatchAllType(assetType)
+      ? null
+      : fundoSubtipoFromAssetType(assetType);
+    const subtipoFromNotes = isFundoSubtipo(notes?.tipoFundo) ? notes.tipoFundo : null;
+    const tipoFundo: FundoSubtipo =
+      subtipoFromAsset ?? subtipoFromNotes ?? fundoSubtipoFromAssetType(assetType) ?? 'fim';
 
     return {
       id: item.id,
       nome: item.asset?.name || 'Fundo',
-      cotizacaoResgate: notes?.cotizacaoResgate || 'D+0',
-      liquidacaoResgate: notes?.liquidacaoResgate || 'Imediata',
+      // Vazio = não informado (a UI mostra "—"). Antes caía em "D+0/Imediata",
+      // que fazia fundo D+30 parecer liquidez diária.
+      cotizacaoResgate: liquidez?.cotizacaoResgate ?? '',
+      liquidacaoResgate: liquidez?.liquidacaoResgate ?? '',
       // Classificação CVM (RCVM 175) tem prioridade; fallback pro input do wizard.
       categoriaNivel1: item.asset?.categoria || notes?.categoriaNivel1 || '',
       subcategoriaNivel2: item.asset?.subcategoria || notes?.subcategoriaNivel2 || '',
@@ -406,6 +430,51 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         success: true,
         message: 'Valor atualizado com sucesso',
       });
+    }
+
+    // Prazo de resgate editado inline: vive nas notes da compra mais recente
+    // (mesma convenção da aba Renda Fixa) — o GET resolve por campo.
+    if (campo === 'cotizacaoResgate' || campo === 'liquidacaoResgate') {
+      if (typeof valor !== 'string' || valor.length > 100) {
+        return NextResponse.json({ error: `${campo} deve ser um texto curto` }, { status: 400 });
+      }
+      if (!portfolio.assetId) {
+        return NextResponse.json({ error: 'Fundo sem ativo vinculado' }, { status: 400 });
+      }
+      const transaction = await prisma.stockTransaction.findFirst({
+        where: { userId: targetUserId, assetId: portfolio.assetId, type: 'compra' },
+        orderBy: { date: 'desc' },
+      });
+      if (!transaction) {
+        return NextResponse.json(
+          { error: 'Fundo sem transação de compra para registrar o prazo de resgate' },
+          { status: 400 },
+        );
+      }
+      const notes = parseNotes(transaction.notes) ?? {};
+      const valorAnterior = typeof notes[campo] === 'string' ? (notes[campo] as string) : '';
+      notes[campo] = valor.trim();
+      await prisma.stockTransaction.update({
+        where: { id: transaction.id },
+        data: { notes: JSON.stringify(notes) },
+      });
+
+      await recordChange({
+        request,
+        auth,
+        section: 'carteira',
+        action: 'fundo.atualizar-liquidez',
+        entity: 'ativo',
+        entityId: ativoId,
+        entityLabel: assetEntityLabel(portfolio.asset),
+        changes: diffFields(
+          { [campo]: valorAnterior },
+          { [campo]: valor.trim() },
+          RENDA_FIXA_FIELD_LABELS,
+        ),
+      });
+
+      return NextResponse.json({ success: true, message: 'Prazo de resgate atualizado' });
     }
   }
 

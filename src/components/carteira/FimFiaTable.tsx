@@ -9,6 +9,7 @@ import {
   MetricCardConfig,
   EditableObjetivoCell,
   EditableValorCell,
+  EditableTextCell,
   metricColorBySign,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
@@ -31,6 +32,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     formatPercentage,
     updateObjetivo,
     updateValorAtualizado,
+    updateCampo,
     updateCaixaParaInvestir,
   } = useFimFia();
 
@@ -62,11 +64,21 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
         </div>
       ),
     },
+    // Ticket 02/09/2026: prazo de resgate vinha fixo "D+0/Imediata". Agora é
+    // o que o usuário informou (wizard) e pode ser corrigido inline; vazio = "—".
     {
       key: 'cotizacaoResgate',
       header: 'Cot. Resgate',
       align: 'center',
-      render: (a) => a.cotizacaoResgate,
+      render: (a) => (
+        <EditableTextCell
+          ativoId={a.id}
+          value={a.cotizacaoResgate}
+          placeholder="D+0"
+          title="Prazo de cotização do resgate (ex.: D+0, D+30). Clique para editar."
+          onSubmit={(id, v) => void updateCampo(id, 'cotizacaoResgate', v)}
+        />
+      ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
@@ -74,7 +86,15 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       key: 'liquidacaoResgate',
       header: 'Liq. Resgate',
       align: 'center',
-      render: (a) => a.liquidacaoResgate,
+      render: (a) => (
+        <EditableTextCell
+          ativoId={a.id}
+          value={a.liquidacaoResgate}
+          placeholder="D+1"
+          title="Prazo de liquidação do resgate (ex.: Imediata, D+1). Clique para editar."
+          onSubmit={(id, v) => void updateCampo(id, 'liquidacaoResgate', v)}
+        />
+      ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
