@@ -324,6 +324,10 @@ export default function Step5Confirmation({
                 return labels[val as string] ?? val;
               })}
             {formData.tipoAtivo === 'fundo' &&
+              renderFieldValue('Cotização do resgate', formData.cotizacaoResgate)}
+            {formData.tipoAtivo === 'fundo' &&
+              renderFieldValue('Liquidação do resgate', formData.liquidacaoResgate)}
+            {formData.tipoAtivo === 'fundo' &&
               formData.fundoDestino === 'renda-fixa' &&
               formData.fundoRendaFixaTipo &&
               renderFieldValue('Tipo de Renda Fixa', formData.fundoRendaFixaTipo, (val) =>

@@ -364,6 +364,11 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           formData.tipoDebenture !== 'prefixada' ||
           (formData.taxaJurosAnual > 0 && formData.taxaJurosAnual <= 1000);
         const fundoDestinoRequired = tipoAtivo === 'fundo' && !!formData.fundoDestino;
+        // Ticket 02/09/2026: prazo de resgate obrigatório pra fundo (antes
+        // nem era perguntado e a aba mostrava "D+0/Imediata" pra todos).
+        const fundoLiquidezOk =
+          tipoAtivo !== 'fundo' ||
+          (!!formData.cotizacaoResgate?.trim() && !!formData.liquidacaoResgate?.trim());
         const fundoRendaFixaTipoRequired =
           tipoAtivo === 'fundo' &&
           formData.fundoDestino === 'renda-fixa' &&
@@ -376,6 +381,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
             (tipoAtivo !== 'debenture' || debentureTipoRequired) &&
             debentureTaxaOk &&
             (tipoAtivo !== 'fundo' || fundoDestinoRequired) &&
+            fundoLiquidezOk &&
             (tipoAtivo !== 'fundo' ||
               formData.fundoDestino !== 'renda-fixa' ||
               fundoRendaFixaTipoRequired)
@@ -387,6 +393,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           (tipoAtivo !== 'debenture' || debentureTipoRequired) &&
           debentureTaxaOk &&
           (tipoAtivo !== 'fundo' || fundoDestinoRequired) &&
+          fundoLiquidezOk &&
           (tipoAtivo !== 'fundo' ||
             formData.fundoDestino !== 'renda-fixa' ||
             fundoRendaFixaTipoRequired)
@@ -475,6 +482,12 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           formData.fundoDestino === 'renda-fixa' && !formData.fundoRendaFixaTipo
             ? 'Selecione o tipo de renda fixa (Pré, Pós ou Híbrida)'
             : undefined,
+        cotizacaoResgate: !formData.cotizacaoResgate?.trim()
+          ? 'Informe o prazo de cotização do resgate (ex.: D+0, D+30)'
+          : undefined,
+        liquidacaoResgate: !formData.liquidacaoResgate?.trim()
+          ? 'Informe o prazo de liquidação do resgate (ex.: Imediata, D+1)'
+          : undefined,
       }));
     }
     if (formData.tipoAtivo === 'reit') {

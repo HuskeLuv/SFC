@@ -237,24 +237,34 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
     }
   };
 
-  const updateValorAtualizado = valorAtualizadoPath
-    ? async (ativoId: string, novoValor: number) => {
+  /**
+   * Edição inline genérica de um campo do ativo (`{ ativoId, campo, valor }`
+   * no POST da aba). `updateValorAtualizado` é o caso particular
+   * campo='valorAtualizado'; as abas usam também pra metadados em notes
+   * (ex.: cotização/liquidação de resgate dos fundos).
+   */
+  const updateCampo = valorAtualizadoPath
+    ? async (ativoId: string, campo: string, valor: string | number) => {
         try {
           const response = await csrfFetch(valorAtualizadoPath, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ativoId, campo: 'valorAtualizado', valor: novoValor }),
+            body: JSON.stringify({ ativoId, campo, valor }),
           });
-          if (!response.ok) throw new Error('Erro ao atualizar valor');
+          if (!response.ok) throw new Error(`Erro ao atualizar ${campo}`);
 
           await queryClient.invalidateQueries({ queryKey });
           invalidatePortfolioDerivedQueries(queryClient);
           return true;
         } catch (err) {
-          logger.error('Erro ao atualizar valor:', err);
+          logger.error(`Erro ao atualizar ${campo}:`, err);
           return false;
         }
       }
+    : undefined;
+
+  const updateValorAtualizado = updateCampo
+    ? (ativoId: string, novoValor: number) => updateCampo(ativoId, 'valorAtualizado', novoValor)
     : undefined;
 
   const updateCaixaParaInvestir = useCallback(
@@ -308,6 +318,7 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
     csrfFetch,
     updateObjetivo,
     updateValorAtualizado,
+    updateCampo,
     updateCaixaParaInvestir,
     formatCurrency,
     formatPercentage,

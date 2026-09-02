@@ -386,6 +386,44 @@ export default function Step4FundoDebenturePrevidenciaFields({
         </div>
       )}
 
+      {formData.tipoAtivo === 'fundo' && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">
+            Prazo de resgate
+          </h4>
+          <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            Conforme o regulamento do fundo. Define a liquidez no balanço patrimonial (até D+360 =
+            curto prazo).
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="cotizacaoResgate">Cotização do resgate *</Label>
+              <Input
+                id="cotizacaoResgate"
+                type="text"
+                placeholder="Ex: D+0, D+1, D+30"
+                value={formData.cotizacaoResgate}
+                onChange={(e) => handleInputChange('cotizacaoResgate', e.target.value)}
+                error={!!errors.cotizacaoResgate}
+                hint={errors.cotizacaoResgate}
+              />
+            </div>
+            <div>
+              <Label htmlFor="liquidacaoResgate">Liquidação do resgate *</Label>
+              <Input
+                id="liquidacaoResgate"
+                type="text"
+                placeholder="Ex: Imediata, D+1, D+2"
+                value={formData.liquidacaoResgate}
+                onChange={(e) => handleInputChange('liquidacaoResgate', e.target.value)}
+                error={!!errors.liquidacaoResgate}
+                hint={errors.liquidacaoResgate}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fundos CVM: entrada sempre por cotas (como ação) — toggle escondido. */}
       {isCvmFund ? (
         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">

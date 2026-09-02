@@ -1780,6 +1780,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       metadata.fundoRendaFixaTipo = fundoRendaFixaTipo;
     }
   }
+  if (tipoAtivo === 'fundo') {
+    // Prazo de resgate informado no wizard (ticket 02/09/2026). Sem default:
+    // fundo sem prazo aparece como "—" na aba e conta como baixa liquidez no
+    // balanço — melhor que fingir D+0.
+    if (cotizacaoResgate?.trim()) metadata.cotizacaoResgate = cotizacaoResgate.trim();
+    if (liquidacaoResgate?.trim()) metadata.liquidacaoResgate = liquidacaoResgate.trim();
+  }
   if (tipoAtivo === 'reit') {
     if (estrategiaReit) metadata.estrategiaReit = estrategiaReit;
     metadata.cotacaoMoeda = cotacaoMoeda || null;

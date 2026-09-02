@@ -6,7 +6,7 @@ const mockPrisma = vi.hoisted(() => ({
   userChangeLog: { create: vi.fn() },
   user: { findUnique: vi.fn() },
   portfolio: { findMany: vi.fn(), findUnique: vi.fn() },
-  stockTransaction: { findMany: vi.fn() },
+  stockTransaction: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
   dashboardData: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
   fixedIncomeAsset: { findMany: vi.fn().mockResolvedValue([]) },
   economicIndex: { findMany: vi.fn().mockResolvedValue([]) },
@@ -192,7 +192,91 @@ describe('/api/carteira/fim-fia', () => {
     });
   });
 
+  describe('GET — prazo de resgate (ticket 02/09/2026)', () => {
+    const portfolioFundo = {
+      id: 'pf-liq',
+      assetId: 'asset-liq',
+      quantity: 1,
+      avgPrice: 1000,
+      totalInvested: 1000,
+      objetivo: 0,
+      asset: { id: 'asset-liq', type: 'multimercado', name: 'Fundo X', currentPrice: null },
+    };
+
+    it('sem prazo informado devolve vazio (não mais "D+0/Imediata")', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([portfolioFundo]);
+      const res = await GET(createGetRequest());
+      const ativo = (await res.json()).secoes.flatMap((s: { ativos: unknown[] }) => s.ativos)[0];
+      expect(ativo.cotizacaoResgate).toBe('');
+      expect(ativo.liquidacaoResgate).toBe('');
+    });
+
+    it('resolve cada campo pela compra mais recente que o tenha (aporte não apaga)', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([portfolioFundo]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          assetId: 'asset-liq',
+          type: 'compra',
+          total: 500,
+          date: new Date('2026-08-01'),
+          notes: JSON.stringify({ operation: { action: 'aporte' } }),
+        },
+        {
+          assetId: 'asset-liq',
+          type: 'compra',
+          total: 1000,
+          date: new Date('2026-01-10'),
+          notes: JSON.stringify({ cotizacaoResgate: 'D+30', liquidacaoResgate: 'D+2' }),
+        },
+      ]);
+      const res = await GET(createGetRequest());
+      const ativo = (await res.json()).secoes.flatMap((s: { ativos: unknown[] }) => s.ativos)[0];
+      expect(ativo.cotizacaoResgate).toBe('D+30');
+      expect(ativo.liquidacaoResgate).toBe('D+2');
+    });
+  });
+
   describe('POST', () => {
+    it('grava cotizacaoResgate nas notes da compra mais recente', async () => {
+      mockPrisma.portfolio.findUnique.mockResolvedValue({
+        id: 'pf-liq',
+        userId: 'user-1',
+        assetId: 'asset-liq',
+        quantity: 1,
+        avgPrice: 1000,
+        asset: { id: 'asset-liq', type: 'multimercado', name: 'Fundo X', currentPrice: null },
+      });
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+        id: 'tx-1',
+        date: new Date('2026-01-10'),
+        notes: JSON.stringify({ operation: { action: 'compra' }, cotizacaoResgate: 'D+0' }),
+      });
+      mockPrisma.stockTransaction.update.mockResolvedValue({});
+      const res = await POST(
+        createPostRequest({ ativoId: 'pf-liq', campo: 'cotizacaoResgate', valor: ' D+30 ' }),
+      );
+      expect(res.status).toBe(200);
+      const call = mockPrisma.stockTransaction.update.mock.calls[0][0];
+      expect(call.where).toEqual({ id: 'tx-1' });
+      expect(JSON.parse(call.data.notes)).toEqual({
+        operation: { action: 'compra' },
+        cotizacaoResgate: 'D+30',
+      });
+    });
+
+    it('rejeita prazo de resgate que não seja texto', async () => {
+      mockPrisma.portfolio.findUnique.mockResolvedValue({
+        id: 'pf-liq',
+        userId: 'user-1',
+        assetId: 'asset-liq',
+        asset: { id: 'asset-liq', type: 'multimercado', currentPrice: null },
+      });
+      const res = await POST(
+        createPostRequest({ ativoId: 'pf-liq', campo: 'liquidacaoResgate', valor: 5 }),
+      );
+      expect(res.status).toBe(400);
+    });
+
     it('updates caixa para investir', async () => {
       mockPrisma.dashboardData.findFirst.mockResolvedValue(null);
       mockPrisma.dashboardData.create.mockResolvedValue({});

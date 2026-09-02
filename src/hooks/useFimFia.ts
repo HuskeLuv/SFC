@@ -104,6 +104,11 @@ export const useFimFia = () => {
       ativoId: string,
       novoValor: number,
     ) => Promise<boolean>,
+    updateCampo: assetData.updateCampo as (
+      ativoId: string,
+      campo: 'cotizacaoResgate' | 'liquidacaoResgate',
+      valor: string,
+    ) => Promise<boolean>,
     updateCaixaParaInvestir: assetData.updateCaixaParaInvestir,
     formatCurrency: assetData.formatCurrency,
     formatPercentage: assetData.formatPercentage,
