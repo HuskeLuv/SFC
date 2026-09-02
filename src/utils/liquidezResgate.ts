@@ -36,3 +36,27 @@ export function liquidezTotalDias(
   if (cot == null && liq == null) return null;
   return (cot ?? 0) + (liq ?? 0);
 }
+
+export interface LiquidezDeclarada {
+  cotizacaoResgate?: string;
+  liquidacaoResgate?: string;
+}
+
+/**
+ * Resolve o prazo declarado a partir das notes das compras, da mais recente
+ * pra mais antiga, campo a campo: um aporte (também 'compra', sem os campos)
+ * não apaga o prazo informado na compra original.
+ */
+export function pickLiquidezDeclarada(notesNewestFirst: ReadonlyArray<unknown>): LiquidezDeclarada {
+  const out: LiquidezDeclarada = {};
+  for (const notes of notesNewestFirst) {
+    if (!notes || typeof notes !== 'object') continue;
+    const rec = notes as Record<string, unknown>;
+    for (const campo of ['cotizacaoResgate', 'liquidacaoResgate'] as const) {
+      const v = rec[campo];
+      if (out[campo] === undefined && typeof v === 'string' && v.trim()) out[campo] = v.trim();
+    }
+    if (out.cotizacaoResgate !== undefined && out.liquidacaoResgate !== undefined) break;
+  }
+  return out;
+}

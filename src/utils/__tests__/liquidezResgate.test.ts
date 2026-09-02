@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parsePrazoDias, liquidezTotalDias, LIQUIDEZ_NAO_INFORMADA } from '../liquidezResgate';
+import {
+  parsePrazoDias,
+  liquidezTotalDias,
+  pickLiquidezDeclarada,
+  LIQUIDEZ_NAO_INFORMADA,
+} from '../liquidezResgate';
 
 describe('parsePrazoDias', () => {
   it('reconhece D+N nas grafias comuns', () => {
@@ -40,5 +45,23 @@ describe('liquidezTotalDias', () => {
   it('null quando nenhum dos dois foi informado', () => {
     expect(liquidezTotalDias('', null)).toBeNull();
     expect(liquidezTotalDias('—', '—')).toBeNull();
+  });
+});
+
+describe('pickLiquidezDeclarada', () => {
+  it('pega cada campo da compra mais recente que o tenha', () => {
+    const notes = [
+      { operation: { action: 'aporte' } },
+      { cotizacaoResgate: 'D+30' },
+      { cotizacaoResgate: 'D+0', liquidacaoResgate: 'D+2' },
+    ];
+    expect(pickLiquidezDeclarada(notes)).toEqual({
+      cotizacaoResgate: 'D+30',
+      liquidacaoResgate: 'D+2',
+    });
+  });
+
+  it('ignora notes nulas, malformadas e strings vazias', () => {
+    expect(pickLiquidezDeclarada([null, 'x', { cotizacaoResgate: '  ' }])).toEqual({});
   });
 });
