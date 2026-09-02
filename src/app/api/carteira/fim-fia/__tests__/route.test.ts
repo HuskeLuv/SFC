@@ -127,6 +127,69 @@ describe('/api/carteira/fim-fia', () => {
       // Fix #1: quantoFalta = objetivo - %carteira (100% num fundo só) = 80 - 100
       expect(ativo.quantoFalta).toBe(-20);
     });
+
+    // Ticket 02/09/2026: fundo de renda fixa (classificação CVM) caía em FIM.
+    it('fundo CVM type=fund-rf vai pra seção "Renda Fixa" da aba Fundos', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'pf-rf',
+          assetId: 'asset-rf',
+          quantity: 10,
+          avgPrice: 100,
+          totalInvested: 1000,
+          objetivo: 0,
+          asset: {
+            id: 'asset-rf',
+            type: 'fund-rf',
+            name: 'AZ QUEST VALORE FIF RENDA FIXA',
+            currentPrice: { toNumber: () => 120 },
+            categoria: 'Classes de Cotas de Fundos FIF',
+            subcategoria: 'Renda Fixa',
+          },
+        },
+      ]);
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      const secaoRf = data.secoes.find((s: { tipo: string }) => s.tipo === 'rf');
+      const secaoFim = data.secoes.find((s: { tipo: string }) => s.tipo === 'fim');
+      expect(secaoRf?.nome).toBe('Renda Fixa');
+      expect(secaoRf?.ativos).toHaveLength(1);
+      expect(secaoRf.ativos[0].tipo).toBe('rf');
+      expect(secaoFim?.ativos).toHaveLength(0);
+    });
+
+    it('fundo manual (type=fund) respeita o subtipo escolhido no wizard (notes.tipoFundo)', async () => {
+      mockPrisma.portfolio.findMany.mockResolvedValue([
+        {
+          id: 'pf-manual',
+          assetId: 'asset-manual',
+          quantity: 1,
+          avgPrice: 1000,
+          totalInvested: 1000,
+          objetivo: 0,
+          asset: {
+            id: 'asset-manual',
+            type: 'fund',
+            name: 'Fundo Ações Manual',
+            currentPrice: null,
+          },
+        },
+      ]);
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          assetId: 'asset-manual',
+          type: 'compra',
+          total: 1000,
+          date: new Date('2026-01-10'),
+          notes: JSON.stringify({ tipoFundo: 'fia', operation: { action: 'compra' } }),
+        },
+      ]);
+      const res = await GET(createGetRequest());
+      const data = await res.json();
+      const secaoFia = data.secoes.find((s: { tipo: string }) => s.tipo === 'fia');
+      expect(secaoFia?.ativos).toHaveLength(1);
+      expect(secaoFia.ativos[0].tipo).toBe('fia');
+    });
   });
 
   describe('POST', () => {

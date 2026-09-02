@@ -18,6 +18,8 @@ import {
   FUNDO_SUBTIPO_ORDER,
   FUNDO_SUBTIPO_LABEL,
   fundoSubtipoFromAssetType,
+  isFundoCatchAllType,
+  isFundoSubtipo,
   type FundoSubtipo,
 } from '@/lib/fundoTypes';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
@@ -156,12 +158,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const notes = assetId ? latestCompraNotes.get(assetId) : null;
 
     // Subtipo: prioridade pro Asset.type classificado (CVM/RCVM 175), fallback
-    // pro notes.tipoFundo (input antigo do wizard), default 'fim'.
-    const subtipoFromAsset = fundoSubtipoFromAssetType(item.asset?.type);
-    const subtipoFromNotes = FUNDO_SUBTIPO_ORDER.includes(notes?.tipoFundo as FundoSubtipo)
-      ? (notes?.tipoFundo as FundoSubtipo)
-      : null;
-    const tipoFundo: FundoSubtipo = subtipoFromAsset ?? subtipoFromNotes ?? 'fim';
+    // pro notes.tipoFundo (input do wizard), default 'fim'. Pra Asset.type
+    // catch-all ('fund'/'funds' = fundo manual ou CVM sem classificação) o
+    // wizard vence — senão um fundo manual marcado como FIA caía sempre em FIM.
+    const assetType = item.asset?.type;
+    const subtipoFromAsset = isFundoCatchAllType(assetType)
+      ? null
+      : fundoSubtipoFromAssetType(assetType);
+    const subtipoFromNotes = isFundoSubtipo(notes?.tipoFundo) ? notes.tipoFundo : null;
+    const tipoFundo: FundoSubtipo =
+      subtipoFromAsset ?? subtipoFromNotes ?? fundoSubtipoFromAssetType(assetType) ?? 'fim';
 
     return {
       id: item.id,

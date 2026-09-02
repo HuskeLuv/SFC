@@ -3,8 +3,9 @@
 // evitar diff em ~20 importadores.
 
 import { BaseFundAtivo, BaseSecao, BaseFundSecaoTotals, BaseResumo } from './base';
+import type { FundoSubtipo } from '@/lib/fundoTypes';
 
-export type TipoFimFia = 'fim' | 'fia' | 'fip' | 'fip-infra' | 'fidc' | 'fiagro';
+export type TipoFimFia = FundoSubtipo;
 
 export interface FimFiaAtivo extends BaseFundAtivo {
   cotizacaoResgate: string; // Ex: "D+0", "D+8", "D+30"

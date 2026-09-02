@@ -314,6 +314,8 @@ export default function Step5Confirmation({
                   'previdencia-seguros': 'Previdência e Seguros',
                   fim: 'FIM (Fundo Multimercado)',
                   fia: 'FIA (Fundo de Ações)',
+                  rf: 'Fundo de Renda Fixa',
+                  cambial: 'Fundo Cambial',
                   fip: 'FIP (Fundo de Participações)',
                   'fip-infra': 'FIP Infraestrutura',
                   fidc: 'FIDC',

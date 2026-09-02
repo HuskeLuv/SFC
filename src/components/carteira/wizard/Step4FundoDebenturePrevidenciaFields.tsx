@@ -11,6 +11,7 @@ import { useFundQuotaAt } from './useFundQuotaAt';
 import { formatDateBR } from './priceDeviationWarning';
 import {
   fundoSubtipoFromAssetType,
+  isFundoSubtipo,
   FUNDO_SUBTIPO_LABEL,
   type FundoSubtipo,
 } from '@/lib/fundoTypes';
@@ -320,6 +321,8 @@ export default function Step4FundoDebenturePrevidenciaFields({
               { value: 'previdencia-seguros', label: 'Previdência e Seguros' },
               { value: 'fim', label: 'FIM (Fundo Multimercado)' },
               { value: 'fia', label: 'FIA (Fundo de Ações)' },
+              { value: 'rf', label: 'Fundo de Renda Fixa (aba Fundos)' },
+              { value: 'cambial', label: 'Fundo Cambial (aba Fundos)' },
               { value: 'fip', label: 'FIP (Fundo de Participações)' },
               { value: 'fip-infra', label: 'FIP Infraestrutura (Lei 12.431)' },
               { value: 'fidc', label: 'FIDC (Direitos Creditórios)' },
@@ -329,8 +332,7 @@ export default function Step4FundoDebenturePrevidenciaFields({
             value={formData.fundoDestino ?? ''}
             onChange={(value) => {
               handleInputChange('fundoDestino', value);
-              const subtipos: string[] = ['fim', 'fia', 'fip', 'fip-infra', 'fidc', 'fiagro'];
-              if (subtipos.includes(value)) {
+              if (isFundoSubtipo(value)) {
                 handleInputChange('tipoFundo', value);
               } else {
                 onFormDataChange({
