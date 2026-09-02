@@ -106,6 +106,8 @@ interface RentabilidadeResumoProps {
    * % REAL na MESMA data, nunca "carteira até dia X ÷ CDI até hoje".
    */
   fimJanela?: number;
+  /** Fim escolhido pelo usuário (período personalizado): não é dado defasado. */
+  fimPersonalizado?: boolean;
 }
 
 export default function RentabilidadeResumo({
@@ -113,6 +115,7 @@ export default function RentabilidadeResumo({
   periodReturn,
   periodLabel,
   fimJanela,
+  fimPersonalizado = false,
 }: RentabilidadeResumoProps = {}) {
   const { resumo, formatPercentage } = useCarteiraResumoContext();
   const { theme } = useTheme();
@@ -403,7 +406,7 @@ export default function RentabilidadeResumo({
             {dataReferencia ? ` · em ${dataReferencia}` : ''}
           </div>
         ) : null}
-        {diasDefasado > 5 ? (
+        {diasDefasado > 5 && !fimPersonalizado ? (
           <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-2 text-center text-xs text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
             Dados calculados até {dataReferencia} ({diasDefasado} dias atrás) — a atualização diária
             pode estar pendente.
