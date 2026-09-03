@@ -34,6 +34,8 @@ function isPublicRoute(pathname: string): boolean {
     // via Authorization: Bearer CRON_SECRET, so let them pass the JWT gate.
     pathname.startsWith('/api/cron') ||
     pathname === '/api/health' ||
+    // Página inicial pública (landing); a própria página manda sessão válida pro app.
+    pathname === '/' ||
     pathname === '/signin' ||
     pathname === '/signup' ||
     pathname === '/reset-password' ||
