@@ -28,6 +28,7 @@ import {
   buildDailyPriceMap,
   calculateFixedIncomeValue,
   calculateHistoricoTWR,
+  calculateHistoricoTWRPeriodo,
   filterInvestmentsExclReservas,
   buildPatrimonioCashFlowsByDayOnly,
   buildPatrimonioHistorico,
@@ -715,6 +716,76 @@ describe('buildPatrimonioCashFlowsByDayOnly', () => {
     // exclusão antiga deixava o sumiço do valor da posição virar retorno
     // negativo espúrio no TWR.
     expect(result.get(day1)).toBe(-500);
+  });
+});
+
+/* ================================================================== */
+/* calculateHistoricoTWRPeriodo — janela [inicio, fim] sobre a série    */
+/* ================================================================== */
+
+describe('calculateHistoricoTWRPeriodo', () => {
+  const d = (dia: number) => Date.UTC(2020, 1, dia);
+  // Carteira do ticket 03/09/2026 (QA Gorila): aporte 95.000 no dia 1,
+  // fecha a 95.005,77; depois só valorização.
+  const series = [
+    { data: d(5), saldoBruto: 95005.77 },
+    { data: d(10), saldoBruto: 95127.61 },
+    { data: d(14), saldoBruto: 95290.34 },
+    { data: d(19), saldoBruto: 95412.58 },
+  ];
+  const cashFlows = new Map([[d(5), 95000]]);
+
+  it('início no 1º dia da carteira = TWR desde o início (sem ponto sintético, sem −50% no dia 1)', () => {
+    const full = calculateHistoricoTWR(series, cashFlows);
+    const periodo = calculateHistoricoTWRPeriodo(series, cashFlows, undefined, d(5));
+    expect(periodo).toEqual(full);
+    expect(periodo[0]).toEqual({ data: d(5), value: 0.01 });
+    expect(periodo[periodo.length - 1].value).toBeCloseTo(0.43, 2);
+  });
+
+  it('início ANTES do 1º dia (front clampa presets ao 1º investimento) — mesmo resultado', () => {
+    const full = calculateHistoricoTWR(series, cashFlows);
+    expect(calculateHistoricoTWRPeriodo(series, cashFlows, undefined, d(1))).toEqual(full);
+  });
+
+  it('início no meio da vida: âncora 0% no patrimônio do fechamento anterior', () => {
+    const periodo = calculateHistoricoTWRPeriodo(series, cashFlows, undefined, d(12));
+    expect(periodo[0]).toEqual({ data: d(12), value: 0 });
+    // (95290.34 / 95127.61 − 1) = +0.171%
+    expect(periodo[1].value).toBeCloseTo(0.17, 2);
+    expect(periodo).toHaveLength(3);
+  });
+
+  it('início num dia real COM aporte: o fluxo conta uma única vez (no ponto real, não na âncora)', () => {
+    const serieAporte = [
+      { data: d(5), saldoBruto: 10000 },
+      { data: d(6), saldoBruto: 20100 }, // aporte 10.000 + 1% no dia
+      { data: d(7), saldoBruto: 20100 },
+    ];
+    const cf = new Map([
+      [d(5), 10000],
+      [d(6), 10000],
+    ]);
+    const periodo = calculateHistoricoTWRPeriodo(serieAporte, cf, undefined, d(6));
+    expect(periodo[0]).toEqual({ data: d(6), value: 0 });
+    // (20100 − 10000 − 10000) / (10000 + 10000) = +0,5%
+    expect(periodo[1].value).toBeCloseTo(0.5, 2);
+    expect(periodo[2].value).toBeCloseTo(0.5, 2);
+  });
+
+  it('renda do dia (provento) entra no ponto real, nunca na âncora', () => {
+    const s = [
+      { data: d(5), saldoBruto: 10000 },
+      { data: d(6), saldoBruto: 10000 },
+    ];
+    const income = new Map([[d(6), 100]]);
+    const periodo = calculateHistoricoTWRPeriodo(s, new Map(), income, d(6));
+    expect(periodo[0].value).toBe(0);
+    expect(periodo[1].value).toBeCloseTo(1, 2);
+  });
+
+  it('início depois do fim da série → vazio', () => {
+    expect(calculateHistoricoTWRPeriodo(series, cashFlows, undefined, d(25))).toEqual([]);
   });
 });
 

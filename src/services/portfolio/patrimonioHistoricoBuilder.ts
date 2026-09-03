@@ -494,6 +494,15 @@ export const calculateHistoricoTWR = (
    * o TWR de 5 anos saía ~12pp abaixo do padrão da indústria.
    */
   incomeByDay?: Map<number, number>,
+  options?: {
+    /**
+     * O 1º ponto é uma ÂNCORA sintética (patrimônio de fechamento do dia
+     * anterior ao início da janela) e não um dia real: retorno 0, sem olhar
+     * fluxo nem renda — mesmo que a âncora caia na mesma data de um ponto
+     * real (o aporte desse dia é contado no ponto real, uma única vez).
+     */
+    anchoredStart?: boolean;
+  },
 ): Array<{ data: number; value: number }> => {
   if (patrimonioSeries.length === 0) return [];
 
@@ -507,7 +516,9 @@ export const calculateHistoricoTWR = (
     const renda = incomeByDay?.get(dayKey) ?? incomeByDay?.get(patrimonioSeries[i].data) ?? 0;
 
     let retornoDia = 0;
-    if (i === 0) {
+    if (i === 0 && options?.anchoredStart) {
+      retornoDia = 0;
+    } else if (i === 0) {
       // Primeiro ponto: usa o cashflow do dia (aporte) como base, capturando
       // o ganho instantâneo entre o preço pago e o preço de mercado naquele
       // dia. Sem isso, o TWR forçava 0 no início e descartava a diferença —
@@ -557,6 +568,50 @@ export const calculateHistoricoTWR = (
   }
 
   return result;
+};
+
+/**
+ * TWR acumulado de uma JANELA [periodStart, fim da série] sobre a série de
+ * patrimônio completa. Usado pelo builder (série live) e pelo leitor de
+ * snapshots — mesma regra nos dois caminhos.
+ *
+ * - Início no dia 1 da carteira (ou antes): a janela É a série inteira —
+ *   calcula igual ao TWR "desde o início" (1º ponto com o aporte como base),
+ *   sem ponto sintético. Ticket 03/09/2026 (Pedro × Gorila, personalizado
+ *   05/02/2020–01/09/2026): a âncora sintética era criada na MESMA data do 1º
+ *   dia real e os dois pontos liam o mesmo aporte — o dia 1 saía como
+ *   −aporte/(saldo+aporte) ≈ −50% e o acumulado caía de 208,97% pra 54,49%.
+ *   Presets ("12 meses", "No ano") em carteiras mais novas que o preset
+ *   caíam no mesmo caso (o front clampa o início ao 1º investimento).
+ * - Início no meio da vida: âncora sintética em `periodStart` com o
+ *   patrimônio do último fechamento anterior (retorno 0, sem fluxo — ver
+ *   `anchoredStart`) e os pontos reais a partir daí.
+ */
+export const calculateHistoricoTWRPeriodo = (
+  patrimonioSeries: Array<{ data: number; saldoBruto: number }>,
+  cashFlowsByDay: Map<number, number>,
+  incomeByDay: Map<number, number> | undefined,
+  periodStart: number,
+): Array<{ data: number; value: number }> => {
+  const periodPatrimonio = patrimonioSeries.filter((p) => p.data >= periodStart);
+  if (periodPatrimonio.length === 0) return [];
+  const periodCashFlows = new Map<number, number>();
+  periodPatrimonio.forEach((p) => {
+    const cf = cashFlowsByDay.get(p.data);
+    if (cf !== undefined && cf !== 0) periodCashFlows.set(p.data, cf);
+  });
+
+  const beforePeriod = patrimonioSeries.filter((p) => p.data < periodStart);
+  if (beforePeriod.length === 0) {
+    return calculateHistoricoTWR(periodPatrimonio, periodCashFlows, incomeByDay);
+  }
+  const anchor = {
+    data: periodStart,
+    saldoBruto: beforePeriod[beforePeriod.length - 1].saldoBruto,
+  };
+  return calculateHistoricoTWR([anchor, ...periodPatrimonio], periodCashFlows, incomeByDay, {
+    anchoredStart: true,
+  });
 };
 
 const fetchAssetHistoryFromDb = async (
@@ -1250,28 +1305,12 @@ export const buildPatrimonioHistorico = async (
     const periodStart = normalizeDateStart(new Date(twrStartDate)).getTime();
     const periodEnd = hoje.getTime();
     if (periodStart <= periodEnd) {
-      const beforePeriod = patrimonioSeries.filter((p) => p.data < periodStart);
-      const patrimonyAtStart =
-        beforePeriod.length > 0
-          ? beforePeriod[beforePeriod.length - 1].saldoBruto
-          : (patrimonioSeries[0]?.saldoBruto ?? 0);
-      const periodPatrimonio = patrimonioSeries.filter((p) => p.data >= periodStart);
-      if (periodPatrimonio.length > 0) {
-        const periodPatrimonioSeries = [
-          { data: periodStart, valorAplicado: 0, saldoBruto: patrimonyAtStart },
-          ...periodPatrimonio,
-        ];
-        const periodCashFlows = new Map<number, number>();
-        periodPatrimonioSeries.forEach((p) => {
-          const cf = cashFlowsByDay.get(p.data);
-          if (cf !== undefined && cf !== 0) periodCashFlows.set(p.data, cf);
-        });
-        historicoTWRPeriodo = calculateHistoricoTWR(
-          periodPatrimonioSeries,
-          periodCashFlows,
-          proventosByDay,
-        );
-      }
+      historicoTWRPeriodo = calculateHistoricoTWRPeriodo(
+        patrimonioSeries,
+        cashFlowsByDay,
+        proventosByDay,
+        periodStart,
+      );
     }
   }
 
