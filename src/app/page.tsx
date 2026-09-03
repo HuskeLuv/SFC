@@ -30,9 +30,20 @@ async function hasValidSession(): Promise<boolean> {
   }
 }
 
+/**
+ * Landing pública ligada/desligada. Pedido 03/09/2026 (Pedro): esconder
+ * temporariamente para a concorrência não copiar. Enquanto `false`, a raiz
+ * se comporta como antes do PR #170 (sem sessão → /signin). Para reativar,
+ * trocar para `true` — componentes e prints continuam no repositório.
+ */
+const LANDING_PUBLICA = false;
+
 export default async function Home() {
   if (await hasValidSession()) {
     redirect('/carteira');
+  }
+  if (!LANDING_PUBLICA) {
+    redirect('/signin');
   }
   return <LandingPage />;
 }
