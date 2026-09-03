@@ -58,6 +58,12 @@ describe('Middleware', () => {
       expect(res.headers.get('location')).toBeNull();
     });
 
+    it('should allow public route / (landing) without JWT token', async () => {
+      const res = await middleware(createRequest('/'));
+      expect(res.status).not.toBe(307);
+      expect(res.headers.get('location')).toBeNull();
+    });
+
     it('should allow public route /signup without JWT token', async () => {
       const res = await middleware(createRequest('/signup'));
       expect(res.status).not.toBe(307);
