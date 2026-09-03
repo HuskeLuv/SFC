@@ -2,7 +2,7 @@ import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import {
   buildPatrimonioCashFlowsByDayOnly,
-  calculateHistoricoTWR,
+  calculateHistoricoTWRPeriodo,
   normalizeDateStart,
 } from './patrimonioHistoricoBuilder';
 import { loadCarteiraHistoricoData } from './carteiraHistoricoDataLoader';
@@ -143,28 +143,12 @@ export const loadHistoricoFromSnapshots = async (
         const delta = curr - prev;
         if (delta > 0) incomeByDay.set(historicoPatrimonio[i]!.data, delta);
       }
-      const beforePeriod = historicoPatrimonio.filter((p) => p.data < periodStart);
-      const patrimonyAtStart =
-        beforePeriod.length > 0
-          ? beforePeriod[beforePeriod.length - 1]!.saldoBruto
-          : historicoPatrimonio[0]!.saldoBruto;
-      const periodPatrimonio = historicoPatrimonio.filter((p) => p.data >= periodStart);
-      if (periodPatrimonio.length > 0) {
-        const periodPatrimonioSeries = [
-          { data: periodStart, valorAplicado: 0, saldoBruto: patrimonyAtStart },
-          ...periodPatrimonio,
-        ];
-        const periodCashFlows = new Map<number, number>();
-        periodPatrimonioSeries.forEach((p) => {
-          const cfv = cashFlowsByDay.get(p.data);
-          if (cfv !== undefined && cfv !== 0) periodCashFlows.set(p.data, cfv);
-        });
-        historicoTWRPeriodo = calculateHistoricoTWR(
-          periodPatrimonioSeries,
-          periodCashFlows,
-          incomeByDay,
-        );
-      }
+      historicoTWRPeriodo = calculateHistoricoTWRPeriodo(
+        historicoPatrimonio,
+        cashFlowsByDay,
+        incomeByDay,
+        periodStart,
+      );
     }
   }
 
