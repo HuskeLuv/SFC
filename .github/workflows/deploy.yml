@@ -36,6 +36,7 @@ concurrency:
 permissions:
   id-token: write
   contents: read
+  actions: read # download-artifact@v4 entre jobs exige (403 sem isso)
 
 env:
   ARTIFACTS_BUCKET: myfinance-deploy-artifacts-824353504847
