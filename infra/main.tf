@@ -137,3 +137,31 @@ module "lightsail" {
 
   tags = local.tags
 }
+
+# Alerta (só e-mail, não desliga nada) de orçamento do serviço Lightsail:
+# plano small = US$12 fixo + snapshots/backup ~US$1; avisa em 80% e 100% de US$15.
+resource "aws_budgets_budget" "lightsail" {
+  count = var.lightsail_enabled ? 1 : 0
+
+  name         = "${local.name}-lightsail-cap"
+  budget_type  = "COST"
+  limit_amount = "15"
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  cost_filter {
+    name   = "Service"
+    values = ["Amazon Lightsail"]
+  }
+
+  dynamic "notification" {
+    for_each = [80, 100]
+    content {
+      comparison_operator        = "GREATER_THAN"
+      threshold                  = notification.value
+      threshold_type             = "PERCENTAGE"
+      notification_type          = "ACTUAL"
+      subscriber_email_addresses = [var.alert_email]
+    }
+  }
+}
