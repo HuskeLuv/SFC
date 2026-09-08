@@ -1,5 +1,13 @@
 # Runbook de Deploy — EC2 (myfinance)
 
+> **Migração para Lightsail (set/2026):** o alvo do deploy passa a ser escolhido pela
+> variável de repositório `DEPLOY_TARGET` (`ec2` padrão, `lightsail` após o cutover) ou
+> pelo input do `workflow_dispatch`. No Lightsail o transporte é `scp` + `ssh`
+> (`infra/bootstrap-deploy-local.sh`), sem S3/SSM; o `infra/deploy.sh` é o mesmo.
+> Provisionamento da máquina: `infra/modules/lightsail/provision.sh.tftpl`; segredos:
+> `infra/lightsail-push-env.sh`; alarmes: `infra/lightsail-alarms.sh`.
+> Plano completo com fases, cutover e rollback: `docs/plano-migracao-lightsail-set2026.md`.
+
 Como deployar o app no EC2 provisionado pelo Terraform. Documenta o processo
 que foi feito manualmente em 2026-06-05/06 (o `user-data` prepara o runtime mas
 **não** faz o deploy do código — ver "Limitação do user-data" no fim).

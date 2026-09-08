@@ -117,3 +117,23 @@ module "budget" {
 
   tags = local.tags
 }
+
+# --- Lightsail: app + Postgres numa máquina só (substitui EC2 + RDS) ---
+# Plano: docs/plano-migracao-lightsail-set2026.md. Convive com ec2/rds até o
+# descomissionamento (Fase 3); depois os módulos vpc/rds/ec2/budget saem daqui.
+module "lightsail" {
+  count  = var.lightsail_enabled ? 1 : 0
+  source = "./modules/lightsail"
+
+  name           = local.name
+  region         = var.region
+  account_id     = data.aws_caller_identity.current.account_id
+  bundle_id      = var.lightsail_bundle_id
+  ssh_public_key = var.lightsail_ssh_public_key
+  domain_name    = var.lightsail_domain_name
+  db_name        = var.db_name
+  db_username    = var.db_username
+  alert_email    = var.alert_email
+
+  tags = local.tags
+}

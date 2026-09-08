@@ -17,3 +17,9 @@ db_password   = "TROCAR-min-8-chars"
 jwt_secret    = "TROCAR-openssl-rand-hex-64"
 brapi_api_key = "TROCAR-sua-chave-brapi"
 cron_secret   = "TROCAR-openssl-rand-hex-32"
+
+# --- Lightsail (migração set/2026; docs/plano-migracao-lightsail-set2026.md) ---
+lightsail_enabled        = true
+lightsail_bundle_id      = "small_3_1"
+lightsail_ssh_public_key = "ssh-ed25519 AAAA... myfinance-lightsail-deploy" # ~/.ssh/myfinance-lightsail.pub
+lightsail_domain_name    = ""                                               # vazio no ensaio; "appmyfinance.com.br" no cutover

@@ -1,0 +1,256 @@
+#!/bin/bash
+# Provisionamento da máquina Lightsail (Ubuntu 24.04) — roda UMA vez como root
+# via cloud-init (user_data). Idempotente o suficiente pra re-rodar à mão:
+#   sudo bash /var/lib/cloud/instance/user-data.txt
+#
+# Prepara: Node 20, Caddy, PostgreSQL 16 local (ajustado pra 2 GB compartilhados),
+# usuário/dirs/systemd/cron do app no MESMO layout da EC2 (releases/ + current),
+# swap, fail2ban, backup diário pg_dump -> S3, AWS CLI.
+# NÃO faz deploy de código (GitHub Actions por SSH) e NÃO grava segredos:
+#   - senha do Postgres é gerada AQUI e vai só pro app.env
+#   - JWT/BRAPI/CRON são copiados da EC2 por infra/lightsail-push-env.sh
+#   - credencial do backup vai pra /root/.aws por infra/lightsail-push-env.sh
+set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+APP_ROOT=/opt/myfinance
+ENV_FILE=/etc/myfinance/app.env
+DB_NAME="${db_name}"
+DB_USER="${db_username}"
+
+# --- pacotes base ---
+apt-get update
+apt-get -y upgrade
+apt-get install -y curl git tar jq unzip gnupg ca-certificates apt-transport-https \
+  debian-keyring debian-archive-keyring \
+  postgresql-16 postgresql-client-16 fail2ban cron unattended-upgrades
+
+# --- Node 20 (NodeSource) ---
+if ! command -v node >/dev/null || ! node -v | grep -q '^v20'; then
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  apt-get install -y nodejs
+fi
+
+# --- Caddy (repositório oficial) ---
+if ! command -v caddy >/dev/null; then
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+    | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+    > /etc/apt/sources.list.d/caddy-stable.list
+  apt-get update
+  apt-get install -y caddy
+fi
+
+# --- AWS CLI v2 (só pro backup pro S3) ---
+if ! command -v aws >/dev/null; then
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+  unzip -q -o /tmp/awscliv2.zip -d /tmp
+  /tmp/aws/install
+  rm -rf /tmp/aws /tmp/awscliv2.zip
+fi
+
+# --- swap 2 GB (npm ci + build nativo apertam) ---
+if ! swapon --show | grep -q /swapfile; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q /swapfile /etc/fstab || echo "/swapfile none swap sw 0 0" >>/etc/fstab
+fi
+sysctl -w vm.swappiness=10
+grep -q 'vm.swappiness' /etc/sysctl.d/99-myfinance.conf 2>/dev/null \
+  || echo 'vm.swappiness=10' >/etc/sysctl.d/99-myfinance.conf
+
+# --- usuário e diretórios da app (mesmo layout da EC2) ---
+id myfinance >/dev/null 2>&1 \
+  || useradd --system --home "$APP_ROOT" --create-home --shell /usr/sbin/nologin myfinance
+mkdir -p "$APP_ROOT/releases" "$APP_ROOT/app" /etc/myfinance
+chown -R myfinance:myfinance "$APP_ROOT"
+
+# --- PostgreSQL 16 local: só localhost, ajustado pra dividir 2 GB com o Next ---
+cat >/etc/postgresql/16/main/conf.d/90-myfinance.conf <<'EOF'
+# 2 GB compartilhados com Next.js + Caddy: PG fica com ~600 MB.
+listen_addresses = 'localhost'
+max_connections = 40
+shared_buffers = 384MB
+effective_cache_size = 1GB
+work_mem = 8MB
+maintenance_work_mem = 128MB
+wal_compression = on
+checkpoint_completion_target = 0.9
+random_page_cost = 1.1
+effective_io_concurrency = 200
+log_min_duration_statement = 2000
+timezone = 'UTC'
+EOF
+systemctl enable --now postgresql
+systemctl restart postgresql
+
+# senha gerada na máquina; nunca sai daqui a não ser pelo app.env
+DB_PASS_FILE=/etc/myfinance/.pg_password
+if [ ! -s "$DB_PASS_FILE" ]; then
+  openssl rand -hex 24 >"$DB_PASS_FILE"
+  chmod 600 "$DB_PASS_FILE"
+fi
+DB_PASS="$(cat "$DB_PASS_FILE")"
+sudo -u postgres psql -v ON_ERROR_STOP=1 <<EOF
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$DB_USER') THEN
+    CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS';
+  ELSE
+    ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS';
+  END IF;
+END
+\$\$;
+EOF
+sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1 \
+  || sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
+
+# --- app.env: só o que não é segredo compartilhado; o resto vem do push-env ---
+if [ ! -s "$ENV_FILE" ]; then
+  cat >"$ENV_FILE" <<EOF
+NODE_ENV=production
+PORT=3000
+DATABASE_URL=postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME?connection_limit=5
+REGISTRATION_DISABLED=true
+# JWT_SECRET, BRAPI_API_KEY e CRON_SECRET: copiados da EC2 por infra/lightsail-push-env.sh
+EOF
+  chmod 600 "$ENV_FILE"
+  chown myfinance:myfinance "$ENV_FILE"
+fi
+
+# --- Caddy (mesmo Caddyfile da EC2; sem domínio = só HTTP pro ensaio) ---
+mkdir -p /var/log/caddy
+chown caddy:caddy /var/log/caddy
+if [ -n "${domain_name}" ]; then
+  cat >/etc/caddy/Caddyfile <<EOF
+{
+	email ${alert_email}
+}
+${domain_name}, www.${domain_name} {
+	reverse_proxy localhost:3000
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 20MiB
+			roll_keep 5
+			roll_keep_for 720h
+		}
+		format json
+	}
+}
+EOF
+else
+  cat >/etc/caddy/Caddyfile <<'EOF'
+:80 {
+	reverse_proxy localhost:3000
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 20MiB
+			roll_keep 5
+			roll_keep_for 720h
+		}
+		format json
+	}
+}
+EOF
+fi
+systemctl enable --now caddy
+systemctl reload caddy || systemctl restart caddy
+
+# --- systemd: app (igual à EC2) ---
+cat >/etc/systemd/system/myfinance.service <<'EOF'
+[Unit]
+Description=MyFinance Next.js
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=myfinance
+Group=myfinance
+WorkingDirectory=/opt/myfinance/current
+EnvironmentFile=/etc/myfinance/app.env
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable myfinance || true
+
+# --- crons do app: instalados DESLIGADOS (.disabled) até o cutover ---
+cat >/usr/local/bin/myfinance-cron.sh <<'EOF'
+#!/bin/bash
+ENDPOINT="$1"
+SECRET="$(grep '^CRON_SECRET=' /etc/myfinance/app.env | cut -d= -f2-)"
+ts=$(date -u +%FT%TZ)
+code=$(curl -fsS -m 300 -o /dev/null -w '%%{http_code}' -H "Authorization: Bearer $${SECRET}" "http://localhost:3000$${ENDPOINT}" 2>>/var/log/myfinance-cron.log) || code="ERR"
+echo "$ts $ENDPOINT -> $code" >> /var/log/myfinance-cron.log
+EOF
+chmod 755 /usr/local/bin/myfinance-cron.sh
+touch /var/log/myfinance-cron.log
+cat >/etc/cron.d/myfinance.disabled <<'EOF'
+SHELL=/bin/bash
+0 6 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/economic-indexes
+15 6 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/tesouro-direto-sync
+30 6 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/cvm-fund-sync
+0 5 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/cvm-catalog-sync
+0 4 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/brapi-sync/backfill-names
+0 7 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/brapi-sync/catalog
+5 7 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/brapi-sync/prices-other
+10 7 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/brapi-sync/prices-stocks
+20 7 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/brapi-sync/dividends
+25 7 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/apply-corporate-actions
+30 7 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/brapi-sync/fundamentals
+0 8 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/portfolio-snapshots
+0 5 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/lgpd-retention
+45 6 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/cvm-fund-history
+0 * * * * root /usr/local/bin/myfinance-cron.sh /api/cron/market-data/refresh
+30 21 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/cashflow-evolucao-snapshot
+EOF
+# cron ignora arquivos com ponto no nome em /etc/cron.d — é o "desligado".
+# Cutover: mv /etc/cron.d/myfinance.disabled /etc/cron.d/myfinance
+
+# --- backup 2: pg_dump diário -> S3 (03:00 UTC = 00:00 BRT) ---
+cat >/usr/local/bin/myfinance-pg-backup.sh <<EOF
+#!/bin/bash
+# Dump lógico do banco pro S3. Credencial em /root/.aws (só PutObject no bucket).
+set -euo pipefail
+STAMP=\$(date -u +%Y%m%dT%H%M%SZ)
+OUT=/var/backups/myfinance/\$STAMP.dump
+mkdir -p /var/backups/myfinance
+sudo -u postgres pg_dump -Fc --no-owner --no-privileges "$DB_NAME" >"\$OUT"
+aws s3 cp "\$OUT" "s3://${backup_bucket}/pg/\$STAMP.dump" --region ${aws_region} --only-show-errors
+# mantém só os 2 últimos locais
+ls -1t /var/backups/myfinance/*.dump | tail -n +3 | xargs -r rm -f
+echo "\$(date -u +%FT%TZ) backup ok \$OUT (\$(du -h "\$OUT" | cut -f1))" >>/var/log/myfinance-backup.log
+EOF
+chmod 700 /usr/local/bin/myfinance-pg-backup.sh
+cat >/etc/cron.d/myfinance-backup <<'EOF'
+SHELL=/bin/bash
+0 3 * * * root /usr/local/bin/myfinance-pg-backup.sh >>/var/log/myfinance-backup.log 2>&1
+EOF
+
+# --- SSH: só chave; fail2ban no sshd ---
+sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sed -i 's/^#\?KbdInteractiveAuthentication .*/KbdInteractiveAuthentication no/' /etc/ssh/sshd_config
+systemctl reload ssh || true
+cat >/etc/fail2ban/jail.local <<'EOF'
+[sshd]
+enabled = true
+maxretry = 5
+findtime = 10m
+bantime = 1h
+EOF
+systemctl enable --now fail2ban
+systemctl restart fail2ban
+
+# --- updates de segurança automáticos (só security, sem reboot automático) ---
+cat >/etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+EOF
+
+echo "provision ok: node $(node -v), $(psql --version), $(caddy version | head -1)" >/var/log/myfinance-provision.done

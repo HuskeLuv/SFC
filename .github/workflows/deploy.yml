@@ -1,22 +1,31 @@
-# Deploy contínuo em produção (EC2, sa-east-1) — pipeline de ARTEFATO.
+# Deploy contínuo em produção — pipeline de ARTEFATO com dois alvos.
 #
-# Gatilhos: push na main (merge de PR) ou manual (workflow_dispatch).
-# O build Next roda AQUI no runner (x64, rápido); o tarball (fonte + .next)
-# sobe pro S3 e a EC2 (aarch64, t4g.micro/1GB) só instala deps nativas,
-# valida na porta 3001, roda migrate e flipa o symlink — o build de 25-35min
-# saiu do host (incidente 14/08: TimedOut matou o deploy do #96).
+# Gatilhos: push na main (merge de PR) ou manual (workflow_dispatch, escolhendo o alvo).
+# O build Next roda AQUI no runner (x64, rápido); o host só instala deps nativas,
+# valida na porta 3001, roda migrate e flipa o symlink (infra/deploy.sh com
+# DEPLOY_PREBUILT=1 — health → migrate → flip → rollback).
 #
-# O job assume a role myfinance-prod-github-deploy via OIDC (sem secrets
-# estáticos — ver infra/github-deploy.tf). Host: infra/bootstrap-deploy-artifact.sh
-# → infra/deploy.sh com DEPLOY_PREBUILT=1 (health → migrate → flip → rollback).
-# O .next é arch-independente (JS); node_modules NUNCA vai no tarball — a EC2
-# é ARM e os binários nativos são instalados lá pelo npm ci.
+# Alvos (variável de repositório DEPLOY_TARGET decide o push automático):
+#   - ec2       (padrão) : tarball → S3 → SSM → infra/bootstrap-deploy-artifact.sh
+#   - lightsail          : tarball → scp → ssh → infra/bootstrap-deploy-local.sh
+# Migração EC2+RDS → Lightsail: docs/plano-migracao-lightsail-set2026.md.
+# Cutover = `gh variable set DEPLOY_TARGET -b lightsail`.
+#
+# O .next é arch-independente (JS); node_modules NUNCA vai no tarball — os
+# binários nativos são instalados no host pelo npm ci (EC2 é ARM, Lightsail x86).
 name: deploy
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      target:
+        description: Alvo do deploy
+        type: choice
+        required: true
+        default: ec2
+        options: [ec2, lightsail]
 
 # Um deploy por vez; um novo push espera o anterior terminar (não cancela:
 # abortar um deploy no meio deixaria release pendente no host).
@@ -32,15 +41,27 @@ env:
   ARTIFACTS_BUCKET: myfinance-deploy-artifacts-824353504847
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    # Build no runner ~5-10min + fase EC2 (npm ci/health/migrate) ~10-15min;
-    # teto folgado pro watchdog de 40min do passo SSM.
-    timeout-minutes: 60
-    env:
-      AWS_REGION: sa-east-1
-      INSTANCE_ID: i-09099b2b041adcdb6
+    timeout-minutes: 30
+    outputs:
+      target: ${{ steps.target.outputs.target }}
+      sha7: ${{ steps.target.outputs.sha7 }}
     steps:
+      - name: Resolver alvo
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            T="${{ inputs.target }}"
+          elif [ "${{ vars.DEPLOY_TARGET }}" = "lightsail" ]; then
+            T=lightsail
+          else
+            T=ec2
+          fi
+          echo "target=$T" >> "$GITHUB_OUTPUT"
+          echo "sha7=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "alvo: $T (${GITHUB_SHA::7})"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -52,9 +73,8 @@ jobs:
 
       - name: Build da release no runner
         # Mesmos secrets do CI: o "Collecting page data" do next build
-        # instancia o PrismaClient e exige DATABASE_URL (falha do 1º run do
-        # pipeline). Nada disso é embutido no bundle (sem NEXT_PUBLIC) — em
-        # runtime a EC2 usa o /etc/myfinance/app.env.
+        # instancia o PrismaClient e exige DATABASE_URL. Nada disso é embutido
+        # no bundle (sem NEXT_PUBLIC) — em runtime o host usa /etc/myfinance/app.env.
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -68,12 +88,41 @@ jobs:
       - name: Empacotar artefato (fonte + .next, sem node_modules)
         run: |
           set -euo pipefail
-          # Cache de webpack não serve em runtime e pesa centenas de MB.
           rm -rf .next/cache
           tar -czf "/tmp/deploy-${GITHUB_SHA::7}.tar.gz" \
             --exclude=./node_modules --exclude=./.git \
             .
           ls -lh "/tmp/deploy-${GITHUB_SHA::7}.tar.gz"
+
+      - name: Guardar artefato pro job de deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+          path: /tmp/deploy-${{ steps.target.outputs.sha7 }}.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy-ec2:
+    needs: build
+    if: needs.build.outputs.target == 'ec2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AWS_REGION: sa-east-1
+      INSTANCE_ID: i-09099b2b041adcdb6
+      SHA7: ${{ needs.build.outputs.sha7 }}
+    steps:
+      - name: Checkout (só o bootstrap)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: infra
+          sparse-checkout-cone-mode: false
+
+      - name: Baixar artefato
+        uses: actions/download-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+          path: /tmp
 
       - name: Assumir role AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -83,35 +132,26 @@ jobs:
 
       - name: Subir artefato pro S3
         run: |
-          aws s3 cp "/tmp/deploy-${GITHUB_SHA::7}.tar.gz" \
+          aws s3 cp "/tmp/deploy-${SHA7}.tar.gz" \
             "s3://${ARTIFACTS_BUCKET}/deploys/${GITHUB_SHA}.tar.gz" --only-show-errors
 
       - name: Disparar deploy atômico via SSM e acompanhar
         run: |
           set -euo pipefail
-
-          # O bootstrap vai EMBUTIDO (base64 do checkout deste commit) — sem
-          # depender de script pré-existente no host, e sempre na versão do
-          # próprio deploy. O deploy.sh (health/migrate/flip/rollback) vem de
-          # dentro do tarball extraído.
           BOOT_B64=$(base64 -w0 infra/bootstrap-deploy-artifact.sh)
           CID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --comment "deploy ${GITHUB_SHA::7} via GitHub Actions (${GITHUB_ACTOR})" \
+            --comment "deploy ${SHA7} via GitHub Actions (${GITHUB_ACTOR})" \
             --parameters '{"commands":[
               "set -o pipefail",
               "echo '"$BOOT_B64"' | base64 -d > /tmp/bootstrap-deploy-artifact.sh",
-              "bash /tmp/bootstrap-deploy-artifact.sh s3://'"$ARTIFACTS_BUCKET"'/deploys/'"$GITHUB_SHA"'.tar.gz '"${GITHUB_SHA::7}"' 2>&1 | tail -60",
+              "bash /tmp/bootstrap-deploy-artifact.sh s3://'"$ARTIFACTS_BUCKET"'/deploys/'"$GITHUB_SHA"'.tar.gz '"$SHA7"' 2>&1 | tail -60",
               "echo \"--- release ativa:\"; readlink -f /opt/myfinance/current",
               "echo \"--- health:\"; curl -s -o /dev/null -w \"%{http_code}\\n\" http://localhost:3000/api/health"
             ],"executionTimeout":["2400"]}' \
             --query Command.CommandId --output text)
           echo "CommandId: $CID"
-
-          # Watchdog > executionTimeout do SSM (2400s): 250×10s ≈ 42min.
-          # A fase EC2 agora é npm ci + prisma + health + migrate + flip
-          # (~10-15min) — sem o next build de 25-35min (incidente 14/08).
           STATUS=InProgress
           for i in $(seq 1 250); do
             STATUS=$(aws ssm get-command-invocation \
@@ -120,7 +160,6 @@ jobs:
             case "$STATUS" in Success|Failed|Cancelled|TimedOut) break ;; esac
             sleep 10
           done
-
           echo "Status final: $STATUS"
           echo "--- stdout (últimos 24KB) ---"
           aws ssm get-command-invocation --command-id "$CID" --instance-id "$INSTANCE_ID" \
@@ -128,13 +167,67 @@ jobs:
           ERR=$(aws ssm get-command-invocation --command-id "$CID" --instance-id "$INSTANCE_ID" \
             --query StandardErrorContent --output text)
           if [ -n "$ERR" ] && [ "$ERR" != "None" ]; then
-            echo "--- stderr ---"
-            echo "$ERR"
+            echo "--- stderr ---"; echo "$ERR"
           fi
-
           test "$STATUS" = "Success"
 
       - name: Verificar site público
+        run: |
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' https://appmyfinance.com.br/api/health)
+          echo "https://appmyfinance.com.br/api/health → $CODE"
+          test "$CODE" = "200"
+
+  deploy-lightsail:
+    needs: build
+    if: needs.build.outputs.target == 'lightsail'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SHA7: ${{ needs.build.outputs.sha7 }}
+      HOST: ${{ secrets.PROD_SSH_HOST }}
+    steps:
+      - name: Checkout (só o bootstrap)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: infra
+          sparse-checkout-cone-mode: false
+
+      - name: Baixar artefato
+        uses: actions/download-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+          path: /tmp
+
+      - name: Chave SSH do deploy
+        # Chave dedicada (ed25519) só com acesso a este host; host key fixada
+        # em PROD_SSH_KNOWN_HOSTS pra não aceitar host desconhecido.
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.PROD_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Enviar artefato e bootstrap
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/deploy_key -o BatchMode=yes \
+            "/tmp/deploy-${SHA7}.tar.gz" infra/bootstrap-deploy-local.sh \
+            "ubuntu@${HOST}:/tmp/"
+
+      - name: Deploy atômico por SSH
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "ubuntu@${HOST}" \
+            "set -o pipefail; sudo bash /tmp/bootstrap-deploy-local.sh /tmp/deploy-${SHA7}.tar.gz ${SHA7} 2>&1 | tail -80; \
+             echo '--- release ativa:'; readlink -f /opt/myfinance/current; \
+             echo '--- health:'; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/api/health; \
+             curl -sf http://localhost:3000/api/health >/dev/null"
+
+      - name: Verificar site público
+        # Só faz sentido quando o DNS já aponta pro Lightsail (após o cutover).
+        if: vars.DEPLOY_TARGET == 'lightsail'
         run: |
           CODE=$(curl -s -o /dev/null -w '%{http_code}' https://appmyfinance.com.br/api/health)
           echo "https://appmyfinance.com.br/api/health → $CODE"
