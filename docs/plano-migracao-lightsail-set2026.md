@@ -4,8 +4,11 @@
 > Objetivo: fatura AWS de ~US$ 54/mês (R$ 281) para ~US$ 14/mês (R$ 73), mantendo o app em São Paulo,
 > o mesmo domínio, o mesmo deploy por merge na `main` e backup diário.
 > Cada fase exige OK explícito antes de rodar.
-> **Status 08/09/2026: Fase 0 concluída** (ver resultados do ensaio na seção 4). Aguardando: TTL do
-> GoDaddy em 600 s, confirmação do e-mail dos alarmes e data do cutover (Fase 1).
+> **Status 08/09/2026 19:20 UTC: Fase 1 (cutover) executada.** Produção roda no Lightsail
+> (56.125.206.95). Site ficou fora das 18:30 às 19:18 UTC (48 min), quase todo o tempo aguardando a
+> troca do registro A no GoDaddy; restauração + subida do app levaram menos de 1 min, certificado em
+> 9 s. RDS parado (religa sozinho em 7 dias: 15/09), EC2 ligada como proxy TLS para o Lightsail até o
+> TTL antigo expirar (desligar em 09/09). Fase 2 em andamento; Fase 3 exige OK separado.
 
 ## 1. Situação atual (verificada em 08/09/2026)
 
