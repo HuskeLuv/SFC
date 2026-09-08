@@ -1,3 +1,7 @@
+> **Atualização set/2026:** EC2 + RDS estão sendo substituídos por uma máquina Lightsail
+> (app + PostgreSQL local) por custo. Este documento descreve a infra que ainda está no ar;
+> o plano da nova migração está em `plano-migracao-lightsail-set2026.md`.
+
 # Plano de Migração — Vercel + Neon → AWS (sa-east-1)
 
 > Definido em 2026-05-25. Última revisão: 2026-06-05.

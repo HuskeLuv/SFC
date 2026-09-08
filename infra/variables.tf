@@ -82,3 +82,28 @@ variable "cron_secret" {
   type      = string
   sensitive = true
 }
+
+# --- Lightsail (migração set/2026) ---
+variable "lightsail_enabled" {
+  description = "Cria a máquina Lightsail (app + Postgres). false = só EC2/RDS."
+  type        = bool
+  default     = false
+}
+
+variable "lightsail_bundle_id" {
+  description = "Plano Lightsail. small_3_1 = US$12 (2 vCPU, 2 GB, 60 GB). Subir = large_3_1 (US$44, 8 GB)."
+  type        = string
+  default     = "small_3_1"
+}
+
+variable "lightsail_ssh_public_key" {
+  description = "Chave pública ed25519 do par usado pelo deploy (GitHub Actions) e pelo operador. Definir em prod.tfvars."
+  type        = string
+  default     = ""
+}
+
+variable "lightsail_domain_name" {
+  description = "Domínio pro Caddy do Lightsail. Vazio no ensaio (só HTTP); preencher no cutover."
+  type        = string
+  default     = ""
+}
