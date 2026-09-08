@@ -3,7 +3,9 @@
 > Aprovado por Wellington em 08/09/2026 (opção C do levantamento de custos).
 > Objetivo: fatura AWS de ~US$ 54/mês (R$ 281) para ~US$ 14/mês (R$ 73), mantendo o app em São Paulo,
 > o mesmo domínio, o mesmo deploy por merge na `main` e backup diário.
-> Nenhuma etapa deste plano foi executada ainda. Cada fase exige OK explícito antes de rodar.
+> Cada fase exige OK explícito antes de rodar.
+> **Status 08/09/2026: Fase 0 concluída** (ver resultados do ensaio na seção 4). Aguardando: TTL do
+> GoDaddy em 600 s, confirmação do e-mail dos alarmes e data do cutover (Fase 1).
 
 ## 1. Situação atual (verificada em 08/09/2026)
 
@@ -85,6 +87,23 @@ Cada fase começa só com OK explícito. Tempo estimado entre parênteses.
 7. Apagar o banco do ensaio (`dropdb` + `createdb`) para receber o dump final limpo.
 
 Critério de saída: ensaio passou em todos os pontos, tempos anotados, TTL baixo há pelo menos 1 h.
+
+**Resultado do ensaio (08/09/2026, tudo aprovado):**
+
+| Ponto                          | Resultado                                                                                                                                                                                                                         |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Máquina                        | `myfinance-prod-app`, IP estático 56.125.206.95, Ubuntu 24.04, Node 20.20, PostgreSQL 16.15, Caddy 2.11. Provisionamento precisou de um guard bash (Lightsail roda o `user_data` com `/bin/sh`), corrigido no template            |
+| `pg_dump` 16 na EC2            | instalado (`dnf install postgresql16`, 16.12); o `DATABASE_URL` do app tem `connection_limit=5`, que o psql rejeita: remover no comando                                                                                           |
+| Dump → transferência → restore | 90 MB em 13 s → scp EC2→Lightsail em 1 s (chave temporária `/root/.ssh/ls_tmp` na EC2) → `pg_restore -j 2` em 26 s. Hash idêntico. **53 tabelas, 1.940.733 linhas, contagem idêntica**. 24 migrations                             |
+| Deploy pelo pipeline novo      | `workflow_dispatch` alvo `lightsail`: build 5 min + host ~70 s. Health na 3001 e na 3000, migrate sem pendências, release `0db748f` ativa                                                                                         |
+| Smoke funcional                | login `qa.teste.willie`, `/api/carteira/resumo` saldo bruto 84.926,45 (igual à produção), índices/histórico/proventos/fluxo 200. Precisa de HTTPS (cookie Secure): usado site temporário com `tls internal` no Caddy, já removido |
+| Crons                          | `economic-indexes` 5 s, `brapi-sync/catalog` 7 s, `market-data/refresh` 51 s, todos 200 (saída para Bacen e BRAPI OK). Memória após: 913 MB usados de 1.907                                                                       |
+| Backup 2 (dump → S3)           | script em 14 s, objeto de 94 MB no bucket, restauração num banco de teste em 29 s com contagens iguais. Credencial só grava: `ListBucket` negado como esperado                                                                    |
+| Backup 1 (snapshot)            | snapshot manual → instância temporária → Postgres com dados, app health 200 em ~20 s. Instância e snapshot apagados. Snapshot automático diário 06:00 UTC habilitado                                                              |
+| Alarmes e orçamento            | alarmes `cpu-burst-low` e `status-check` criados; contato por e-mail aguarda confirmação em suporte@. Budget `myfinance-prod-lightsail-cap` US$ 15 (80%/100%)                                                                     |
+| Segredos                       | `app.env` completo via `infra/lightsail-push-env.sh`; nada passou por user_data ou tfstate                                                                                                                                        |
+
+Pendente antes do cutover: TTL do GoDaddy em 600 s (manual), confirmar o e-mail dos alarmes, `dropdb`/`createdb` do banco do ensaio imediatamente antes do restore final.
 
 ### Fase 1 — Cutover (D, janela de ~30 min, fora do horário dos testers)
 

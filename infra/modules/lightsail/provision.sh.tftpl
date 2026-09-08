@@ -10,6 +10,10 @@
 #   - senha do Postgres é gerada AQUI e vai só pro app.env
 #   - JWT/BRAPI/CRON são copiados da EC2 por infra/lightsail-push-env.sh
 #   - credencial do backup vai pra /root/.aws por infra/lightsail-push-env.sh
+# O Lightsail concatena um preâmbulo próprio antes deste script e roda o arquivo
+# com /bin/sh (o shebang acima é ignorado). Reexecuta em bash antes de qualquer
+# bashismo. Ao rodar à mão (`sudo bash provision.sh`) o guard não faz nada.
+if [ -z "$${BASH_VERSION:-}" ]; then exec /bin/bash "$0" "$@"; fi
 set -euxo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
