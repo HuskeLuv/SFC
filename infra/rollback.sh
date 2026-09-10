@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Rollback manual — aponta `current` pra release mais nova ANTERIOR à atual e
-# reinicia o serviço. Uso (via SSM, como root):
+# reinicia o serviço. Uso (por SSH no Lightsail, como root/sudo):
 #   bash /opt/myfinance/current/infra/rollback.sh
 # (ou aponte pra qualquer release: bash infra/rollback.sh /opt/myfinance/releases/<dir>)
 set -euo pipefail

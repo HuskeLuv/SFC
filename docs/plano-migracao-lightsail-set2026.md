@@ -9,6 +9,12 @@
 > troca do registro A no GoDaddy; restauração + subida do app levaram menos de 1 min, certificado em
 > 9 s. RDS parado (religa sozinho em 7 dias: 15/09), EC2 ligada como proxy TLS para o Lightsail até o
 > TTL antigo expirar (desligar em 09/09). Fase 2 em andamento; Fase 3 exige OK separado.
+>
+> **Status 10/09/2026: Fase 3 (descomissionamento) executada.** Fase 2 fechada sem incidentes:
+> crons de 09 e 10/09 todos 200, dump S3 03:00 UTC e snapshot 06:00 UTC dos dois dias OK, e-mail
+> dos alarmes confirmado, Cost Explorer conferido por Wellington. EC2 desligada, RDS religado só
+> para o snapshot final e destruído junto com VPC, SSM, role OIDC e ações do budget (41 recursos,
+> `terraform apply` da config sem os módulos). Detalhes na seção "Fase 3 — executado".
 
 ## 1. Situação atual (verificada em 08/09/2026)
 
@@ -140,6 +146,34 @@ Se qualquer passo de 3 a 8 falhar: rollback (seção 5). Ninguém perde dado por
 3. Bucket `myfinance-deploy-artifacts-…`: apagar (não é mais usado) ou reaproveitar como bucket de backup.
 4. Role OIDC `myfinance-prod-github-deploy`: apagar (deploy passa a ser por SSH).
 5. Atualizar memória, `docs/aws-migration-plan.md` e `infra/DEPLOY.md`.
+
+#### Fase 3 — executado em 10/09/2026 (D+2, antecipada com OK do Wellington)
+
+Fase 2 fechada antes: crons de 09 e 10/09 todos 200 (16 jobs), dump S3 03:00 UTC (94 MB) e
+snapshot automático 06:00 UTC nos dois dias, alarmes com e-mail confirmado, primeiro deploy por
+SSH em 08/09 (PR #175), linha "Amazon Lightsail" conferida no Cost Explorer.
+
+| #   | Passo                                                                                                                                                                                                   | Resultado                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 1   | `stop-instances` na EC2 (estava ligada como proxy TLS desde o cutover; devia ter sido desligada em 09/09)                                                                                               | parada                                                                                                     |
+| 2   | Snapshot EBS do volume raiz da EC2 (`vol-086bce6111e332852`)                                                                                                                                            | `snap-0a04f861e4d86ab14` (`myfinance-prod-app-final-20260910`)                                             |
+| 3   | RDS estava parado e `create-db-snapshot` exige `available` → `start-db-instance` (~6 min) → snapshot manual `myfinance-prod-pg-final-20260910`                                                          | disponível, 20 GB                                                                                          |
+| 4   | Cópia recriptografada com a chave gerenciada `alias/aws/rds`: `myfinance-prod-pg-final-20260910-awskey`. Necessária porque a CMK do RDS sai no destroy e um snapshot cifrado com ela fica irrestaurável | disponível; é esta que serve de restauração                                                                |
+| 5   | Config do Terraform sem `vpc`/`rds`/`ec2`, sem parâmetros SSM, sem `github-deploy.tf`; módulo `budget` só com o alerta por e-mail → `terraform plan` = 0 add / 0 change / 41 destroy                    | `terraform apply` do plano salvo (rodado pelo Wellington: o classificador do Claude Code bloqueia destroy) |
+| 6   | Chave temporária `ec2-to-lightsail-tmp` removida do `authorized_keys` do Lightsail                                                                                                                      | sobrou só a chave do deploy                                                                                |
+| 7   | Bucket `myfinance-deploy-artifacts-824353504847` (29 tarballs, 186 MB) apagado com `aws s3 rb --force`                                                                                                  | Wellington                                                                                                 |
+| 7b  | Parâmetro SSM `/myfinance/prod/GITHUB_TOKEN` (criado à mão em jun/2026 para o deploy por clone, fora do Terraform) apagado com `aws ssm delete-parameter`                                               | Wellington                                                                                                 |
+| 8   | `deploy.yml` só com o alvo Lightsail (sem OIDC/S3/SSM, sem `DEPLOY_TARGET`); `infra/README.md`, `infra/DEPLOY.md`, `CLAUDE.md` 5.3 atualizados                                                          | PR desta fase                                                                                              |
+
+O que sobrou na conta AWS: instância Lightsail + IP estático + key pair + snapshots automáticos,
+bucket de backups `myfinance-prod-db-backups-…` + IAM user só-PutObject, os dois budgets
+(`myfinance-prod-usage-cap` US$ 50 e `myfinance-prod-lightsail-cap` US$ 15, ambos só e-mail), os
+alarmes Lightsail, e os três snapshots finais acima (RDS ×2 + EBS; apagar depois de 30 dias). A
+chave KMS `alias/myfinance-prod-rds` fica 7 dias em "pendente de exclusão". A variável de
+repositório `DEPLOY_TARGET` deixou de ser lida pelo workflow.
+
+Rollback a partir daqui = recriar RDS a partir do snapshot `-awskey` (qualquer VPC) e restaurar
+o dump S3 mais recente do Lightsail por cima; horas de trabalho, sem perda de dados.
 
 ## 5. Rollback
 
