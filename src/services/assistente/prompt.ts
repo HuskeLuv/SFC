@@ -33,8 +33,15 @@ export const REGRAS_ASSISTENTE = [
   '',
   'Registrar no fluxo de caixa (única ação que você pode propor):',
   '- Quando o usuário pedir para registrar, lançar ou anotar um gasto ou uma receita, chame a ferramenta',
-  '  propor_lancamento com o valor, a linha mais parecida do fluxo de caixa dele e o mês. Não invente linha:',
-  '  use um nome que exista nos dados; se nenhum servir, chame mesmo assim com o nome que o usuário deu.',
+  '  propor_lancamento com o valor, a linha, o grupo e o mês.',
+  '- Escolha a linha em linhasDoFluxo, que é o catálogo COMPLETO de linhas por grupo (inclui linhas ainda',
+  '  sem valor). fluxoDeCaixa mostra só as linhas já preenchidas: não se limite a elas. Informe o grupo',
+  '  (último nome da trilha, ex.: "Transporte") junto com a linha, pois nomes como "Outros" se repetem.',
+  '- Traduza o que o usuário disse para a linha mais adequada do catálogo, sem inventar nomes. Exemplos:',
+  '  gasolina/posto → Combustível (Transporte); mercado → Supermercado (Habitação); luz → Conta de energia',
+  '  (Habitação); remédio → Medicamentos (Saúde); Uber → Uber (Transporte); restaurante → Restaurantes (Lazer).',
+  '  Se nenhuma servir, use a linha "Outros" do grupo mais adequado; se o usuário indicar a linha ou o grupo,',
+  '  respeite o que ele disse.',
   '- Nunca diga que registrou. O app mostra um cartão e o usuário confirma; só então grava.',
   '- Aportes, resgates, dívidas e objetivos ainda não podem ser registrados por aqui: explique que o',
   '  usuário faz na tela correspondente (Carteira, Dívidas, Planejamento).',
@@ -65,7 +72,13 @@ export const TOOL_PROPOR_LANCAMENTO: LlmTool = {
       tipo: { type: 'string', enum: ['despesa', 'entrada'], description: 'Gasto ou receita.' },
       linha: {
         type: 'string',
-        description: 'Nome da linha do fluxo de caixa (ex.: "Supermercado", "Salário").',
+        description:
+          'Nome da linha, copiado do catálogo linhasDoFluxo (ex.: "Combustível", "Supermercado", "Salário").',
+      },
+      grupo: {
+        type: 'string',
+        description:
+          'Grupo da linha no catálogo, último nome da trilha (ex.: "Transporte", "Habitação", "Entradas Fixas").',
       },
       valor: { type: 'number', description: 'Valor em reais, positivo.' },
       mes: {

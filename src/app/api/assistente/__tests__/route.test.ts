@@ -177,7 +177,7 @@ describe('POST /api/assistente', () => {
           {
             id: 't1',
             name: 'propor_lancamento',
-            input: { tipo: 'despesa', linha: 'mercado', valor: 45.9 },
+            input: { tipo: 'despesa', linha: 'mercado', grupo: 'Habitação', valor: 45.9 },
           },
         ],
       }),
@@ -207,6 +207,7 @@ describe('POST /api/assistente', () => {
     expect(mocks.montarProposta).toHaveBeenCalledWith('u1', 'msg-1', {
       tipo: 'despesa',
       linha: 'mercado',
+      grupo: 'Habitação',
       valor: 45.9,
     });
     expect(body.resposta.replace(/\u00a0/g, ' ')).toContain('R$ 45,90');
@@ -237,11 +238,18 @@ describe('POST /api/assistente', () => {
     mocks.montarProposta.mockResolvedValue({
       ok: false,
       motivo: 'Não encontrei.',
-      alternativas: [{ itemId: 'a', itemNome: 'Transporte', grupoNome: 'G', grupoTipo: 'despesa' }],
+      alternativas: [
+        {
+          itemId: 'a',
+          itemNome: 'Combustível',
+          grupoNome: 'Despesas > Despesas Fixas > Transporte',
+          grupoTipo: 'despesa',
+        },
+      ],
     });
     const body = await (await POST(post({ mensagem: 'gastei 10 de gasolina' }))).json();
     expect(body.proposta).toBeUndefined();
-    expect(body.resposta).toContain('"Transporte"');
+    expect(body.resposta).toContain('"Combustível" (Transporte)');
   });
 
   it('ferramenta com input inválido pede reformulação', async () => {

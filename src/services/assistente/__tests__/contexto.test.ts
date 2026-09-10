@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  catalogoLinhas,
   classesComPosicao,
   compactCashflow,
   compactClasse,
+  listarLinhasEditaveis,
   montarContexto,
   slim,
 } from '../contexto';
@@ -67,6 +69,42 @@ describe('compactCashflow', () => {
   });
 });
 
+describe('catalogoLinhas / listarLinhasEditaveis', () => {
+  const groups = [
+    {
+      name: 'Despesas',
+      type: 'despesa',
+      items: [],
+      children: [
+        {
+          name: 'Habitação',
+          type: 'despesa',
+          items: [
+            { id: 'a', name: 'Supermercado', values: [{ month: 0, value: 100 }] },
+            { id: 'b', name: 'Gás', values: [] },
+            { id: 'c', name: 'Sonho', values: [], objetivoId: 'o1' },
+            { id: 'd', name: 'Oculta', values: [], hidden: true },
+          ],
+        },
+        { name: 'Escondido', type: 'despesa', hidden: true, items: [{ id: 'e', name: 'X' }] },
+      ],
+    },
+    { name: 'Investimentos', type: 'investimento', items: [{ id: 'f', name: 'Aporte' }] },
+    { name: 'Entradas', type: 'entrada', items: [{ id: 'g', name: 'Salário' }] },
+  ];
+
+  it('lista TODAS as linhas editáveis (inclusive zeradas), sem sonho/dívida/ocultas/investimento', () => {
+    expect(listarLinhasEditaveis(groups).map((l) => l.itemId)).toEqual(['a', 'b', 'g']);
+  });
+
+  it('catálogo agrupa só os nomes por trilha do grupo', () => {
+    expect(catalogoLinhas(groups)).toEqual({
+      'Despesas > Habitação': ['Supermercado', 'Gás'],
+      Entradas: ['Salário'],
+    });
+  });
+});
+
 describe('compactClasse / classesComPosicao', () => {
   it('descarta classes sem ativos e mantém só campos úteis dos ativos', () => {
     expect(compactClasse({ secoes: [{ nome: 'x', ativos: [] }] })).toBeNull();
@@ -122,7 +160,9 @@ describe('montarContexto', () => {
           distribuicao: { acoes: { valor: 100, percentual: 100 }, fiis: { valor: 0 } },
         },
         posicoes: { acoes: { secoes: [{ nome: 's', ativos: [{ ticker: 'ITSA4' }] }] } },
-        cashflow: { groups: [] },
+        cashflow: {
+          groups: [{ name: 'Entradas', type: 'entrada', items: [{ id: 'g', name: 'Salário' }] }],
+        },
         orcamento: {
           categorias: [{ nome: 'Lazer', metaMensal: 100, realAnual: { lancado: 50 } }],
           totais: { metaMensal: 100 },
@@ -144,6 +184,7 @@ describe('montarContexto', () => {
     });
     expect((ctx.carteira as { posicoes: Record<string, unknown> }).posicoes.acoes).toBeDefined();
     expect(ctx.fluxoDeCaixa).toEqual([]);
+    expect(ctx.linhasDoFluxo).toEqual({ Entradas: ['Salário'] });
     expect((ctx.orcamento as { categorias: unknown[] }).categorias).toEqual([
       { nome: 'Lazer', metaMensal: 100, realAnual: { lancado: 50 } },
     ]);
