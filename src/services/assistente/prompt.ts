@@ -42,6 +42,14 @@ export const REGRAS_ASSISTENTE = [
   '  (Habitação); remédio → Medicamentos (Saúde); Uber → Uber (Transporte); restaurante → Restaurantes (Lazer).',
   '  Se nenhuma servir, use a linha "Outros" do grupo mais adequado; se o usuário indicar a linha ou o grupo,',
   '  respeite o que ele disse.',
+  '- Gasto ou receita que se repete todo mês (aluguel, condomínio, escola, faculdade, mensalidade,',
+  '  plano de saúde, assinatura, salário, "todo mês", "por mês", "mensal", "fixo") → chame a ferramenta',
+  '  com recorrente=true: o app preenche o ano inteiro da planilha, de janeiro a dezembro. Se o usuário',
+  '  disser a partir de qual mês ou até qual mês, informe mesInicio e/ou mesFim. Se não disser o ano,',
+  '  omita: o app usa o ano que ele está vendo na planilha.',
+  '- modo: "definir" quando o valor informado É o valor da linha no mês (aluguel é 2.500, mensalidade',
+  '  de 800), "somar" quando é um gasto a mais em cima do que já está lá (gastei 45,90 no mercado).',
+  '  Sem informar, o app soma no lançamento único e define no recorrente.',
   '- Nunca diga que registrou. O app mostra um cartão e o usuário confirma; só então grava.',
   '- Aportes, resgates, dívidas e objetivos ainda não podem ser registrados por aqui: explique que o',
   '  usuário faz na tela correspondente (Carteira, Dívidas, Planejamento).',
@@ -65,7 +73,8 @@ export const TOOL_PROPOR_LANCAMENTO: LlmTool = {
   name: 'propor_lancamento',
   description:
     'Propõe registrar um gasto (despesa) ou uma receita (entrada) numa linha do fluxo de caixa mensal ' +
-    'do usuário. O valor é SOMADO à célula do mês. O app pede confirmação antes de gravar.',
+    'do usuário: num único mês ou, se recorrente, em todos os meses do ano da planilha. ' +
+    'O app pede confirmação antes de gravar.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -80,17 +89,45 @@ export const TOOL_PROPOR_LANCAMENTO: LlmTool = {
         description:
           'Grupo da linha no catálogo, último nome da trilha (ex.: "Transporte", "Habitação", "Entradas Fixas").',
       },
-      valor: { type: 'number', description: 'Valor em reais, positivo.' },
+      valor: { type: 'number', description: 'Valor em reais, positivo, de UM mês.' },
       mes: {
         type: 'integer',
         minimum: 0,
         maximum: 11,
         description: 'Mês de 0 (janeiro) a 11 (dezembro). Omitir = mês atual.',
       },
-      ano: { type: 'integer', description: 'Ano. Omitir = ano atual.' },
+      ano: {
+        type: 'integer',
+        description: 'Ano, só se o usuário disser. Omitir = ano que ele está vendo na planilha.',
+      },
       descricao: {
         type: 'string',
         description: 'Descrição curta do que foi gasto/recebido, para o comentário da célula.',
+      },
+      recorrente: {
+        type: 'boolean',
+        description:
+          'true quando se repete todo mês (aluguel, escola, salário…): preenche janeiro a dezembro ' +
+          'do ano, ou o intervalo mesInicio..mesFim.',
+      },
+      mesInicio: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 11,
+        description: 'Só com recorrente: primeiro mês (0 = janeiro). Omitir = janeiro.',
+      },
+      mesFim: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 11,
+        description: 'Só com recorrente: último mês (11 = dezembro). Omitir = dezembro.',
+      },
+      modo: {
+        type: 'string',
+        enum: ['somar', 'definir'],
+        description:
+          '"somar" entra em cima do valor que já está na célula; "definir" faz a célula valer o valor. ' +
+          'Omitir = somar no lançamento único, definir no recorrente.',
       },
     },
     required: ['tipo', 'linha', 'valor'],

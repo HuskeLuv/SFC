@@ -41,8 +41,9 @@ const REGRAS: Array<{ intencao: Intencao; re: RegExp }> = [
   {
     // Verbo de registro + um número: "gastei 45,90", "registra 1.000 em ITSA4".
     // "Quanto gastei este mês?" (sem número) é consulta, não lançamento.
+    // Recorrente: número + "todo mês"/"por mês"/"mensal" ("meu aluguel é 2.500 por mês").
     intencao: 'lancamento',
-    re: /\b(registr|lanc|anot|adicion|coloc|inclu|gastei|paguei|recebi|comprei|ganhei)\w*\b.{0,40}(\d|r\$)/,
+    re: /\b(registr|lanc|anot|adicion|coloc|inclu|gastei|paguei|recebi|comprei|ganhei)\w*\b.{0,40}(\d|r\$)|(\d|r\$).{0,30}\b(todo mes|todos os meses|por mes|ao mes|mensal(mente|idade)?|fixo)\b/,
   },
   { intencao: 'conceito', re: /o que (e|sao|significa)|como funciona|diferenca entre|explica/ },
   { intencao: 'proventos', re: /provento|dividendo|jcp|juros sobre capital|data.?com/ },

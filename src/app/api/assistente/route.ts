@@ -5,7 +5,8 @@
  * POST /api/assistente  → { resposta, proposta?, uso }
  *
  * Toda mensagem vai para o modelo (Haiku) com o retrato compacto da conta no
- * prompt (cacheado por conversa). A única ferramenta é `propor_lancamento`:
+ * prompt (cacheado por conversa). A única ferramenta é `propor_lancamento`
+ * (um mês, ou o ano da planilha inteiro quando o gasto é recorrente):
  * o servidor devolve uma PROPOSTA assinada e o app pede confirmação; a
  * gravação acontece em POST /api/assistente/confirmar. A IA nunca grava.
  * Consultor agindo por cliente: só leitura (sem ferramenta).
@@ -27,7 +28,13 @@ import {
 } from '@/services/assistente/prompt';
 import { classificarIntencao, guardarTextoDaIntencao } from '@/services/assistente/intencao';
 import { assistenteHabilitado, registrarMensagem, usoMensal } from '@/services/assistente/limite';
-import { MESES_LONGOS, grupoCurto, montarProposta } from '@/services/assistente/lancamento';
+import {
+  MESES_LONGOS,
+  descreverPeriodo,
+  ehRecorrente,
+  grupoCurto,
+  montarProposta,
+} from '@/services/assistente/lancamento';
 
 const mensagemSchema = z.object({
   mensagem: z.string().trim().min(1).max(1000),
@@ -40,6 +47,8 @@ const mensagemSchema = z.object({
     )
     .max(MAX_TROCAS_HISTORICO * 2)
     .optional(),
+  /** Ano aberto na planilha do fluxo de caixa (seletor da sidebar). */
+  anoPlanilha: z.number().int().min(2000).max(2100).optional(),
 });
 
 const lancamentoInputSchema = z.object({
@@ -50,6 +59,10 @@ const lancamentoInputSchema = z.object({
   mes: z.number().int().min(0).max(11).optional(),
   ano: z.number().int().min(2000).max(2100).optional(),
   descricao: z.string().trim().max(200).optional(),
+  recorrente: z.boolean().optional(),
+  mesInicio: z.number().int().min(0).max(11).optional(),
+  mesFim: z.number().int().min(0).max(11).optional(),
+  modo: z.enum(['somar', 'definir']).optional(),
 });
 
 function brl(n: number): string {
@@ -75,7 +88,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const parsed = mensagemSchema.safeParse(await request.json());
   if (!parsed.success) return validationError(parsed);
-  const { mensagem, historico = [] } = parsed.data;
+  const { mensagem, historico = [], anoPlanilha } = parsed.data;
 
   await logSensitiveEndpointAccess(
     request,
@@ -123,7 +136,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       tools: viaConsultant ? [] : [TOOL_PROPOR_LANCAMENTO],
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       reasoning: 'none',
-      cacheKey: 'assistente-v2',
+      cacheKey: 'assistente-v3',
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -172,7 +185,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     });
   }
 
-  const resultado = await montarProposta(targetUserId, mensagemId ?? '', input.data);
+  const resultado = await montarProposta(targetUserId, mensagemId ?? '', input.data, {
+    anoPlanilha,
+  });
   if (!resultado.ok) {
     const lista =
       resultado.alternativas.length > 0
@@ -182,9 +197,30 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   const p = resultado.proposta;
-  const resposta =
-    `Vou somar ${brl(p.valor)} na linha "${p.itemNome}" (${p.grupoNome}) em ${MESES_LONGOS[p.mes]}/${p.ano}. ` +
-    `A célula passa de ${brl(p.valorAtual)} para ${brl(p.valorNovo)}. Confirma?`;
+  const periodo = descreverPeriodo(p);
+  let resposta: string;
+  if (ehRecorrente(p)) {
+    const total = p.valor * p.celulas.length;
+    const comValor = p.celulas.filter((c) => c.valorAtual !== 0).length;
+    const verbo = p.modo === 'definir' ? 'colocar' : 'somar';
+    const aviso =
+      comValor > 0
+        ? p.modo === 'definir'
+          ? ` ${comValor} ${comValor === 1 ? 'mês já tem valor e será substituído' : 'meses já têm valor e serão substituídos'}.`
+          : ` ${comValor} ${comValor === 1 ? 'mês já tem valor; o novo entra em cima' : 'meses já têm valor; o novo entra em cima'}.`
+        : '';
+    resposta =
+      `Vou ${verbo} ${brl(p.valor)} por mês na linha "${p.itemNome}" (${p.grupoNome}), ` +
+      `de ${periodo} (${p.celulas.length} meses, ${brl(total)} no total).${aviso} Confirma?`;
+  } else {
+    const c = p.celulas[0];
+    resposta =
+      p.modo === 'definir'
+        ? `Vou colocar ${brl(p.valor)} na linha "${p.itemNome}" (${p.grupoNome}) em ${periodo}. ` +
+          `A célula passa de ${brl(c.valorAtual)} para ${brl(c.valorNovo)}. Confirma?`
+        : `Vou somar ${brl(p.valor)} na linha "${p.itemNome}" (${p.grupoNome}) em ${periodo}. ` +
+          `A célula passa de ${brl(c.valorAtual)} para ${brl(c.valorNovo)}. Confirma?`;
+  }
   return NextResponse.json({
     resposta,
     proposta: {
@@ -193,12 +229,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       linha: p.itemNome,
       grupo: p.grupoNome,
       valor: p.valor,
-      mes: p.mes,
-      mesNome: MESES_LONGOS[p.mes],
+      modo: p.modo,
+      recorrente: ehRecorrente(p),
+      periodo,
       ano: p.ano,
       descricao: p.descricao,
-      valorAtual: p.valorAtual,
-      valorNovo: p.valorNovo,
+      celulas: p.celulas.map((c) => ({ ...c, mesNome: MESES_LONGOS[c.mes] })),
+      valorTotal: p.valor * p.celulas.length,
       expiraEm: p.expiraEm,
     },
     uso: usoDepois,

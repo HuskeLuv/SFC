@@ -39,11 +39,10 @@ const proposta = {
   grupoNome: 'G',
   tipo: 'despesa',
   valor: 45.9,
-  mes: 8,
   ano: 2026,
   descricao: null,
-  valorAtual: 1020,
-  valorNovo: 1065.9,
+  modo: 'somar',
+  celulas: [{ mes: 8, valorAtual: 1020, valorNovo: 1065.9 }],
   expiraEm: Date.now() + 1000,
 };
 
@@ -66,17 +65,42 @@ describe('POST /api/assistente/confirmar', () => {
     mocks.verificarProposta.mockReturnValue(proposta);
     mocks.aplicarProposta.mockResolvedValue({
       itemId: 'i2',
-      valorAnterior: 1020,
-      valorNovo: 1065.9,
+      celulas: [{ mes: 8, valorAnterior: 1020, valorNovo: 1065.9 }],
     });
     const res = await POST(post({ token: 'x'.repeat(30) }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toMatchObject({ ok: true, itemId: 'i2', valorNovo: 1065.9, ano: 2026 });
-    expect(body.resumo.replace(/\u00a0/g, ' ')).toContain('R$ 45,90');
-    expect(body.resumo).toContain('setembro/2026');
+    expect(body).toMatchObject({
+      ok: true,
+      itemId: 'i2',
+      celulas: [{ mes: 8, valorAnterior: 1020, valorNovo: 1065.9 }],
+      ano: 2026,
+    });
+    const resumo = body.resumo.replace(/\u00a0/g, ' ');
+    expect(resumo).toContain('R$ 45,90');
+    expect(resumo).toContain('setembro/2026');
+    expect(resumo).toContain('ficou em R$ 1.065,90');
     expect(mocks.verificarProposta).toHaveBeenCalledWith('x'.repeat(30), 'u1');
     expect(mocks.marcarPropostaConfirmada).toHaveBeenCalledWith('msg-1');
+  });
+
+  it('proposta recorrente → resumo com "por mês", período e quantidade de meses', async () => {
+    const celulas = [0, 1, 2].map((mes) => ({ mes, valorAtual: 0, valorNovo: 2500 }));
+    mocks.verificarProposta.mockReturnValue({
+      ...proposta,
+      itemNome: 'Aluguel',
+      valor: 2500,
+      modo: 'definir',
+      celulas,
+    });
+    mocks.aplicarProposta.mockResolvedValue({
+      itemId: 'i2',
+      celulas: celulas.map((c) => ({ mes: c.mes, valorAnterior: 0, valorNovo: 2500 })),
+    });
+    const body = await (await POST(post({ token: 'x'.repeat(30) }))).json();
+    const resumo = body.resumo.replace(/\u00a0/g, ' ');
+    expect(resumo).toContain('R$ 2.500,00 por mês em "Aluguel", de janeiro a março/2026 (3 meses)');
+    expect(body.celulas).toHaveLength(3);
   });
 
   it('token inválido/expirado → 400, sem gravar', async () => {

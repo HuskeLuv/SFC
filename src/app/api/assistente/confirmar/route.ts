@@ -9,7 +9,12 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
 import { assistenteHabilitado, marcarPropostaConfirmada } from '@/services/assistente/limite';
-import { MESES_LONGOS, aplicarProposta, verificarProposta } from '@/services/assistente/lancamento';
+import {
+  aplicarProposta,
+  descreverPeriodo,
+  ehRecorrente,
+  verificarProposta,
+} from '@/services/assistente/lancamento';
 
 const confirmarSchema = z.object({
   token: z.string().min(20).max(8000),
@@ -39,12 +44,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const r = await aplicarProposta(auth, request, proposta);
   if (proposta.mensagemId) await marcarPropostaConfirmada(proposta.mensagemId);
 
+  const periodo = descreverPeriodo(proposta);
+  const resumo = ehRecorrente(proposta)
+    ? `Registrado: ${brl(proposta.valor)} por mês em "${proposta.itemNome}", de ${periodo} (${r.celulas.length} meses). Dá para desfazer em Histórico.`
+    : `Registrado: ${brl(proposta.valor)} em "${proposta.itemNome}" (${periodo}). A célula ficou em ${brl(r.celulas[0].valorNovo)}. Dá para desfazer em Histórico.`;
+
   return NextResponse.json({
     ok: true,
-    resumo: `Registrado: ${brl(proposta.valor)} em "${proposta.itemNome}" (${MESES_LONGOS[proposta.mes]}/${proposta.ano}). A célula ficou em ${brl(r.valorNovo)}. Dá para desfazer em Histórico.`,
+    resumo,
     itemId: r.itemId,
-    valorAnterior: r.valorAnterior,
-    valorNovo: r.valorNovo,
+    celulas: r.celulas,
     ano: proposta.ano,
   });
 });

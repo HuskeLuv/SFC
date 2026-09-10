@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
+import { useCashflowYear } from '@/context/CashflowYearContext';
 import { queryKeys } from '@/lib/queryKeys';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 
@@ -10,20 +11,34 @@ import { MYFINANCE_BRAND } from '@/constants/brandColors';
  * Assistente de IA — botão flutuante + painel de conversa (Fase 1, MVP).
  * Só aparece quando GET /api/assistente diz `habilitado`. A conversa vive na
  * sessão (decisão Fase 0: sem persistência no MVP). Propostas de lançamento
- * chegam como cartão e só gravam depois do clique em "Confirmar".
+ * chegam como cartão e só gravam depois do clique em "Confirmar" — um mês, ou
+ * o ano da planilha inteiro quando o gasto é recorrente (aluguel, escola…).
+ * O ano aberto na planilha vai junto com a mensagem para o servidor usar
+ * como padrão.
  */
+
+interface CelulaProposta {
+  mes: number;
+  mesNome: string;
+  valorAtual: number;
+  valorNovo: number;
+}
 
 interface Proposta {
   token: string;
   tipo: 'despesa' | 'entrada';
   linha: string;
   grupo: string;
+  /** Valor por mês. */
   valor: number;
-  mesNome: string;
+  modo: 'somar' | 'definir';
+  recorrente: boolean;
+  /** "setembro/2026" ou "janeiro a dezembro/2026". */
+  periodo: string;
   ano: number;
   descricao: string | null;
-  valorAtual: number;
-  valorNovo: number;
+  celulas: CelulaProposta[];
+  valorTotal: number;
   expiraEm: number;
 }
 
@@ -47,12 +62,14 @@ const SUGESTOES = [
   'Como está minha carteira?',
   'Estou dentro do orçamento?',
   'Gastei 45,90 no mercado hoje',
+  'Meu aluguel é 2.500 por mês',
 ];
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default function AssistentePanel() {
   const { csrfFetch } = useCsrf();
+  const { year: anoPlanilha } = useCashflowYear();
   const queryClient = useQueryClient();
   const [habilitado, setHabilitado] = useState(false);
   const [aberto, setAberto] = useState(false);
@@ -109,7 +126,7 @@ export default function AssistentePanel() {
         const res = await csrfFetch('/api/assistente', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mensagem, historico }),
+          body: JSON.stringify({ mensagem, historico, anoPlanilha }),
         });
         const data = (await res.json().catch(() => ({}))) as {
           resposta?: string;
@@ -137,7 +154,7 @@ export default function AssistentePanel() {
         setCarregando(false);
       }
     },
-    [adicionar, carregando, csrfFetch, mensagens],
+    [adicionar, anoPlanilha, carregando, csrfFetch, mensagens],
   );
 
   const confirmar = useCallback(
@@ -252,7 +269,9 @@ export default function AssistentePanel() {
               <div className="space-y-2">
                 <p className="text-sm text-gray-600 dark:text-gray-300">
                   Pergunte sobre a sua carteira, o fluxo de caixa, o orçamento ou as dívidas. Para
-                  registrar um gasto, escreva por exemplo &quot;gastei 45,90 no mercado&quot;.
+                  registrar um gasto, escreva por exemplo &quot;gastei 45,90 no mercado&quot;; um
+                  gasto fixo, como &quot;meu aluguel é 2.500 por mês&quot;, preenche o ano da
+                  planilha.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {SUGESTOES.map((s) => (
@@ -292,24 +311,51 @@ export default function AssistentePanel() {
                   {m.proposta && (
                     <div className="mt-2 rounded-lg border border-gray-300 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
                       <p className="font-semibold text-gray-900 dark:text-gray-100">
-                        {m.proposta.tipo === 'despesa' ? 'Gasto' : 'Receita'} ·{' '}
-                        {brl(m.proposta.valor)}
+                        {m.proposta.tipo === 'despesa' ? 'Gasto' : 'Receita'}
+                        {m.proposta.recorrente ? ' mensal' : ''} · {brl(m.proposta.valor)}
+                        {m.proposta.recorrente ? ' por mês' : ''}
                       </p>
                       <p className="text-gray-700 dark:text-gray-300">
                         Linha: {m.proposta.linha}
                         <br />
                         Grupo: {m.proposta.grupo}
                         <br />
-                        Mês: {m.proposta.mesNome}/{m.proposta.ano}
+                        {m.proposta.recorrente ? 'Período' : 'Mês'}: {m.proposta.periodo}
+                        {m.proposta.recorrente ? (
+                          <>
+                            {' '}
+                            ({m.proposta.celulas.length} meses, {brl(m.proposta.valorTotal)} no
+                            total)
+                            <br />
+                            Modo:{' '}
+                            {m.proposta.modo === 'definir'
+                              ? 'a célula de cada mês passa a valer este valor'
+                              : 'o valor entra em cima do que já está em cada mês'}
+                          </>
+                        ) : null}
                         {m.proposta.descricao ? (
                           <>
                             <br />
                             Descrição: {m.proposta.descricao}
                           </>
                         ) : null}
-                        <br />
-                        Célula: {brl(m.proposta.valorAtual)} → {brl(m.proposta.valorNovo)}
+                        {!m.proposta.recorrente && m.proposta.celulas[0] ? (
+                          <>
+                            <br />
+                            Célula: {brl(m.proposta.celulas[0].valorAtual)} →{' '}
+                            {brl(m.proposta.celulas[0].valorNovo)}
+                          </>
+                        ) : null}
                       </p>
+                      {m.proposta.recorrente && (
+                        <ul className="mt-1 grid grid-cols-2 gap-x-3 text-[11px] text-gray-600 dark:text-gray-400">
+                          {m.proposta.celulas.map((c) => (
+                            <li key={c.mes}>
+                              {c.mesNome.slice(0, 3)}: {brl(c.valorAtual)} → {brl(c.valorNovo)}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                       {m.propostaEstado === 'pendente' && (
                         <div className="mt-2 flex gap-2">
                           <button
