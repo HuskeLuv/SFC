@@ -1,6 +1,9 @@
-> **Atualização set/2026:** EC2 + RDS estão sendo substituídos por uma máquina Lightsail
-> (app + PostgreSQL local) por custo. Este documento descreve a infra que ainda está no ar;
-> o plano da nova migração está em `plano-migracao-lightsail-set2026.md`.
+> **HISTÓRICO — infra descrita aqui foi DESTRUÍDA em 10/09/2026.** EC2 + RDS + VPC foram
+> substituídos por uma máquina Lightsail (app + PostgreSQL local) por custo; cutover em
+> 08/09/2026, descomissionamento em 10/09/2026. Snapshots finais: RDS
+> `myfinance-prod-pg-final-20260910-awskey`, EBS `myfinance-prod-app-final-20260910`.
+> Infra atual: `infra/README.md`; plano e execução da troca: `plano-migracao-lightsail-set2026.md`.
+> O conteúdo abaixo fica como registro das decisões de mai–jun/2026.
 
 # Plano de Migração — Vercel + Neon → AWS (sa-east-1)
 

@@ -9,20 +9,8 @@ variable "limit_amount" {
 }
 
 variable "alert_email" {
-  description = "Email pra alertas e confirmação das ações"
+  description = "Email pra alertas"
   type        = string
-}
-
-variable "region" {
-  type = string
-}
-
-variable "ec2_instance_id" {
-  type = string
-}
-
-variable "rds_instance_identifier" {
-  type = string
 }
 
 variable "tags" {

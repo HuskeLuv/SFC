@@ -1,24 +1,6 @@
-output "app_public_ip" {
-  description = "Elastic IP do EC2 — apontar o A record do Registro.br pra cá"
-  value       = module.ec2.public_ip
-}
-
-output "instance_id" {
-  description = "Pra acessar via: aws ssm start-session --target <id> --profile myfinance"
-  value       = module.ec2.instance_id
-}
-
-output "rds_endpoint" {
-  value = module.rds.endpoint
-}
-
-output "vpc_id" {
-  value = module.vpc.vpc_id
-}
-
 # --- Lightsail ---
 output "lightsail_public_ip" {
-  description = "IP estático do Lightsail — apontar o A do GoDaddy pra cá no cutover"
+  description = "IP estático do Lightsail — o A do GoDaddy aponta pra cá"
   value       = var.lightsail_enabled ? module.lightsail[0].public_ip : null
 }
 
