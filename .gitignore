@@ -67,3 +67,7 @@ next-env.d.ts
 
 # kinvo comparison artefacts (HAR files, snapshots — podem conter tokens/PII)
 scripts/kinvo-captures/
+
+# Assistente de IA — contexto e resultados do harness contêm dados de contas
+docs/assistente/contexto*.json
+docs/assistente/resultados/
