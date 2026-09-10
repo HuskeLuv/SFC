@@ -87,6 +87,15 @@ const SUBPROCESSADORES: Subprocessador[] = [
     regiao: 'Global',
     internacional: false,
   },
+  {
+    nome: 'Anthropic PBC (API Claude)',
+    finalidade:
+      'Assistente de IA dentro do app (responder perguntas sobre as suas finanças e propor lançamentos, sempre com a sua confirmação).',
+    dados:
+      'Somente quando você usa o assistente: a sua pergunta e um resumo dos seus dados financeiros (saldos, posições, totais mensais do fluxo de caixa, orçamento, dívidas e indicadores), sem nome, e-mail ou senha. A Anthropic retém o conteúdo por até 30 dias para fins de segurança e não o usa para treinar modelos.',
+    regiao: 'EUA',
+    internacional: true,
+  },
 ];
 
 export default function Subprocessadores() {
@@ -136,7 +145,13 @@ export default function Subprocessadores() {
       <p>
         Toda a infraestrutura de armazenamento de dados pessoais opera em território brasileiro (AWS
         sa-east-1, São Paulo).{' '}
-        <strong>Não há transferência internacional de dados pessoais.</strong>
+        <strong>
+          A única transferência internacional ocorre quando você usa o assistente de IA
+        </strong>
+        : a sua pergunta e um resumo dos seus dados financeiros são enviados à Anthropic (EUA) para
+        gerar a resposta, com base no art. 33, IX, da LGPD (necessidade para a execução do serviço
+        que você solicitou). O assistente é opcional; se você não o usar, nenhum dado seu sai do
+        Brasil.
       </p>
       <p>
         Os provedores Yahoo Finance e CoinGecko, embora operem fora do Brasil, recebem apenas

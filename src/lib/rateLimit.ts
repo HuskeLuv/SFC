@@ -153,6 +153,11 @@ export const RATE_LIMIT_TIERS: RateLimitTier[] = [
     config: { limit: 10, windowMs: 60_000 },
   },
   {
+    // Assistente de IA: cada chamada custa dinheiro (modelo) — teto baixo por IP
+    match: (p) => p.startsWith('/api/assistente'),
+    config: { limit: 20, windowMs: 60_000 },
+  },
+  {
     // General API
     match: (p) => p.startsWith('/api/'),
     config: { limit: 60, windowMs: 60_000 },
