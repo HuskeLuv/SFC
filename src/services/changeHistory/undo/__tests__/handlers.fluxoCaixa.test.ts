@@ -267,6 +267,91 @@ describe('item.excluir (recreate-from-snapshot)', () => {
   });
 });
 
+describe('valores.editar-recorrente — lançamento recorrente do assistente', () => {
+  const handler = FLUXO_CAIXA_UNDO_HANDLERS['valores.editar-recorrente'];
+  const entry = () =>
+    makeEntry({
+      action: 'valores.editar-recorrente',
+      entity: 'valores',
+      entityId: 'item-1',
+      entityLabel: 'Aluguel · janeiro a março/2026 (assistente)',
+      changes: [
+        { field: 'monthlyValue', label: 'janeiro/2026', before: null, after: 2500 },
+        { field: 'monthlyValue', label: 'fevereiro/2026', before: 1000, after: 2500 },
+        { field: 'monthlyValue', label: 'março/2026', before: 900, after: 2500 },
+      ] as never,
+      snapshot: {
+        v: 1,
+        kind: 'cashflow-valores',
+        data: {
+          celulas: [
+            { month: 0, before: null, after: 2500 },
+            { month: 1, before: 1000, after: 2500 },
+            { month: 2, before: 900, after: 2500 },
+          ],
+        },
+        meta: { itemId: 'item-1', year: 2026, origem: 'assistente', modo: 'definir' },
+      } as never,
+    });
+
+  it('precheck exige snapshot cashflow-valores', () => {
+    expect(handler.requires).toEqual({ entityId: true, snapshot: true });
+    expect(handler.precheck!(entry())).toBe(true);
+    expect(
+      handler.precheck!(
+        makeEntry({ snapshot: { v: 1, kind: 'cashflow-valor', data: {} } as never }),
+      ),
+    ).toBe(false);
+  });
+
+  it('restaura as células intactas (remove a criada, volta o valor anterior), preserva a editada depois e recomputa a evolução', async () => {
+    mockPrisma.cashflowValue.findFirst.mockImplementation(
+      ({ where }: { where: { month: number } }) => {
+        if (where.month === 0) return Promise.resolve({ id: 'v0', value: 2500 });
+        if (where.month === 1) return Promise.resolve({ id: 'v1', value: 2500 });
+        return Promise.resolve({ id: 'v2', value: 3100 }); // março editado depois
+      },
+    );
+    const out = await handler.execute({ auth, request, entry: entry() });
+
+    expect(mockPrisma.cashflowValue.delete).toHaveBeenCalledWith({ where: { id: 'v0' } });
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where: { id: 'v1' },
+      data: { value: 1000 },
+    });
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledTimes(1);
+    expect(mockRecomputeEvolucao).toHaveBeenCalledWith('user-1', new Date(2026, 0, 1));
+    expect(out.entityLabel).toBe(
+      'Aluguel · janeiro a março/2026 (assistente) — 2 meses restaurados, 1 mantido (editado depois)',
+    );
+    // Diff invertido só dos meses restaurados.
+    expect(out.changes).toEqual([
+      { field: 'monthlyValue', label: 'janeiro/2026', before: 2500, after: null },
+      { field: 'monthlyValue', label: 'fevereiro/2026', before: 2500, after: 1000 },
+    ]);
+  });
+
+  it('409 quando nenhuma célula ainda tem o valor gravado pelo assistente', async () => {
+    mockPrisma.cashflowValue.findFirst.mockResolvedValue({ id: 'v', value: 1 });
+    await expect(handler.execute({ auth, request, entry: entry() })).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(mockPrisma.cashflowValue.update).not.toHaveBeenCalled();
+    expect(mockRecomputeEvolucao).not.toHaveBeenCalled();
+  });
+
+  it('400 quando o snapshot não tem as células', async () => {
+    const e = makeEntry({
+      action: 'valores.editar-recorrente',
+      snapshot: { v: 1, kind: 'cashflow-valores', data: {}, meta: { itemId: 'item-1' } } as never,
+    });
+    await expect(handler.execute({ auth, request, entry: e })).rejects.toMatchObject({
+      status: 400,
+      code: 'UNDO_MISSING_DATA',
+    });
+  });
+});
+
 describe('fluxo.importar-planilha — desfazer importação', () => {
   const importEntry = () =>
     makeEntry({

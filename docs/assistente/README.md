@@ -82,6 +82,17 @@ cartão, fatura e vencimento; o My Finance é uma planilha mensal. Saldo de cont
 não existem como dado — o prompt explica isso e a intenção fica registrada como `nao_suportado`.
 "Criar despesa/receita" = somar na célula do mês da linha mais parecida.
 
+**Lançamento recorrente (10/09/2026):** gasto ou receita que se repete todo mês (aluguel, escola,
+faculdade, condomínio, salário, "por mês", "mensal") → o modelo chama `propor_lancamento` com
+`recorrente=true` (+ `mesInicio`/`mesFim` opcionais) e o app propõe preencher o **ano aberto na
+planilha** (o painel manda `anoPlanilha` do seletor da sidebar), de janeiro a dezembro por padrão.
+`modo`: `definir` (a célula passa a valer o valor; padrão no recorrente) ou `somar` (entra em cima;
+padrão no lançamento único). O cartão mostra período, total e cada mês (atual → novo); a
+confirmação grava tudo numa transação, pula célula que já vale o valor, e registra UMA entrada
+`valores.editar-recorrente` (snapshot `cashflow-valores`) desfazível no Histórico — o desfazer
+restaura só as células que ainda têm o valor gravado pelo assistente. Lançamento único sem mês
+("gastei hoje") continua no mês/ano de hoje mesmo com a planilha em outro ano.
+
 **Métricas (SQL rápido):** `SELECT intencao, motor, count(*), sum("custoBrl") FROM assistente_mensagens
 WHERE "createdAt" >= date_trunc('month', now()) GROUP BY 1,2;` e
 `SELECT "textoUsuario" FROM assistente_mensagens WHERE intencao IN ('outro','nao_suportado','recomendacao_investimento');`

@@ -61,6 +61,7 @@ describe('UNDO_REGISTRY', () => {
       'fundo.atualizar-valor',
       'objetivo-classe.definir',
       'valor.editar',
+      'valores.editar-recorrente',
       'comentario.editar',
       'item.criar',
       'item.editar',

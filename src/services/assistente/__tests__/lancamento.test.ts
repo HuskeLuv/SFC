@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   recordChange: vi.fn(),
   prisma: {
     cashflowValue: { findUnique: vi.fn(), upsert: vi.fn() },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -30,6 +31,8 @@ vi.mock('@/services/changeHistory', () => ({ recordChange: mocks.recordChange })
 import {
   aplicarProposta,
   assinarProposta,
+  descreverPeriodo,
+  ehRecorrente,
   linhasEditaveis,
   montarProposta,
   pontuarLinha,
@@ -237,14 +240,105 @@ describe('montarProposta', () => {
       itemId: 'i-super',
       itemNome: 'Supermercado',
       valor: 45.9,
-      valorAtual: 1020,
-      valorNovo: 1065.9,
-      mes: 8,
+      modo: 'somar',
+      celulas: [{ mes: 8, valorAtual: 1020, valorNovo: 1065.9 }],
       ano: 2026,
       userId: 'u1',
       mensagemId: 'msg-1',
     });
     expect(verificarProposta(r.token, 'u1')).toMatchObject({ id: r.proposta.id });
+  });
+
+  it('lançamento único sem mês = mês/ano de HOJE, mesmo com a planilha em outro ano', async () => {
+    const r = await montarProposta(
+      'u1',
+      'm',
+      { tipo: 'despesa', linha: 'mercado', valor: 10 },
+      { anoPlanilha: 2027, hoje: new Date(2026, 8, 10) },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.proposta.ano).toBe(2026);
+    expect(r.proposta.celulas).toEqual([{ mes: 8, valorAtual: 1020, valorNovo: 1030 }]);
+    expect(mocks.getMergedCashflowGroups).toHaveBeenCalledWith('u1', 2026);
+  });
+
+  it('lançamento único COM mês usa o ano aberto na planilha', async () => {
+    const r = await montarProposta(
+      'u1',
+      'm',
+      { tipo: 'despesa', linha: 'mercado', valor: 10, mes: 2, modo: 'definir' },
+      { anoPlanilha: 2027, hoje: new Date(2026, 8, 10) },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.proposta.ano).toBe(2027);
+    expect(r.proposta.modo).toBe('definir');
+    expect(mocks.getMergedCashflowGroups).toHaveBeenCalledWith('u1', 2027);
+  });
+
+  it('recorrente: preenche janeiro a dezembro do ano da planilha, modo definir por padrão', async () => {
+    const r = await montarProposta(
+      'u1',
+      'msg-2',
+      { tipo: 'despesa', linha: 'Supermercado', grupo: 'Habitação', valor: 2500, recorrente: true },
+      { anoPlanilha: 2026, hoje: new Date(2026, 8, 10) },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.proposta.modo).toBe('definir');
+    expect(r.proposta.ano).toBe(2026);
+    expect(r.proposta.celulas).toHaveLength(12);
+    expect(r.proposta.celulas.map((c) => c.mes)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    // Setembro já tinha 1020: em modo definir a célula passa a valer 2500 (não soma).
+    expect(r.proposta.celulas[8]).toEqual({ mes: 8, valorAtual: 1020, valorNovo: 2500 });
+    expect(r.proposta.celulas[0]).toEqual({ mes: 0, valorAtual: 0, valorNovo: 2500 });
+    expect(descreverPeriodo(r.proposta)).toBe('janeiro a dezembro/2026');
+    expect(ehRecorrente(r.proposta)).toBe(true);
+    expect(verificarProposta(r.token, 'u1')?.celulas).toHaveLength(12);
+  });
+
+  it('recorrente com intervalo (mesInicio/mesFim) e modo somar explícito', async () => {
+    const r = await montarProposta('u1', 'm', {
+      tipo: 'despesa',
+      linha: 'mercado',
+      valor: 100,
+      recorrente: true,
+      mesInicio: 8,
+      mesFim: 10,
+      modo: 'somar',
+      ano: 2026,
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.proposta.celulas).toEqual([
+      { mes: 8, valorAtual: 1020, valorNovo: 1120 },
+      { mes: 9, valorAtual: 0, valorNovo: 100 },
+      { mes: 10, valorAtual: 0, valorNovo: 100 },
+    ]);
+    expect(descreverPeriodo(r.proposta)).toBe('setembro a novembro/2026');
+    // mesInicio sem `recorrente` também vale como recorrente ("a partir de outubro").
+    const r2 = await montarProposta('u1', 'm', {
+      tipo: 'despesa',
+      linha: 'mercado',
+      valor: 100,
+      mesInicio: 9,
+      ano: 2026,
+    });
+    expect(r2.ok && r2.proposta.celulas.map((c) => c.mes)).toEqual([9, 10, 11]);
+  });
+
+  it('recorrente com mês inicial depois do final é recusado', async () => {
+    const r = await montarProposta('u1', 'm', {
+      tipo: 'despesa',
+      linha: 'mercado',
+      valor: 100,
+      recorrente: true,
+      mesInicio: 10,
+      mesFim: 2,
+    });
+    expect(r).toMatchObject({ ok: false, motivo: expect.stringContaining('mês inicial') });
+    expect(mocks.getMergedCashflowGroups).not.toHaveBeenCalled();
   });
 
   it('rejeita valor inválido e linha inexistente', async () => {
@@ -275,17 +369,20 @@ describe('assinatura', () => {
     grupoNome: 'G',
     tipo: 'despesa',
     valor: 10,
-    mes: 0,
     ano: 2026,
     descricao: null,
-    valorAtual: 0,
-    valorNovo: 10,
+    modo: 'somar',
+    celulas: [{ mes: 0, valorAtual: 0, valorNovo: 10 }],
     expiraEm: Date.now() + 60_000,
   };
 
-  it('recusa token adulterado, de outro usuário ou expirado', () => {
+  it('recusa token adulterado, de outro usuário, expirado ou sem células', () => {
     const token = assinarProposta(base);
     expect(verificarProposta(token, 'u1')?.id).toBe('p1');
+    expect(
+      verificarProposta(assinarProposta({ ...base, celulas: [] }), 'u1'),
+      'formato antigo/sem células',
+    ).toBeNull();
     expect(verificarProposta(token.slice(0, -2) + 'zz', 'u1')).toBeNull();
     expect(verificarProposta(token, 'u2')).toBeNull();
     expect(
@@ -311,11 +408,10 @@ describe('aplicarProposta', () => {
     grupoNome: 'Despesas > Habitação',
     tipo: 'despesa',
     valor: 45.9,
-    mes: 8,
     ano: 2026,
     descricao: 'pão',
-    valorAtual: 1020,
-    valorNovo: 1065.9,
+    modo: 'somar',
+    celulas: [{ mes: 8, valorAtual: 1020, valorNovo: 1065.9 }],
     expiraEm: Date.now() + 60_000,
   };
 
@@ -323,6 +419,9 @@ describe('aplicarProposta', () => {
     mocks.ensurePersonalizedItem
       .mockReset()
       .mockResolvedValue({ itemId: 'i-super-user', item: {} });
+    mocks.prisma.$transaction
+      .mockReset()
+      .mockImplementation((fn: (tx: unknown) => unknown) => fn(mocks.prisma));
     mocks.prisma.cashflowValue.findUnique.mockReset();
     mocks.prisma.cashflowValue.upsert.mockReset().mockResolvedValue({});
     mocks.recordChange.mockReset();
@@ -337,7 +436,10 @@ describe('aplicarProposta', () => {
       formula: '=1000+30',
     });
     const r = await aplicarProposta(auth, request, proposta);
-    expect(r).toEqual({ itemId: 'i-super-user', valorAnterior: 1030, valorNovo: 1075.9 });
+    expect(r).toEqual({
+      itemId: 'i-super-user',
+      celulas: [{ mes: 8, valorAnterior: 1030, valorNovo: 1075.9 }],
+    });
 
     const upsert = mocks.prisma.cashflowValue.upsert.mock.calls[0][0];
     expect(upsert.where).toEqual({
@@ -371,11 +473,102 @@ describe('aplicarProposta', () => {
   it('célula inexistente: cria com o valor e guarda before=null para o desfazer remover a célula', async () => {
     mocks.prisma.cashflowValue.findUnique.mockResolvedValue(null);
     const r = await aplicarProposta(auth, request, { ...proposta, descricao: null });
-    expect(r).toEqual({ itemId: 'i-super-user', valorAnterior: 0, valorNovo: 45.9 });
+    expect(r).toEqual({
+      itemId: 'i-super-user',
+      celulas: [{ mes: 8, valorAnterior: 0, valorNovo: 45.9 }],
+    });
     const upsert = mocks.prisma.cashflowValue.upsert.mock.calls[0][0];
     expect(upsert.create).toMatchObject({ value: 45.9, comment: 'Gasto de R$ 45,90 (assistente)' });
     const change = mocks.recordChange.mock.calls[0][0];
     expect(change.changes[0].before).toBeNull();
     expect(change.snapshot.data).toEqual({ value: null });
+  });
+
+  it('modo definir num único mês: substitui o valor atual em vez de somar', async () => {
+    mocks.prisma.cashflowValue.findUnique.mockResolvedValue({ value: 1030, comment: null });
+    const r = await aplicarProposta(auth, request, { ...proposta, modo: 'definir', valor: 500 });
+    expect(r.celulas).toEqual([{ mes: 8, valorAnterior: 1030, valorNovo: 500 }]);
+    expect(mocks.prisma.cashflowValue.upsert.mock.calls[0][0].update).toMatchObject({
+      value: 500,
+      formula: null,
+    });
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'valor.editar' }),
+    );
+  });
+
+  const recorrente: Proposta = {
+    ...proposta,
+    valor: 2500,
+    descricao: null,
+    modo: 'definir',
+    celulas: [
+      { mes: 0, valorAtual: 0, valorNovo: 2500 },
+      { mes: 1, valorAtual: 2500, valorNovo: 2500 },
+      { mes: 2, valorAtual: 1000, valorNovo: 2500 },
+    ],
+  };
+
+  it('recorrente: grava cada mês na transação, pula célula que já vale o valor e registra UMA entrada desfazível em lote', async () => {
+    mocks.prisma.cashflowValue.findUnique
+      .mockResolvedValueOnce(null) // jan: não existe
+      .mockResolvedValueOnce({ value: 2500, comment: 'ok' }) // fev: já vale 2500 → intocada
+      .mockResolvedValueOnce({ value: 1000, comment: null, formula: '=500*2' }); // mar: substitui
+    const r = await aplicarProposta(auth, request, recorrente);
+    expect(r).toEqual({
+      itemId: 'i-super-user',
+      celulas: [
+        { mes: 0, valorAnterior: 0, valorNovo: 2500 },
+        { mes: 1, valorAnterior: 2500, valorNovo: 2500 },
+        { mes: 2, valorAnterior: 1000, valorNovo: 2500 },
+      ],
+    });
+    expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(1);
+    const upserts = mocks.prisma.cashflowValue.upsert.mock.calls.map((c) => c[0]);
+    expect(upserts).toHaveLength(2);
+    expect(upserts[0].where.itemId_userId_year_month).toMatchObject({ month: 0, year: 2026 });
+    expect(upserts[0].create).toMatchObject({
+      value: 2500,
+      comment: 'Gasto mensal de R$ 2500,00 (assistente)',
+    });
+    expect(upserts[1].where.itemId_userId_year_month).toMatchObject({ month: 2 });
+    expect(upserts[1].update).toMatchObject({ value: 2500, formula: null });
+
+    expect(mocks.recordChange).toHaveBeenCalledTimes(1);
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        section: 'fluxo-caixa',
+        action: 'valores.editar-recorrente',
+        entity: 'valores',
+        entityId: 'i-super-user',
+        entityLabel: 'Supermercado · janeiro a março/2026 (assistente)',
+        changes: [
+          expect.objectContaining({ label: 'janeiro/2026', before: null, after: 2500 }),
+          expect.objectContaining({ label: 'março/2026', before: 1000, after: 2500 }),
+        ],
+        snapshot: {
+          v: 1,
+          kind: 'cashflow-valores',
+          data: {
+            celulas: [
+              { month: 0, before: null, after: 2500 },
+              { month: 2, before: 1000, after: 2500 },
+            ],
+          },
+          meta: { itemId: 'i-super-user', year: 2026, origem: 'assistente', modo: 'definir' },
+        },
+      }),
+    );
+    expect(mocks.recomputeEvolucaoSnapshotsSafe).toHaveBeenCalledWith('u1', new Date(2026, 0, 1));
+    expect(mocks.checkOrcamentoAlertasSafe).toHaveBeenCalledWith('u1');
+  });
+
+  it('recorrente sem nada a mudar (todas as células já valem o valor): não grava nem registra histórico', async () => {
+    mocks.prisma.cashflowValue.findUnique.mockResolvedValue({ value: 2500, comment: null });
+    const r = await aplicarProposta(auth, request, recorrente);
+    expect(r.celulas.every((c) => c.valorAnterior === 2500 && c.valorNovo === 2500)).toBe(true);
+    expect(mocks.prisma.cashflowValue.upsert).not.toHaveBeenCalled();
+    expect(mocks.recordChange).not.toHaveBeenCalled();
+    expect(mocks.recomputeEvolucaoSnapshotsSafe).not.toHaveBeenCalled();
   });
 });

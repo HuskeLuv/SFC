@@ -11,7 +11,13 @@
 import prisma from '@/lib/prisma';
 import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatrimonioServer';
 import type { FlcImportUndoData } from '@/services/cashflow/import/executeFlcImportPlan';
-import { UndoError, type UndoContext, type UndoDefinition, type UndoOutcome } from '../types';
+import {
+  STATE_MISMATCH_MESSAGE,
+  UndoError,
+  type UndoContext,
+  type UndoDefinition,
+  type UndoOutcome,
+} from '../types';
 import {
   assertCurrentMatchesAfter,
   getChanges,
@@ -22,6 +28,21 @@ import {
 } from '../helpers';
 
 const ITEM_FIELDS = new Set(['name', 'significado', 'rank']);
+/** Rótulos "mês/ano" dos `changes` do lançamento recorrente (mesmos nomes do assistente). */
+const MESES_CURTOS = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+];
 const GRUPO_FIELDS = new Set(['name', 'type']);
 
 interface CellLocator {
@@ -92,6 +113,74 @@ const valorEditar: UndoDefinition = {
     assertCurrentMatchesAfter(item as unknown as Record<string, unknown>, changes);
     await prisma.cashflowItem.update({ where: { id: item.id }, data: restoreData(changes) });
     return { changes: invertChanges(changes) };
+  },
+};
+
+interface CelulaRecorrente {
+  month: number;
+  before: number | null;
+  after: number;
+}
+
+/**
+ * Lançamento recorrente do assistente (uma linha × vários meses do ano). O
+ * snapshot 'cashflow-valores' guarda before/after de cada célula gravada.
+ * Desfazer restaura cada célula que AINDA vale o `after` (célula editada
+ * depois é preservada, como no desfazer da importação); se nenhuma puder
+ * ser restaurada, é conflito.
+ */
+const valoresEditarRecorrente: UndoDefinition = {
+  strategy: 'custom',
+  requires: { entityId: true, snapshot: true },
+  precheck(entry) {
+    return getSnapshot(entry)?.kind === 'cashflow-valores';
+  },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const { targetUserId } = auth;
+    const snap = getSnapshot(entry)!;
+    const itemId = snap.meta?.itemId;
+    const year = snap.meta?.year;
+    const celulas = (snap.data as { celulas?: CelulaRecorrente[] }).celulas;
+    if (typeof itemId !== 'string' || typeof year !== 'number' || !Array.isArray(celulas)) {
+      throw new UndoError(400, 'Snapshot sem as células do lançamento', 'UNDO_MISSING_DATA');
+    }
+
+    const restauradas: number[] = [];
+    let mantidas = 0;
+    for (const c of celulas) {
+      const current = await prisma.cashflowValue.findFirst({
+        where: { itemId, userId: targetUserId, year, month: c.month },
+      });
+      if (!current || Number(current.value) !== c.after) {
+        mantidas += 1;
+        continue;
+      }
+      if (c.before === null) {
+        await prisma.cashflowValue.delete({ where: { id: current.id } });
+      } else {
+        await prisma.cashflowValue.update({ where: { id: current.id }, data: { value: c.before } });
+      }
+      restauradas.push(c.month);
+    }
+
+    if (restauradas.length === 0) {
+      throw new UndoError(409, STATE_MISMATCH_MESSAGE);
+    }
+    await recomputeEvolucaoSnapshotsSafe(targetUserId, new Date(year, Math.min(...restauradas), 1));
+
+    const meses = new Set(restauradas.map((m) => `${MESES_CURTOS[m]}/${year}`));
+    const changes = invertChanges(getChanges(entry)).filter((c) => meses.has(c.label));
+    const partes = [
+      `${restauradas.length} ${restauradas.length === 1 ? 'mês restaurado' : 'meses restaurados'}`,
+    ];
+    if (mantidas > 0)
+      partes.push(
+        `${mantidas} ${mantidas === 1 ? 'mantido (editado depois)' : 'mantidos (editados depois)'}`,
+      );
+    return {
+      changes,
+      entityLabel: `${entry.entityLabel ?? 'lançamento recorrente'} — ${partes.join(', ')}`,
+    };
   },
 };
 
@@ -461,6 +550,7 @@ const importarPlanilha: UndoDefinition = {
 // renderChange), apenas sem Desfazer.
 export const FLUXO_CAIXA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'valor.editar': valorEditar,
+  'valores.editar-recorrente': valoresEditarRecorrente,
   'comentario.editar': comentarioEditar,
   'item.criar': itemCriar,
   'item.editar': itemEditar,

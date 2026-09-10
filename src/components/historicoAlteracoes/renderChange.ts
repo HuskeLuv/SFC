@@ -80,6 +80,10 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Editou valores do fluxo de caixa em lote',
     (l) => `Editou ${l} do fluxo de caixa`,
   ),
+  'valores.editar-recorrente': withLabel(
+    'Registrou um lançamento recorrente no fluxo de caixa',
+    (l) => `Registrou lançamento recorrente em ${l}`,
+  ),
   'comentario.editar': withLabel('Editou um comentário', (l) => `Editou comentário de ${l}`),
   'lancamento.editar': withLabel('Editou um lançamento', (l) => `Editou o lançamento ${l}`),
   'lancamento.excluir': withLabel('Excluiu um lançamento', (l) => `Excluiu o lançamento ${l}`),

@@ -194,33 +194,104 @@ describe('POST /api/assistente', () => {
         grupoNome: 'Despesas > Habitação',
         tipo: 'despesa',
         valor: 45.9,
-        mes: 8,
         ano: 2026,
         descricao: null,
-        valorAtual: 1020,
-        valorNovo: 1065.9,
+        modo: 'somar',
+        celulas: [{ mes: 8, valorAtual: 1020, valorNovo: 1065.9 }],
         expiraEm: 1,
       },
     });
-    const res = await POST(post({ mensagem: 'Gastei 45,90 no mercado' }));
+    const res = await POST(post({ mensagem: 'Gastei 45,90 no mercado', anoPlanilha: 2026 }));
     const body = await res.json();
-    expect(mocks.montarProposta).toHaveBeenCalledWith('u1', 'msg-1', {
-      tipo: 'despesa',
-      linha: 'mercado',
-      grupo: 'Habitação',
-      valor: 45.9,
-    });
-    expect(body.resposta.replace(/\u00a0/g, ' ')).toContain('R$ 45,90');
+    expect(mocks.montarProposta).toHaveBeenCalledWith(
+      'u1',
+      'msg-1',
+      { tipo: 'despesa', linha: 'mercado', grupo: 'Habitação', valor: 45.9 },
+      { anoPlanilha: 2026 },
+    );
+    expect(body.resposta.replace(/\u00a0/g, ' ')).toContain('somar R$ 45,90');
     expect(body.resposta).toContain('setembro/2026');
     expect(body.proposta).toMatchObject({
       token: 'tok.sig',
       linha: 'Supermercado',
-      mesNome: 'setembro',
-      valorNovo: 1065.9,
+      recorrente: false,
+      periodo: 'setembro/2026',
+      celulas: [{ mes: 8, mesNome: 'setembro', valorAtual: 1020, valorNovo: 1065.9 }],
+      valorTotal: 45.9,
     });
     expect(mocks.registrarMensagem).toHaveBeenCalledWith(
       expect.objectContaining({ motor: 'ia+t', propostaGerada: true, intencao: 'lancamento' }),
     );
+  });
+
+  it('lançamento recorrente vira proposta com o ano inteiro e aviso dos meses já preenchidos', async () => {
+    mocks.complete.mockResolvedValue(
+      llmText('', {
+        stopReason: 'tool_use',
+        toolCalls: [
+          {
+            id: 't1',
+            name: 'propor_lancamento',
+            input: {
+              tipo: 'despesa',
+              linha: 'Aluguel',
+              grupo: 'Habitação',
+              valor: 2500,
+              recorrente: true,
+            },
+          },
+        ],
+      }),
+    );
+    const celulas = Array.from({ length: 12 }, (_, mes) => ({
+      mes,
+      valorAtual: mes === 8 ? 2500 : 0,
+      valorNovo: 2500,
+    }));
+    mocks.montarProposta.mockResolvedValue({
+      ok: true,
+      token: 'tok.sig',
+      proposta: {
+        id: 'p1',
+        mensagemId: 'msg-1',
+        userId: 'u1',
+        itemId: 'i',
+        itemNome: 'Aluguel',
+        grupoNome: 'Despesas > Habitação',
+        tipo: 'despesa',
+        valor: 2500,
+        ano: 2027,
+        descricao: null,
+        modo: 'definir',
+        celulas,
+        expiraEm: 1,
+      },
+    });
+    const res = await POST(post({ mensagem: 'Meu aluguel é 2.500 por mês', anoPlanilha: 2027 }));
+    const body = await res.json();
+    expect(mocks.montarProposta).toHaveBeenCalledWith(
+      'u1',
+      'msg-1',
+      expect.objectContaining({ recorrente: true, valor: 2500 }),
+      { anoPlanilha: 2027 },
+    );
+    const texto = body.resposta.replace(/\u00a0/g, ' ');
+    expect(texto).toContain('colocar R$ 2.500,00 por mês');
+    expect(texto).toContain('janeiro a dezembro/2027 (12 meses, R$ 30.000,00 no total)');
+    expect(texto).toContain('1 mês já tem valor e será substituído');
+    expect(body.proposta).toMatchObject({
+      recorrente: true,
+      modo: 'definir',
+      periodo: 'janeiro a dezembro/2027',
+      valorTotal: 30000,
+    });
+    expect(body.proposta.celulas).toHaveLength(12);
+    expect(body.proposta.celulas[11]).toEqual({
+      mes: 11,
+      mesNome: 'dezembro',
+      valorAtual: 0,
+      valorNovo: 2500,
+    });
   });
 
   it('linha não encontrada → resposta com alternativas, sem proposta', async () => {

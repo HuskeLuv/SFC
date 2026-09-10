@@ -1,6 +1,8 @@
 /**
  * Ação de escrita do assistente: registrar um gasto/receita numa célula do
- * fluxo de caixa mensal. Fluxo obrigatório (spec v1.1 §5):
+ * fluxo de caixa mensal — ou, quando o gasto se repete (aluguel, escola,
+ * faculdade…), em todos os meses do ano da planilha. Fluxo obrigatório
+ * (spec v1.1 §5):
  *   modelo chama a ferramenta → servidor monta a PROPOSTA (assinada, expira
  *   em 10 min) → app mostra o cartão → usuário confirma → servidor grava.
  * A IA nunca grava direto.
@@ -37,15 +39,34 @@ export const MESES_LONGOS = [
   'dezembro',
 ];
 
+/** `somar`: o valor entra em cima do que já está na célula. `definir`: a célula passa a valer o valor. */
+export type ModoLancamento = 'somar' | 'definir';
+
 export interface LancamentoInput {
   tipo: 'despesa' | 'entrada';
   linha: string;
   /** Grupo/seção da linha (ex.: "Transporte"), para desempatar nomes repetidos como "Outros". */
   grupo?: string;
+  /** Valor de UM mês. */
   valor: number;
   mes?: number;
   ano?: number;
   descricao?: string;
+  /**
+   * Gasto/receita que se repete todo mês (aluguel, escola, salário…): preenche o
+   * ano inteiro da planilha (janeiro a dezembro) ou o intervalo mesInicio..mesFim.
+   */
+  recorrente?: boolean;
+  mesInicio?: number;
+  mesFim?: number;
+  /** Padrão: `somar` no lançamento único, `definir` no recorrente. */
+  modo?: ModoLancamento;
+}
+
+export interface CelulaProposta {
+  mes: number;
+  valorAtual: number;
+  valorNovo: number;
 }
 
 export interface Proposta {
@@ -57,14 +78,34 @@ export interface Proposta {
   itemNome: string;
   grupoNome: string;
   tipo: 'despesa' | 'entrada';
+  /** Valor por mês. */
   valor: number;
-  mes: number;
   ano: number;
   descricao: string | null;
-  valorAtual: number;
-  valorNovo: number;
+  modo: ModoLancamento;
+  /** Uma célula no lançamento único; várias (meses consecutivos) no recorrente. */
+  celulas: CelulaProposta[];
   /** epoch ms */
   expiraEm: number;
+}
+
+/** Defaults que vêm do app, não do modelo. */
+export interface OpcoesProposta {
+  /** Ano que o usuário está vendo na planilha (seletor da sidebar). */
+  anoPlanilha?: number;
+  hoje?: Date;
+}
+
+export function ehRecorrente(p: Pick<Proposta, 'celulas'>): boolean {
+  return p.celulas.length > 1;
+}
+
+/** "janeiro a dezembro/2026" ou "setembro/2026". */
+export function descreverPeriodo(p: Pick<Proposta, 'celulas' | 'ano'>): string {
+  const primeiro = p.celulas[0]?.mes ?? 0;
+  const ultimo = p.celulas[p.celulas.length - 1]?.mes ?? primeiro;
+  if (primeiro === ultimo) return `${MESES_LONGOS[primeiro]}/${p.ano}`;
+  return `${MESES_LONGOS[primeiro]} a ${MESES_LONGOS[ultimo]}/${p.ano}`;
 }
 
 export type LinhaCandidata = LinhaEditavel;
@@ -200,15 +241,36 @@ export async function montarProposta(
   userId: string,
   mensagemId: string,
   input: LancamentoInput,
+  opcoes: OpcoesProposta = {},
 ): Promise<ResultadoProposta> {
-  const agora = new Date();
-  const ano = input.ano ?? agora.getFullYear();
-  const mes = input.mes ?? agora.getMonth();
+  const hoje = opcoes.hoje ?? new Date();
   const valor = round(Number(input.valor));
   if (!Number.isFinite(valor) || valor <= 0) {
     return { ok: false, motivo: 'Valor inválido.', alternativas: [] };
   }
-  if (mes < 0 || mes > 11 || ano < 2000 || ano > 2100) {
+
+  const recorrente =
+    Boolean(input.recorrente) || input.mesInicio !== undefined || input.mesFim !== undefined;
+  const modo: ModoLancamento = input.modo ?? (recorrente ? 'definir' : 'somar');
+
+  // Ano: o que o usuário disse > o ano aberto na planilha > o ano de hoje. Um
+  // lançamento único sem mês ("gastei hoje") é sempre no mês/ano de hoje.
+  const anoPlanilha = opcoes.anoPlanilha ?? hoje.getFullYear();
+  const usaPlanilha = recorrente || input.mes !== undefined;
+  const ano = input.ano ?? (usaPlanilha ? anoPlanilha : hoje.getFullYear());
+
+  let meses: number[];
+  if (recorrente) {
+    const inicio = input.mesInicio ?? input.mes ?? 0;
+    const fim = input.mesFim ?? 11;
+    if (inicio > fim) {
+      return { ok: false, motivo: 'O mês inicial vem depois do mês final.', alternativas: [] };
+    }
+    meses = Array.from({ length: fim - inicio + 1 }, (_, i) => inicio + i);
+  } else {
+    meses = [input.mes ?? hoje.getMonth()];
+  }
+  if (meses.some((m) => m < 0 || m > 11) || ano < 2000 || ano > 2100) {
     return { ok: false, motivo: 'Mês ou ano inválido.', alternativas: [] };
   }
 
@@ -223,7 +285,10 @@ export async function montarProposta(
     };
   }
 
-  const valorAtual = round(valorDaCelula(groups, melhor.itemId, ano, mes));
+  const celulas: CelulaProposta[] = meses.map((mes) => {
+    const valorAtual = round(valorDaCelula(groups, melhor.itemId, ano, mes));
+    return { mes, valorAtual, valorNovo: modo === 'somar' ? round(valorAtual + valor) : valor };
+  });
   const proposta: Proposta = {
     id: randomUUID(),
     mensagemId,
@@ -233,11 +298,10 @@ export async function montarProposta(
     grupoNome: melhor.grupoNome,
     tipo: input.tipo,
     valor,
-    mes,
     ano,
     descricao: input.descricao?.trim().slice(0, 200) || null,
-    valorAtual,
-    valorNovo: round(valorAtual + valor),
+    modo,
+    celulas,
     expiraEm: Date.now() + PROPOSTA_TTL_MS,
   };
   return { ok: true, proposta, token: assinarProposta(proposta) };
@@ -273,6 +337,7 @@ export function verificarProposta(token: string, userId: string): Proposta | nul
   try {
     const p = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Proposta;
     if (p.userId !== userId || p.expiraEm < Date.now()) return null;
+    if (!Array.isArray(p.celulas) || p.celulas.length === 0) return null;
     return p;
   } catch {
     return null;
@@ -283,12 +348,28 @@ export function verificarProposta(token: string, userId: string): Proposta | nul
 // Gravação (só depois da confirmação do usuário).
 // ---------------------------------------------------------------------------
 
-export interface ResultadoAplicacao {
-  itemId: string;
+export interface CelulaAplicada {
+  mes: number;
   valorAnterior: number;
   valorNovo: number;
 }
 
+export interface ResultadoAplicacao {
+  itemId: string;
+  celulas: CelulaAplicada[];
+}
+
+function formatarBrl(n: number): string {
+  return `R$ ${n.toFixed(2).replace('.', ',')}`;
+}
+
+/**
+ * Grava a proposta confirmada. Cada célula é relida do banco na hora (o valor
+ * pode ter mudado desde a proposta): `somar` entra em cima do valor atual,
+ * `definir` substitui. Uma célula que já vale o valor definido não é tocada.
+ * Todas as células vão numa transação; o histórico recebe UMA entrada
+ * (desfazível) para o lançamento inteiro.
+ */
 export async function aplicarProposta(
   auth: AuthWithActingResult,
   request: NextRequest,
@@ -296,51 +377,105 @@ export async function aplicarProposta(
 ): Promise<ResultadoAplicacao> {
   const userId = auth.targetUserId;
   const { itemId } = await ensurePersonalizedItem(p.itemId, userId);
+  const recorrente = ehRecorrente(p);
+  const meses = [...new Set(p.celulas.map((c) => c.mes))].sort((a, b) => a - b);
 
-  const where = { itemId_userId_year_month: { itemId, userId, year: p.ano, month: p.mes } };
-  const atual = await prisma.cashflowValue.findUnique({ where });
-  const valorAnterior = atual ? round(Number(atual.value)) : 0;
-  const valorNovo = round(valorAnterior + p.valor);
+  const rotulo = `${p.tipo === 'despesa' ? 'Gasto' : 'Receita'}${recorrente ? ' mensal' : ''} de ${formatarBrl(p.valor)}`;
+  const carimbo = `${rotulo}${p.descricao ? ` — ${p.descricao}` : ''} (assistente)`;
 
-  const carimbo = `${p.tipo === 'despesa' ? 'Gasto' : 'Receita'} de R$ ${p.valor.toFixed(2).replace('.', ',')}${p.descricao ? ` — ${p.descricao}` : ''} (assistente)`;
-  const comentario = atual?.comment ? `${atual.comment}\n${carimbo}` : carimbo;
+  interface CelulaGravada extends CelulaAplicada {
+    existia: boolean;
+    alterada: boolean;
+  }
 
-  await prisma.cashflowValue.upsert({
-    where,
-    create: { itemId, userId, year: p.ano, month: p.mes, value: valorNovo, comment: comentario },
-    // Soma manual invalida a fórmula da célula (ela deixaria de bater).
-    update: { value: valorNovo, formula: null, comment: comentario.slice(0, 2000) },
+  const gravadas = await prisma.$transaction(async (tx) => {
+    const out: CelulaGravada[] = [];
+    for (const mes of meses) {
+      const where = { itemId_userId_year_month: { itemId, userId, year: p.ano, month: mes } };
+      const atual = await tx.cashflowValue.findUnique({ where });
+      const valorAnterior = atual ? round(Number(atual.value)) : 0;
+      const valorNovo = p.modo === 'somar' ? round(valorAnterior + p.valor) : p.valor;
+      if (atual && valorNovo === valorAnterior) {
+        out.push({ mes, valorAnterior, valorNovo, existia: true, alterada: false });
+        continue;
+      }
+      const comentario = atual?.comment ? `${atual.comment}\n${carimbo}` : carimbo;
+      await tx.cashflowValue.upsert({
+        where,
+        create: { itemId, userId, year: p.ano, month: mes, value: valorNovo, comment: comentario },
+        // Escrita manual invalida a fórmula da célula (ela deixaria de bater).
+        update: { value: valorNovo, formula: null, comment: comentario.slice(0, 2000) },
+      });
+      out.push({ mes, valorAnterior, valorNovo, existia: Boolean(atual), alterada: true });
+    }
+    return out;
   });
 
-  await recomputeEvolucaoSnapshotsSafe(userId, new Date(p.ano, p.mes, 1));
+  const alteradas = gravadas.filter((c) => c.alterada);
+  if (alteradas.length > 0) {
+    await recomputeEvolucaoSnapshotsSafe(userId, new Date(p.ano, alteradas[0].mes, 1));
 
-  await recordChange({
-    request,
-    auth,
-    section: 'fluxo-caixa',
-    action: 'valor.editar',
-    entity: 'valor',
-    entityId: itemId,
-    entityLabel: `${p.itemNome} · ${MESES_LONGOS[p.mes]}/${p.ano} (assistente)`,
-    changes: [
-      {
-        field: 'monthlyValue',
-        label: `${MESES_LONGOS[p.mes]}/${p.ano}`,
-        before: atual ? valorAnterior : null,
-        after: valorNovo,
-        format: 'currency',
-      },
-    ],
-    snapshot: {
-      v: 1,
-      kind: 'cashflow-valor',
-      data: { value: atual ? valorAnterior : null },
-      meta: { itemId, year: p.ano, month: p.mes, origem: 'assistente' },
-    },
-  });
+    const changes = alteradas.map((c) => ({
+      field: 'monthlyValue',
+      label: `${MESES_LONGOS[c.mes]}/${p.ano}`,
+      before: c.existia ? c.valorAnterior : null,
+      after: c.valorNovo,
+      format: 'currency' as const,
+    }));
 
-  await checkOrcamentoAlertasSafe(userId);
-  invalidarContextoUsuario(userId);
+    if (!recorrente) {
+      const c = alteradas[0];
+      await recordChange({
+        request,
+        auth,
+        section: 'fluxo-caixa',
+        action: 'valor.editar',
+        entity: 'valor',
+        entityId: itemId,
+        entityLabel: `${p.itemNome} · ${MESES_LONGOS[c.mes]}/${p.ano} (assistente)`,
+        changes,
+        snapshot: {
+          v: 1,
+          kind: 'cashflow-valor',
+          data: { value: c.existia ? c.valorAnterior : null },
+          meta: { itemId, year: p.ano, month: c.mes, origem: 'assistente' },
+        },
+      });
+    } else {
+      await recordChange({
+        request,
+        auth,
+        section: 'fluxo-caixa',
+        action: 'valores.editar-recorrente',
+        entity: 'valores',
+        entityId: itemId,
+        entityLabel: `${p.itemNome} · ${descreverPeriodo(p)} (assistente)`,
+        changes,
+        snapshot: {
+          v: 1,
+          kind: 'cashflow-valores',
+          data: {
+            celulas: alteradas.map((c) => ({
+              month: c.mes,
+              before: c.existia ? c.valorAnterior : null,
+              after: c.valorNovo,
+            })),
+          },
+          meta: { itemId, year: p.ano, origem: 'assistente', modo: p.modo },
+        },
+      });
+    }
 
-  return { itemId, valorAnterior, valorNovo };
+    await checkOrcamentoAlertasSafe(userId);
+    invalidarContextoUsuario(userId);
+  }
+
+  return {
+    itemId,
+    celulas: gravadas.map(({ mes, valorAnterior, valorNovo }) => ({
+      mes,
+      valorAnterior,
+      valorNovo,
+    })),
+  };
 }
