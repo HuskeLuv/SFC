@@ -90,6 +90,29 @@ const grupos = [
             values: [],
             objetivoId: 'obj-1',
           },
+          { id: 'i-gas', userId: null, groupId: 'g-hab', name: 'Gás', values: [] },
+          { id: 'i-outros-hab', userId: null, groupId: 'g-hab', name: 'Outros', values: [] },
+        ],
+      },
+      {
+        id: 'g-transp',
+        userId: null,
+        name: 'Transporte',
+        type: 'despesa',
+        parentId: 'g-desp',
+        orderIndex: 1,
+        children: [],
+        items: [
+          { id: 'i-comb', userId: null, groupId: 'g-transp', name: 'Combustível', values: [] },
+          { id: 'i-outros-transp', userId: null, groupId: 'g-transp', name: 'Outros', values: [] },
+          {
+            id: 'i-oculta',
+            userId: null,
+            groupId: 'g-transp',
+            name: 'Pneu',
+            values: [],
+            hidden: true,
+          },
         ],
       },
     ],
@@ -139,7 +162,15 @@ const grupos = [
 describe('resolução de linha', () => {
   it('só considera linhas de entrada/despesa sem espelho de sonho ou dívida', () => {
     const ids = linhasEditaveis(grupos).map((l) => l.itemId);
-    expect(ids).toEqual(['i-super', 'i-luz', 'i-sal']);
+    expect(ids).toEqual([
+      'i-super',
+      'i-luz',
+      'i-gas',
+      'i-outros-hab',
+      'i-comb',
+      'i-outros-transp',
+      'i-sal',
+    ]);
   });
 
   it('pontua igual > prefixo > contém > tokens', () => {
@@ -148,6 +179,14 @@ describe('resolução de linha', () => {
     expect(pontuarLinha('mercado', 'Supermercado')).toBe(70);
     expect(pontuarLinha('conta de luz elétrica', 'Energia elétrica')).toBeGreaterThan(0);
     expect(pontuarLinha('gasolina', 'Supermercado')).toBe(0);
+  });
+
+  it('linha curta só casa com o pedido em palavra inteira ("gás" ≠ "gasolina")', () => {
+    // Bug de prod 10/09: "Gasolina, em transporte" caiu em "Gás" (Habitação).
+    expect(pontuarLinha('gasolina', 'Gás')).toBe(0);
+    expect(pontuarLinha('gás de cozinha', 'Gás')).toBe(85);
+    expect(pontuarLinha('conta do gás', 'Gás')).toBe(70);
+    expect(pontuarLinha('supermercado extra', 'Supermercado')).toBe(85);
   });
 
   it('escolhe a melhor linha do tipo certo e lista alternativas', () => {
@@ -159,6 +198,23 @@ describe('resolução de linha', () => {
       melhor: null,
       alternativas: [],
     });
+  });
+
+  it('grupo informado desempata nomes repetidos e não substitui a linha', () => {
+    expect(resolverLinha(grupos, 'Outros', 'despesa', 'Transporte').melhor?.itemId).toBe(
+      'i-outros-transp',
+    );
+    expect(resolverLinha(grupos, 'Outros', 'despesa', 'Habitação').melhor?.itemId).toBe(
+      'i-outros-hab',
+    );
+    // Grupo certo com linha errada não vira "melhor": o bônus não supera o mínimo de nome.
+    const r = resolverLinha(grupos, 'gasolina', 'despesa', 'Transporte');
+    expect(r.melhor).toBeNull();
+    expect(r.alternativas.map((a) => a.itemId)).toEqual(['i-comb', 'i-outros-transp']);
+    // Grupo errado não impede achar a linha certa pelo nome.
+    expect(resolverLinha(grupos, 'Combustível', 'despesa', 'Habitação').melhor?.itemId).toBe(
+      'i-comb',
+    );
   });
 });
 

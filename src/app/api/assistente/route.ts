@@ -27,7 +27,7 @@ import {
 } from '@/services/assistente/prompt';
 import { classificarIntencao, guardarTextoDaIntencao } from '@/services/assistente/intencao';
 import { assistenteHabilitado, registrarMensagem, usoMensal } from '@/services/assistente/limite';
-import { MESES_LONGOS, montarProposta } from '@/services/assistente/lancamento';
+import { MESES_LONGOS, grupoCurto, montarProposta } from '@/services/assistente/lancamento';
 
 const mensagemSchema = z.object({
   mensagem: z.string().trim().min(1).max(1000),
@@ -45,6 +45,7 @@ const mensagemSchema = z.object({
 const lancamentoInputSchema = z.object({
   tipo: z.enum(['despesa', 'entrada']),
   linha: z.string().trim().min(1).max(120),
+  grupo: z.string().trim().max(120).optional(),
   valor: z.number().finite().positive(),
   mes: z.number().int().min(0).max(11).optional(),
   ano: z.number().int().min(2000).max(2100).optional(),
@@ -122,7 +123,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       tools: viaConsultant ? [] : [TOOL_PROPOR_LANCAMENTO],
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       reasoning: 'none',
-      cacheKey: 'assistente-v1',
+      cacheKey: 'assistente-v2',
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -175,7 +176,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (!resultado.ok) {
     const lista =
       resultado.alternativas.length > 0
-        ? ` Linhas parecidas: ${resultado.alternativas.map((a) => `"${a.itemNome}"`).join(', ')}. Qual delas?`
+        ? ` Linhas parecidas: ${resultado.alternativas.map((a) => `"${a.itemNome}" (${grupoCurto(a.grupoNome)})`).join(', ')}. Qual delas?`
         : ' Você pode criar a linha na tela Fluxo de Caixa e pedir de novo.';
     return NextResponse.json({ resposta: resultado.motivo + lista, uso: usoDepois });
   }

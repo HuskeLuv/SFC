@@ -15,7 +15,12 @@ import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatr
 import { checkOrcamentoAlertasSafe } from '@/services/cashflow/orcamentoAlertas';
 import { recordChange } from '@/services/changeHistory';
 import type { CashflowGroup } from '@/types/cashflow';
-import { invalidarContextoUsuario, round } from './contexto';
+import {
+  invalidarContextoUsuario,
+  listarLinhasEditaveis,
+  round,
+  type LinhaEditavel,
+} from './contexto';
 
 export const MESES_LONGOS = [
   'janeiro',
@@ -35,6 +40,8 @@ export const MESES_LONGOS = [
 export interface LancamentoInput {
   tipo: 'despesa' | 'entrada';
   linha: string;
+  /** Grupo/seção da linha (ex.: "Transporte"), para desempatar nomes repetidos como "Outros". */
+  grupo?: string;
   valor: number;
   mes?: number;
   ano?: number;
@@ -60,12 +67,7 @@ export interface Proposta {
   expiraEm: number;
 }
 
-export interface LinhaCandidata {
-  itemId: string;
-  itemNome: string;
-  grupoNome: string;
-  grupoTipo: string;
-}
+export type LinhaCandidata = LinhaEditavel;
 
 const PROPOSTA_TTL_MS = 10 * 60 * 1000;
 
@@ -81,30 +83,28 @@ function normalizar(s: string): string {
 
 /** Linhas editáveis do fluxo: grupos entrada/despesa, sem espelho de sonho/dívida, não ocultas. */
 export function linhasEditaveis(groups: CashflowGroup[]): LinhaCandidata[] {
-  const out: LinhaCandidata[] = [];
-  const walk = (g: CashflowGroup, trail: string[]) => {
-    if (g.hidden) return;
-    const nome = [...trail, g.name].join(' > ');
-    if (g.type === 'entrada' || g.type === 'despesa') {
-      for (const item of g.items ?? []) {
-        if (item.hidden || item.objetivoId || item.dividaId) continue;
-        out.push({ itemId: item.id, itemNome: item.name, grupoNome: nome, grupoTipo: g.type });
-      }
-    }
-    for (const c of g.children ?? []) walk(c, [...trail, g.name]);
-  };
-  for (const g of groups) walk(g, []);
-  return out;
+  return listarLinhasEditaveis(groups);
 }
 
-/** Pontua a semelhança entre o nome pedido e o nome da linha (0 = nada, 100 = igual). */
+/** "gas" é palavra inteira em "gas de cozinha", mas não em "gasolina". */
+function contemPalavra(texto: string, parte: string): boolean {
+  return ` ${texto} `.includes(` ${parte} `);
+}
+
+/**
+ * Pontua a semelhança entre o nome pedido e o nome da linha (0 = nada, 100 = igual).
+ * O pedido pode ser um pedaço da linha ("mercado" → "Supermercado"), mas a linha só
+ * conta como pedaço do pedido em palavra inteira ("gás" NÃO casa com "gasolina").
+ */
 export function pontuarLinha(pedido: string, linha: string): number {
   const p = normalizar(pedido);
   const l = normalizar(linha);
   if (!p || !l) return 0;
   if (p === l) return 100;
-  if (l.startsWith(p) || p.startsWith(l)) return 85;
-  if (l.includes(p) || p.includes(l)) return 70;
+  if (l.startsWith(p)) return 85;
+  if (p.startsWith(`${l} `)) return 85;
+  if (l.includes(p)) return 70;
+  if (contemPalavra(p, l)) return 70;
   const pt = new Set(p.split(' '));
   const lt = l.split(' ');
   const comuns = lt.filter((t) => t.length > 2 && pt.has(t)).length;
@@ -112,21 +112,62 @@ export function pontuarLinha(pedido: string, linha: string): number {
   return Math.round((50 * comuns) / Math.max(pt.size, lt.length));
 }
 
+/** Último segmento da trilha do grupo ("Despesas > Despesas Fixas > Transporte" → "Transporte"). */
+export function grupoCurto(grupoNome: string): string {
+  const partes = grupoNome.split(' > ');
+  return partes[partes.length - 1] ?? grupoNome;
+}
+
+/**
+ * O grupo pedido bate com a trilha do grupo da linha? Ignora a raiz ("Despesas"/
+ * "Entradas") quando há subgrupos, senão todo grupo de despesa ganharia o bônus.
+ */
+function grupoBate(grupoPedido: string, grupoNome: string): boolean {
+  const g = normalizar(grupoPedido);
+  if (!g) return false;
+  const segs = grupoNome.split(' > ');
+  const relevantes = segs.length > 1 ? segs.slice(1) : segs;
+  return relevantes.some((seg) => {
+    const n = normalizar(seg);
+    return n === g || n.startsWith(g) || g.startsWith(n) || contemPalavra(g, n);
+  });
+}
+
+const BONUS_GRUPO = 20;
+const SCORE_MINIMO = 50;
+
+/**
+ * Escolhe a linha: melhor pontuação de nome dentro do tipo; o grupo informado pelo
+ * modelo dá bônus (desempata "Outros" repetido em 14 grupos e evita cair na seção
+ * errada). Sem linha aceitável, as alternativas vêm do grupo pedido, se houver.
+ */
 export function resolverLinha(
   groups: CashflowGroup[],
   nome: string,
   tipo: 'despesa' | 'entrada',
+  grupo?: string,
 ): { melhor: LinhaCandidata | null; alternativas: LinhaCandidata[] } {
   const candidatas = linhasEditaveis(groups).filter((c) => c.grupoTipo === tipo);
   const ranqueadas = candidatas
-    .map((c) => ({ c, score: pontuarLinha(nome, c.itemNome) }))
-    .filter((x) => x.score > 0)
+    .map((c) => {
+      const nomeScore = pontuarLinha(nome, c.itemNome);
+      const noGrupo = grupo ? grupoBate(grupo, c.grupoNome) : false;
+      return { c, nomeScore, noGrupo, score: nomeScore + (noGrupo ? BONUS_GRUPO : 0) };
+    })
+    .filter((x) => x.nomeScore > 0)
     .sort((a, b) => b.score - a.score);
-  const melhor = ranqueadas[0] && ranqueadas[0].score >= 50 ? ranqueadas[0].c : null;
-  const alternativas = ranqueadas
+  const melhor = ranqueadas[0] && ranqueadas[0].nomeScore >= SCORE_MINIMO ? ranqueadas[0].c : null;
+  let alternativas = ranqueadas
     .slice(0, 5)
     .map((x) => x.c)
     .filter((c) => c.itemId !== melhor?.itemId);
+  if (!melhor && grupo) {
+    const doGrupo = candidatas.filter((c) => grupoBate(grupo, c.grupoNome));
+    if (doGrupo.length > 0) {
+      const vistos = new Set(alternativas.map((a) => a.itemId));
+      alternativas = [...alternativas, ...doGrupo.filter((c) => !vistos.has(c.itemId))].slice(0, 8);
+    }
+  }
   return { melhor, alternativas };
 }
 
@@ -172,11 +213,12 @@ export async function montarProposta(
   }
 
   const groups = await getMergedCashflowGroups(userId, ano);
-  const { melhor, alternativas } = resolverLinha(groups, input.linha, input.tipo);
+  const { melhor, alternativas } = resolverLinha(groups, input.linha, input.tipo, input.grupo);
   if (!melhor) {
+    const onde = input.grupo ? ` em "${input.grupo}"` : '';
     return {
       ok: false,
-      motivo: `Não encontrei uma linha de ${input.tipo === 'despesa' ? 'despesa' : 'entrada'} parecida com "${input.linha}".`,
+      motivo: `Não encontrei uma linha de ${input.tipo === 'despesa' ? 'despesa' : 'entrada'} parecida com "${input.linha}"${onde}.`,
       alternativas,
     };
   }
