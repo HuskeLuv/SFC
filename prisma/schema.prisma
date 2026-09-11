@@ -206,14 +206,27 @@ model Notification {
   @@index([userId, createdAt])
 }
 
+// Evento escrito pelo usuário na Agenda (página Calendário). Eventos de
+// dívidas, proventos, renda fixa etc. NÃO ficam aqui: são calculados na hora
+// pelas fontes em src/services/calendario/. Datas são civis (AAAA-MM-DD à
+// meia-noite UTC); a hora, quando existe, é texto "HH:MM" sem fuso.
 model Event {
-  id     String   @id @default(uuid())
-  title  String
-  date   DateTime
-  userId String
-  user   User     @relation(fields: [userId], references: [id])
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  date        DateTime // dia do evento (00:00 UTC)
+  endDate     DateTime? // último dia, inclusive, para eventos de vários dias
+  hora        String? // "HH:MM"; null = dia inteiro
+  categoria   String    @default("pessoal") // 'pessoal' | 'pagamento' | 'recebimento' | 'lembrete'
+  recorrencia String    @default("nenhuma") // 'nenhuma' | 'mensal' | 'anual'
+  lembrete    Boolean   @default(false)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
 
   @@index([userId])
+  @@index([userId, date])
 }
 
 model DashboardData {

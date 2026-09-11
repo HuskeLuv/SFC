@@ -182,3 +182,15 @@ export const DIVIDA_PAGAMENTO_FIELD_LABELS: FieldLabelMap = {
   tipo: 'Tipo',
   notes: 'Observações',
 };
+
+/** Evento manual da Agenda (tabela Event) — campos como o app os vê (datas civis). */
+export const EVENTO_FIELD_LABELS: FieldLabelMap = {
+  titulo: 'Título',
+  descricao: 'Descrição',
+  data: 'Data',
+  dataFim: 'Data final',
+  hora: 'Hora',
+  categoria: 'Categoria',
+  recorrencia: 'Repetição',
+  lembrete: 'Lembrete',
+};

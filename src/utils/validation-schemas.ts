@@ -528,6 +528,42 @@ export const saudeConfigSchema = z.object({
 
 // ── Utility: build 400 response from ZodError ─────────────────────────
 
+// ---------------------------------------------------------------------------
+// Agenda (eventos manuais do calendário)
+// ---------------------------------------------------------------------------
+
+const zDataCivil = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD')
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00.000Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, 'Data inválida');
+const zHora = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora no formato HH:MM');
+
+const eventoCampos = {
+  titulo: z.string().trim().min(1).max(120),
+  descricao: z.string().trim().max(1000).nullable().optional(),
+  data: zDataCivil,
+  dataFim: zDataCivil.nullable().optional(),
+  hora: zHora.nullable().optional(),
+  categoria: z.enum(['pessoal', 'pagamento', 'recebimento', 'lembrete']).optional(),
+  recorrencia: z.enum(['nenhuma', 'mensal', 'anual']).optional(),
+  lembrete: z.boolean().optional(),
+};
+
+const fimDepoisDoInicio = (v: { data?: string; dataFim?: string | null }) =>
+  !v.data || !v.dataFim || v.dataFim >= v.data;
+
+export const eventoCreateSchema = z
+  .object(eventoCampos)
+  .refine(fimDepoisDoInicio, { message: 'dataFim antes de data', path: ['dataFim'] });
+
+export const eventoUpdateSchema = z
+  .object({ ...eventoCampos, titulo: eventoCampos.titulo.optional(), data: zDataCivil.optional() })
+  .refine((v) => Object.keys(v).length > 0, { message: 'Nada para alterar' })
+  .refine(fimDepoisDoInicio, { message: 'dataFim antes de data', path: ['dataFim'] });
+
 export function validationError(result: { success: false; error: z.ZodError }) {
   const flat = result.error.flatten();
   const invalidFields = Object.keys(flat.fieldErrors);
