@@ -254,6 +254,16 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // --- Painel administrativo exige role admin (11/09/2026) ---
+  // A API /api/admin/** valida via requireAdmin; aqui é a camada de página.
+  if ((pathname === '/admin' || pathname.startsWith('/admin/')) && jwtPayload.role !== 'admin') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    const response = NextResponse.redirect(url);
+    setSecurityHeaders(response, request);
+    return response;
+  }
+
   // --- CSRF validation for state-changing API requests ---
   if (
     pathname.startsWith('/api/') &&

@@ -49,6 +49,14 @@ export function requireRole(request: NextRequest, role: JWTPayload['role']): JWT
   return payload;
 }
 
+/**
+ * Painel administrativo (11/09/2026): só `role === 'admin'`. Atalho sobre
+ * requireRole para deixar explícito nas rotas /api/admin/**.
+ */
+export function requireAdmin(request: NextRequest): JWTPayload {
+  return requireRole(request, 'admin');
+}
+
 export interface AuthWithActingResult {
   payload: JWTPayload;
   targetUserId: string;
