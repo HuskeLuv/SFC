@@ -5,6 +5,7 @@ export const CHANGE_SECTIONS = [
   'dividas',
   'saude-financeira',
   'perfil',
+  'calendario',
 ] as const;
 
 export type ChangeSection = (typeof CHANGE_SECTIONS)[number];

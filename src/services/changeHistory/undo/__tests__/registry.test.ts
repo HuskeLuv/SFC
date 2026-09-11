@@ -83,6 +83,9 @@ describe('UNDO_REGISTRY', () => {
       'divida-pagamento.registrar',
       'divida-pagamento.excluir',
       'perfil.editar',
+      'evento.criar',
+      'evento.editar',
+      'evento.excluir',
     ];
     for (const action of expected) {
       expect(UNDO_REGISTRY[action], action).toBeDefined();

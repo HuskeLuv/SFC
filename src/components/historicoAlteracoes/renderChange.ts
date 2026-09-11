@@ -8,6 +8,7 @@ export const SECTION_LABELS: Record<ChangeSection, string> = {
   dividas: 'Dívidas',
   'saude-financeira': 'Saúde Financeira',
   perfil: 'Perfil',
+  calendario: 'Agenda',
 };
 
 export const SECTION_BADGE_COLORS: Record<
@@ -20,6 +21,7 @@ export const SECTION_BADGE_COLORS: Record<
   dividas: 'warning',
   'saude-financeira': 'success',
   perfil: 'info',
+  calendario: 'info',
 };
 
 type Renderer = (e: HistoricoAlteracaoEntry) => string;
@@ -70,6 +72,11 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
   'transacao.excluir': withLabel('Excluiu uma transação', (l) => `Excluiu transação de ${l}`),
   'objetivo-carteira.definir': withLabel('Definiu o objetivo da carteira'),
   'objetivo-carteira.remover': withLabel('Removeu o objetivo da carteira'),
+
+  // Agenda
+  'evento.criar': withLabel('Criou um evento na agenda', (l) => `Criou o evento ${l}`),
+  'evento.editar': withLabel('Editou um evento da agenda', (l) => `Editou o evento ${l}`),
+  'evento.excluir': withLabel('Excluiu um evento da agenda', (l) => `Excluiu o evento ${l}`),
 
   // Fluxo de Caixa
   'valor.editar': withLabel('Editou um valor do fluxo de caixa', (l) => `Editou ${l}`),
