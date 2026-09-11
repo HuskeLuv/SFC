@@ -29,6 +29,10 @@ export const queryKeys = {
     all: ['planejamento'] as const,
     contexto: () => [...queryKeys.planejamento.all, 'contexto'] as const,
   },
+  agenda: {
+    all: ['agenda'] as const,
+    periodo: (de: string, ate: string) => [...queryKeys.agenda.all, de, ate] as const,
+  },
   dividas: {
     all: ['dividas'] as const,
     detail: (id: string) => [...queryKeys.dividas.all, id] as const,

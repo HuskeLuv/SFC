@@ -67,6 +67,9 @@ export function expandirEvento(e: Event, periodo: Periodo): EventoAgenda[] {
       recorrencia: campos.recorrencia,
       lembrete: campos.lembrete,
       ocorrencia: data !== campos.data,
+      // Data original do evento (a ocorrência repetida edita o evento-base).
+      dataBase: campos.data,
+      dataFimBase: campos.dataFim,
     },
   }));
 }
