@@ -19,6 +19,7 @@ import {
   UserCircleIcon,
   DocsIcon,
   VideoIcon,
+  LockIcon,
 } from '../icons/index';
 import SidebarFooter from './SidebarFooter';
 import CashflowYearSelect from './CashflowYearSelect';
@@ -112,6 +113,11 @@ const AppSidebar: React.FC = () => {
 
     if (user?.role !== 'consultant') {
       items = items.filter((item) => item.name !== 'Dashboard');
+    }
+
+    // Painel administrativo (11/09/2026): só role admin vê o item.
+    if (user?.role === 'admin') {
+      items = [...items, { icon: <LockIcon />, name: 'Administração', path: '/admin' }];
     }
 
     // Se estiver personificado, mostrar apenas: Dashboard, Fluxo de Caixa, Carteira e Relatórios
