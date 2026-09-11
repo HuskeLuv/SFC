@@ -5,9 +5,12 @@
  */
 import { logger } from '@/lib/logger';
 import { ApiError } from '@/utils/apiErrorHandler';
-import type { EventoAgenda, Periodo, TipoEvento } from './types';
+import { TIPOS_EVENTO, type EventoAgenda, type Periodo, type TipoEvento } from './types';
 import { diffDias, ehDataCivilValida, hojeCivil, montar, partes } from './datas';
 import { eventosManuais } from './fontes/manual';
+import { eventosDividas } from './fontes/dividas';
+import { eventosProventos } from './fontes/proventos';
+import { eventosRendaFixa } from './fontes/rendaFixa';
 
 export const MAX_DIAS_PERIODO = 400;
 
@@ -15,7 +18,25 @@ type Fonte = (userId: string, periodo: Periodo) => Promise<EventoAgenda[]>;
 
 const FONTES: Array<{ tipo: TipoEvento; carregar: Fonte }> = [
   { tipo: 'manual', carregar: eventosManuais },
+  { tipo: 'divida', carregar: eventosDividas },
+  { tipo: 'provento', carregar: eventosProventos },
+  { tipo: 'rf', carregar: eventosRendaFixa },
 ];
+
+/** ?tipos=manual,divida → só essas fontes; ausente = todas. */
+export function parseTipos(params: URLSearchParams): TipoEvento[] | undefined {
+  const raw = params.get('tipos');
+  if (!raw) return undefined;
+  const tipos = raw
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const invalidos = tipos.filter((t) => !(TIPOS_EVENTO as readonly string[]).includes(t));
+  if (invalidos.length > 0) {
+    throw new ApiError(400, `Tipo de evento desconhecido: ${invalidos.join(', ')}.`);
+  }
+  return tipos as TipoEvento[];
+}
 
 /** Período pedido pela página (?de=&ate=); sem parâmetros = mês atual. */
 export function parsePeriodo(params: URLSearchParams, agora: Date = new Date()): Periodo {

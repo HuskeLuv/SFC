@@ -2,9 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
-  prisma: { event: { findMany: vi.fn(), create: vi.fn() } },
+  prisma: {
+    event: { findMany: vi.fn(), create: vi.fn() },
+    divida: { findMany: vi.fn() },
+    fixedIncomeAsset: { findMany: vi.fn() },
+    portfolio: { findMany: vi.fn() },
+  },
   requireAuthWithActing: vi.fn(),
   recordChange: vi.fn(),
+  resolveProventoEvents: vi.fn(),
+}));
+vi.mock('@/services/portfolio/resolveProventos', () => ({
+  resolveProventoEvents: mocks.resolveProventoEvents,
 }));
 
 vi.mock('@/lib/prisma', () => ({ default: mocks.prisma, prisma: mocks.prisma }));
@@ -54,6 +63,10 @@ describe('GET /api/calendar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireAuthWithActing.mockResolvedValue(user);
+    mocks.prisma.divida.findMany.mockResolvedValue([]);
+    mocks.prisma.fixedIncomeAsset.findMany.mockResolvedValue([]);
+    mocks.prisma.portfolio.findMany.mockResolvedValue([]);
+    mocks.resolveProventoEvents.mockResolvedValue({ events: [], total: 0 });
   });
 
   it('devolve a agenda do período com eventos manuais expandidos', async () => {
@@ -79,6 +92,15 @@ describe('GET /api/calendar', () => {
     mocks.prisma.event.findMany.mockResolvedValue([]);
     await GET(get('?de=2026-09-01&ate=2026-09-30'));
     expect(mocks.prisma.event.findMany.mock.calls[0][0].where.userId).toBe('client-1');
+  });
+
+  it('?tipos= limita as fontes consultadas', async () => {
+    mocks.prisma.event.findMany.mockResolvedValue([]);
+    await GET(get('?de=2026-09-01&ate=2026-09-30&tipos=manual'));
+    expect(mocks.prisma.event.findMany).toHaveBeenCalled();
+    expect(mocks.prisma.divida.findMany).not.toHaveBeenCalled();
+    expect(mocks.resolveProventoEvents).not.toHaveBeenCalled();
+    expect((await GET(get('?de=2026-09-01&ate=2026-09-30&tipos=x'))).status).toBe(400);
   });
 
   it('período inválido → 400; sem token → 401', async () => {

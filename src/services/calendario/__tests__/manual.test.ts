@@ -209,10 +209,10 @@ describe('agenda', () => {
 
   it('montarAgenda: fonte com erro não derruba as outras', async () => {
     mocks.prisma.event.findMany.mockRejectedValueOnce(new Error('db down'));
-    const r = await montarAgenda('u1', { de: '2026-09-01', ate: '2026-09-30' });
+    const r = await montarAgenda('u1', { de: '2026-09-01', ate: '2026-09-30' }, ['manual']);
     expect(r).toEqual({ eventos: [], fontesComErro: ['manual'] });
     mocks.prisma.event.findMany.mockResolvedValueOnce([evento()]);
-    const ok = await montarAgenda('u1', { de: '2026-09-01', ate: '2026-09-30' });
+    const ok = await montarAgenda('u1', { de: '2026-09-01', ate: '2026-09-30' }, ['manual']);
     expect(ok.eventos).toHaveLength(1);
     expect(ok.fontesComErro).toEqual([]);
   });
