@@ -1,265 +1,280 @@
-"use client";
-import React, { useState, useRef } from "react";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import {
-  EventInput,
-  DateSelectArg,
-  EventClickArg,
-  EventContentArg,
-} from "@fullcalendar/core";
-import ptBrLocale from "@fullcalendar/core/locales/pt-br";
-import { useModal } from "@/hooks/useModal";
-import { Modal } from "@/components/ui/modal";
+'use client';
 
-interface CalendarEvent extends EventInput {
-  extendedProps: {
-    calendar: string;
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useTheme } from '@/context/ThemeContext';
+import { useAuthOptional } from '@/context/AuthContext';
+import {
+  useAgenda,
+  useCriarEvento,
+  useEditarEvento,
+  useExcluirEvento,
+  type EventoAgenda,
+  type EventoManualPayload,
+  type Periodo,
+  type TipoEvento,
+} from '@/hooks/useAgenda';
+import AgendaEventoModal, { FORM_VAZIO, type EventoFormValores } from './AgendaEventoModal';
+import AgendaDetalheModal from './AgendaDetalheModal';
+import {
+  TIPOS_DISPONIVEIS,
+  TIPOS_META,
+  corDoTipo,
+  gravarTiposVisiveis,
+  lerTiposVisiveis,
+  metaDoTipo,
+  paraFullCalendar,
+  tiposPadrao,
+} from './agendaTipos';
+
+const AgendaFullCalendar = dynamic(() => import('./AgendaFullCalendar'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[480px] items-center justify-center">
+      <LoadingSpinner text="Carregando o calendário…" />
+    </div>
+  ),
+});
+
+type ModalEstado =
+  | { modo: 'novo'; inicial: EventoFormValores }
+  | { modo: 'editar'; eventoId: string; inicial: EventoFormValores }
+  | { modo: 'detalhe'; evento: EventoAgenda }
+  | null;
+
+function formDoEvento(e: EventoAgenda): EventoFormValores {
+  const d = e.detalhe;
+  return {
+    titulo: e.titulo,
+    data: typeof d.dataBase === 'string' ? d.dataBase : e.data,
+    dataFim: typeof d.dataFimBase === 'string' ? d.dataFimBase : (e.dataFim ?? ''),
+    hora: e.hora ?? '',
+    categoria: String(d.categoria ?? 'pessoal'),
+    recorrencia: String(d.recorrencia ?? 'nenhuma'),
+    lembrete: d.lembrete === true,
+    descricao: e.descricao ?? '',
   };
 }
 
-const Calendar: React.FC = () => {
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
-    null
+/**
+ * Agenda financeira (página /calendario): eventos calculados (dívidas,
+ * proventos, renda fixa) + eventos do usuário, com filtros por tipo,
+ * criação/edição com histórico e detalhe com atalho para a tela de origem.
+ */
+export default function Calendar() {
+  const { theme } = useTheme();
+  const auth = useAuthOptional();
+  const podeEscrever = !auth?.actingClient;
+
+  const [periodo, setPeriodo] = useState<Periodo | null>(null);
+  const [tipos, setTipos] = useState<Set<TipoEvento>>(() => tiposPadrao());
+  const [modal, setModal] = useState<ModalEstado>(null);
+  const [erroMutacao, setErroMutacao] = useState<string | null>(null);
+
+  // localStorage só no cliente, depois da hidratação (evita mismatch).
+  useEffect(() => {
+    setTipos(lerTiposVisiveis());
+  }, []);
+
+  const agenda = useAgenda(periodo);
+  const criar = useCriarEvento();
+  const editar = useEditarEvento();
+  const excluir = useExcluirEvento();
+  const salvando = criar.isPending || editar.isPending || excluir.isPending;
+
+  const eventos = useMemo(() => agenda.data?.eventos ?? [], [agenda.data]);
+  const contagem = useMemo(() => {
+    const c = new Map<TipoEvento, number>();
+    for (const e of eventos) c.set(e.tipo, (c.get(e.tipo) ?? 0) + 1);
+    return c;
+  }, [eventos]);
+  const eventosFc = useMemo(
+    () => eventos.filter((e) => tipos.has(e.tipo)).map((e) => paraFullCalendar(e, theme)),
+    [eventos, tipos, theme],
   );
-  const [eventTitle, setEventTitle] = useState("");
-  const [eventStartDate, setEventStartDate] = useState("");
-  const [eventEndDate, setEventEndDate] = useState("");
-  const [eventLevel, setEventLevel] = useState("");
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const calendarRef = useRef<FullCalendar>(null);
-  const { isOpen, openModal, closeModal } = useModal();
 
-  const calendarsEvents = {
-    Danger: "danger",
-    Success: "success",
-    Primary: "primary",
-    Warning: "warning",
-  };
-  const calendarLabels: Record<keyof typeof calendarsEvents, string> = {
-    Danger: "Urgente",
-    Success: "Confirmado",
-    Primary: "Principal",
-    Warning: "Alerta",
-  };
+  const alternarTipo = useCallback((tipo: TipoEvento) => {
+    setTipos((prev) => {
+      const next = new Set(prev);
+      if (next.has(tipo)) next.delete(tipo);
+      else next.add(tipo);
+      gravarTiposVisiveis(next);
+      return next;
+    });
+  }, []);
 
-  const handleDateSelect = (selectInfo: DateSelectArg) => {
-    resetModalFields();
-    setEventStartDate(selectInfo.startStr);
-    setEventEndDate(selectInfo.endStr || selectInfo.startStr);
-    openModal();
-  };
+  const fechar = useCallback(() => {
+    setModal(null);
+    setErroMutacao(null);
+  }, []);
 
-  const handleEventClick = (clickInfo: EventClickArg) => {
-    const event = clickInfo.event;
-    setSelectedEvent(event as unknown as CalendarEvent);
-    setEventTitle(event.title);
-    setEventStartDate(event.start?.toISOString().split("T")[0] || "");
-    setEventEndDate(event.end?.toISOString().split("T")[0] || "");
-    setEventLevel(event.extendedProps.calendar);
-    openModal();
-  };
+  const abrirNovo = useCallback(
+    (data?: string) => {
+      if (!podeEscrever) return;
+      setErroMutacao(null);
+      setModal({ modo: 'novo', inicial: { ...FORM_VAZIO, data: data ?? '' } });
+    },
+    [podeEscrever],
+  );
 
-  const handleAddOrUpdateEvent = () => {
-    if (selectedEvent) {
-      // Update existing event
-      setEvents((prevEvents) =>
-        prevEvents.map((event) =>
-          event.id === selectedEvent.id
-            ? {
-                ...event,
-                title: eventTitle,
-                start: eventStartDate,
-                end: eventEndDate,
-                extendedProps: { calendar: eventLevel },
-              }
-            : event
-        )
-      );
-    } else {
-      // Add new event
-      const newEvent: CalendarEvent = {
-        id: Date.now().toString(),
-        title: eventTitle,
-        start: eventStartDate,
-        end: eventEndDate,
-        allDay: true,
-        extendedProps: { calendar: eventLevel },
-      };
-      setEvents((prevEvents) => [...prevEvents, newEvent]);
-    }
-    closeModal();
-    resetModalFields();
-  };
+  const abrirEvento = useCallback((evento: EventoAgenda) => {
+    setErroMutacao(null);
+    setModal({ modo: 'detalhe', evento });
+  }, []);
 
-  const resetModalFields = () => {
-    setEventTitle("");
-    setEventStartDate("");
-    setEventEndDate("");
-    setEventLevel("");
-    setSelectedEvent(null);
-  };
+  const abrirEdicao = useCallback((evento: EventoAgenda) => {
+    const id = evento.detalhe.eventoId;
+    if (typeof id !== 'string') return;
+    setModal({ modo: 'editar', eventoId: id, inicial: formDoEvento(evento) });
+  }, []);
+
+  const salvar = useCallback(
+    (payload: EventoManualPayload) => {
+      if (!modal || modal.modo === 'detalhe') return;
+      setErroMutacao(null);
+      const fn =
+        modal.modo === 'novo'
+          ? criar.mutateAsync(payload)
+          : editar.mutateAsync({ id: modal.eventoId, payload });
+      fn.then(fechar).catch((e: Error) => setErroMutacao(e.message));
+    },
+    [modal, criar, editar, fechar],
+  );
+
+  const excluirAtual = useCallback(() => {
+    if (!modal || modal.modo !== 'editar') return;
+    setErroMutacao(null);
+    excluir
+      .mutateAsync(modal.eventoId)
+      .then(fechar)
+      .catch((e: Error) => setErroMutacao(e.message));
+  }, [modal, excluir, fechar]);
+
+  const fontesComErro = agenda.data?.fontesComErro ?? [];
 
   return (
-    <div className="rounded-2xl border  border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-      <div className="custom-calendar">
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          locale={ptBrLocale}
-          initialView="dayGridMonth"
-          headerToolbar={{
-            left: "prev,next addEventButton",
-            center: "title",
-            right: "dayGridMonth,timeGridWeek,timeGridDay",
-          }}
-          events={events}
-          selectable={true}
-          select={handleDateSelect}
-          eventClick={handleEventClick}
-          eventContent={renderEventContent}
-          customButtons={{
-            addEventButton: {
-              text: "Adicionar evento +",
-              click: openModal,
-            },
-          }}
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="relative rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+        {agenda.isError && (
+          <div
+            role="alert"
+            className="mb-3 flex items-center justify-between rounded-lg bg-error-50 px-3 py-2 text-sm text-error-600 dark:bg-error-500/10"
+          >
+            <span>Não consegui carregar a agenda. {agenda.error?.message}</span>
+            <button
+              type="button"
+              onClick={() => agenda.refetch()}
+              className="font-medium underline"
+            >
+              Tentar de novo
+            </button>
+          </div>
+        )}
+        {fontesComErro.length > 0 && (
+          <p className="mb-3 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+            Uma parte da agenda não carregou:{' '}
+            {fontesComErro.map((t) => metaDoTipo(t).label.toLowerCase()).join(', ')}. Os outros
+            eventos estão completos.
+          </p>
+        )}
+        {agenda.isFetching && (
+          <div
+            className="pointer-events-none absolute top-4 right-4 z-10 text-xs text-gray-400"
+            aria-live="polite"
+          >
+            Atualizando…
+          </div>
+        )}
+        <AgendaFullCalendar
+          eventos={eventosFc}
+          podeCriar={podeEscrever}
+          onPeriodo={setPeriodo}
+          onSelecionarDia={abrirNovo}
+          onClicarEvento={abrirEvento}
+          onNovo={() => abrirNovo()}
         />
       </div>
-      <Modal
-        isOpen={isOpen}
-        onClose={closeModal}
-        className="max-w-[700px] p-6 lg:p-10"
-      >
-        <div className="flex flex-col px-2 overflow-y-auto custom-scrollbar">
-          <div>
-            <h5 className="mb-2 font-semibold text-gray-800 modal-title text-theme-xl dark:text-white/90 lg:text-2xl">
-              {selectedEvent ? "Editar evento" : "Adicionar evento"}
-            </h5>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Planeje seu próximo compromisso: agende ou edite um evento.
-            </p>
-          </div>
-          <div className="mt-8">
-            <div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Título do evento
-                </label>
-                <input
-                  id="event-title"
-                  type="text"
-                  value={eventTitle}
-                  onChange={(e) => setEventTitle(e.target.value)}
-                  className="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                />
-              </div>
-            </div>
-            <div className="mt-6">
-              <label className="block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">
-                Cor do evento
-              </label>
-              <div className="flex flex-wrap items-center gap-4 sm:gap-5">
-                {Object.entries(calendarsEvents).map(([key, value]) => (
-                  <div key={key} className="n-chk">
-                    <div
-                      className={`form-check form-check-${value} form-check-inline`}
-                    >
-                      <label
-                        className="flex items-center text-sm text-gray-700 form-check-label dark:text-gray-400"
-                        htmlFor={`modal${key}`}
-                      >
-                        <span className="relative">
-                          <input
-                            className="sr-only form-check-input"
-                            type="radio"
-                            name="event-level"
-                            value={key}
-                            id={`modal${key}`}
-                            checked={eventLevel === key}
-                            onChange={() => setEventLevel(key)}
-                          />
-                          <span className="flex items-center justify-center w-5 h-5 mr-2 border border-gray-300 rounded-full box dark:border-gray-700">
-                            <span
-                              className={`h-2 w-2 rounded-full bg-white ${
-                                eventLevel === key ? "block" : "hidden"
-                              }`}
-                            ></span>
-                          </span>
-                        </span>
-                        {calendarLabels[key as keyof typeof calendarLabels]}
-                      </label>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            <div className="mt-6">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                Data inicial
-              </label>
-              <div className="relative">
-                <input
-                  id="event-start-date"
-                  type="date"
-                  value={eventStartDate}
-                  onChange={(e) => setEventStartDate(e.target.value)}
-                  className="dark:bg-dark-900 h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none px-4 py-2.5 pl-4 pr-11 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                />
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                Data final
-              </label>
-              <div className="relative">
-                <input
-                  id="event-end-date"
-                  type="date"
-                  value={eventEndDate}
-                  onChange={(e) => setEventEndDate(e.target.value)}
-                  className="dark:bg-dark-900 h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none px-4 py-2.5 pl-4 pr-11 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 mt-6 modal-footer sm:justify-end">
-            <button
-              onClick={closeModal}
-              type="button"
-              className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
-            >
-              Fechar
-            </button>
-            <button
-              onClick={handleAddOrUpdateEvent}
-              type="button"
-              className="btn btn-success btn-update-event flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 sm:w-auto"
-            >
-              {selectedEvent ? "Atualizar" : "Adicionar"}
-            </button>
-          </div>
+      <aside className="space-y-4">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Mostrar</h3>
+          <ul className="space-y-2">
+            {TIPOS_META.map((m) => {
+              const disponivel = TIPOS_DISPONIVEIS.includes(m.tipo);
+              const n = contagem.get(m.tipo) ?? 0;
+              return (
+                <li key={m.tipo}>
+                  <label
+                    className={`flex cursor-pointer items-start gap-2 text-sm ${disponivel ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}`}
+                    title={m.descricao}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                      checked={tipos.has(m.tipo)}
+                      disabled={!disponivel}
+                      onChange={() => alternarTipo(m.tipo)}
+                      aria-label={m.label}
+                    />
+                    <span
+                      className="mt-1 h-3 w-3 shrink-0 rounded-sm"
+                      style={{ backgroundColor: corDoTipo(m.tipo, theme) }}
+                    />
+                    <span className="flex-1 leading-snug">
+                      {m.label}
+                      {disponivel && n > 0 ? (
+                        <span className="ml-1 text-xs text-gray-400">({n})</span>
+                      ) : null}
+                      {!disponivel ? <span className="ml-1 text-xs">em breve</span> : null}
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
         </div>
-      </Modal>
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-xs text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
+          {podeEscrever ? (
+            <p>
+              Clique num dia para anotar um evento. Parcelas, proventos e vencimentos vêm das telas
+              de Dívidas e Carteira e não podem ser editados aqui.
+            </p>
+          ) : (
+            <p>Você está vendo a agenda do cliente. Só o cliente cria e edita eventos.</p>
+          )}
+          <p className="mt-2">
+            Eventos criados ou alterados ficam no{' '}
+            <Link href="/historico-alteracoes" className="text-brand-500 underline">
+              Histórico
+            </Link>
+            , com Desfazer.
+          </p>
+        </div>
+      </aside>
+
+      {modal && modal.modo !== 'detalhe' && (
+        <AgendaEventoModal
+          aberto={true}
+          modo={modal.modo}
+          inicial={modal.inicial}
+          salvando={salvando}
+          erro={erroMutacao}
+          onClose={fechar}
+          onSalvar={salvar}
+          onExcluir={modal.modo === 'editar' ? excluirAtual : undefined}
+        />
+      )}
+      {modal && modal.modo === 'detalhe' && (
+        <AgendaDetalheModal
+          evento={modal.evento}
+          theme={theme}
+          podeEditar={podeEscrever}
+          onClose={fechar}
+          onEditar={abrirEdicao}
+        />
+      )}
     </div>
   );
-};
-
-const renderEventContent = (eventInfo: EventContentArg) => {
-  const colorClass = `fc-bg-${eventInfo.event.extendedProps.calendar.toLowerCase()}`;
-  return (
-    <div
-      className={`event-fc-color flex fc-event-main ${colorClass} p-1 rounded-sm`}
-    >
-      <div className="fc-daygrid-event-dot"></div>
-      <div className="fc-event-time">{eventInfo.timeText}</div>
-      <div className="fc-event-title">{eventInfo.event.title}</div>
-    </div>
-  );
-};
-
-export default Calendar;
+}

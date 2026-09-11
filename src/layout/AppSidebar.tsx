@@ -63,7 +63,7 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   },
   {
     icon: <CalenderIcon />,
-    name: 'Calendário',
+    name: 'Agenda',
     path: '/calendario',
   },
   {
