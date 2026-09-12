@@ -8,7 +8,13 @@ import type { LlmTool } from './llm';
  */
 
 export const MODELO_ASSISTENTE = process.env.ASSISTENTE_MODELO ?? 'claude-haiku-4-5';
-export const MAX_OUTPUT_TOKENS = 450;
+/**
+ * Teto de tokens de saída. Uma resposta de texto usa ~100-300; cada chamada de
+ * `propor_lancamento` gasta ~80-120. O teto precisa caber uma lista de vários
+ * lançamentos numa mensagem só (primeiro preenchimento da planilha): 450 cortava
+ * a resposta no 4º item (stop_reason max_tokens, visto em prod em 12/09/2026).
+ */
+export const MAX_OUTPUT_TOKENS = 2500;
 /** Quantas trocas (pergunta + resposta) do histórico vão para o modelo. */
 export const MAX_TROCAS_HISTORICO = 6;
 
@@ -49,7 +55,16 @@ export const REGRAS_ASSISTENTE = [
   '  omita: o app usa o ano que ele está vendo na planilha.',
   '- modo: "definir" quando o valor informado É o valor da linha no mês (aluguel é 2.500, mensalidade',
   '  de 800), "somar" quando é um gasto a mais em cima do que já está lá (gastei 45,90 no mercado).',
-  '  Sem informar, o app soma no lançamento único e define no recorrente.',
+  '  Sem informar, o app soma no lançamento único e define no recorrente. No recorrente (conta fixa,',
+  '  "por mês") use SEMPRE definir, mesmo que a linha já tenha valor: o usuário está dizendo quanto a',
+  '  conta é. Só use somar no recorrente se ele disser que é além ou a mais do que já está lá.',
+  '- Se o que ele pediu não tem linha própria e você usar outra parecida (ex.: delivery → Restaurantes),',
+  '  informe o nome que ele usou em descricao, para o cartão mostrar de onde veio.',
+  '- Se o usuário listar VÁRIOS gastos ou receitas numa mensagem só (ex.: "plano de saúde 1.500,',
+  '  medicamentos 500, internet 300 por mês"), chame propor_lancamento UMA VEZ PARA CADA ITEM, todas',
+  '  na mesma resposta, na ordem em que ele escreveu, sem texto entre as chamadas. Não pare no',
+  '  primeiro item nem peça para ele mandar um de cada vez. Um valor no início da lista com',
+  '  "por mês" ou "todo mês" vale para todos os itens da lista.',
   '- Nunca diga que registrou. O app mostra um cartão e o usuário confirma; só então grava.',
   '- Aportes, resgates, dívidas e objetivos ainda não podem ser registrados por aqui: explique que o',
   '  usuário faz na tela correspondente (Carteira, Dívidas, Planejamento).',
@@ -74,7 +89,7 @@ export const TOOL_PROPOR_LANCAMENTO: LlmTool = {
   description:
     'Propõe registrar um gasto (despesa) ou uma receita (entrada) numa linha do fluxo de caixa mensal ' +
     'do usuário: num único mês ou, se recorrente, em todos os meses do ano da planilha. ' +
-    'O app pede confirmação antes de gravar.',
+    'Chame uma vez por item quando o usuário listar vários. O app pede confirmação antes de gravar.',
   inputSchema: {
     type: 'object',
     properties: {

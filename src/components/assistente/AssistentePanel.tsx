@@ -13,7 +13,9 @@ import { MYFINANCE_BRAND } from '@/constants/brandColors';
  * sessão (decisão Fase 0: sem persistência no MVP). Propostas de lançamento
  * chegam como cartão e só gravam depois do clique em "Confirmar" — um mês, ou
  * o ano da planilha inteiro quando o gasto é recorrente (aluguel, escola…).
- * O ano aberto na planilha vai junto com a mensagem para o servidor usar
+ * Uma mensagem com vários gastos ("plano de saúde 1.500, internet 300…") vira
+ * UM cartão com a lista: o usuário tira o que não quer e confirma tudo de uma
+ * vez. O ano aberto na planilha vai junto com a mensagem para o servidor usar
  * como padrão.
  */
 
@@ -49,12 +51,27 @@ interface Uso {
   economico: boolean;
 }
 
+type EstadoItem = 'pendente' | 'removido' | 'registrado' | 'falhou';
+
+interface ItemProposta extends Proposta {
+  estado: EstadoItem;
+  erro?: string;
+}
+
 interface Mensagem {
   id: number;
   role: 'user' | 'assistant';
   content: string;
-  proposta?: Proposta;
+  /** Um item = cartão simples; vários = lista com confirmação em lote. */
+  propostas?: ItemProposta[];
   propostaEstado?: 'pendente' | 'confirmada' | 'cancelada';
+}
+
+interface ItemConfirmado {
+  ok: boolean;
+  linha: string | null;
+  resumo?: string;
+  error?: string;
 }
 
 const SUGESTOES = [
@@ -131,6 +148,7 @@ export default function AssistentePanel() {
         const data = (await res.json().catch(() => ({}))) as {
           resposta?: string;
           proposta?: Proposta;
+          propostas?: Proposta[];
           uso?: Uso;
           error?: string;
         };
@@ -142,11 +160,15 @@ export default function AssistentePanel() {
           });
           return;
         }
+        const lista = data.propostas ?? (data.proposta ? [data.proposta] : []);
         adicionar({
           role: 'assistant',
           content: data.resposta ?? '',
-          proposta: data.proposta,
-          propostaEstado: data.proposta ? 'pendente' : undefined,
+          propostas:
+            lista.length > 0
+              ? lista.map((p) => ({ ...p, estado: 'pendente' as const }))
+              : undefined,
+          propostaEstado: lista.length > 0 ? 'pendente' : undefined,
         });
       } catch {
         adicionar({ role: 'assistant', content: 'Falha de conexão. Tente de novo.' });
@@ -159,21 +181,45 @@ export default function AssistentePanel() {
 
   const confirmar = useCallback(
     async (m: Mensagem) => {
-      if (!m.proposta || confirmando !== null) return;
+      const itens = (m.propostas ?? []).filter((p) => p.estado === 'pendente');
+      if (itens.length === 0 || confirmando !== null) return;
       setConfirmando(m.id);
       try {
+        const body =
+          itens.length === 1 ? { token: itens[0].token } : { tokens: itens.map((p) => p.token) };
         const res = await csrfFetch('/api/assistente/confirmar', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: m.proposta.token }),
+          body: JSON.stringify(body),
         });
-        const data = (await res.json().catch(() => ({}))) as { resumo?: string; error?: string };
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          resumo?: string;
+          itens?: ItemConfirmado[];
+          error?: string;
+        };
         if (!res.ok) {
           adicionar({ role: 'assistant', content: data.error ?? 'Não consegui registrar.' });
           return;
         }
+        // Lote: o servidor devolve um resultado por token, na ordem enviada.
+        const porToken = new Map<string, ItemConfirmado>();
+        if (data.itens) itens.forEach((p, i) => porToken.set(p.token, data.itens![i]));
         setMensagens((prev) =>
-          prev.map((x) => (x.id === m.id ? { ...x, propostaEstado: 'confirmada' } : x)),
+          prev.map((x) =>
+            x.id === m.id
+              ? {
+                  ...x,
+                  propostaEstado: 'confirmada',
+                  propostas: x.propostas?.map((p) => {
+                    if (p.estado !== 'pendente') return p;
+                    const r = porToken.get(p.token);
+                    if (r && !r.ok) return { ...p, estado: 'falhou', erro: r.error };
+                    return { ...p, estado: 'registrado' };
+                  }),
+                }
+              : x,
+          ),
         );
         adicionar({ role: 'assistant', content: data.resumo ?? 'Registrado.' });
         void queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
@@ -194,6 +240,32 @@ export default function AssistentePanel() {
       adicionar({ role: 'assistant', content: 'Certo, não registrei nada.' });
     },
     [adicionar],
+  );
+
+  /** Tira um item da lista antes de confirmar; se não sobrar nenhum, é cancelamento. */
+  const removerItem = useCallback(
+    (m: Mensagem, token: string) => {
+      const restantes = (m.propostas ?? []).filter(
+        (p) => p.estado === 'pendente' && p.token !== token,
+      );
+      if (restantes.length === 0) {
+        cancelar(m);
+        return;
+      }
+      setMensagens((prev) =>
+        prev.map((x) =>
+          x.id === m.id
+            ? {
+                ...x,
+                propostas: x.propostas?.map((p) =>
+                  p.token === token ? { ...p, estado: 'removido' } : p,
+                ),
+              }
+            : x,
+        ),
+      );
+    },
+    [cancelar],
   );
 
   if (!habilitado) return null;
@@ -308,82 +380,26 @@ export default function AssistentePanel() {
                   }
                 >
                   {m.content}
-                  {m.proposta && (
-                    <div className="mt-2 rounded-lg border border-gray-300 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
-                      <p className="font-semibold text-gray-900 dark:text-gray-100">
-                        {m.proposta.tipo === 'despesa' ? 'Gasto' : 'Receita'}
-                        {m.proposta.recorrente ? ' mensal' : ''} · {brl(m.proposta.valor)}
-                        {m.proposta.recorrente ? ' por mês' : ''}
-                      </p>
-                      <p className="text-gray-700 dark:text-gray-300">
-                        Linha: {m.proposta.linha}
-                        <br />
-                        Grupo: {m.proposta.grupo}
-                        <br />
-                        {m.proposta.recorrente ? 'Período' : 'Mês'}: {m.proposta.periodo}
-                        {m.proposta.recorrente ? (
-                          <>
-                            {' '}
-                            ({m.proposta.celulas.length} meses, {brl(m.proposta.valorTotal)} no
-                            total)
-                            <br />
-                            Modo:{' '}
-                            {m.proposta.modo === 'definir'
-                              ? 'a célula de cada mês passa a valer este valor'
-                              : 'o valor entra em cima do que já está em cada mês'}
-                          </>
-                        ) : null}
-                        {m.proposta.descricao ? (
-                          <>
-                            <br />
-                            Descrição: {m.proposta.descricao}
-                          </>
-                        ) : null}
-                        {!m.proposta.recorrente && m.proposta.celulas[0] ? (
-                          <>
-                            <br />
-                            Célula: {brl(m.proposta.celulas[0].valorAtual)} →{' '}
-                            {brl(m.proposta.celulas[0].valorNovo)}
-                          </>
-                        ) : null}
-                      </p>
-                      {m.proposta.recorrente && (
-                        <ul className="mt-1 grid grid-cols-2 gap-x-3 text-[11px] text-gray-600 dark:text-gray-400">
-                          {m.proposta.celulas.map((c) => (
-                            <li key={c.mes}>
-                              {c.mesNome.slice(0, 3)}: {brl(c.valorAtual)} → {brl(c.valorNovo)}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {m.propostaEstado === 'pendente' && (
-                        <div className="mt-2 flex gap-2">
-                          <button
-                            type="button"
-                            disabled={confirmando !== null}
-                            onClick={() => confirmar(m)}
-                            className="rounded-md px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
-                            style={{ backgroundColor: MYFINANCE_BRAND.outside }}
-                          >
-                            {confirmando === m.id ? 'Registrando…' : 'Confirmar'}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={confirmando !== null}
-                            onClick={() => cancelar(m)}
-                            className="rounded-md border border-gray-300 px-3 py-1 text-xs text-gray-700 dark:border-gray-600 dark:text-gray-200"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      )}
-                      {m.propostaEstado === 'confirmada' && (
-                        <p className="mt-2 font-medium text-green-600">Registrado.</p>
-                      )}
-                      {m.propostaEstado === 'cancelada' && (
-                        <p className="mt-2 text-gray-500">Cancelado.</p>
-                      )}
-                    </div>
+                  {m.propostas && m.propostas.length === 1 && (
+                    <CartaoUnico
+                      item={m.propostas[0]}
+                      estado={m.propostaEstado}
+                      ocupado={confirmando !== null}
+                      registrando={confirmando === m.id}
+                      onConfirmar={() => confirmar(m)}
+                      onCancelar={() => cancelar(m)}
+                    />
+                  )}
+                  {m.propostas && m.propostas.length > 1 && (
+                    <CartaoLote
+                      itens={m.propostas}
+                      estado={m.propostaEstado}
+                      ocupado={confirmando !== null}
+                      registrando={confirmando === m.id}
+                      onConfirmar={() => confirmar(m)}
+                      onCancelar={() => cancelar(m)}
+                      onRemover={(token) => removerItem(m, token)}
+                    />
                   )}
                 </div>
               </div>
@@ -433,5 +449,175 @@ export default function AssistentePanel() {
         </section>
       )}
     </>
+  );
+}
+
+interface CartaoProps {
+  estado: Mensagem['propostaEstado'];
+  ocupado: boolean;
+  registrando: boolean;
+  onConfirmar: () => void;
+  onCancelar: () => void;
+}
+
+function BotoesCartao({
+  rotulo,
+  ocupado,
+  registrando,
+  onConfirmar,
+  onCancelar,
+}: Omit<CartaoProps, 'estado'> & { rotulo: string }) {
+  return (
+    <div className="mt-2 flex gap-2">
+      <button
+        type="button"
+        disabled={ocupado}
+        onClick={onConfirmar}
+        className="rounded-md px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
+        style={{ backgroundColor: MYFINANCE_BRAND.outside }}
+      >
+        {registrando ? 'Registrando…' : rotulo}
+      </button>
+      <button
+        type="button"
+        disabled={ocupado}
+        onClick={onCancelar}
+        className="rounded-md border border-gray-300 px-3 py-1 text-xs text-gray-700 dark:border-gray-600 dark:text-gray-200"
+      >
+        Cancelar
+      </button>
+    </div>
+  );
+}
+
+/** Cartão do lançamento único (um mês ou o ano inteiro de uma linha). */
+function CartaoUnico({ item, estado, ...botoes }: CartaoProps & { item: ItemProposta }) {
+  return (
+    <div className="mt-2 rounded-lg border border-gray-300 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
+      <p className="font-semibold text-gray-900 dark:text-gray-100">
+        {item.tipo === 'despesa' ? 'Gasto' : 'Receita'}
+        {item.recorrente ? ' mensal' : ''} · {brl(item.valor)}
+        {item.recorrente ? ' por mês' : ''}
+      </p>
+      <p className="text-gray-700 dark:text-gray-300">
+        Linha: {item.linha}
+        <br />
+        Grupo: {item.grupo}
+        <br />
+        {item.recorrente ? 'Período' : 'Mês'}: {item.periodo}
+        {item.recorrente ? (
+          <>
+            {' '}
+            ({item.celulas.length} meses, {brl(item.valorTotal)} no total)
+            <br />
+            Modo:{' '}
+            {item.modo === 'definir'
+              ? 'a célula de cada mês passa a valer este valor'
+              : 'o valor entra em cima do que já está em cada mês'}
+          </>
+        ) : null}
+        {item.descricao ? (
+          <>
+            <br />
+            Descrição: {item.descricao}
+          </>
+        ) : null}
+        {!item.recorrente && item.celulas[0] ? (
+          <>
+            <br />
+            Célula: {brl(item.celulas[0].valorAtual)} → {brl(item.celulas[0].valorNovo)}
+          </>
+        ) : null}
+      </p>
+      {item.recorrente && (
+        <ul className="mt-1 grid grid-cols-2 gap-x-3 text-[11px] text-gray-600 dark:text-gray-400">
+          {item.celulas.map((c) => (
+            <li key={c.mes}>
+              {c.mesNome.slice(0, 3)}: {brl(c.valorAtual)} → {brl(c.valorNovo)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {estado === 'pendente' && <BotoesCartao rotulo="Confirmar" {...botoes} />}
+      {estado === 'confirmada' && <p className="mt-2 font-medium text-green-600">Registrado.</p>}
+      {estado === 'cancelada' && <p className="mt-2 text-gray-500">Cancelado.</p>}
+    </div>
+  );
+}
+
+/**
+ * Cartão com vários lançamentos de uma mensagem só: uma linha por item, "tirar"
+ * antes de confirmar, e um botão que grava todos os que sobraram.
+ */
+function CartaoLote({
+  itens,
+  estado,
+  onRemover,
+  ...botoes
+}: CartaoProps & { itens: ItemProposta[]; onRemover: (token: string) => void }) {
+  const pendentes = itens.filter((p) => p.estado === 'pendente');
+  const totalMes = pendentes.reduce((acc, p) => acc + (p.recorrente ? p.valor : 0), 0);
+  const totalUnico = pendentes.reduce((acc, p) => acc + (p.recorrente ? 0 : p.valor), 0);
+  const comValor = pendentes.some((p) => p.celulas.some((c) => c.valorAtual !== 0));
+  return (
+    <div className="mt-2 rounded-lg border border-gray-300 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
+      <p className="font-semibold text-gray-900 dark:text-gray-100">
+        {itens.length} lançamentos
+        {totalMes > 0 ? ` · ${brl(totalMes)} por mês` : ''}
+        {totalUnico > 0 ? ` · ${brl(totalUnico)} no mês` : ''}
+      </p>
+      <ul className="mt-1 divide-y divide-gray-200 dark:divide-gray-700">
+        {itens.map((p) => (
+          <li
+            key={p.token}
+            className={`flex items-start justify-between gap-2 py-1 ${
+              p.estado === 'removido' ? 'text-gray-400 line-through' : ''
+            }`}
+          >
+            <span className="text-gray-700 dark:text-gray-300">
+              <span className="font-medium text-gray-900 dark:text-gray-100">{p.linha}</span>{' '}
+              <span className="text-gray-500">({p.grupo.split(' > ').pop()})</span>
+              {p.descricao ? <span className="text-gray-500"> — {p.descricao}</span> : null}
+              <br />
+              {p.tipo === 'entrada' ? 'Receita ' : ''}
+              {brl(p.valor)}
+              {p.recorrente ? ` por mês · ${p.periodo}` : ` · ${p.periodo}`}
+              {p.estado === 'registrado' && (
+                <span className="ml-1 font-medium text-green-600">registrado</span>
+              )}
+              {p.estado === 'falhou' && (
+                <span className="ml-1 font-medium text-red-600">{p.erro ?? 'não entrou'}</span>
+              )}
+            </span>
+            {estado === 'pendente' && p.estado === 'pendente' && (
+              <button
+                type="button"
+                disabled={botoes.ocupado}
+                onClick={() => onRemover(p.token)}
+                aria-label={`Tirar ${p.linha}`}
+                title="Tirar da lista"
+                className="shrink-0 rounded px-1 text-gray-400 hover:text-red-600 disabled:opacity-50"
+              >
+                ✕
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {estado === 'pendente' && comValor && (
+        <p className="mt-1 text-[11px] text-amber-600">
+          Alguns meses já têm valor: nos lançamentos mensais o valor novo substitui; nos únicos ele
+          entra em cima.
+        </p>
+      )}
+      {estado === 'pendente' && (
+        <BotoesCartao
+          rotulo={`Confirmar ${pendentes.length === 1 ? '1 lançamento' : `${pendentes.length} lançamentos`}`}
+          {...botoes}
+        />
+      )}
+      {estado === 'confirmada' && <p className="mt-2 font-medium text-green-600">Registrado.</p>}
+      {estado === 'cancelada' && <p className="mt-2 text-gray-500">Cancelado.</p>}
+    </div>
   );
 }

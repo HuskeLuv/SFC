@@ -219,6 +219,7 @@ describe('POST /api/assistente', () => {
       celulas: [{ mes: 8, mesNome: 'setembro', valorAtual: 1020, valorNovo: 1065.9 }],
       valorTotal: 45.9,
     });
+    expect(body.propostas).toEqual([body.proposta]);
     expect(mocks.registrarMensagem).toHaveBeenCalledWith(
       expect.objectContaining({ motor: 'ia+t', propostaGerada: true, intencao: 'lancamento' }),
     );
@@ -320,7 +321,182 @@ describe('POST /api/assistente', () => {
     });
     const body = await (await POST(post({ mensagem: 'gastei 10 de gasolina' }))).json();
     expect(body.proposta).toBeUndefined();
+    expect(body.propostas).toBeUndefined();
     expect(body.resposta).toContain('"Combustível" (Transporte)');
+    expect(body.resposta).toContain('Qual delas?');
+  });
+
+  describe('vários lançamentos numa mensagem só', () => {
+    const chamada = (id: string, linha: string, valor: number) => ({
+      id,
+      name: 'propor_lancamento',
+      input: { tipo: 'despesa', linha, valor, recorrente: true },
+    });
+    const propostaDe = (nome: string, valor: number, valorAtual = 0) => ({
+      ok: true,
+      token: `tok-${nome}`,
+      proposta: {
+        id: `p-${nome}`,
+        mensagemId: 'msg-1',
+        userId: 'u1',
+        itemId: `i-${nome}`,
+        itemNome: nome,
+        grupoNome: 'Despesas > Despesas Fixas > Saúde',
+        tipo: 'despesa',
+        valor,
+        ano: 2026,
+        descricao: null,
+        modo: 'definir',
+        celulas: Array.from({ length: 12 }, (_, mes) => ({ mes, valorAtual, valorNovo: valor })),
+        expiraEm: 1,
+      },
+    });
+
+    it('uma proposta por chamada de ferramenta, na ordem, com resumo em lista e sem `proposta` singular', async () => {
+      mocks.complete.mockResolvedValue(
+        llmText('', {
+          stopReason: 'tool_use',
+          toolCalls: [
+            chamada('t1', 'Plano de saúde', 1500),
+            chamada('t2', 'Medicamentos', 500),
+            chamada('t3', 'Internet', 300),
+          ],
+        }),
+      );
+      const internet = propostaDe('Internet', 300);
+      internet.proposta.descricao = 'Fibra';
+      mocks.montarProposta
+        .mockResolvedValueOnce(propostaDe('Plano de saúde', 1500))
+        .mockResolvedValueOnce(propostaDe('Medicamentos', 500, 120))
+        .mockResolvedValueOnce(internet);
+      const res = await POST(
+        post({
+          mensagem: 'Plano de saúde 1.500, medicamentos 500 e internet 300 por mês',
+          anoPlanilha: 2026,
+        }),
+      );
+      const body = await res.json();
+      expect(mocks.montarProposta).toHaveBeenCalledTimes(3);
+      expect(mocks.montarProposta.mock.calls.map((c) => c[2].linha)).toEqual([
+        'Plano de saúde',
+        'Medicamentos',
+        'Internet',
+      ]);
+      expect(body.proposta).toBeUndefined();
+      expect(
+        body.propostas.map((p: { linha: string; token: string }) => [p.linha, p.token]),
+      ).toEqual([
+        ['Plano de saúde', 'tok-Plano de saúde'],
+        ['Medicamentos', 'tok-Medicamentos'],
+        ['Internet', 'tok-Internet'],
+      ]);
+      expect(body.propostas[1]).toMatchObject({
+        recorrente: true,
+        periodo: 'janeiro a dezembro/2026',
+        valorTotal: 6000,
+      });
+      const texto = body.resposta.replace(/\u00a0/g, ' ');
+      expect(texto).toContain('Montei 3 lançamentos:');
+      expect(texto).toContain(
+        '- Plano de saúde (Saúde): R$ 1.500,00 por mês, janeiro a dezembro/2026 (12 meses).',
+      );
+      expect(texto).toContain(
+        '- Medicamentos (Saúde): R$ 500,00 por mês, janeiro a dezembro/2026 (12 meses). 12 meses já têm valor e serão substituídos.',
+      );
+      expect(texto).toContain(
+        '- Internet (Saúde) — Fibra: R$ 300,00 por mês, janeiro a dezembro/2026 (12 meses).',
+      );
+      expect(texto).not.toContain('incompleta');
+      expect(texto).toContain('Confira no cartão e confirme');
+      expect(mocks.registrarMensagem).toHaveBeenCalledWith(
+        expect.objectContaining({ motor: 'ia+t', propostaGerada: true }),
+      );
+    });
+
+    it('item que falhou vai para a lista de falhas e os outros seguem para o cartão', async () => {
+      mocks.complete.mockResolvedValue(
+        llmText('', {
+          stopReason: 'tool_use',
+          toolCalls: [
+            chamada('t1', 'Plano de saúde', 1500),
+            { id: 't2', name: 'propor_lancamento', input: { tipo: 'despesa', linha: 'Roupas' } },
+            chamada('t3', 'Nutricionista', 500),
+          ],
+        }),
+      );
+      mocks.montarProposta
+        .mockResolvedValueOnce(propostaDe('Plano de saúde', 1500))
+        .mockResolvedValueOnce({
+          ok: false,
+          motivo: 'Não encontrei uma linha de despesa parecida com "Nutricionista".',
+          alternativas: [
+            {
+              itemId: 'a',
+              itemNome: 'Médicos e Terapeutas',
+              grupoNome: 'Despesas > Despesas Fixas > Saúde',
+              grupoTipo: 'despesa',
+            },
+          ],
+        });
+      const body = await (await POST(post({ mensagem: 'lista' }))).json();
+      expect(mocks.montarProposta).toHaveBeenCalledTimes(2);
+      expect(body.propostas).toHaveLength(1);
+      expect(body.resposta).toContain('Montei 1 lançamento:');
+      expect(body.resposta).toContain('Não consegui estes:');
+      expect(body.resposta).toContain('- Para "Roupas" faltou o valor ou a linha.');
+      expect(body.resposta).toContain(
+        '- Não encontrei uma linha de despesa parecida com "Nutricionista". Linhas parecidas: "Médicos e Terapeutas" (Saúde).',
+      );
+    });
+
+    it('nenhum item montado → só texto com as falhas', async () => {
+      mocks.complete.mockResolvedValue(
+        llmText('', {
+          toolCalls: [chamada('t1', 'X', 1), chamada('t2', 'Y', 2)],
+        }),
+      );
+      mocks.montarProposta.mockResolvedValue({
+        ok: false,
+        motivo: 'Não encontrei.',
+        alternativas: [],
+      });
+      const body = await (await POST(post({ mensagem: 'lista' }))).json();
+      expect(body.propostas).toBeUndefined();
+      expect(body.resposta).toBe(
+        'Não consegui montar nenhum lançamento:\n- Não encontrei.\n- Não encontrei.',
+      );
+    });
+
+    it('resposta cortada por max_tokens avisa que a lista pode estar incompleta', async () => {
+      mocks.complete.mockResolvedValue(
+        llmText('', {
+          stopReason: 'max_tokens',
+          toolCalls: [chamada('t1', 'Plano de saúde', 1500)],
+        }),
+      );
+      mocks.montarProposta.mockResolvedValueOnce(propostaDe('Plano de saúde', 1500));
+      const body = await (await POST(post({ mensagem: 'lista enorme' }))).json();
+      expect(body.propostas).toHaveLength(1);
+      expect(body.proposta).toBeDefined();
+      expect(body.resposta).toContain('Montei 1 lançamento:');
+      expect(body.resposta).toContain('pode ter ficado incompleta');
+    });
+
+    it('respeita o teto de lançamentos por mensagem', async () => {
+      mocks.complete.mockResolvedValue(
+        llmText('', {
+          stopReason: 'tool_use',
+          toolCalls: Array.from({ length: 25 }, (_, i) => chamada(`t${i}`, `Linha ${i}`, 10)),
+        }),
+      );
+      mocks.montarProposta.mockImplementation((_u: string, _m: string, input: { linha: string }) =>
+        Promise.resolve(propostaDe(input.linha, 10)),
+      );
+      const body = await (await POST(post({ mensagem: 'lista enorme' }))).json();
+      expect(mocks.montarProposta).toHaveBeenCalledTimes(20);
+      expect(body.propostas).toHaveLength(20);
+      expect(body.resposta).toContain('pode ter ficado incompleta');
+    });
   });
 
   it('ferramenta com input inválido pede reformulação', async () => {
