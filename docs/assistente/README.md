@@ -53,6 +53,14 @@ Decisão de Wellington: começar com Haiku 4.5; outros modelos ficam para depois
 disponível). Especificação funcional do Pedro: `especificacao-assistente-v1.1.md` (catálogo de
 intenções, confirmação obrigatória, métricas, limite CVM).
 
+**Vários lançamentos numa mensagem (12/09/2026):** o modelo chama `propor_lancamento` uma vez por
+item ("plano de saúde 1.500, medicamentos 500, internet 300 por mês…", até 20 por mensagem); a rota
+devolve `propostas[]` (e `proposta` só quando é uma), o painel mostra UM cartão com a lista (tirar item
+antes de confirmar) e `POST /confirmar` aceita `tokens[]` — grava item a item (uma entrada de
+histórico por item, cada uma desfazível), recalcula snapshots e alertas uma vez no fim. Teto de saída
+subiu de 450 para 2.500 tokens: com 450 a resposta parava por `max_tokens` no 4º item e só o primeiro
+era aproveitado.
+
 **Como funciona:** toda mensagem vai para o modelo com o retrato compacto da conta no prompt
 (`src/services/assistente/contexto.ts`, reaproveitando as rotas GET existentes, cache de 5 min por
 usuário; a parte estável do prompt é cacheada na Anthropic). Única ferramenta: `propor_lancamento`

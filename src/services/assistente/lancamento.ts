@@ -39,6 +39,13 @@ export const MESES_LONGOS = [
   'dezembro',
 ];
 
+/**
+ * Quantos lançamentos uma mensagem pode propor (uma chamada de ferramenta por
+ * item). Cobre o primeiro preenchimento da planilha ("plano de saúde 1.500,
+ * medicamentos 500, internet 300…") sem deixar o modelo enumerar sem fim.
+ */
+export const MAX_LANCAMENTOS_POR_MENSAGEM = 20;
+
 /** `somar`: o valor entra em cima do que já está na célula. `definir`: a célula passa a valer o valor. */
 export type ModoLancamento = 'somar' | 'definir';
 
@@ -359,6 +366,22 @@ export interface ResultadoAplicacao {
   celulas: CelulaAplicada[];
 }
 
+export interface OpcoesAplicacao {
+  /**
+   * Recalcular snapshots de evolução, checar alertas de orçamento e invalidar o
+   * contexto depois de gravar. `aplicarPropostas` desliga por item e faz uma vez
+   * só no fim do lote.
+   */
+  posProcessar?: boolean;
+}
+
+/** Pós-gravação comum ao lançamento único e ao lote: uma vez por confirmação. */
+async function posProcessar(userId: string, ano: number, mes: number): Promise<void> {
+  await recomputeEvolucaoSnapshotsSafe(userId, new Date(ano, mes, 1));
+  await checkOrcamentoAlertasSafe(userId);
+  invalidarContextoUsuario(userId);
+}
+
 function formatarBrl(n: number): string {
   return `R$ ${n.toFixed(2).replace('.', ',')}`;
 }
@@ -374,6 +397,7 @@ export async function aplicarProposta(
   auth: AuthWithActingResult,
   request: NextRequest,
   p: Proposta,
+  opcoes: OpcoesAplicacao = {},
 ): Promise<ResultadoAplicacao> {
   const userId = auth.targetUserId;
   const { itemId } = await ensurePersonalizedItem(p.itemId, userId);
@@ -413,8 +437,6 @@ export async function aplicarProposta(
 
   const alteradas = gravadas.filter((c) => c.alterada);
   if (alteradas.length > 0) {
-    await recomputeEvolucaoSnapshotsSafe(userId, new Date(p.ano, alteradas[0].mes, 1));
-
     const changes = alteradas.map((c) => ({
       field: 'monthlyValue',
       label: `${MESES_LONGOS[c.mes]}/${p.ano}`,
@@ -466,8 +488,7 @@ export async function aplicarProposta(
       });
     }
 
-    await checkOrcamentoAlertasSafe(userId);
-    invalidarContextoUsuario(userId);
+    if (opcoes.posProcessar !== false) await posProcessar(userId, p.ano, alteradas[0].mes);
   }
 
   return {
@@ -478,4 +499,47 @@ export async function aplicarProposta(
       valorNovo,
     })),
   };
+}
+
+export type ResultadoLote =
+  | { ok: true; proposta: Proposta; resultado: ResultadoAplicacao }
+  | { ok: false; proposta: Proposta; erro: string };
+
+/**
+ * Grava várias propostas confirmadas de uma vez (o cartão com vários itens).
+ * Cada proposta é independente: uma falha não desfaz as outras — o usuário vê
+ * item a item o que entrou. Uma entrada no histórico por item (cada uma
+ * desfazível sozinha); recálculo de snapshots e alertas rodam UMA vez, a
+ * partir do mês mais antigo alterado.
+ */
+export async function aplicarPropostas(
+  auth: AuthWithActingResult,
+  request: NextRequest,
+  propostas: Proposta[],
+): Promise<ResultadoLote[]> {
+  const out: ResultadoLote[] = [];
+  let maisAntigo: { ano: number; mes: number } | null = null;
+  for (const proposta of propostas) {
+    try {
+      const resultado = await aplicarProposta(auth, request, proposta, { posProcessar: false });
+      out.push({ ok: true, proposta, resultado });
+      const mes = proposta.celulas[0]?.mes ?? 0;
+      if (
+        !maisAntigo ||
+        proposta.ano < maisAntigo.ano ||
+        (proposta.ano === maisAntigo.ano && mes < maisAntigo.mes)
+      ) {
+        maisAntigo = { ano: proposta.ano, mes };
+      }
+    } catch (error: unknown) {
+      console.error(
+        '[assistente] falha ao gravar item do lote:',
+        proposta.itemNome,
+        error instanceof Error ? error.message : error,
+      );
+      out.push({ ok: false, proposta, erro: 'Não consegui gravar este item.' });
+    }
+  }
+  if (maisAntigo) await posProcessar(auth.targetUserId, maisAntigo.ano, maisAntigo.mes);
+  return out;
 }

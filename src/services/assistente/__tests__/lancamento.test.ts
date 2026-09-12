@@ -30,6 +30,7 @@ vi.mock('@/services/changeHistory', () => ({ recordChange: mocks.recordChange })
 
 import {
   aplicarProposta,
+  aplicarPropostas,
   assinarProposta,
   descreverPeriodo,
   ehRecorrente,
@@ -570,5 +571,65 @@ describe('aplicarProposta', () => {
     expect(mocks.prisma.cashflowValue.upsert).not.toHaveBeenCalled();
     expect(mocks.recordChange).not.toHaveBeenCalled();
     expect(mocks.recomputeEvolucaoSnapshotsSafe).not.toHaveBeenCalled();
+  });
+
+  it('posProcessar=false grava e registra histórico mas não recalcula snapshots nem alertas', async () => {
+    mocks.prisma.cashflowValue.findUnique.mockResolvedValue(null);
+    await aplicarProposta(auth, request, proposta, { posProcessar: false });
+    expect(mocks.recordChange).toHaveBeenCalledTimes(1);
+    expect(mocks.recomputeEvolucaoSnapshotsSafe).not.toHaveBeenCalled();
+    expect(mocks.checkOrcamentoAlertasSafe).not.toHaveBeenCalled();
+  });
+
+  describe('aplicarPropostas (lote)', () => {
+    const internet: Proposta = {
+      ...proposta,
+      id: 'p2',
+      itemId: 'i-net',
+      itemNome: 'Internet',
+      valor: 300,
+      modo: 'definir',
+      celulas: Array.from({ length: 12 }, (_, mes) => ({ mes, valorAtual: 0, valorNovo: 300 })),
+    };
+
+    it('grava cada item, uma entrada de histórico por item, e recalcula UMA vez a partir do mês mais antigo', async () => {
+      mocks.prisma.cashflowValue.findUnique.mockResolvedValue(null);
+      const r = await aplicarPropostas(auth, request, [proposta, internet]);
+      expect(r.map((x) => x.ok)).toEqual([true, true]);
+      expect(r[0]).toMatchObject({
+        proposta,
+        resultado: { celulas: [{ mes: 8, valorNovo: 45.9 }] },
+      });
+      expect(r[1]).toMatchObject({ proposta: internet });
+      expect(mocks.recordChange).toHaveBeenCalledTimes(2);
+      expect(mocks.recordChange.mock.calls.map((c) => c[0].action)).toEqual([
+        'valor.editar',
+        'valores.editar-recorrente',
+      ]);
+      // setembro (único) e janeiro (recorrente) → recompute a partir de janeiro, uma vez só.
+      expect(mocks.recomputeEvolucaoSnapshotsSafe).toHaveBeenCalledTimes(1);
+      expect(mocks.recomputeEvolucaoSnapshotsSafe).toHaveBeenCalledWith('u1', new Date(2026, 0, 1));
+      expect(mocks.checkOrcamentoAlertasSafe).toHaveBeenCalledTimes(1);
+    });
+
+    it('um item que falha não derruba os outros: vira erro no resultado e o resto entra', async () => {
+      mocks.prisma.cashflowValue.findUnique.mockResolvedValue(null);
+      mocks.ensurePersonalizedItem
+        .mockReset()
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValue({ itemId: 'i-net-user', item: {} });
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const r = await aplicarPropostas(auth, request, [proposta, internet]);
+      spy.mockRestore();
+      expect(r[0]).toEqual({ ok: false, proposta, erro: 'Não consegui gravar este item.' });
+      expect(r[1].ok).toBe(true);
+      expect(mocks.recordChange).toHaveBeenCalledTimes(1);
+      expect(mocks.recomputeEvolucaoSnapshotsSafe).toHaveBeenCalledWith('u1', new Date(2026, 0, 1));
+    });
+
+    it('lote vazio não toca em nada', async () => {
+      expect(await aplicarPropostas(auth, request, [])).toEqual([]);
+      expect(mocks.recomputeEvolucaoSnapshotsSafe).not.toHaveBeenCalled();
+    });
   });
 });

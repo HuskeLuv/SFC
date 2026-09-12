@@ -2,13 +2,15 @@
  * Assistente de IA — Fase 1 (MVP).
  *
  * GET  /api/assistente  → { habilitado, modelo, uso }
- * POST /api/assistente  → { resposta, proposta?, uso }
+ * POST /api/assistente  → { resposta, propostas?, proposta?, uso }
+ *   (`proposta` só quando há exatamente uma; `propostas` sempre que houver alguma)
  *
  * Toda mensagem vai para o modelo (Haiku) com o retrato compacto da conta no
  * prompt (cacheado por conversa). A única ferramenta é `propor_lancamento`
- * (um mês, ou o ano da planilha inteiro quando o gasto é recorrente):
- * o servidor devolve uma PROPOSTA assinada e o app pede confirmação; a
- * gravação acontece em POST /api/assistente/confirmar. A IA nunca grava.
+ * (um mês, ou o ano da planilha inteiro quando o gasto é recorrente); o modelo
+ * chama uma vez por item quando o usuário lista vários gastos numa mensagem.
+ * O servidor devolve uma PROPOSTA assinada por item e o app pede confirmação;
+ * a gravação acontece em POST /api/assistente/confirmar. A IA nunca grava.
  * Consultor agindo por cliente: só leitura (sem ferramenta).
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -29,11 +31,13 @@ import {
 import { classificarIntencao, guardarTextoDaIntencao } from '@/services/assistente/intencao';
 import { assistenteHabilitado, registrarMensagem, usoMensal } from '@/services/assistente/limite';
 import {
+  MAX_LANCAMENTOS_POR_MENSAGEM,
   MESES_LONGOS,
   descreverPeriodo,
   ehRecorrente,
   grupoCurto,
   montarProposta,
+  type Proposta,
 } from '@/services/assistente/lancamento';
 
 const mensagemSchema = z.object({
@@ -136,7 +140,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       tools: viaConsultant ? [] : [TOOL_PROPOR_LANCAMENTO],
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       reasoning: 'none',
-      cacheKey: 'assistente-v3',
+      cacheKey: 'assistente-v4',
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -158,16 +162,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw error;
   }
 
-  const chamada = res.toolCalls.find((c) => c.name === TOOL_PROPOR_LANCAMENTO.name);
+  const chamadas = res.toolCalls
+    .filter((c) => c.name === TOOL_PROPOR_LANCAMENTO.name)
+    .slice(0, MAX_LANCAMENTOS_POR_MENSAGEM);
   const mensagemId = await registrarMensagem({
     ...base,
-    motor: chamada ? 'ia+t' : 'ia',
-    propostaGerada: Boolean(chamada),
+    motor: chamadas.length > 0 ? 'ia+t' : 'ia',
+    propostaGerada: chamadas.length > 0,
     resposta: res,
   });
   const usoDepois = { ...uso, usadas: uso.usadas + 1, restantes: Math.max(0, uso.restantes - 1) };
 
-  if (!chamada) {
+  if (chamadas.length === 0) {
     const resposta =
       res.text ||
       (res.stopReason === 'refusal'
@@ -176,68 +182,141 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ resposta, uso: usoDepois });
   }
 
-  const input = lancamentoInputSchema.safeParse(chamada.input);
-  if (!input.success) {
-    return NextResponse.json({
-      resposta:
-        'Entendi que você quer registrar algo, mas faltou o valor ou a linha. Pode dizer, por exemplo: "gastei 45,90 no mercado"?',
-      uso: usoDepois,
+  // Uma proposta por chamada de ferramenta (o usuário pode listar vários itens
+  // numa mensagem só). Item que falhou vira uma linha explicando; os que deram
+  // certo vão para o cartão.
+  const propostas: PropostaResposta[] = [];
+  const falhas: string[] = [];
+  for (const chamada of chamadas) {
+    const input = lancamentoInputSchema.safeParse(chamada.input);
+    if (!input.success) {
+      const nome = typeof chamada.input.linha === 'string' ? `"${chamada.input.linha}"` : 'um item';
+      falhas.push(`Para ${nome} faltou o valor ou a linha.`);
+      continue;
+    }
+    const resultado = await montarProposta(targetUserId, mensagemId ?? '', input.data, {
+      anoPlanilha,
     });
+    if (!resultado.ok) {
+      const lista =
+        resultado.alternativas.length > 0
+          ? ` Linhas parecidas: ${resultado.alternativas.map((a) => `"${a.itemNome}" (${grupoCurto(a.grupoNome)})`).join(', ')}.`
+          : '';
+      falhas.push(resultado.motivo + lista);
+      continue;
+    }
+    propostas.push(paraResposta(resultado.proposta, resultado.token));
   }
 
-  const resultado = await montarProposta(targetUserId, mensagemId ?? '', input.data, {
-    anoPlanilha,
-  });
-  if (!resultado.ok) {
-    const lista =
-      resultado.alternativas.length > 0
-        ? ` Linhas parecidas: ${resultado.alternativas.map((a) => `"${a.itemNome}" (${grupoCurto(a.grupoNome)})`).join(', ')}. Qual delas?`
-        : ' Você pode criar a linha na tela Fluxo de Caixa e pedir de novo.';
-    return NextResponse.json({ resposta: resultado.motivo + lista, uso: usoDepois });
+  const cortada = res.stopReason === 'max_tokens' || res.toolCalls.length > chamadas.length;
+
+  if (propostas.length === 0) {
+    const unica = chamadas.length === 1;
+    const resposta = unica
+      ? falhas[0].includes('faltou o valor')
+        ? 'Entendi que você quer registrar algo, mas faltou o valor ou a linha. Pode dizer, por exemplo: "gastei 45,90 no mercado"?'
+        : `${falhas[0]}${falhas[0].includes('Linhas parecidas') ? ' Qual delas?' : ' Você pode criar a linha na tela Fluxo de Caixa e pedir de novo.'}`
+      : `Não consegui montar nenhum lançamento:\n${falhas.map((f) => `- ${f}`).join('\n')}`;
+    return NextResponse.json({ resposta, uso: usoDepois });
   }
 
-  const p = resultado.proposta;
-  const periodo = descreverPeriodo(p);
-  let resposta: string;
-  if (ehRecorrente(p)) {
-    const total = p.valor * p.celulas.length;
-    const comValor = p.celulas.filter((c) => c.valorAtual !== 0).length;
-    const verbo = p.modo === 'definir' ? 'colocar' : 'somar';
-    const aviso =
-      comValor > 0
-        ? p.modo === 'definir'
-          ? ` ${comValor} ${comValor === 1 ? 'mês já tem valor e será substituído' : 'meses já têm valor e serão substituídos'}.`
-          : ` ${comValor} ${comValor === 1 ? 'mês já tem valor; o novo entra em cima' : 'meses já têm valor; o novo entra em cima'}.`
-        : '';
-    resposta =
-      `Vou ${verbo} ${brl(p.valor)} por mês na linha "${p.itemNome}" (${p.grupoNome}), ` +
-      `de ${periodo} (${p.celulas.length} meses, ${brl(total)} no total).${aviso} Confirma?`;
-  } else {
-    const c = p.celulas[0];
-    resposta =
-      p.modo === 'definir'
-        ? `Vou colocar ${brl(p.valor)} na linha "${p.itemNome}" (${p.grupoNome}) em ${periodo}. ` +
-          `A célula passa de ${brl(c.valorAtual)} para ${brl(c.valorNovo)}. Confirma?`
-        : `Vou somar ${brl(p.valor)} na linha "${p.itemNome}" (${p.grupoNome}) em ${periodo}. ` +
-          `A célula passa de ${brl(c.valorAtual)} para ${brl(c.valorNovo)}. Confirma?`;
-  }
+  const resposta =
+    propostas.length === 1 && falhas.length === 0 && !cortada
+      ? descreverPropostaUnica(propostas[0])
+      : descreverLote(propostas, falhas, cortada);
+
   return NextResponse.json({
     resposta,
-    proposta: {
-      token: resultado.token,
-      tipo: p.tipo,
-      linha: p.itemNome,
-      grupo: p.grupoNome,
-      valor: p.valor,
-      modo: p.modo,
-      recorrente: ehRecorrente(p),
-      periodo,
-      ano: p.ano,
-      descricao: p.descricao,
-      celulas: p.celulas.map((c) => ({ ...c, mesNome: MESES_LONGOS[c.mes] })),
-      valorTotal: p.valor * p.celulas.length,
-      expiraEm: p.expiraEm,
-    },
+    ...(propostas.length === 1 ? { proposta: propostas[0] } : {}),
+    propostas,
     uso: usoDepois,
   });
 });
+
+/** Proposta como vai para o cartão do painel (token assinado + resumo legível). */
+interface PropostaResposta {
+  token: string;
+  tipo: 'despesa' | 'entrada';
+  linha: string;
+  grupo: string;
+  valor: number;
+  modo: 'somar' | 'definir';
+  recorrente: boolean;
+  periodo: string;
+  ano: number;
+  descricao: string | null;
+  celulas: Array<{ mes: number; mesNome: string; valorAtual: number; valorNovo: number }>;
+  valorTotal: number;
+  expiraEm: number;
+}
+
+function paraResposta(p: Proposta, token: string): PropostaResposta {
+  return {
+    token,
+    tipo: p.tipo,
+    linha: p.itemNome,
+    grupo: p.grupoNome,
+    valor: p.valor,
+    modo: p.modo,
+    recorrente: ehRecorrente(p),
+    periodo: descreverPeriodo(p),
+    ano: p.ano,
+    descricao: p.descricao,
+    celulas: p.celulas.map((c) => ({ ...c, mesNome: MESES_LONGOS[c.mes] })),
+    valorTotal: p.valor * p.celulas.length,
+    expiraEm: p.expiraEm,
+  };
+}
+
+function avisoMesesComValor(p: PropostaResposta): string {
+  const comValor = p.celulas.filter((c) => c.valorAtual !== 0).length;
+  if (comValor === 0) return '';
+  if (p.modo === 'definir') {
+    return ` ${comValor} ${comValor === 1 ? 'mês já tem valor e será substituído' : 'meses já têm valor e serão substituídos'}.`;
+  }
+  return ` ${comValor} ${comValor === 1 ? 'mês já tem valor; o novo entra em cima' : 'meses já têm valor; o novo entra em cima'}.`;
+}
+
+function descreverPropostaUnica(p: PropostaResposta): string {
+  if (p.recorrente) {
+    const verbo = p.modo === 'definir' ? 'colocar' : 'somar';
+    return (
+      `Vou ${verbo} ${brl(p.valor)} por mês na linha "${p.linha}" (${p.grupo}), ` +
+      `de ${p.periodo} (${p.celulas.length} meses, ${brl(p.valorTotal)} no total).${avisoMesesComValor(p)} Confirma?`
+    );
+  }
+  const c = p.celulas[0];
+  const verbo = p.modo === 'definir' ? 'colocar' : 'somar';
+  return (
+    `Vou ${verbo} ${brl(p.valor)} na linha "${p.linha}" (${p.grupo}) em ${p.periodo}. ` +
+    `A célula passa de ${brl(c.valorAtual)} para ${brl(c.valorNovo)}. Confirma?`
+  );
+}
+
+/** Texto do lote: uma linha por item, as falhas em seguida, e o aviso se a lista foi cortada. */
+function descreverLote(propostas: PropostaResposta[], falhas: string[], cortada: boolean): string {
+  const linhas = propostas.map((p) => {
+    const periodo = p.recorrente
+      ? `${brl(p.valor)} por mês, ${p.periodo} (${p.celulas.length} meses)`
+      : `${brl(p.valor)} em ${p.periodo}`;
+    const origem = p.descricao ? ` — ${p.descricao}` : '';
+    return `- ${p.linha} (${grupoCurto(p.grupo)})${origem}: ${periodo}.${avisoMesesComValor(p)}`;
+  });
+  const partes = [
+    `Montei ${propostas.length} ${propostas.length === 1 ? 'lançamento' : 'lançamentos'}:`,
+    ...linhas,
+  ];
+  if (falhas.length > 0) {
+    partes.push(
+      `Não consegui ${falhas.length === 1 ? 'este' : 'estes'}:`,
+      ...falhas.map((f) => `- ${f}`),
+    );
+  }
+  if (cortada) {
+    partes.push(
+      'A lista era longa e pode ter ficado incompleta: confira os itens e mande o que faltou em outra mensagem.',
+    );
+  }
+  partes.push('Confira no cartão e confirme para gravar.');
+  return partes.join('\n');
+}
