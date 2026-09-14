@@ -121,6 +121,8 @@ model User {
   bankConnections               BankConnection[]              @relation("BankConnectionUser")
   bankAccounts                  BankAccount[]                 @relation("BankAccountUser")
   bankTransactions              BankTransaction[]             @relation("BankTransactionUser")
+  bankInvestments               BankInvestment[]              @relation("BankInvestmentUser")
+  bankLoans                     BankLoan[]                    @relation("BankLoanUser")
   // Nível de acesso do usuário (paywall futuro): 0 = gratuito; níveis maiores
   // liberam conteúdos/seções com requiredLevel <= accessLevel. Ver
   // src/utils/accessLevel.ts.
@@ -1302,7 +1304,9 @@ model BankConnection {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  accounts BankAccount[]
+  accounts    BankAccount[]
+  investments BankInvestment[]
+  loans       BankLoan[]
 
   @@index([userId])
   @@index([status])
@@ -1424,4 +1428,95 @@ model PluggyWebhookEvent {
   @@index([status, receivedAt])
   @@index([providerItemId])
   @@map("pluggy_webhook_events")
+}
+
+/**
+ * Espelho de uma POSIÇÃO de investimento devolvida pelo provedor (Fase 3).
+ * A Carteira continua sendo a fonte de valor: aqui só fica o vínculo
+ * (assetId/portfolioId/fixedIncomeAssetId) e o status da importação.
+ * Sem FK para Asset/Portfolio/FixedIncomeAsset de propósito: exclusões na
+ * Carteira não podem depender do espelho; o serviço trata vínculo pendurado.
+ */
+model BankInvestment {
+  id                   String         @id @default(uuid())
+  connectionId         String
+  connection           BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User           @relation("BankInvestmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  providerInvestmentId String         @unique
+  type                 String // FIXED_INCOME | MUTUAL_FUND | EQUITY | ETF | SECURITY | COE
+  subtype              String? // CDB, LCI, REAL_ESTATE_FUND, PGBL…
+  name                 String
+  code                 String? // ticker (BOVA11) ou CNPJ do fundo
+  isin                 String?
+  number               String?
+  balance              Decimal        @default(0) @db.Decimal(15, 2)
+  quantity             Float?
+  unitValue            Float?
+  amountOriginal       Decimal?       @db.Decimal(15, 2)
+  amountProfit         Decimal?       @db.Decimal(15, 2)
+  rate                 Float?
+  rateType             String? // CDI | IPCA | SELIC | PRE…
+  fixedAnnualRate      Float?
+  issueDate            DateTime?
+  dueDate              DateTime?
+  issuer               String?
+  status               String? // ACTIVE | TOTAL_WITHDRAWAL…
+  providerDate         DateTime?
+  /** false = sumiu do provedor na última sincronização. */
+  ativo                Boolean        @default(true)
+  assetId              String?
+  portfolioId          String?
+  fixedIncomeAssetId   String?
+  /** pendente | importado | vinculado | ignorado | sem-suporte | erro */
+  importStatus         String         @default("pendente")
+  importError          String?
+  importedAt           DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([connectionId])
+  @@index([userId, importStatus])
+  @@map("bank_investments")
+}
+
+/** Espelho de uma operação de crédito (empréstimo/financiamento) do provedor. */
+model BankLoan {
+  id                     String         @id @default(uuid())
+  connectionId           String
+  connection             BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  userId                 String
+  user                   User           @relation("BankLoanUser", fields: [userId], references: [id], onDelete: Cascade)
+  providerLoanId         String         @unique
+  contractNumber         String?
+  productName            String
+  type                   String?
+  contractAmount         Decimal?       @db.Decimal(15, 2)
+  outstanding            Decimal?       @db.Decimal(15, 2)
+  nextInstallmentAmount  Decimal?       @db.Decimal(15, 2)
+  cet                    Float?
+  annualRate             Float?
+  indexer                String?
+  amortization           String? // SAC | PRICE | SAM
+  periodicity            String?
+  totalInstallments      Int?
+  paidInstallments       Int?
+  dueInstallments        Int?
+  pastDueInstallments    Int?
+  contractDate           DateTime?
+  firstInstallmentDueDate DateTime?
+  dueDate                DateTime?
+  ativo                  Boolean        @default(true)
+  dividaId               String?
+  /** pendente | importado | vinculado | ignorado | sem-suporte | erro */
+  importStatus           String         @default("pendente")
+  importError            String?
+  importedAt             DateTime?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([connectionId])
+  @@map("bank_loans")
 }
