@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash, timingSafeEqual } from 'crypto';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { ApiError, withErrorHandler } from '@/utils/apiErrorHandler';
 import { getClientIp } from '@/lib/rateLimit';
 import { logger } from '@/lib/logger';
@@ -21,8 +23,8 @@ import {
  * o header customizado configurado ao criar o webhook (X-Webhook-Secret) e,
  * em produção, a origem.
  *
- * Fase de preparação (set/2026): só valida, registra e confirma. A gravação
- * em tabela + processamento por cron entram na Fase 2 (docs/analise-pluggy-set2026.md §4).
+ * Fase 2 (set/2026): valida e enfileira em pluggy_webhook_events; o cron
+ * /api/cron/pluggy-sync sincroniza a conexão (services/pluggy/sync.ts).
  * Não confiar no conteúdo do payload para dados: ao processar, buscar GET /items/{id}.
  */
 export const runtime = 'nodejs';
@@ -69,11 +71,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const parsed = eventoSchema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, 'Evento inválido');
 
-  logger.info('[pluggy webhook] evento recebido', {
+  // Grava e sai (< 10 s). O cron /api/cron/pluggy-sync processa a fila.
+  const evento = await prisma.pluggyWebhookEvent.create({
+    data: {
+      event: parsed.data.event,
+      providerItemId: parsed.data.itemId ?? null,
+      payload: parsed.data as Prisma.InputJsonObject,
+    },
+    select: { id: true },
+  });
+  logger.info('[pluggy webhook] evento enfileirado', {
+    id: evento.id,
     event: parsed.data.event,
     itemId: parsed.data.itemId ?? null,
     triggeredBy: parsed.data.triggeredBy ?? null,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, id: evento.id });
 });
