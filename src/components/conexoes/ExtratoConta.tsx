@@ -6,7 +6,11 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { TABLE_HEADER_BG } from '@/constants/brandColors';
 import { formatBRL } from '@/utils/format';
-import { useExtrato, type BankAccountDTO } from '@/hooks/useConexoesBancarias';
+import {
+  useDesaplicarTransacoes,
+  useExtrato,
+  type BankAccountDTO,
+} from '@/hooks/useConexoesBancarias';
 
 interface ExtratoContaProps {
   conta: BankAccountDTO;
@@ -14,13 +18,14 @@ interface ExtratoContaProps {
 }
 
 /**
- * Extrato importado de uma conta (só leitura, paginado). Sinal do valor
- * segue o tipo (DEBIT = saída) — no cartão o provedor manda compra como
- * positivo, então usamos `type` e não o sinal cru.
+ * Extrato importado de uma conta (só leitura, paginado). Exibição: valor
+ * negativo = saída, positivo = entrada/estorno (o `type` do provedor não é
+ * confiável no cartão: o sandbox marca compra como CREDIT).
  */
 export default function ExtratoConta({ conta, onFechar }: ExtratoContaProps) {
   const [page, setPage] = useState(1);
   const { data, isLoading, isError, error, isFetching } = useExtrato(conta.id, page);
+  const desaplicar = useDesaplicarTransacoes();
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -30,7 +35,7 @@ export default function ExtratoConta({ conta, onFechar }: ExtratoContaProps) {
             Extrato · {conta.name}
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Importado do banco. Para lançar no Fluxo de Caixa, use a Caixa de entrada (em breve).
+            Importado do banco. Para lançar no Fluxo de Caixa, use a Caixa de entrada acima.
           </p>
         </div>
         <Button size="sm" variant="outline" onClick={onFechar}>
@@ -70,7 +75,9 @@ export default function ExtratoConta({ conta, onFechar }: ExtratoContaProps) {
                   </TableRow>
                 ) : null}
                 {data.transactions.map((t) => {
-                  const saida = t.type === 'DEBIT';
+                  // Sinal do valor: negativo = saída (vale para conta e para cartão,
+                  // onde alguns conectores marcam compra como CREDIT).
+                  const saida = t.amount < 0;
                   return (
                     <TableRow key={t.id} className="border-b border-gray-100 dark:border-gray-800">
                       <TableCell className="whitespace-nowrap px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
@@ -85,6 +92,19 @@ export default function ExtratoConta({ conta, onFechar }: ExtratoContaProps) {
                         ) : null}
                         {t.status === 'PENDING' ? (
                           <span className="ml-2 text-xs text-amber-600">pendente</span>
+                        ) : null}
+                        {t.cashflowItemId ? (
+                          <button
+                            type="button"
+                            className="ml-2 text-xs text-blue-600 hover:underline dark:text-blue-400"
+                            disabled={desaplicar.isPending}
+                            onClick={() => desaplicar.mutate({ ids: [t.id] })}
+                            title="Tirar do fluxo de caixa (volta para a Caixa de entrada)"
+                          >
+                            no fluxo · tirar
+                          </button>
+                        ) : t.ignorada ? (
+                          <span className="ml-2 text-xs text-gray-400">ignorada</span>
                         ) : null}
                       </TableCell>
                       <TableCell className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
