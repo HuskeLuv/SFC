@@ -318,7 +318,8 @@ model CashflowItem {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
-  values CashflowValue[]
+  values           CashflowValue[]
+  bankTransactions BankTransaction[] @relation("BankTransactionCashflowItem")
 
   @@unique([userId, templateId])
   @@index([groupId])
@@ -1374,6 +1375,14 @@ model BankTransaction {
   billId            String?
   /** Usuário marcou para não considerar (transferência entre contas próprias, etc.). */
   ignorada          Boolean     @default(false)
+  /**
+   * Linha do fluxo de caixa em que a transação foi aplicada (Caixa de entrada,
+   * Fase 2c). null = pendente. A célula (item, ano, mês) passa a ser a soma
+   * das transações aplicadas — "uma conta = um canal".
+   */
+  cashflowItemId    String?
+  cashflowItem      CashflowItem? @relation("BankTransactionCashflowItem", fields: [cashflowItemId], references: [id], onDelete: SetNull)
+  appliedAt         DateTime?
   /** Removida no provedor (evento transactions/deleted ou sumiu na reconciliação da janela). */
   deletedAt         DateTime?
   createdAt         DateTime    @default(now())
@@ -1382,6 +1391,8 @@ model BankTransaction {
   @@index([userId, date])
   @@index([accountId, date])
   @@index([accountId, dedupHash])
+  @@index([cashflowItemId])
+  @@index([userId, appliedAt])
   @@map("bank_transactions")
 }
 

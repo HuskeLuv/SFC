@@ -1,19 +1,23 @@
 /**
- * Aplica a migration 20260914180000_add_pluggy_bank_ledger no banco de DEV
+ * Aplica as migrations da integração Pluggy no banco de DEV
  * (Neon) via raw SQL + insert em _prisma_migrations. Workaround pro schema
  * drift conhecido do dev (memória project_prisma_schema_drift). Idempotente:
  * CREATE ... IF NOT EXISTS e constraints duplicadas são toleradas. Em prod o
  * deploy roda `prisma migrate deploy` com o mesmo arquivo.
  *
- *   npx tsx --env-file=.env scripts/apply-pluggy-migration.ts
+ *   npx tsx --env-file=.env scripts/apply-pluggy-migration.ts            # todas
+ *   MIGRATION=20260914200000_bank_transaction_cashflow_link npx tsx --env-file=.env scripts/apply-pluggy-migration.ts
  */
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { prisma } from '../src/lib/prisma';
 
-const MIGRATION_NAME = '20260914180000_add_pluggy_bank_ledger';
+const MIGRATIONS = [
+  '20260914180000_add_pluggy_bank_ledger',
+  '20260914200000_bank_transaction_cashflow_link',
+];
 
-async function main() {
+async function aplicar(MIGRATION_NAME: string) {
   console.log(`=== Aplicando ${MIGRATION_NAME} ===`);
   const sql = readFileSync(
     join(__dirname, '..', 'prisma', 'migrations', MIGRATION_NAME, 'migration.sql'),
@@ -52,6 +56,13 @@ async function main() {
     console.log(`  ✓ ${MIGRATION_NAME} registrada em _prisma_migrations`);
   } else {
     console.log(`  ✓ ${MIGRATION_NAME} já registrada`);
+  }
+}
+
+async function main() {
+  const only = process.env.MIGRATION;
+  for (const m of MIGRATIONS) {
+    if (!only || only === m) await aplicar(m);
   }
 }
 
