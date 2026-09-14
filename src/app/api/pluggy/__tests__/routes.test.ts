@@ -187,7 +187,15 @@ describe('rotas /api/pluggy', () => {
     expect(await res.json()).toEqual({
       accessToken: 'tok',
       includeSandbox: false,
-      products: ['ACCOUNTS', 'CREDIT_CARDS', 'TRANSACTIONS', 'PAYMENT_DATA'],
+      products: [
+        'ACCOUNTS',
+        'CREDIT_CARDS',
+        'TRANSACTIONS',
+        'PAYMENT_DATA',
+        'INVESTMENTS',
+        'INVESTMENTS_TRANSACTIONS',
+        'LOANS',
+      ],
     });
     expect(mockClient.createConnectToken).toHaveBeenCalledWith(undefined, {
       clientUserId: 'user-1',
