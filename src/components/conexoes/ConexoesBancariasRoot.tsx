@@ -58,8 +58,10 @@ export default function ConexoesBancariasRoot() {
     async ({ item }: { item: { id: string } }) => {
       setWidget(null);
       try {
-        await registrar.mutateAsync({ itemId: item.id });
-        setAviso('Banco conectado. As transações dos últimos 12 meses foram importadas.');
+        const r = await registrar.mutateAsync({ itemId: item.id });
+        setAviso(
+          r.aviso ?? 'Banco conectado. As transações dos últimos 12 meses foram importadas.',
+        );
       } catch (e) {
         setAviso(e instanceof Error ? e.message : 'A conexão foi criada, mas o registro falhou');
       }
@@ -121,7 +123,8 @@ export default function ConexoesBancariasRoot() {
         <p className="max-w-2xl text-sm text-gray-600 dark:text-gray-300">
           Conecte suas contas e cartões pelo Open Finance. A autorização acontece no app do seu
           banco, sem senha aqui, e você pode revogar quando quiser. O MyFinance só lê; nunca
-          movimenta dinheiro.
+          movimenta dinheiro. Banco que já está na lista? Use &quot;Reconectar&quot; nele em vez de
+          conectar de novo.
         </p>
         <Button onClick={() => abrirWidget()} disabled={ocupada}>
           {connectToken.isPending ? 'Preparando…' : 'Conectar banco'}

@@ -10,7 +10,7 @@ const mockPrisma = vi.hoisted(() => ({
     update: vi.fn(),
     delete: vi.fn(),
   },
-  bankAccount: { upsert: vi.fn() },
+  bankAccount: { upsert: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   bankTransaction: { findMany: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   pluggyWebhookEvent: { findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
 }));
@@ -90,7 +90,9 @@ beforeEach(() => {
     accounts: [],
   });
   mockPrisma.bankConnection.update.mockResolvedValue({});
-  mockPrisma.bankAccount.upsert.mockResolvedValue({ id: 'acc-l1' });
+  mockPrisma.bankAccount.upsert.mockResolvedValue({ id: 'acc-l1', ativa: true });
+  mockPrisma.bankAccount.findMany.mockResolvedValue([]);
+  mockPrisma.bankAccount.update.mockResolvedValue({});
   mockPrisma.bankTransaction.findMany.mockResolvedValue([]);
   mockPrisma.bankTransaction.createMany.mockResolvedValue({ count: 0 });
   mockPrisma.bankTransaction.updateMany.mockResolvedValue({ count: 0 });
@@ -153,7 +155,8 @@ describe('registrarConexao', () => {
     mockClient.fetchAllTransactions.mockResolvedValue([tx('t1')]);
     mockPrisma.bankTransaction.createMany.mockResolvedValue({ count: 1 });
 
-    await registrarConexao('user-1', 'item-1');
+    const r = await registrarConexao('user-1', 'item-1');
+    expect(r).toMatchObject({ reaproveitada: false, contasRepetidas: 0 });
 
     expect(mockPrisma.bankConnection.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -170,9 +173,148 @@ describe('registrarConexao', () => {
     esperado.setMonth(esperado.getMonth() - 12);
     expect(dateFrom).toBe(esperado.toISOString().slice(0, 10));
     expect(mockPrisma.bankTransaction.createMany).toHaveBeenCalledWith({
-      data: [expect.objectContaining({ providerTxId: 't1', accountId: 'acc-l1' })],
+      data: [
+        expect.objectContaining({ providerTxId: 't1', accountId: 'acc-l1', duplicadaDe: null }),
+      ],
       skipDuplicates: true,
     });
+  });
+});
+
+describe('registrarConexao — banco conectado duas vezes', () => {
+  it('todas as contas repetidas: migra a conexão existente para o item novo', async () => {
+    mockPrisma.bankConnection.findUnique.mockResolvedValue(null);
+    mockClient.fetchItem.mockResolvedValue(item({ id: 'item-2' }));
+    mockClient.fetchAccounts.mockResolvedValue({ results: [{ ...conta, id: 'acc-p2' }] });
+    mockPrisma.bankAccount.findMany.mockResolvedValue([
+      {
+        id: 'acc-l1',
+        connectionId: 'conn-1',
+        number: '1234-5',
+        type: 'BANK',
+        name: 'Conta Corrente',
+        connection: { id: 'conn-1', providerItemId: 'item-1' },
+      },
+    ]);
+    mockClient.deleteItem.mockResolvedValue(undefined);
+
+    const r = await registrarConexao('user-1', 'item-2');
+
+    expect(r).toMatchObject({ reaproveitada: true, contasRepetidas: 1 });
+    expect(mockPrisma.bankConnection.create).not.toHaveBeenCalled();
+    expect(mockClient.deleteItem).toHaveBeenCalledWith('item-1');
+    expect(mockPrisma.bankConnection.update).toHaveBeenCalledWith({
+      where: { id: 'conn-1' },
+      data: expect.objectContaining({ providerItemId: 'item-2', lastManualUpdateAt: null }),
+    });
+    expect(mockPrisma.bankAccount.update).toHaveBeenCalledWith({
+      where: { id: 'acc-l1' },
+      data: { providerAccountId: 'acc-p2' },
+    });
+  });
+
+  it('parte das contas repetidas: conexão nova, conta repetida desativada e sem transações', async () => {
+    mockPrisma.bankConnection.findUnique.mockResolvedValue(null);
+    mockPrisma.bankConnection.create.mockResolvedValue({ id: 'conn-2' });
+    const cartao = {
+      ...conta,
+      id: 'acc-p9',
+      type: 'CREDIT',
+      subtype: 'CREDIT_CARD',
+      number: '9437',
+      name: 'Cartão',
+    };
+    mockClient.fetchAccounts.mockResolvedValue({ results: [conta, cartao] });
+    mockPrisma.bankAccount.findMany.mockResolvedValue([
+      {
+        id: 'acc-l1',
+        connectionId: 'conn-1',
+        number: '1234-5',
+        type: 'BANK',
+        name: 'Conta Corrente',
+        connection: { id: 'conn-1', providerItemId: 'item-1' },
+      },
+    ]);
+    mockPrisma.bankAccount.upsert
+      .mockResolvedValueOnce({ id: 'acc-l1b', ativa: false })
+      .mockResolvedValueOnce({ id: 'acc-l9', ativa: true });
+
+    const r = await registrarConexao('user-1', 'item-1');
+
+    expect(r).toMatchObject({ reaproveitada: false, contasRepetidas: 1 });
+    expect(mockPrisma.bankAccount.upsert.mock.calls[0][0].create).toMatchObject({ ativa: false });
+    expect(mockPrisma.bankAccount.upsert.mock.calls[1][0].create).toMatchObject({ ativa: true });
+    expect(mockClient.fetchAllTransactions).toHaveBeenCalledTimes(1);
+    expect(mockClient.fetchAllTransactions).toHaveBeenCalledWith('acc-p9', expect.any(Object));
+  });
+});
+
+describe('dedup na sincronização', () => {
+  it('id trocado no provedor: a linha existente adota o id novo (sem cópia nem removida)', async () => {
+    const t = tx('t1-novo');
+    const m = mapTransaction(t as never, 'acc-l1', 'user-1', '2|n:1234-5');
+    mockClient.fetchAllTransactions.mockResolvedValue([t]);
+    mockPrisma.bankTransaction.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 'l1',
+        providerTxId: 't1-velho',
+        dedupHash: m.dedupHash,
+        globalHash: null,
+        status: 'POSTED',
+        providerCategory: 'Salary',
+        amount: 8500,
+        deletedAt: null,
+      },
+    ]);
+
+    const r = await sincronizarConexao('conn-1');
+
+    expect(mockPrisma.bankTransaction.update).toHaveBeenCalledWith({
+      where: { id: 'l1' },
+      data: expect.objectContaining({ providerTxId: 't1-novo', deletedAt: null }),
+    });
+    expect(mockPrisma.bankTransaction.createMany).not.toHaveBeenCalled();
+    expect(r).toMatchObject({
+      transacoesNovas: 0,
+      transacoesAtualizadas: 1,
+      transacoesDuplicadas: 0,
+    });
+  });
+
+  it('mesma transação já importada por outra conta do usuário entra como duplicada', async () => {
+    const t = tx('t1');
+    const m = mapTransaction(t as never, 'acc-l1', 'user-1', '2|n:1234-5');
+    mockClient.fetchAllTransactions.mockResolvedValue([t]);
+    mockPrisma.bankTransaction.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'orig-1', globalHash: m.globalHash }]);
+    mockPrisma.bankTransaction.createMany.mockResolvedValue({ count: 1 });
+
+    const r = await sincronizarConexao('conn-1');
+
+    expect(mockPrisma.bankTransaction.findMany).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: 'user-1',
+          accountId: { not: 'acc-l1' },
+          duplicadaDe: null,
+        }),
+      }),
+    );
+    expect(mockPrisma.bankTransaction.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ providerTxId: 't1', duplicadaDe: 'orig-1' })],
+      skipDuplicates: true,
+    });
+    expect(r).toMatchObject({ transacoesNovas: 1, transacoesDuplicadas: 1 });
+  });
+
+  it('conta desativada não busca transações', async () => {
+    mockPrisma.bankAccount.upsert.mockResolvedValue({ id: 'acc-l1', ativa: false });
+    const r = await sincronizarConexao('conn-1');
+    expect(mockClient.fetchAllTransactions).not.toHaveBeenCalled();
+    expect(r.contas).toBe(1);
   });
 });
 
@@ -192,17 +334,20 @@ describe('sincronizarConexao', () => {
 
   it('atualiza a que mudou, cria a nova e marca removida a que sumiu da janela', async () => {
     mockClient.fetchAllTransactions.mockResolvedValue([tx('t1'), tx('t2', { amount: 10 })]);
-    mockPrisma.bankTransaction.findMany.mockResolvedValue([
-      {
-        id: 'l1',
-        providerTxId: 't1',
-        dedupHash: 'antigo',
-        status: 'POSTED',
-        providerCategory: 'Salary',
-        amount: 8500,
-        deletedAt: null,
-      },
-    ]);
+    mockPrisma.bankTransaction.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'l1',
+          providerTxId: 't1',
+          dedupHash: 'antigo',
+          dedupHash: 'antigo',
+          globalHash: null,
+          providerCategory: 'Salary',
+          amount: 8500,
+          deletedAt: null,
+        },
+      ])
+      .mockResolvedValue([]);
     mockPrisma.bankTransaction.createMany.mockResolvedValue({ count: 1 });
     mockPrisma.bankTransaction.updateMany.mockResolvedValue({ count: 3 });
 

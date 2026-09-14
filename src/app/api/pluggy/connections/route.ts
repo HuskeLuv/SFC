@@ -32,6 +32,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await requireProprioUsuarioPluggy(request);
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw new ApiError(400, 'itemId inválido');
-  const conexao = await registrarConexao(user.id, parsed.data.itemId);
-  return NextResponse.json({ connection: serializeConnection(conexao) }, { status: 201 });
+  const r = await registrarConexao(user.id, parsed.data.itemId);
+  const aviso = r.reaproveitada
+    ? 'Este banco já estava conectado: a conexão existente foi atualizada com a nova autorização.'
+    : r.contasRepetidas > 0
+      ? `${r.contasRepetidas} ${r.contasRepetidas === 1 ? 'conta já existia' : 'contas já existiam'} em outra conexão e ${r.contasRepetidas === 1 ? 'ficou desativada' : 'ficaram desativadas'} para não duplicar.`
+      : null;
+  return NextResponse.json(
+    { connection: serializeConnection(r.conexao), reaproveitada: r.reaproveitada, aviso },
+    { status: r.reaproveitada ? 200 : 201 },
+  );
 });
