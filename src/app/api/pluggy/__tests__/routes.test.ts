@@ -157,7 +157,11 @@ describe('rotas /api/pluggy', () => {
   it('connect-token amarra o token ao usuário e valida itemId de reconexão', async () => {
     mockClient.createConnectToken.mockResolvedValue({ accessToken: 'tok' });
     const res = await connectToken(json('/api/pluggy/connect-token', 'POST', {}));
-    expect(await res.json()).toEqual({ accessToken: 'tok' });
+    expect(await res.json()).toEqual({
+      accessToken: 'tok',
+      includeSandbox: false,
+      products: ['ACCOUNTS', 'CREDIT_CARDS', 'TRANSACTIONS', 'PAYMENT_DATA'],
+    });
     expect(mockClient.createConnectToken).toHaveBeenCalledWith(undefined, {
       clientUserId: 'user-1',
       avoidDuplicates: true,

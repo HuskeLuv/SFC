@@ -20,7 +20,9 @@ import {
   DocsIcon,
   VideoIcon,
   LockIcon,
+  PlugInIcon,
 } from '../icons/index';
+import { usePluggyConfig } from '@/hooks/useConexoesBancarias';
 import SidebarFooter from './SidebarFooter';
 import CashflowYearSelect from './CashflowYearSelect';
 
@@ -97,6 +99,8 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
   const { user, actingClient } = useAuth();
+  // Conexões bancárias (Pluggy): item só aparece com a integração ligada no servidor.
+  const pluggyHabilitado = usePluggyConfig().data?.habilitado === true;
 
   const dashboardPath =
     user?.role === 'consultant' && !actingClient ? '/dashboard/consultor' : '/carteira';
@@ -113,6 +117,21 @@ const AppSidebar: React.FC = () => {
 
     if (user?.role !== 'consultant') {
       items = items.filter((item) => item.name !== 'Dashboard');
+    }
+
+    // Integração bancária (14/09/2026): entra logo após Dívidas; fora da lista
+    // do consultor personificado de propósito (extrato só do próprio cliente).
+    if (pluggyHabilitado) {
+      const idx = items.findIndex((item) => item.name === 'Dívidas');
+      const entrada = {
+        icon: <PlugInIcon />,
+        name: 'Conexões bancárias',
+        path: '/conexoes-bancarias',
+      };
+      items =
+        idx >= 0
+          ? [...items.slice(0, idx + 1), entrada, ...items.slice(idx + 1)]
+          : [...items, entrada];
     }
 
     // Painel administrativo (11/09/2026): só role admin vê o item.
@@ -139,7 +158,7 @@ const AppSidebar: React.FC = () => {
     }
 
     return items;
-  }, [dashboardPath, actingClient, user?.role]);
+  }, [dashboardPath, actingClient, user?.role, pluggyHabilitado]);
 
   const renderMenuItems = (navItems: NavItem[], menuType: 'main' | 'support' | 'others') => (
     <ul className="flex flex-col gap-4">
