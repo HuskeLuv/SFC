@@ -118,6 +118,9 @@ model User {
   seguroApolices                SeguroApolice[]               @relation("SeguroApoliceUser")
   lessonProgresses              LessonProgress[]              @relation("LessonProgressUser")
   assistenteMensagens           AssistenteMensagem[]          @relation("AssistenteMensagemUser")
+  bankConnections               BankConnection[]              @relation("BankConnectionUser")
+  bankAccounts                  BankAccount[]                 @relation("BankAccountUser")
+  bankTransactions              BankTransaction[]             @relation("BankTransactionUser")
   // Nível de acesso do usuário (paywall futuro): 0 = gratuito; níveis maiores
   // liberam conteúdos/seções com requiredLevel <= accessLevel. Ver
   // src/utils/accessLevel.ts.
@@ -1259,4 +1262,145 @@ model AssistenteMensagem {
   @@index([userId, createdAt])
   @@index([createdAt])
   @@map("assistente_mensagens")
+}
+
+// ===== INTEGRAÇÃO BANCÁRIA (Pluggy / Open Finance) — Fase 2, set/2026 =====
+// Ledger independente do provedor (docs/analise-pluggy-set2026.md §4):
+// conexão (= item do Pluggy) → contas → transações. O fluxo de caixa é
+// alimentado por agregação destas transações (Fase 2c), nunca o contrário.
+// Regra "uma conta = um canal": conta conectada não recebe digitação manual.
+
+model BankConnection {
+  id                 String    @id @default(uuid())
+  userId             String
+  user               User      @relation("BankConnectionUser", fields: [userId], references: [id], onDelete: Cascade)
+  provider           String    @default("pluggy")
+  /**
+   * Id do item no Pluggy. Um item por CPF × instituição (limites mensais do
+   * Open Finance são consumidos por item).
+   */
+  providerItemId     String    @unique
+  connectorId        Int
+  connectorName      String
+  connectorImageUrl  String?
+  isOpenFinance      Boolean   @default(false)
+  isSandbox          Boolean   @default(false)
+  /**
+   * Status do item no Pluggy: UPDATING | UPDATED | LOGIN_ERROR | OUTDATED | WAITING_USER_INPUT
+   */
+  status             String    @default("UPDATING")
+  executionStatus    String?
+  errorMessage       String?
+  consentExpiresAt   DateTime?
+  providerUpdatedAt  DateTime?
+  /** Último sync NOSSO bem-sucedido (contas + transações gravadas). */
+  lastSyncAt         DateTime?
+  lastSyncError      String?
+  /** Última atualização manual (PATCH /items) — cooldown, ver services/pluggy/sync.ts. */
+  lastManualUpdateAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  accounts BankAccount[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("bank_connections")
+}
+
+model BankAccount {
+  id                String         @id @default(uuid())
+  connectionId      String
+  connection        BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User           @relation("BankAccountUser", fields: [userId], references: [id], onDelete: Cascade)
+  providerAccountId String         @unique
+  type              String // BANK | CREDIT
+  subtype           String? // CHECKING_ACCOUNT | SAVINGS_ACCOUNT | CREDIT_CARD
+  name              String
+  /** Número mascarado como o provedor devolve (nunca agência/conta completos de terceiros). */
+  number            String?
+  currencyCode      String         @default("BRL")
+  balance           Decimal        @default(0) @db.Decimal(15, 2)
+  balanceAt         DateTime?
+  // Cartão de crédito
+  creditLimit       Decimal?       @db.Decimal(15, 2)
+  creditAvailable   Decimal?       @db.Decimal(15, 2)
+  creditBrand       String?
+  creditDueDate     DateTime?
+  creditClosingDate DateTime?
+  /** false = usuário escolheu não usar esta conta no MyFinance (continua sincronizando o item). */
+  ativa             Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  transactions BankTransaction[]
+
+  @@index([userId])
+  @@index([connectionId])
+  @@map("bank_accounts")
+}
+
+model BankTransaction {
+  id                String      @id @default(uuid())
+  accountId         String
+  account           BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User        @relation("BankTransactionUser", fields: [userId], references: [id], onDelete: Cascade)
+  /** Id no Pluggy. Pode mudar quando data/descrição/valor mudam — por isso o dedupHash. */
+  providerTxId      String      @unique
+  dedupHash         String
+  date              DateTime
+  description       String
+  descriptionRaw    String?
+  /**
+   * Valor com o sinal do provedor: conta → negativo = saída; cartão →
+   * positivo = compra (aumenta a fatura), negativo = pagamento/estorno.
+   * `type` (DEBIT/CREDIT) é a fonte da verdade do sentido.
+   */
+  amount            Decimal     @db.Decimal(15, 2)
+  type              String // DEBIT | CREDIT
+  status            String      @default("POSTED") // POSTED | PENDING
+  currencyCode      String      @default("BRL")
+  providerCategory  String?
+  providerCategoryId String?
+  merchantName      String?
+  merchantCnpj      String?
+  paymentMethod     String? // PIX | TED | DOC | BOLETO …
+  /** Nome da contraparte (pagador em crédito, recebedor em débito). Sem documento (LGPD). */
+  counterpartName   String?
+  installmentNumber Int?
+  installmentTotal  Int?
+  billId            String?
+  /** Usuário marcou para não considerar (transferência entre contas próprias, etc.). */
+  ignorada          Boolean     @default(false)
+  /** Removida no provedor (evento transactions/deleted ou sumiu na reconciliação da janela). */
+  deletedAt         DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([userId, date])
+  @@index([accountId, date])
+  @@index([accountId, dedupHash])
+  @@map("bank_transactions")
+}
+
+/**
+ * Fila de eventos do webhook do Pluggy. O receptor só grava; o cron
+ * /api/cron/pluggy-sync processa (a rota precisa responder em 10 s).
+ */
+model PluggyWebhookEvent {
+  id             String    @id @default(uuid())
+  event          String
+  providerItemId String?
+  payload        Json
+  status         String    @default("pending") // pending | processing | done | error | ignored
+  attempts       Int       @default(0)
+  error          String?
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@index([status, receivedAt])
+  @@index([providerItemId])
+  @@map("pluggy_webhook_events")
 }
