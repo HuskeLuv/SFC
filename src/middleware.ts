@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { generateCsrfToken, validateCsrfToken, CSRF_COOKIE_NAME } from '@/utils/csrf';
 import { checkRateLimit, getClientIp, getTierForPath } from '@/lib/rateLimit';
+import { PLUGGY_API_HOSTS, PLUGGY_CONNECT_HOSTS, pluggyHabilitado } from '@/lib/pluggyConfig';
 
 // ---------------------------------------------------------------------------
 // Rate-limit store — lives in isolate memory, resets on cold start.
@@ -33,6 +34,9 @@ function isPublicRoute(pathname: string): boolean {
     // Vercel Cron requests carry no JWT cookie — the route itself authenticates
     // via Authorization: Bearer CRON_SECRET, so let them pass the JWT gate.
     pathname.startsWith('/api/cron') ||
+    // Webhooks de terceiros (Pluggy) não têm sessão: a rota autentica por
+    // header secreto + IP fixo de origem (src/app/api/webhooks/pluggy).
+    pathname.startsWith('/api/webhooks/') ||
     pathname === '/api/health' ||
     // Página inicial pública (landing); a própria página manda sessão válida pro app.
     pathname === '/' ||
@@ -60,7 +64,8 @@ function isCsrfExempt(pathname: string): boolean {
     pathname.startsWith('/api/public') ||
     pathname.startsWith('/api/institutions') ||
     pathname.startsWith('/api/assets') ||
-    pathname.startsWith('/api/emissores')
+    pathname.startsWith('/api/emissores') ||
+    pathname.startsWith('/api/webhooks/')
   );
 }
 
@@ -126,14 +131,22 @@ function generateNonce(): string {
 }
 
 function buildContentSecurityPolicy(nonce: string): string {
+  // Pluggy Connect (integração bancária): o widget abre um modal/iframe de
+  // connect.pluggy.ai, carrega script do cdn.pluggy.ai e fala com api.pluggy.ai.
+  // Só entra na CSP com PLUGGY_HABILITADO=true + credenciais (src/lib/pluggyConfig).
+  const pluggy = pluggyHabilitado();
+  const pluggyScript = pluggy ? ` ${PLUGGY_CONNECT_HOSTS}` : '';
+  const pluggyConnect = pluggy ? ` ${PLUGGY_CONNECT_HOSTS} ${PLUGGY_API_HOSTS}` : '';
+  const frameSrc = pluggy ? `frame-src 'self' ${PLUGGY_CONNECT_HOSTS}` : "frame-src 'self'";
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' ${VTURB_SCRIPT_HOSTS}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' ${VTURB_SCRIPT_HOSTS}${pluggyScript}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
-    `connect-src 'self' ${VTURB_HOSTS}`,
+    `connect-src 'self' ${VTURB_HOSTS}${pluggyConnect}`,
     `media-src 'self' blob: ${VTURB_HOSTS}`,
+    frameSrc,
     "frame-ancestors 'none'",
     "form-action 'self'",
     "base-uri 'self'",
