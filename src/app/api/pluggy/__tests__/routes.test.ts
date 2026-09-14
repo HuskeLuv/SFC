@@ -195,6 +195,8 @@ describe('rotas /api/pluggy', () => {
         installmentNumber: null,
         installmentTotal: null,
         ignorada: false,
+        cashflowItemId: null,
+        appliedAt: null,
       },
     ]);
     const res = await transacoes(

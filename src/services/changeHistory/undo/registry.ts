@@ -22,6 +22,7 @@ import { DIVIDAS_UNDO_HANDLERS } from './handlers/dividas';
 import { SAUDE_FINANCEIRA_UNDO_HANDLERS } from './handlers/saudeFinanceira';
 import { PERFIL_UNDO_HANDLERS } from './handlers/perfil';
 import { CALENDARIO_UNDO_HANDLERS } from './handlers/calendario';
+import { BANCO_IMPORTACAO_UNDO_HANDLERS } from './handlers/bancoImportacao';
 
 export const UNDO_REGISTRY: Record<string, UndoDefinition> = {
   ...CARTEIRA_UNDO_HANDLERS,
@@ -31,4 +32,5 @@ export const UNDO_REGISTRY: Record<string, UndoDefinition> = {
   ...SAUDE_FINANCEIRA_UNDO_HANDLERS,
   ...PERFIL_UNDO_HANDLERS,
   ...CALENDARIO_UNDO_HANDLERS,
+  ...BANCO_IMPORTACAO_UNDO_HANDLERS,
 };

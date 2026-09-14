@@ -8,6 +8,7 @@ import type {
   BankConnectionDTO,
   BankTransactionDTO,
 } from '@/app/api/pluggy/_lib/serializer';
+import type { PendenteDTO, AplicarResultado } from '@/services/pluggy/caixaEntrada';
 
 export type { BankAccountDTO, BankConnectionDTO, BankTransactionDTO };
 
@@ -161,3 +162,117 @@ export function useExtrato(accountId: string | null, page = 1, limit = 50) {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Caixa de entrada (Fase 2c)
+// ---------------------------------------------------------------------------
+
+export type { PendenteDTO, AplicarResultado };
+
+export interface CaixaEntradaResposta {
+  pendentes: PendenteDTO[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+/** Linha do fluxo selecionável: "Despesas Fixas › Habitação › Conta de energia". */
+export interface OpcaoLinha {
+  itemId: string;
+  rotulo: string;
+  tipo: string;
+}
+
+interface GrupoEstrutura {
+  id: string;
+  name: string;
+  type: string;
+  items?: { id: string; name: string; hidden?: boolean }[];
+  children?: GrupoEstrutura[];
+}
+
+export function achatarEstrutura(grupos: GrupoEstrutura[]): OpcaoLinha[] {
+  const out: OpcaoLinha[] = [];
+  const walk = (g: GrupoEstrutura, caminho: string[]) => {
+    const atual = [...caminho, g.name];
+    // grupo de Investimentos não recebe transações do banco (a Carteira é a fonte)
+    if (g.type === 'investimento' || g.type === 'saldo') return;
+    for (const it of g.items ?? []) {
+      if (it.hidden) continue;
+      out.push({ itemId: it.id, rotulo: [...atual.slice(1), it.name].join(' › '), tipo: g.type });
+    }
+    for (const c of g.children ?? []) walk(c, atual);
+  };
+  for (const g of grupos) walk(g, []);
+  return out;
+}
+
+function invalidarFluxo(queryClient: ReturnType<typeof useQueryClient>): void {
+  invalidarConexoes(queryClient);
+  queryClient.invalidateQueries({ queryKey: queryKeys.pluggy.caixaEntrada() });
+  queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.historicoAlteracoes.all });
+}
+
+export function useCaixaEntrada(page = 1, enabled = true) {
+  return useQuery<CaixaEntradaResposta, ConexaoApiError>({
+    queryKey: [...queryKeys.pluggy.caixaEntrada(), page],
+    enabled,
+    staleTime: 15_000,
+    placeholderData: keepPreviousData,
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`${BASE_URL}/caixa-entrada?page=${page}&limit=50`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!res.ok) await lancarErro(res, 'Erro ao carregar a Caixa de entrada');
+      return (await res.json()) as CaixaEntradaResposta;
+    },
+  });
+}
+
+/** Linhas do fluxo do usuário (template + personalizações) para o seletor. */
+export function useLinhasFluxo(enabled = true) {
+  return useQuery<OpcaoLinha[], ConexaoApiError>({
+    queryKey: [...queryKeys.cashflow.all, 'structure', 'linhas'],
+    enabled,
+    staleTime: 60_000,
+    queryFn: async ({ signal }) => {
+      const res = await fetch('/api/cashflow/structure', { credentials: 'include', signal });
+      if (!res.ok) await lancarErro(res, 'Erro ao carregar as linhas do fluxo');
+      return achatarEstrutura((await res.json()) as GrupoEstrutura[]);
+    },
+  });
+}
+
+function mutacaoLote<TVars, TResp>(caminho: string, erro: string) {
+  return function useMutacao() {
+    const { csrfFetch } = useCsrf();
+    const queryClient = useQueryClient();
+    return useMutation<TResp, ConexaoApiError, TVars>({
+      mutationFn: async (vars) => {
+        const res = await csrfFetch(`${BASE_URL}/caixa-entrada/${caminho}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(vars),
+        });
+        if (!res.ok) await lancarErro(res, erro);
+        return (await res.json()) as TResp;
+      },
+      onSuccess: () => invalidarFluxo(queryClient),
+    });
+  };
+}
+
+export const useAplicarTransacoes = mutacaoLote<
+  { aplicacoes: Array<{ id: string; itemId: string }> },
+  AplicarResultado
+>('aplicar', 'Erro ao lançar no fluxo de caixa');
+export const useIgnorarTransacoes = mutacaoLote<{ ids: string[] }, { ignoradas: number }>(
+  'ignorar',
+  'Erro ao ignorar',
+);
+export const useDesaplicarTransacoes = mutacaoLote<{ ids: string[] }, AplicarResultado>(
+  'desaplicar',
+  'Erro ao tirar do fluxo de caixa',
+);
