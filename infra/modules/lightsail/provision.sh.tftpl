@@ -213,6 +213,8 @@ SHELL=/bin/bash
 45 6 * * 0 root /usr/local/bin/myfinance-cron.sh /api/cron/cvm-fund-history
 0 * * * * root /usr/local/bin/myfinance-cron.sh /api/cron/market-data/refresh
 30 21 * * * root /usr/local/bin/myfinance-cron.sh /api/cron/cashflow-evolucao-snapshot
+*/5 * * * * root /usr/local/bin/myfinance-cron.sh /api/cron/pluggy-sync
+30 8 * * * root /usr/local/bin/myfinance-cron.sh '/api/cron/pluggy-sync?diario=1'
 EOF
 # cron ignora arquivos com ponto no nome em /etc/cron.d — é o "desligado".
 # Cutover: mv /etc/cron.d/myfinance.disabled /etc/cron.d/myfinance

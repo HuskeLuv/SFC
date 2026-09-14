@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server';
 
 const mockLogger = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
 vi.mock('@/lib/logger', () => ({ logger: mockLogger }));
+const mockPrisma = vi.hoisted(() => ({ pluggyWebhookEvent: { create: vi.fn() } }));
+vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
 import { POST } from '../route';
 
@@ -20,6 +22,7 @@ describe('POST /api/webhooks/pluggy', () => {
   const env = { ...process.env };
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.pluggyWebhookEvent.create.mockResolvedValue({ id: 'ev-1' });
     process.env.PLUGGY_HABILITADO = 'true';
     process.env.PLUGGY_CLIENT_ID = 'id';
     process.env.PLUGGY_CLIENT_SECRET = 'secret';
@@ -47,6 +50,7 @@ describe('POST /api/webhooks/pluggy', () => {
       (await POST(post({ event: 'item/updated' }, { 'x-webhook-secret': 'outro' }))).status,
     ).toBe(401);
     expect(mockLogger.info).not.toHaveBeenCalled();
+    expect(mockPrisma.pluggyWebhookEvent.create).not.toHaveBeenCalled();
   });
 
   it('responde 400 para JSON inválido ou sem event', async () => {
@@ -54,7 +58,7 @@ describe('POST /api/webhooks/pluggy', () => {
     expect((await POST(post({ itemId: 'x' }, { 'x-webhook-secret': SECRET }))).status).toBe(400);
   });
 
-  it('confirma e registra o evento com segredo correto', async () => {
+  it('enfileira o evento com segredo correto', async () => {
     const res = await POST(
       post(
         { event: 'item/updated', itemId: 'item-1', triggeredBy: 'CLIENT', extra: 1 },
@@ -62,9 +66,17 @@ describe('POST /api/webhooks/pluggy', () => {
       ),
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
+    expect(await res.json()).toEqual({ ok: true, id: 'ev-1' });
+    expect(mockPrisma.pluggyWebhookEvent.create).toHaveBeenCalledWith({
+      data: {
+        event: 'item/updated',
+        providerItemId: 'item-1',
+        payload: expect.objectContaining({ event: 'item/updated', extra: 1 }),
+      },
+      select: { id: true },
+    });
     expect(mockLogger.info).toHaveBeenCalledWith(
-      '[pluggy webhook] evento recebido',
+      '[pluggy webhook] evento enfileirado',
       expect.objectContaining({ event: 'item/updated', itemId: 'item-1' }),
     );
   });
