@@ -24,6 +24,13 @@ import { prisma } from '@/lib/prisma';
 import { getPluggyClient } from '@/lib/pluggy';
 import { logger } from '@/lib/logger';
 import { ApiError } from '@/utils/apiErrorHandler';
+import {
+  atualizarImportados,
+  importarPendentes,
+  mapInvestment,
+  mapLoan,
+  type ImportacaoResultado,
+} from './importarCarteira';
 
 export const JANELA_RESYNC_DIAS = 7;
 export const HISTORICO_INICIAL_MESES = 12;
@@ -39,6 +46,10 @@ export interface SyncResultado {
   transacoesRemovidas: number;
   /** Criadas já marcadas como cópia de outra conta do usuário. */
   transacoesDuplicadas: number;
+  investimentos: number;
+  emprestimos: number;
+  /** Importação automática para Carteira/Dívidas (null quando o item não expõe os produtos). */
+  importacao: ImportacaoResultado | null;
 }
 
 const SELECT_LOCAL = {
@@ -425,6 +436,27 @@ export async function sincronizarConexao(
       removidas += r.count;
     }
 
+    // Investimentos e empréstimos (Fase 3): espelho + importação automática.
+    // Best-effort: consentimento sem esses produtos não pode derrubar o sync de contas.
+    const { investimentos, emprestimos } = await sincronizarPosicoes(
+      client,
+      conexao.providerItemId,
+      connectionId,
+      conexao.userId,
+    );
+    let importacao: ImportacaoResultado | null = null;
+    if (investimentos > 0 || emprestimos > 0) {
+      try {
+        importacao = await importarPendentes(conexao.userId);
+        await atualizarImportados(conexao.userId);
+      } catch (error: unknown) {
+        logger.error('[pluggy sync] importação para Carteira/Dívidas falhou', {
+          connectionId,
+          msg: error instanceof Error ? error.message : 'erro',
+        });
+      }
+    }
+
     await prisma.bankConnection.update({
       where: { id: connectionId },
       data: { lastSyncAt: new Date(), lastSyncError: null },
@@ -438,6 +470,9 @@ export async function sincronizarConexao(
       transacoesAtualizadas: atualizadas,
       transacoesRemovidas: removidas,
       transacoesDuplicadas: duplicadas,
+      investimentos,
+      emprestimos,
+      importacao,
     };
     logger.info('[pluggy sync] conexão sincronizada', resultado);
     return resultado;
@@ -449,6 +484,67 @@ export async function sincronizarConexao(
     });
     throw error;
   }
+}
+
+/**
+ * Espelha investimentos e empréstimos do item. Posição que sumiu do provedor
+ * fica `ativo=false` (não apaga: o vínculo com a Carteira/Dívida continua).
+ */
+async function sincronizarPosicoes(
+  client: ReturnType<typeof getPluggyClient>,
+  providerItemId: string,
+  connectionId: string,
+  userId: string,
+): Promise<{ investimentos: number; emprestimos: number }> {
+  let investimentos = 0;
+  let emprestimos = 0;
+  try {
+    const lista = (await client.fetchInvestments(providerItemId)).results;
+    const ids: string[] = [];
+    for (const inv of lista) {
+      const dados = mapInvestment(inv, connectionId, userId);
+      ids.push(inv.id);
+      await prisma.bankInvestment.upsert({
+        where: { providerInvestmentId: inv.id },
+        create: dados,
+        update: dados,
+      });
+    }
+    await prisma.bankInvestment.updateMany({
+      where: { connectionId, providerInvestmentId: { notIn: ids }, ativo: true },
+      data: { ativo: false },
+    });
+    investimentos = lista.length;
+  } catch (error: unknown) {
+    logger.warn('[pluggy sync] investimentos indisponíveis', {
+      connectionId,
+      msg: error instanceof Error ? error.message : 'erro',
+    });
+  }
+  try {
+    const lista = (await client.fetchLoans(providerItemId)).results;
+    const ids: string[] = [];
+    for (const loan of lista) {
+      const dados = mapLoan(loan, connectionId, userId);
+      ids.push(loan.id);
+      await prisma.bankLoan.upsert({
+        where: { providerLoanId: loan.id },
+        create: dados,
+        update: dados,
+      });
+    }
+    await prisma.bankLoan.updateMany({
+      where: { connectionId, providerLoanId: { notIn: ids }, ativo: true },
+      data: { ativo: false },
+    });
+    emprestimos = lista.length;
+  } catch (error: unknown) {
+    logger.warn('[pluggy sync] empréstimos indisponíveis', {
+      connectionId,
+      msg: error instanceof Error ? error.message : 'erro',
+    });
+  }
+  return { investimentos, emprestimos };
 }
 
 /**

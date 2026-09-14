@@ -20,6 +20,10 @@ export const PRODUTOS_FASE_2 = [
   'CREDIT_CARDS',
   'TRANSACTIONS',
   'PAYMENT_DATA',
+  // Fase 3: investimentos e empréstimos entram sozinhos na Carteira e em Dívidas
+  'INVESTMENTS',
+  'INVESTMENTS_TRANSACTIONS',
+  'LOANS',
 ] as const;
 
 const bodySchema = z.object({ itemId: z.string().uuid().optional() }).default({});
@@ -44,8 +48,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     clientUserId: user.id,
     avoidDuplicates: true,
   });
-  // Só contas e cartões nesta fase (decisão 14/09/2026): consentimento mínimo,
-  // limites mensais do Open Finance poupados para o que usamos.
+  // Consentimento só do que usamos (contas, cartões, transações, investimentos, empréstimos).
   return NextResponse.json(
     { accessToken, includeSandbox: pluggyIncluiSandbox(), products: PRODUTOS_FASE_2 },
     { headers: { 'Cache-Control': 'no-store' } },

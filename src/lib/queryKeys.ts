@@ -38,6 +38,7 @@ export const queryKeys = {
     config: () => [...queryKeys.pluggy.all, 'config'] as const,
     conexoes: () => [...queryKeys.pluggy.all, 'conexoes'] as const,
     caixaEntrada: () => [...queryKeys.pluggy.all, 'caixa-entrada'] as const,
+    carteira: () => [...queryKeys.pluggy.all, 'carteira'] as const,
     extrato: (accountId: string, page: number) =>
       [...queryKeys.pluggy.all, 'extrato', accountId, page] as const,
   },

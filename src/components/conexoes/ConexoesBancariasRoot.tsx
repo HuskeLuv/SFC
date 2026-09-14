@@ -14,6 +14,7 @@ import {
   type ConnectTokenResposta,
 } from '@/hooks/useConexoesBancarias';
 import CaixaEntrada from './CaixaEntrada';
+import CarteiraImportada from './CarteiraImportada';
 import ConexaoCard from './ConexaoCard';
 import ExtratoConta from './ExtratoConta';
 import PluggyConnectWidget from './PluggyConnectWidget';
@@ -141,6 +142,7 @@ export default function ConexoesBancariasRoot() {
       ) : null}
 
       {lista.length > 0 ? <CaixaEntrada onAviso={setAviso} /> : null}
+      {lista.length > 0 ? <CarteiraImportada onAviso={setAviso} /> : null}
 
       {lista.length === 0 && !registrar.isPending ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">

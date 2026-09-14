@@ -3,6 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 import type {
   BankAccountDTO,
   BankConnectionDTO,
@@ -283,3 +284,112 @@ export const useDesaplicarTransacoes = mutacaoLote<{ ids: string[] }, AplicarRes
   'desaplicar',
   'Erro ao tirar do fluxo de caixa',
 );
+
+// ---------------------------------------------------------------------------
+// Investimentos e empréstimos importados (Fase 3)
+// ---------------------------------------------------------------------------
+
+export interface InvestimentoImportadoDTO {
+  id: string;
+  banco: string;
+  type: string;
+  subtype: string | null;
+  name: string;
+  code: string | null;
+  balance: number;
+  quantity: number | null;
+  amountOriginal: number | null;
+  rate: number | null;
+  rateType: string | null;
+  dueDate: string | null;
+  issuer: string | null;
+  status: string | null;
+  ativo: boolean;
+  assetId: string | null;
+  portfolioId: string | null;
+  importStatus: string;
+  importError: string | null;
+  importedAt: string | null;
+}
+
+export interface EmprestimoImportadoDTO {
+  id: string;
+  banco: string;
+  productName: string;
+  type: string | null;
+  contractAmount: number | null;
+  outstanding: number | null;
+  nextInstallmentAmount: number | null;
+  cet: number | null;
+  amortization: string | null;
+  totalInstallments: number | null;
+  paidInstallments: number | null;
+  dueDate: string | null;
+  ativo: boolean;
+  dividaId: string | null;
+  importStatus: string;
+  importError: string | null;
+  importedAt: string | null;
+}
+
+export interface CarteiraImportadaResposta {
+  investimentos: InvestimentoImportadoDTO[];
+  emprestimos: EmprestimoImportadoDTO[];
+}
+
+export interface ImportacaoResultadoDTO {
+  importados: number;
+  vinculados: number;
+  semSuporte: number;
+  ignorados: number;
+  erros: number;
+}
+
+function invalidarCarteira(queryClient: ReturnType<typeof useQueryClient>): void {
+  queryClient.invalidateQueries({ queryKey: queryKeys.pluggy.carteira() });
+  invalidatePortfolioDerivedQueries(queryClient);
+  queryClient.invalidateQueries({ queryKey: queryKeys.dividas.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
+}
+
+export function useCarteiraImportada(enabled = true) {
+  return useQuery<CarteiraImportadaResposta, ConexaoApiError>({
+    queryKey: queryKeys.pluggy.carteira(),
+    enabled,
+    staleTime: 30_000,
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`${BASE_URL}/carteira`, { credentials: 'include', signal });
+      if (!res.ok) await lancarErro(res, 'Erro ao carregar investimentos e empréstimos importados');
+      return (await res.json()) as CarteiraImportadaResposta;
+    },
+  });
+}
+
+export function useImportarCarteira() {
+  const { csrfFetch } = useCsrf();
+  const queryClient = useQueryClient();
+  return useMutation<ImportacaoResultadoDTO, ConexaoApiError, void>({
+    mutationFn: async () => {
+      const res = await csrfFetch(`${BASE_URL}/carteira/importar`, { method: 'POST' });
+      if (!res.ok) await lancarErro(res, 'Erro ao importar');
+      return (await res.json()) as ImportacaoResultadoDTO;
+    },
+    onSuccess: () => invalidarCarteira(queryClient),
+  });
+}
+
+export function useIgnorarInvestimento() {
+  const { csrfFetch } = useCsrf();
+  const queryClient = useQueryClient();
+  return useMutation<void, ConexaoApiError, { id: string }>({
+    mutationFn: async ({ id }) => {
+      const res = await csrfFetch(`${BASE_URL}/carteira/ignorar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) await lancarErro(res, 'Erro ao ignorar');
+    },
+    onSuccess: () => invalidarCarteira(queryClient),
+  });
+}
