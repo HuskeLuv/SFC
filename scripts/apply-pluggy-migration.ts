@@ -15,6 +15,7 @@ import { prisma } from '../src/lib/prisma';
 const MIGRATIONS = [
   '20260914180000_add_pluggy_bank_ledger',
   '20260914200000_bank_transaction_cashflow_link',
+  '20260914220000_bank_transaction_dedup',
 ];
 
 async function aplicar(MIGRATION_NAME: string) {

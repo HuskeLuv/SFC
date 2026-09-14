@@ -1350,7 +1350,16 @@ model BankTransaction {
   user              User        @relation("BankTransactionUser", fields: [userId], references: [id], onDelete: Cascade)
   /** Id no Pluggy. Pode mudar quando data/descrição/valor mudam — por isso o dedupHash. */
   providerTxId      String      @unique
+  /** sha256(conta local | data | valor | descrição): reconhece id trocado dentro da mesma conta. */
   dedupHash         String
+  /**
+   * sha256(usuário | banco | nº da conta | data | valor | descrição): reconhece a
+   * MESMA transação chegando por outra conexão (banco conectado duas vezes).
+   * Null só em linhas anteriores à migration; preenchido no próximo sync.
+   */
+  globalHash        String?
+  /** Id da transação original quando esta é cópia por outra conexão; fica fora da Caixa de entrada e das células. */
+  duplicadaDe       String?
   date              DateTime
   description       String
   descriptionRaw    String?
@@ -1391,6 +1400,7 @@ model BankTransaction {
   @@index([userId, date])
   @@index([accountId, date])
   @@index([accountId, dedupHash])
+  @@index([userId, globalHash])
   @@index([cashflowItemId])
   @@index([userId, appliedAt])
   @@map("bank_transactions")

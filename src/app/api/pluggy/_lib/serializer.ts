@@ -58,6 +58,7 @@ export interface BankTransactionDTO {
   ignorada: boolean;
   cashflowItemId: string | null;
   appliedAt: string | null;
+  duplicadaDe: string | null;
 }
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
@@ -128,5 +129,6 @@ export function serializeTransaction(t: BankTransaction): BankTransactionDTO {
     ignorada: t.ignorada,
     cashflowItemId: t.cashflowItemId,
     appliedAt: iso(t.appliedAt),
+    duplicadaDe: t.duplicadaDe,
   };
 }

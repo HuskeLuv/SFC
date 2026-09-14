@@ -8,8 +8,11 @@
  *  - janela de releitura de 7 dias (regra do Open Finance) a partir do último
  *    sync; primeira carga = 12 meses (máximo que o provedor devolve);
  *  - transações são identificadas pelo id do provedor; como esse id pode
- *    mudar, a reconciliação da janela marca `deletedAt` no que sumiu e a
- *    versão nova entra como linha nova (o dedupHash permite religar depois);
+ *    mudar, a linha existente com o mesmo dedupHash ADOTA o id novo; o que
+ *    sumiu da janela recebe `deletedAt`;
+ *  - banco conectado duas vezes: no registro, contas já existentes reaproveitam
+ *    a conexão (reconexão) ou entram desativadas; na sincronização, transação
+ *    com o mesmo globalHash de outra conta do usuário entra como `duplicadaDe`;
  *  - `PATCH /items` (atualização manual) é limitado a 20/min no Pluggy e
  *    proibido em lote → cooldown por conexão;
  *  - nunca gravar documento (CPF) de contrapartes: só o nome.
@@ -34,7 +37,20 @@ export interface SyncResultado {
   transacoesNovas: number;
   transacoesAtualizadas: number;
   transacoesRemovidas: number;
+  /** Criadas já marcadas como cópia de outra conta do usuário. */
+  transacoesDuplicadas: number;
 }
+
+const SELECT_LOCAL = {
+  id: true,
+  providerTxId: true,
+  dedupHash: true,
+  globalHash: true,
+  status: true,
+  providerCategory: true,
+  amount: true,
+  deletedAt: true,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Mapeamento provedor → ledger
@@ -52,6 +68,36 @@ export function dedupHash(
 ): string {
   return createHash('sha256')
     .update(`${accountId}|${isoDia(date)}|${amount.toFixed(2)}|${description.trim().toLowerCase()}`)
+    .digest('hex');
+}
+
+/**
+ * Identidade de uma conta independente da conexão: banco + número mascarado
+ * (ou tipo + nome quando o provedor não manda número). É o que reconhece o
+ * mesmo banco conectado duas vezes.
+ */
+export function chaveConta(
+  connectorId: number,
+  a: { number?: string | null; type: string; name: string },
+): string {
+  const numero = (a.number ?? '').replace(/\s+/g, '');
+  return numero
+    ? `${connectorId}|n:${numero}`
+    : `${connectorId}|t:${a.type}|${a.name.trim().toLowerCase()}`;
+}
+
+/** Mesma transação vista por outra conexão do mesmo usuário (chave da conta em vez do id local). */
+export function globalHash(
+  userId: string,
+  chave: string,
+  date: Date,
+  amount: number,
+  description: string,
+): string {
+  return createHash('sha256')
+    .update(
+      `${userId}|${chave}|${isoDia(date)}|${amount.toFixed(2)}|${description.trim().toLowerCase()}`,
+    )
     .digest('hex');
 }
 
@@ -91,7 +137,7 @@ export function mapAccount(a: Account, connectionId: string, userId: string) {
   };
 }
 
-export function mapTransaction(t: Transaction, accountId: string, userId: string) {
+export function mapTransaction(t: Transaction, accountId: string, userId: string, chave = '') {
   const date = new Date(t.date);
   const counterpart =
     t.type === 'CREDIT' ? t.paymentData?.payer?.name : t.paymentData?.receiver?.name;
@@ -100,6 +146,7 @@ export function mapTransaction(t: Transaction, accountId: string, userId: string
     userId,
     providerTxId: t.id,
     dedupHash: dedupHash(accountId, date, t.amount, t.description),
+    globalHash: globalHash(userId, chave, date, t.amount, t.description),
     date,
     description: t.description,
     descriptionRaw: t.descriptionRaw ?? null,
@@ -124,6 +171,7 @@ type TxMapeada = ReturnType<typeof mapTransaction>;
 function transacaoMudou(
   local: {
     dedupHash: string;
+    globalHash: string | null;
     status: string;
     providerCategory: string | null;
     amount: Prisma.Decimal;
@@ -132,6 +180,7 @@ function transacaoMudou(
 ): boolean {
   return (
     local.dedupHash !== nova.dedupHash ||
+    local.globalHash !== nova.globalHash ||
     local.status !== nova.status ||
     (local.providerCategory ?? null) !== nova.providerCategory ||
     Number(local.amount) !== nova.amount
@@ -142,11 +191,30 @@ function transacaoMudou(
 // Conexões
 // ---------------------------------------------------------------------------
 
+export interface RegistroResultado {
+  conexao: Prisma.BankConnectionGetPayload<{ include: { accounts: true } }>;
+  /** true = o banco já estava conectado: a conexão existente foi migrada para o item novo. */
+  reaproveitada: boolean;
+  /** Contas do item novo que já existiam em outra conexão e ficaram desativadas. */
+  contasRepetidas: number;
+}
+
+function carregar(id: string) {
+  return prisma.bankConnection.findUniqueOrThrow({
+    where: { id },
+    include: { accounts: { orderBy: { name: 'asc' } } },
+  });
+}
+
 /**
  * Registra o item criado pelo widget (POST /api/pluggy/connections) e faz a
- * primeira carga. Recusa item que pertença a outro usuário.
+ * primeira carga. Recusa item que pertença a outro usuário. Detecta o mesmo
+ * banco conectado de novo (Open Finance cria um item por consentimento).
  */
-export async function registrarConexao(userId: string, providerItemId: string) {
+export async function registrarConexao(
+  userId: string,
+  providerItemId: string,
+): Promise<RegistroResultado> {
   const client = getPluggyClient();
   const item = await client.fetchItem(providerItemId);
   if (item.clientUserId && item.clientUserId !== userId) {
@@ -158,15 +226,70 @@ export async function registrarConexao(userId: string, providerItemId: string) {
   }
 
   const dados = mapItem(item);
-  const conexao = existente
-    ? await prisma.bankConnection.update({ where: { id: existente.id }, data: dados })
-    : await prisma.bankConnection.create({ data: { userId, providerItemId, ...dados } });
+  if (existente) {
+    const conexao = await prisma.bankConnection.update({
+      where: { id: existente.id },
+      data: dados,
+    });
+    await sincronizarConexao(conexao.id, { item });
+    return { conexao: await carregar(conexao.id), reaproveitada: false, contasRepetidas: 0 };
+  }
 
-  await sincronizarConexao(conexao.id, { item });
-  return prisma.bankConnection.findUniqueOrThrow({
-    where: { id: conexao.id },
-    include: { accounts: { orderBy: { name: 'asc' } } },
+  // Compara as contas do item novo com as que o usuário já tem no mesmo banco
+  // (por número mascarado).
+  const contasNovas = (await client.fetchAccounts(providerItemId)).results;
+  const existentes = await prisma.bankAccount.findMany({
+    where: { userId, connection: { connectorId: item.connector.id } },
+    include: { connection: true },
   });
+  const porChave = new Map(existentes.map((a) => [chaveConta(item.connector.id, a), a]));
+  const repetidas = contasNovas.filter((c) => porChave.has(chaveConta(item.connector.id, c)));
+
+  if (contasNovas.length > 0 && repetidas.length === contasNovas.length) {
+    // Reconexão: a conexão antiga passa a apontar para o item novo; as contas
+    // mantêm o id local (histórico, lançamentos no fluxo) e trocam só o id do
+    // provedor. O item antigo é apagado no Pluggy (o consentimento novo vale).
+    const alvo = porChave.get(chaveConta(item.connector.id, repetidas[0]))!.connection;
+    try {
+      await client.deleteItem(alvo.providerItemId);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : '';
+      if (!/404/.test(msg)) logger.warn('[pluggy sync] não apagou item antigo', { msg });
+    }
+    await prisma.bankConnection.update({
+      where: { id: alvo.id },
+      data: { providerItemId, ...dados, lastSyncError: null, lastManualUpdateAt: null },
+    });
+    for (const c of repetidas) {
+      const local = porChave.get(chaveConta(item.connector.id, c))!;
+      if (local.connectionId !== alvo.id) continue; // conta de outra conexão antiga: fica onde está
+      await prisma.bankAccount.update({
+        where: { id: local.id },
+        data: { providerAccountId: c.id },
+      });
+    }
+    // Consentimento novo: relê os 12 meses (pode trazer mais histórico) e
+    // preenche globalHash/ids nas linhas antigas.
+    await sincronizarConexao(alvo.id, { item, completo: true });
+    return {
+      conexao: await carregar(alvo.id),
+      reaproveitada: true,
+      contasRepetidas: repetidas.length,
+    };
+  }
+
+  // Conexão nova; contas que já existem em outra conexão entram desativadas
+  // (sem importar transações) para não duplicar.
+  const conexao = await prisma.bankConnection.create({
+    data: { userId, providerItemId, ...dados },
+  });
+  const chavesInativas = new Set(repetidas.map((c) => chaveConta(item.connector.id, c)));
+  await sincronizarConexao(conexao.id, { item, chavesInativas });
+  return {
+    conexao: await carregar(conexao.id),
+    reaproveitada: false,
+    contasRepetidas: repetidas.length,
+  };
 }
 
 /**
@@ -175,7 +298,7 @@ export async function registrarConexao(userId: string, providerItemId: string) {
  */
 export async function sincronizarConexao(
   connectionId: string,
-  opts: { completo?: boolean; item?: Item } = {},
+  opts: { completo?: boolean; item?: Item; chavesInativas?: Set<string> } = {},
 ): Promise<SyncResultado> {
   const conexao = await prisma.bankConnection.findUniqueOrThrow({ where: { id: connectionId } });
   const client = getPluggyClient();
@@ -196,39 +319,85 @@ export async function sincronizarConexao(
     let novas = 0;
     let atualizadas = 0;
     let removidas = 0;
+    let duplicadas = 0;
 
     for (const conta of contas) {
+      const chave = chaveConta(item.connector.id, conta);
+      const inativa = opts.chavesInativas?.has(chave) ?? false;
+      const dadosConta = mapAccount(conta, connectionId, conexao.userId);
       const local = await prisma.bankAccount.upsert({
         where: { providerAccountId: conta.id },
-        create: mapAccount(conta, connectionId, conexao.userId),
-        update: mapAccount(conta, connectionId, conexao.userId),
+        create: { ...dadosConta, ativa: !inativa },
+        update: dadosConta,
       });
+      // Conta desativada (repetida de outra conexão ou desligada pelo usuário):
+      // não gasta cota do Open Finance nem importa transações.
+      if (!local.ativa) continue;
 
       const remotas = await client.fetchAllTransactions(conta.id, { dateFrom });
-      const mapeadas = remotas.map((t) => mapTransaction(t, local.id, conexao.userId));
+      const mapeadas = remotas.map((t) => mapTransaction(t, local.id, conexao.userId, chave));
       const idsRemotos = new Set(mapeadas.map((t) => t.providerTxId));
 
       const existentes = await prisma.bankTransaction.findMany({
         where: { accountId: local.id, providerTxId: { in: [...idsRemotos] } },
-        select: {
-          id: true,
-          providerTxId: true,
-          dedupHash: true,
-          status: true,
-          providerCategory: true,
-          amount: true,
-          deletedAt: true,
-        },
+        select: SELECT_LOCAL,
       });
       const porProviderId = new Map(existentes.map((e) => [e.providerTxId, e]));
 
-      const paraCriar = mapeadas.filter((t) => !porProviderId.has(t.providerTxId));
+      // Id trocado no provedor (mesma conta, mesma data/valor/descrição): a
+      // linha existente adota o id novo em vez de virar cópia + removida.
+      const adotados = new Set<string>();
+      const semId = mapeadas.filter((t) => !porProviderId.has(t.providerTxId));
+      if (semId.length > 0) {
+        const porHash = await prisma.bankTransaction.findMany({
+          where: {
+            accountId: local.id,
+            dedupHash: { in: semId.map((t) => t.dedupHash) },
+            providerTxId: { notIn: [...idsRemotos] },
+          },
+          select: SELECT_LOCAL,
+        });
+        const mapaHash = new Map(porHash.map((e) => [e.dedupHash, e]));
+        for (const t of semId) {
+          const e = mapaHash.get(t.dedupHash);
+          if (!e) continue;
+          mapaHash.delete(t.dedupHash);
+          await prisma.bankTransaction.update({
+            where: { id: e.id },
+            data: { ...t, deletedAt: null },
+          });
+          adotados.add(t.providerTxId);
+          atualizadas += 1;
+        }
+      }
+
+      const paraCriar = mapeadas.filter(
+        (t) => !porProviderId.has(t.providerTxId) && !adotados.has(t.providerTxId),
+      );
       if (paraCriar.length > 0) {
+        // Mesma transação já importada por OUTRA conta do usuário (banco
+        // conectado duas vezes, cartão visto por dois bancos): entra marcada
+        // como duplicada e fica fora da Caixa de entrada e das células.
+        const originais = await prisma.bankTransaction.findMany({
+          where: {
+            userId: conexao.userId,
+            accountId: { not: local.id },
+            globalHash: { in: paraCriar.map((t) => t.globalHash) },
+            deletedAt: null,
+            duplicadaDe: null,
+          },
+          select: { id: true, globalHash: true },
+        });
+        const originalPorHash = new Map(originais.map((o) => [o.globalHash, o.id]));
         const r = await prisma.bankTransaction.createMany({
-          data: paraCriar,
+          data: paraCriar.map((t) => ({
+            ...t,
+            duplicadaDe: originalPorHash.get(t.globalHash) ?? null,
+          })),
           skipDuplicates: true,
         });
         novas += r.count;
+        duplicadas += paraCriar.filter((t) => originalPorHash.has(t.globalHash)).length;
       }
       for (const t of mapeadas) {
         const e = porProviderId.get(t.providerTxId);
@@ -243,7 +412,7 @@ export async function sincronizarConexao(
       }
 
       // Reconciliação da janela: o que existe localmente na janela e não veio
-      // do provedor foi removido lá (ou trocou de id) → marca deletedAt.
+      // do provedor foi removido lá → marca deletedAt.
       const r = await prisma.bankTransaction.updateMany({
         where: {
           accountId: local.id,
@@ -268,6 +437,7 @@ export async function sincronizarConexao(
       transacoesNovas: novas,
       transacoesAtualizadas: atualizadas,
       transacoesRemovidas: removidas,
+      transacoesDuplicadas: duplicadas,
     };
     logger.info('[pluggy sync] conexão sincronizada', resultado);
     return resultado;

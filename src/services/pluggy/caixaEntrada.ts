@@ -79,7 +79,12 @@ export interface PendenteDTO {
   sugestao: SugestaoLinha;
 }
 
-const PENDENTE_WHERE = { deletedAt: null, ignorada: false, cashflowItemId: null } as const;
+const PENDENTE_WHERE = {
+  deletedAt: null,
+  ignorada: false,
+  cashflowItemId: null,
+  duplicadaDe: null,
+} as const;
 
 export async function listarPendentes(
   userId: string,
@@ -148,6 +153,7 @@ export async function recomputarCelula(userId: string, c: Celula): Promise<numbe
       userId,
       cashflowItemId: c.itemId,
       deletedAt: null,
+      duplicadaDe: null,
       date: { gte: inicio, lt: fim },
     },
     select: { amount: true },

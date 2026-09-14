@@ -47,6 +47,16 @@ Validado em 14/09 no Neon com o sandbox: 41 pendentes → 35 com sugestão resol
 
 Regras conhecidas/limitações: mês de competência = data da transação (fatura por vencimento fica para depois); a célula vira "propriedade" da conta conectada — digitação manual no mesmo mês é sobrescrita no próximo recomputo.
 
+## Banco conectado duas vezes — proteção em três camadas (14/09/2026)
+
+| Camada        | Onde                  | Regra                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Registro      | `registrarConexao`    | compara as contas do item novo com as do usuário no mesmo banco por `chaveConta` (banco + nº mascarado; fallback tipo+nome). **Todas repetidas** → reconexão: a conexão existente passa a apontar para o item novo, as contas trocam só o id do provedor, o item antigo é apagado no Pluggy; resposta 200 com `reaproveitada:true`. **Parte repetida** → conexão nova, contas repetidas entram `ativa=false` (sem importar transações). |
+| Sincronização | `sincronizarConexao`  | id trocado no provedor: a linha com o mesmo `dedupHash` (conta local + data + valor + descrição) **adota** o id novo (nada de cópia + removida). Transação com o mesmo `globalHash` (usuário + chave da conta + data + valor + descrição) já existente em **outra conta** do usuário entra com `duplicadaDe` = original e fica fora da Caixa de entrada e das células. Conta `ativa=false` não busca transações.                        |
+| Tela          | `/conexoes-bancarias` | aviso após conectar ("banco já estava conectado…" / "N contas ficaram desativadas"), conta "desativada" no card, "duplicada" no extrato, texto orientando a usar Reconectar.                                                                                                                                                                                                                                                            |
+
+Migration `20260914220000_bank_transaction_dedup` (`globalHash`, `duplicadaDe`). Linhas antigas sem `globalHash` são preenchidas no próximo sync.
+
 ## Passo a passo
 
 1. **Conta e aplicação no dashboard** — https://dashboard.pluggy.ai → criar a organização → _Applications_ →

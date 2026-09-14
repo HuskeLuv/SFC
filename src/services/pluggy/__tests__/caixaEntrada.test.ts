@@ -116,7 +116,13 @@ describe('sugestão sobre a árvore do usuário', () => {
     });
     expect(mockPrisma.bankTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: 'u1', deletedAt: null, ignorada: false, cashflowItemId: null },
+        where: {
+          userId: 'u1',
+          deletedAt: null,
+          ignorada: false,
+          cashflowItemId: null,
+          duplicadaDe: null,
+        },
         skip: 10,
         take: 10,
       }),
@@ -134,6 +140,7 @@ describe('recomputarCelula', () => {
         userId: 'u1',
         cashflowItemId: 'it-energia',
         deletedAt: null,
+        duplicadaDe: null,
         date: { gte: new Date('2026-08-01T00:00:00Z'), lt: new Date('2026-09-01T00:00:00Z') },
       },
       select: { amount: true },

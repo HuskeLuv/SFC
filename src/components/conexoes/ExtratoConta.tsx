@@ -103,6 +103,13 @@ export default function ExtratoConta({ conta, onFechar }: ExtratoContaProps) {
                           >
                             no fluxo · tirar
                           </button>
+                        ) : t.duplicadaDe ? (
+                          <span
+                            className="ml-2 text-xs text-gray-400"
+                            title="Já importada por outra conexão; não conta no fluxo"
+                          >
+                            duplicada
+                          </span>
                         ) : t.ignorada ? (
                           <span className="ml-2 text-xs text-gray-400">ignorada</span>
                         ) : null}

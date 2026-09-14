@@ -123,6 +123,7 @@ export default function ConexaoCard({
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {rotuloConta(a)}
                     {a.number ? ` · ${a.number}` : ''}
+                    {!a.ativa ? ' · desativada (já existe em outra conexão)' : ''}
                     {a.type === 'CREDIT' && a.creditDueDate
                       ? ` · fatura vence ${dataCurta(a.creditDueDate)}`
                       : ''}

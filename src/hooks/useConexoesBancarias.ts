@@ -25,6 +25,13 @@ export interface ConnectTokenResposta {
   products: string[];
 }
 
+export interface RegistroResposta {
+  connection: BankConnectionDTO;
+  /** true = o banco já estava conectado e a conexão existente foi atualizada. */
+  reaproveitada: boolean;
+  aviso: string | null;
+}
+
 export interface ExtratoResposta {
   transactions: BankTransactionDTO[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
@@ -103,7 +110,7 @@ export function useConnectToken() {
 export function useRegistrarConexao() {
   const { csrfFetch } = useCsrf();
   const queryClient = useQueryClient();
-  return useMutation<BankConnectionDTO, ConexaoApiError, { itemId: string }>({
+  return useMutation<RegistroResposta, ConexaoApiError, { itemId: string }>({
     mutationFn: async ({ itemId }) => {
       const res = await csrfFetch(`${BASE_URL}/connections`, {
         method: 'POST',
@@ -111,7 +118,7 @@ export function useRegistrarConexao() {
         body: JSON.stringify({ itemId }),
       });
       if (!res.ok) await lancarErro(res, 'Erro ao registrar a conexão');
-      return ((await res.json()) as { connection: BankConnectionDTO }).connection;
+      return (await res.json()) as RegistroResposta;
     },
     onSuccess: () => invalidarConexoes(queryClient),
   });

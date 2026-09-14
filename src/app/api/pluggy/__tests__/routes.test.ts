@@ -135,11 +135,38 @@ describe('rotas /api/pluggy', () => {
     expect((await registrar(json('/api/pluggy/connections', 'POST', { itemId: 'x' }))).status).toBe(
       400,
     );
-    mockSync.registrarConexao.mockResolvedValue(conexao);
+    mockSync.registrarConexao.mockResolvedValue({
+      conexao,
+      reaproveitada: false,
+      contasRepetidas: 0,
+    });
     const res = await registrar(json('/api/pluggy/connections', 'POST', { itemId: ITEM }));
     expect(res.status).toBe(201);
     expect(mockSync.registrarConexao).toHaveBeenCalledWith('user-1', ITEM);
-    expect((await res.json()).connection.id).toBe('conn-1');
+    expect(await res.json()).toMatchObject({
+      connection: { id: 'conn-1' },
+      reaproveitada: false,
+      aviso: null,
+    });
+
+    mockSync.registrarConexao.mockResolvedValue({
+      conexao,
+      reaproveitada: true,
+      contasRepetidas: 2,
+    });
+    const re = await registrar(json('/api/pluggy/connections', 'POST', { itemId: ITEM }));
+    expect(re.status).toBe(200);
+    expect((await re.json()).aviso).toMatch(/já estava conectado/);
+
+    mockSync.registrarConexao.mockResolvedValue({
+      conexao,
+      reaproveitada: false,
+      contasRepetidas: 1,
+    });
+    expect(
+      (await (await registrar(json('/api/pluggy/connections', 'POST', { itemId: ITEM }))).json())
+        .aviso,
+    ).toMatch(/1 conta já existia/);
   });
 
   it('DELETE e POST sync delegam ao serviço com o usuário da sessão', async () => {
@@ -197,6 +224,7 @@ describe('rotas /api/pluggy', () => {
         ignorada: false,
         cashflowItemId: null,
         appliedAt: null,
+        duplicadaDe: null,
       },
     ]);
     const res = await transacoes(
