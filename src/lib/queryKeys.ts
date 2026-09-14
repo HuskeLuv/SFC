@@ -33,6 +33,13 @@ export const queryKeys = {
     all: ['agenda'] as const,
     periodo: (de: string, ate: string) => [...queryKeys.agenda.all, de, ate] as const,
   },
+  pluggy: {
+    all: ['pluggy'] as const,
+    config: () => [...queryKeys.pluggy.all, 'config'] as const,
+    conexoes: () => [...queryKeys.pluggy.all, 'conexoes'] as const,
+    extrato: (accountId: string, page: number) =>
+      [...queryKeys.pluggy.all, 'extrato', accountId, page] as const,
+  },
   dividas: {
     all: ['dividas'] as const,
     detail: (id: string) => [...queryKeys.dividas.all, id] as const,

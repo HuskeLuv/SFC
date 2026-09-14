@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { prisma } from '@/lib/prisma';
 import { getPluggyClient } from '@/lib/pluggy';
+import { pluggyIncluiSandbox } from '@/lib/pluggyConfig';
 import { requireProprioUsuarioPluggy } from '../_lib/auth';
 
 /**
@@ -13,6 +14,13 @@ import { requireProprioUsuarioPluggy } from '../_lib/auth';
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export const PRODUTOS_FASE_2 = [
+  'ACCOUNTS',
+  'CREDIT_CARDS',
+  'TRANSACTIONS',
+  'PAYMENT_DATA',
+] as const;
 
 const bodySchema = z.object({ itemId: z.string().uuid().optional() }).default({});
 
@@ -36,5 +44,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     clientUserId: user.id,
     avoidDuplicates: true,
   });
-  return NextResponse.json({ accessToken }, { headers: { 'Cache-Control': 'no-store' } });
+  // Só contas e cartões nesta fase (decisão 14/09/2026): consentimento mínimo,
+  // limites mensais do Open Finance poupados para o que usamos.
+  return NextResponse.json(
+    { accessToken, includeSandbox: pluggyIncluiSandbox(), products: PRODUTOS_FASE_2 },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
 });
