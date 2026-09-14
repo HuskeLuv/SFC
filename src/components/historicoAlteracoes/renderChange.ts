@@ -87,6 +87,18 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Editou valores do fluxo de caixa em lote',
     (l) => `Editou ${l} do fluxo de caixa`,
   ),
+  'banco.aplicar': withLabel(
+    'Lançou transações do banco no fluxo de caixa',
+    (l) => `Lançou ${l} do banco no fluxo de caixa`,
+  ),
+  'banco.ignorar': withLabel(
+    'Ignorou transações do banco',
+    (l) => `Ignorou ${l} do banco na Caixa de entrada`,
+  ),
+  'banco.desaplicar': withLabel(
+    'Tirou transações do banco do fluxo de caixa',
+    (l) => `Tirou ${l} do banco do fluxo de caixa`,
+  ),
   'valores.editar-recorrente': withLabel(
     'Registrou um lançamento recorrente no fluxo de caixa',
     (l) => `Registrou lançamento recorrente em ${l}`,
