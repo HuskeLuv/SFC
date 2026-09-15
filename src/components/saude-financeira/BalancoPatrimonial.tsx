@@ -9,6 +9,11 @@ import type {
 import { TIPO_LABELS } from '@/components/dividas/utils';
 import type { DividaTipo } from '@/hooks/useDividas';
 import { formatBRL, formatPercent, tendenciaSeta } from './utils';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_SECTION_STYLE,
+} from '@/components/ui/table/tableStyles';
 
 // Linhas-modelo do lado Passivo (formato planilha): tipos exibidos zerados
 // quando não há dívida cadastrada. Não usar TIPOS_ROTATIVA/TIPOS_FINANCIAMENTO
@@ -41,16 +46,20 @@ type Item = { key: string; label: string; valor: number };
 
 /** Célula de item (rótulo + valor) de um dos lados; vazia quando o outro lado tem mais linhas. */
 function ItemCells({ item }: { item: Item | undefined }) {
-  if (!item) return <td colSpan={2} className="px-3 py-1" />;
+  if (!item) return <td colSpan={2} className={TABLE_STYLES.td} />;
   return (
     <>
-      <td className="px-3 py-1 text-sm text-gray-600 dark:text-gray-300">{item.label}</td>
-      <td
-        className={`whitespace-nowrap px-3 py-1 text-right text-sm font-medium ${
-          item.valor === 0 ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white/90'
-        }`}
-      >
-        {formatBRL(item.valor)}
+      <td className={TABLE_STYLES.td}>{item.label}</td>
+      <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium`}>
+        <span
+          className={
+            item.valor === 0
+              ? 'text-gray-400 dark:text-gray-500'
+              : 'text-gray-900 dark:text-white/90'
+          }
+        >
+          {formatBRL(item.valor)}
+        </span>
       </td>
     </>
   );
@@ -60,8 +69,8 @@ function ItemCells({ item }: { item: Item | undefined }) {
 function TotalCells({ label, valor }: { label: string; valor: number }) {
   return (
     <>
-      <td className="px-3 py-1.5 text-sm font-bold text-gray-800 dark:text-gray-100">{label}</td>
-      <td className="whitespace-nowrap px-3 py-1.5 text-right text-sm font-bold text-gray-900 dark:text-white/90">
+      <td className={`${TABLE_STYLES.td} font-semibold`}>{label}</td>
+      <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold`}>
         {formatBRL(valor)}
       </td>
     </>
@@ -116,10 +125,9 @@ export default function BalancoPatrimonial({
   const pares = (a: Item[], b: Item[]): Array<[Item | undefined, Item | undefined]> =>
     Array.from({ length: Math.max(a.length, b.length, 1) }, (_, i) => [a[i], b[i]]);
 
-  const subHeaderClass =
-    'bg-gray-200 px-3 py-1 text-center text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200';
-  const totalRowClass =
-    'border-t border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-white/[0.04]';
+  // Sub-cabeçalhos "curto/longo prazo": linha de seção (azul tranquilidade)
+  // do padrão único de tabelas; totais de quadrante: linha de total.
+  const subHeaderClass = `${TABLE_STYLES.td} text-center text-white`;
 
   return (
     <div className="print:break-inside-avoid rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -135,34 +143,23 @@ export default function BalancoPatrimonial({
         </Link>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[640px] border-separate border-spacing-0 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+      <div className={`mt-4 ${TABLE_STYLES.wrapper}`}>
+        <table className={`${TABLE_STYLES.table} min-w-[640px]`}>
           <thead>
             {/* Cabeçalho da planilha: faixa azul Ativo | Passivo */}
-            <tr>
-              <th
-                colSpan={2}
-                className="border-r border-white/20 px-3 py-1.5 text-center text-sm font-bold text-white"
-                style={{ backgroundColor: '#366092' }}
-              >
+            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+              <th colSpan={2} className={`${TABLE_STYLES.th} text-center`}>
                 Ativo
               </th>
-              <th
-                colSpan={2}
-                className="px-3 py-1.5 text-center text-sm font-bold text-white"
-                style={{ backgroundColor: '#366092' }}
-              >
+              <th colSpan={2} className={`${TABLE_STYLES.th} text-center`}>
                 Passivo
               </th>
             </tr>
           </thead>
           <tbody>
             {/* Quadrante curto prazo */}
-            <tr>
-              <td
-                colSpan={2}
-                className={`${subHeaderClass} border-r border-gray-200 dark:border-gray-600`}
-              >
+            <tr className={TABLE_STYLES.sectionRow} style={TABLE_SECTION_STYLE}>
+              <td colSpan={2} className={subHeaderClass}>
                 Ativos curto prazo
               </td>
               <td colSpan={2} className={subHeaderClass}>
@@ -170,22 +167,19 @@ export default function BalancoPatrimonial({
               </td>
             </tr>
             {pares(ativosCurto, passivosCurto).map(([a, p], i) => (
-              <tr key={`curto-${a?.key ?? 'x'}-${p?.key ?? 'x'}-${i}`}>
+              <tr key={`curto-${a?.key ?? 'x'}-${p?.key ?? 'x'}-${i}`} className={TABLE_STYLES.row}>
                 <ItemCells item={a} />
                 <ItemCells item={p} />
               </tr>
             ))}
-            <tr className={totalRowClass}>
+            <tr className={TABLE_STYLES.totalRow}>
               <TotalCells label="TOTAL Ativos Curto Prazo" valor={balanco.ativosAltaLiquidez} />
               <TotalCells label="TOTAL Passivos Curto Prazo" valor={balanco.passivosCurtoPrazo} />
             </tr>
 
             {/* Quadrante longo prazo */}
-            <tr>
-              <td
-                colSpan={2}
-                className={`${subHeaderClass} border-r border-gray-200 dark:border-gray-600`}
-              >
+            <tr className={TABLE_STYLES.sectionRow} style={TABLE_SECTION_STYLE}>
+              <td colSpan={2} className={subHeaderClass}>
                 Ativos longo prazo
               </td>
               <td colSpan={2} className={subHeaderClass}>
@@ -193,31 +187,29 @@ export default function BalancoPatrimonial({
               </td>
             </tr>
             {pares(ativosLongo, passivosLongo).map(([a, p], i) => (
-              <tr key={`longo-${a?.key ?? 'x'}-${p?.key ?? 'x'}-${i}`}>
+              <tr key={`longo-${a?.key ?? 'x'}-${p?.key ?? 'x'}-${i}`} className={TABLE_STYLES.row}>
                 <ItemCells item={a} />
                 <ItemCells item={p} />
               </tr>
             ))}
-            <tr className={totalRowClass}>
+            <tr className={TABLE_STYLES.totalRow}>
               <TotalCells label="TOTAL Ativos Longo Prazo" valor={balanco.ativosBaixaLiquidez} />
               <TotalCells label="TOTAL Passivos Longo Prazo" valor={balanco.passivosLongoPrazo} />
             </tr>
 
-            {/* Barra do PL (formato planilha: faixa escura com o valor) */}
-            <tr>
-              <td
-                colSpan={2}
-                className="px-3 py-2 text-sm font-bold text-white"
-                style={{ backgroundColor: '#244061' }}
-              >
+            {/* Barra do PL: linha de total destacada (antes faixa #244061 fora da paleta) */}
+            <tr className={`${TABLE_STYLES.totalRow} font-semibold`}>
+              <td colSpan={2} className={`${TABLE_STYLES.td} font-semibold`}>
                 Total do Patrimônio Líquido
               </td>
-              <td
-                colSpan={2}
-                className="px-3 py-2 text-right text-base font-bold"
-                style={{ backgroundColor: '#244061' }}
-              >
-                <span className={balanco.patrimonioLiquido < 0 ? 'text-red-300' : 'text-white'}>
+              <td colSpan={2} className={`${TABLE_STYLES.td} text-right font-semibold`}>
+                <span
+                  className={`text-base ${
+                    balanco.patrimonioLiquido < 0
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-gray-900 dark:text-white/90'
+                  }`}
+                >
                   {formatBRL(balanco.patrimonioLiquido)}
                   <Seta seta={tendenciaSeta(tendencias.patrimonioLiquido, true)} />
                 </span>

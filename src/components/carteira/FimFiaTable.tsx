@@ -185,7 +185,6 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       key: 'objetivo',
       header: 'Objetivo',
       align: 'right',
-      cellClassName: 'border border-black',
       render: (a, f) => (
         <EditableObjetivoCell
           ativoId={a.id}

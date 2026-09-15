@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useCoberturaFgc } from '@/hooks/useCoberturaFgc';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import Tooltip from '@/components/ui/tooltip/Tooltip';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -340,38 +341,26 @@ export default function CoberturaFgc() {
 
               {/* Expanded asset list */}
               {isExpanded && (
-                <div className="border-t border-gray-100 dark:border-gray-800">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                <div className="border-t border-gray-100 p-4 dark:border-gray-800">
+                  <div className={TABLE_STYLES.wrapper}>
+                    <table className={TABLE_STYLES.table}>
                       <thead>
-                        <tr className="border-b border-gray-100 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/30">
-                          <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            Ativo
-                          </th>
-                          <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            Produto
-                          </th>
-                          <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            Valor investido
-                          </th>
-                          <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            Valor atual
-                          </th>
-                          <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            Vencimento
-                          </th>
-                          <th className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            FGC
-                          </th>
+                        <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                          <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
+                          <th className={`${TABLE_STYLES.th} text-left`}>Produto</th>
+                          <th className={`${TABLE_STYLES.th} text-right`}>Valor investido</th>
+                          <th className={`${TABLE_STYLES.th} text-right`}>Valor atual</th>
+                          <th className={`${TABLE_STYLES.th} text-left`}>Vencimento</th>
+                          <th className={`${TABLE_STYLES.th} text-center`}>FGC</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      <tbody>
                         {inst.ativos.map((ativo) => (
                           <tr
                             key={ativo.id}
-                            className="transition-colors hover:bg-gray-50/50 dark:hover:bg-white/[0.02]"
+                            className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
                           >
-                            <td className="whitespace-nowrap px-5 py-3">
+                            <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                               <div className="font-medium text-gray-900 dark:text-white">
                                 {ativo.nome}
                               </div>
@@ -381,25 +370,27 @@ export default function CoberturaFgc() {
                                 </span>
                               )}
                             </td>
-                            <td className="whitespace-nowrap px-5 py-3">
+                            <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                               <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                                 {ativo.produto}
                               </span>
                             </td>
-                            <td className="whitespace-nowrap px-5 py-3 text-right text-gray-700 dark:text-gray-300">
+                            <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
                               {formatBRL(ativo.valorInvestido)}
                             </td>
-                            <td className="whitespace-nowrap px-5 py-3 text-right font-medium text-gray-900 dark:text-white">
+                            <td
+                              className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium text-gray-900 dark:text-white`}
+                            >
                               {formatBRL(ativo.valorAtual)}
                             </td>
-                            <td className="whitespace-nowrap px-5 py-3 text-gray-700 dark:text-gray-300">
+                            <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                               {ativo.vencimento
                                 ? new Date(ativo.vencimento).toLocaleDateString('pt-BR', {
                                     timeZone: 'UTC',
                                   })
                                 : '—'}
                             </td>
-                            <td className="whitespace-nowrap px-5 py-3 text-center">
+                            <td className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}>
                               {/* 2.7 (auditoria jul/2026): o limite FGC é por INSTITUIÇÃO,
                                   não por ativo. Se a soma dos ativos cobertos da instituição
                                   excede o limite (mesma condição do header "R$ X acima do

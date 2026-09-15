@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { CATEGORIA_LABEL, formatBRL, formatYearMonth } from './irFormatters';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 const CATEGORIES: IRRendaVariavelCategory[] = ['acao_br', 'fii', 'etf_br'];
 
@@ -69,46 +70,38 @@ export default function IRMensalRendaVariavel() {
         />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full text-sm">
+      <div className={TABLE_STYLES.wrapper}>
+        <table className={TABLE_STYLES.table}>
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/30">
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                Mês
-              </th>
+            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+              <th className={`${TABLE_STYLES.th} text-left`}>Mês</th>
               {CATEGORIES.map((cat) => (
-                <th
-                  key={cat}
-                  className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-                >
+                <th key={cat} className={`${TABLE_STYLES.th} text-right`}>
                   {CATEGORIA_LABEL[cat]}
                 </th>
               ))}
-              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                Total IR
-              </th>
+              <th className={`${TABLE_STYLES.th} text-right`}>Total IR</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          <tbody>
             {data.meses.map((mes) => (
-              <tr
-                key={mes.yearMonth}
-                className="transition-colors hover:bg-gray-50/50 dark:hover:bg-white/[0.02]"
-              >
-                <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900 dark:text-white">
+              <tr key={mes.yearMonth} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                <td
+                  className={`${TABLE_STYLES.td} whitespace-nowrap font-medium text-gray-900 dark:text-white`}
+                >
                   {formatYearMonth(mes.yearMonth)}
                 </td>
                 {CATEGORIES.map((cat) => {
                   const r = mes.porCategoria[cat];
                   if (!r) {
                     return (
-                      <td key={cat} className="px-4 py-3 text-right text-gray-400">
-                        —
+                      <td key={cat} className={`${TABLE_STYLES.td} text-right`}>
+                        <span className="text-gray-400">—</span>
                       </td>
                     );
                   }
                   return (
-                    <td key={cat} className="whitespace-nowrap px-4 py-3 text-right">
+                    <td key={cat} className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
                       {r.isento ? (
                         <div>
                           <div className="text-emerald-600 dark:text-emerald-400">Isento</div>
@@ -138,7 +131,9 @@ export default function IRMensalRendaVariavel() {
                     </td>
                   );
                 })}
-                <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">
+                <td
+                  className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
+                >
                   {mes.irTotalDevido > 0 ? formatBRL(mes.irTotalDevido) : '—'}
                 </td>
               </tr>

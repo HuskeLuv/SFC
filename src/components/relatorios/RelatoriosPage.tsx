@@ -18,6 +18,7 @@ import ProventosDistribuicaoChart from '@/components/analises/ProventosDistribui
 import PieChartCarteiraInvestimentos from '@/components/charts/pie/PieChartCarteiraInvestimentos';
 import LineChartCarteiraHistorico from '@/components/charts/line/LineChartCarteiraHistorico';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { utcMidnight, dropCurrentDayUtc } from '@/utils/utcDay';
 import { useQuery } from '@tanstack/react-query';
 import { calcularRentabilidade } from '@/components/analises/RentabilidadeResumo';
@@ -607,20 +608,14 @@ export default function RelatoriosPage() {
                   </p>
                 </div>
               </div>
-              <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-                <Table className="w-full">
-                  <TableHeader className="bg-gray-50 dark:bg-gray-900">
-                    <TableRow>
-                      <TableCell
-                        isHeader
-                        className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
-                      >
+              <div className={`mt-6 ${TABLE_STYLES.wrapper}`}>
+                <Table className={TABLE_STYLES.table}>
+                  <TableHeader>
+                    <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                      <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
                         Categoria
                       </TableCell>
-                      <TableCell
-                        isHeader
-                        className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
-                      >
+                      <TableCell isHeader className={`${TABLE_STYLES.th} text-right`}>
                         Orçamento
                       </TableCell>
                     </TableRow>
@@ -628,11 +623,8 @@ export default function RelatoriosPage() {
                   <TableBody>
                     {cashflowCategoryRows.length > 0 ? (
                       cashflowCategoryRows.map((row) => (
-                        <TableRow
-                          key={row.id}
-                          className="border-t border-gray-200 dark:border-gray-800"
-                        >
-                          <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        <TableRow key={row.id} className={TABLE_STYLES.row}>
+                          <TableCell className={TABLE_STYLES.td}>
                             <span
                               className="inline-flex items-center"
                               style={{ paddingLeft: `${row.depth * 16}px` }}
@@ -643,16 +635,18 @@ export default function RelatoriosPage() {
                               {row.name}
                             </span>
                           </TableCell>
-                          <TableCell className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
+                          <TableCell
+                            className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white`}
+                          >
                             R$ {formatCurrencyValue(row.total)}
                           </TableCell>
                         </TableRow>
                       ))
                     ) : (
-                      <TableRow className="border-t border-gray-200 dark:border-gray-800">
+                      <TableRow className={TABLE_STYLES.placeholderRow}>
                         <TableCell
                           colSpan={2}
-                          className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
+                          className={`${TABLE_STYLES.td} text-center text-gray-500 dark:text-gray-400`}
                         >
                           Sem dados para o período selecionado.
                         </TableCell>

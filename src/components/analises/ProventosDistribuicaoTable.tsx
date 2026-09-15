@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { GroupedProventoData } from '@/hooks/useProventos';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 type GroupByType = 'ativo' | 'classe' | 'tipo';
 
@@ -50,41 +51,32 @@ export default function ProventosDistribuicaoTable({
   if (groupBy !== 'ativo') {
     // Layout simples para agrupamentos por classe / tipo
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+      <div className={TABLE_STYLES.wrapper}>
+        <table className={TABLE_STYLES.table}>
           <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-700">
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+              <th className={`${TABLE_STYLES.th} text-left`}>
                 {groupBy === 'classe' ? 'Classe' : 'Tipo'}
               </th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Total Acumulado
-              </th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-                %
-              </th>
+              <th className={`${TABLE_STYLES.th} text-right`}>Total Acumulado</th>
+              <th className={`${TABLE_STYLES.th} text-right`}>%</th>
             </tr>
           </thead>
           <tbody>
             {entries.map(([name, data]) => {
               const percentage = total > 0 ? (data.total / total) * 100 : 0;
               return (
-                <tr
-                  key={name}
-                  className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                >
-                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{name}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white font-medium">
+                <tr key={name} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                  <td className={TABLE_STYLES.td}>{name}</td>
+                  <td className={`${TABLE_STYLES.td} text-right font-medium`}>
                     {formatCurrency(data.total)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
-                    {percentage.toFixed(2)}%
-                  </td>
+                  <td className={`${TABLE_STYLES.td} text-right`}>{percentage.toFixed(2)}%</td>
                 </tr>
               );
             })}
             {entries.length === 0 && (
-              <tr>
+              <tr className={TABLE_STYLES.placeholderRow}>
                 <td
                   colSpan={3}
                   className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
@@ -101,43 +93,29 @@ export default function ProventosDistribuicaoTable({
 
   // Tabela rica por ATIVO (estilo Kinvo)
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
+    <div className={TABLE_STYLES.wrapper}>
+      <table className={TABLE_STYLES.table}>
         <thead>
-          <tr className="border-b border-gray-200 dark:border-gray-700">
+          <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
             <th
-              className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+              className={`${TABLE_STYLES.compact.th} cursor-pointer select-none text-left`}
               onClick={() => toggleSort('ativo')}
             >
               Ativo {sortKey === 'ativo' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
             </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Classe
-            </th>
-            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Qtd. Atual
-            </th>
-            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              P. Médio atual
-            </th>
-            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              YoC
-            </th>
-            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Dividend Yield
-            </th>
-            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Últ. Provento
-            </th>
+            <th className={`${TABLE_STYLES.compact.th} text-left`}>Classe</th>
+            <th className={`${TABLE_STYLES.compact.th} text-right`}>Qtd. Atual</th>
+            <th className={`${TABLE_STYLES.compact.th} text-right`}>P. Médio atual</th>
+            <th className={`${TABLE_STYLES.compact.th} text-right`}>YoC</th>
+            <th className={`${TABLE_STYLES.compact.th} text-right`}>Dividend Yield</th>
+            <th className={`${TABLE_STYLES.compact.th} text-right`}>Últ. Provento</th>
             <th
-              className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+              className={`${TABLE_STYLES.compact.th} cursor-pointer select-none text-right`}
               onClick={() => toggleSort('total')}
             >
               Total Acumulado {sortKey === 'total' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
             </th>
-            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Magic number
-            </th>
+            <th className={`${TABLE_STYLES.compact.th} text-right`}>Magic number</th>
           </tr>
         </thead>
         <tbody>
@@ -146,19 +124,20 @@ export default function ProventosDistribuicaoTable({
             const isFii = data.classe === "FII's";
 
             return (
-              <tr
-                key={name}
-                className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-              >
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
+              <tr key={name} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                <td
+                  className={`${TABLE_STYLES.compact.td} font-medium text-gray-900 dark:text-white`}
+                >
                   <div className="flex flex-col">
                     <span>{symbol || name}</span>
                     {symbol && symbol !== name ? (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">{name}</span>
+                      <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                        {name}
+                      </span>
                     ) : null}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                <td className={TABLE_STYLES.compact.td}>
                   {data.classe ? (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-xs font-medium uppercase">
                       {data.classe}
@@ -167,32 +146,32 @@ export default function ProventosDistribuicaoTable({
                     '—'
                   )}
                 </td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {data.quantidadeAtual != null ? formatNumber(data.quantidadeAtual) : '—'}
                 </td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {data.precoMedio != null ? formatCurrency(data.precoMedio) : '—'}
                 </td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {data.yoc != null ? formatPercent(data.yoc) : '—'}
                 </td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {data.dividendYield != null ? formatPercent(data.dividendYield) : '—'}
                 </td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {data.ultimoProvento != null ? formatCurrency(data.ultimoProvento) : '—'}
                 </td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white font-medium">
+                <td className={`${TABLE_STYLES.compact.td} text-right font-medium`}>
                   {formatCurrency(data.total)}
                 </td>
-                <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {isFii && data.magicNumber ? formatNumber(data.magicNumber) : '—'}
                 </td>
               </tr>
             );
           })}
           {entries.length === 0 && (
-            <tr>
+            <tr className={TABLE_STYLES.placeholderRow}>
               <td
                 colSpan={9}
                 className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
@@ -204,17 +183,14 @@ export default function ProventosDistribuicaoTable({
         </tbody>
         {entries.length > 0 && (
           <tfoot>
-            <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50">
-              <td
-                colSpan={7}
-                className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white"
-              >
+            <tr className={TABLE_STYLES.totalRow}>
+              <td colSpan={7} className={`${TABLE_STYLES.compact.td} font-semibold`}>
                 Total
               </td>
-              <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">
+              <td className={`${TABLE_STYLES.compact.td} text-right font-semibold`}>
                 {formatCurrency(total)}
               </td>
-              <td />
+              <td className={TABLE_STYLES.compact.td} />
             </tr>
           </tfoot>
         )}

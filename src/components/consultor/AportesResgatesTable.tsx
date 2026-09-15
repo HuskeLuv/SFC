@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import Badge from '@/components/ui/badge/Badge';
 
 interface AportesResgates {
@@ -37,31 +38,28 @@ const AportesResgatesTable: React.FC<AportesResgatesTableProps> = ({
   return (
     <Card>
       <CardTitle>Resumo de Aportes & Resgates dos Clientes</CardTitle>
-      <div className="mt-4 overflow-x-auto">
-        <Table>
+      <div className={`mt-4 ${TABLE_STYLES.wrapper}`}>
+        <Table className={TABLE_STYLES.table}>
           <TableHeader>
-            <TableRow>
-              <TableCell isHeader className="px-4 py-3">
+            <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
                 Cliente
               </TableCell>
-              <TableCell isHeader className="px-4 py-3 text-right">
+              <TableCell isHeader className={`${TABLE_STYLES.th} text-right`}>
                 Total Aportado
               </TableCell>
-              <TableCell isHeader className="px-4 py-3 text-right">
+              <TableCell isHeader className={`${TABLE_STYLES.th} text-right`}>
                 Total Resgatado
               </TableCell>
-              <TableCell isHeader className="px-4 py-3 text-center">
+              <TableCell isHeader className={`${TABLE_STYLES.th} text-center`}>
                 Tendência
               </TableCell>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.map((item) => (
-              <TableRow
-                key={item.clientId}
-                className="border-b border-gray-100 last:border-b-0 dark:border-gray-800"
-              >
-                <TableCell className="px-4 py-4">
+              <TableRow key={item.clientId} className={TABLE_STYLES.row}>
+                <TableCell className={TABLE_STYLES.td}>
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-gray-900 dark:text-white/90">
                       {item.name}
@@ -69,13 +67,13 @@ const AportesResgatesTable: React.FC<AportesResgatesTableProps> = ({
                     <span className="text-xs text-gray-500 dark:text-gray-400">{item.email}</span>
                   </div>
                 </TableCell>
-                <TableCell className="px-4 py-4 text-right text-sm text-gray-700 dark:text-white/80">
+                <TableCell className={`${TABLE_STYLES.td} text-right`}>
                   {currencyFormatter(item.totalAportes)}
                 </TableCell>
-                <TableCell className="px-4 py-4 text-right text-sm text-gray-700 dark:text-white/80">
+                <TableCell className={`${TABLE_STYLES.td} text-right`}>
                   {currencyFormatter(item.totalResgates)}
                 </TableCell>
-                <TableCell className="px-4 py-4 text-center">
+                <TableCell className={`${TABLE_STYLES.td} text-center`}>
                   <Badge
                     color={item.tendencia === 'positive' ? 'success' : 'error'}
                     size="sm"

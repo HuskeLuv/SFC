@@ -9,6 +9,7 @@ import Link from 'next/link';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import Button from '@/components/ui/button/Button';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { Modal } from '@/components/ui/modal';
 import { Dropdown } from '@/components/ui/dropdown/Dropdown';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -589,30 +590,21 @@ const AtivoEditarContent = () => {
     if (!editing || !draft) {
       if (!p) return null;
       return (
-        <tr
-          key={key}
-          className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-        >
-          <td className="px-2 py-2 text-gray-800 dark:text-gray-200">{p.tipo}</td>
-          <td className="px-2 py-2 text-right text-gray-800 dark:text-gray-200">
-            {formatDate(p.dataCom)}
-          </td>
-          <td className="px-2 py-2 text-right text-gray-800 dark:text-gray-200">
-            {formatDate(p.dataPagamento)}
-          </td>
-          <td className="px-2 py-2 text-center text-gray-800 dark:text-gray-200 capitalize">
+        <tr key={key} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+          <td className={TABLE_STYLES.td}>{p.tipo}</td>
+          <td className={`${TABLE_STYLES.td} text-right`}>{formatDate(p.dataCom)}</td>
+          <td className={`${TABLE_STYLES.td} text-right`}>{formatDate(p.dataPagamento)}</td>
+          <td className={`${TABLE_STYLES.td} text-center capitalize`}>
             {p.precificarPor === 'quantidade' ? 'Quantidade' : 'Valor'}
           </td>
-          <td className="px-2 py-2 text-right text-gray-800 dark:text-gray-200">
-            {formatCurrency(p.valorTotal)}
-          </td>
-          <td className="px-2 py-2 text-right text-gray-800 dark:text-gray-200">
+          <td className={`${TABLE_STYLES.td} text-right`}>{formatCurrency(p.valorTotal)}</td>
+          <td className={`${TABLE_STYLES.td} text-right`}>
             {p.quantidadeBase.toLocaleString('pt-BR')}
           </td>
-          <td className="px-2 py-2 text-right text-gray-800 dark:text-gray-200">
+          <td className={`${TABLE_STYLES.td} text-right`}>
             {p.impostoRenda != null ? formatCurrency(p.impostoRenda) : '—'}
           </td>
-          <td className="px-2 py-2 text-right">
+          <td className={`${TABLE_STYLES.td} text-right`}>
             <button
               type="button"
               onClick={() => handleStartEditProvento(p)}
@@ -627,11 +619,8 @@ const AtivoEditarContent = () => {
     }
 
     return (
-      <tr
-        key={key}
-        className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50"
-      >
-        <td className="px-2 py-2 align-top">
+      <tr key={key} className={`${TABLE_STYLES.row} bg-gray-50 dark:bg-gray-900/50`}>
+        <td className={`${TABLE_STYLES.td} align-top`}>
           <input
             type="text"
             value={draft.tipo}
@@ -640,7 +629,7 @@ const AtivoEditarContent = () => {
             aria-label="Tipo de movimentação"
           />
         </td>
-        <td className="px-2 py-2 align-top">
+        <td className={`${TABLE_STYLES.td} align-top`}>
           <input
             type="date"
             value={draft.dataCom}
@@ -649,7 +638,7 @@ const AtivoEditarContent = () => {
             aria-label="Data com"
           />
         </td>
-        <td className="px-2 py-2 align-top">
+        <td className={`${TABLE_STYLES.td} align-top`}>
           <input
             type="date"
             value={draft.dataPagamento}
@@ -660,7 +649,7 @@ const AtivoEditarContent = () => {
             aria-label="Data de pagamento"
           />
         </td>
-        <td className="px-2 py-2 align-top">
+        <td className={`${TABLE_STYLES.td} align-top`}>
           <select
             value={draft.precificarPor}
             onChange={(e) =>
@@ -673,7 +662,7 @@ const AtivoEditarContent = () => {
             <option value="quantidade">Quantidade</option>
           </select>
         </td>
-        <td className="px-2 py-2 align-top">
+        <td className={`${TABLE_STYLES.td} align-top`}>
           <input
             type="text"
             inputMode="decimal"
@@ -685,7 +674,7 @@ const AtivoEditarContent = () => {
             aria-label="Valor total em reais"
           />
         </td>
-        <td className="px-2 py-2 align-top">
+        <td className={`${TABLE_STYLES.td} align-top`}>
           <input
             type="text"
             inputMode="decimal"
@@ -697,7 +686,7 @@ const AtivoEditarContent = () => {
             aria-label="Quantidade base"
           />
         </td>
-        <td className="px-2 py-2 align-top">
+        <td className={`${TABLE_STYLES.td} align-top`}>
           <input
             type="text"
             inputMode="decimal"
@@ -710,7 +699,7 @@ const AtivoEditarContent = () => {
             aria-label="Imposto de renda (opcional)"
           />
         </td>
-        <td className="px-2 py-2 align-top text-right">
+        <td className={`${TABLE_STYLES.td} align-top text-right`}>
           <div className="flex flex-col items-end gap-1 sm:flex-row sm:flex-wrap sm:justify-end">
             <button
               type="button"
@@ -1067,34 +1056,18 @@ const AtivoEditarContent = () => {
                   ) : null}
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
+                <div className={TABLE_STYLES.wrapper}>
+                  <table className={`${TABLE_STYLES.table} min-w-[760px]`}>
                     <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700">
-                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          Tipo
-                        </th>
-                        <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          Data com
-                        </th>
-                        <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          Data pagamento
-                        </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                          Precificar por
-                        </th>
-                        <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          Valor total
-                        </th>
-                        <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          Qtde base
-                        </th>
-                        <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          IR (R$)
-                        </th>
-                        <th className="w-28 px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          {' '}
-                        </th>
+                      <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                        <th className={`${TABLE_STYLES.th} text-left`}>Tipo</th>
+                        <th className={`${TABLE_STYLES.th} text-right`}>Data com</th>
+                        <th className={`${TABLE_STYLES.th} text-right`}>Data pagamento</th>
+                        <th className={`${TABLE_STYLES.th} text-center`}>Precificar por</th>
+                        <th className={`${TABLE_STYLES.th} text-right`}>Valor total</th>
+                        <th className={`${TABLE_STYLES.th} text-right`}>Qtde base</th>
+                        <th className={`${TABLE_STYLES.th} text-right`}>IR (R$)</th>
+                        <th className={`${TABLE_STYLES.th} w-28 text-right`}> </th>
                       </tr>
                     </thead>
                     <tbody>

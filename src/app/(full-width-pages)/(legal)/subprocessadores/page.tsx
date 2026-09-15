@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import LegalArticle from '@/components/legal/LegalArticle';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 
 export const metadata: Metadata = {
   title: 'Subprocessadores — MyFinance',
@@ -108,33 +109,25 @@ export default function Subprocessadores() {
       </p>
 
       <h2>Lista atual</h2>
-      <div className="not-prose overflow-x-auto">
-        <table className="w-full border-collapse text-sm">
+      <div className={`not-prose ${TABLE_STYLES.wrapper}`}>
+        <table className={TABLE_STYLES.table}>
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-              <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">
-                Subprocessador
-              </th>
-              <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">
-                Finalidade
-              </th>
-              <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">
-                Dados envolvidos
-              </th>
-              <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">
-                Região
-              </th>
+            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+              <th className={`${TABLE_STYLES.th} text-left`}>Subprocessador</th>
+              <th className={`${TABLE_STYLES.th} text-left`}>Finalidade</th>
+              <th className={`${TABLE_STYLES.th} text-left`}>Dados envolvidos</th>
+              <th className={`${TABLE_STYLES.th} text-left`}>Região</th>
             </tr>
           </thead>
           <tbody>
             {SUBPROCESSADORES.map((sp) => (
-              <tr key={sp.nome} className="border-b border-gray-100 align-top dark:border-gray-800">
-                <td className="px-3 py-3 font-medium text-gray-900 dark:text-white/90">
+              <tr key={sp.nome} className={`${TABLE_STYLES.row} align-top`}>
+                <td className={`${TABLE_STYLES.td} font-medium text-gray-900 dark:text-white/90`}>
                   {sp.nome}
                 </td>
-                <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{sp.finalidade}</td>
-                <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{sp.dados}</td>
-                <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{sp.regiao}</td>
+                <td className={TABLE_STYLES.td}>{sp.finalidade}</td>
+                <td className={TABLE_STYLES.td}>{sp.dados}</td>
+                <td className={TABLE_STYLES.td}>{sp.regiao}</td>
               </tr>
             ))}
           </tbody>

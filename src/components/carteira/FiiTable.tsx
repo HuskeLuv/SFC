@@ -24,7 +24,6 @@ import {
   StandardTableBodyCell,
   TableBody,
 } from '@/components/ui/table/StandardTable';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 const SECTION_ORDER = ['fof', 'tvm', 'tijolo', 'infra'] as const;
 const SECTION_NAMES: Record<string, string> = {
@@ -164,7 +163,6 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       key: 'objetivo',
       header: 'Objetivo',
       align: 'right',
-      cellClassName: 'border border-black',
       render: (a, f) => (
         <EditableObjetivoCell
           ativoId={a.id}
@@ -280,23 +278,13 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       {/* Aux table */}
       <ComponentCard title="Resumo de Aportes">
         <StandardTable>
-          <StandardTableHeader headerBgColor={TABLE_HEADER_BG}>
-            <StandardTableHeaderRow headerBgColor={TABLE_HEADER_BG}>
-              <StandardTableHeaderCell align="left" headerBgColor={TABLE_HEADER_BG}>
-                Ticker
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="left" headerBgColor={TABLE_HEADER_BG}>
-                Nome
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
-                Cotação Atual
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
-                Necessidade Aporte
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
-                Lote Aproximado
-              </StandardTableHeaderCell>
+          <StandardTableHeader>
+            <StandardTableHeaderRow>
+              <StandardTableHeaderCell align="left">Ticker</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="left">Nome</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">Cotação Atual</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">Necessidade Aporte</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">Lote Aproximado</StandardTableHeaderCell>
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
@@ -318,6 +306,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
             <BasicTablePlaceholderRows
               count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
               colSpan={5}
+              compact={false}
             />
           </TableBody>
         </StandardTable>

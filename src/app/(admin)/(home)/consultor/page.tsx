@@ -12,6 +12,7 @@ import Button from '@/components/ui/button/Button';
 import Badge from '@/components/ui/badge/Badge';
 import Input from '@/components/form/input/InputField';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import LineChartCarteiraHistorico from '@/components/charts/line/LineChartCarteiraHistorico';
 import DashboardMetricCard from '@/components/consultor/DashboardMetricCard';
 import TopClientsCard from '@/components/consultor/TopClientsCard';
@@ -788,58 +789,60 @@ const ConsultantDashboardPage = () => {
                       </p>
                     </div>
                   ) : (
-                    <Table className="text-sm">
-                      <TableHeader>
-                        <TableRow>
-                          <TableCell isHeader className="px-3 py-2">
-                            Email
-                          </TableCell>
-                          <TableCell isHeader className="px-3 py-2">
-                            Status
-                          </TableCell>
-                          <TableCell isHeader className="px-3 py-2 text-right">
-                            Enviado em
-                          </TableCell>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {invitationStatuses.map((invite) => {
-                          const badge = getInvitationBadge(invite.status);
-                          const referenceDate = invite.respondedAt ?? invite.createdAt;
-                          const formattedDate = new Date(referenceDate).toLocaleDateString(
-                            'pt-BR',
-                            {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            },
-                          );
-                          const secondaryLabel =
-                            invite.respondedAt !== null ? 'Respondido' : 'Enviado';
+                    <div className={TABLE_STYLES.wrapper}>
+                      <Table className={TABLE_STYLES.table}>
+                        <TableHeader>
+                          <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                              Email
+                            </TableCell>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                              Status
+                            </TableCell>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-right`}>
+                              Enviado em
+                            </TableCell>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {invitationStatuses.map((invite) => {
+                            const badge = getInvitationBadge(invite.status);
+                            const referenceDate = invite.respondedAt ?? invite.createdAt;
+                            const formattedDate = new Date(referenceDate).toLocaleDateString(
+                              'pt-BR',
+                              {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              },
+                            );
+                            const secondaryLabel =
+                              invite.respondedAt !== null ? 'Respondido' : 'Enviado';
 
-                          return (
-                            <TableRow key={invite.id}>
-                              <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-200">
-                                {invite.email}
-                              </TableCell>
-                              <TableCell className="px-3 py-2">
-                                <Badge color={badge.color} size="sm">
-                                  {badge.label}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="px-3 py-2 text-right text-xs text-gray-500 dark:text-gray-400">
-                                <div className="flex flex-col items-end gap-0.5">
-                                  <span>{formattedDate}</span>
-                                  <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                                    {secondaryLabel}
-                                  </span>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                            return (
+                              <TableRow key={invite.id} className={TABLE_STYLES.row}>
+                                <TableCell className={TABLE_STYLES.td}>{invite.email}</TableCell>
+                                <TableCell className={TABLE_STYLES.td}>
+                                  <Badge color={badge.color} size="sm">
+                                    {badge.label}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell
+                                  className={`${TABLE_STYLES.td} text-right text-gray-500 dark:text-gray-400`}
+                                >
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <span>{formattedDate}</span>
+                                    <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                                      {secondaryLabel}
+                                    </span>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </div>
               </div>
@@ -913,7 +916,7 @@ const ConsultantDashboardPage = () => {
                     </div>
                   </div>
 
-                  <div className="mt-6 overflow-x-auto">
+                  <div className="mt-6">
                     {isLoading || isLoadingDetails ? (
                       <div className="space-y-3">
                         {Array.from({ length: 4 }).map((_, index) => (
@@ -936,122 +939,125 @@ const ConsultantDashboardPage = () => {
                         </div>
                       </div>
                     ) : (
-                      <Table className="bg-white dark:bg-transparent">
-                        <TableHeader className="border-b border-gray-200 dark:border-gray-700">
-                          <TableRow className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                            <TableCell isHeader className="px-4 py-3">
-                              Cliente
-                            </TableCell>
-                            <TableCell isHeader className="px-4 py-3">
-                              Patrimônio
-                            </TableCell>
-                            <TableCell isHeader className="px-4 py-3">
-                              Rentabilidade
-                            </TableCell>
-                            <TableCell isHeader className="px-4 py-3">
-                              % Poupança Média
-                            </TableCell>
-                            <TableCell isHeader className="px-4 py-3">
-                              Nível de Risco
-                            </TableCell>
-                            <TableCell isHeader className="px-4 py-3">
-                              Status
-                            </TableCell>
-                            <TableCell isHeader className="px-4 py-3 text-right">
-                              Ações
-                            </TableCell>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {clients.map((client) => {
-                            const summary = client.detail?.summary;
-                            const statusPresentation = getStatusPresentation(client.status);
+                      <div className={TABLE_STYLES.wrapper}>
+                        <Table className={TABLE_STYLES.table}>
+                          <TableHeader>
+                            <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                Cliente
+                              </TableCell>
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                Patrimônio
+                              </TableCell>
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                Rentabilidade
+                              </TableCell>
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                % Poupança Média
+                              </TableCell>
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                Nível de Risco
+                              </TableCell>
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                Status
+                              </TableCell>
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-right`}>
+                                Ações
+                              </TableCell>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {clients.map((client) => {
+                              const summary = client.detail?.summary;
+                              const statusPresentation = getStatusPresentation(client.status);
 
-                            // Buscar dados do cliente no dashboardData
-                            const _clientSavingRate = dashboardData?.topClients.bySavingRate.find(
-                              (c) => c.clientId === client.clientId,
-                            );
-                            const _clientRisk = dashboardData?.riskAlerts.find(
-                              (alert) => alert.clientId === client.clientId,
-                            );
+                              // Buscar dados do cliente no dashboardData
+                              const _clientSavingRate = dashboardData?.topClients.bySavingRate.find(
+                                (c) => c.clientId === client.clientId,
+                              );
+                              const _clientRisk = dashboardData?.riskAlerts.find(
+                                (alert) => alert.clientId === client.clientId,
+                              );
 
-                            const getRiskLevel = (): {
-                              label: string;
-                              color: 'success' | 'warning' | 'error';
-                            } => {
-                              if (_clientRisk) {
-                                if (_clientRisk.alertType === 'negative_flow') {
-                                  return { label: 'Alto', color: 'error' };
-                                }
-                                if (_clientRisk.alertType === 'high_concentration') {
+                              const getRiskLevel = (): {
+                                label: string;
+                                color: 'success' | 'warning' | 'error';
+                              } => {
+                                if (_clientRisk) {
+                                  if (_clientRisk.alertType === 'negative_flow') {
+                                    return { label: 'Alto', color: 'error' };
+                                  }
+                                  if (_clientRisk.alertType === 'high_concentration') {
+                                    return { label: 'Médio', color: 'warning' };
+                                  }
                                   return { label: 'Médio', color: 'warning' };
                                 }
-                                return { label: 'Médio', color: 'warning' };
-                              }
-                              return { label: 'Baixo', color: 'success' };
-                            };
+                                return { label: 'Baixo', color: 'success' };
+                              };
 
-                            const riskLevel = getRiskLevel();
+                              const riskLevel = getRiskLevel();
 
-                            return (
-                              <TableRow
-                                key={client.id}
-                                className="border-b border-gray-100 text-sm last:border-b-0 dark:border-gray-800"
-                              >
-                                <TableCell className="px-4 py-4">
-                                  <div className="flex flex-col">
-                                    <span className="font-medium text-gray-800 dark:text-white/90">
-                                      {client.name}
-                                    </span>
-                                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {client.email}
-                                    </span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                                  {summary ? currencyFormatter.format(summary.currentBalance) : '—'}
-                                </TableCell>
-                                <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                                  {summary
-                                    ? `${percentageFormatter.format(
-                                        summary.monthlyReturnPercentage,
-                                      )}%`
-                                    : '—'}
-                                </TableCell>
-                                <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                                  {'—'}
-                                </TableCell>
-                                <TableCell className="px-4 py-4">
-                                  <Badge variant="light" color={riskLevel.color} size="sm">
-                                    {riskLevel.label}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="px-4 py-4">
-                                  <Badge variant="light" color={statusPresentation.color} size="sm">
-                                    {statusPresentation.label}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="px-4 py-4 text-right">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handlePersonifyClient(client.clientId)}
-                                    disabled={
-                                      personifyingClientId === client.clientId || !!actingClient
-                                    }
-                                    aria-label="Personificar cliente"
-                                  >
-                                    {personifyingClientId === client.clientId
-                                      ? 'Personificando...'
-                                      : actingClient?.id === client.clientId
-                                        ? 'Personificado'
-                                        : 'Personificar cliente'}
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
+                              return (
+                                <TableRow key={client.id} className={TABLE_STYLES.row}>
+                                  <TableCell className={TABLE_STYLES.td}>
+                                    <div className="flex flex-col">
+                                      <span className="font-medium text-gray-800 dark:text-white/90">
+                                        {client.name}
+                                      </span>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {client.email}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className={TABLE_STYLES.td}>
+                                    {summary
+                                      ? currencyFormatter.format(summary.currentBalance)
+                                      : '—'}
+                                  </TableCell>
+                                  <TableCell className={TABLE_STYLES.td}>
+                                    {summary
+                                      ? `${percentageFormatter.format(
+                                          summary.monthlyReturnPercentage,
+                                        )}%`
+                                      : '—'}
+                                  </TableCell>
+                                  <TableCell className={TABLE_STYLES.td}>{'—'}</TableCell>
+                                  <TableCell className={TABLE_STYLES.td}>
+                                    <Badge variant="light" color={riskLevel.color} size="sm">
+                                      {riskLevel.label}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className={TABLE_STYLES.td}>
+                                    <Badge
+                                      variant="light"
+                                      color={statusPresentation.color}
+                                      size="sm"
+                                    >
+                                      {statusPresentation.label}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className={`${TABLE_STYLES.td} text-right`}>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handlePersonifyClient(client.clientId)}
+                                      disabled={
+                                        personifyingClientId === client.clientId || !!actingClient
+                                      }
+                                      aria-label="Personificar cliente"
+                                    >
+                                      {personifyingClientId === client.clientId
+                                        ? 'Personificando...'
+                                        : actingClient?.id === client.clientId
+                                          ? 'Personificado'
+                                          : 'Personificar cliente'}
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
                     )}
                   </div>
                 </section>
@@ -1071,7 +1077,7 @@ const ConsultantDashboardPage = () => {
                   </div>
                 </div>
 
-                <div className="mt-6 overflow-x-auto">
+                <div className="mt-6">
                   {isLoading || isLoadingDetails ? (
                     <div className="space-y-3">
                       {Array.from({ length: 4 }).map((_, index) => (
@@ -1094,111 +1100,108 @@ const ConsultantDashboardPage = () => {
                       </div>
                     </div>
                   ) : (
-                    <Table className="bg-white dark:bg-transparent">
-                      <TableHeader className="border-b border-gray-200 dark:border-gray-700">
-                        <TableRow className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          <TableCell isHeader className="px-4 py-3">
-                            Cliente
-                          </TableCell>
-                          <TableCell isHeader className="px-4 py-3">
-                            Patrimônio
-                          </TableCell>
-                          <TableCell isHeader className="px-4 py-3">
-                            Rentabilidade
-                          </TableCell>
-                          <TableCell isHeader className="px-4 py-3">
-                            % Poupança Média
-                          </TableCell>
-                          <TableCell isHeader className="px-4 py-3">
-                            Nível de Risco
-                          </TableCell>
-                          <TableCell isHeader className="px-4 py-3">
-                            Status
-                          </TableCell>
-                          <TableCell isHeader className="px-4 py-3 text-right">
-                            Ações
-                          </TableCell>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {clients.map((client) => {
-                          const summary = client.detail?.summary;
-                          const statusPresentation = getStatusPresentation(client.status);
+                    <div className={TABLE_STYLES.wrapper}>
+                      <Table className={TABLE_STYLES.table}>
+                        <TableHeader>
+                          <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                              Cliente
+                            </TableCell>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                              Patrimônio
+                            </TableCell>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                              Rentabilidade
+                            </TableCell>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                              % Poupança Média
+                            </TableCell>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                              Nível de Risco
+                            </TableCell>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                              Status
+                            </TableCell>
+                            <TableCell isHeader className={`${TABLE_STYLES.th} text-right`}>
+                              Ações
+                            </TableCell>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {clients.map((client) => {
+                            const summary = client.detail?.summary;
+                            const statusPresentation = getStatusPresentation(client.status);
 
-                          // Buscar dados do cliente no dashboardData
-                          // Nota: dashboardData pode ser null neste bloco, então não usamos esses dados aqui
-                          const _clientSavingRate = null;
-                          const _clientRisk = null;
+                            // Buscar dados do cliente no dashboardData
+                            // Nota: dashboardData pode ser null neste bloco, então não usamos esses dados aqui
+                            const _clientSavingRate = null;
+                            const _clientRisk = null;
 
-                          const getRiskLevel = (): {
-                            label: string;
-                            color: 'success' | 'warning' | 'error';
-                          } => {
-                            // Como dashboardData é null neste bloco, sempre retornamos risco baixo
-                            return { label: 'Baixo', color: 'success' };
-                          };
+                            const getRiskLevel = (): {
+                              label: string;
+                              color: 'success' | 'warning' | 'error';
+                            } => {
+                              // Como dashboardData é null neste bloco, sempre retornamos risco baixo
+                              return { label: 'Baixo', color: 'success' };
+                            };
 
-                          const riskLevel = getRiskLevel();
+                            const riskLevel = getRiskLevel();
 
-                          return (
-                            <TableRow
-                              key={client.id}
-                              className="border-b border-gray-100 text-sm last:border-b-0 dark:border-gray-800"
-                            >
-                              <TableCell className="px-4 py-4">
-                                <div className="flex flex-col">
-                                  <span className="font-medium text-gray-800 dark:text-white/90">
-                                    {client.name}
-                                  </span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {client.email}
-                                  </span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                                {summary ? currencyFormatter.format(summary.currentBalance) : '—'}
-                              </TableCell>
-                              <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                                {summary
-                                  ? `${percentageFormatter.format(
-                                      summary.monthlyReturnPercentage,
-                                    )}%`
-                                  : '—'}
-                              </TableCell>
-                              <TableCell className="px-4 py-4 text-gray-700 dark:text-white/80">
-                                {'—'}
-                              </TableCell>
-                              <TableCell className="px-4 py-4">
-                                <Badge variant="light" color={riskLevel.color} size="sm">
-                                  {riskLevel.label}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="px-4 py-4">
-                                <Badge variant="light" color={statusPresentation.color} size="sm">
-                                  {statusPresentation.label}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="px-4 py-4 text-right">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handlePersonifyClient(client.clientId)}
-                                  disabled={
-                                    personifyingClientId === client.clientId || !!actingClient
-                                  }
-                                  aria-label="Personificar cliente"
-                                >
-                                  {personifyingClientId === client.clientId
-                                    ? 'Personificando...'
-                                    : actingClient?.id === client.clientId
-                                      ? 'Personificado'
-                                      : 'Personificar cliente'}
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                            return (
+                              <TableRow key={client.id} className={TABLE_STYLES.row}>
+                                <TableCell className={TABLE_STYLES.td}>
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-gray-800 dark:text-white/90">
+                                      {client.name}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {client.email}
+                                    </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className={TABLE_STYLES.td}>
+                                  {summary ? currencyFormatter.format(summary.currentBalance) : '—'}
+                                </TableCell>
+                                <TableCell className={TABLE_STYLES.td}>
+                                  {summary
+                                    ? `${percentageFormatter.format(
+                                        summary.monthlyReturnPercentage,
+                                      )}%`
+                                    : '—'}
+                                </TableCell>
+                                <TableCell className={TABLE_STYLES.td}>{'—'}</TableCell>
+                                <TableCell className={TABLE_STYLES.td}>
+                                  <Badge variant="light" color={riskLevel.color} size="sm">
+                                    {riskLevel.label}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className={TABLE_STYLES.td}>
+                                  <Badge variant="light" color={statusPresentation.color} size="sm">
+                                    {statusPresentation.label}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className={`${TABLE_STYLES.td} text-right`}>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handlePersonifyClient(client.clientId)}
+                                    disabled={
+                                      personifyingClientId === client.clientId || !!actingClient
+                                    }
+                                    aria-label="Personificar cliente"
+                                  >
+                                    {personifyingClientId === client.clientId
+                                      ? 'Personificando...'
+                                      : actingClient?.id === client.clientId
+                                        ? 'Personificado'
+                                        : 'Personificar cliente'}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </div>
               </section>

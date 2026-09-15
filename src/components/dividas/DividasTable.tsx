@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import type { DividaDTO } from '@/hooks/useDividas';
 import {
   CATEGORIA_LABELS,
@@ -18,8 +19,7 @@ interface DividasTableProps {
   onSelectDivida: (id: string) => void;
 }
 
-const HEAD =
-  'px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
+const HEAD = TABLE_STYLES.th;
 
 /**
  * Tabela consolidada de dívidas: nome, tipo, CET mensal (ordenável), sistema/
@@ -67,10 +67,10 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
   );
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
-      <Table className="text-sm">
+    <div className={TABLE_STYLES.wrapper}>
+      <Table className={TABLE_STYLES.table}>
         <TableHeader>
-          <TableRow className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03]">
+          <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
             <TableCell isHeader className={`${HEAD} text-left`}>
               Dívida
             </TableCell>
@@ -83,14 +83,11 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
                 onClick={() =>
                   setCetSort((prev) => (prev === null ? 'desc' : prev === 'desc' ? 'asc' : null))
                 }
-                className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-gray-700 dark:hover:text-gray-200"
+                className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-white/80"
                 title="Ordenar pelo CET mensal"
               >
                 CET a.m.
-                <span
-                  className={cetSort ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}
-                  aria-hidden
-                >
+                <span className={cetSort ? 'text-white' : 'text-white/60'} aria-hidden>
                   {cetSort === 'desc' ? '↓' : cetSort === 'asc' ? '↑' : '↕'}
                 </span>
               </button>
@@ -126,10 +123,10 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
             return (
               <TableRow
                 key={d.id}
-                className="cursor-pointer border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-800/60 dark:hover:bg-white/[0.03]"
+                className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover} cursor-pointer`}
                 onClick={() => onSelectDivida(d.id)}
               >
-                <TableCell className="px-3 py-2.5">
+                <TableCell className={TABLE_STYLES.td}>
                   <span className="font-medium text-gray-900 dark:text-white/90">{d.nome}</span>
                   {d.instituicao ? (
                     <span className="block text-xs text-gray-500 dark:text-gray-400">
@@ -137,32 +134,34 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
                     </span>
                   ) : null}
                 </TableCell>
-                <TableCell className="px-3 py-2.5 text-gray-600 dark:text-gray-300">
-                  {TIPO_LABELS[d.tipo]}
-                </TableCell>
-                <TableCell className="px-3 py-2.5 text-right font-medium text-gray-900 dark:text-white/90">
+                <TableCell className={TABLE_STYLES.td}>{TIPO_LABELS[d.tipo]}</TableCell>
+                <TableCell
+                  className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white/90`}
+                >
                   {formatTaxaPercent(d.taxaAm)}
                 </TableCell>
-                <TableCell className="px-3 py-2.5 text-gray-600 dark:text-gray-300">
+                <TableCell className={TABLE_STYLES.td}>
                   {isFinanciamento && d.sistema
                     ? `${d.sistema}${d.indexador !== 'PREFIXADO' ? ` + ${INDEXADOR_LABELS[d.indexador]}` : ''}`
                     : 'Rotativa'}
                 </TableCell>
-                <TableCell className="px-3 py-2.5 text-right font-medium text-gray-900 dark:text-white/90">
+                <TableCell
+                  className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white/90`}
+                >
                   {formatBRL(r?.saldoCorrigido ?? r?.saldoDevedor)}
                 </TableCell>
-                <TableCell className="px-3 py-2.5 text-right text-gray-600 dark:text-gray-300">
+                <TableCell className={`${TABLE_STYLES.td} text-right`}>
                   {r?.proximaParcela
                     ? formatBRL(r.proximaParcelaCorrigida ?? r.proximaParcela.parcela)
                     : '—'}
                 </TableCell>
-                <TableCell className="px-3 py-2.5 text-center text-gray-600 dark:text-gray-300">
-                  {progresso}
-                </TableCell>
-                <TableCell className="px-3 py-2.5 text-center text-xs text-gray-500 dark:text-gray-400">
+                <TableCell className={`${TABLE_STYLES.td} text-center`}>{progresso}</TableCell>
+                <TableCell
+                  className={`${TABLE_STYLES.td} text-center text-gray-500 dark:text-gray-400`}
+                >
                   {r ? CATEGORIA_LABELS[r.categoria] : '—'}
                 </TableCell>
-                <TableCell className="px-3 py-2.5 text-center">
+                <TableCell className={`${TABLE_STYLES.td} text-center`}>
                   <span
                     className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[d.status]}`}
                   >
@@ -173,22 +172,20 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
             );
           })}
           {/* Rodapé de totais */}
-          <TableRow className="bg-gray-50 font-medium dark:bg-white/[0.03]">
-            <TableCell className="px-3 py-2.5 text-gray-700 dark:text-gray-200">
-              Total (em aberto)
-            </TableCell>
-            <TableCell className="px-3 py-2.5">{''}</TableCell>
-            <TableCell className="px-3 py-2.5">{''}</TableCell>
-            <TableCell className="px-3 py-2.5">{''}</TableCell>
-            <TableCell className="px-3 py-2.5 text-right text-gray-900 dark:text-white/90">
+          <TableRow className={TABLE_STYLES.totalRow}>
+            <TableCell className={TABLE_STYLES.td}>Total (em aberto)</TableCell>
+            <TableCell className={TABLE_STYLES.td}>{''}</TableCell>
+            <TableCell className={TABLE_STYLES.td}>{''}</TableCell>
+            <TableCell className={TABLE_STYLES.td}>{''}</TableCell>
+            <TableCell className={`${TABLE_STYLES.td} text-right text-gray-900 dark:text-white/90`}>
               {formatBRL(totalDevido)}
             </TableCell>
-            <TableCell className="px-3 py-2.5 text-right text-gray-900 dark:text-white/90">
+            <TableCell className={`${TABLE_STYLES.td} text-right text-gray-900 dark:text-white/90`}>
               {totalParcelas > 0 ? formatBRL(totalParcelas) : ''}
             </TableCell>
-            <TableCell className="px-3 py-2.5">{''}</TableCell>
-            <TableCell className="px-3 py-2.5">{''}</TableCell>
-            <TableCell className="px-3 py-2.5">{''}</TableCell>
+            <TableCell className={TABLE_STYLES.td}>{''}</TableCell>
+            <TableCell className={TABLE_STYLES.td}>{''}</TableCell>
+            <TableCell className={TABLE_STYLES.td}>{''}</TableCell>
           </TableRow>
         </TableBody>
       </Table>

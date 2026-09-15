@@ -9,6 +9,7 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import Button from '@/components/ui/button/Button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import Badge from '@/components/ui/badge/Badge';
 import dynamic from 'next/dynamic';
 import type { ApexOptions } from 'apexcharts';
@@ -599,45 +600,46 @@ const ClientConsultantDetailPage = () => {
                   </CardDescription>
                   <div className="mt-5">
                     {portfolioSummary.length ? (
-                      <Table className="text-sm">
-                        <TableHeader>
-                          <TableRow className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                            <TableCell isHeader className="px-4 py-3">
-                              Tipo
-                            </TableCell>
-                            <TableCell isHeader className="px-4 py-3">
-                              Investido
-                            </TableCell>
-                            <TableCell isHeader className="px-4 py-3">
-                              Valor atual
-                            </TableCell>
-                            <TableCell isHeader className="px-4 py-3">
-                              Participação
-                            </TableCell>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {portfolioSummary.map((item) => (
-                            <TableRow
-                              key={item.label}
-                              className="border-b border-gray-100 text-sm last:border-b-0 dark:border-gray-800"
-                            >
-                              <TableCell className="px-4 py-3 text-gray-800 dark:text-white/90">
-                                {item.label}
+                      <div className={TABLE_STYLES.wrapper}>
+                        <Table className={TABLE_STYLES.table}>
+                          <TableHeader>
+                            <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                Tipo
                               </TableCell>
-                              <TableCell className="px-4 py-3 text-gray-700 dark:text-white/80">
-                                {currencyFormatter.format(item.invested)}
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                Investido
                               </TableCell>
-                              <TableCell className="px-4 py-3 text-gray-700 dark:text-white/80">
-                                {currencyFormatter.format(item.current)}
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                Valor atual
                               </TableCell>
-                              <TableCell className="px-4 py-3 text-gray-700 dark:text-white/80">
-                                {percentageFormatter.format(item.percentage)}%
+                              <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                                Participação
                               </TableCell>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {portfolioSummary.map((item) => (
+                              <TableRow key={item.label} className={TABLE_STYLES.row}>
+                                <TableCell
+                                  className={`${TABLE_STYLES.td} font-medium text-gray-800 dark:text-white/90`}
+                                >
+                                  {item.label}
+                                </TableCell>
+                                <TableCell className={TABLE_STYLES.td}>
+                                  {currencyFormatter.format(item.invested)}
+                                </TableCell>
+                                <TableCell className={TABLE_STYLES.td}>
+                                  {currencyFormatter.format(item.current)}
+                                </TableCell>
+                                <TableCell className={TABLE_STYLES.td}>
+                                  {percentageFormatter.format(item.percentage)}%
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     ) : (
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Sem dados no período. Este cliente ainda não possui ativos cadastrados na

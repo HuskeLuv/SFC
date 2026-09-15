@@ -12,6 +12,7 @@ import {
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { formatWallClockDate } from '@/utils/formatDate';
 import PieChartStocksAtivo from '@/components/charts/pie/PieChartStocksAtivo';
 
@@ -161,7 +162,6 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       key: 'objetivo',
       header: 'Objetivo',
       align: 'right',
-      cellClassName: 'border border-black',
       render: (a, f) => (
         <EditableObjetivoCell
           ativoId={a.id}
@@ -237,30 +237,30 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
 
   // Extra "TOTAL EM USD" row — mesma ordem e contagem das 14 colunas acima
   const extraTotalRows = (
-    <tr className="bg-[#404040] border-b border-gray-300">
-      <td className="px-2 py-2 text-xs text-white font-bold">TOTAL EM USD</td>
-      <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
+    <tr className={TABLE_STYLES.totalRow}>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold`}>TOTAL EM USD</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-center`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-center`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>
         {formatCurrency(
           ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ?? 0,
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>
         {formatCurrency(
           ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAtualizado as number) ??
             0,
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
-      <td className="px-2 py-2 text-xs text-right text-white font-bold">-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
+      <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
     </tr>
   );
 
@@ -299,46 +299,31 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
         </div>
         <div className="xl:col-span-6">
           <ComponentCard title="Resumo de Aportes">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
+            <div className={TABLE_STYLES.wrapper}>
+              <table className={TABLE_STYLES.table}>
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Nome
-                    </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Data da Compra
-                    </th>
-                    <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Cotacao Atual
-                    </th>
-                    <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Necessidade Aporte
-                    </th>
-                    <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Lote Aproximado
-                    </th>
+                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                    <th className={`${TABLE_STYLES.th} text-left`}>Nome</th>
+                    <th className={`${TABLE_STYLES.th} text-left`}>Data da Compra</th>
+                    <th className={`${TABLE_STYLES.th} text-right`}>Cotacao Atual</th>
+                    <th className={`${TABLE_STYLES.th} text-right`}>Necessidade Aporte</th>
+                    <th className={`${TABLE_STYLES.th} text-right`}>Lote Aproximado</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(data?.tabelaAuxiliar || []).map((item, index) => (
-                    <tr
-                      key={index}
-                      className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
-                    >
-                      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
-                        {item.nome}
-                      </td>
-                      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
+                    <tr key={index} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                      <td className={TABLE_STYLES.td}>{item.nome}</td>
+                      <td className={TABLE_STYLES.td}>
                         {item.dataCompra ? formatWallClockDate(item.dataCompra) : '-'}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+                      <td className={`${TABLE_STYLES.td} text-right`}>
                         {formatCurrency(item.cotacaoAtual)}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+                      <td className={`${TABLE_STYLES.td} text-right`}>
                         {formatCurrency(item.necessidadeAporte)}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+                      <td className={`${TABLE_STYLES.td} text-right`}>
                         {formatNumber(item.loteAproximado)}
                       </td>
                     </tr>
@@ -346,6 +331,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                   <BasicTablePlaceholderRows
                     count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
                     colSpan={5}
+                    compact={false}
                   />
                 </tbody>
               </table>

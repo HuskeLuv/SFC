@@ -1,6 +1,11 @@
 'use client';
 
 import { CATEGORIA_LABELS } from '@/lib/carteiraCategoryColors';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_SECTION_STYLE,
+} from '@/components/ui/table/tableStyles';
 
 /**
  * Posição Consolidada do relatório (ticket 20/08/2026, formato Gorila):
@@ -36,19 +41,13 @@ export default function PosicaoConsolidada({ secoes }: { secoes: PosicaoSecao[] 
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-900">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Ativo
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Valor Atual
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              % da Carteira
-            </th>
+    <div className={TABLE_STYLES.wrapper}>
+      <table className={TABLE_STYLES.table}>
+        <thead>
+          <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+            <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
+            <th className={`${TABLE_STYLES.th} text-right`}>Valor Atual</th>
+            <th className={`${TABLE_STYLES.th} text-right`}>% da Carteira</th>
           </tr>
         </thead>
         <tbody>
@@ -63,12 +62,10 @@ export default function PosicaoConsolidada({ secoes }: { secoes: PosicaoSecao[] 
               />
             );
           })}
-          <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold dark:border-gray-700 dark:bg-gray-900">
-            <td className="px-4 py-3 text-gray-900 dark:text-white">Total Geral</td>
-            <td className="px-4 py-3 text-right text-gray-900 dark:text-white">
-              {brl(totalGeral)}
-            </td>
-            <td className="px-4 py-3 text-right text-gray-900 dark:text-white">100%</td>
+          <tr className={`${TABLE_STYLES.totalRow} font-semibold`}>
+            <td className={`${TABLE_STYLES.td} font-semibold`}>Total Geral</td>
+            <td className={`${TABLE_STYLES.td} text-right font-semibold`}>{brl(totalGeral)}</td>
+            <td className={`${TABLE_STYLES.td} text-right font-semibold`}>100%</td>
           </tr>
         </tbody>
       </table>
@@ -87,14 +84,13 @@ function SecaoRows({
 }) {
   return (
     <>
-      <tr className="border-t border-gray-200 bg-gray-50/60 dark:border-gray-800 dark:bg-white/[0.02]">
-        <td className="px-4 py-2 font-medium text-gray-800 dark:text-gray-100">
+      {/* Linha da categoria = seção (azul tranquilidade) do padrão único de tabelas */}
+      <tr className={TABLE_STYLES.sectionRow} style={TABLE_SECTION_STYLE}>
+        <td className={`${TABLE_STYLES.td} text-white`}>
           {CATEGORIA_LABELS[secao.categoria] ?? secao.categoria}
         </td>
-        <td className="px-4 py-2 text-right font-medium text-gray-800 dark:text-gray-100">
-          {brl(subtotal)}
-        </td>
-        <td className="px-4 py-2 text-right font-medium text-gray-800 dark:text-gray-100">
+        <td className={`${TABLE_STYLES.td} text-right text-white`}>{brl(subtotal)}</td>
+        <td className={`${TABLE_STYLES.td} text-right text-white`}>
           {pctOf(subtotal, totalGeral)}
         </td>
       </tr>
@@ -102,13 +98,13 @@ function SecaoRows({
         .slice()
         .sort((a, b) => b.valorAtual - a.valorAtual)
         .map((ativo) => (
-          <tr key={ativo.portfolioId} className="border-t border-gray-100 dark:border-gray-800/60">
-            <td className="px-4 py-2 pl-8 text-gray-600 dark:text-gray-300">{ativo.nome}</td>
-            <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-200">
-              {brl(ativo.valorAtual)}
-            </td>
-            <td className="px-4 py-2 text-right text-gray-500 dark:text-gray-400">
-              {pctOf(ativo.valorAtual, totalGeral)}
+          <tr key={ativo.portfolioId} className={TABLE_STYLES.row}>
+            <td className={`${TABLE_STYLES.td} pl-8`}>{ativo.nome}</td>
+            <td className={`${TABLE_STYLES.td} text-right`}>{brl(ativo.valorAtual)}</td>
+            <td className={`${TABLE_STYLES.td} text-right`}>
+              <span className="text-gray-500 dark:text-gray-400">
+                {pctOf(ativo.valorAtual, totalGeral)}
+              </span>
             </td>
           </tr>
         ))}

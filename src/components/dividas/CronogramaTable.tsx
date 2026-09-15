@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import type { ParcelaCronograma } from '@/hooks/useDividas';
 import { formatBRL, formatYearMonth } from './utils';
 
@@ -11,8 +12,7 @@ interface CronogramaTableProps {
   proximaParcela: number | null;
 }
 
-const HEAD =
-  'px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
+const HEAD = TABLE_STYLES.th;
 
 /**
  * Tabela do cronograma de amortização (SAC/Price). Parcelas pagas ganham
@@ -54,10 +54,10 @@ export default function CronogramaTable({
           Total de juros: {formatBRL(totais.juros)} · Amortização: {formatBRL(totais.amortizacao)}
         </span>
       </div>
-      <div className="overflow-x-auto">
-        <Table className="text-sm">
+      <div className={`mx-4 my-3 ${TABLE_STYLES.wrapper}`}>
+        <Table className={TABLE_STYLES.table}>
           <TableHeader>
-            <TableRow className="border-b border-gray-200 dark:border-gray-800">
+            <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
               <TableCell isHeader className={`${HEAD} text-left`}>
                 Nº
               </TableCell>
@@ -86,7 +86,7 @@ export default function CronogramaTable({
               return (
                 <TableRow
                   key={r.numero}
-                  className={`border-b border-gray-100 dark:border-gray-800/60 ${
+                  className={`${TABLE_STYLES.row} ${
                     isProxima
                       ? 'bg-brand-50 dark:bg-brand-500/10'
                       : amortizada
@@ -96,7 +96,7 @@ export default function CronogramaTable({
                           : ''
                   }`}
                 >
-                  <TableCell className="px-3 py-2 text-gray-600 dark:text-gray-300">
+                  <TableCell className={TABLE_STYLES.td}>
                     {amortizada ? (
                       <span className="mr-1 inline-block rounded-full bg-emerald-50 px-1.5 text-[10px] font-medium text-emerald-700 no-underline dark:bg-emerald-900/20 dark:text-emerald-300">
                         amortizada
@@ -108,19 +108,19 @@ export default function CronogramaTable({
                     )}
                     {r.numero}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-gray-600 dark:text-gray-300">
-                    {formatYearMonth(r.mes)}
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-right font-medium text-gray-900 dark:text-white/90">
+                  <TableCell className={TABLE_STYLES.td}>{formatYearMonth(r.mes)}</TableCell>
+                  <TableCell
+                    className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white/90`}
+                  >
                     {formatBRL(r.parcelaCorrigida ?? r.parcela)}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">
+                  <TableCell className={`${TABLE_STYLES.td} text-right`}>
                     {formatBRL(r.jurosCorrigido ?? r.juros)}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">
+                  <TableCell className={`${TABLE_STYLES.td} text-right`}>
                     {formatBRL(r.amortizacaoCorrigida ?? r.amortizacao)}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">
+                  <TableCell className={`${TABLE_STYLES.td} text-right`}>
                     {formatBRL(r.saldoDevedorCorrigido ?? r.saldoDevedor)}
                   </TableCell>
                 </TableRow>

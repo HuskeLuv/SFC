@@ -16,6 +16,7 @@ import type { PlanoUpsertPayload, AposentadoriaEntryDTO } from '@/hooks/useApose
 import { useAcompanhamentoAuto, useAutoFillEntries } from '@/hooks/useAposentadoria';
 import { formatBRL, formatBRLCompact, fPct, fMonth } from '../utils';
 import { aaToAm } from '@/utils/rateConversion';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 interface AcompanhamentoTabProps {
   params: PlanoUpsertPayload;
@@ -362,7 +363,7 @@ export default function AcompanhamentoTab({
         </div>
 
         {/* Tabela */}
-        <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
+        <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
           <div className="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2.5 dark:border-gray-800 dark:bg-white/[0.03]">
             <span className="text-sm font-semibold text-gray-900 dark:text-white/90">
               Histórico Mensal
@@ -386,76 +387,106 @@ export default function AcompanhamentoTab({
               </span>
             </div>
           </div>
-          <div className="max-h-[380px] overflow-auto">
-            <table className="w-full text-right text-[11px]">
-              <thead className="sticky top-0 bg-gray-50 dark:bg-white/[0.03]">
-                <tr className="text-[9.5px] uppercase tracking-wide text-gray-400">
-                  <th className="px-2 py-2 text-left">Mês</th>
-                  <th className="px-2 py-2">Aporte</th>
-                  <th className="px-2 py-2">Nec.</th>
-                  <th className="px-2 py-2">Rent.</th>
-                  <th className="px-2 py-2">Meta</th>
-                  <th className="px-2 py-2">Patrim.</th>
-                  <th className="px-2 py-2">Nec.</th>
-                  <th className="px-2 py-2">Δ%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((off) => {
-                  const e = entryByOff(svcEntries, off);
-                  const { year, month } = off2date(params, off);
-                  const pP = prevPat(params, svcEntries, off);
-                  const rent = e && pP != null ? calcRent(pP, e.aporteReal, e.patFinal) : null;
-                  const reqPa = T[off] ?? 0;
-                  const reqCo = C[off] ?? 0;
-                  const pct = reqPa > 0 && e ? (e.patFinal / reqPa - 1) * 100 : null;
-                  const isActive = off === curOffset;
-                  return (
-                    <tr
-                      key={off}
-                      onClick={() => setCurOffset(off)}
-                      className={`cursor-pointer border-b border-gray-100 dark:border-gray-800 ${
-                        isActive
-                          ? 'bg-brand-50 dark:bg-brand-900/20'
-                          : 'hover:bg-gray-50 dark:hover:bg-white/[0.03]'
-                      } ${!e && !isActive ? 'opacity-60' : ''}`}
-                    >
-                      <td className="px-2 py-1.5 text-left">
-                        <span className="font-semibold text-gray-800 dark:text-white/90">
-                          {fMonth(month, year)}
-                        </span>{' '}
-                        <span className="text-[9px] text-gray-400">M{off}</span>
-                      </td>
-                      <td
-                        className={`px-2 py-1.5 ${e ? 'font-semibold text-gray-800 dark:text-white/90' : 'text-gray-400'}`}
+          {/* Padrão único de tabelas (variante compacta: 8 colunas numa coluna
+              estreita); a tabela ganha o próprio wrapper arredondado dentro do card. */}
+          <div className="p-3">
+            <div className={`max-h-[380px] overflow-y-auto ${TABLE_STYLES.wrapper}`}>
+              <table className={TABLE_STYLES.table}>
+                <thead className="sticky top-0 z-10">
+                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                    <th className={`${TABLE_STYLES.compact.th} text-left`}>Mês</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Aporte</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Nec.</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Rent.</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Meta</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Patrim.</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Nec.</th>
+                    <th className={`${TABLE_STYLES.compact.th} text-right`}>Δ%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((off) => {
+                    const e = entryByOff(svcEntries, off);
+                    const { year, month } = off2date(params, off);
+                    const pP = prevPat(params, svcEntries, off);
+                    const rent = e && pP != null ? calcRent(pP, e.aporteReal, e.patFinal) : null;
+                    const reqPa = T[off] ?? 0;
+                    const reqCo = C[off] ?? 0;
+                    const pct = reqPa > 0 && e ? (e.patFinal / reqPa - 1) * 100 : null;
+                    const isActive = off === curOffset;
+                    return (
+                      <tr
+                        key={off}
+                        onClick={() => setCurOffset(off)}
+                        className={`${TABLE_STYLES.row} cursor-pointer ${
+                          isActive ? 'bg-brand-50 dark:bg-brand-900/20' : TABLE_STYLES.rowHover
+                        } ${!e && !isActive ? 'opacity-60' : ''}`}
                       >
-                        {e ? formatBRLCompact(e.aporteReal) : '—'}
-                      </td>
-                      <td className="px-2 py-1.5 text-gray-400">{formatBRLCompact(reqCo)}</td>
-                      <td
-                        className={`px-2 py-1.5 ${rent != null ? 'font-semibold text-gray-800 dark:text-white/90' : 'text-gray-400'}`}
-                      >
-                        {rent != null ? fPct(rent, 2) : '—'}
-                      </td>
-                      <td className="px-2 py-1.5 text-gray-400">{fPct(reqRentM, 2)}</td>
-                      <td
-                        className={`px-2 py-1.5 ${e ? 'font-semibold text-gray-800 dark:text-white/90' : 'text-gray-400'}`}
-                      >
-                        {e ? formatBRLCompact(e.patFinal) : '—'}
-                      </td>
-                      <td className="px-2 py-1.5 text-gray-400">{formatBRLCompact(reqPa)}</td>
-                      <td
-                        className={`px-2 py-1.5 font-semibold ${pct == null ? 'text-gray-400' : pct >= 0 ? 'text-green-600' : 'text-red-600'}`}
-                      >
-                        {pct == null
-                          ? '—'
-                          : `${pct >= 0 ? '+' : ''}${pct.toFixed(1).replace('.', ',')}%`}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <td className={`${TABLE_STYLES.compact.td} text-left`}>
+                          <span className="font-semibold text-gray-800 dark:text-white/90">
+                            {fMonth(month, year)}
+                          </span>{' '}
+                          <span className="text-[9px] text-gray-400">M{off}</span>
+                        </td>
+                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                          <span
+                            className={
+                              e ? 'font-semibold text-gray-800 dark:text-white/90' : 'text-gray-400'
+                            }
+                          >
+                            {e ? formatBRLCompact(e.aporteReal) : '—'}
+                          </span>
+                        </td>
+                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                          <span className="text-gray-400">{formatBRLCompact(reqCo)}</span>
+                        </td>
+                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                          <span
+                            className={
+                              rent != null
+                                ? 'font-semibold text-gray-800 dark:text-white/90'
+                                : 'text-gray-400'
+                            }
+                          >
+                            {rent != null ? fPct(rent, 2) : '—'}
+                          </span>
+                        </td>
+                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                          <span className="text-gray-400">{fPct(reqRentM, 2)}</span>
+                        </td>
+                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                          <span
+                            className={
+                              e ? 'font-semibold text-gray-800 dark:text-white/90' : 'text-gray-400'
+                            }
+                          >
+                            {e ? formatBRLCompact(e.patFinal) : '—'}
+                          </span>
+                        </td>
+                        <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                          <span className="text-gray-400">{formatBRLCompact(reqPa)}</span>
+                        </td>
+                        <td className={`${TABLE_STYLES.compact.td} text-right font-semibold`}>
+                          <span
+                            className={
+                              pct == null
+                                ? 'text-gray-400'
+                                : pct >= 0
+                                  ? 'text-green-600'
+                                  : 'text-red-600'
+                            }
+                          >
+                            {pct == null
+                              ? '—'
+                              : `${pct >= 0 ? '+' : ''}${pct.toFixed(1).replace('.', ',')}%`}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>

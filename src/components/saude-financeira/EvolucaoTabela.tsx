@@ -2,6 +2,7 @@
 
 import type { EvolucaoPonto, SnapshotData } from '@/hooks/useSaudeFinanceira';
 import { formatBRLCompact, formatPercent, MONTH_NAMES_PT, STATUS_META } from './utils';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 interface EvolucaoTabelaProps {
   snapshots: EvolucaoPonto[];
@@ -61,13 +62,14 @@ export default function EvolucaoTabela({ snapshots }: EvolucaoTabelaProps) {
   if (pontos.length < 2) return null;
 
   return (
-    <div className="mt-4 overflow-x-auto">
-      <table className="w-full min-w-[560px] text-sm">
+    <div className={`mt-4 ${TABLE_STYLES.wrapper}`}>
+      {/* Até 13 colunas (indicador + 12 fotos): variante compacta do padrão. */}
+      <table className={`${TABLE_STYLES.table} min-w-[560px]`}>
         <thead>
-          <tr className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400 dark:border-gray-800 dark:text-gray-500">
-            <th className="py-2 pr-4 text-left font-medium">Indicador</th>
+          <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+            <th className={`${TABLE_STYLES.compact.th} text-left`}>Indicador</th>
             {pontos.map((p) => (
-              <th key={`${p.year}-${p.month}`} className="py-2 pl-3 text-right font-medium">
+              <th key={`${p.year}-${p.month}`} className={`${TABLE_STYLES.compact.th} text-right`}>
                 {MONTH_NAMES_PT[p.month] ?? p.month + 1}/{String(p.year).slice(-2)}
               </th>
             ))}
@@ -75,27 +77,27 @@ export default function EvolucaoTabela({ snapshots }: EvolucaoTabelaProps) {
         </thead>
         <tbody>
           {LINHAS.map((linha) => (
-            <tr
-              key={linha.chave}
-              className="border-b border-gray-50 last:border-0 dark:border-gray-800/50"
-            >
-              <td className="py-1.5 pr-4 text-gray-600 dark:text-gray-300">{linha.label}</td>
+            <tr key={linha.chave} className={TABLE_STYLES.row}>
+              <td className={TABLE_STYLES.compact.td}>{linha.label}</td>
               {pontos.map((p) => (
                 <td
                   key={`${p.year}-${p.month}`}
-                  className="py-1.5 pl-3 text-right font-medium text-gray-900 dark:text-white/90"
+                  className={`${TABLE_STYLES.compact.td} text-right font-medium text-gray-900 dark:text-white/90`}
                 >
                   {linha.render(p.data)}
                 </td>
               ))}
             </tr>
           ))}
-          <tr>
-            <td className="py-1.5 pr-4 text-gray-600 dark:text-gray-300">Status</td>
+          <tr className={TABLE_STYLES.row}>
+            <td className={TABLE_STYLES.compact.td}>Status</td>
             {pontos.map((p) => {
               const meta = STATUS_META[p.data.status];
               return (
-                <td key={`${p.year}-${p.month}`} className="py-1.5 pl-3 text-right">
+                <td
+                  key={`${p.year}-${p.month}`}
+                  className={`${TABLE_STYLES.compact.td} text-right`}
+                >
                   <span
                     className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${meta.badgeClass}`}
                     title={meta.label}

@@ -1,13 +1,26 @@
-import React from "react";
-import { StandardTableRow, StandardTableBodyCell } from "@/components/ui/table/StandardTable";
-import { TableRow, TableCell } from "@/components/ui/table";
+import React from 'react';
+import { StandardTableRow, StandardTableBodyCell } from '@/components/ui/table/StandardTable';
+import { TableRow, TableCell } from '@/components/ui/table';
+import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
+import { twMerge } from 'tailwind-merge';
 
 type PlaceholderRowsProps = {
   count: number;
   colSpan: number;
   rowClassName?: string;
   cellClassName?: string;
+  /**
+   * Padding da célula. As tabelas de carteira (muitas colunas) usam a variante
+   * `compact` — por isso é o padrão. Passe `false` em tabelas auxiliares
+   * estreitas que usam `TABLE_STYLES.td` normal, para manter o alinhamento.
+   */
+  compact?: boolean;
 };
+
+const PLACEHOLDER_CELL = 'italic text-gray-400';
+
+const placeholderCellClass = (compact: boolean, extra = '') =>
+  twMerge(compact ? TABLE_STYLES.compact.td : TABLE_STYLES.td, PLACEHOLDER_CELL, extra);
 
 const PlaceholderContent: React.FC = () => {
   return (
@@ -21,8 +34,9 @@ const PlaceholderContent: React.FC = () => {
 export const StandardTablePlaceholderRows: React.FC<PlaceholderRowsProps> = ({
   count,
   colSpan,
-  rowClassName = "",
-  cellClassName = "",
+  rowClassName = '',
+  cellClassName = '',
+  compact = true,
 }) => {
   if (count <= 0) return null;
 
@@ -31,12 +45,13 @@ export const StandardTablePlaceholderRows: React.FC<PlaceholderRowsProps> = ({
       {Array.from({ length: count }).map((_, index) => (
         <StandardTableRow
           key={`placeholder-${index}`}
-          className={`bg-gray-50/60 dark:bg-white/[0.02] ${rowClassName}`}
+          className={`${TABLE_STYLES.placeholderRow} ${rowClassName}`}
         >
+          {/* StandardTableBodyCell faz twMerge — a variante compact sobrescreve o padding. */}
           <StandardTableBodyCell
             colSpan={colSpan}
             align="left"
-            className={`text-gray-400 italic ${cellClassName}`}
+            className={placeholderCellClass(compact, cellClassName)}
           >
             <PlaceholderContent />
           </StandardTableBodyCell>
@@ -49,8 +64,9 @@ export const StandardTablePlaceholderRows: React.FC<PlaceholderRowsProps> = ({
 export const BasicTablePlaceholderRows: React.FC<PlaceholderRowsProps> = ({
   count,
   colSpan,
-  rowClassName = "",
-  cellClassName = "",
+  rowClassName = '',
+  cellClassName = '',
+  compact = true,
 }) => {
   if (count <= 0) return null;
 
@@ -59,9 +75,9 @@ export const BasicTablePlaceholderRows: React.FC<PlaceholderRowsProps> = ({
       {Array.from({ length: count }).map((_, index) => (
         <tr
           key={`placeholder-${index}`}
-          className={`border-b border-gray-200 bg-gray-50/60 dark:border-gray-700 dark:bg-white/[0.02] ${rowClassName}`}
+          className={`${TABLE_STYLES.placeholderRow} ${rowClassName}`}
         >
-          <td colSpan={colSpan} className={`px-2 py-2 text-xs text-gray-400 italic ${cellClassName}`}>
+          <td colSpan={colSpan} className={placeholderCellClass(compact, cellClassName)}>
             <PlaceholderContent />
           </td>
         </tr>
@@ -73,8 +89,9 @@ export const BasicTablePlaceholderRows: React.FC<PlaceholderRowsProps> = ({
 export const UiTablePlaceholderRows: React.FC<PlaceholderRowsProps> = ({
   count,
   colSpan,
-  rowClassName = "",
-  cellClassName = "",
+  rowClassName = '',
+  cellClassName = '',
+  compact = true,
 }) => {
   if (count <= 0) return null;
 
@@ -83,9 +100,9 @@ export const UiTablePlaceholderRows: React.FC<PlaceholderRowsProps> = ({
       {Array.from({ length: count }).map((_, index) => (
         <TableRow
           key={`placeholder-${index}`}
-          className={`border-b border-gray-200 bg-gray-50/60 dark:border-gray-700 dark:bg-white/[0.02] ${rowClassName}`}
+          className={`${TABLE_STYLES.placeholderRow} ${rowClassName}`}
         >
-          <TableCell colSpan={colSpan} className={`px-2 py-2 text-xs text-gray-400 italic ${cellClassName}`}>
+          <TableCell colSpan={colSpan} className={placeholderCellClass(compact, cellClassName)}>
             <PlaceholderContent />
           </TableCell>
         </TableRow>

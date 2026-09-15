@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { formatBRL, formatYearMonth } from './irFormatters';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 export default function IRCripto() {
   const { data, isLoading, error } = useIRCripto();
@@ -64,10 +65,10 @@ export default function IRCripto() {
         />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full text-sm">
+      <div className={TABLE_STYLES.wrapper}>
+        <table className={TABLE_STYLES.table}>
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/30">
+            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
               <Th>Mês</Th>
               <Th align="right">Vendas</Th>
               <Th align="right">Lucro/Prejuízo</Th>
@@ -75,30 +76,31 @@ export default function IRCripto() {
               <Th align="right">IR a recolher</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          <tbody>
             {data.meses.map((m) => (
-              <tr
-                key={m.yearMonth}
-                className="transition-colors hover:bg-gray-50/50 dark:hover:bg-white/[0.02]"
-              >
-                <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900 dark:text-white">
+              <tr key={m.yearMonth} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                <td
+                  className={`${TABLE_STYLES.td} whitespace-nowrap font-medium text-gray-900 dark:text-white`}
+                >
                   {formatYearMonth(m.yearMonth)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
                   {formatBRL(m.vendasTotal)}
                 </td>
-                <td
-                  className={`whitespace-nowrap px-4 py-3 text-right font-medium ${
-                    m.lucroBruto > 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : m.lucroBruto < 0
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-gray-700 dark:text-gray-300'
-                  }`}
-                >
-                  {formatBRL(m.lucroBruto)}
+                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium`}>
+                  <span
+                    className={
+                      m.lucroBruto > 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : m.lucroBruto < 0
+                          ? 'text-red-600 dark:text-red-400'
+                          : ''
+                    }
+                  >
+                    {formatBRL(m.lucroBruto)}
+                  </span>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-center">
+                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}>
                   {m.isento ? (
                     <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                       Isento
@@ -113,7 +115,9 @@ export default function IRCripto() {
                     </span>
                   )}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">
+                <td
+                  className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
+                >
                   {m.irDevido > 0 ? formatBRL(m.irDevido) : '—'}
                 </td>
               </tr>
@@ -134,11 +138,5 @@ function Th({
 }) {
   const alignClass =
     align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
-  return (
-    <th
-      className={`px-4 py-3 ${alignClass} text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}
-    >
-      {children}
-    </th>
-  );
+  return <th className={`${TABLE_STYLES.th} ${alignClass}`}>{children}</th>;
 }

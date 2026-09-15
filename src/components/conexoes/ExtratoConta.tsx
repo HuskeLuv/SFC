@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Button from '@/components/ui/button/Button';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { formatBRL } from '@/utils/format';
 import {
   useDesaplicarTransacoes,
@@ -48,18 +48,15 @@ export default function ExtratoConta({ conta, onFechar }: ExtratoContaProps) {
 
       {data ? (
         <>
-          <div className="overflow-x-auto">
-            <Table aria-label={`Extrato de ${conta.name}`}>
+          <div className={TABLE_STYLES.wrapper}>
+            <Table className={TABLE_STYLES.table} aria-label={`Extrato de ${conta.name}`}>
               <TableHeader>
-                <TableRow>
+                <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
                   {['Data', 'Descrição', 'Categoria', 'Valor'].map((h) => (
                     <TableCell
                       key={h}
                       isHeader
-                      className={`px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-white ${
-                        h === 'Valor' ? 'text-right' : ''
-                      }`}
-                      style={{ backgroundColor: TABLE_HEADER_BG }}
+                      className={`${TABLE_STYLES.th} ${h === 'Valor' ? 'text-right' : 'text-left'}`}
                     >
                       {h}
                     </TableCell>
@@ -68,8 +65,11 @@ export default function ExtratoConta({ conta, onFechar }: ExtratoContaProps) {
               </TableHeader>
               <TableBody>
                 {data.transactions.length === 0 ? (
-                  <TableRow>
-                    <TableCell className="px-3 py-4 text-sm text-gray-500" colSpan={4}>
+                  <TableRow className={TABLE_STYLES.placeholderRow}>
+                    <TableCell
+                      className={`${TABLE_STYLES.td} text-gray-500 dark:text-gray-400`}
+                      colSpan={4}
+                    >
                       Nenhuma transação no período importado.
                     </TableCell>
                   </TableRow>
@@ -79,11 +79,11 @@ export default function ExtratoConta({ conta, onFechar }: ExtratoContaProps) {
                   // onde alguns conectores marcam compra como CREDIT).
                   const saida = t.amount < 0;
                   return (
-                    <TableRow key={t.id} className="border-b border-gray-100 dark:border-gray-800">
-                      <TableCell className="whitespace-nowrap px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
+                    <TableRow key={t.id} className={TABLE_STYLES.row}>
+                      <TableCell className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                         {new Date(t.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-sm text-gray-800 dark:text-white/90">
+                      <TableCell className={`${TABLE_STYLES.td} text-gray-800 dark:text-white/90`}>
                         <span>{t.merchantName ?? t.description}</span>
                         {t.installmentTotal ? (
                           <span className="ml-2 text-xs text-gray-500">
@@ -114,11 +114,11 @@ export default function ExtratoConta({ conta, onFechar }: ExtratoContaProps) {
                           <span className="ml-2 text-xs text-gray-400">ignorada</span>
                         ) : null}
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                      <TableCell className={`${TABLE_STYLES.td} text-gray-500 dark:text-gray-400`}>
                         {t.providerCategory ?? '—'}
                       </TableCell>
                       <TableCell
-                        className={`whitespace-nowrap px-3 py-2 text-right text-sm font-medium tabular-nums ${
+                        className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium tabular-nums ${
                           saida
                             ? 'text-red-600 dark:text-red-400'
                             : 'text-emerald-600 dark:text-emerald-400'

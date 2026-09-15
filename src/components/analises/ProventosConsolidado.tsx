@@ -7,6 +7,7 @@ import ProventosHistoricoChart from './ProventosHistoricoChart';
 import ProventosDistribuicao from './ProventosDistribuicao';
 import ProventosKpiCard from './ProventosKpiCard';
 import { inicioUltimosNMeses, inicioDoAno, toISODate } from '@/utils/periodWindow';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 type PeriodPill = 'ano' | '12m' | '24m' | '36m' | 'inicio';
 type GroupByType = 'ativo' | 'classe' | 'tipo';
@@ -221,31 +222,27 @@ export default function ProventosConsolidado() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ComponentCard title="Proventos por Mês">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+          <div className={TABLE_STYLES.wrapper}>
+            <table className={TABLE_STYLES.table}>
               <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Mês
-                  </th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Total
-                  </th>
+                <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                  <th className={`${TABLE_STYLES.th} text-left`}>Mês</th>
+                  <th className={`${TABLE_STYLES.th} text-right`}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(monthly)
                   .sort((a, b) => a[0].localeCompare(b[0]))
                   .map(([month, data]) => (
-                    <tr key={month} className="border-b border-gray-100 dark:border-gray-800">
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{month}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                    <tr key={month} className={TABLE_STYLES.row}>
+                      <td className={TABLE_STYLES.td}>{month}</td>
+                      <td className={`${TABLE_STYLES.td} text-right`}>
                         {formatCurrency(data.total)}
                       </td>
                     </tr>
                   ))}
                 {Object.keys(monthly).length === 0 && (
-                  <tr>
+                  <tr className={TABLE_STYLES.placeholderRow}>
                     <td
                       colSpan={2}
                       className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
@@ -260,31 +257,27 @@ export default function ProventosConsolidado() {
         </ComponentCard>
 
         <ComponentCard title="Consolidado Anual">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+          <div className={TABLE_STYLES.wrapper}>
+            <table className={TABLE_STYLES.table}>
               <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Ano
-                  </th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Total
-                  </th>
+                <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                  <th className={`${TABLE_STYLES.th} text-left`}>Ano</th>
+                  <th className={`${TABLE_STYLES.th} text-right`}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(yearly)
                   .sort((a, b) => a[0].localeCompare(b[0]))
                   .map(([year, data]) => (
-                    <tr key={year} className="border-b border-gray-100 dark:border-gray-800">
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{year}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">
+                    <tr key={year} className={TABLE_STYLES.row}>
+                      <td className={TABLE_STYLES.td}>{year}</td>
+                      <td className={`${TABLE_STYLES.td} text-right`}>
                         {formatCurrency(data.total)}
                       </td>
                     </tr>
                   ))}
                 {Object.keys(yearly).length === 0 && (
-                  <tr>
+                  <tr className={TABLE_STYLES.placeholderRow}>
                     <td
                       colSpan={2}
                       className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400"

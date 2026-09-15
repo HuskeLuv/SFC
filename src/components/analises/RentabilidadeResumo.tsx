@@ -10,6 +10,7 @@ import { ApexOptions } from 'apexcharts';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { useTheme } from '@/context/ThemeContext';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -433,80 +434,57 @@ export default function RentabilidadeResumo({
           </div>
         </div>
 
-        {/* Tabela Comparativa - Períodos nas linhas, Carteira/CDI/IBOV nas colunas */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        {/* Tabela Comparativa - Períodos nas linhas, Carteira/CDI/IBOV nas colunas.
+            Cores das colunas = as mesmas fatias do donut (paleta My Finance). */}
+        <div className={TABLE_STYLES.wrapper}>
+          <table className={TABLE_STYLES.table}>
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400"></th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  CARTEIRA
-                </th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  CDI
-                </th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  IBOV
-                </th>
+              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <th className={`${TABLE_STYLES.th} text-left`}></th>
+                <th className={`${TABLE_STYLES.th} text-right`}>CARTEIRA</th>
+                <th className={`${TABLE_STYLES.th} text-right`}>CDI</th>
+                <th className={`${TABLE_STYLES.th} text-right`}>IBOV</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-gray-100 dark:border-gray-800">
-                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
-                  Último dia
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#0079F2]">
-                  {formatPercentage(rentabilidades.carteira.ultimoDia)}
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#396CAA] dark:text-[#6E9DC4]">
-                  {formatPercentage(rentabilidades.cdi.ultimoDia)}
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#2D2D2D] dark:text-[#EAEAEA]">
-                  {formatPercentage(rentabilidades.ibov.ultimoDia)}
-                </td>
-              </tr>
-              <tr className="border-b border-gray-100 dark:border-gray-800">
-                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
-                  No mês
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#0079F2]">
-                  {formatPercentage(rentabilidades.carteira.mes)}
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#396CAA] dark:text-[#6E9DC4]">
-                  {formatPercentage(rentabilidades.cdi.mes)}
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#2D2D2D] dark:text-[#EAEAEA]">
-                  {formatPercentage(rentabilidades.ibov.mes)}
-                </td>
-              </tr>
-              <tr className="border-b border-gray-100 dark:border-gray-800">
-                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
-                  No ano
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#0079F2]">
-                  {formatPercentage(rentabilidades.carteira.ano)}
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#396CAA] dark:text-[#6E9DC4]">
-                  {formatPercentage(rentabilidades.cdi.ano)}
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#2D2D2D] dark:text-[#EAEAEA]">
-                  {formatPercentage(rentabilidades.ibov.ano)}
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
-                  12 meses
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#0079F2]">
-                  {formatPercentage(rentabilidades.carteira.dozeMeses)}
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#396CAA] dark:text-[#6E9DC4]">
-                  {formatPercentage(rentabilidades.cdi.dozeMeses)}
-                </td>
-                <td className="py-3 px-4 text-sm text-right text-[#2D2D2D] dark:text-[#EAEAEA]">
-                  {formatPercentage(rentabilidades.ibov.dozeMeses)}
-                </td>
-              </tr>
+              {(
+                [
+                  ['Último dia', 'ultimoDia'],
+                  ['No mês', 'mes'],
+                  ['No ano', 'ano'],
+                  ['12 meses', 'dozeMeses'],
+                ] as const
+              ).map(([label, key]) => (
+                <tr key={key} className={TABLE_STYLES.row}>
+                  <td className={`${TABLE_STYLES.td} font-medium text-gray-900 dark:text-white`}>
+                    {label}
+                  </td>
+                  <td
+                    className={`${TABLE_STYLES.td} text-right`}
+                    style={{ color: MYFINANCE_BRAND.outside }}
+                  >
+                    {formatPercentage(rentabilidades.carteira[key])}
+                  </td>
+                  <td
+                    className={`${TABLE_STYLES.td} text-right`}
+                    style={{
+                      color: isDarkMode
+                        ? MYFINANCE_BRAND.tranquilidade
+                        : MYFINANCE_BRAND.patrimonio,
+                    }}
+                  >
+                    {formatPercentage(rentabilidades.cdi[key])}
+                  </td>
+                  <td
+                    className={`${TABLE_STYLES.td} text-right`}
+                    style={{
+                      color: isDarkMode ? MYFINANCE_BRAND.escolha : MYFINANCE_BRAND.potencia,
+                    }}
+                  >
+                    {formatPercentage(rentabilidades.ibov[key])}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

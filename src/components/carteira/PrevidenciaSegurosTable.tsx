@@ -9,7 +9,11 @@ import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_SECTION_STYLE,
+} from '@/components/ui/table/tableStyles';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const PREVIDENCIA_SEGUROS_COLUMN_COUNT = 17;
@@ -76,8 +80,8 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
   };
 
   return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
+    <tr className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+      <td className={TABLE_STYLES.compact.td}>
         <div>
           <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
           {ativo.observacoes && (
@@ -85,47 +89,41 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
           )}
         </div>
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
-        {ativo.carencia} meses
-      </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.carencia} meses</td>
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
         {formatPercentage(ativo.cotacaoResgate * 100)}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
-        {ativo.liquidacaoResgate} dias
-      </td>
-      <td className="px-2 py-2 text-xs text-center">
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.liquidacaoResgate} dias</td>
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
           {ativo.modalidade.charAt(0).toUpperCase() + ativo.modalidade.slice(1)}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-center">
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
           {ativo.subclasse.charAt(0).toUpperCase() + ativo.subclasse.slice(1).replace('_', ' ')}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
-        {formatNumber(ativo.quantidade)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatNumber(ativo.quantidade)}</td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatCurrency(ativo.precoAquisicao)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatCurrency(ativo.valorTotal)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         <span className="text-gray-900 dark:text-white">{formatCurrency(ativo.cotacaoAtual)}</span>
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatCurrency(ativo.valorAtualizado)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.percentualCarteira)}
       </td>
-      <td className="px-2 py-2 text-xs text-right border border-black">
+      <td className={`${TABLE_STYLES.compact.td} text-right font-semibold`}>
         {isEditingObjetivo ? (
           <div className="flex items-center space-x-1">
             <input
@@ -151,13 +149,13 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.quantoFalta)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatCurrency(ativo.necessidadeAporte)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.rentabilidade)}
       </td>
     </tr>
@@ -283,154 +281,68 @@ export default function PrevidenciaSegurosTable({
 
       {/* Tabela principal */}
       <ComponentCard title="Previdência e Seguros - Detalhamento">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
+        <div className={TABLE_STYLES.wrapper}>
+          <table className={TABLE_STYLES.table}>
             <thead>
-              <tr
-                className="border-b border-gray-200 dark:border-gray-700"
-                style={{ backgroundColor: TABLE_HEADER_BG }}
-              >
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-left whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Nome do Ativo
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Carência
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Cotação de Resgate
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Liquidação de Resgate
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Modalidade
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Subclasse
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Quantidade
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Preço Aquisição
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Valor Total
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Cotação em Tempo Real
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Valor Atualizado
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <th className={`${TABLE_STYLES.compact.th} text-left`}>Nome do Ativo</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Carência</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Cotação de Resgate</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Liquidação de Resgate</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Modalidade</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Subclasse</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Quantidade</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Preço Aquisição</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Total</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Cotação em Tempo Real</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  % da Aba
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Objetivo
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Quanto Falta
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Nec. Aporte $
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Rentabilidade
-                </th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Objetivo</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Quanto Falta</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Nec. Aporte $</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
               </tr>
             </thead>
             <tbody>
               {/* Linha de totalização */}
-              <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+              <tr className={TABLE_STYLES.totalRow}>
+                <td className={TABLE_STYLES.compact.td}>TOTAL GERAL</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatNumber(data?.totalGeral?.quantidade || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(data?.totalGeral?.valorAplicado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(data?.totalGeral?.valorAtualizado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(data?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {ativosComRisco.length > 0 ? formatPct(100) : '—'}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(data?.totalGeral?.objetivo || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(data?.totalGeral?.quantoFalta || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(data?.totalGeral?.necessidadeAporte || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(data?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>
@@ -440,38 +352,38 @@ export default function PrevidenciaSegurosTable({
                   mesmo padrão das demais abas. */}
               {secoesComRisco.map((secao) => (
                 <React.Fragment key={secao.tipo}>
-                  <tr className="bg-[#808080] border-t-4 border-gray-300 dark:border-gray-600">
-                    <td className="px-2 py-2 text-xs text-white font-bold">{secao.nome}</td>
-                    <td className="px-2 py-2 text-xs text-center text-white font-bold" colSpan={5}>
+                  <tr className={TABLE_STYLES.sectionRow} style={TABLE_SECTION_STYLE}>
+                    <td className={`${TABLE_STYLES.compact.td} text-white`}>{secao.nome}</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-center text-white`} colSpan={5}>
                       -
                     </td>
-                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                    <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {formatNumber(secao.ativos.reduce((s, a) => s + a.quantidade, 0))}
                     </td>
-                    <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                    <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {formatCurrency(secao.ativos.reduce((s, a) => s + a.valorTotal, 0))}
                     </td>
-                    <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                    <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
+                    <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {formatCurrency(secao.ativos.reduce((s, a) => s + a.valorAtualizado, 0))}
                     </td>
-                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                    <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {formatPercentage(secao.ativos.reduce((s, a) => s + a.riscoPorAtivo, 0))}
                     </td>
-                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                    <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {formatPercentage(secao.ativos.reduce((s, a) => s + a.percentualCarteira, 0))}
                     </td>
-                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                    <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {formatPercentage(secao.ativos.reduce((s, a) => s + a.objetivo, 0))}
                     </td>
-                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                    <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {formatPercentage(secao.ativos.reduce((s, a) => s + a.quantoFalta, 0))}
                     </td>
-                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                    <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {formatCurrency(secao.ativos.reduce((s, a) => s + a.necessidadeAporte, 0))}
                     </td>
-                    <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                    <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
                       {secao.ativos.length > 0
                         ? formatPercentage(
                             secao.ativos.reduce((s, a) => s + a.rentabilidade, 0) /

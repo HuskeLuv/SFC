@@ -14,7 +14,6 @@ import {
 import { TableBody } from '@/components/ui/table';
 import { StandardTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_OPORTUNIDADE_COLUMN_COUNT = 13;
@@ -196,142 +195,66 @@ export default function ReservaOportunidadeTable({
       {/* Tabela principal */}
       <ComponentCard title="Reserva de Oportunidade - Detalhamento">
         <StandardTable>
-          <StandardTableHeader sticky headerBgColor={TABLE_HEADER_BG}>
-            <StandardTableHeaderRow headerBgColor={TABLE_HEADER_BG}>
-              <StandardTableHeaderCell align="left" headerBgColor={TABLE_HEADER_BG}>
-                Nome dos Ativos
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
-                Cot. Resgate
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
-                Liq. Resgate
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
-                Vencimento
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
-                Benchmark
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
-                Valor Inicial
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
-                Aporte
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
-                Resgate
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
-                Valor Atual
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
-                % da Aba
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
+          <StandardTableHeader sticky>
+            <StandardTableHeaderRow>
+              <StandardTableHeaderCell align="left">Nome dos Ativos</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center">Cot. Resgate</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center">Liq. Resgate</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center">Vencimento</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center">Benchmark</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">Valor Inicial</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">Aporte</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">Resgate</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">Valor Atual</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">% da Aba</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">
                 <span className="block">Risco Por Ativo</span>
                 <span className="block">(Carteira Total)</span>
               </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right" headerBgColor={TABLE_HEADER_BG}>
-                Rentab.
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center" headerBgColor={TABLE_HEADER_BG}>
-                Observações
-              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">Rentab.</StandardTableHeaderCell>
+              <StandardTableHeaderCell align="center">Observações</StandardTableHeaderCell>
             </StandardTableHeaderRow>
           </StandardTableHeader>
           <TableBody>
             {/* Linha de totalização */}
-            <StandardTableRow isTotal className="bg-[#404040]">
-              <StandardTableBodyCell
-                align="left"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+            <StandardTableRow isTotal>
+              <StandardTableBodyCell align="left" isTotal>
                 TOTAL GERAL
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="center"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="center" isTotal>
                 -
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="center"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="center" isTotal>
                 -
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="center"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="center" isTotal>
                 -
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="center"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="center" isTotal>
                 -
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="right"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="right" isTotal>
                 {formatCurrency(totais.valorInicial)}
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="right"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="right" isTotal>
                 {formatCurrency(totais.aporte)}
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="right"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="right" isTotal>
                 {formatCurrency(totais.resgate)}
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="right"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="right" isTotal>
                 {formatCurrency(totais.valorAtualizado)}
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="right"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="right" isTotal>
                 100.00%
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="center"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="center" isTotal>
                 -
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="right"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="right" isTotal>
                 {formatPercentage(rentabilidadeTotal)}
               </StandardTableBodyCell>
-              <StandardTableBodyCell
-                align="center"
-                isTotal
-                className="bg-[#404040] text-white font-bold"
-              >
+              <StandardTableBodyCell align="center" isTotal>
                 -
               </StandardTableBodyCell>
             </StandardTableRow>
