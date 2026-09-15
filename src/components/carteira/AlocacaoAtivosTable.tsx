@@ -7,12 +7,12 @@ import EditableTextCell from './EditableTextCell';
 import Alert from '../ui/alert/Alert';
 import ComponentCard from '../common/ComponentCard';
 import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
-import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
-// Paleta My Finance PARTE 2 (ticket 21/08/2026): cabeçalho da tabela no azul
-// segurança da marca (antes dourado #9E8A58), mesmo formato do Balanço
-// Patrimonial da Saúde Financeira.
-const ALOCACAO_HEADER_BG = MYFINANCE_BRAND.seguranca;
+// Padrão visual único de tabela (15/09/2026): wrapper arredondado, cabeçalho
+// no azul segurança da paleta, linhas sem bordas verticais, totais em
+// cinza-claro — mesmo visual do Orçamento. Antes era estilo Excel (Calibri,
+// bordas pretas, totais #595959/#404040).
 
 interface AlocacaoAtivo {
   categoria: string;
@@ -276,117 +276,53 @@ export default function AlocacaoAtivosTable({
         </div>
       )}
 
-      <div className="max-w-full overflow-x-auto">
-        <Table
-          className="relative text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0"
-          style={{ borderCollapse: 'separate', borderSpacing: 0 }}
-        >
+      <div className={TABLE_STYLES.wrapper}>
+        <Table className={TABLE_STYLES.table}>
           <TableHeader
             style={{
               position: 'sticky',
               top: 0,
               zIndex: 400,
-              backgroundColor: ALOCACAO_HEADER_BG,
               isolation: 'isolate',
             }}
           >
-            <TableRow
-              className="h-6"
-              style={{
-                fontFamily: 'Calibri, sans-serif',
-                fontSize: '12px',
-                backgroundColor: ALOCACAO_HEADER_BG,
-              }}
-            >
-              <TableCell
-                isHeader
-                rowSpan={2}
-                className="px-2 border border-black text-left h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
-              >
-                <p className="font-bold text-white text-xs whitespace-nowrap">Classe de ativos</p>
+            <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+              <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-left`}>
+                Classe de ativos
+              </TableCell>
+              <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
+                TOTAL
+              </TableCell>
+              <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
+                % Atual
+              </TableCell>
+              <TableCell isHeader colSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
+                Alocação
+              </TableCell>
+              <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
+                % TARGET
+              </TableCell>
+              <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
+                Quanto Falta
               </TableCell>
               <TableCell
                 isHeader
                 rowSpan={2}
-                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
+                className={`${TABLE_STYLES.compact.th} w-36 text-center`}
               >
-                <p className="font-bold text-white text-xs whitespace-nowrap">TOTAL</p>
+                <span className="block">Necessidade de</span>
+                <span className="block">aporte em</span>
               </TableCell>
-              <TableCell
-                isHeader
-                rowSpan={2}
-                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
-              >
-                <p className="font-bold text-white text-xs whitespace-nowrap">% Atual</p>
-              </TableCell>
-              <TableCell
-                isHeader
-                colSpan={2}
-                className="px-2 border-t border-l border-r border-b border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
-              >
-                <p className="font-bold text-white text-xs whitespace-nowrap">Alocação</p>
-              </TableCell>
-              <TableCell
-                isHeader
-                rowSpan={2}
-                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
-              >
-                <p className="font-bold text-white text-xs whitespace-nowrap">% TARGET</p>
-              </TableCell>
-              <TableCell
-                isHeader
-                rowSpan={2}
-                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
-              >
-                <p className="font-bold text-white text-xs whitespace-nowrap">Quanto Falta</p>
-              </TableCell>
-              <TableCell
-                isHeader
-                rowSpan={2}
-                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap w-36"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
-              >
-                <p className="font-bold text-white text-xs whitespace-nowrap">
-                  <span className="block">Necessidade de</span>
-                  <span className="block">aporte em</span>
-                </p>
-              </TableCell>
-              <TableCell
-                isHeader
-                rowSpan={2}
-                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
-              >
-                <p className="font-bold text-white text-xs whitespace-nowrap">Descrição</p>
+              <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
+                Descrição
               </TableCell>
             </TableRow>
-            <TableRow
-              className="h-6"
-              style={{
-                fontFamily: 'Calibri, sans-serif',
-                fontSize: '12px',
-                backgroundColor: ALOCACAO_HEADER_BG,
-              }}
-            >
-              <TableCell
-                isHeader
-                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
-              >
-                <p className="font-bold text-white text-xs whitespace-nowrap">Mínimo</p>
+            <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+              <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
+                Mínimo
               </TableCell>
-              <TableCell
-                isHeader
-                className="px-2 border border-black text-center h-6 text-xs leading-6 whitespace-nowrap"
-                style={{ backgroundColor: ALOCACAO_HEADER_BG }}
-              >
-                <p className="font-bold text-white text-xs whitespace-nowrap">Máximo</p>
+              <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
+                Máximo
               </TableCell>
             </TableRow>
           </TableHeader>
@@ -399,10 +335,9 @@ export default function AlocacaoAtivosTable({
               return (
                 <TableRow
                   key={ativo.classeAtivo}
-                  className="h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-white dark:bg-gray-900"
-                  style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
+                  className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
                 >
-                  <TableCell className="px-2 font-medium text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-l border-gray-200 border-r-0">
+                  <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap font-medium`}>
                     {onNavigateToTab && CATEGORIA_TO_TAB[ativo.categoria] ? (
                       <button
                         type="button"
@@ -412,16 +347,20 @@ export default function AlocacaoAtivosTable({
                         {ativo.classeAtivo}
                       </button>
                     ) : (
-                      <span className="text-gray-800 dark:text-white">{ativo.classeAtivo}</span>
+                      <span>{ativo.classeAtivo}</span>
                     )}
                   </TableCell>
-                  <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 font-mono">
+                  <TableCell
+                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center font-mono`}
+                  >
                     {formatarMoeda(ativo.total)}
                   </TableCell>
-                  <TableCell className="px-2 text-xs text-center font-bold text-gray-800 dark:text-gray-400 h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0">
+                  <TableCell
+                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center font-medium`}
+                  >
                     {formatarPercentual(ativo.percentualAtual)}
                   </TableCell>
-                  <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0">
+                  <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center`}>
                     {isImoveisBens ? (
                       <span className="text-gray-500 dark:text-gray-500">-</span>
                     ) : (
@@ -442,7 +381,7 @@ export default function AlocacaoAtivosTable({
                       />
                     )}
                   </TableCell>
-                  <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0">
+                  <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center`}>
                     {isImoveisBens ? (
                       <span className="text-gray-500 dark:text-gray-500">-</span>
                     ) : (
@@ -463,13 +402,15 @@ export default function AlocacaoAtivosTable({
                       />
                     )}
                   </TableCell>
+                  {/* Célula TARGET: antes destacada com borda preta dupla (Excel);
+                      no padrão único o destaque é só tipográfico. */}
                   <TableCell
-                    className={`px-2 text-xs font-medium text-center h-6 leading-6 whitespace-nowrap ${
+                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center ${
                       isImoveisBens
-                        ? 'border-b border-gray-200 border-l-0 border-r-0 text-gray-500 dark:text-gray-500'
+                        ? 'text-gray-500 dark:text-gray-500'
                         : isReservaEmergencia
-                          ? 'border-b border-gray-200 border-l-0 border-r-0 text-gray-800 dark:text-gray-400'
-                          : 'border-2 border-t-2 border-b-2 border-l-2 border-r-2 border-black text-gray-800 dark:text-gray-400'
+                          ? 'font-medium'
+                          : 'font-semibold text-gray-900 dark:text-white'
                     }`}
                   >
                     {isImoveisBens ? (
@@ -493,7 +434,7 @@ export default function AlocacaoAtivosTable({
                     )}
                   </TableCell>
                   <TableCell
-                    className={`px-2 text-xs text-center font-medium h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 ${
+                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center font-medium ${
                       ativo.quantoFalta < 0
                         ? 'text-red-600 dark:text-red-400'
                         : 'text-green-600 dark:text-green-400'
@@ -507,7 +448,9 @@ export default function AlocacaoAtivosTable({
                           ? `Excesso ${formatarPercentual(Math.abs(ativo.quantoFalta))}`
                           : 'No target'}
                   </TableCell>
-                  <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 whitespace-nowrap border-b border-gray-200 border-l-0 border-r-0 font-mono w-36">
+                  <TableCell
+                    className={`${TABLE_STYLES.compact.td} w-36 whitespace-nowrap text-center font-mono`}
+                  >
                     <span
                       className={
                         ativo.necessidadeAporte > 0
@@ -518,7 +461,7 @@ export default function AlocacaoAtivosTable({
                       {ativo.necessidadeAporte > 0 ? formatarMoeda(ativo.necessidadeAporte) : '-'}
                     </span>
                   </TableCell>
-                  <TableCell className="px-2 font-normal text-gray-800 dark:text-gray-400 text-xs text-center h-6 leading-6 border-b border-gray-200 border-l-0 border-r border-gray-300">
+                  <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
                     <EditableTextCell
                       value={ativo.descricao}
                       isEditing={isEditing(ativo.categoria, 'descricao')}
@@ -533,107 +476,43 @@ export default function AlocacaoAtivosTable({
             })}
 
             {/* Linha de Total Dinheiro (exclui Imóveis e Bens) */}
-            <TableRow
-              className="h-6"
-              style={{
-                fontFamily: 'Calibri, sans-serif',
-                fontSize: '12px',
-                backgroundColor: '#595959',
-              }}
-            >
-              <TableCell
-                className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0"
-                style={{ backgroundColor: '#595959' }}
-              >
+            <TableRow className={TABLE_STYLES.totalRow}>
+              <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap`}>
                 Total Dinheiro
               </TableCell>
               <TableCell
-                className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono"
-                style={{ backgroundColor: '#595959' }}
+                className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center font-mono`}
               >
                 {formatarMoeda(totalDinheiro)}
               </TableCell>
-              <TableCell
-                className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0"
-                style={{ backgroundColor: '#595959' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"
-                style={{ backgroundColor: '#595959' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"
-                style={{ backgroundColor: '#595959' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0"
-                style={{ backgroundColor: '#595959' }}
-              >
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center`}>
                 {formatarPercentual(totalPercentualTarget)}
               </TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"
-                style={{ backgroundColor: '#595959' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"
-                style={{ backgroundColor: '#595959' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"
-                style={{ backgroundColor: '#595959' }}
-              ></TableCell>
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
             </TableRow>
 
             {/* Linha de Total Dinheiro + Bens */}
-            <TableRow
-              className="h-6"
-              style={{
-                fontFamily: 'Calibri, sans-serif',
-                fontSize: '12px',
-                backgroundColor: '#404040',
-              }}
-            >
-              <TableCell
-                className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0"
-                style={{ backgroundColor: '#404040' }}
-              >
+            <TableRow className={`${TABLE_STYLES.totalRow} font-semibold`}>
+              <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap`}>
                 Total Dinheiro + Bens
               </TableCell>
               <TableCell
-                className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 font-mono"
-                style={{ backgroundColor: '#404040' }}
+                className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center font-mono`}
               >
                 {formatarMoeda(totalDinheiroMaisBens)}
               </TableCell>
-              <TableCell
-                className="px-2 font-bold text-white text-xs text-center h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0"
-                style={{ backgroundColor: '#404040' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"
-                style={{ backgroundColor: '#404040' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"
-                style={{ backgroundColor: '#404040' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r-0 h-6 leading-6"
-                style={{ backgroundColor: '#404040' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"
-                style={{ backgroundColor: '#404040' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"
-                style={{ backgroundColor: '#404040' }}
-              ></TableCell>
-              <TableCell
-                className="px-2 border-t border-b border-gray-200 border-l-0 border-r border-gray-300 h-6 leading-6"
-                style={{ backgroundColor: '#404040' }}
-              ></TableCell>
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
+              <TableCell className={TABLE_STYLES.compact.td} />
             </TableRow>
           </TableBody>
         </Table>

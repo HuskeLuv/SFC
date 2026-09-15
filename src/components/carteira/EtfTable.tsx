@@ -13,6 +13,7 @@ import {
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import ComponentCard from '@/components/common/ComponentCard';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import PieChartEtfAtivo from '@/components/charts/pie/PieChartEtfAtivo';
 
 const SECTION_ORDER = ['brasil', 'estados_unidos'] as const;
@@ -155,7 +156,6 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       key: 'objetivo',
       header: 'Objetivo',
       align: 'right',
-      cellClassName: 'border border-black',
       render: (a, f) => (
         <EditableObjetivoCell
           ativoId={a.id}
@@ -262,37 +262,24 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="xl:col-span-6">
           <ComponentCard title="Resumo de Aportes">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
+            <div className={TABLE_STYLES.wrapper}>
+              <table className={TABLE_STYLES.table}>
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Nome Ativo
-                    </th>
-                    <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Cotação Atual
-                    </th>
-                    <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Necessidade Aporte
-                    </th>
-                    <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Lote Aproximado
-                    </th>
+                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                    <th className={`${TABLE_STYLES.th} text-left`}>Nome Ativo</th>
+                    <th className={`${TABLE_STYLES.th} text-right`}>Cotação Atual</th>
+                    <th className={`${TABLE_STYLES.th} text-right`}>Necessidade Aporte</th>
+                    <th className={`${TABLE_STYLES.th} text-right`}>Lote Aproximado</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(data?.tabelaAuxiliar || []).map((item, index) => (
-                    <tr
-                      key={index}
-                      className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
-                    >
-                      <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
-                        {item.ticker}
-                      </td>
-                      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+                    <tr key={index} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                      <td className={`${TABLE_STYLES.td} font-medium`}>{item.ticker}</td>
+                      <td className={`${TABLE_STYLES.td} text-right font-medium`}>
                         {formatCurrency(item.cotacaoAtual)}
                       </td>
-                      <td className="px-2 py-2 text-xs text-right font-medium">
+                      <td className={`${TABLE_STYLES.td} text-right font-medium`}>
                         <span
                           className={
                             item.necessidadeAporte > 0
@@ -303,7 +290,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                           {formatCurrency(item.necessidadeAporte)}
                         </span>
                       </td>
-                      <td className="px-2 py-2 text-xs text-right font-medium text-gray-900 dark:text-white">
+                      <td className={`${TABLE_STYLES.td} text-right font-medium`}>
                         {formatNumber(item.loteAproximado)}
                       </td>
                     </tr>
@@ -311,6 +298,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                   <BasicTablePlaceholderRows
                     count={Math.max(0, MIN_PLACEHOLDER_ROWS - (data?.tabelaAuxiliar?.length || 0))}
                     colSpan={4}
+                    compact={false}
                   />
                 </tbody>
               </table>

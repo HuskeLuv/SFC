@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table'
 import ComponentCard from '../common/ComponentCard';
 import { UiTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_EMERGENCIA_COLUMN_COUNT = 12;
@@ -74,41 +74,39 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
   formatDate,
 }) => {
   return (
-    <TableRow className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.02]">
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white">
+    <TableRow className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+      <TableCell className={TABLE_STYLES.compact.td}>
         <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
         {ativo.cotizacaoResgate}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
         {ativo.liquidacaoResgate}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
         {formatDate(ativo.vencimento)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
-        {ativo.benchmark}
-      </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.benchmark}</TableCell>
+      <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
         {formatCurrency(ativo.valorInicial)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
         {formatCurrency(ativo.aporte)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
         {formatCurrency(ativo.resgate)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-right font-mono">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
         {formatCurrency(ativo.valorAtualizado)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
         {formatPercentage(ativo.percentualCarteira)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-gray-900 dark:text-white text-center">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
         {formatPercentage(ativo.riscoAtivo)}
       </TableCell>
-      <TableCell className="px-2 py-2 text-xs text-center font-medium text-gray-900 dark:text-white">
+      <TableCell className={`${TABLE_STYLES.compact.td} text-center font-medium`}>
         {formatPercentage(ativo.rentabilidade)}
       </TableCell>
     </TableRow>
@@ -191,128 +189,75 @@ export default function ReservaEmergenciaTable({
       </div>
 
       <ComponentCard title="Reserva de Emergência - Detalhamento">
-        <div className="max-w-full overflow-x-auto">
-          <Table className="text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
-            <TableHeader
-              style={{ backgroundColor: TABLE_HEADER_BG }}
-              className="border-t border-gray-100 border-y"
-            >
-              <TableRow style={{ backgroundColor: TABLE_HEADER_BG }}>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-left"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+        <div className={TABLE_STYLES.wrapper}>
+          <Table className={TABLE_STYLES.table}>
+            <TableHeader>
+              <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-left`}>
                   Nome dos Ativos
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-center"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
                   Cot. Resgate
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-center"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
                   Liq. Resgate
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-center"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
                   Vencimento
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-center"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
                   Benchmark
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                   Valor Inicial
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                   Aporte
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                   Resgate
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                   Valor Atual
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-center"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
                   % da Aba
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-center"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-2 py-2 font-bold text-white text-xs text-center"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
                   Rentab.
                 </TableCell>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow className="border-t-2 border-gray-200 bg-[#404040]">
-                <TableCell className="px-2 py-2 text-xs text-white font-bold">
-                  TOTAL GERAL
-                </TableCell>
-                <TableCell className="px-2 py-2 text-white font-bold"></TableCell>
-                <TableCell className="px-2 py-2 text-white font-bold"></TableCell>
-                <TableCell className="px-2 py-2 text-white font-bold"></TableCell>
-                <TableCell className="px-2 py-2 text-white font-bold"></TableCell>
-                <TableCell className="px-2 py-2 text-xs text-white font-bold text-right font-mono">
+              <TableRow className={TABLE_STYLES.totalRow}>
+                <TableCell className={TABLE_STYLES.compact.td}>TOTAL GERAL</TableCell>
+                <TableCell className={TABLE_STYLES.compact.td}></TableCell>
+                <TableCell className={TABLE_STYLES.compact.td}></TableCell>
+                <TableCell className={TABLE_STYLES.compact.td}></TableCell>
+                <TableCell className={TABLE_STYLES.compact.td}></TableCell>
+                <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
                   {formatCurrency(totais.valorInicial)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-white font-bold text-right font-mono">
+                <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
                   {formatCurrency(totais.aporte)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-white font-bold text-right font-mono">
+                <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
                   {formatCurrency(totais.resgate)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-white font-bold text-right font-mono">
+                <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
                   {formatCurrency(totais.valorAtualizado)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-white font-bold text-center">
+                <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
                   {sortedAtivos.length > 0 ? formatPct(100) : '—'}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-white font-bold text-center">
+                <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
                   {formatPercentage(totais.risco)}
                 </TableCell>
-                <TableCell className="px-2 py-2 text-xs text-white font-bold text-center">
+                <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
                   {formatPercentage(rentabilidade)}
                 </TableCell>
               </TableRow>

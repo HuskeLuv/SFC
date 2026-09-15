@@ -139,7 +139,6 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       key: 'objetivo',
       header: 'Objetivo',
       align: 'right',
-      cellClassName: 'border border-black',
       render: (a, f) => (
         <EditableObjetivoCell
           ativoId={a.id}

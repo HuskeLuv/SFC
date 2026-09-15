@@ -8,7 +8,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const IMOVEIS_BENS_COLUMN_COUNT = 11;
@@ -91,8 +91,8 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
   };
 
   return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs font-medium text-gray-900 dark:text-white">
+    <tr className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+      <td className={`${TABLE_STYLES.compact.td} font-medium`}>
         <div>
           <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
           {ativo.observacoes && (
@@ -100,25 +100,17 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
           )}
         </div>
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
-        {ativo.cidade}
-      </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
-        {ativo.mandato}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
-        {formatNumber(ativo.quantidade)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.cidade}</td>
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.mandato}</td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatNumber(ativo.quantidade)}</td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatCurrency(ativo.precoAquisicao)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
-        {formatCurrency(ativo.melhorias)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatCurrency(ativo.melhorias)}</td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatCurrency(ativo.valorTotal)}
       </td>
-      <td className="px-2 py-2 text-xs text-right">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {isEditingValor ? (
           <div className="flex items-center space-x-1">
             <input
@@ -143,13 +135,13 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.percentualCarteira)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.rentabilidade)}
       </td>
     </tr>
@@ -254,106 +246,50 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
 
       {/* Tabela principal */}
       <ComponentCard title="Imóveis & Bens - Detalhamento">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
+        <div className={TABLE_STYLES.wrapper}>
+          <table className={TABLE_STYLES.table}>
             <thead>
-              <tr
-                className="border-b border-gray-200 dark:border-gray-700"
-                style={{ backgroundColor: TABLE_HEADER_BG }}
-              >
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-left"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Nome do Ativo
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Cidade
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Mandato
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Quantidade
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Preço Aquisição
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Melhorias
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Valor Total
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Valor Atualizado
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <th className={`${TABLE_STYLES.compact.th} text-left`}>Nome do Ativo</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Cidade</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Mandato</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Quantidade</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Preço Aquisição</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Melhorias</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Total</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  % da Aba
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Rentabilidade
-                </th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
               </tr>
             </thead>
             <tbody>
               {/* Linha de totalização */}
-              <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+              <tr className={TABLE_STYLES.totalRow}>
+                <td className={TABLE_STYLES.compact.td}>TOTAL GERAL</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(dataComRisco?.totalGeral?.percentualCarteira || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
               </tr>

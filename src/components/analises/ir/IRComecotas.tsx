@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { FUNDO_TIPO_LABEL, formatBRL, formatDate, formatPercent } from './irFormatters';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 export default function IRComecotas() {
   const { data, isLoading, error } = useIRComecotas();
@@ -64,10 +65,10 @@ export default function IRComecotas() {
         />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table className="w-full text-sm">
+      <div className={TABLE_STYLES.wrapper}>
+        <table className={TABLE_STYLES.table}>
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/30">
+            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
               <Th>Fundo</Th>
               <Th>Tipo</Th>
               <Th align="right">Rendimento</Th>
@@ -75,36 +76,35 @@ export default function IRComecotas() {
               <Th align="right">IR estimado</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          <tbody>
             {data.fundos.map((f) => (
-              <tr
-                key={f.symbol}
-                className="transition-colors hover:bg-gray-50/50 dark:hover:bg-white/[0.02]"
-              >
-                <td className="whitespace-nowrap px-4 py-3">
+              <tr key={f.symbol} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                   <div className="font-medium text-gray-900 dark:text-white">{f.nome}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     {f.symbol} · {f.diasDecorridos} dias na carteira
                   </div>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-gray-700 dark:text-gray-300">
+                <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                   <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                     {FUNDO_TIPO_LABEL[f.tipo]}
                   </span>
                 </td>
-                <td
-                  className={`whitespace-nowrap px-4 py-3 text-right font-medium ${
-                    f.rendimentoEstimado > 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-gray-700 dark:text-gray-300'
-                  }`}
-                >
-                  {formatBRL(f.rendimentoEstimado)}
+                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium`}>
+                  <span
+                    className={
+                      f.rendimentoEstimado > 0 ? 'text-emerald-600 dark:text-emerald-400' : ''
+                    }
+                  >
+                    {formatBRL(f.rendimentoEstimado)}
+                  </span>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
                   {f.isentoComeCotas ? '—' : formatPercent(f.aliquota, 0)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">
+                <td
+                  className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
+                >
                   {f.isentoComeCotas ? (
                     <span className="text-emerald-600 dark:text-emerald-400">Isento</span>
                   ) : (
@@ -129,11 +129,5 @@ function Th({
 }) {
   const alignClass =
     align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
-  return (
-    <th
-      className={`px-4 py-3 ${alignClass} text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}
-    >
-      {children}
-    </th>
-  );
+  return <th className={`${TABLE_STYLES.th} ${alignClass}`}>{children}</th>;
 }

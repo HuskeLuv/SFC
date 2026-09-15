@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/button/Button';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { formatBRL } from '@/utils/format';
 import {
   useAplicarTransacoes,
@@ -163,16 +163,15 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
         </div>
       ) : null}
 
-      <div className="overflow-x-auto">
-        <Table aria-label="Caixa de entrada">
+      <div className={TABLE_STYLES.wrapper}>
+        <Table className={TABLE_STYLES.table} aria-label="Caixa de entrada">
           <TableHeader>
-            <TableRow>
+            <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
               {['', 'Data', 'Transação', 'Valor', 'Linha do fluxo de caixa', ''].map((h, i) => (
                 <TableCell
                   key={i}
                   isHeader
-                  className={`px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-white ${h === 'Valor' ? 'text-right' : ''}`}
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
+                  className={`${TABLE_STYLES.th} ${h === 'Valor' ? 'text-right' : 'text-left'}`}
                 >
                   {h}
                 </TableCell>
@@ -183,8 +182,8 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
             {pendentes.map((p) => {
               const saida = p.amount < 0; // negativo = saída (conta e cartão)
               return (
-                <TableRow key={p.id} className="border-b border-gray-100 dark:border-gray-800">
-                  <TableCell className="px-3 py-2">
+                <TableRow key={p.id} className={TABLE_STYLES.row}>
+                  <TableCell className={TABLE_STYLES.td}>
                     <input
                       id={`caixa-${p.id}`}
                       type="checkbox"
@@ -193,10 +192,10 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
                       onChange={() => alternar(p.id)}
                     />
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
+                  <TableCell className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                     {new Date(p.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-sm">
+                  <TableCell className={TABLE_STYLES.td}>
                     <div className="text-gray-800 dark:text-white/90">
                       {p.merchantName ?? p.description}
                     </div>
@@ -206,12 +205,12 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
                     </div>
                   </TableCell>
                   <TableCell
-                    className={`whitespace-nowrap px-3 py-2 text-right text-sm font-medium tabular-nums ${saida ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}
+                    className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium tabular-nums ${saida ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}
                   >
                     {saida ? '−' : '+'}
                     {formatBRL(Math.abs(p.amount))}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-sm">
+                  <TableCell className={TABLE_STYLES.td}>
                     <select
                       id={`linha-${p.id}`}
                       aria-label={`Linha para ${p.description}`}
@@ -230,7 +229,7 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
                       {rotuloSugestao(p)}
                     </div>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap px-3 py-2">
+                  <TableCell className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                     <div className="flex gap-1">
                       <Button size="sm" onClick={() => aplicarIds([p.id])} disabled={ocupado}>
                         Lançar

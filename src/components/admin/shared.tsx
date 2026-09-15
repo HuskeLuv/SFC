@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { MYFINANCE_BRAND, TABLE_HEADER_BG } from '@/constants/brandColors';
+import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { useTheme } from '@/context/ThemeContext';
 import type { AdminSerieDia } from '@/services/admin/overview';
 
@@ -119,16 +120,12 @@ export function Tabela<T>({
   const align = (a?: Coluna<T>['alinhar']) =>
     a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
   return (
-    <div className="max-w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-      <table className="w-full min-w-[520px] text-sm">
+    <div className={`max-w-full ${TABLE_STYLES.wrapper}`}>
+      <table className={`${TABLE_STYLES.table} min-w-[520px]`}>
         <thead>
-          <tr style={{ backgroundColor: TABLE_HEADER_BG }}>
+          <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
             {colunas.map((c) => (
-              <th
-                key={c.chave}
-                className={`px-3 py-2 text-xs font-bold text-white ${align(c.alinhar)}`}
-                style={{ backgroundColor: TABLE_HEADER_BG }}
-              >
+              <th key={c.chave} className={`${TABLE_STYLES.th} ${align(c.alinhar)}`}>
                 {c.titulo}
               </th>
             ))}
@@ -136,22 +133,19 @@ export function Tabela<T>({
         </thead>
         <tbody>
           {linhas.length === 0 && (
-            <tr>
+            <tr className={TABLE_STYLES.placeholderRow}>
               <td
                 colSpan={colunas.length}
-                className="px-3 py-4 text-center text-xs text-gray-500 dark:text-gray-400"
+                className={`${TABLE_STYLES.td} text-center text-gray-500 dark:text-gray-400`}
               >
                 {vazio}
               </td>
             </tr>
           )}
           {linhas.map((l) => (
-            <tr key={chave(l)} className="border-t border-gray-100 dark:border-gray-800">
+            <tr key={chave(l)} className={TABLE_STYLES.row}>
               {colunas.map((c) => (
-                <td
-                  key={c.chave}
-                  className={`px-3 py-2 tabular-nums text-gray-800 dark:text-gray-200 ${align(c.alinhar)}`}
-                >
+                <td key={c.chave} className={`${TABLE_STYLES.td} tabular-nums ${align(c.alinhar)}`}>
                   {c.render(l)}
                 </td>
               ))}

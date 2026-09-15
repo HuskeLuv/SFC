@@ -5,6 +5,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import MetricCard from '@/components/carteira/shared/MetricCard';
 import Button from '@/components/ui/button/Button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { addMonths, planned, pmt, progress } from '@/services/planejamento/planejamentoSonhos';
 import { useDeleteEntry, type PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import { StatusBadge, PriorityBadge, CategoryBadge } from './SonhosBadges';
@@ -167,59 +168,36 @@ export default function SonhosObjetivoDetail({
             Nenhum registro ainda — clique em &quot;+ Registrar Mês&quot; acima.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <Table className="text-sm">
+          <div className={TABLE_STYLES.wrapper}>
+            {/* 9 colunas: variante compacta do padrão único de tabelas */}
+            <Table className={TABLE_STYLES.table}>
               <TableHeader>
-                <TableRow className="border-b border-gray-200 dark:border-gray-800">
-                  <TableCell
-                    isHeader
-                    className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase"
-                  >
+                <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-left`}>
                     Mês
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase"
-                  >
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                     Aporte Real
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase"
-                  >
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                     Aporte Planejado
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase"
-                  >
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                     Δ Aporte
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase"
-                  >
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                     Saldo Real
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase"
-                  >
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                     Saldo Planejado
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase"
-                  >
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                     Δ Saldo
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase"
-                  >
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                     Progresso
                   </TableCell>
-                  <TableCell isHeader className="px-3 py-2" />
+                  <TableCell isHeader className={TABLE_STYLES.compact.th} />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -235,45 +213,48 @@ export default function SonhosObjetivoDetail({
                   const isLast = idx === objetivo.entries.length - 1;
                   const isRemoving = removingMonth === entry.month;
                   return (
-                    <TableRow
-                      key={entry.month}
-                      className="border-b border-gray-100 dark:border-gray-800"
-                    >
-                      <TableCell className="px-3 py-2 font-medium text-gray-900 dark:text-white/90">
+                    <TableRow key={entry.month} className={TABLE_STYLES.row}>
+                      <TableCell
+                        className={`${TABLE_STYLES.compact.td} font-medium text-gray-900 dark:text-white/90`}
+                      >
                         {formatYearMonth(entry.month)}
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
+                      <TableCell className={`${TABLE_STYLES.compact.td} text-right`}>
                         {formatBRL(entry.aporte)}
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-right text-gray-500 dark:text-gray-400">
-                        {formatBRL(aporte)}
+                      <TableCell className={`${TABLE_STYLES.compact.td} text-right`}>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {formatBRL(aporte)}
+                        </span>
+                      </TableCell>
+                      <TableCell className={`${TABLE_STYLES.compact.td} text-right font-medium`}>
+                        <span className={deltaAporte >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                          {deltaAporte >= 0 ? '+' : ''}
+                          {formatBRL(deltaAporte)}
+                        </span>
                       </TableCell>
                       <TableCell
-                        className={`px-3 py-2 text-right font-medium ${
-                          deltaAporte >= 0 ? 'text-emerald-600' : 'text-red-600'
-                        }`}
+                        className={`${TABLE_STYLES.compact.td} text-right font-semibold text-gray-900 dark:text-white/90`}
                       >
-                        {deltaAporte >= 0 ? '+' : ''}
-                        {formatBRL(deltaAporte)}
-                      </TableCell>
-                      <TableCell className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white/90">
                         {formatBRL(entry.balance)}
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-right text-gray-500 dark:text-gray-400">
-                        {formatBRL(planejado)}
+                      <TableCell className={`${TABLE_STYLES.compact.td} text-right`}>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {formatBRL(planejado)}
+                        </span>
                       </TableCell>
-                      <TableCell
-                        className={`px-3 py-2 text-right font-medium ${
-                          deltaSaldo >= 0 ? 'text-emerald-600' : 'text-red-600'
-                        }`}
-                      >
-                        {deltaSaldo >= 0 ? '+' : ''}
-                        {formatBRL(deltaSaldo)}
+                      <TableCell className={`${TABLE_STYLES.compact.td} text-right font-medium`}>
+                        <span className={deltaSaldo >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                          {deltaSaldo >= 0 ? '+' : ''}
+                          {formatBRL(deltaSaldo)}
+                        </span>
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-right text-xs text-gray-500 dark:text-gray-400">
-                        {entryPct.toFixed(0)}%
+                      <TableCell className={`${TABLE_STYLES.compact.td} text-right`}>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {entryPct.toFixed(0)}%
+                        </span>
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-right">
+                      <TableCell className={`${TABLE_STYLES.compact.td} text-right`}>
                         {isLast ? (
                           <button
                             type="button"

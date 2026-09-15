@@ -1,17 +1,23 @@
 import React from 'react';
+import { twMerge } from 'tailwind-merge';
 import { Table, TableHeader, TableBody, TableRow, TableCell } from './index';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from './tableStyles';
 
 /**
- * Componentes de tabela padronizados baseados no design do Fluxo de Caixa
+ * Componentes de tabela padronizados — realinhados ao padrão visual único
+ * do sistema (`tableStyles.ts`, referência: tabela do Orçamento).
  *
  * PADRÃO VISUAL:
- * - Altura de linha: h-6 (24px)
- * - Padding horizontal: px-2
- * - Font size: text-xs (12px)
- * - Header: bg-gray-50, font-bold, text-gray-700, border-t border-b border-gray-200
- * - Células: bg-white, text-gray-800, hover:bg-gray-50
- * - Bordas sutis entre linhas
+ * - Wrapper: `TABLE_STYLES.wrapper` (cantos arredondados, borda fina, scroll X)
+ * - Header: fundo azul `TABLE_HEADER_STYLE` por padrão (`headerBgColor` pode
+ *   sobrescrever), texto branco em caixa alta, `TABLE_STYLES.th`
+ * - Linhas: `TABLE_STYLES.row` (só borda horizontal sutil, sem bordas verticais);
+ *   `isTotal` → `TABLE_STYLES.totalRow`; `onClick` adiciona `rowHover`
+ * - Células: `TABLE_STYLES.td` (text-sm); `isTotal` → fonte semibold
  */
+
+const alignClassOf = (align: 'left' | 'center' | 'right') =>
+  ({ left: 'text-left', center: 'text-center', right: 'text-right' })[align];
 
 interface StandardTableHeaderCellProps {
   children: React.ReactNode;
@@ -28,26 +34,14 @@ export const StandardTableHeaderCell: React.FC<StandardTableHeaderCellProps> = (
   colSpan,
   headerBgColor,
 }) => {
-  const alignClass = {
-    left: 'text-left',
-    center: 'text-center',
-    right: 'text-right',
-  }[align];
-
-  const useCustomBg = Boolean(headerBgColor);
-
   return (
     <TableCell
       isHeader
       colSpan={colSpan}
-      className={`px-2 py-2 border-t border-b border-gray-200 dark:border-gray-700 text-xs whitespace-nowrap ${alignClass} ${
-        !useCustomBg
-          ? 'bg-gray-50 font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-          : 'font-bold text-white'
-      } ${className}`}
-      style={useCustomBg ? { backgroundColor: headerBgColor } : undefined}
+      className={twMerge(TABLE_STYLES.th, alignClassOf(align), className)}
+      style={headerBgColor ? { backgroundColor: headerBgColor } : TABLE_HEADER_STYLE}
     >
-      <p className="font-bold text-xs whitespace-nowrap">{children}</p>
+      {children}
     </TableCell>
   );
 };
@@ -67,20 +61,12 @@ export const StandardTableBodyCell: React.FC<StandardTableBodyCellProps> = ({
   colSpan,
   isTotal = false,
 }) => {
-  const alignClass = {
-    left: 'text-left',
-    center: 'text-center',
-    right: 'text-right',
-  }[align];
-
-  const totalClass = isTotal
-    ? 'font-semibold text-gray-900 dark:text-white'
-    : 'font-normal text-gray-800 dark:text-gray-200';
+  const totalClass = isTotal ? 'font-semibold text-gray-900 dark:text-white' : '';
 
   return (
     <TableCell
       colSpan={colSpan}
-      className={`px-2 text-xs leading-6 h-6 ${totalClass} ${alignClass} ${className}`}
+      className={twMerge(TABLE_STYLES.td, totalClass, alignClassOf(align), className)}
     >
       {children}
     </TableCell>
@@ -98,23 +84,14 @@ export const StandardTableHeader: React.FC<StandardTableHeaderProps> = ({
   sticky = false,
   headerBgColor,
 }) => {
-  const useCustomBg = Boolean(headerBgColor);
+  const bgStyle = headerBgColor ? { backgroundColor: headerBgColor } : TABLE_HEADER_STYLE;
 
   return (
     <TableHeader
-      className={!useCustomBg ? 'bg-gray-50 dark:bg-gray-800' : ''}
       style={
         sticky
-          ? {
-              position: 'sticky',
-              top: 0,
-              zIndex: 400,
-              ...(useCustomBg && { backgroundColor: headerBgColor }),
-              isolation: 'isolate',
-            }
-          : useCustomBg
-            ? { backgroundColor: headerBgColor }
-            : undefined
+          ? { position: 'sticky', top: 0, zIndex: 400, isolation: 'isolate', ...bgStyle }
+          : bgStyle
       }
     >
       {children}
@@ -133,12 +110,10 @@ export const StandardTableHeaderRow: React.FC<StandardTableHeaderRowProps> = ({
   className = '',
   headerBgColor,
 }) => {
-  const useCustomBg = Boolean(headerBgColor);
-
   return (
     <TableRow
-      className={`h-6 ${!useCustomBg ? 'bg-gray-50 dark:bg-gray-800' : ''} ${className}`}
-      style={useCustomBg ? { backgroundColor: headerBgColor } : undefined}
+      className={`${TABLE_STYLES.headRow} ${className}`}
+      style={headerBgColor ? { backgroundColor: headerBgColor } : TABLE_HEADER_STYLE}
     >
       {children}
     </TableRow>
@@ -158,13 +133,11 @@ export const StandardTableRow: React.FC<StandardTableRowProps> = ({
   isTotal = false,
   onClick,
 }) => {
-  const baseClass = 'h-6 bg-white dark:bg-white/[0.03]';
-  const totalClass = isTotal
-    ? 'border-t-2 border-gray-300 dark:border-gray-600'
-    : 'border-b border-gray-200 dark:border-gray-700';
+  const rowClass = isTotal ? TABLE_STYLES.totalRow : TABLE_STYLES.row;
+  const hoverClass = onClick ? `${TABLE_STYLES.rowHover} cursor-pointer` : '';
 
   return (
-    <TableRow className={`${baseClass} ${totalClass} ${className}`} onClick={onClick}>
+    <TableRow className={`${rowClass} ${hoverClass} ${className}`} onClick={onClick}>
       {children}
     </TableRow>
   );
@@ -177,8 +150,8 @@ interface StandardTableProps {
 
 export const StandardTable: React.FC<StandardTableProps> = ({ children, className = '' }) => {
   return (
-    <div className="overflow-x-auto">
-      <Table className={`w-full text-xs ${className}`}>{children}</Table>
+    <div className={TABLE_STYLES.wrapper}>
+      <Table className={`${TABLE_STYLES.table} ${className}`}>{children}</Table>
     </div>
   );
 };

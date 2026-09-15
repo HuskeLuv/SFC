@@ -3,7 +3,7 @@
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { formatBRL } from '@/utils/format';
 import {
   useCarteiraImportada,
@@ -50,8 +50,8 @@ function rotuloEmprestimo(l: EmprestimoImportadoDTO): string {
   return st ? (l.importStatus === 'importado' ? 'Em Dívidas' : st.rotulo) : l.importStatus;
 }
 
-const th = 'px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-white';
-const td = 'px-3 py-2 text-sm';
+const th = TABLE_STYLES.th;
+const td = TABLE_STYLES.td;
 
 /**
  * Investimentos e empréstimos que o banco devolveu e como entraram no
@@ -105,16 +105,15 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
       </div>
 
       {data.investimentos.length > 0 ? (
-        <div className="overflow-x-auto">
-          <Table aria-label="Investimentos importados">
+        <div className={TABLE_STYLES.wrapper}>
+          <Table className={TABLE_STYLES.table} aria-label="Investimentos importados">
             <TableHeader>
-              <TableRow>
+              <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
                 {['Investimento', 'Tipo', 'Saldo no banco', 'Situação', ''].map((h, i) => (
                   <TableCell
                     key={i}
                     isHeader
-                    className={`${th} ${h === 'Saldo no banco' ? 'text-right' : ''}`}
-                    style={{ backgroundColor: TABLE_HEADER_BG }}
+                    className={`${th} ${h === 'Saldo no banco' ? 'text-right' : 'text-left'}`}
                   >
                     {h}
                   </TableCell>
@@ -125,7 +124,7 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
               {data.investimentos.map((i: InvestimentoImportadoDTO) => (
                 <TableRow
                   key={i.id}
-                  className={`border-b border-gray-100 dark:border-gray-800 ${i.ativo ? '' : 'opacity-60'}`}
+                  className={`${TABLE_STYLES.row} ${i.ativo ? '' : 'opacity-60'}`}
                 >
                   <TableCell className={td}>
                     <div className="text-gray-800 dark:text-white/90">{i.name}</div>
@@ -176,17 +175,16 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
       ) : null}
 
       {data.emprestimos.length > 0 ? (
-        <div className="mt-4 overflow-x-auto">
-          <Table aria-label="Empréstimos importados">
+        <div className={`mt-4 ${TABLE_STYLES.wrapper}`}>
+          <Table className={TABLE_STYLES.table} aria-label="Empréstimos importados">
             <TableHeader>
-              <TableRow>
+              <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
                 {['Empréstimo', 'Contratado', 'Saldo devedor', 'Parcelas', 'Situação'].map(
                   (h, i) => (
                     <TableCell
                       key={i}
                       isHeader
-                      className={`${th} ${i === 1 || i === 2 ? 'text-right' : ''}`}
-                      style={{ backgroundColor: TABLE_HEADER_BG }}
+                      className={`${th} ${i === 1 || i === 2 ? 'text-right' : 'text-left'}`}
                     >
                       {h}
                     </TableCell>
@@ -198,7 +196,7 @@ export default function CarteiraImportada({ onAviso }: { onAviso: (msg: string) 
               {data.emprestimos.map((l) => (
                 <TableRow
                   key={l.id}
-                  className={`border-b border-gray-100 dark:border-gray-800 ${l.ativo ? '' : 'opacity-60'}`}
+                  className={`${TABLE_STYLES.row} ${l.ativo ? '' : 'opacity-60'}`}
                 >
                   <TableCell className={td}>
                     <div className="text-gray-800 dark:text-white/90">{l.productName}</div>

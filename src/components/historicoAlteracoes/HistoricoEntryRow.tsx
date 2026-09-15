@@ -3,6 +3,7 @@
 import React from 'react';
 import Badge from '@/components/ui/badge/Badge';
 import { StandardTableBodyCell, StandardTableRow } from '@/components/ui/table/StandardTable';
+import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import type { HistoricoAlteracaoEntry } from '@/hooks/useHistoricoAlteracoes';
 import {
   SECTION_LABELS,
@@ -74,7 +75,7 @@ export const HistoricoEntryRow: React.FC<RowProps> = ({
 
   return (
     <>
-      <StandardTableRow className="hover:bg-gray-50 dark:hover:bg-white/[0.05]">
+      <StandardTableRow className={TABLE_STYLES.rowHover}>
         <StandardTableBodyCell className="whitespace-nowrap text-gray-500 dark:text-gray-400">
           {formatEntryDate(entry.createdAt)}
         </StandardTableBodyCell>
@@ -114,7 +115,7 @@ export const HistoricoEntryRow: React.FC<RowProps> = ({
         </StandardTableBodyCell>
       </StandardTableRow>
       {expanded && hasChanges && (
-        <StandardTableRow className="bg-gray-50/50 dark:bg-white/[0.02]">
+        <StandardTableRow className="bg-gray-50/60 dark:bg-white/[0.02]">
           <StandardTableBodyCell colSpan={4}>
             <div className="py-1">
               <ChangesList entry={entry} />

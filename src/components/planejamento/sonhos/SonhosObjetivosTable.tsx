@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { progress, pmt } from '@/services/planejamento/planejamentoSonhos';
 import type { PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
 import { StatusBadge, CategoryBadge } from './SonhosBadges';
@@ -33,14 +34,13 @@ export default function SonhosObjetivosTable({
     return { meta, atual, aporteAtivo };
   }, [objetivos]);
 
-  const HEAD =
-    'px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
+  const HEAD = TABLE_STYLES.th;
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
-      <Table className="text-sm">
+    <div className={TABLE_STYLES.wrapper}>
+      <Table className={TABLE_STYLES.table}>
         <TableHeader>
-          <TableRow className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03]">
+          <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
             <TableCell isHeader className={`${HEAD} text-left`}>
               Objetivo
             </TableCell>
@@ -76,27 +76,29 @@ export default function SonhosObjetivosTable({
               <TableRow
                 key={g.id}
                 onClick={() => onSelectObjetivo(g.id)}
-                className="cursor-pointer border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.03]"
+                className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover} cursor-pointer`}
               >
-                <TableCell className="px-3 py-2 font-medium text-gray-900 dark:text-white/90">
+                <TableCell
+                  className={`${TABLE_STYLES.td} font-medium text-gray-900 dark:text-white/90`}
+                >
                   {g.name}
                 </TableCell>
-                <TableCell className="px-3 py-2">
+                <TableCell className={TABLE_STYLES.td}>
                   <CategoryBadge category={g.category} />
                 </TableCell>
-                <TableCell className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
+                <TableCell className={`${TABLE_STYLES.td} text-right`}>
                   {formatBRLCompact(g.target)}
                 </TableCell>
-                <TableCell className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white/90">
+                <TableCell
+                  className={`${TABLE_STYLES.td} text-right font-semibold text-gray-900 dark:text-white/90`}
+                >
                   {formatBRLCompact(balance)}
                 </TableCell>
-                <TableCell className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
+                <TableCell className={`${TABLE_STYLES.td} text-right`}>
                   {formatBRLCompact(pmt(g))}
                 </TableCell>
-                <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">
-                  {g.months}m
-                </TableCell>
-                <TableCell className="px-3 py-2">
+                <TableCell className={`${TABLE_STYLES.td} text-center`}>{g.months}m</TableCell>
+                <TableCell className={TABLE_STYLES.td}>
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                       <div
@@ -112,7 +114,7 @@ export default function SonhosObjetivosTable({
                     </span>
                   </div>
                 </TableCell>
-                <TableCell className="px-3 py-2 text-center">
+                <TableCell className={`${TABLE_STYLES.td} text-center`}>
                   <StatusBadge status={g.status} />
                 </TableCell>
               </TableRow>
@@ -120,21 +122,21 @@ export default function SonhosObjetivosTable({
           })}
         </TableBody>
         <tfoot>
-          <TableRow className="border-t-2 border-gray-200 bg-gray-50 font-semibold dark:border-gray-700 dark:bg-white/[0.03]">
-            <TableCell className="px-3 py-2 text-gray-900 dark:text-white/90">
-              TOTAL MENSAL ATIVO
-            </TableCell>
-            <TableCell className="px-3 py-2" />
-            <TableCell className="px-3 py-2 text-right text-gray-900 dark:text-white/90">
+          <TableRow className={`${TABLE_STYLES.totalRow} font-semibold`}>
+            <TableCell className={`${TABLE_STYLES.td} font-semibold`}>TOTAL MENSAL ATIVO</TableCell>
+            <TableCell className={TABLE_STYLES.td} />
+            <TableCell className={`${TABLE_STYLES.td} text-right font-semibold`}>
               {formatBRLCompact(totals.meta)}
             </TableCell>
-            <TableCell className="px-3 py-2 text-right text-gray-900 dark:text-white/90">
+            <TableCell className={`${TABLE_STYLES.td} text-right font-semibold`}>
               {formatBRLCompact(totals.atual)}
             </TableCell>
-            <TableCell className="px-3 py-2 text-right text-brand-600 dark:text-brand-400">
-              {formatBRLCompact(totals.aporteAtivo)}
+            <TableCell className={`${TABLE_STYLES.td} text-right font-semibold`}>
+              <span className="text-brand-600 dark:text-brand-400">
+                {formatBRLCompact(totals.aporteAtivo)}
+              </span>
             </TableCell>
-            <TableCell className="px-3 py-2" colSpan={3} />
+            <TableCell className={TABLE_STYLES.td} colSpan={3} />
           </TableRow>
         </tfoot>
       </Table>

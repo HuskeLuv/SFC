@@ -2,17 +2,19 @@
 import React, { useState, useMemo, ReactNode } from 'react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
+import { twMerge } from 'tailwind-merge';
 import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import { MetricCard } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_SECTION_STYLE,
+} from '@/components/ui/table/tableStyles';
 
 const MIN_PLACEHOLDER_ROWS = 4;
-const HEADER_BG_COLOR = TABLE_HEADER_BG;
-const SECTION_BG_COLOR = '#808080';
-const TOTAL_BG_COLOR = '#404040';
 
 // ---------------------------------------------------------------------------
 // Column definition
@@ -160,7 +162,11 @@ function GenericSection<TAtivo, TSecao>({
   return (
     <>
       {/* Section header row */}
-      <tr className="bg-[#808080] cursor-pointer" onClick={onToggle}>
+      <tr
+        className={`${TABLE_STYLES.sectionRow} cursor-pointer`}
+        style={TABLE_SECTION_STYLE}
+        onClick={onToggle}
+      >
         {columns.map((col, idx) => {
           const alignClass =
             col.align === 'right'
@@ -173,7 +179,12 @@ function GenericSection<TAtivo, TSecao>({
             return (
               <td
                 key={col.key}
-                className={`px-2 py-2 text-xs bg-[${SECTION_BG_COLOR}] text-white font-bold ${alignClass} ${col.cellClassName ?? ''}`}
+                className={twMerge(
+                  TABLE_STYLES.compact.td,
+                  'text-white dark:text-white',
+                  alignClass,
+                  col.cellClassName,
+                )}
               >
                 <div className="flex items-center space-x-2">
                   {isExpanded ? (
@@ -192,7 +203,7 @@ function GenericSection<TAtivo, TSecao>({
           return (
             <td
               key={col.key}
-              className={`px-2 py-2 text-xs bg-[${SECTION_BG_COLOR}] text-white font-bold ${alignClass}`}
+              className={twMerge(TABLE_STYLES.compact.td, 'text-white dark:text-white', alignClass)}
             >
               {content}
             </td>
@@ -205,7 +216,7 @@ function GenericSection<TAtivo, TSecao>({
         ativos.map((ativo, ativoIdx) => (
           <tr
             key={((ativo as Record<string, unknown>).id as string) ?? ativoIdx}
-            className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+            className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
           >
             {columns.map((col) => {
               const alignClass =
@@ -218,7 +229,7 @@ function GenericSection<TAtivo, TSecao>({
               return (
                 <td
                   key={col.key}
-                  className={`px-2 py-2 text-xs text-gray-900 dark:text-white ${alignClass} ${col.cellClassName ?? ''}`}
+                  className={`${TABLE_STYLES.compact.td} ${alignClass} ${col.cellClassName ?? ''}`}
                 >
                   {col.render(ativo, formatters)}
                 </td>
@@ -474,13 +485,10 @@ export default function GenericAssetTable<TAtivo, TSecao>({
 
       {/* Main table */}
       <ComponentCard title={tableTitle}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
+        <div className={TABLE_STYLES.wrapper}>
+          <table className={TABLE_STYLES.table}>
             <thead>
-              <tr
-                className="border-b border-gray-200 dark:border-gray-700"
-                style={{ backgroundColor: HEADER_BG_COLOR }}
-              >
+              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
                 {columns.map((col) => {
                   const alignClass =
                     col.align === 'right'
@@ -492,8 +500,8 @@ export default function GenericAssetTable<TAtivo, TSecao>({
                   return (
                     <th
                       key={col.key}
-                      className={`px-2 py-2 font-bold text-white text-xs ${alignClass} ${col.headerClassName ?? ''}`}
-                      style={{ backgroundColor: HEADER_BG_COLOR }}
+                      className={`${TABLE_STYLES.compact.th} ${alignClass} ${col.headerClassName ?? ''}`}
+                      style={TABLE_HEADER_STYLE}
                     >
                       {col.header}
                     </th>
@@ -503,7 +511,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
             </thead>
             <tbody>
               {/* Grand total row */}
-              <tr className={`bg-[${TOTAL_BG_COLOR}] border-t-2 border-gray-300`}>
+              <tr className={TABLE_STYLES.totalRow}>
                 {columns.map((col, idx) => {
                   const alignClass =
                     col.align === 'right'
@@ -516,7 +524,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
                     return (
                       <td
                         key={col.key}
-                        className={`px-2 py-2 text-xs text-white font-bold ${alignClass}`}
+                        className={`${TABLE_STYLES.compact.td} font-semibold ${alignClass}`}
                       >
                         TOTAL GERAL
                       </td>
@@ -530,7 +538,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
                   return (
                     <td
                       key={col.key}
-                      className={`px-2 py-2 text-xs text-white font-bold ${alignClass}`}
+                      className={`${TABLE_STYLES.compact.td} font-semibold ${alignClass}`}
                     >
                       {content}
                     </td>

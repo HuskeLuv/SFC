@@ -15,6 +15,7 @@ import {
   SEGURO_TIPO_LABELS,
   formatBRL,
 } from './utils';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -188,48 +189,45 @@ export default function GestaoRisco() {
             />
           </div>
 
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className={`mt-3 ${TABLE_STYLES.wrapper}`}>
+            <table className={TABLE_STYLES.table}>
               <thead>
-                <tr className="border-b border-gray-100 text-left text-xs uppercase tracking-wide text-gray-400 dark:border-gray-800 dark:text-gray-500">
-                  <th className="py-2 pr-3 font-medium">Seguro</th>
-                  <th className="py-2 pr-3 font-medium">Tipo</th>
-                  <th className="py-2 pr-3 font-medium">Cobertura</th>
-                  <th className="py-2 pr-3 font-medium">Risco</th>
-                  <th className="py-2 pr-3 text-right font-medium">Custo anual</th>
-                  <th className="py-2 pr-3 text-right font-medium">Capital segurado</th>
-                  <th className="py-2 text-right font-medium print:hidden">Ações</th>
+                <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                  <th className={`${TABLE_STYLES.th} text-left`}>Seguro</th>
+                  <th className={`${TABLE_STYLES.th} text-left`}>Tipo</th>
+                  <th className={`${TABLE_STYLES.th} text-left`}>Cobertura</th>
+                  <th className={`${TABLE_STYLES.th} text-left`}>Risco</th>
+                  <th className={`${TABLE_STYLES.th} text-right`}>Custo anual</th>
+                  <th className={`${TABLE_STYLES.th} text-right`}>Capital segurado</th>
+                  <th className={`${TABLE_STYLES.th} text-right print:hidden`}>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {seguros.map((s) => (
-                  <tr
-                    key={s.id}
-                    className="border-b border-gray-50 last:border-0 dark:border-gray-900"
-                  >
-                    <td className="py-2 pr-3 font-medium text-gray-900 dark:text-white/90">
+                  <tr key={s.id} className={TABLE_STYLES.row}>
+                    <td
+                      className={`${TABLE_STYLES.td} font-medium text-gray-900 dark:text-white/90`}
+                    >
                       {s.nome}
                     </td>
-                    <td className="py-2 pr-3 text-gray-600 dark:text-gray-300">
-                      {SEGURO_TIPO_LABELS[s.tipo] ?? s.tipo}
-                    </td>
-                    <td className="py-2 pr-3">
+                    <td className={TABLE_STYLES.td}>{SEGURO_TIPO_LABELS[s.tipo] ?? s.tipo}</td>
+                    <td className={TABLE_STYLES.td}>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${SEGURO_COBERTURA_BADGE[s.cobertura] ?? ''}`}
                       >
                         {SEGURO_COBERTURA_LABELS[s.cobertura] ?? s.cobertura}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-gray-600 dark:text-gray-300">
-                      {SEGURO_RISCO_LABELS[s.risco] ?? s.risco}
-                    </td>
-                    <td className="py-2 pr-3 text-right text-gray-900 dark:text-white/90">
+                    <td className={TABLE_STYLES.td}>{SEGURO_RISCO_LABELS[s.risco] ?? s.risco}</td>
+                    <td
+                      className={`${TABLE_STYLES.td} text-right text-gray-900 dark:text-white/90`}
+                    >
                       {formatBRL(s.custoAnual)}
                     </td>
-                    <td className="py-2 pr-3 text-right text-gray-600 dark:text-gray-300">
+                    <td className={`${TABLE_STYLES.td} text-right`}>
                       {s.capitalSegurado != null ? formatBRL(s.capitalSegurado) : '—'}
                     </td>
-                    <td className="py-2 text-right print:hidden">
+                    <td className={`${TABLE_STYLES.td} text-right print:hidden`}>
                       {confirmDeleteId === s.id ? (
                         <span className="inline-flex items-center gap-2 text-xs">
                           <button

@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import Badge from '@/components/ui/badge/Badge';
 import { useProventos } from '@/hooks/useProventos';
 import DatePicker from '@/components/form/date-picker';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'Todos' },
@@ -202,50 +203,40 @@ export default function ProventosAgenda() {
                     </span>
                   </p>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+                <div className={TABLE_STYLES.wrapper}>
+                  <table className={TABLE_STYLES.table}>
                     <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700">
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
-                          Data
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
-                          Ativo
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
-                          Tipo
-                        </th>
-                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-                          Valor
-                        </th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">
-                          Status
-                        </th>
+                      <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                        <th className={`${TABLE_STYLES.th} text-left`}>Data</th>
+                        <th className={`${TABLE_STYLES.th} text-left`}>Ativo</th>
+                        <th className={`${TABLE_STYLES.th} text-left`}>Tipo</th>
+                        <th className={`${TABLE_STYLES.th} text-right`}>Valor</th>
+                        <th className={`${TABLE_STYLES.th} text-center`}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((provento) => (
                         <tr
                           key={provento.id}
-                          className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                          className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
                         >
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                            {formatDate(provento.data)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                          <td className={TABLE_STYLES.td}>{formatDate(provento.data)}</td>
+                          <td
+                            className={`${TABLE_STYLES.td} font-medium text-gray-900 dark:text-white`}
+                          >
                             {provento.ativo}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {provento.tipo}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white font-medium">
+                          <td className={TABLE_STYLES.td}>{provento.tipo}</td>
+                          <td
+                            className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white`}
+                          >
                             R${' '}
                             {provento.valor.toLocaleString('pt-BR', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
                           </td>
-                          <td className="px-4 py-3 text-center">
+                          <td className={`${TABLE_STYLES.td} text-center`}>
                             <Badge
                               variant="light"
                               color={provento.status === 'realizado' ? 'success' : 'warning'}

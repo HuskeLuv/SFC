@@ -14,7 +14,11 @@ import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvesti
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
-import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_SECTION_STYLE,
+} from '@/components/ui/table/tableStyles';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RENDA_FIXA_COLUMN_COUNT = 13;
@@ -120,15 +124,15 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
   };
 
   return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
+    <tr className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+      <td className={TABLE_STYLES.compact.td}>
         <AssetNameLink
           portfolioId={ativo.id}
           ticker={formatAssetDisplayTitle({ ticker: ativo.nome, nome: null }, 'Renda Fixa').full}
           nomeComoPrincipal
         />
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
         {isEditingCotizacao ? (
           <input
             type="text"
@@ -148,7 +152,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
         {isEditingLiquidacao ? (
           <input
             type="text"
@@ -168,10 +172,10 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
         {ativo.vencimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
       </td>
-      <td className="px-2 py-2 text-xs text-center text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
         {isEditingBenchmark ? (
           <input
             type="text"
@@ -191,16 +195,12 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatCurrency(ativo.valorInicialAplicado)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
-        {formatCurrency(ativo.aporte)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
-        {formatCurrency(ativo.resgate)}
-      </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatCurrency(ativo.aporte)}</td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatCurrency(ativo.resgate)}</td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {ativo.isAutoUpdated ? (
           <div title="Sincronizado automaticamente (PU Tesouro Direto)" className="px-1 py-0.5">
             {formatCurrency(ativo.valorAtualizado)}
@@ -238,17 +238,17 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentageSimple(ativo.percentualCarteira)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {/* razão (participação), não variação — sem sinal "+" */}
         {formatPercentageSimple(ativo.riscoPorAtivo)}
       </td>
-      <td className="px-2 py-2 text-xs text-right text-gray-900 dark:text-white">
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.rentabilidade)}
       </td>
-      <td className="px-2 py-2 text-xs text-gray-900 dark:text-white">
+      <td className={TABLE_STYLES.compact.td}>
         {isEditingObservacoes ? (
           <input
             type="text"
@@ -306,8 +306,12 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
 
   return (
     <>
-      <tr className="bg-[#808080] cursor-pointer" onClick={onToggle}>
-        <td className="px-2 py-2 text-xs bg-[#808080] text-white font-bold">
+      <tr
+        className={`${TABLE_STYLES.sectionRow} cursor-pointer`}
+        style={TABLE_SECTION_STYLE}
+        onClick={onToggle}
+      >
+        <td className={`${TABLE_STYLES.compact.td} text-white`}>
           <div className="flex items-center space-x-2">
             {isExpanded ? (
               <ChevronUpIcon className="w-4 h-4" />
@@ -317,30 +321,30 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
             <span>{secao.nome}</span>
           </div>
         </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
+        <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
+        <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
+        <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
+        <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
           {formatCurrency(secao.totalValorAplicado)}
         </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
           {formatCurrency(secao.totalAporte)}
         </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
           {formatCurrency(secao.totalResgate)}
         </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
           {formatCurrency(secao.totalValorAtualizado)}
         </td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
           {formatPercentageSimple(secao.percentualTotal)}
         </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
-        <td className="px-2 py-2 text-xs text-right bg-[#808080] text-white font-bold">
+        <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
+        <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
           {formatPercentage(secao.rentabilidadeMedia)}
         </td>
-        <td className="px-2 py-2 text-xs text-center bg-[#808080] text-white font-bold">-</td>
+        <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
       </tr>
 
       {isExpanded &&
@@ -504,120 +508,54 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
 
       {/* Main table */}
       <ComponentCard title="Renda Fixa">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs [&_td]:h-6 [&_td]:leading-6 [&_td]:py-0 [&_th]:h-6 [&_th]:leading-6 [&_th]:py-0">
+        <div className={TABLE_STYLES.wrapper}>
+          <table className={TABLE_STYLES.table}>
             <thead>
-              <tr
-                className="border-b border-gray-200 dark:border-gray-700"
-                style={{ backgroundColor: TABLE_HEADER_BG }}
-              >
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-left whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Nome dos Ativos
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Cotizacao de resgate
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Liquidacao de resgate
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Vencimento
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-center whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Benchmark
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Valor inicial aplicado
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Aporte
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Resgate
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Valor Atualizado
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  % da Aba
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
+              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <th className={`${TABLE_STYLES.compact.th} text-left`}>Nome dos Ativos</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Cotizacao de resgate</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Liquidacao de resgate</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Vencimento</th>
+                <th className={`${TABLE_STYLES.compact.th} text-center`}>Benchmark</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor inicial aplicado</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Aporte</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Resgate</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>
                   <span className="block">Risco por ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-right whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Rentabilidade
-                </th>
-                <th
-                  className="px-2 py-2 font-bold text-white text-xs text-left whitespace-nowrap"
-                  style={{ backgroundColor: TABLE_HEADER_BG }}
-                >
-                  Observações
-                </th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
+                <th className={`${TABLE_STYLES.compact.th} text-left`}>Observações</th>
               </tr>
             </thead>
             <tbody>
               {/* Grand total row */}
-              <tr className="bg-[#404040] border-t-2 border-gray-300">
-                <td className="px-2 py-2 text-xs text-white font-bold">TOTAL GERAL</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+              <tr className={TABLE_STYLES.totalRow}>
+                <td className={TABLE_STYLES.compact.td}>TOTAL GERAL</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">100.00%</td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
-                <td className="px-2 py-2 text-xs text-right text-white font-bold">
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>100.00%</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
                 </td>
-                <td className="px-2 py-2 text-xs text-center text-white font-bold">-</td>
+                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
               </tr>
 
               {normalizedSections.map((secao) => (
