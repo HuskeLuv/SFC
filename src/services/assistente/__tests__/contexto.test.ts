@@ -6,6 +6,7 @@ import {
   compactClasse,
   listarLinhasEditaveis,
   montarContexto,
+  resumirMes,
   slim,
 } from '../contexto';
 
@@ -63,9 +64,111 @@ describe('compactCashflow', () => {
       {
         grupo: 'Despesas > Habitação',
         tipo: 'despesa',
+        totalAno: 2000.5,
+        totalPorMes: { jan: 1000, fev: 1000.5 },
         linhas: [{ linha: 'Aluguel', totalAno: 2000.5, meses: { jan: 1000, fev: 1000.5 } }],
       },
     ]);
+  });
+
+  it('soma o total do grupo por mês a partir de todas as linhas', () => {
+    const out = compactCashflow([
+      {
+        name: 'Habitação',
+        type: 'despesa',
+        items: [
+          { name: 'Aluguel', values: [{ month: 8, value: 1100 }] },
+          {
+            name: 'Energia',
+            values: [
+              { month: 8, value: 195.5 },
+              { month: 7, value: 200 },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(out[0].totalAno).toBe(1495.5);
+    expect(out[0].totalPorMes).toEqual({ ago: 200, set: 1295.5 });
+  });
+});
+
+describe('resumirMes', () => {
+  const groups = [
+    {
+      name: 'Entradas',
+      type: 'entrada',
+      items: [{ name: 'Salário', values: [{ month: 8, value: 9000 }] }],
+    },
+    {
+      name: 'Despesas',
+      type: 'despesa',
+      items: [],
+      children: [
+        {
+          name: 'Despesas Fixas',
+          type: 'despesa',
+          items: [],
+          children: [
+            {
+              name: 'Habitação',
+              type: 'despesa',
+              items: [
+                { name: 'Aluguel', values: [{ month: 8, value: 1100 }] },
+                {
+                  name: 'Energia',
+                  values: [
+                    { month: 8, value: 195 },
+                    { month: 7, value: 200 },
+                  ],
+                },
+              ],
+            },
+            {
+              name: 'Outros',
+              type: 'despesa',
+              items: [{ name: 'X', values: [{ month: 8, value: 10 }] }],
+            },
+          ],
+        },
+        {
+          name: 'Despesas Variáveis',
+          type: 'despesa',
+          items: [],
+          children: [
+            {
+              name: 'Outros',
+              type: 'despesa',
+              items: [{ name: 'Y', values: [{ month: 8, value: 5 }] }],
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  it('dá o total de cada grupo de despesa no mês, entradas, despesas e sobra', () => {
+    expect(resumirMes(groups, 8)).toEqual({
+      mes: 'setembro',
+      entradas: 9000,
+      despesas: 1310,
+      sobra: 7690,
+      despesasPorGrupo: {
+        Habitação: 1295,
+        'Despesas > Despesas Fixas > Outros': 10,
+        'Despesas > Despesas Variáveis > Outros': 5,
+      },
+    });
+  });
+
+  it('mês sem lançamentos fica zerado, sem grupos', () => {
+    expect(resumirMes(groups, 0)).toEqual({
+      mes: 'janeiro',
+      entradas: 0,
+      despesas: 0,
+      sobra: 0,
+      despesasPorGrupo: {},
+    });
   });
 });
 
@@ -183,6 +286,13 @@ describe('montarContexto', () => {
       acoes: { valor: 100, percentual: 100 },
     });
     expect((ctx.carteira as { posicoes: Record<string, unknown> }).posicoes.acoes).toBeDefined();
+    expect(ctx.mesAtualResumo).toEqual({
+      mes: 'setembro',
+      entradas: 0,
+      despesas: 0,
+      sobra: 0,
+      despesasPorGrupo: {},
+    });
     expect(ctx.fluxoDeCaixa).toEqual([]);
     expect(ctx.linhasDoFluxo).toEqual({ Entradas: ['Salário'] });
     expect((ctx.orcamento as { categorias: unknown[] }).categorias).toEqual([

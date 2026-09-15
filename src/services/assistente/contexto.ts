@@ -138,33 +138,102 @@ export function catalogoLinhas(groups: CashGroupLike[]): Record<string, string[]
   return out;
 }
 
-/** Árvore do fluxo → lista plana de grupos com linhas não zeradas e valores por mês. */
+/** Valores por mês (12 posições, arredondados) de uma linha do fluxo. */
+function valoresPorMes(item: NonNullable<CashGroupLike['items']>[number]): number[] {
+  const porMes = Array<number>(12).fill(0);
+  for (const v of item.values ?? []) {
+    if (typeof v.month === 'number' && v.month >= 0 && v.month < 12) {
+      porMes[v.month] = round(Number(v.value ?? 0));
+    }
+  }
+  return porMes;
+}
+
+/** { jan: 10, mar: 5 } — só os meses com valor. */
+function mesesNaoZerados(porMes: number[]): Json {
+  const meses: Json = {};
+  porMes.forEach((val, i) => {
+    if (val !== 0) meses[MESES[i]] = val;
+  });
+  return meses;
+}
+
+/**
+ * Árvore do fluxo → lista plana de grupos com linhas não zeradas e valores por mês.
+ * Cada grupo traz também o SEU total (ano e por mês): sem isso o modelo somava
+ * as linhas de cabeça ou pegava o total geral de despesas/anual do orçamento
+ * quando perguntavam "quanto gasto com habitação" (ticket testers 15/09/2026).
+ */
 export function compactCashflow(groups: CashGroupLike[]): Json[] {
   const out: Json[] = [];
   const walk = (g: CashGroupLike, trail: string[]) => {
     const nome = [...trail, g.name].join(' > ');
+    const grupoPorMes = Array<number>(12).fill(0);
     const linhas = (g.items ?? [])
       .map((it) => {
-        const porMes = Array<number>(12).fill(0);
-        for (const v of it.values ?? []) {
-          if (typeof v.month === 'number' && v.month >= 0 && v.month < 12) {
-            porMes[v.month] = round(Number(v.value ?? 0));
-          }
-        }
+        const porMes = valoresPorMes(it);
         const total = round(porMes.reduce((a, b) => a + b, 0));
         if (total === 0) return null;
-        const meses: Json = {};
         porMes.forEach((val, i) => {
-          if (val !== 0) meses[MESES[i]] = val;
+          grupoPorMes[i] = round(grupoPorMes[i] + val);
         });
-        return { linha: it.name, totalAno: total, meses };
+        return { linha: it.name, totalAno: total, meses: mesesNaoZerados(porMes) };
       })
       .filter(Boolean);
-    if (linhas.length > 0) out.push({ grupo: nome, tipo: g.type, linhas });
+    if (linhas.length > 0) {
+      out.push({
+        grupo: nome,
+        tipo: g.type,
+        totalAno: round(grupoPorMes.reduce((a, b) => a + b, 0)),
+        totalPorMes: mesesNaoZerados(grupoPorMes),
+        linhas,
+      });
+    }
     for (const c of g.children ?? []) walk(c, [...trail, g.name]);
   };
   for (const g of groups) walk(g, []);
   return out;
+}
+
+/**
+ * Retrato de UM mês: entradas, despesas e o total de cada grupo de despesa
+ * (nome curto, ex.: "Habitação"; a trilha inteira se o nome curto se repetir).
+ * É o que responde "quanto gasto com habitação?" e "quanto gastei este mês?"
+ * sem o modelo precisar somar nada.
+ */
+export function resumirMes(groups: CashGroupLike[], mesIndex: number): Json {
+  let entradas = 0;
+  let despesas = 0;
+  const porGrupoTrilha: Array<{ curto: string; trilha: string; valor: number }> = [];
+  const walk = (g: CashGroupLike, trail: string[]) => {
+    const trilha = [...trail, g.name].join(' > ');
+    let doGrupo = 0;
+    for (const it of g.items ?? []) {
+      doGrupo = round(doGrupo + valoresPorMes(it)[mesIndex]);
+    }
+    if (g.type === 'entrada') entradas = round(entradas + doGrupo);
+    if (g.type === 'despesa') {
+      despesas = round(despesas + doGrupo);
+      if (doGrupo !== 0) porGrupoTrilha.push({ curto: g.name, trilha, valor: doGrupo });
+    }
+    for (const c of g.children ?? []) walk(c, [...trail, g.name]);
+  };
+  for (const g of groups) walk(g, []);
+
+  const repetidos = new Set(
+    porGrupoTrilha.map((p) => p.curto).filter((n, i, arr) => arr.indexOf(n) !== i),
+  );
+  const despesasPorGrupo: Json = {};
+  for (const p of porGrupoTrilha) {
+    despesasPorGrupo[repetidos.has(p.curto) ? p.trilha : p.curto] = p.valor;
+  }
+  return {
+    mes: MESES_LONGOS[mesIndex],
+    entradas,
+    despesas,
+    sobra: round(entradas - despesas),
+    despesasPorGrupo,
+  };
 }
 
 interface Secao {
@@ -247,7 +316,11 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
       ),
       posicoes,
     },
-    // Só linhas com valor no ano (leitura). O catálogo completo vai em linhasDoFluxo.
+    // Retrato do mês atual: total por grupo de despesa, entradas, despesas e sobra.
+    // Vem ANTES do fluxo detalhado para o modelo achar primeiro o número pronto.
+    mesAtualResumo: raw.cashflow ? resumirMes(raw.cashflow.groups, hoje.getMonth()) : null,
+    // Só linhas com valor no ano (leitura), com o total de cada grupo por mês.
+    // O catálogo completo vai em linhasDoFluxo.
     fluxoDeCaixa: raw.cashflow ? compactCashflow(raw.cashflow.groups) : null,
     // Todas as linhas editáveis, por grupo, para propor_lancamento acertar a linha/seção.
     linhasDoFluxo: raw.cashflow ? catalogoLinhas(raw.cashflow.groups) : null,
