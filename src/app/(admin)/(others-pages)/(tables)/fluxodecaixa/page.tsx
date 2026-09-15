@@ -57,13 +57,13 @@ export default function FluxoDeCaixa() {
 
   return (
     <div
-      className={`${cardWidth} transition-all duration-300 -m-[30px] h-[calc(100vh-60px)] flex flex-col overflow-hidden`}
+      className={`${cardWidth} min-w-0 transition-all duration-300 -m-[30px] h-[calc(100vh-60px)] flex flex-col overflow-hidden`}
     >
       <ComponentCard
         title={modo === 'planilha' ? 'Fluxo de Caixa' : 'Orçamento vs Real'}
-        className="flex-1 flex flex-col m-[30px] overflow-hidden"
+        className="flex-1 flex flex-col min-w-0 m-[30px] overflow-hidden"
       >
-        <div className="flex-1 flex flex-col min-h-0 p-[30px] pt-5 overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 p-[30px] pt-5 overflow-hidden">
           <div className="mb-4">{pills}</div>
           {modo === 'planilha' ? (
             <DataTableTwo />

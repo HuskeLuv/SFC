@@ -64,6 +64,7 @@ export default function NewEditableDescriptionCell({
     return (
       <div className="flex flex-col gap-1">
         <input
+          size={1}
           ref={inputRef}
           type="text"
           value={tempDescricao}
@@ -74,6 +75,7 @@ export default function NewEditableDescriptionCell({
           className="w-full px-2 py-1 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         <input
+          size={1}
           type="text"
           value={tempSignificado}
           onChange={(e) => setTempSignificado(e.target.value)}
