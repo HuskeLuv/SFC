@@ -664,7 +664,11 @@ export default function DataTableTwo() {
         ref={scrollContainerRef}
         // min-w-0 + max-w-full: a rolagem horizontal acontece AQUI (e não na página),
         // senão as 4 colunas sticky da esquerda somem ao rolar (feedback 15/09/2026).
-        className="w-full max-w-full min-w-0 h-full overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table pb-24"
+        // isolate + z-0: os z-index internos das células sticky (30-58, cabeçalho 400+)
+        // ficam presos neste contexto e nunca passam por cima do menu lateral (z-50)
+        // nem do backdrop mobile — modais/tooltips da grade saem por portal, não são
+        // afetados.
+        className="relative isolate z-0 w-full max-w-full min-w-0 h-full overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table pb-24"
         style={{
           scrollBehavior: 'auto',
           position: 'relative',
