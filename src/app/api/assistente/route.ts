@@ -140,7 +140,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       tools: viaConsultant ? [] : [TOOL_PROPOR_LANCAMENTO],
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       reasoning: 'none',
-      cacheKey: 'assistente-v4',
+      cacheKey: 'assistente-v5',
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
