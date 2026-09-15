@@ -24,7 +24,7 @@ const ComponentCard: React.FC<ComponentCardProps> = ({
       </div>
       {/* Card Body */}
       <div
-        className={`border-t border-gray-100 dark:border-gray-800 ${className.includes('flex flex-col') ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'p-4 sm:p-6'}`}
+        className={`border-t border-gray-100 dark:border-gray-800 ${className.includes('flex flex-col') ? 'flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden' : 'p-4 sm:p-6'}`}
       >
         <div
           className={

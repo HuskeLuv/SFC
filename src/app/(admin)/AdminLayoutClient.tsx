@@ -42,7 +42,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
           <MobileSidebarTrigger />
         </div>
         <div
-          className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin} print:ml-0`}
+          className={`flex-1 min-w-0 transition-all duration-300 ease-in-out ${mainContentMargin} print:ml-0`}
         >
           <div className={`p-4 md:p-6 ${contentWidthClass} print:max-w-none print:p-0`}>
             <ErrorBoundary>{children}</ErrorBoundary>

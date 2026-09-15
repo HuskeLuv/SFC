@@ -36,6 +36,7 @@ export const AddRowForm: React.FC<AddRowFormProps> = ({
     >
       <div className="flex items-center gap-1 h-6">
         <input
+          size={1}
           className="flex-1 min-w-0 px-1 rounded border border-gray-300 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white h-6 leading-6"
           value={newRow.name}
           onChange={(e) => onUpdateField('name', e.target.value)}
@@ -61,6 +62,7 @@ export const AddRowForm: React.FC<AddRowFormProps> = ({
       }}
     >
       <input
+        size={1}
         className="w-full px-1 rounded border border-gray-300 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white h-6 leading-6"
         value={newRow.significado || ''}
         onChange={(e) => onUpdateField('significado', e.target.value)}

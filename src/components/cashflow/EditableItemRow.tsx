@@ -167,6 +167,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         {canEditStructure ? (
           <input
             type="text"
+            size={1}
             value={displayData.name}
             onChange={handleNameChange}
             className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 h-6 leading-6"
@@ -206,6 +207,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         {canEditStructure ? (
           <input
             type="text"
+            size={1}
             value={displayData.significado || ''}
             onChange={handleSignificadoChange}
             placeholder="O seu porquê"
@@ -232,6 +234,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         {canEditStructure ? (
           <input
             type="text"
+            size={1}
             value={displayData.rank || ''}
             onChange={handleRankChange}
             placeholder="Nível prioridade"

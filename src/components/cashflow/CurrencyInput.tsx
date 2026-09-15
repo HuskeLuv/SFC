@@ -143,6 +143,11 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
     <input
       ref={inputRef}
       type="text"
+      // size=1: sem isso o input tem largura intrínseca de ~20 caracteres e, como a
+      // tabela usa min-width:max-content, cada coluna de mês pulava de ~48px para
+      // ~178px no modo de edição (feedback de tester 15/09/2026). A largura real
+      // continua vindo do w-full.
+      size={1}
       inputMode="decimal"
       value={displayValue}
       onChange={handleChange}
