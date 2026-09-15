@@ -643,7 +643,7 @@ export default function DataTableTwo() {
   const anyGroupEditing = processedData.groups.some((g) => isGroupEditing(g.id));
 
   return (
-    <div className="bg-white dark:bg-white/[0.03] flex-1 flex flex-col min-h-0">
+    <div className="bg-white dark:bg-white/[0.03] flex-1 flex flex-col min-h-0 min-w-0">
       {alert && (
         <div className="mb-4 flex-shrink-0">
           <Alert variant={alert.type} title={alert.title} message={alert.message} />
@@ -662,7 +662,13 @@ export default function DataTableTwo() {
       {/* pb-24: garante que as últimas linhas rolem acima do banner de cookies */}
       <div
         ref={scrollContainerRef}
-        className="w-full h-full overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table pb-24"
+        // min-w-0 + max-w-full: a rolagem horizontal acontece AQUI (e não na página),
+        // senão as 4 colunas sticky da esquerda somem ao rolar (feedback 15/09/2026).
+        // isolate + z-0: os z-index internos das células sticky (30-58, cabeçalho 400+)
+        // ficam presos neste contexto e nunca passam por cima do menu lateral (z-50)
+        // nem do backdrop mobile — modais/tooltips da grade saem por portal, não são
+        // afetados.
+        className="relative isolate z-0 w-full max-w-full min-w-0 h-full overflow-x-auto overflow-y-auto custom-scrollbar cashflow-table pb-24"
         style={{
           scrollBehavior: 'auto',
           position: 'relative',

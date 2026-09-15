@@ -67,6 +67,7 @@ export default function NewEditableTextCell({
     return (
       <div className="relative">
         <input
+          size={1}
           ref={inputRef}
           type={type}
           value={tempValue}
