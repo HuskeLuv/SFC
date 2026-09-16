@@ -254,8 +254,8 @@ export const isTipoAtivoPermitido = (tipo: string): tipo is TipoAtivoPermitido =
   (TIPOS_ATIVO_PERMITIDOS as readonly string[]).includes(tipo);
 
 /**
- * Tipos que podem ser PLANEJADOS sem posição (fase 1: só ativos do catálogo,
- * com ticker). Ver services/portfolio/ativosPlanejados.ts.
+ * Tipos que podem ser PLANEJADOS sem posição. Ver
+ * services/portfolio/ativosPlanejados.ts.
  */
 export const TIPOS_ATIVO_PLANEJAVEIS = [
   'acoes-brasil',
@@ -263,6 +263,12 @@ export const TIPOS_ATIVO_PLANEJAVEIS = [
   'etf',
   'moeda',
   'criptoativo',
+  // Fase 2: stocks/REITs (ticker digitado), fundos (catálogo CVM ou nome) e
+  // previdência (só catálogo CVM).
+  'stock',
+  'reit',
+  'fundo',
+  'previdencia',
 ] as const;
 
 export const TIPOS_ATIVO = [

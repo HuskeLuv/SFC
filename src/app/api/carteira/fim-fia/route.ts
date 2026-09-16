@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  listarPlanejados,
+  linhaPlanejadaFundoBase,
+  TIPOS_ATIVO_PLANEJAVEIS,
+} from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
@@ -74,6 +79,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // pela aba Renda Fixa, para que ativos com fixedIncomeAsset adicionados nesta aba
   // sejam precificados consistentemente.
   const pricer = await createFixedIncomePricer(targetUserId);
+
+  // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
+  const planejados = await listarPlanejados(
+    targetUserId,
+    TIPOS_ATIVO_PLANEJAVEIS['fim-fia'],
+    portfolio.map((p) => p.assetId),
+  );
 
   const assetIds = portfolio.map((p) => p.assetId).filter((id): id is string => id !== null);
   const transactions =
@@ -211,6 +223,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     };
   });
 
+  for (const r of planejados) ativos.push(linhaPlanejadaFundoBase(r));
+
   const totalCarteira = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
   const ativosComPercentuais = ativos.map((ativo) => ({
     ...ativo,
@@ -346,7 +360,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     },
     secoes,
     totalGeral: {
-      quantidade: ativosComPercentuais.length,
+      quantidade: ativosComPercentuais.filter((a) => !(a as { planejado?: boolean }).planejado)
+        .length,
       valorAplicado: totalValorAplicado,
       aporte: totalAporte,
       resgate: totalResgate,

@@ -4,6 +4,7 @@ import { WizardFormData, WizardErrors } from '@/types/wizard';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
+import { FUNDO_SUBTIPO_LABEL, FUNDO_SUBTIPO_ORDER, isFundoSubtipo } from '@/lib/fundoTypes';
 
 interface Step4PlanejarFieldsProps {
   formData: WizardFormData;
@@ -78,6 +79,75 @@ export default function Step4PlanejarFields({
             {errors.tipoFii && <p className="mt-1 text-sm text-red-500">{errors.tipoFii}</p>}
           </div>
         );
+      case 'stock':
+        return (
+          <div>
+            <Label htmlFor="estrategia">Estratégia *</Label>
+            <Select
+              options={[
+                { value: 'value', label: 'Value' },
+                { value: 'growth', label: 'Growth' },
+                { value: 'risk', label: 'Risk' },
+              ]}
+              placeholder="Selecione a estratégia"
+              defaultValue={formData.estrategia}
+              onChange={(value) => setField('estrategia', value)}
+              className={errors.estrategia ? 'border-red-500' : ''}
+            />
+            {errors.estrategia && <p className="mt-1 text-sm text-red-500">{errors.estrategia}</p>}
+          </div>
+        );
+      case 'reit':
+        return (
+          <div>
+            <Label htmlFor="estrategiaReit">Tipo de investimento *</Label>
+            <Select
+              options={[
+                { value: 'value', label: 'Value' },
+                { value: 'growth', label: 'Growth' },
+                { value: 'risk', label: 'Risk' },
+              ]}
+              placeholder="Selecione Value, Growth ou Risk"
+              defaultValue={formData.estrategiaReit ?? ''}
+              onChange={(value) => setField('estrategiaReit', value)}
+              className={errors.estrategiaReit ? 'border-red-500' : ''}
+            />
+            {errors.estrategiaReit && (
+              <p className="mt-1 text-sm text-red-500">{errors.estrategiaReit}</p>
+            )}
+          </div>
+        );
+      case 'fundo': {
+        // Fundo do catálogo já classificado (FIA, multimercado, FIDC...) vem
+        // com o subtipo do Step 3; só o manual/sem classificação escolhe aqui.
+        const autoSubtipo = isFundoSubtipo(formData.tipoFundo) && !!formData.assetType;
+        return (
+          <div>
+            <Label htmlFor="fundoDestino">Seção da aba Fundos *</Label>
+            <Select
+              options={FUNDO_SUBTIPO_ORDER.map((s) => ({
+                value: s,
+                label: FUNDO_SUBTIPO_LABEL[s],
+              }))}
+              placeholder="Selecione a seção"
+              defaultValue={isFundoSubtipo(formData.fundoDestino) ? formData.fundoDestino : ''}
+              onChange={(value) => {
+                if (isFundoSubtipo(value))
+                  onFormDataChange({ fundoDestino: value, tipoFundo: value });
+              }}
+              className={errors.fundoDestino ? 'border-red-500' : ''}
+            />
+            {autoSubtipo && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Preenchido pela classificação CVM do fundo.
+              </p>
+            )}
+            {errors.fundoDestino && (
+              <p className="mt-1 text-sm text-red-500">{errors.fundoDestino}</p>
+            )}
+          </div>
+        );
+      }
       case 'etf':
         return (
           <div>

@@ -9,6 +9,11 @@ import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import PlanejadoNameCell from '@/components/carteira/shared/PlanejadoNameCell';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCsrf } from '@/hooks/useCsrf';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { logger } from '@/lib/logger';
 import {
   TABLE_STYLES,
   TABLE_HEADER_STYLE,
@@ -51,6 +56,7 @@ interface PrevidenciaSegurosTableRowProps {
   formatPercentage: (value: number) => string;
   formatNumber: (value: number) => string;
   onUpdateObjetivo: (ativoId: string, novoObjetivo: number) => void;
+  onRemovePlanejado: (planejadoId: string) => void;
 }
 
 const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
@@ -59,7 +65,13 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
   formatPercentage,
   formatNumber,
   onUpdateObjetivo,
+  onRemovePlanejado,
 }) => {
+  // Ativo PLANEJADO (sem posição, 16/09/2026): só objetivo / quanto falta /
+  // necessidade de aporte mostram valor — o resto vira traço (como no
+  // GenericAssetTable das outras abas).
+  const planejado = !!ativo.planejado;
+  const traco = <span className="text-gray-400">—</span>;
   const [isEditingObjetivo, setIsEditingObjetivo] = useState(false);
   const [objetivoValue, setObjetivoValue] = useState(ativo.objetivo.toString());
 
@@ -81,45 +93,72 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
   };
 
   return (
-    <tr className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+    <tr
+      className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
+      data-planejado={planejado ? 'true' : undefined}
+    >
       <td className={TABLE_STYLES.compact.td}>
-        <div>
-          <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
-          {ativo.observacoes && (
-            <div className="text-xs text-gray-900 dark:text-white mt-1">{ativo.observacoes}</div>
-          )}
-        </div>
-      </td>
-      <td className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.carencia} meses</td>
-      <td className={`${TABLE_STYLES.compact.td} text-center`}>
-        {formatPercentage(ativo.cotacaoResgate * 100)}
-      </td>
-      <td className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.liquidacaoResgate} dias</td>
-      <td className={`${TABLE_STYLES.compact.td} text-center`}>
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {ativo.modalidade.charAt(0).toUpperCase() + ativo.modalidade.slice(1)}
-        </span>
+        {planejado ? (
+          <PlanejadoNameCell ticker={ativo.nome} onRemove={() => onRemovePlanejado(ativo.id)} />
+        ) : (
+          <div>
+            <AssetNameLink portfolioId={ativo.id} ticker={ativo.nome} nomeComoPrincipal />
+            {ativo.observacoes && (
+              <div className="text-xs text-gray-900 dark:text-white mt-1">{ativo.observacoes}</div>
+            )}
+          </div>
+        )}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-center`}>
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {ativo.subclasse.charAt(0).toUpperCase() + ativo.subclasse.slice(1).replace('_', ' ')}
-        </span>
+        {planejado ? traco : `${ativo.carencia} meses`}
       </td>
-      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatNumber(ativo.quantidade)}</td>
-      <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatCurrency(ativo.precoAquisicao)}
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
+        {planejado ? traco : formatPercentage(ativo.cotacaoResgate * 100)}
+      </td>
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
+        {planejado ? traco : `${ativo.liquidacaoResgate} dias`}
+      </td>
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
+        {planejado ? (
+          traco
+        ) : (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
+            {ativo.modalidade.charAt(0).toUpperCase() + ativo.modalidade.slice(1)}
+          </span>
+        )}
+      </td>
+      <td className={`${TABLE_STYLES.compact.td} text-center`}>
+        {planejado ? (
+          traco
+        ) : (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
+            {ativo.subclasse.charAt(0).toUpperCase() + ativo.subclasse.slice(1).replace('_', ' ')}
+          </span>
+        )}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatCurrency(ativo.valorTotal)}
+        {planejado ? traco : formatNumber(ativo.quantidade)}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        <span className="text-gray-900 dark:text-white">{formatCurrency(ativo.cotacaoAtual)}</span>
+        {planejado ? traco : formatCurrency(ativo.precoAquisicao)}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatCurrency(ativo.valorAtualizado)}
+        {planejado ? traco : formatCurrency(ativo.valorTotal)}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatPercentage(ativo.riscoPorAtivo)}
+        {planejado && !(ativo.cotacaoAtual > 0) ? (
+          traco
+        ) : (
+          <span className="text-gray-900 dark:text-white">
+            {formatCurrency(ativo.cotacaoAtual)}
+          </span>
+        )}
+      </td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
+        {planejado ? traco : formatCurrency(ativo.valorAtualizado)}
+      </td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
+        {planejado ? traco : formatPercentage(ativo.riscoPorAtivo)}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.percentualCarteira)}
@@ -159,7 +198,7 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
         {formatCurrency(ativo.necessidadeAporte)}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatPercentage(ativo.rentabilidade)}
+        {planejado ? traco : formatPercentage(ativo.rentabilidade)}
       </td>
     </tr>
   );
@@ -185,11 +224,35 @@ export default function PrevidenciaSegurosTable({
   const { necessidadeAporteMap } = useCarteiraResumoContext();
   const necessidadeAporteTotalCalculada =
     necessidadeAporteMap.previdenciaSeguros ?? data?.resumo?.necessidadeAporteTotal ?? 0;
+  const queryClient = useQueryClient();
+  const { csrfFetch } = useCsrf();
+  const [removendoPlanejado, setRemovendoPlanejado] = useState<string | null>(null);
+  // Desistir de um ativo planejado (sem posição): DELETE + invalida as abas.
+  const handleRemovePlanejado = async (planejadoId: string) => {
+    if (removendoPlanejado) return;
+    setRemovendoPlanejado(planejadoId);
+    try {
+      const res = await csrfFetch(`/api/carteira/planejados/${planejadoId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        logger.error('Erro ao remover ativo planejado:', body?.error ?? res.status);
+        return;
+      }
+      invalidatePortfolioDerivedQueries(queryClient);
+    } catch (error) {
+      logger.error('Erro ao remover ativo planejado:', error);
+    } finally {
+      setRemovendoPlanejado(null);
+    }
+  };
+  // Aba vazia (só planejados): base = valor-alvo da classe (ver GenericAssetTable).
+  const alvoClasse = necessidadeAporteMap.previdenciaSeguros ?? 0;
   const ativosComRisco = useMemo(() => {
     if (!data) return [];
 
     const ativos = data.secoes.flatMap((secao) => secao.ativos);
     const totalTabValue = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+    const baseAporte = totalTabValue > 0 ? totalTabValue : alvoClasse;
     const shouldCalculateRisco = totalCarteira > 0;
 
     return ativos.map((ativo) => {
@@ -201,7 +264,7 @@ export default function PrevidenciaSegurosTable({
       const quantoFalta = objetivo - percentualCarteira;
       // Necessidade de aporte = valor em R$ referente à porcentagem de "quanto falta" (calculado sobre o total daquele tipo de ativo)
       const necessidadeAporte =
-        totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+        baseAporte > 0 && quantoFalta > 0 ? (quantoFalta / 100) * baseAporte : 0;
 
       return {
         ...ativo,
@@ -213,7 +276,7 @@ export default function PrevidenciaSegurosTable({
         necessidadeAporte,
       };
     });
-  }, [data, totalCarteira]);
+  }, [data, totalCarteira, alvoClasse]);
 
   // Seções da API (Previdência = fundos marcados, automático; Seguros =
   // adições manuais) com os ativos enriquecidos pelo cálculo de risco acima.
@@ -408,6 +471,7 @@ export default function PrevidenciaSegurosTable({
                       formatPercentage={formatPercentage}
                       formatNumber={formatNumber}
                       onUpdateObjetivo={handleUpdateObjetivo}
+                      onRemovePlanejado={handleRemovePlanejado}
                     />
                   ))}
                   <BasicTablePlaceholderRows

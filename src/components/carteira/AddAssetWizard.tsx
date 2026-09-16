@@ -19,6 +19,7 @@ import Step4AporteInfo from './wizard/Step4AporteInfo';
 import Step5AporteConfirmation from './wizard/Step5AporteConfirmation';
 import Step4PlanejarFields from './wizard/Step4PlanejarFields';
 import Step5PlanejarConfirmation from './wizard/Step5PlanejarConfirmation';
+import { isFundoSubtipo } from '@/lib/fundoTypes';
 import { usePriceDeviationWarning } from './wizard/usePriceDeviationWarning';
 import {
   DEFAULT_PRICE_DEVIATION_THRESHOLD,
@@ -244,7 +245,10 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
         if (tipoAtivo === 'acoes-brasil') return objetivoOk && !!formData.estrategia;
         if (tipoAtivo === 'fii') return objetivoOk && !!formData.tipoFii;
         if (tipoAtivo === 'etf') return objetivoOk && !!formData.regiaoEtf;
-        return objetivoOk; // moeda / criptoativo: seção vem do próprio ativo
+        if (tipoAtivo === 'stock') return objetivoOk && !!formData.estrategia;
+        if (tipoAtivo === 'reit') return objetivoOk && !!formData.estrategiaReit;
+        if (tipoAtivo === 'fundo') return objetivoOk && isFundoSubtipo(formData.fundoDestino);
+        return objetivoOk; // moeda / criptoativo / previdência: seção vem do próprio ativo
       }
 
       // Validação básica - cada tipo terá validações específicas
@@ -552,6 +556,9 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
           case 'asset':
             if (formData.operacao === 'aporte') {
               isValid = !!formData.portfolioId;
+            } else if (formData.operacao === 'planejar' && formData.tipoAtivo === 'previdencia') {
+              // Planejar previdência: só fundo do catálogo (seguro manual não tem objetivo).
+              isValid = !!(formData.assetId && formData.assetId !== 'SEGURO-MANUAL');
             } else {
               if (
                 formData.tipoAtivo === 'renda-fixa' ||
@@ -664,13 +671,17 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     try {
       if (formData.operacao === 'planejar') {
         const secao =
-          formData.tipoAtivo === 'acoes-brasil'
+          formData.tipoAtivo === 'acoes-brasil' || formData.tipoAtivo === 'stock'
             ? formData.estrategia
             : formData.tipoAtivo === 'fii'
               ? formData.tipoFii
               : formData.tipoAtivo === 'etf'
                 ? formData.regiaoEtf
-                : null;
+                : formData.tipoAtivo === 'reit'
+                  ? formData.estrategiaReit
+                  : formData.tipoAtivo === 'fundo'
+                    ? formData.fundoDestino
+                    : null;
         const response = await csrfFetch('/api/carteira/planejados', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -681,6 +692,8 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
                 ? formData.acoesBrasilTipo || 'acao'
                 : formData.tipoAtivo,
             secao: secao || null,
+            // Ativos manuais (stock/REIT/fundo sem catálogo): o Asset nasce do nome digitado.
+            nome: formData.ativo || null,
             objetivo: formData.objetivo ?? 0,
             observacoes: formData.observacoes || null,
           }),

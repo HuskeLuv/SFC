@@ -63,7 +63,8 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       align: 'left',
       render: (a) => (
         <div>
-          <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} />
+          {/* O symbol do REIT manual carrega timestamp; o rótulo é o nome (ticker ou nome digitado). */}
+          <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} nomeComoPrincipal />
           {a.observacoes && (
             <div className="text-xs text-gray-900 dark:text-white mt-1">{a.observacoes}</div>
           )}

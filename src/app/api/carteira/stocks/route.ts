@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  listarPlanejados,
+  linhaPlanejadaBase,
+  TIPOS_ATIVO_PLANEJAVEIS,
+} from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
@@ -72,7 +77,18 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
 
   // Buscar cotações atuais dos ativos (banco primeiro, fallback BRAPI quando necessário)
-  const symbols = portfolio.filter((item) => item.asset).map((item) => item.asset!.symbol);
+  // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
+  // type 'stock' também é ação B3: a aba Stocks fica com os em USD.
+  const planejados = await listarPlanejados(
+    targetUserId,
+    TIPOS_ATIVO_PLANEJAVEIS.stocks,
+    portfolio.map((p) => p.assetId),
+    (asset) => asset.currency === 'USD',
+  );
+  const symbols = [
+    ...portfolio.filter((item) => item.asset).map((item) => item.asset!.symbol),
+    ...planejados.map((r) => r.asset.symbol),
+  ];
   const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
   // Buscar data da primeira compra para cada asset
@@ -120,7 +136,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const dataCompra = item.assetId ? dataCompraPorAsset.get(item.assetId) : null;
       return {
         id: item.id,
-        ticker: item.asset!.symbol,
+        // Rótulo = ticker limpo (o symbol carrega timestamp único por compra).
+        ticker: nomeExibicao,
         nome: nomeExibicao,
         dataCompra: dataCompra ? dataCompra.toISOString().split('T')[0] : null,
         sector: 'other',
@@ -143,27 +160,44 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       };
     });
 
+  // Linhas planejadas: seção = estratégia escolhida ao planejar.
+  const stocksAtivosComPlanejados = [
+    ...stocksAtivos,
+    ...planejados.map((r) => ({
+      ...linhaPlanejadaBase(r, quotes.get(r.asset.symbol) ?? 0),
+      ticker: extrairTicker(r.asset.symbol),
+      nome: extrairTicker(r.asset.symbol),
+      dataCompra: null as string | null,
+      sector: 'other',
+      industryCategory: '',
+      estrategia: (['value', 'growth', 'risk'].includes(r.secao ?? '') ? r.secao : 'value') as
+        | 'value'
+        | 'growth'
+        | 'risk',
+    })),
+  ];
+
   // Bug #14 residual: percentualCarteira no backend (paridade com FII).
   // Calcular ANTES das seções pra totalPercentualCarteira/totalRisco/totais
   // por seção ficarem coerentes.
-  const totalValorAtualizadoStocks = stocksAtivos.reduce(
+  const totalValorAtualizadoStocks = stocksAtivosComPlanejados.reduce(
     (sum, ativo) => sum + ativo.valorAtualizado,
     0,
   );
   if (totalValorAtualizadoStocks > 0) {
-    stocksAtivos.forEach((ativo) => {
+    stocksAtivosComPlanejados.forEach((ativo) => {
       const pct = (ativo.valorAtualizado / totalValorAtualizadoStocks) * 100;
       ativo.percentualCarteira = round2(pct);
       ativo.riscoPorAtivo = ativo.percentualCarteira;
     });
     const adjusted = distributeRoundedPercents(
-      stocksAtivos.map((a) => ({ percentual: a.percentualCarteira })),
+      stocksAtivosComPlanejados.map((a) => ({ percentual: a.percentualCarteira })),
     );
     adjusted.forEach((adj, i) => {
-      stocksAtivos[i].percentualCarteira = adj.percentual;
-      stocksAtivos[i].riscoPorAtivo = adj.percentual;
+      stocksAtivosComPlanejados[i].percentualCarteira = adj.percentual;
+      stocksAtivosComPlanejados[i].riscoPorAtivo = adj.percentual;
     });
-    stocksAtivos.forEach((ativo) => {
+    stocksAtivosComPlanejados.forEach((ativo) => {
       ativo.quantoFalta = round2(ativo.objetivo - ativo.percentualCarteira);
       ativo.necessidadeAporte =
         ativo.quantoFalta > 0 ? round2((ativo.quantoFalta / 100) * totalValorAtualizadoStocks) : 0;
@@ -177,8 +211,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     growth: 'Growth',
     risk: 'Risk',
   };
-  const secoesMap = new Map<string, typeof stocksAtivos>();
-  stocksAtivos.forEach((ativo) => {
+  const secoesMap = new Map<string, typeof stocksAtivosComPlanejados>();
+  stocksAtivosComPlanejados.forEach((ativo) => {
     const e = ativo.estrategia;
     const list = secoesMap.get(e) || [];
     list.push(ativo);
@@ -187,8 +221,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   // Auditoria 25/08/2026 (B1): proventos recebidos entram na rentabilidade da linha.
   const proventosPorSymbol = await proventosRecebidosPorSymbol(targetUserId);
-  aplicarProventosNosAtivos(stocksAtivos, proventosPorSymbol);
-  const totalProventos = stocksAtivos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
+  aplicarProventosNosAtivos(stocksAtivosComPlanejados, proventosPorSymbol);
+  const totalProventos = stocksAtivosComPlanejados.reduce(
+    (sum, ativo) => sum + (ativo.proventos ?? 0),
+    0,
+  );
   const secoes = STOCKS_SECTION_ORDER.map((estrategia) => {
     const ativos = secoesMap.get(estrategia) || [];
     return {
@@ -236,18 +273,30 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
 
   // Calcular totais gerais
-  const totalQuantidade = stocksAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
-  const totalValorAplicado = stocksAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-  const totalValorAtualizado = stocksAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
-  const totalObjetivo = stocksAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
-  const totalQuantoFalta = stocksAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-  const totalNecessidadeAporte = stocksAtivos.reduce(
+  const totalQuantidade = stocksAtivosComPlanejados.reduce(
+    (sum, ativo) => sum + ativo.quantidade,
+    0,
+  );
+  const totalValorAplicado = stocksAtivosComPlanejados.reduce(
+    (sum, ativo) => sum + ativo.valorTotal,
+    0,
+  );
+  const totalValorAtualizado = stocksAtivosComPlanejados.reduce(
+    (sum, ativo) => sum + ativo.valorAtualizado,
+    0,
+  );
+  const totalObjetivo = stocksAtivosComPlanejados.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+  const totalQuantoFalta = stocksAtivosComPlanejados.reduce(
+    (sum, ativo) => sum + ativo.quantoFalta,
+    0,
+  );
+  const totalNecessidadeAporte = stocksAtivosComPlanejados.reduce(
     (sum, ativo) => sum + ativo.necessidadeAporte,
     0,
   );
-  const totalRisco = stocksAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
+  const totalRisco = stocksAtivosComPlanejados.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
   const rentabilidadeMedia = rentabilidadeAgregada(
-    stocksAtivos,
+    stocksAtivosComPlanejados,
     (a) => a.valorTotal,
     (a) => a.valorAtualizado + (a.proventos ?? 0),
   );
@@ -273,33 +322,37 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   };
 
   // Calcular alocação por ativo
-  const totalValor = stocksAtivos.reduce((sum, a) => sum + a.valorAtualizado, 0);
-  const alocacaoAtivo = stocksAtivos.map((ativo) => ({
-    ticker: ativo.nome,
-    valor: ativo.valorAtualizado,
-    percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
-    cor: getAtivoColor(ativo.nome),
-  }));
+  const totalValor = stocksAtivosComPlanejados.reduce((sum, a) => sum + a.valorAtualizado, 0);
+  const alocacaoAtivo = stocksAtivosComPlanejados
+    .filter((a) => !(a as { planejado?: boolean }).planejado)
+    .map((ativo) => ({
+      ticker: ativo.nome,
+      valor: ativo.valorAtualizado,
+      percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
+      cor: getAtivoColor(ativo.nome),
+    }));
 
   // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado)
   const totalTabValue = valorAtualizadoComCaixa;
-  const tabelaAuxiliar = stocksAtivos.map((ativo) => {
-    const percentualCarteira =
-      totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
-    const quantoFalta = (ativo.objetivo ?? 0) - percentualCarteira;
-    const necessidadeAporte =
-      totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
-    const loteAproximado =
-      ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
-    return {
-      ticker: ativo.ticker,
-      nome: ativo.nome,
-      dataCompra: ativo.dataCompra,
-      cotacaoAtual: ativo.cotacaoAtual,
-      necessidadeAporte,
-      loteAproximado,
-    };
-  });
+  const tabelaAuxiliar = stocksAtivosComPlanejados
+    .filter((a) => !(a as { planejado?: boolean }).planejado)
+    .map((ativo) => {
+      const percentualCarteira =
+        totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+      const quantoFalta = (ativo.objetivo ?? 0) - percentualCarteira;
+      const necessidadeAporte =
+        totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+      const loteAproximado =
+        ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
+      return {
+        ticker: ativo.ticker,
+        nome: ativo.nome,
+        dataCompra: ativo.dataCompra,
+        cotacaoAtual: ativo.cotacaoAtual,
+        necessidadeAporte,
+        loteAproximado,
+      };
+    });
 
   const data = {
     cotacaoDolar,
