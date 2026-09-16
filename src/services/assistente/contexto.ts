@@ -270,6 +270,105 @@ export function compactClasse(d: CarteiraClasseLike | null | undefined): Json | 
   return { resumo: slim(d.resumo), secoes, totalGeral: slim(d.totalGeral) };
 }
 
+// ---------------------------------------------------------------------------
+// Proventos recebidos (dividendos, JCP, rendimentos) — de /api/analises/proventos
+// ---------------------------------------------------------------------------
+
+export interface ProventoLike {
+  data?: string;
+  symbol?: string;
+  ativo?: string;
+  tipo?: string;
+  valor?: number;
+  status?: string;
+}
+export interface ProventosLike {
+  proventos?: ProventoLike[];
+  kpis?: Json;
+}
+
+/** Normaliza o tipo textual do provento em 3 famílias. */
+export function familiaProvento(tipo: string | undefined): 'JCP' | 'Rendimento' | 'Dividendo' {
+  const t = (tipo ?? '').toLowerCase();
+  if (t.includes('jcp') || t.includes('juros')) return 'JCP';
+  if (t.includes('rendimento')) return 'Rendimento';
+  return 'Dividendo';
+}
+
+/**
+ * Resumo compacto dos proventos RECEBIDOS (status realizado, líquidos) e a
+ * receber: totais por período, por família (dividendo/JCP/rendimento), por ano,
+ * por mês (12 últimos), por ativo no ano e os últimos pagamentos. Pura.
+ */
+export function compactProventos(d: ProventosLike | null | undefined, hoje: Date = new Date()) {
+  if (!d) return null;
+  const lista = (d.proventos ?? []).filter((p) => p.status === 'realizado' && p.data);
+  const kpis = (d.kpis ?? {}) as Json;
+  if (lista.length === 0 && !kpis.rendaAcumulada) return null;
+
+  const anoAtual = hoje.getFullYear();
+  const mesAtualKey = `${anoAtual}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  const limite12m = new Date(hoje);
+  limite12m.setMonth(limite12m.getMonth() - 11);
+  limite12m.setDate(1);
+  limite12m.setHours(0, 0, 0, 0);
+
+  const soma = (xs: ProventoLike[]) => round(xs.reduce((s, p) => s + Number(p.valor ?? 0), 0));
+  const porChave = (xs: ProventoLike[], chave: (p: ProventoLike) => string) => {
+    const out: Record<string, number> = {};
+    for (const p of xs) {
+      const k = chave(p);
+      out[k] = (out[k] ?? 0) + Number(p.valor ?? 0);
+    }
+    for (const k of Object.keys(out)) out[k] = round(out[k]);
+    return out;
+  };
+
+  const doAno = lista.filter((p) => p.data!.slice(0, 4) === String(anoAtual));
+  const ult12m = lista.filter((p) => new Date(p.data!) >= limite12m);
+  const porAtivoAno = Object.entries(porChave(doAno, (p) => p.symbol ?? p.ativo ?? '?'))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12);
+  const ultimos = [...lista]
+    .sort((a, b) => (a.data! < b.data! ? 1 : -1))
+    .slice(0, 8)
+    .map((p) => ({
+      data: p.data!.slice(0, 10),
+      ativo: p.symbol ?? p.ativo,
+      tipo: familiaProvento(p.tipo),
+      valor: round(Number(p.valor ?? 0)),
+    }));
+
+  const renda = (kpis.rendaAcumulada ?? {}) as Json;
+  const aReceber = (kpis.aReceber ?? {}) as Json;
+  return {
+    observacao:
+      'Valores LÍQUIDOS já recebidos (data de pagamento). JCP = juros sobre capital próprio; ' +
+      'Rendimento = FIIs. "aReceber" = anunciados e ainda não pagos.',
+    totalDesdeOInicio: round(Number(renda.lifetime ?? soma(lista))),
+    ultimos12Meses: round(Number(renda.ult12m ?? soma(ult12m))),
+    mediaMensalUltimos12Meses: round(Number((kpis.mediaMensal as Json | undefined)?.ult12m ?? 0)),
+    anoAtual: {
+      ano: anoAtual,
+      total: soma(doAno),
+      porTipo: porChave(doAno, (p) => familiaProvento(p.tipo)),
+    },
+    mesAtual: {
+      mes: mesAtualKey,
+      total: soma(lista.filter((p) => p.data!.slice(0, 7) === mesAtualKey)),
+    },
+    porTipoDesdeOInicio: porChave(lista, (p) => familiaProvento(p.tipo)),
+    porAno: porChave(lista, (p) => p.data!.slice(0, 4)),
+    porMesUltimos12: porChave(ult12m, (p) => p.data!.slice(0, 7)),
+    porAtivoNoAno: Object.fromEntries(porAtivoAno),
+    ultimosPagamentos: ultimos,
+    aReceber: {
+      esteMes: round(Number(aReceber.esseMes ?? 0)),
+      proximos12Meses: round(Number((aReceber.next12Months as Json | undefined)?.sum ?? 0)),
+    },
+  };
+}
+
 export interface ContextoBruto {
   ano: number;
   resumo: Json | null;
@@ -281,6 +380,8 @@ export interface ContextoBruto {
   sonhos: { objetivos: Json[] } | null;
   /** Ativos planejados (sem posição): { aba, ativo, objetivoPercentualDaAba, secao?, observacoes? }. */
   planejados?: Json[];
+  /** Resposta crua de /api/analises/proventos (histórico completo). */
+  proventos?: ProventosLike | null;
 }
 
 const MESES_LONGOS = [
@@ -331,6 +432,9 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
       ...(raw.planejados && raw.planejados.length > 0
         ? { ativosPlanejadosSemPosicao: raw.planejados.map((p) => slim(p)) }
         : {}),
+      // Dividendos, JCP e rendimentos recebidos — o modelo não tinha isso e
+      // respondia que não sabia (16/09/2026).
+      proventosRecebidos: compactProventos(raw.proventos, hoje),
     },
     // Retrato do mês atual: total por grupo de despesa, entradas, despesas e sobra.
     // Vem ANTES do fluxo detalhado para o modelo achar primeiro o número pronto.
@@ -376,6 +480,7 @@ type RouteHandler = (req: NextRequest) => Promise<Response>;
 /** Carregamento tardio das rotas para não puxar tudo no import do serviço. */
 const ROTAS: Record<string, () => Promise<{ GET: RouteHandler }>> = {
   '/api/carteira/resumo': () => import('@/app/api/carteira/resumo/route'),
+  '/api/analises/proventos': () => import('@/app/api/analises/proventos/route'),
   '/api/cashflow': () => import('@/app/api/cashflow/route'),
   '/api/cashflow/orcamento': () => import('@/app/api/cashflow/orcamento/route'),
   '/api/dividas': () => import('@/app/api/dividas/route'),
@@ -432,14 +537,18 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
 
   const resumo = await chamarRota(request, '/api/carteira/resumo');
   const classes = classesComPosicao(resumo);
-  const [cashflow, orcamento, dividas, saude, sonhos, ...posicoesArr] = await Promise.all([
-    chamarRota<{ groups: CashGroupLike[] }>(request, '/api/cashflow', { year: String(ano) }),
-    chamarRota(request, '/api/cashflow/orcamento', { year: String(ano) }),
-    chamarRota<{ dividas: Json[] }>(request, '/api/dividas'),
-    chamarRota(request, '/api/saude-financeira'),
-    chamarRota<{ objetivos: Json[] }>(request, '/api/planejamento-sonhos'),
-    ...classes.map((c) => chamarRota<CarteiraClasseLike>(request, `/api/carteira/${c}`)),
-  ]);
+  const [cashflow, orcamento, dividas, saude, sonhos, proventos, ...posicoesArr] =
+    await Promise.all([
+      chamarRota<{ groups: CashGroupLike[] }>(request, '/api/cashflow', { year: String(ano) }),
+      chamarRota(request, '/api/cashflow/orcamento', { year: String(ano) }),
+      chamarRota<{ dividas: Json[] }>(request, '/api/dividas'),
+      chamarRota(request, '/api/saude-financeira'),
+      chamarRota<{ objetivos: Json[] }>(request, '/api/planejamento-sonhos'),
+      classes.length > 0
+        ? chamarRota<ProventosLike>(request, '/api/analises/proventos')
+        : Promise.resolve(null),
+      ...classes.map((c) => chamarRota<CarteiraClasseLike>(request, `/api/carteira/${c}`)),
+    ]);
   const posicoes: Record<string, CarteiraClasseLike | null> = {};
   classes.forEach((c, i) => {
     posicoes[c] = posicoesArr[i];
@@ -456,6 +565,7 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
     dividas,
     saude,
     sonhos,
+    proventos: proventos as ProventosLike | null,
     planejados: planejados.map((p) => {
       const aba = abaDoAssetPlanejado(p.asset);
       return {

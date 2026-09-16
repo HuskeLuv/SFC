@@ -4,6 +4,8 @@ import {
   classesComPosicao,
   compactCashflow,
   compactClasse,
+  compactProventos,
+  familiaProvento,
   listarLinhasEditaveis,
   montarContexto,
   resumirMes,
@@ -357,5 +359,57 @@ describe('montarContexto — ativos planejados', () => {
       carteira: Record<string, unknown>;
     };
     expect(ctx.carteira).not.toHaveProperty('ativosPlanejadosSemPosicao');
+  });
+});
+
+describe('compactProventos (dividendos, JCP e rendimentos recebidos)', () => {
+  const hoje = new Date('2026-09-16T12:00:00Z');
+  const bruto = {
+    proventos: [
+      { data: '2026-09-05', symbol: 'ITSA4', tipo: 'Dividendo', valor: 10.5, status: 'realizado' },
+      { data: '2026-08-20', symbol: 'ITSA4', tipo: 'JCP', valor: 4.25, status: 'realizado' },
+      { data: '2026-08-15', symbol: 'HGLG11', tipo: 'Rendimento', valor: 30, status: 'realizado' },
+      { data: '2025-12-10', symbol: 'ITSA4', tipo: 'Dividendo', valor: 100, status: 'realizado' },
+      { data: '2026-10-01', symbol: 'ITSA4', tipo: 'Dividendo', valor: 99, status: 'a_receber' },
+    ],
+    kpis: {
+      rendaAcumulada: { lifetime: 144.75, ult12m: 144.75 },
+      mediaMensal: { ult12m: 12.06 },
+      aReceber: { esseMes: 0, next12Months: { sum: 99 } },
+    },
+  };
+
+  it('resume totais por período, tipo, ano, mês e ativo só com o que foi RECEBIDO', () => {
+    const r = compactProventos(bruto, hoje)!;
+    expect(r.totalDesdeOInicio).toBe(144.75);
+    expect(r.anoAtual).toEqual({
+      ano: 2026,
+      total: 44.75,
+      porTipo: { Dividendo: 10.5, JCP: 4.25, Rendimento: 30 },
+    });
+    expect(r.mesAtual).toEqual({ mes: '2026-09', total: 10.5 });
+    expect(r.porAno).toEqual({ '2025': 100, '2026': 44.75 });
+    expect(r.porMesUltimos12).toEqual({ '2026-09': 10.5, '2026-08': 34.25, '2025-12': 100 });
+    expect(r.porAtivoNoAno).toEqual({ HGLG11: 30, ITSA4: 14.75 });
+    expect(r.ultimosPagamentos[0]).toEqual({
+      data: '2026-09-05',
+      ativo: 'ITSA4',
+      tipo: 'Dividendo',
+      valor: 10.5,
+    });
+    expect(r.aReceber).toEqual({ esteMes: 0, proximos12Meses: 99 });
+  });
+
+  it('sem proventos devolve null (a chave some do contexto)', () => {
+    expect(compactProventos({ proventos: [] }, hoje)).toBeNull();
+    expect(compactProventos(null, hoje)).toBeNull();
+  });
+
+  it('classifica o tipo textual em Dividendo / JCP / Rendimento', () => {
+    expect(familiaProvento('Juros sobre capital próprio')).toBe('JCP');
+    expect(familiaProvento('jcp')).toBe('JCP');
+    expect(familiaProvento('Rendimento')).toBe('Rendimento');
+    expect(familiaProvento('DIVIDENDO')).toBe('Dividendo');
+    expect(familiaProvento(undefined)).toBe('Dividendo');
   });
 });
