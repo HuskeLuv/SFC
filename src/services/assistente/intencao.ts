@@ -14,6 +14,7 @@ export type Intencao =
   | 'carteira'
   | 'rentabilidade'
   | 'proventos'
+  | 'vencimentos'
   | 'dividas'
   | 'saude_financeira'
   | 'objetivos'
@@ -36,7 +37,12 @@ const REGRAS: Array<{ intencao: Intencao; re: RegExp }> = [
   },
   {
     intencao: 'nao_suportado',
-    re: /\bsaldo\b.{0,20}(conta|banco|nubank|inter|caixa|itau|bradesco|santander)|\bfatura\b|\bvence(m|r|ndo)?\b|vencimento|transfer(i|encia)|efetiv|extrato|cartao de credito/,
+    re: /\bsaldo\b.{0,20}(conta|banco|nubank|inter|caixa|itau|bradesco|santander)|\bfatura\b|transfer(i|encia)|efetiv|extrato|cartao de credito/,
+  },
+  {
+    // Agenda (16/09/2026): parcelas, vencimentos de RF, proventos e IR têm data no app.
+    intencao: 'vencimentos',
+    re: /\bvence(m|r|ndo)?\b|vencimento|agenda|proxim(a|o)s? (parcela|pagamento|vencimento)/,
   },
   {
     // Verbo de registro + um número: "gastei 45,90", "registra 1.000 em ITSA4".

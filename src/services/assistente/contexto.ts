@@ -548,6 +548,86 @@ export function compactOrcamento(orc: Json | null | undefined, mesIndex: number)
   };
 }
 
+// ---------------------------------------------------------------------------
+// Lote 2 (16/09/2026): agenda, aposentadoria, meta de patrimônio, alocação
+// alvo, cobertura FGC e perfil — rotas pequenas, uma chamada cada.
+// ---------------------------------------------------------------------------
+
+/** Agenda dos próximos dias (parcelas, vencimentos de RF, proventos, IR, eventos manuais). */
+export function compactAgenda(d: Json | null | undefined, max = 40): Json[] | null {
+  const eventos = ((d?.eventos ?? []) as Json[]).slice(0, max);
+  if (eventos.length === 0) return null;
+  return eventos.map((e) => slim(e, ['tipo', 'titulo', 'data', 'dataFim', 'valor', 'descricao']));
+}
+
+/** Plano de aposentadoria: premissas + progresso real registrado. */
+export function compactAposentadoria(d: Json | null | undefined): Json | null {
+  const plano = (d?.plano ?? null) as Json | null;
+  if (!plano) return null;
+  const entries = ((plano.entries ?? []) as Json[]).filter((e) => typeof e.off === 'number');
+  const ultimo = entries.length ? entries[entries.length - 1] : null;
+  const aportadoReal = entries.reduce((s, e) => s + Number(e.aporteReal ?? 0), 0);
+  return {
+    idadeAtual: plano.idade,
+    idadeAposentadoria: plano.apos,
+    expectativaVida: plano.vida,
+    patrimonioInicial: round(Number(plano.patrimonio ?? 0)),
+    aporteMensalPlanejado: round(Number(plano.aporteM ?? 0)),
+    rendaMensalAlvo: round(Number(plano.renda ?? 0)),
+    rentabilidadeNominalAA: plano.rentNom,
+    inflacaoAA: plano.inflacao,
+    ...(ultimo
+      ? {
+          progresso: {
+            mesesRegistrados: entries.length,
+            aportadoReal: round(aportadoReal),
+            patrimonioAtual: round(Number(ultimo.patFinal ?? 0)),
+            ultimoMes: `${ultimo.year}-${String(ultimo.month).padStart(2, '0')}`,
+          },
+        }
+      : {}),
+  };
+}
+
+/** Alocação alvo por classe (Alocação de Ativos) cruzada com o % atual da distribuição. */
+export function compactAlocacaoAlvo(
+  cfg: Json | null | undefined,
+  distribuicao: Record<string, Json> | null | undefined,
+): Json[] | null {
+  const configs = ((cfg?.configuracoes ?? []) as Json[]).filter(
+    (c) => typeof c.categoria === 'string',
+  );
+  if (configs.length === 0) return null;
+  return configs
+    .map((c) => {
+      const categoria = c.categoria as string;
+      const alvo = Number(c.target ?? 0);
+      const atual = Number(distribuicao?.[categoria]?.percentual ?? 0);
+      return {
+        classe: categoria,
+        alvoPct: round(alvo),
+        minimoPct: round(Number(c.minimo ?? 0)),
+        maximoPct: round(Number(c.maximo ?? 0)),
+        atualPct: round(atual),
+        diferencaPontos: round(atual - alvo),
+        ...(c.descricao ? { descricao: c.descricao } : {}),
+      };
+    })
+    .filter((c) => c.alvoPct > 0 || c.atualPct > 0);
+}
+
+/** Cobertura do FGC da renda fixa: resumo + por instituição. */
+export function compactFgc(d: Json | null | undefined): Json | null {
+  if (!d?.resumo) return null;
+  const resumo = slim(d.resumo);
+  if (Number(resumo.totalValorRendaFixa ?? 0) === 0) return null;
+  return {
+    observacao: 'Limites do FGC por instituição e global; valores em R$.',
+    ...resumo,
+    instituicoes: ((d.instituicoes ?? []) as Json[]).slice(0, 20).map((i) => slim(i)),
+  };
+}
+
 export interface ContextoBruto {
   ano: number;
   resumo: Json | null;
@@ -561,6 +641,13 @@ export interface ContextoBruto {
   planejados?: Json[];
   /** Resposta crua de /api/analises/proventos (histórico completo). */
   proventos?: ProventosLike | null;
+  // Lote 2
+  agenda?: Json | null;
+  aposentadoria?: Json | null;
+  metaPatrimonio?: Json | null;
+  alocacaoConfig?: Json | null;
+  fgc?: Json | null;
+  perfil?: Json | null;
 }
 
 const MESES_LONGOS = [
@@ -593,6 +680,7 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
     hoje: hoje.toISOString().slice(0, 10),
     mesAtual: MESES_LONGOS[hoje.getMonth()],
     ano: raw.ano,
+    ...(raw.perfil?.name ? { usuario: { nome: raw.perfil.name } } : {}),
     carteira: {
       saldoBruto: r.saldoBruto,
       valorAplicado: r.valorAplicado,
@@ -616,7 +704,21 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
       proventosRecebidos: compactProventos(raw.proventos, hoje),
       // Evolução mensal do patrimônio + TWR/MWR por janela (já vinham no resumo).
       ...compactHistoricoCarteira(r, hoje),
+      // Meta de patrimônio com prazo, progresso e aporte mensal necessário.
+      ...(raw.metaPatrimonio && (raw.metaPatrimonio as Json).hasGoal
+        ? { metaPatrimonioStatus: slim(raw.metaPatrimonio) }
+        : {}),
+      // Alocação de Ativos: alvo × atual por classe (rebalanceamento).
+      alocacaoAlvoPorClasse: compactAlocacaoAlvo(
+        raw.alocacaoConfig,
+        (r.distribuicao ?? null) as Record<string, Json> | null,
+      ),
+      coberturaFgc: compactFgc(raw.fgc),
     },
+    // Próximos 60 dias: parcelas de dívida, vencimentos de renda fixa,
+    // proventos anunciados, datas de IR e eventos manuais da Agenda.
+    agendaProximos60Dias: compactAgenda(raw.agenda),
+    aposentadoria: compactAposentadoria(raw.aposentadoria),
     // Retrato do mês atual: total por grupo de despesa, entradas, despesas e sobra.
     // Vem ANTES do fluxo detalhado para o modelo achar primeiro o número pronto.
     mesAtualResumo: raw.cashflow ? resumirMes(raw.cashflow.groups, hoje.getMonth()) : null,
@@ -679,6 +781,12 @@ const ROTAS: Record<string, () => Promise<{ GET: RouteHandler }>> = {
   '/api/carteira/reserva-oportunidade': () =>
     import('@/app/api/carteira/reserva-oportunidade/route'),
   '/api/carteira/opcoes': () => import('@/app/api/carteira/opcoes/route'),
+  '/api/calendar': () => import('@/app/api/calendar/route'),
+  '/api/aposentadoria': () => import('@/app/api/aposentadoria/route'),
+  '/api/analises/portfolio-goal': () => import('@/app/api/analises/portfolio-goal/route'),
+  '/api/carteira/configuracao': () => import('@/app/api/carteira/configuracao/route'),
+  '/api/analises/cobertura-fgc': () => import('@/app/api/analises/cobertura-fgc/route'),
+  '/api/profile': () => import('@/app/api/profile/route'),
 };
 
 async function chamarRota<T = Json>(
@@ -729,6 +837,19 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
         : Promise.resolve(null),
       ...classes.map((c) => chamarRota<CarteiraClasseLike>(request, `/api/carteira/${c}`)),
     ]);
+  const hoje = new Date();
+  const em60d = new Date(hoje.getTime() + 60 * 86400000);
+  const isoDia = (d: Date) => d.toISOString().slice(0, 10);
+  const [agenda, aposentadoria, metaPatrimonio, alocacaoConfig, fgc, perfil] = await Promise.all([
+    chamarRota(request, '/api/calendar', { de: isoDia(hoje), ate: isoDia(em60d) }),
+    chamarRota(request, '/api/aposentadoria'),
+    chamarRota(request, '/api/analises/portfolio-goal'),
+    chamarRota(request, '/api/carteira/configuracao'),
+    classes.includes('renda-fixa')
+      ? chamarRota(request, '/api/analises/cobertura-fgc')
+      : Promise.resolve(null),
+    chamarRota(request, '/api/profile'),
+  ]);
   const posicoes: Record<string, CarteiraClasseLike | null> = {};
   classes.forEach((c, i) => {
     posicoes[c] = posicoesArr[i];
@@ -746,6 +867,12 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
     saude,
     sonhos,
     proventos: proventos as ProventosLike | null,
+    agenda,
+    aposentadoria,
+    metaPatrimonio,
+    alocacaoConfig,
+    fgc,
+    perfil,
     planejados: planejados.map((p) => {
       const aba = abaDoAssetPlanejado(p.asset);
       return {
