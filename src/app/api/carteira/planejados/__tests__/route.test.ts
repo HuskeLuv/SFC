@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
-  asset: { findUnique: vi.fn() },
+  asset: { findUnique: vi.fn(), create: vi.fn() },
   portfolio: { findFirst: vi.fn() },
   watchlist: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
@@ -109,6 +109,81 @@ describe('POST /api/carteira/planejados (ativo planejado, sem posição)', () =>
     mockPrisma.asset.findUnique.mockResolvedValueOnce(null);
     const r2 = await POST(post({ assetId: 'nope', tipoAtivo: 'acao' }));
     expect(r2.status).toBe(404);
+  });
+});
+
+describe('POST /api/carteira/planejados — ativos MANUAIS (fase 2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireAuthWithActing.mockResolvedValue(auth);
+    mockPrisma.watchlist.findFirst.mockResolvedValue(null);
+    mockPrisma.asset.create.mockImplementation(async ({ data }) => ({ id: 'asset-novo', ...data }));
+    mockPrisma.watchlist.create.mockImplementation(async ({ data }) => ({ id: 'plan-2', ...data }));
+  });
+
+  it('stock: cria o Asset (USD, manual, símbolo TICKER-<ts>-<rnd>) a partir do ticker', async () => {
+    const res = await POST(
+      post({
+        tipoAtivo: 'stock',
+        assetId: 'STOCK-MANUAL',
+        nome: 'aapl',
+        secao: 'growth',
+        objetivo: 30,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const criado = mockPrisma.asset.create.mock.calls[0][0].data;
+    expect(criado).toMatchObject({
+      name: 'AAPL',
+      type: 'stock',
+      currency: 'USD',
+      source: 'manual',
+    });
+    expect(criado.symbol).toMatch(/^AAPL-\d+-[a-z0-9]+$/);
+    expect(mockPrisma.watchlist.create.mock.calls[0][0].data).toMatchObject({
+      assetId: 'asset-novo',
+      secao: 'growth',
+      objetivo: 30,
+    });
+  });
+
+  it('fundo manual: Asset type fund em BRL, seção = subtipo escolhido', async () => {
+    const res = await POST(
+      post({ tipoAtivo: 'fundo', assetId: 'FUNDO-MANUAL', nome: 'Fundo XP Macro', secao: 'fia' }),
+    );
+    expect(res.status).toBe(201);
+    const criado = mockPrisma.asset.create.mock.calls[0][0].data;
+    expect(criado).toMatchObject({ name: 'Fundo XP Macro', type: 'fund', currency: 'BRL' });
+    expect(criado.symbol).toMatch(/^FUNDO-FUNDO-XP-MACRO-\d+-/);
+    expect(mockPrisma.watchlist.create.mock.calls[0][0].data.secao).toBe('fia');
+  });
+
+  it('409 quando já existe planejado manual com o mesmo ticker (prefixo do símbolo)', async () => {
+    mockPrisma.watchlist.findFirst.mockResolvedValueOnce({
+      id: 'plan-1',
+      assetId: 'asset-1',
+      asset: { id: 'asset-1', symbol: 'AAPL-1-x' },
+    });
+    const res = await POST(post({ tipoAtivo: 'stock', assetId: 'STOCK-MANUAL', nome: 'AAPL' }));
+    expect(res.status).toBe(409);
+    expect(mockPrisma.watchlist.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'user-1',
+          asset: { type: 'stock', source: 'manual', symbol: { startsWith: 'AAPL-' } },
+        },
+      }),
+    );
+    expect(mockPrisma.asset.create).not.toHaveBeenCalled();
+  });
+
+  it('previdência: só catálogo — seguro manual é 400; sem nome em manual é 400', async () => {
+    const r1 = await POST(
+      post({ tipoAtivo: 'previdencia', assetId: 'SEGURO-MANUAL', nome: 'Seguro' }),
+    );
+    expect(r1.status).toBe(400);
+    const r2 = await POST(post({ tipoAtivo: 'reit', assetId: 'REIT-MANUAL' }));
+    expect(r2.status).toBe(400);
   });
 });
 

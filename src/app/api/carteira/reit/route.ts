@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  listarPlanejados,
+  linhaPlanejadaBase,
+  TIPOS_ATIVO_PLANEJAVEIS,
+} from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
@@ -93,7 +98,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
 
   // Cotações via banco (BRAPI sync) com fallback para fetch direto quando faltar
-  const reitSymbols = portfolio.filter((item) => item.asset).map((item) => item.asset!.symbol);
+  // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
+  const planejados = await listarPlanejados(
+    targetUserId,
+    TIPOS_ATIVO_PLANEJAVEIS.reits,
+    portfolio.map((p) => p.assetId),
+  );
+  const reitSymbols = [
+    ...portfolio.filter((item) => item.asset).map((item) => item.asset!.symbol),
+    ...planejados.map((r) => r.asset.symbol),
+  ];
   const quotes = await getAssetPrices(reitSymbols, { useBrapiFallback: true });
 
   const reitAtivos = portfolio
@@ -135,45 +149,74 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       };
     });
 
+  // Linhas planejadas: seção = estratégia escolhida ao planejar (a de uma
+  // posição vem das notes da compra; planejado não tem transação).
+  const reitAtivosComPlanejados = [
+    ...reitAtivos,
+    ...planejados.map((r) => ({
+      ...linhaPlanejadaBase(r, quotes.get(r.asset.symbol) ?? 0),
+      // O symbol do REIT manual carrega timestamp; o rótulo é o nome digitado.
+      ticker: r.asset.name,
+      setor: 'outros',
+      subsetor: '',
+      estrategia: (['value', 'growth', 'risk'].includes(r.secao ?? '') ? r.secao : 'value') as
+        | 'value'
+        | 'growth'
+        | 'risk',
+    })),
+  ];
+
   // Calcular totais gerais
-  const totalQuantidade = reitAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
+  const totalQuantidade = reitAtivosComPlanejados.reduce((sum, ativo) => sum + ativo.quantidade, 0);
   // Auditoria 25/08/2026 (B1): proventos recebidos entram na rentabilidade da linha.
   const proventosPorSymbol = await proventosRecebidosPorSymbol(targetUserId);
-  aplicarProventosNosAtivos(reitAtivos, proventosPorSymbol);
-  const totalProventos = reitAtivos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
-  const totalValorAplicado = reitAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
-  const totalValorAtualizado = reitAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+  aplicarProventosNosAtivos(reitAtivosComPlanejados, proventosPorSymbol);
+  const totalProventos = reitAtivosComPlanejados.reduce(
+    (sum, ativo) => sum + (ativo.proventos ?? 0),
+    0,
+  );
+  const totalValorAplicado = reitAtivosComPlanejados.reduce(
+    (sum, ativo) => sum + ativo.valorTotal,
+    0,
+  );
+  const totalValorAtualizado = reitAtivosComPlanejados.reduce(
+    (sum, ativo) => sum + ativo.valorAtualizado,
+    0,
+  );
 
   // Bug #14 residual: percentualCarteira no backend (paridade com FII).
   if (totalValorAtualizado > 0) {
-    reitAtivos.forEach((ativo) => {
+    reitAtivosComPlanejados.forEach((ativo) => {
       const pct = (ativo.valorAtualizado / totalValorAtualizado) * 100;
       ativo.percentualCarteira = round2(pct);
       ativo.riscoPorAtivo = ativo.percentualCarteira;
     });
     const adjusted = distributeRoundedPercents(
-      reitAtivos.map((a) => ({ percentual: a.percentualCarteira })),
+      reitAtivosComPlanejados.map((a) => ({ percentual: a.percentualCarteira })),
     );
     adjusted.forEach((adj, i) => {
-      reitAtivos[i].percentualCarteira = adj.percentual;
-      reitAtivos[i].riscoPorAtivo = adj.percentual;
+      reitAtivosComPlanejados[i].percentualCarteira = adj.percentual;
+      reitAtivosComPlanejados[i].riscoPorAtivo = adj.percentual;
     });
-    reitAtivos.forEach((ativo) => {
+    reitAtivosComPlanejados.forEach((ativo) => {
       ativo.quantoFalta = round2(ativo.objetivo - ativo.percentualCarteira);
       ativo.necessidadeAporte =
         ativo.quantoFalta > 0 ? round2((ativo.quantoFalta / 100) * totalValorAtualizado) : 0;
     });
   }
 
-  const totalObjetivo = reitAtivos.reduce((sum, ativo) => sum + ativo.objetivo, 0);
-  const totalQuantoFalta = reitAtivos.reduce((sum, ativo) => sum + ativo.quantoFalta, 0);
-  const totalNecessidadeAporte = reitAtivos.reduce(
+  const totalObjetivo = reitAtivosComPlanejados.reduce((sum, ativo) => sum + ativo.objetivo, 0);
+  const totalQuantoFalta = reitAtivosComPlanejados.reduce(
+    (sum, ativo) => sum + ativo.quantoFalta,
+    0,
+  );
+  const totalNecessidadeAporte = reitAtivosComPlanejados.reduce(
     (sum, ativo) => sum + ativo.necessidadeAporte,
     0,
   );
-  const totalRisco = reitAtivos.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
+  const totalRisco = reitAtivosComPlanejados.reduce((sum, ativo) => sum + ativo.riscoPorAtivo, 0);
   const rentabilidadeMedia = rentabilidadeAgregada(
-    reitAtivos,
+    reitAtivosComPlanejados,
     (a) => a.valorTotal,
     (a) => a.valorAtualizado + (a.proventos ?? 0),
   );
@@ -185,8 +228,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     growth: 'Growth',
     risk: 'Risk',
   };
-  const secoesMap = new Map<string, typeof reitAtivos>();
-  reitAtivos.forEach((ativo) => {
+  const secoesMap = new Map<string, typeof reitAtivosComPlanejados>();
+  reitAtivosComPlanejados.forEach((ativo) => {
     const e = ativo.estrategia;
     const list = secoesMap.get(e) || [];
     list.push(ativo);
@@ -255,32 +298,36 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   };
 
   // Calcular alocação por ativo
-  const totalValor = reitAtivos.reduce((sum, a) => sum + a.valorAtualizado, 0);
-  const alocacaoAtivo = reitAtivos.map((ativo) => ({
-    ticker: ativo.ticker,
-    valor: ativo.valorAtualizado,
-    percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
-    cor: getAtivoColor(ativo.ticker),
-  }));
+  const totalValor = reitAtivosComPlanejados.reduce((sum, a) => sum + a.valorAtualizado, 0);
+  const alocacaoAtivo = reitAtivosComPlanejados
+    .filter((a) => !(a as { planejado?: boolean }).planejado)
+    .map((ativo) => ({
+      ticker: ativo.ticker,
+      valor: ativo.valorAtualizado,
+      percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
+      cor: getAtivoColor(ativo.ticker),
+    }));
 
   // Tabela auxiliar (cotacaoAtual, necessidadeAporte, loteAproximado)
   const totalTabValue = valorAtualizadoComCaixa;
-  const tabelaAuxiliar = reitAtivos.map((ativo) => {
-    const percentualCarteira =
-      totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
-    const quantoFalta = (ativo.objetivo ?? 0) - percentualCarteira;
-    const necessidadeAporte =
-      totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
-    const loteAproximado =
-      ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
-    return {
-      ticker: ativo.ticker,
-      nome: ativo.nome,
-      cotacaoAtual: ativo.cotacaoAtual,
-      necessidadeAporte,
-      loteAproximado,
-    };
-  });
+  const tabelaAuxiliar = reitAtivosComPlanejados
+    .filter((a) => !(a as { planejado?: boolean }).planejado)
+    .map((ativo) => {
+      const percentualCarteira =
+        totalTabValue > 0 ? (ativo.valorAtualizado / totalTabValue) * 100 : 0;
+      const quantoFalta = (ativo.objetivo ?? 0) - percentualCarteira;
+      const necessidadeAporte =
+        totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+      const loteAproximado =
+        ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
+      return {
+        ticker: ativo.ticker,
+        nome: ativo.nome,
+        cotacaoAtual: ativo.cotacaoAtual,
+        necessidadeAporte,
+        loteAproximado,
+      };
+    });
 
   const data = {
     cotacaoDolar,

@@ -565,6 +565,53 @@ describe('POST /api/carteira/operacao', () => {
       );
     });
 
+    it('stock manual: compra do ticker PLANEJADO reaproveita o Asset e herda o objetivo', async () => {
+      const assetPlanejado = {
+        id: 'asset-aapl',
+        symbol: 'AAPL-1-x',
+        name: 'AAPL',
+        type: 'stock',
+        currency: 'USD',
+        source: 'manual',
+      };
+      // 1ª chamada: encontrarPlanejadoManual (por prefixo); 2ª: absorverPlanejadoNaCompra (por assetId)
+      mockPrisma.watchlist.findFirst
+        .mockResolvedValueOnce({ id: 'plan-1', assetId: 'asset-aapl', asset: assetPlanejado })
+        .mockResolvedValueOnce({
+          id: 'plan-1',
+          assetId: 'asset-aapl',
+          objetivo: 30,
+          secao: 'growth',
+        });
+      mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'stock',
+          instituicaoId: 'inst-1',
+          assetId: 'STOCK-MANUAL',
+          ativo: 'AAPL',
+          dataCompra: '2024-01-15',
+          quantidade: 2,
+          cotacaoUnitaria: 200,
+          moeda: 'USD',
+          cotacaoMoeda: 5,
+          estrategia: 'value',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.asset.create).not.toHaveBeenCalled();
+      expect(mockPrisma.watchlist.delete).toHaveBeenCalledWith({ where: { id: 'plan-1' } });
+      expect(mockPrisma.portfolio.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            assetId: 'asset-aapl',
+            objetivo: 30,
+            estrategia: 'value',
+          }),
+        }),
+      );
+    });
+
     it('retorna 400 quando estratégia ausente para ação', async () => {
       const response = await POST(
         createRequest({

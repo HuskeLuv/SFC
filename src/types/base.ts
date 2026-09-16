@@ -11,6 +11,12 @@ export interface BaseAtivo {
   percentualCarteira: number;
   rentabilidade: number;
   observacoes?: string;
+  /**
+   * Ativo PLANEJADO (16/09/2026): sem posição — `id` é o do planejado
+   * (Watchlist), valores zerados, só o objetivo conta. Ver
+   * services/portfolio/ativosPlanejados.ts.
+   */
+  planejado?: boolean;
 }
 
 // Extended base for quantity-tracked assets (acoes, fii, etf, reit, stocks, opcoes, moedas, previdencia)
@@ -26,12 +32,6 @@ export interface BaseQuantityAtivo extends BaseAtivo {
   dataUltimaAtualizacao?: Date;
   /** Proventos líquidos já recebidos (R$) — entram na rentabilidade (auditoria B1, 25/08/2026). */
   proventos?: number;
-  /**
-   * Ativo PLANEJADO (16/09/2026): sem posição — `id` é o do planejado
-   * (Watchlist), valores zerados, só o objetivo conta. Ver
-   * services/portfolio/ativosPlanejados.ts.
-   */
-  planejado?: boolean;
 }
 
 // Extended base for fund-type assets (rendaFixa, fimFia) that track by value, not quantity

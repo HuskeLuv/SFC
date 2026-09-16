@@ -149,7 +149,7 @@ export default function Step1AssetType({
             O ativo entra na aba da carteira sem quantidade nem valor, só com o objetivo (%). As
             colunas Quanto Falta e Necessidade de Aporte mostram quanto comprar. Na primeira compra
             ele vira uma posição normal e herda o objetivo. Disponível para ações e BDRs,
-            FII&apos;s, ETF&apos;s, moedas e criptomoedas.
+            FII&apos;s, ETF&apos;s, moedas, criptomoedas, stocks, REIT&apos;s, fundos e previdência.
           </p>
         </div>
       )}

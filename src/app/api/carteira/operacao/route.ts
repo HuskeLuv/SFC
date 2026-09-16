@@ -1,6 +1,9 @@
 import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
-import { absorverPlanejadoNaCompra } from '@/services/portfolio/ativosPlanejados';
+import {
+  absorverPlanejadoNaCompra,
+  encontrarPlanejadoManual,
+} from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
@@ -1248,15 +1251,24 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       assetSymbol = `FUNDO-${safeSymbol}-${timestamp}-${uniqueId}`;
     }
 
-    asset = await prisma.asset.create({
-      data: {
-        symbol: assetSymbol,
-        name: assetName,
-        type: assetType,
-        currency: 'BRL',
-        source: 'manual',
-      },
-    });
+    // Fundo PLANEJADO com o mesmo nome (aba Fundos): reaproveita o Asset criado
+    // no planejamento em vez de abrir outro — assim a absorção do objetivo
+    // (absorverPlanejadoNaCompra) encontra a linha planejada.
+    const fundoPlanejado =
+      assetType === 'fund'
+        ? await encontrarPlanejadoManual(targetUserId, 'fundo', nomeFundo)
+        : null;
+    asset =
+      fundoPlanejado?.asset ??
+      (await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: assetType,
+          currency: 'BRL',
+          source: 'manual',
+        },
+      }));
 
     if (dest === 'renda-fixa' && asset) {
       const tipoRendaFixa = fundoRendaFixaTipo || 'prefixada';
@@ -1353,15 +1365,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       : '';
     const assetName = `${nomeReit}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
 
-    asset = await prisma.asset.create({
-      data: {
-        symbol: assetSymbol,
-        name: assetName,
-        type: 'reit',
-        currency: 'USD',
-        source: 'manual',
-      },
-    });
+    // REIT PLANEJADO com o mesmo ticker/nome: reaproveita o Asset do planejamento.
+    const reitPlanejado = await encontrarPlanejadoManual(targetUserId, 'reit', nomeReit);
+    asset =
+      reitPlanejado?.asset ??
+      (await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: 'reit',
+          currency: 'USD',
+          source: 'manual',
+        },
+      }));
   } else if (tipoAtivo === 'stock' && assetId === 'STOCK-MANUAL') {
     const tickerStock = (requestBody.ativo || '').trim().toUpperCase();
     if (!tickerStock) {
@@ -1390,15 +1406,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       : '';
     const assetName = `${tickerStock}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
 
-    asset = await prisma.asset.create({
-      data: {
-        symbol: assetSymbol,
-        name: assetName,
-        type: 'stock',
-        currency: 'USD',
-        source: 'manual',
-      },
-    });
+    // Stock PLANEJADO com o mesmo ticker: reaproveita o Asset do planejamento.
+    const stockPlanejado = await encontrarPlanejadoManual(targetUserId, 'stock', tickerStock);
+    asset =
+      stockPlanejado?.asset ??
+      (await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: 'stock',
+          currency: 'USD',
+          source: 'manual',
+        },
+      }));
   } else if (tipoAtivo === 'previdencia' && assetId === 'SEGURO-MANUAL') {
     // Seguro manual (o único caminho manual do fluxo Previdência e Seguros —
     // previdência entra como fundo). Aceita aporte por valor OU por cotas.

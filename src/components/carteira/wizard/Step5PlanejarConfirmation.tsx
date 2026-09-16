@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { WizardFormData, TIPOS_ATIVO } from '@/types/wizard';
+import { FUNDO_SUBTIPO_LABEL } from '@/lib/fundoTypes';
 
 interface Step5PlanejarConfirmationProps {
   formData: WizardFormData;
@@ -16,6 +17,7 @@ const SECAO_LABEL: Record<string, string> = {
   infra: 'Infra (Fundos de Infraestrutura)',
   brasil: 'Brasil',
   estados_unidos: 'EUA',
+  ...FUNDO_SUBTIPO_LABEL,
 };
 
 /** Confirmação do fluxo PLANEJAR (16/09/2026): resumo enxuto, sem vínculo nem valores. */
@@ -29,7 +31,13 @@ export default function Step5PlanejarConfirmation({ formData }: Step5PlanejarCon
         ? formData.tipoFii
         : formData.tipoAtivo === 'etf'
           ? formData.regiaoEtf
-          : undefined;
+          : formData.tipoAtivo === 'stock'
+            ? formData.estrategia
+            : formData.tipoAtivo === 'reit'
+              ? formData.estrategiaReit
+              : formData.tipoAtivo === 'fundo'
+                ? formData.fundoDestino
+                : undefined;
 
   const linha = (label: string, valor?: string | number | null) =>
     valor === undefined || valor === null || valor === '' ? null : (

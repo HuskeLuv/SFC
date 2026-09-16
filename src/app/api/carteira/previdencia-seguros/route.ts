@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  listarPlanejados,
+  linhaPlanejadaBase,
+  TIPOS_ATIVO_PLANEJAVEIS,
+} from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import type {
@@ -109,6 +114,24 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       };
     });
 
+  // Ativos PLANEJADOS (sem posição): fundos de previdência do catálogo, na
+  // seção Previdência — linha zerada com objetivo (16/09/2026).
+  const planejados = await listarPlanejados(
+    targetUserId,
+    TIPOS_ATIVO_PLANEJAVEIS['previdencia-seguros'],
+    portfolio.map((p) => p.assetId),
+  );
+  for (const r of planejados) {
+    ativos.push({
+      ...linhaPlanejadaBase(r, r.asset.currentPrice?.toNumber() ?? 0),
+      carencia: 0,
+      cotacaoResgate: 0,
+      liquidacaoResgate: 0,
+      modalidade: 'previdencia',
+      subclasse: 'fundo_prev',
+    });
+  }
+
   // Totais gerais
   const totalQuantidade = ativos.reduce((sum, a) => sum + a.quantidade, 0);
   const totalValorAplicado = ativos.reduce((sum, a) => sum + a.valorTotal, 0);
@@ -168,32 +191,36 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   };
 
   const totalValor = ativos.reduce((sum, a) => sum + a.valorAtualizado, 0);
-  const alocacaoAtivo = ativos.map((ativo) => ({
-    nome: ativo.nome,
-    ticker: ativo.ticker,
-    valor: ativo.valorAtualizado,
-    percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
-    cor: getAtivoColor(ativo.ticker || ativo.nome),
-  }));
-
-  const tabelaAuxiliar = ativos.map((ativo) => {
-    const percentualCarteira =
-      valorAtualizadoComCaixa > 0 ? (ativo.valorAtualizado / valorAtualizadoComCaixa) * 100 : 0;
-    const quantoFalta = (ativo.objetivo ?? 0) - percentualCarteira;
-    const necessidadeAporte =
-      valorAtualizadoComCaixa > 0 && quantoFalta > 0
-        ? (quantoFalta / 100) * valorAtualizadoComCaixa
-        : 0;
-    const loteAproximado =
-      ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
-    return {
+  const alocacaoAtivo = ativos
+    .filter((a) => !a.planejado)
+    .map((ativo) => ({
       nome: ativo.nome,
       ticker: ativo.ticker,
-      cotacaoAtual: ativo.cotacaoAtual,
-      necessidadeAporte,
-      loteAproximado,
-    };
-  });
+      valor: ativo.valorAtualizado,
+      percentual: totalValor > 0 ? (ativo.valorAtualizado / totalValor) * 100 : 0,
+      cor: getAtivoColor(ativo.ticker || ativo.nome),
+    }));
+
+  const tabelaAuxiliar = ativos
+    .filter((a) => !a.planejado)
+    .map((ativo) => {
+      const percentualCarteira =
+        valorAtualizadoComCaixa > 0 ? (ativo.valorAtualizado / valorAtualizadoComCaixa) * 100 : 0;
+      const quantoFalta = (ativo.objetivo ?? 0) - percentualCarteira;
+      const necessidadeAporte =
+        valorAtualizadoComCaixa > 0 && quantoFalta > 0
+          ? (quantoFalta / 100) * valorAtualizadoComCaixa
+          : 0;
+      const loteAproximado =
+        ativo.cotacaoAtual > 0 ? Math.ceil(necessidadeAporte / ativo.cotacaoAtual) : 0;
+      return {
+        nome: ativo.nome,
+        ticker: ativo.ticker,
+        cotacaoAtual: ativo.cotacaoAtual,
+        necessidadeAporte,
+        loteAproximado,
+      };
+    });
 
   const data: PrevidenciaSegurosData = {
     resumo,
