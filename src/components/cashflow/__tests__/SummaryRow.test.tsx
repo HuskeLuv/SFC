@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { SummaryRow } from '../SummaryRow';
 import { TotalRow } from '../TotalRow';
 import { SavingsIndexRow } from '../SavingsIndexRow';
+import { SaldoContaCorrenteAnteriorRow } from '../SaldoContaCorrenteAnteriorRow';
 
 const renderRow = (ui: React.ReactElement) =>
   render(
@@ -80,5 +81,19 @@ describe('TotalRow (Saldo do mês) — pedido do Pedro ago/2026', () => {
     const positivos = screen.getAllByText(/1\.500/).map((el) => el.closest('td')!);
     expect(positivos).toHaveLength(2);
     for (const td of positivos) expect(td.className).toContain('text-[#0079F2]');
+  });
+});
+
+describe('SaldoContaCorrenteAnteriorRow — mesmo visual do Saldo do mês (pedido 16/09/2026)', () => {
+  it('usa a variante azul e pinta positivo azul / negativo vermelho, anual em branco', () => {
+    renderRow(<SaldoContaCorrenteAnteriorRow cells={[2500, -300, 0, ...Array(9).fill(null)]} />);
+    const label = screen.getByText('Saldo Conta Corrente Mês Anterior').closest('td')!;
+    expect(label.className).toContain('bg-[#C7D9EA]');
+    expect(label.className).not.toContain('bg-gray-50');
+    expect(screen.getByText(/2\.500/).closest('td')!.className).toContain('text-[#0079F2]');
+    expect(screen.getByText(/-.*300/).closest('td')!.className).toContain('text-red-600');
+    // Anual continua '–' (somar estoque mês a mês não faz sentido).
+    const tds = label.closest('tr')!.querySelectorAll('td');
+    expect(tds[tds.length - 1].textContent).toBe('–');
   });
 });

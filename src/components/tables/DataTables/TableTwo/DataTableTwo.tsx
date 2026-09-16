@@ -27,6 +27,7 @@ import {
   InflationPedroRow,
   InvestmentIncomeRow,
   SummaryRow,
+  SaldoContaCorrenteAnteriorRow,
 } from '@/components/cashflow';
 import { FIXED_COLUMNS_TOTAL_WIDTH, ANNUAL_COLUMN_WIDTH } from '@/components/cashflow/fixedColumns';
 import { GRID, currentMonthIndex } from '@/components/cashflow/cashflowGridStyles';
@@ -536,14 +537,7 @@ export default function DataTableTwo() {
                   {isFirstDespesaGroup && (
                     <>
                       <SpacingRow />
-                      <SummaryRow
-                        label="Saldo Conta Corrente Mês Anterior"
-                        tooltip="Janeiro puxa a Conta Corrente de dezembro do ano anterior; os demais meses puxam o bloco Conta Corrente do mês anterior. Não soma nas entradas — só compõe o Fluxo de Caixa livre."
-                        cells={saldoContaCorrenteAnteriorByMonth}
-                        // Anual em branco: somar saldos (estoque) mês a mês não
-                        // tem significado econômico — não é um fluxo do ano.
-                        annual={null}
-                      />
+                      <SaldoContaCorrenteAnteriorRow cells={saldoContaCorrenteAnteriorByMonth} />
                     </>
                   )}
                   {groupIndex > 0 && <SpacingRow />}
