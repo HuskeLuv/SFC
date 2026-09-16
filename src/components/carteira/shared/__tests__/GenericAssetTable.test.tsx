@@ -38,9 +38,11 @@ vi.mock('@/icons', () => ({
   ),
 }));
 
+const contextMock = vi.hoisted(() => ({ necessidadeAporteMap: {} as Record<string, number> }));
+
 vi.mock('@/context/CarteiraResumoContext', () => ({
   useCarteiraResumoContext: () => ({
-    necessidadeAporteMap: {} as Record<string, number>,
+    necessidadeAporteMap: contextMock.necessidadeAporteMap,
   }),
   CarteiraResumoProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -479,5 +481,50 @@ describe('GenericAssetTable — ativo planejado', () => {
     // Recalculado no front: planejado = 15% × total da aba (R$ 1000) = R$ 150;
     // o ativo com posição já está acima do objetivo (0). Linha, seção e TOTAL GERAL.
     expect(screen.getAllByText('R$ 150.00').length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('GenericAssetTable — aba vazia com planejado', () => {
+  it('usa o valor-alvo da classe (Alocação) como base da Necessidade de Aporte', () => {
+    contextMock.necessidadeAporteMap = { acoes: 5000 };
+    const planejado: TestAtivo & { planejado: boolean } = {
+      id: 'plan-1',
+      ticker: 'VALE3',
+      nome: 'Vale S.A.',
+      valorAtualizado: 0,
+      objetivo: 20,
+      percentualCarteira: 0,
+      quantoFalta: 20,
+      necessidadeAporte: 0,
+      planejado: true,
+    };
+    const abaVazia = {
+      secoes: [{ ...mockSecao, ativos: [planejado], totalValorAtualizado: 0 }],
+      totalGeral: { valorAtualizado: 0, objetivo: 20, quantoFalta: 20, necessidadeAporte: 0 },
+      resumo: { caixaParaInvestir: 0, necessidadeAporteTotal: 0 },
+    };
+    const colunas: ColumnDef<TestAtivo, TestSecao>[] = [
+      ...testColumns,
+      {
+        key: 'necessidadeAporte',
+        header: 'Nec. Aporte',
+        align: 'right',
+        render: (ativo, fmt) => fmt.formatCurrency(ativo.necessidadeAporte),
+        renderGrandTotal: (total, fmt) => fmt.formatCurrency(total.necessidadeAporte as number),
+      },
+    ];
+    render(
+      <GenericAssetTable
+        {...buildDefaultProps({
+          data: abaVazia as unknown as Record<string, unknown>,
+          columns: colunas,
+          necessidadeAporteKey: 'acoes',
+        })}
+      />,
+      { wrapper: TestWrapper },
+    );
+    // 20% do valor-alvo da classe (R$ 5.000) = R$ 1.000, na linha e no total
+    expect(screen.getAllByText('R$ 1000.00').length).toBeGreaterThanOrEqual(2);
+    contextMock.necessidadeAporteMap = {};
   });
 });

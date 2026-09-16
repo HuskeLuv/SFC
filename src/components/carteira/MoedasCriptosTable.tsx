@@ -10,6 +10,7 @@ import {
   metricColorBySign,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 
 const SECTION_ORDER = ['moedas', 'criptomoedas', 'metais_joias'] as const;
 const SECTION_NAMES: Record<string, string> = {
@@ -39,11 +40,16 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
   };
 
   // MoedasCriptos has a custom risk computation (flat ativos, not per-section)
+  const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const alvoClasse = necessidadeAporteMap.moedasCriptos ?? 0;
+
   const ativosComRisco = useMemo(() => {
     if (!data) return [];
 
     const ativos = data.secoes.flatMap((secao) => secao.ativos);
     const totalTabValue = ativos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
+    // Aba vazia (só planejados): base = valor-alvo da classe (ver GenericAssetTable).
+    const baseAporte = totalTabValue > 0 ? totalTabValue : alvoClasse;
     const shouldCalculateRisco = totalCarteira > 0;
 
     return ativos.map((ativo) => {
@@ -52,7 +58,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
       const objetivo = ativo.objetivo || 0;
       const quantoFalta = objetivo - percentualCarteira;
       const necessidadeAporte =
-        totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+        baseAporte > 0 && quantoFalta > 0 ? (quantoFalta / 100) * baseAporte : 0;
 
       return {
         ...ativo,
@@ -64,7 +70,7 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
         necessidadeAporte,
       };
     });
-  }, [data, totalCarteira]);
+  }, [data, totalCarteira, alvoClasse]);
 
   // TOTAL GERAL alinhado com as seções: risco/quantoFalta/necessidadeAporte
   // do payload seguem outra base (percentual da aba); aqui o grand total soma
