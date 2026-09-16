@@ -48,10 +48,22 @@ function renderItems(
   );
 }
 
+// Linhas recém-criadas (ainda fora da árvore até o refetch). Já presentes na
+// árvore são puladas (senão apareciam duas vezes após o refetch). Com o grupo
+// em edição, a linha nova nasce editável (valores digitáveis na hora).
 function renderNewItems(group: CashflowGroup, ctx: GroupRenderContext) {
+  const inTree = new Set((group.items ?? []).map((item) => item.id));
   return Object.entries(ctx.newItems)
-    .filter(([, item]) => item.groupId === group.id)
-    .map(([itemId, item]) => <NewItemRow key={itemId} item={item} />);
+    .filter(([itemId, item]) => item.groupId === group.id && !inTree.has(itemId))
+    .map(([itemId, item]) =>
+      ctx.isGroupEditing(group.id) ? (
+        <React.Fragment key={itemId}>
+          {ctx.renderItemRowConditional(item, group, Array(12).fill(0), 0, 0)}
+        </React.Fragment>
+      ) : (
+        <NewItemRow key={itemId} item={item} />
+      ),
+    );
 }
 
 function renderAddRowForm(group: CashflowGroup, ctx: GroupRenderContext) {

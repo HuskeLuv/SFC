@@ -1,27 +1,23 @@
 import React from 'react';
+import { GRID } from './cashflowGridStyles';
 
 interface AddRowButtonProps {
   onClick: () => void;
   groupName: string;
 }
 
-export const AddRowButton: React.FC<AddRowButtonProps> = ({ onClick, groupName }) => {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={`Adicionar linha em ${groupName}`}
-      className="rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center border border-[#0056AC] bg-[#0079F2] text-white shadow hover:bg-[#0056AC] focus:outline-none transition-colors"
-      title={`Adicionar linha em ${groupName}`}
-    >
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 16 16"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    </button>
-  );
-};
+/** "+ Linha" — vive na barra de edição do grupo (não fica visível fora dela). */
+export const AddRowButton: React.FC<AddRowButtonProps> = ({ onClick, groupName }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={`Adicionar linha em ${groupName}`}
+    title={`Adicionar linha em ${groupName}`}
+    className={`${GRID.ghostBtn} ${GRID.ghostBtnPill}`}
+  >
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+    </svg>
+    Linha
+  </button>
+);

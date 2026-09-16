@@ -66,6 +66,16 @@ export const GRID = {
   head: 'text-[11px] uppercase tracking-wide text-white font-medium',
   headStyle: { backgroundColor: TABLE_HEADER_BG } as CSSProperties,
 
+  /**
+   * Botões da linha de seção (Editar, + Linha, cor, comentário): contorno na
+   * cor do texto da linha (branco nos azuis, escuro no cinza) — um só estilo
+   * em qualquer nível. `current/NN` = currentColor com opacidade (Tailwind v4).
+   */
+  ghostBtn:
+    'inline-flex h-6 items-center justify-center rounded-full border border-current/40 text-current transition-colors hover:bg-current/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/50 disabled:opacity-50 disabled:cursor-not-allowed',
+  ghostBtnPill: 'gap-1 px-2 text-[11px] font-medium leading-none',
+  ghostBtnIcon: 'w-6',
+
   /** Input de texto dentro da grade (nome, porquê, nível). */
   input:
     'w-full rounded border border-gray-300 bg-white px-2 text-xs text-gray-800 focus:border-[#0079F2] focus:outline-none focus:ring-1 focus:ring-[#0079F2] dark:border-gray-600 dark:bg-gray-800 dark:text-white h-6 leading-6',

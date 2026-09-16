@@ -11,6 +11,9 @@ export const FIXED_COLUMN_WIDTHS = {
 /** Soma das 4 colunas fixas em px (usada pelo ajuste de scroll inicial e pelas setas de mês). */
 export const FIXED_COLUMNS_TOTAL_WIDTH = 260 + 150 + 80 + 80;
 
+/** Largura somada das colunas 1-3 (O seu porquê + Nível + % Receita): barra de edição do grupo. */
+export const FIXED_COLUMNS_1_TO_3_WIDTH = 150 + 80 + 80;
+
 /** Coluna "Total Anual", fixa à direita. */
 export const ANNUAL_COLUMN_WIDTH = 112;
 

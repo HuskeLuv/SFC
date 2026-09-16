@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { CASHFLOW_COLOR_LEGEND, type CashflowColorValue } from '@/utils/cashflowColorLegend';
+import { GRID } from './cashflowGridStyles';
 
 export type ColorOption = CashflowColorValue;
 
@@ -96,7 +97,8 @@ export const ColorPickerButton: React.FC<ColorPickerButtonProps> = ({
           ref={buttonRef}
           onClick={handleButtonClick}
           aria-label="Alterar cor do texto"
-          className={`rounded-full w-6 h-6 flex items-center justify-center border border-blue-600 bg-blue-500 text-white shadow hover:bg-blue-600 focus:outline-none transition-all ${
+          aria-pressed={isColorModeActive}
+          className={`${GRID.ghostBtn} ${GRID.ghostBtnIcon} relative ${
             isColorModeActive ? 'ring-2 ring-blue-300' : ''
           }`}
           title={isColorModeActive ? 'Desativar modo de cor' : 'Alterar cor do texto'}
