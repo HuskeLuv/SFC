@@ -12,6 +12,7 @@ export { CurrencyInput } from './CurrencyInput';
 export { AddRowForm } from './AddRowForm';
 export { SummaryRow } from './SummaryRow';
 export { TotalRow } from './TotalRow';
+export { SaldoContaCorrenteAnteriorRow } from './SaldoContaCorrenteAnteriorRow';
 export { SavingsIndexRow } from './SavingsIndexRow';
 export { FinancialPeaceIndexRow } from './FinancialPeaceIndexRow';
 export { InvestmentIncomeRow } from './InvestmentIncomeRow';
