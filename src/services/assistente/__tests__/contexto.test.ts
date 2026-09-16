@@ -3,8 +3,12 @@ import {
   catalogoLinhas,
   classesComPosicao,
   compactCashflow,
+  compactAgenda,
+  compactAlocacaoAlvo,
+  compactAposentadoria,
   compactClasse,
   compactDivida,
+  compactFgc,
   compactHistoricoCarteira,
   compactObjetivo,
   compactOrcamento,
@@ -587,5 +591,106 @@ describe('lote 1 (16/09/2026) — campos que o slim descartava', () => {
       metaMesAtual: 1000,
       realMesAtual: 750,
     });
+  });
+});
+
+describe('lote 2 (16/09/2026) — agenda, aposentadoria, alocação alvo, FGC', () => {
+  it('compactAgenda mantém só data/tipo/título/valor e limita a lista', () => {
+    const a = compactAgenda({
+      eventos: [
+        {
+          id: 'divida:1:3',
+          tipo: 'divida',
+          titulo: 'Parcela 3/36 — Carro',
+          data: '2026-09-20',
+          dataFim: null,
+          hora: null,
+          valor: 950.5,
+          descricao: null,
+          link: '/dividas/1',
+        },
+        { id: 'rf:2', tipo: 'rf', titulo: 'Vencimento CDB', data: '2026-10-01', valor: 5000 },
+      ],
+    })!;
+    expect(a).toEqual([
+      { tipo: 'divida', titulo: 'Parcela 3/36 — Carro', data: '2026-09-20', valor: 950.5 },
+      { tipo: 'rf', titulo: 'Vencimento CDB', data: '2026-10-01', valor: 5000 },
+    ]);
+    expect(compactAgenda({ eventos: [] })).toBeNull();
+    expect(compactAgenda(null)).toBeNull();
+  });
+
+  it('compactAposentadoria resume o plano e o progresso real', () => {
+    const r = compactAposentadoria({
+      plano: {
+        idade: 35,
+        apos: 65,
+        vida: 90,
+        rentNom: 10,
+        inflacao: 4,
+        patrimonio: 50000,
+        aporteM: 2000,
+        renda: 8000,
+        entries: [
+          { off: 0, year: 2026, month: 1, aporteReal: 2000, patFinal: 52500 },
+          { off: 1, year: 2026, month: 2, aporteReal: 2500, patFinal: 55400 },
+        ],
+      },
+    });
+    expect(r).toEqual({
+      idadeAtual: 35,
+      idadeAposentadoria: 65,
+      expectativaVida: 90,
+      patrimonioInicial: 50000,
+      aporteMensalPlanejado: 2000,
+      rendaMensalAlvo: 8000,
+      rentabilidadeNominalAA: 10,
+      inflacaoAA: 4,
+      progresso: {
+        mesesRegistrados: 2,
+        aportadoReal: 4500,
+        patrimonioAtual: 55400,
+        ultimoMes: '2026-02',
+      },
+    });
+    expect(compactAposentadoria({ plano: null })).toBeNull();
+  });
+
+  it('compactAlocacaoAlvo cruza o target da classe com o % atual', () => {
+    const r = compactAlocacaoAlvo(
+      {
+        configuracoes: [
+          { categoria: 'acoes', minimo: 10, maximo: 30, target: 20 },
+          { categoria: 'opcoes', target: 0 },
+        ],
+      },
+      { acoes: { valor: 100, percentual: 25.5 }, opcoes: { valor: 0, percentual: 0 } },
+    );
+    expect(r).toEqual([
+      {
+        classe: 'acoes',
+        alvoPct: 20,
+        minimoPct: 10,
+        maximoPct: 30,
+        atualPct: 25.5,
+        diferencaPontos: 5.5,
+      },
+    ]);
+    expect(compactAlocacaoAlvo(null, null)).toBeNull();
+  });
+
+  it('compactFgc devolve resumo + instituições; null sem renda fixa', () => {
+    const r = compactFgc({
+      resumo: {
+        totalEfetivamenteCoberto: 100,
+        totalNaoCoberto: 0,
+        totalValorRendaFixa: 100,
+        percentualCoberto: 100,
+      },
+      instituicoes: [{ nome: 'Banco X', total: 100, coberto: true }],
+    })!;
+    expect(r.totalEfetivamenteCoberto).toBe(100);
+    expect(r.instituicoes).toEqual([{ nome: 'Banco X', total: 100, coberto: true }]);
+    expect(compactFgc({ resumo: { totalValorRendaFixa: 0 } })).toBeNull();
   });
 });

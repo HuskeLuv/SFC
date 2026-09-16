@@ -6,7 +6,7 @@ describe('classificarIntencao', () => {
     ['Onde devo investir meus 10 mil?', 'recomendacao_investimento'],
     ['Qual ação vai subir mais no próximo mês pra eu comprar?', 'recomendacao_investimento'],
     ['Qual o total da minha fatura?', 'nao_suportado'],
-    ['Quais contas vencem esta semana?', 'nao_suportado'],
+    ['Quais contas vencem esta semana?', 'vencimentos'],
     ['Qual meu saldo na conta Nubank?', 'nao_suportado'],
     ['Gastei 45,90 no mercado hoje', 'lancamento'],
     ['Registra um aporte de R$ 1.000 em ITSA4', 'lancamento'],
