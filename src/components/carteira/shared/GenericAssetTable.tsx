@@ -5,6 +5,11 @@ import ComponentCard from '@/components/common/ComponentCard';
 import { twMerge } from 'tailwind-merge';
 import { ChevronDownIcon, ChevronUpIcon } from '@/icons';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCsrf } from '@/hooks/useCsrf';
+import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import { logger } from '@/lib/logger';
+import PlanejadoNameCell from './PlanejadoNameCell';
 import { MetricCard } from '@/components/carteira/shared';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
@@ -151,7 +156,24 @@ interface GenericSectionProps<TAtivo, TSecao> {
   onToggle: () => void;
   getSectionAtivos: (secao: TSecao) => TAtivo[];
   getSectionName: (secao: TSecao) => string;
+  onRemovePlanejado: (planejadoId: string) => void;
 }
+
+/**
+ * Ativo PLANEJADO (sem posição, 16/09/2026): só as colunas de planejamento
+ * mostram valor; quantidade/preços/valores viram traço. A 1ª coluna é
+ * renderizada aqui (nome + selo + remover) porque a coluna da tabela
+ * linka para /ativos/<id>, e o id do planejado não é uma posição.
+ */
+const COLUNAS_VISIVEIS_PLANEJADO = new Set([
+  'cotacaoAtual',
+  'percentualCarteira',
+  'objetivo',
+  'quantoFalta',
+  'necessidadeAporte',
+]);
+const isPlanejado = (ativo: unknown): boolean =>
+  !!(ativo as { planejado?: boolean } | null)?.planejado;
 
 function GenericSection<TAtivo, TSecao>({
   secao,
@@ -161,6 +183,7 @@ function GenericSection<TAtivo, TSecao>({
   onToggle,
   getSectionAtivos,
   getSectionName,
+  onRemovePlanejado,
 }: GenericSectionProps<TAtivo, TSecao>) {
   const ativos = getSectionAtivos(secao);
   const placeholderCount = Math.max(0, MIN_PLACEHOLDER_ROWS - ativos.length);
@@ -219,32 +242,63 @@ function GenericSection<TAtivo, TSecao>({
 
       {/* Asset rows */}
       {isExpanded &&
-        ativos.map((ativo, ativoIdx) => (
-          <tr
-            key={((ativo as Record<string, unknown>).id as string) ?? ativoIdx}
-            className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
-          >
-            {columns.map((col) => {
-              const alignClass =
-                col.align === 'right'
-                  ? 'text-right'
-                  : col.align === 'center'
-                    ? 'text-center'
-                    : 'text-left';
+        ativos.map((ativo, ativoIdx) => {
+          const planejado = isPlanejado(ativo);
+          const a = ativo as Record<string, unknown>;
+          return (
+            <tr
+              key={(a.id as string) ?? ativoIdx}
+              className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}
+              data-planejado={planejado ? 'true' : undefined}
+            >
+              {columns.map((col, idx) => {
+                const alignClass =
+                  col.align === 'right'
+                    ? 'text-right'
+                    : col.align === 'center'
+                      ? 'text-center'
+                      : 'text-left';
+                const className = `${TABLE_STYLES.compact.td} ${alignClass} ${
+                  col.highlight ? TABLE_STYLES.highlightTd : ''
+                } ${col.cellClassName ?? ''}`;
 
-              return (
-                <td
-                  key={col.key}
-                  className={`${TABLE_STYLES.compact.td} ${alignClass} ${
-                    col.highlight ? TABLE_STYLES.highlightTd : ''
-                  } ${col.cellClassName ?? ''}`}
-                >
-                  {col.render(ativo, formatters)}
-                </td>
-              );
-            })}
-          </tr>
-        ))}
+                if (planejado) {
+                  if (idx === 0) {
+                    return (
+                      <td key={col.key} className={className}>
+                        <PlanejadoNameCell
+                          ticker={String(a.ticker ?? a.nome ?? '')}
+                          nome={a.nome ? String(a.nome) : undefined}
+                          onRemove={() => onRemovePlanejado(String(a.id))}
+                        />
+                      </td>
+                    );
+                  }
+                  if (!COLUNAS_VISIVEIS_PLANEJADO.has(col.key)) {
+                    return (
+                      <td key={col.key} className={`${className} text-gray-400`}>
+                        —
+                      </td>
+                    );
+                  }
+                  if (col.key === 'cotacaoAtual' && !(Number(a.cotacaoAtual) > 0)) {
+                    return (
+                      <td key={col.key} className={`${className} text-gray-400`}>
+                        —
+                      </td>
+                    );
+                  }
+                }
+
+                return (
+                  <td key={col.key} className={className}>
+                    {col.render(ativo, formatters)}
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
 
       {/* Placeholder rows */}
       {isExpanded && (
@@ -288,6 +342,28 @@ export default function GenericAssetTable<TAtivo, TSecao>({
   children,
 }: GenericAssetTableProps<TAtivo, TSecao>) {
   const { necessidadeAporteMap } = useCarteiraResumoContext();
+  const queryClient = useQueryClient();
+  const { csrfFetch } = useCsrf();
+  const [removendoPlanejado, setRemovendoPlanejado] = useState<string | null>(null);
+
+  // Desistir de um ativo planejado (sem posição): DELETE + invalida as abas.
+  const handleRemovePlanejado = async (planejadoId: string) => {
+    if (removendoPlanejado) return;
+    setRemovendoPlanejado(planejadoId);
+    try {
+      const res = await csrfFetch(`/api/carteira/planejados/${planejadoId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        logger.error('Erro ao remover ativo planejado:', body?.error ?? res.status);
+        return;
+      }
+      invalidatePortfolioDerivedQueries(queryClient);
+    } catch (error) {
+      logger.error('Erro ao remover ativo planejado:', error);
+    } finally {
+      setRemovendoPlanejado(null);
+    }
+  };
 
   // Default risk calculation
   const dataComRiscoDefault = useMemo(() => {
@@ -566,6 +642,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
                     secao={secao}
                     columns={columns}
                     formatters={formatters}
+                    onRemovePlanejado={handleRemovePlanejado}
                     isExpanded={expandedSections.has(key)}
                     onToggle={() => toggleSection(key)}
                     getSectionAtivos={getSectionAtivos}

@@ -1,5 +1,10 @@
 import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  listarPlanejados,
+  linhaPlanejadaBase,
+  TIPOS_ATIVO_PLANEJAVEIS,
+} from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { AcaoData, AcaoAtivo, AcaoSecao, SetorAcao } from '@/types/acoes';
@@ -63,12 +68,23 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
     (item) => item.asset && (item.asset.type === 'bdr' || item.asset.type === 'brd'),
   );
 
+  // Ativos PLANEJADOS (sem posição) da aba — entram como linha zerada com
+  // objetivo, para Quanto Falta / Necessidade de Aporte (16/09/2026).
+  const planejados = (
+    await listarPlanejados(
+      userId,
+      TIPOS_ATIVO_PLANEJAVEIS.acoes,
+      portfolio.map((p) => p.assetId),
+    )
+  ).filter((r) => r.asset.type !== 'stock' || isB3StockTicker(r.asset.symbol));
+
   // Buscar cotações atuais (banco primeiro, fallback BRAPI quando necessário)
   const stockSymbols = acoesStockPortfolio.map((item) => item.asset!.symbol);
   const bdrSymbols = bdrPortfolio.map((item) => item.asset!.symbol);
-  const quotes = await getAssetPrices([...stockSymbols, ...bdrSymbols], {
-    useBrapiFallback: true,
-  });
+  const quotes = await getAssetPrices(
+    [...stockSymbols, ...bdrSymbols, ...planejados.map((r) => r.asset.symbol)],
+    { useBrapiFallback: true },
+  );
 
   const mapStockPortfolioItem = (item: (typeof acoesStockPortfolio)[number]): AcaoAtivo => {
     const valorTotal = item.totalInvested;
@@ -160,6 +176,16 @@ async function calculateAcoesData(userId: string): Promise<AcaoData> {
   const acoesAtivos: AcaoAtivo[] = [
     ...acoesStockPortfolio.map(mapStockPortfolioItem),
     ...bdrPortfolio.map(mapBdrPortfolioItem),
+    ...planejados.map(
+      (r): AcaoAtivo => ({
+        ...linhaPlanejadaBase(r, quotes.get(r.asset.symbol) ?? 0),
+        setor: 'outros',
+        subsetor: '',
+        estrategia: (['value', 'growth', 'risk'].includes(r.secao ?? '')
+          ? r.secao
+          : 'value') as AcaoAtivo['estrategia'],
+      }),
+    ),
   ];
 
   // Calcular totais gerais

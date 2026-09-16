@@ -2,7 +2,7 @@
 
 import { logger } from '@/lib/logger';
 import React, { useEffect, useState } from 'react';
-import { WizardFormData, WizardErrors, TIPOS_ATIVO } from '@/types/wizard';
+import { WizardFormData, WizardErrors, TIPOS_ATIVO, TIPOS_ATIVO_PLANEJAVEIS } from '@/types/wizard';
 import Label from '@/components/form/Label';
 import Select from '@/components/form/Select';
 
@@ -100,6 +100,7 @@ export default function Step1AssetType({
           options={[
             { value: 'compra', label: 'Adicionar investimento' },
             { value: 'aporte', label: 'Aporte' },
+            { value: 'planejar', label: 'Planejar (ainda não comprei)' },
           ]}
           placeholder="Selecione a operação"
           defaultValue={formData.operacao}
@@ -111,13 +112,23 @@ export default function Step1AssetType({
       <div>
         <Label htmlFor="tipoAtivo">Tipo de Ativo *</Label>
         <Select
-          options={formData.operacao === 'aporte' ? aporteTipos : TIPOS_ATIVO}
+          options={
+            formData.operacao === 'aporte'
+              ? aporteTipos
+              : formData.operacao === 'planejar'
+                ? TIPOS_ATIVO.filter((t) =>
+                    (TIPOS_ATIVO_PLANEJAVEIS as readonly string[]).includes(t.value),
+                  )
+                : TIPOS_ATIVO
+          }
           placeholder={
             formData.operacao === 'aporte'
               ? loadingTipos
                 ? 'Carregando tipos...'
                 : 'Selecione o tipo para aporte'
-              : 'Selecione o tipo de ativo que deseja adicionar'
+              : formData.operacao === 'planejar'
+                ? 'Selecione o tipo do ativo que pretende comprar'
+                : 'Selecione o tipo de ativo que deseja adicionar'
           }
           defaultValue={formData.tipoAtivo}
           onChange={handleTipoAtivoChange}
@@ -128,6 +139,20 @@ export default function Step1AssetType({
           <p className="mt-1 text-sm text-red-500">{aporteTiposError}</p>
         )}
       </div>
+
+      {formData.operacao === 'planejar' && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            Planejar um ativo
+          </h4>
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            O ativo entra na aba da carteira sem quantidade nem valor, só com o objetivo (%). As
+            colunas Quanto Falta e Necessidade de Aporte mostram quanto comprar. Na primeira compra
+            ele vira uma posição normal e herda o objetivo. Disponível para ações e BDRs,
+            FII&apos;s, ETF&apos;s, moedas e criptomoedas.
+          </p>
+        </div>
+      )}
 
       {/* Informações sobre o tipo selecionado */}
       {formData.tipoAtivo && formData.operacao !== 'aporte' && (

@@ -405,3 +405,79 @@ describe('CaixaParaInvestirCard', () => {
     expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Ativo PLANEJADO (sem posição, 16/09/2026)
+// ---------------------------------------------------------------------------
+
+vi.mock('@/hooks/useCsrf', () => ({
+  useCsrf: () => ({
+    csrfFetch: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) }),
+  }),
+}));
+
+describe('GenericAssetTable — ativo planejado', () => {
+  const planejado: TestAtivo & { planejado: boolean } = {
+    id: 'plan-1',
+    ticker: 'VALE3',
+    nome: 'Vale S.A.',
+    valorAtualizado: 0,
+    objetivo: 15,
+    percentualCarteira: 0,
+    quantoFalta: 15,
+    necessidadeAporte: 150,
+    planejado: true,
+  };
+  const dataComPlanejado = {
+    ...mockData,
+    secoes: [{ ...mockSecao, ativos: [mockAtivo, planejado] }],
+  };
+
+  it('mostra selo "Planejado", traço nas colunas de valor e o objetivo editável', () => {
+    render(
+      <GenericAssetTable
+        {...buildDefaultProps({ data: dataComPlanejado as unknown as Record<string, unknown> })}
+      />,
+      { wrapper: TestWrapper },
+    );
+
+    const row = screen.getByText('VALE3').closest('tr')!;
+    expect(row).toHaveAttribute('data-planejado', 'true');
+    expect(row).toHaveTextContent('Planejado');
+    // coluna "valor" (não é de planejamento) vira traço; "objetivo" mantém o valor
+    expect(row).toHaveTextContent('—');
+    expect(row).not.toHaveTextContent('R$ 0.00');
+    expect(row).toHaveTextContent('15.00%');
+    // sem link para /ativos/<id> (planejado não é posição)
+    expect(row.querySelector('a')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /Remover VALE3 do planejamento/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('planejado entra em Quanto Falta / Necessidade de Aporte do total', () => {
+    const colunasComNecessidade: ColumnDef<TestAtivo, TestSecao>[] = [
+      ...testColumns,
+      {
+        key: 'necessidadeAporte',
+        header: 'Nec. Aporte',
+        align: 'right',
+        render: (ativo, fmt) => fmt.formatCurrency(ativo.necessidadeAporte),
+        renderSectionTotal: (secao, fmt) => fmt.formatCurrency(secao.totalNecessidadeAporte),
+        renderGrandTotal: (total, fmt) => fmt.formatCurrency(total.necessidadeAporte as number),
+      },
+    ];
+    render(
+      <GenericAssetTable
+        {...buildDefaultProps({
+          data: dataComPlanejado as unknown as Record<string, unknown>,
+          columns: colunasComNecessidade,
+        })}
+      />,
+      { wrapper: TestWrapper },
+    );
+    // Recalculado no front: planejado = 15% × total da aba (R$ 1000) = R$ 150;
+    // o ativo com posição já está acima do objetivo (0). Linha, seção e TOTAL GERAL.
+    expect(screen.getAllByText('R$ 150.00').length).toBeGreaterThanOrEqual(2);
+  });
+});

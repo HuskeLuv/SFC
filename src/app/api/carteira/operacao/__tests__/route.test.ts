@@ -12,6 +12,8 @@ const mockPrisma = vi.hoisted(() => {
     stock: { findUnique: vi.fn() },
     stockTransaction: { create: vi.fn() },
     portfolio: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    // Ativo planejado absorvido na 1ª compra: nenhum nos cenários destes testes.
+    watchlist: { findFirst: vi.fn().mockResolvedValue(null), delete: vi.fn() },
     fixedIncomeAsset: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     tesouroDiretoPrice: { findFirst: vi.fn() },
     // rota usa $transaction interativo — no mock, roda o callback com o próprio mock
@@ -522,6 +524,45 @@ describe('POST /api/carteira/operacao', () => {
       expect(mockPrisma.asset.findUnique).toHaveBeenCalledWith({ where: { id: 'asset-petr4' } });
       expect(mockPrisma.stockTransaction.create).toHaveBeenCalled();
       expect(mockPrisma.portfolio.create).toHaveBeenCalled();
+    });
+
+    it('1ª compra de um ativo PLANEJADO herda o objetivo e apaga o planejado', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue({
+        id: 'asset-petr4',
+        symbol: 'PETR4',
+        name: 'Petrobras PN',
+        type: 'stock',
+      });
+      mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+      mockPrisma.watchlist.findFirst.mockResolvedValueOnce({
+        id: 'plan-1',
+        userId: 'user-123',
+        assetId: 'asset-petr4',
+        objetivo: 30,
+        secao: 'growth',
+      });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'acao',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-petr4',
+          dataCompra: '2024-01-15',
+          quantidade: 100,
+          cotacaoUnitaria: 10,
+          estrategia: 'value',
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockPrisma.watchlist.delete).toHaveBeenCalledWith({ where: { id: 'plan-1' } });
+      expect(mockPrisma.portfolio.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            assetId: 'asset-petr4',
+            objetivo: 30,
+            estrategia: 'value',
+          }),
+        }),
+      );
     });
 
     it('retorna 400 quando estratégia ausente para ação', async () => {

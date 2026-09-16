@@ -17,6 +17,8 @@ import Step2AporteInstitution from './wizard/Step2AporteInstitution';
 import Step3AporteAsset from './wizard/Step3AporteAsset';
 import Step4AporteInfo from './wizard/Step4AporteInfo';
 import Step5AporteConfirmation from './wizard/Step5AporteConfirmation';
+import Step4PlanejarFields from './wizard/Step4PlanejarFields';
+import Step5PlanejarConfirmation from './wizard/Step5PlanejarConfirmation';
 import { usePriceDeviationWarning } from './wizard/usePriceDeviationWarning';
 import {
   DEFAULT_PRICE_DEVIATION_THRESHOLD,
@@ -91,6 +93,7 @@ const INITIAL_FORM_DATA: WizardFormData = {
   valorAporte: 0,
   availableQuantity: 0,
   availableTotal: 0,
+  objetivo: 0,
 };
 
 const STEPS: WizardStep[] = [
@@ -132,6 +135,10 @@ const STEPS: WizardStep[] = [
 function getVisibleStepIds(formData: WizardFormData): string[] {
   if (formData.operacao === 'aporte') {
     return STEPS.map((step) => step.id);
+  }
+  // Planejar (sem posição): não há instituição — só tipo, ativo, objetivo e confirmação.
+  if (formData.operacao === 'planejar') {
+    return STEPS.map((step) => step.id).filter((id) => id !== 'institution');
   }
   const skipAssetStep =
     formData.tipoAtivo === 'personalizado' ||
@@ -227,6 +234,17 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       const { tipoAtivo, dataCompra, dataInicio } = formData;
       if (formData.operacao === 'aporte') {
         return !!(formData.dataAporte && formData.valorAporte > 0);
+      }
+      if (formData.operacao === 'planejar') {
+        const objetivoOk =
+          typeof formData.objetivo === 'number' &&
+          Number.isFinite(formData.objetivo) &&
+          formData.objetivo >= 0 &&
+          formData.objetivo <= 100;
+        if (tipoAtivo === 'acoes-brasil') return objetivoOk && !!formData.estrategia;
+        if (tipoAtivo === 'fii') return objetivoOk && !!formData.tipoFii;
+        if (tipoAtivo === 'etf') return objetivoOk && !!formData.regiaoEtf;
+        return objetivoOk; // moeda / criptoativo: seção vem do próprio ativo
       }
 
       // Validação básica - cada tipo terá validações específicas
@@ -644,6 +662,42 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     isSubmittingRef.current = true;
     setLoading(true);
     try {
+      if (formData.operacao === 'planejar') {
+        const secao =
+          formData.tipoAtivo === 'acoes-brasil'
+            ? formData.estrategia
+            : formData.tipoAtivo === 'fii'
+              ? formData.tipoFii
+              : formData.tipoAtivo === 'etf'
+                ? formData.regiaoEtf
+                : null;
+        const response = await csrfFetch('/api/carteira/planejados', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assetId: formData.assetId,
+            tipoAtivo:
+              formData.tipoAtivo === 'acoes-brasil'
+                ? formData.acoesBrasilTipo || 'acao'
+                : formData.tipoAtivo,
+            secao: secao || null,
+            objetivo: formData.objetivo ?? 0,
+            observacoes: formData.observacoes || null,
+          }),
+        });
+
+        if (response.ok) {
+          onSuccess();
+          handleCancel();
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.error || errorData.message || 'Erro desconhecido';
+          logger.error('Erro ao planejar ativo:', errorMessage);
+          setErrors((prev) => ({ ...prev, objetivo: errorMessage }));
+        }
+        return;
+      }
+
       if (formData.operacao === 'aporte') {
         const response = await csrfFetch('/api/carteira/aporte', {
           method: 'POST',
@@ -756,6 +810,7 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
     };
 
     const isAporte = formData.operacao === 'aporte';
+    const isPlanejar = formData.operacao === 'planejar';
 
     switch (currentStepId) {
       case 'asset-type':
@@ -769,8 +824,12 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
       case 'asset':
         return isAporte ? <Step3AporteAsset {...stepProps} /> : <Step3Asset {...stepProps} />;
       case 'info':
+        if (isPlanejar) return <Step4PlanejarFields {...stepProps} />;
         return isAporte ? <Step4AporteInfo {...stepProps} /> : <Step4AssetInfo {...stepProps} />;
       case 'confirmation':
+        if (isPlanejar) {
+          return <Step5PlanejarConfirmation {...stepProps} />;
+        }
         if (isAporte) {
           return <Step5AporteConfirmation {...stepProps} />;
         }
@@ -792,7 +851,16 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
   const isLastStep = currentStep === visibleStepIds.length - 1;
 
   return (
-    <Sidebar isOpen={isOpen} onClose={handleCancel} title="Adicionar Ativo à Carteira" noBackdrop>
+    <Sidebar
+      isOpen={isOpen}
+      onClose={handleCancel}
+      title={
+        formData.operacao === 'planejar'
+          ? 'Planejar Ativo na Carteira'
+          : 'Adicionar Ativo à Carteira'
+      }
+      noBackdrop
+    >
       <div className="space-y-6">
         {/* Progress Indicator */}
         {(() => {
@@ -864,8 +932,17 @@ export default function AddAssetWizard({ isOpen, onClose, onSuccess }: AddAssetW
               Avançar
             </Button>
           ) : (
-            <Button type="button" onClick={handleSubmit} className="flex-1" disabled={loading}>
-              {loading ? 'Salvando...' : 'Confirmar'}
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              className="flex-1"
+              disabled={loading || (formData.operacao === 'planejar' && !canProceed)}
+            >
+              {loading
+                ? 'Salvando...'
+                : formData.operacao === 'planejar'
+                  ? 'Planejar'
+                  : 'Confirmar'}
             </Button>
           )}
         </div>

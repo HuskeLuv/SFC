@@ -111,8 +111,10 @@ export default function MoedasCriptosTable({ totalCarteira = 0 }: MoedasCriptosT
         (sum, ativo) => sum + ativo.necessidadeAporte,
         0,
       );
-      const rentabilidadeMedia = ativos.length
-        ? ativos.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / ativos.length
+      // Planejados (sem posição) não entram na média — diluiriam a rentabilidade.
+      const comPosicao = ativos.filter((ativo) => !ativo.planejado);
+      const rentabilidadeMedia = comPosicao.length
+        ? comPosicao.reduce((sum, ativo) => sum + ativo.rentabilidade, 0) / comPosicao.length
         : 0;
 
       return {

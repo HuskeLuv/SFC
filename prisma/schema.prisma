@@ -377,16 +377,25 @@ model CashflowValue {
 // Pós-consolidação Stock → Asset (Sprint 5): `Stock` removido, ações/FIIs
 // também vivem em `Asset` (type='stock' / 'fii'). FK única: assetId.
 
-// Lista de observação do usuário
+// Ativo PLANEJADO (16/09/2026): o usuário inclui um ativo na aba da carteira
+// SEM posição (sem quantidade/valor) só para usar Objetivo / Quanto Falta /
+// Necessidade de Aporte no planejamento dos próximos aportes. Fica FORA de
+// Portfolio de propósito: TWR, snapshots, proventos, IR e fluxo automático
+// nunca enxergam esta tabela. Na 1ª compra do ativo o `objetivo` migra para
+// Portfolio.objetivo e a linha é apagada (ver /api/carteira/operacao).
+// (Era a "lista de observação", que nunca ganhou tela.)
 model Watchlist {
-  id      String   @id @default(uuid())
-  userId  String
-  user    User     @relation(fields: [userId], references: [id])
-  assetId String?
-  asset   Asset?   @relation(fields: [assetId], references: [id])
-  addedAt DateTime @default(now())
-  notes   String? // Observações do usuário
+  id       String   @id @default(uuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  assetId  String?
+  asset    Asset?   @relation(fields: [assetId], references: [id])
+  addedAt  DateTime @default(now())
+  notes    String? // Observações do usuário
+  objetivo Float    @default(0) // Objetivo percentual dentro da aba
+  secao    String? // Seção da aba: estrategia (value/growth/risk), tipoFii, regiaoEtf
 
+  @@unique([userId, assetId])
   @@index([userId])
   @@map("watchlists")
 }

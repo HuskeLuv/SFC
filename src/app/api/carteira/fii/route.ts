@@ -1,5 +1,10 @@
 import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  listarPlanejados,
+  linhaPlanejadaBase,
+  TIPOS_ATIVO_PLANEJAVEIS,
+} from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { FiiData, FiiAtivo, FiiSecao, TipoFii } from '@/types/fii';
@@ -72,10 +77,18 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
 
   const fiiPortfolio = portfolio.filter((item) => item.asset?.type === 'fii');
 
+  // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
+  const planejados = await listarPlanejados(
+    userId,
+    TIPOS_ATIVO_PLANEJAVEIS.fii,
+    portfolio.map((p) => p.assetId),
+  );
+
   // Buscar cotações atuais dos FIIs (banco primeiro, fallback BRAPI quando necessário)
-  const symbols = fiiPortfolio
-    .map((item) => item.asset?.symbol || '')
-    .filter((ticker) => ticker && ticker.trim());
+  const symbols = [
+    ...fiiPortfolio.map((item) => item.asset?.symbol || ''),
+    ...planejados.map((r) => r.asset.symbol),
+  ].filter((ticker) => ticker && ticker.trim());
   const quotes = await getAssetPrices(symbols, { useBrapiFallback: true });
 
   // Converter para formato FiiAtivo
@@ -131,6 +144,17 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
       dataUltimaAtualizacao: item.lastUpdate,
     };
   });
+
+  for (const r of planejados) {
+    fiiAtivos.push({
+      ...linhaPlanejadaBase(r, quotes.get(r.asset.symbol) ?? 0),
+      mandato: 'Estratégico',
+      segmento: 'outros',
+      tipo: (TIPOS_FII_SECAO as readonly string[]).includes(r.secao ?? '')
+        ? (r.secao as FiiAtivo['tipo'])
+        : 'fofi',
+    });
+  }
 
   // Calcular totais gerais
   const totalQuantidade = fiiAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
@@ -258,28 +282,32 @@ async function calculateFiiData(userId: string): Promise<FiiData> {
 
   // Calcular alocação por ativo (% sobre total da carteira de FIIs — soma=100)
   const alocacaoAtivo = distributeRoundedPercents(
-    fiiAtivos.map((ativo) => ({
-      ticker: ativo.ticker,
-      valor: round2(ativo.valorAtualizado),
-      percentual: round2(
-        totalValorAtualizado > 0 ? (ativo.valorAtualizado / totalValorAtualizado) * 100 : 0,
-      ),
-      cor: getAtivoColor(ativo.ticker),
-    })),
+    fiiAtivos
+      .filter((a) => !a.planejado)
+      .map((ativo) => ({
+        ticker: ativo.ticker,
+        valor: round2(ativo.valorAtualizado),
+        percentual: round2(
+          totalValorAtualizado > 0 ? (ativo.valorAtualizado / totalValorAtualizado) * 100 : 0,
+        ),
+        cor: getAtivoColor(ativo.ticker),
+      })),
   );
 
   // Tabela auxiliar (dados adicionais)
-  const tabelaAuxiliar = fiiAtivos.map((ativo) => ({
-    ticker: ativo.ticker,
-    nome: ativo.nome,
-    quantidade: ativo.quantidade,
-    valorAplicado: ativo.valorTotal,
-    valorAtualizado: ativo.valorAtualizado,
-    rentabilidade: ativo.rentabilidade,
-    cotacaoAtual: ativo.cotacaoAtual,
-    necessidadeAporte: ativo.necessidadeAporte,
-    loteAproximado: Math.ceil(ativo.quantidade / 100), // Aproximação
-  }));
+  const tabelaAuxiliar = fiiAtivos
+    .filter((a) => !a.planejado)
+    .map((ativo) => ({
+      ticker: ativo.ticker,
+      nome: ativo.nome,
+      quantidade: ativo.quantidade,
+      valorAplicado: ativo.valorTotal,
+      valorAtualizado: ativo.valorAtualizado,
+      rentabilidade: ativo.rentabilidade,
+      cotacaoAtual: ativo.cotacaoAtual,
+      necessidadeAporte: ativo.necessidadeAporte,
+      loteAproximado: Math.ceil(ativo.quantidade / 100), // Aproximação
+    }));
 
   return {
     resumo,
