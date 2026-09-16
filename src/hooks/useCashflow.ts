@@ -119,6 +119,22 @@ export const useCollapsibleState = () => {
     [storageKey],
   );
 
+  // Colapsa/expande TODOS os grupos de uma vez (barra de ferramentas da
+  // planilha); mesma persistência do toggle.
+  const setCollapsedAll = useCallback(
+    (next: Record<string, boolean>) => {
+      setCollapsed(next);
+      if (storageKey) {
+        try {
+          window.localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch {
+          // quota/navegador restrito — a preferência só não persiste
+        }
+      }
+    },
+    [storageKey],
+  );
+
   const startAddingRow = useCallback((groupId: string) => {
     setAddingRow((prev) => ({ ...prev, [groupId]: true }));
     setNewRow((prev) => ({
@@ -154,6 +170,7 @@ export const useCollapsibleState = () => {
     addingRow,
     newRow,
     toggleCollapse,
+    setCollapsedAll,
     startAddingRow,
     cancelAddingRow,
     updateNewRow,

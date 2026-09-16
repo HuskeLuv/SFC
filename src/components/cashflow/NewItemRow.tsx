@@ -2,7 +2,7 @@ import React from 'react';
 import { TableRow } from '@/components/ui/table';
 import { CashflowItem } from '@/types/cashflow';
 import { formatCurrency } from '@/utils/formatters';
-import { FixedCell, MonthCell, AnnualCell, SpacerCell } from './GridCells';
+import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID } from './cashflowGridStyles';
 
 interface NewItemRowProps {
@@ -10,39 +10,27 @@ interface NewItemRowProps {
   item: CashflowItem;
 }
 
-const NEW_BG = { backgroundColor: GRID.editingBg };
-
 export const NewItemRow: React.FC<NewItemRowProps> = ({ item }) => (
-  <TableRow
-    className={`${GRID.row} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors bg-blue-50 dark:bg-blue-800`}
-    style={GRID.rowStyle}
-  >
+  <TableRow className={`${GRID.row} ${GRID.editingBg}`}>
     <FixedCell
       col={0}
-      className="font-medium text-gray-800 dark:text-white text-left"
-      style={NEW_BG}
+      className={`font-medium text-gray-800 dark:text-gray-100 ${GRID.editingBg}`}
+      title={item.name || undefined}
     >
       <span className="cursor-default truncate block">{item.name || ''}</span>
     </FixedCell>
-    <FixedCell col={1} className="font-normal text-gray-800 dark:text-gray-400" style={NEW_BG}>
-      <span className="cursor-default truncate block">{item.significado || '-'}</span>
+    <FixedCell col={1} className={`text-gray-500 dark:text-gray-400 ${GRID.editingBg}`}>
+      <span className="cursor-default truncate block">{item.significado || ''}</span>
     </FixedCell>
-    <FixedCell
-      col={2}
-      className="font-normal text-gray-800 dark:text-gray-400 text-center"
-      style={NEW_BG}
-    >
-      <span className="cursor-default">{item.rank || '-'}</span>
+    <FixedCell col={2} className={`text-center text-gray-500 dark:text-gray-400 ${GRID.editingBg}`}>
+      {item.rank || ''}
     </FixedCell>
-    <FixedCell col={3} className="font-normal text-black dark:text-black text-right" style={NEW_BG}>
-      -
-    </FixedCell>
+    <FixedCell col={3} className={`text-right ${GRID.editingBg}`} />
     {Array.from({ length: 12 }).map((_, index) => (
-      <MonthCell key={index} index={index} className={`${GRID.dataText} cursor-default`}>
+      <MonthCell key={index} index={index} className="cursor-default">
         {formatCurrency(0)}
       </MonthCell>
     ))}
-    <SpacerCell />
-    <AnnualCell className={GRID.annualText}>{formatCurrency(0)}</AnnualCell>
+    <AnnualCell className={GRID.editingBg}>{formatCurrency(0)}</AnnualCell>
   </TableRow>
 );

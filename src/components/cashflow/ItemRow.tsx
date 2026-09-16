@@ -4,8 +4,8 @@ import { TableRow } from '@/components/ui/table';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
 import { CommentIndicator } from './CommentIndicator';
-import { FixedCell, MonthCell, AnnualCell, SpacerCell } from './GridCells';
-import { GRID } from './cashflowGridStyles';
+import { FixedCell, MonthCell, AnnualCell } from './GridCells';
+import { GRID, currentMonthIndex } from './cashflowGridStyles';
 
 interface ItemRowProps {
   item: CashflowItem;
@@ -17,8 +17,6 @@ interface ItemRowProps {
   /** Reordena a linha dentro do grupo (setinhas ↑↓ no hover). */
   onMoveItem?: (item: CashflowItem, group: CashflowGroup, direction: 'up' | 'down') => void;
 }
-
-const ROW_BG = 'bg-white dark:bg-gray-900';
 
 const ItemRowComponent: React.FC<ItemRowProps> = ({
   item,
@@ -36,17 +34,16 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
   }
 
   const isDerived = group.type === 'investimento' || group.type === 'saldo';
+  const currentMonth = currentMonthIndex(currentYear);
 
   return (
-    <TableRow
-      className={`group/linha ${GRID.row} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${ROW_BG}`}
-      style={GRID.rowStyle}
-    >
+    <TableRow className={`group/linha ${GRID.row} ${GRID.rowBg}`}>
       <FixedCell
         col={0}
-        className={`font-medium text-gray-800 dark:text-white text-left ${ROW_BG}`}
+        className={`font-medium text-gray-800 dark:text-gray-100 ${GRID.rowBg}`}
+        title={item.name || undefined}
       >
-        <span className="cursor-default truncate block" title={item.name || undefined}>
+        <span className="cursor-default truncate block">
           {onMoveItem ? (
             // Setinhas de reordenação — aparecem no hover da linha; nas
             // bordas do grupo o movimento é no-op (handler valida).
@@ -92,24 +89,18 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
           {item.name || ''}
         </span>
       </FixedCell>
-      <FixedCell col={1} className={`font-normal text-gray-800 dark:text-gray-400 ${ROW_BG}`}>
-        <span className="cursor-default truncate block" title={item.significado || undefined}>
-          {item.significado || '-'}
-        </span>
-      </FixedCell>
       <FixedCell
-        col={2}
-        className={`font-normal text-gray-800 dark:text-gray-400 text-center ${ROW_BG}`}
+        col={1}
+        className={`text-gray-500 dark:text-gray-400 ${GRID.rowBg}`}
+        title={item.significado || undefined}
       >
-        <span className="cursor-default">
-          {group.type === 'investimento' ? '-' : item.rank || '-'}
-        </span>
+        <span className="cursor-default truncate block">{item.significado || ''}</span>
       </FixedCell>
-      <FixedCell
-        col={3}
-        className={`font-normal text-black dark:text-gray-300 text-right ${ROW_BG}`}
-      >
-        {isDerived ? '-' : itemPercentage > 0 ? formatPercent(itemPercentage) : '-'}
+      <FixedCell col={2} className={`text-center text-gray-500 dark:text-gray-400 ${GRID.rowBg}`}>
+        {group.type === 'investimento' ? '' : item.rank || ''}
+      </FixedCell>
+      <FixedCell col={3} className={`text-right tabular-nums ${GRID.rowBg}`}>
+        {!isDerived && itemPercentage > 0 ? formatPercent(itemPercentage) : ''}
       </FixedCell>
       {itemTotals.map((value, index) => {
         const monthlyValue = valuesByMonth[index];
@@ -124,7 +115,8 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
           <MonthCell
             key={index}
             index={index}
-            className={`${GRID.dataText} cursor-default`}
+            currentMonth={currentMonth}
+            className={`cursor-default ${GRID.rowHover}`}
             style={{ overflow: 'visible' }}
           >
             <div
@@ -146,8 +138,9 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
           </MonthCell>
         );
       })}
-      <SpacerCell />
-      <AnnualCell className={GRID.annualText}>{formatCurrency(itemAnnualTotal)}</AnnualCell>
+      <AnnualCell className={`text-gray-800 dark:text-gray-100 ${GRID.rowBg}`}>
+        {formatCurrency(itemAnnualTotal)}
+      </AnnualCell>
     </TableRow>
   );
 };

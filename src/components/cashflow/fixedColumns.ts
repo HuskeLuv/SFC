@@ -1,21 +1,25 @@
-// Constantes para as 4 primeiras colunas fixas
-// Larguras fixas para evitar encolhimento durante scroll horizontal
+// Constantes das colunas fixas da planilha (4 à esquerda + Total Anual à direita).
+// Larguras fixas para evitar encolhimento durante scroll horizontal.
 export const FIXED_COLUMN_WIDTHS = {
-  ITEMS: '240px',
+  // 260px: cabe "Saldo Conta Corrente Mês Anterior" sem cortar (era 240 → "Anterio").
+  ITEMS: '260px',
   SIGNIFICADO: '150px',
   RANK: '80px',
   PERCENTAGE: '80px',
 } as const;
 
-/** Soma das 4 colunas fixas em px (usada pelo ajuste de scroll inicial). */
-export const FIXED_COLUMNS_TOTAL_WIDTH = 240 + 150 + 80 + 80;
+/** Soma das 4 colunas fixas em px (usada pelo ajuste de scroll inicial e pelas setas de mês). */
+export const FIXED_COLUMNS_TOTAL_WIDTH = 260 + 150 + 80 + 80;
+
+/** Coluna "Total Anual", fixa à direita. */
+export const ANNUAL_COLUMN_WIDTH = 112;
 
 // Offsets left acumulados para position sticky
 export const FIXED_COLUMN_LEFT = {
   COL1: 0,
-  COL2: '240px',
-  COL3: '390px', // 240 + 150
-  COL4: '470px', // 240 + 150 + 80
+  COL2: '260px',
+  COL3: '410px', // 260 + 150
+  COL4: '490px', // 260 + 150 + 80
 } as const;
 
 // Z-index progressivo para evitar sobreposição
@@ -26,36 +30,14 @@ export const FIXED_COLUMN_Z_INDEX = {
   COL4: 10,
 } as const;
 
+const widthOf = (w: string) => ({ width: w, minWidth: w, maxWidth: w });
+
 // Estilos para as 4 primeiras colunas fixas (header)
 export const FIXED_COLUMN_HEADER_STYLES = [
-  {
-    left: FIXED_COLUMN_LEFT.COL1,
-    zIndex: 430, // 400 (header base) + 30
-    width: FIXED_COLUMN_WIDTHS.ITEMS,
-    minWidth: FIXED_COLUMN_WIDTHS.ITEMS,
-    maxWidth: FIXED_COLUMN_WIDTHS.ITEMS,
-  },
-  {
-    left: FIXED_COLUMN_LEFT.COL2,
-    zIndex: 420, // 400 (header base) + 20
-    width: FIXED_COLUMN_WIDTHS.SIGNIFICADO,
-    minWidth: FIXED_COLUMN_WIDTHS.SIGNIFICADO,
-    maxWidth: FIXED_COLUMN_WIDTHS.SIGNIFICADO,
-  },
-  {
-    left: FIXED_COLUMN_LEFT.COL3,
-    zIndex: 410, // 400 (header base) + 10
-    width: FIXED_COLUMN_WIDTHS.RANK,
-    minWidth: FIXED_COLUMN_WIDTHS.RANK,
-    maxWidth: FIXED_COLUMN_WIDTHS.RANK,
-  },
-  {
-    left: FIXED_COLUMN_LEFT.COL4,
-    zIndex: 410, // 400 (header base) + 10
-    width: FIXED_COLUMN_WIDTHS.PERCENTAGE,
-    minWidth: FIXED_COLUMN_WIDTHS.PERCENTAGE,
-    maxWidth: FIXED_COLUMN_WIDTHS.PERCENTAGE,
-  },
+  { left: FIXED_COLUMN_LEFT.COL1, zIndex: 430, ...widthOf(FIXED_COLUMN_WIDTHS.ITEMS) }, // 400 (header base) + 30
+  { left: FIXED_COLUMN_LEFT.COL2, zIndex: 420, ...widthOf(FIXED_COLUMN_WIDTHS.SIGNIFICADO) },
+  { left: FIXED_COLUMN_LEFT.COL3, zIndex: 410, ...widthOf(FIXED_COLUMN_WIDTHS.RANK) },
+  { left: FIXED_COLUMN_LEFT.COL4, zIndex: 410, ...widthOf(FIXED_COLUMN_WIDTHS.PERCENTAGE) },
 ];
 
 // Estilos para as 4 primeiras colunas fixas (body rows)
@@ -63,29 +45,31 @@ export const FIXED_COLUMN_BODY_STYLES = [
   {
     left: FIXED_COLUMN_LEFT.COL1,
     zIndex: FIXED_COLUMN_Z_INDEX.COL1,
-    width: FIXED_COLUMN_WIDTHS.ITEMS,
-    minWidth: FIXED_COLUMN_WIDTHS.ITEMS,
-    maxWidth: FIXED_COLUMN_WIDTHS.ITEMS,
+    ...widthOf(FIXED_COLUMN_WIDTHS.ITEMS),
   },
   {
     left: FIXED_COLUMN_LEFT.COL2,
     zIndex: FIXED_COLUMN_Z_INDEX.COL2,
-    width: FIXED_COLUMN_WIDTHS.SIGNIFICADO,
-    minWidth: FIXED_COLUMN_WIDTHS.SIGNIFICADO,
-    maxWidth: FIXED_COLUMN_WIDTHS.SIGNIFICADO,
+    ...widthOf(FIXED_COLUMN_WIDTHS.SIGNIFICADO),
   },
   {
     left: FIXED_COLUMN_LEFT.COL3,
     zIndex: FIXED_COLUMN_Z_INDEX.COL3,
-    width: FIXED_COLUMN_WIDTHS.RANK,
-    minWidth: FIXED_COLUMN_WIDTHS.RANK,
-    maxWidth: FIXED_COLUMN_WIDTHS.RANK,
+    ...widthOf(FIXED_COLUMN_WIDTHS.RANK),
   },
   {
     left: FIXED_COLUMN_LEFT.COL4,
     zIndex: FIXED_COLUMN_Z_INDEX.COL4,
-    width: FIXED_COLUMN_WIDTHS.PERCENTAGE,
-    minWidth: FIXED_COLUMN_WIDTHS.PERCENTAGE,
-    maxWidth: FIXED_COLUMN_WIDTHS.PERCENTAGE,
+    ...widthOf(FIXED_COLUMN_WIDTHS.PERCENTAGE),
   },
 ];
+
+/** Total Anual: sticky à direita (body). */
+export const ANNUAL_COLUMN_BODY_STYLE = {
+  right: 0,
+  zIndex: FIXED_COLUMN_Z_INDEX.COL1,
+  ...widthOf(`${ANNUAL_COLUMN_WIDTH}px`),
+};
+
+/** Total Anual: sticky à direita (header). */
+export const ANNUAL_COLUMN_HEADER_STYLE = { ...ANNUAL_COLUMN_BODY_STYLE, zIndex: 430 };

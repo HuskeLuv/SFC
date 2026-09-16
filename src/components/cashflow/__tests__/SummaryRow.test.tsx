@@ -21,20 +21,20 @@ describe('SummaryRow — coloração condicional dos valores', () => {
     );
 
     const positivo = screen.getByText(/4\.000/).closest('td')!;
-    expect(positivo.className).toContain('text-blue-600');
+    expect(positivo.className).toContain('text-[#0079F2]');
 
     const negativo = screen.getByText(/-.*1\.200/).closest('td')!;
     expect(negativo.className).toContain('text-red-600');
 
     const zero = screen.getByText('0,00').closest('td')!;
-    expect(zero.className).not.toContain('text-blue-600');
+    expect(zero.className).not.toContain('text-[#0079F2]');
     expect(zero.className).not.toContain('text-red-600');
   });
 
   it('sem positiveBlue: positivo mantém a cor da variante (regressão das demais linhas)', () => {
     renderRow(<SummaryRow label="Outra linha" cells={cells} annual={2800} negativeRed />);
     const positivo = screen.getByText(/4\.000/).closest('td')!;
-    expect(positivo.className).not.toContain('text-blue-600');
+    expect(positivo.className).not.toContain('text-[#0079F2]');
   });
 
   it('annual positivo também fica azul com positiveBlue', () => {
@@ -42,12 +42,12 @@ describe('SummaryRow — coloração condicional dos valores', () => {
       <SummaryRow label="Saldo teste" cells={[null]} annual={999} negativeRed positiveBlue />,
     );
     const annual = screen.getByText(/999/).closest('td')!;
-    expect(annual.className).toContain('text-blue-600');
+    expect(annual.className).toContain('text-[#0079F2]');
   });
 });
 
 describe('SavingsIndexRow — convenção da planilha (ticket 19/08/2026)', () => {
-  it('positivo azul, negativo vermelho, zero preto (fundo cinza #CCCCCC)', () => {
+  it('positivo azul, negativo vermelho, zero herda a cor da linha (variante total)', () => {
     // Entradas 100 por mês ⇒ o saldo vira o índice em % diretamente.
     const saldos = [25, -10, 0, ...Array(9).fill(null)] as number[];
     renderRow(
@@ -60,15 +60,15 @@ describe('SavingsIndexRow — convenção da planilha (ticket 19/08/2026)', () =
     );
 
     const cellOf = (texto: RegExp) => screen.getAllByText(texto)[0].closest('td')!;
-    expect(cellOf(/^25,00%$/).className).toContain('text-blue-600'); // positivo azul
+    expect(cellOf(/^25,00%$/).className).toContain('text-[#0079F2]'); // positivo azul
     expect(cellOf(/-10,00%/).className).toContain('text-red-600'); // negativo vermelho
-    expect(cellOf(/^0,00%$/).className).toContain('text-black'); // zero preto
+    expect(cellOf(/^0,00%$/).className).not.toContain('text-[#0079F2]'); // zero neutro
+    expect(cellOf(/^0,00%$/).className).not.toContain('text-red-600');
     // Anual positivo também fica azul.
-    expect(cellOf(/^65,00%$/).className).toContain('text-blue-600');
-    // Fundo cinza-claro da planilha (RGB 204,204,204) na célula do rótulo.
+    expect(cellOf(/^65,00%$/).className).toContain('text-[#0079F2]');
+    // Linha de total padrão do app (cinza-claro) na célula do rótulo.
     const label = screen.getByText('Índice de Poupança Mensal').closest('td')!;
-    expect(label.getAttribute('style')).toContain('204, 204, 204');
-    expect(label.className).toContain('text-black');
+    expect(label.className).toContain('bg-gray-50');
   });
 });
 
@@ -79,6 +79,6 @@ describe('TotalRow (Saldo do mês) — pedido do Pedro ago/2026', () => {
     // Mensal + anual: os dois positivos ficam azuis.
     const positivos = screen.getAllByText(/1\.500/).map((el) => el.closest('td')!);
     expect(positivos).toHaveLength(2);
-    for (const td of positivos) expect(td.className).toContain('text-blue-600');
+    for (const td of positivos) expect(td.className).toContain('text-[#0079F2]');
   });
 });
