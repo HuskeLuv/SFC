@@ -1,55 +1,14 @@
 'use client';
 import React from 'react';
-import { TableCell } from '@/components/ui/table';
 import { GroupHeader, AddRowForm, NewItemRow } from '@/components/cashflow';
 import { CashflowGroup, CashflowItem } from '@/types/cashflow';
 import { GroupRenderContext } from './dataTableTwoTypes';
-import { CANONICAL_GROUPS, canonicalName } from '@/services/cashflow/groupMatchers';
+import { SpacingRow } from '@/components/cashflow/GridCells';
+import { groupLevel } from '@/components/cashflow/groupLevel';
 
 interface GroupItemsRendererProps {
   group: CashflowGroup;
   ctx: GroupRenderContext;
-}
-
-function needsSpacingBefore(groupName: string) {
-  const groupsWithSpacingBefore = [
-    'Sem Tributação',
-    'Despesas',
-    'Despesas Fixas',
-    'Habitação',
-    'Transporte',
-    'Saúde',
-    'Educação',
-    'Animais de Estimação',
-    'Despesas Pessoais',
-    'Lazer',
-    'Impostos',
-    'Despesas com Dependentes',
-    'Despesas Empresa',
-    'Planejamento Financeiro',
-    'Despesas Variáveis',
-  ];
-  return groupsWithSpacingBefore.includes(groupName);
-}
-
-function needsSpacingAfter(groupName: string) {
-  const groupsWithSpacingAfter = [
-    'Entradas Fixas',
-    'Entradas Variáveis',
-    'Sem Tributação',
-    'Com Tributação',
-    'Despesas',
-    'Despesas Fixas',
-  ];
-  return groupsWithSpacingAfter.includes(groupName);
-}
-
-export function SpacingRow() {
-  return (
-    <tr aria-hidden="true">
-      <TableCell colSpan={100} className="h-[10px] p-0 border-0"></TableCell>
-    </tr>
-  );
 }
 
 function renderGroupHeaderProps(group: CashflowGroup, ctx: GroupRenderContext) {
@@ -66,7 +25,6 @@ function renderGroupHeaderProps(group: CashflowGroup, ctx: GroupRenderContext) {
     onSave: () => ctx.handleSaveGroup(group),
     onCancel: () => ctx.handleCancelGroupEdit(group),
     saving: ctx.savingGroups.has(group.id),
-    showActionsColumn: ctx.isGroupEditing(group.id),
     selectedColor: ctx.isGroupEditing(group.id) ? ctx.selectedColor : null,
     onColorSelect: ctx.isGroupEditing(group.id) ? ctx.setSelectedColor : undefined,
     isCommentModeActive: ctx.isGroupEditing(group.id) ? ctx.isCommentModeActive : false,
@@ -110,79 +68,42 @@ function renderAddRowForm(group: CashflowGroup, ctx: GroupRenderContext) {
 
 function SubSubGroupRendererComponent({
   subsubgroup,
-  parentGroup,
-  subsubgroupIndex,
   ctx,
 }: {
   subsubgroup: CashflowGroup;
-  parentGroup: CashflowGroup;
-  subsubgroupIndex: number;
   ctx: GroupRenderContext;
 }) {
-  const shouldSpaceSubSubBefore =
-    needsSpacingBefore(canonicalName(subsubgroup)) &&
-    (canonicalName(subsubgroup) === 'Habitação' ||
-      !(subsubgroupIndex === 0 && needsSpacingBefore(canonicalName(parentGroup))));
-
   return (
     <React.Fragment key={subsubgroup.id}>
-      {shouldSpaceSubSubBefore && <SpacingRow />}
+      {groupLevel(subsubgroup) <= 2 && <SpacingRow />}
       <GroupHeader {...renderGroupHeaderProps(subsubgroup, ctx)} />
-
       {!ctx.collapsed[subsubgroup.id] && renderItems(subsubgroup.items, subsubgroup, ctx)}
       {renderNewItems(subsubgroup, ctx)}
       {!ctx.collapsed[subsubgroup.id] && renderAddRowForm(subsubgroup, ctx)}
-      {needsSpacingAfter(canonicalName(subsubgroup)) && <SpacingRow />}
     </React.Fragment>
   );
 }
 
 function SubGroupRendererComponent({
   subgroup,
-  subgroupIndex,
-  subgroups,
   ctx,
   extraAfterItems,
 }: {
   subgroup: CashflowGroup;
-  subgroupIndex: number;
-  subgroups: CashflowGroup[];
   ctx: GroupRenderContext;
   extraAfterItems?: React.ReactNode;
 }) {
-  const previousSubgroup = subgroupIndex > 0 ? subgroups[subgroupIndex - 1] : null;
-  const subgroupCanonical = canonicalName(subgroup);
-  const shouldSpaceBefore =
-    needsSpacingBefore(subgroupCanonical) &&
-    (subgroupCanonical === CANONICAL_GROUPS.DESPESAS_FIXAS ||
-      ((subgroupCanonical === CANONICAL_GROUPS.DESPESAS_VARIAVEIS
-        ? !(previousSubgroup && needsSpacingAfter(canonicalName(previousSubgroup)))
-        : true) &&
-        !(subgroupIndex === 0 && needsSpacingBefore(subgroupCanonical))));
-
-  // Evita spacer duplo no fim do bloco: se o último filho expandido já emite o
-  // seu after-spacer (ex.: "Com Tributação" dentro de "Entradas Variáveis"),
-  // o do próprio subgrupo é suprimido — exatamente 1 spacer entre blocos.
-  const lastChild = subgroup.children?.at(-1);
-  const lastChildEmitsAfter =
-    !ctx.collapsed[subgroup.id] && !!lastChild && needsSpacingAfter(canonicalName(lastChild));
-  const shouldSpaceAfter = needsSpacingAfter(subgroupCanonical) && !lastChildEmitsAfter;
-
   return (
     <React.Fragment key={subgroup.id}>
-      {shouldSpaceBefore && <SpacingRow />}
+      {/* Respiro antes de seções de nível 1 e 2 (substitui as listas de
+          nomes needsSpacingBefore/After e seus casos especiais). */}
+      {groupLevel(subgroup) <= 2 && <SpacingRow />}
       <GroupHeader {...renderGroupHeaderProps(subgroup, ctx)} />
 
       {!ctx.collapsed[subgroup.id] && (
         <>
-          {subgroup.children?.map((subsubgroup, subsubgroupIndex) => (
-            <SubSubGroupRenderer
-              key={subsubgroup.id}
-              subsubgroup={subsubgroup}
-              parentGroup={subgroup}
-              subsubgroupIndex={subsubgroupIndex}
-              ctx={ctx}
-            />
+          {subgroup.children?.map((subsubgroup) => (
+            <SubSubGroupRenderer key={subsubgroup.id} subsubgroup={subsubgroup} ctx={ctx} />
           ))}
           {renderItems(subgroup.items, subgroup, ctx)}
           {renderNewItems(subgroup, ctx)}
@@ -190,7 +111,6 @@ function SubGroupRendererComponent({
           {extraAfterItems}
         </>
       )}
-      {shouldSpaceAfter && <SpacingRow />}
     </React.Fragment>
   );
 }
@@ -205,7 +125,7 @@ function DataTableTwoGroupRendererComponent({ group, ctx }: GroupItemsRendererPr
   );
 }
 
-export { needsSpacingBefore, needsSpacingAfter, renderGroupHeaderProps };
+export { renderGroupHeaderProps };
 
 // Memo nos renderers de grupo: quando o ctx (memoizado no DataTableTwo) e os
 // grupos não mudam, subtrees inteiras são puladas em re-renders globais.

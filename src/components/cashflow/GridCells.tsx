@@ -1,73 +1,56 @@
 import React from 'react';
 import { TableCell } from '@/components/ui/table';
-import { FIXED_COLUMN_BODY_STYLES, FIXED_COLUMN_HEADER_STYLES } from './fixedColumns';
-import { GRID, FIXED_FRAME_CLASS, FIXED_FRAME_STYLE } from './cashflowGridStyles';
+import {
+  FIXED_COLUMN_BODY_STYLES,
+  FIXED_COLUMN_HEADER_STYLES,
+  ANNUAL_COLUMN_BODY_STYLE,
+  ANNUAL_COLUMN_HEADER_STYLE,
+} from './fixedColumns';
+import { GRID } from './cashflowGridStyles';
 
 /**
  * Células compartilhadas da planilha de Fluxo de Caixa. Toda linha da grade
  * (item, edição, nova, grupo, resumo, cabeçalho) monta-se com estas peças —
- * o boilerplate de `position: sticky` das 4 colunas fixas vive só aqui.
+ * o boilerplate de `position: sticky` das colunas fixas vive só aqui.
+ *
+ * Fundo: célula sticky precisa de fundo OPACO (senão o conteúdo rolado aparece
+ * por baixo). Passe-o em `className` (ex.: `GRID.rowBg`, `SECTION_CLASS[1]`).
  */
 
 export type FixedCol = 0 | 1 | 2 | 3;
 
-// Cabeçalho: bordas inline (o <th> sticky precisa delas explícitas p/ cobrir a emenda).
-const HEAD_LINE = '1px solid rgb(229 231 235)';
-const HEADER_FRAME_STYLE: React.CSSProperties[] = [
-  { borderTop: HEAD_LINE, borderBottom: HEAD_LINE, borderLeft: HEAD_LINE, borderRight: 'none' },
-  { borderTop: HEAD_LINE, borderBottom: HEAD_LINE, borderLeft: 'none', borderRight: 'none' },
-  { borderTop: HEAD_LINE, borderBottom: HEAD_LINE, borderLeft: 'none', borderRight: 'none' },
-  {
-    borderTop: HEAD_LINE,
-    borderBottom: HEAD_LINE,
-    borderLeft: 'none',
-    borderRight: '1px solid rgb(203 213 225)',
-  },
-];
-
 interface FixedCellProps {
   col: FixedCol;
-  /**
-   * `plain`: sem bordas (linhas de item). `framed`: borda em cima/embaixo,
-   * esquerda na col 0 e direita na col 3 (linhas de grupo/resumo/cabeçalho).
-   */
-  frame?: 'plain' | 'framed';
   isHeader?: boolean;
-  /** Fonte/cor/alinhamento. A célula já traz padding, altura e nowrap. */
+  /** Fonte/cor/alinhamento + fundo opaco. A célula já traz padding, altura e nowrap. */
   className?: string;
-  /** Fundo opaco (obrigatório em sticky), z-index e estilos condicionais. Aplicado por último. */
+  /** z-index e estilos condicionais (aplicado por último). */
   style?: React.CSSProperties;
+  title?: string;
   children?: React.ReactNode;
 }
 
 export const FixedCell: React.FC<FixedCellProps> = ({
   col,
-  frame = 'plain',
   isHeader = false,
   className = '',
   style,
+  title,
   children,
 }) => {
-  const framed = frame === 'framed';
   const base = isHeader ? FIXED_COLUMN_HEADER_STYLES[col] : FIXED_COLUMN_BODY_STYLES[col];
-  const frameStyle = isHeader
-    ? HEADER_FRAME_STYLE[col]
-    : framed
-      ? FIXED_FRAME_STYLE[col]
-      : { border: 'none' };
   return (
     <TableCell
       isHeader={isHeader}
-      className={`${GRID.fixed} ${GRID.cell} ${framed ? FIXED_FRAME_CLASS[col] : ''} ${className}`}
+      className={`${GRID.fixed} ${GRID.cell} ${col === 3 ? GRID.fixedDivider : ''} ${className}`}
       style={{
         position: 'sticky',
         ...(isHeader ? { top: 0 } : {}),
         ...base,
         overflow: 'hidden',
-        flexShrink: 0,
-        ...frameStyle,
         ...style,
       }}
+      title={title}
     >
       {children}
     </TableCell>
@@ -75,10 +58,10 @@ export const FixedCell: React.FC<FixedCellProps> = ({
 };
 
 interface MonthCellProps {
-  /** Índice do mês (0 = Jan). Só as variantes negrito diferenciam a 1ª coluna. */
+  /** Índice do mês (0 = Jan). */
   index: number;
-  /** `data`: célula de item (fundo cinza). `bold`: grupo/resumo (bordas cinza). */
-  variant?: 'data' | 'bold';
+  /** Índice do mês atual (−1 = planilha de outro ano); pinta a coluna. */
+  currentMonth?: number;
   className?: string;
   style?: React.CSSProperties;
   children?: React.ReactNode;
@@ -86,62 +69,51 @@ interface MonthCellProps {
 
 export const MonthCell: React.FC<MonthCellProps> = ({
   index,
-  variant = 'data',
-  className = '',
-  style,
-  children,
-}) => {
-  if (variant === 'bold') {
-    return (
-      <TableCell
-        className={`${GRID.boldMonth} ${GRID.cell} align-middle ${
-          index === 0 ? GRID.boldMonthFirst : GRID.boldMonthOther
-        } ${className}`}
-        style={{ ...GRID.monthStyle, ...style }}
-      >
-        {children}
-      </TableCell>
-    );
-  }
-  return (
-    <TableCell
-      className={`px-1 ${GRID.dataCell} ${GRID.cell} ${className}`}
-      style={{ ...GRID.monthStyle, ...style }}
-    >
-      {children}
-    </TableCell>
-  );
-};
-
-interface AnnualCellProps {
-  variant?: 'data' | 'bold';
-  className?: string;
-  style?: React.CSSProperties;
-  children?: React.ReactNode;
-}
-
-export const AnnualCell: React.FC<AnnualCellProps> = ({
-  variant = 'data',
+  currentMonth = -1,
   className = '',
   style,
   children,
 }) => (
   <TableCell
-    className={`${
-      variant === 'bold' ? `${GRID.boldAnnual} align-middle` : `px-2 ${GRID.dataCell}`
-    } ${GRID.cell} ${className}`}
-    style={{ ...GRID.annualStyle, ...style }}
+    className={`${GRID.month} ${GRID.cell} ${index === currentMonth ? GRID.currentMonth : ''} ${className}`}
+    style={style}
   >
     {children}
   </TableCell>
 );
 
-/** Coluna vazia de 10px entre Dez e Total Anual. */
-export const SpacerCell: React.FC = () => <TableCell className={GRID.spacer} />;
+interface AnnualCellProps {
+  isHeader?: boolean;
+  /** Fundo opaco obrigatório (sticky à direita). */
+  className?: string;
+  style?: React.CSSProperties;
+  children?: React.ReactNode;
+}
 
-/** Coluna "Ações" (só aparece com algum grupo em edição). */
-export const ActionsCell: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
-  <TableCell className={`px-2 border border-gray-200 w-8 text-center ${GRID.cell}`}>
+/** Total Anual — fixo à direita, sempre visível. */
+export const AnnualCell: React.FC<AnnualCellProps> = ({
+  isHeader = false,
+  className = '',
+  style,
+  children,
+}) => (
+  <TableCell
+    isHeader={isHeader}
+    className={`${GRID.annual} ${GRID.cell} ${className}`}
+    style={{
+      position: 'sticky',
+      ...(isHeader ? { top: 0 } : {}),
+      ...(isHeader ? ANNUAL_COLUMN_HEADER_STYLE : ANNUAL_COLUMN_BODY_STYLE),
+      ...style,
+    }}
+  >
     {children}
   </TableCell>
+);
+
+/** Respiro entre blocos (antes de seções de nível 1 e 2 e das linhas de resumo). */
+export const SpacingRow: React.FC = () => (
+  <tr aria-hidden="true">
+    <td colSpan={100} className="h-2 border-0 p-0" />
+  </tr>
 );

@@ -6,7 +6,6 @@ interface FinancialPeaceIndexRowProps {
   despesasFixasByMonth: number[];
   proventosAnnual: number;
   despesasFixasAnnual: number;
-  showActionsColumn?: boolean;
 }
 
 // Índice paz financeira = (proventos recebidos / despesas FIXAS) * 100.
@@ -19,7 +18,6 @@ export const FinancialPeaceIndexRow: React.FC<FinancialPeaceIndexRowProps> = ({
   despesasFixasByMonth,
   proventosAnnual,
   despesasFixasAnnual,
-  showActionsColumn = false,
 }) => (
   <SummaryRow
     label="Índice paz financeira"
@@ -28,7 +26,6 @@ export const FinancialPeaceIndexRow: React.FC<FinancialPeaceIndexRowProps> = ({
     )}
     annual={peaceIndex(proventosAnnual, despesasFixasAnnual)}
     format="percent"
-    variant="gold"
-    showActionsColumn={showActionsColumn}
+    variant="total"
   />
 );

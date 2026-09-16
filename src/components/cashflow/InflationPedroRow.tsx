@@ -4,13 +4,9 @@ import { SummaryRow } from './SummaryRow';
 interface InflationPedroRowProps {
   despesasByMonth: number[];
   despesasAnnual?: number;
-  showActionsColumn?: boolean;
 }
 
-export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({
-  despesasByMonth,
-  showActionsColumn = false,
-}) => {
+export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({ despesasByMonth }) => {
   // Inflação pessoal = ((despesas mês atual / despesas mês anterior) - 1) * 100.
   // Janeiro é sempre 0%; mês anterior zerado não permite cálculo.
   const monthlyInflations = despesasByMonth.map((despesasAtual, index) => {
@@ -32,8 +28,7 @@ export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({
       cells={monthlyInflations}
       annual={annualInflation}
       format="percent"
-      variant="gray"
-      showActionsColumn={showActionsColumn}
+      variant="total"
     />
   );
 };
