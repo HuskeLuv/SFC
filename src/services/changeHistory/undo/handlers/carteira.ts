@@ -556,6 +556,102 @@ const investimentoRegistrado: UndoDefinition = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Ativos PLANEJADOS (sem posição, 16/09/2026) — Watchlist. entityId = Watchlist.id.
+// Campos do log usam os nomes da API (observacoes); a coluna é `notes`.
+// ---------------------------------------------------------------------------
+
+const planejadoDataFromChanges = (changes: ReturnType<typeof getChanges>) => {
+  const { observacoes, ...rest } = restoreData(changes) as {
+    objetivo?: number;
+    secao?: string | null;
+    observacoes?: string | null;
+  };
+  return { ...rest, ...(observacoes !== undefined ? { notes: observacoes } : {}) };
+};
+
+const planejadoAdicionar: UndoDefinition = {
+  strategy: 'delete-created',
+  requires: { entityId: true },
+  async execute({ auth, entry }) {
+    const row = await prisma.watchlist.findFirst({
+      where: { id: entry.entityId!, userId: auth.targetUserId },
+    });
+    if (!row) {
+      throw new UndoError(409, 'O ativo planejado não existe mais (foi removido ou virou posição)');
+    }
+    await prisma.watchlist.delete({ where: { id: row.id } });
+    return { changes: invertChanges(getChanges(entry)) };
+  },
+};
+
+const planejadoEditar: UndoDefinition = {
+  strategy: 'restore-fields',
+  requires: { entityId: true, changes: true },
+  async execute({ auth, entry }) {
+    const changes = getChanges(entry);
+    const row = await prisma.watchlist.findFirst({
+      where: { id: entry.entityId!, userId: auth.targetUserId },
+    });
+    if (!row) {
+      throw new UndoError(409, 'O ativo planejado não existe mais (foi removido ou virou posição)');
+    }
+    assertCurrentMatchesAfter(
+      { objetivo: row.objetivo, secao: row.secao, observacoes: row.notes },
+      changes,
+    );
+    await prisma.watchlist.update({
+      where: { id: row.id },
+      data: planejadoDataFromChanges(changes),
+    });
+    return { changes: invertChanges(changes) };
+  },
+};
+
+const planejadoRemover: UndoDefinition = {
+  strategy: 'recreate-from-snapshot',
+  requires: { entityId: true, snapshot: true },
+  async execute({ auth, entry }) {
+    const snap = getSnapshot(entry)!;
+    if (snap.kind !== 'planejado') {
+      throw new UndoError(400, 'Snapshot incompatível', 'UNDO_MISSING_DATA');
+    }
+    const data = snap.data as {
+      id: string;
+      assetId: string;
+      objetivo: number;
+      secao: string | null;
+      notes: string | null;
+      addedAt?: string;
+    };
+    const posicao = await prisma.portfolio.findFirst({
+      where: { userId: auth.targetUserId, assetId: data.assetId },
+      select: { id: true },
+    });
+    if (posicao) throw new UndoError(409, 'O ativo já está na carteira como posição');
+    try {
+      await prisma.watchlist.create({
+        data: {
+          id: data.id,
+          userId: auth.targetUserId,
+          assetId: data.assetId,
+          objetivo: data.objetivo,
+          secao: data.secao,
+          notes: data.notes,
+          ...(data.addedAt ? { addedAt: new Date(data.addedAt) } : {}),
+        },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new UndoError(409, 'O ativo já está planejado');
+      throw error;
+    }
+    return {
+      changes: invertChanges(getChanges(entry)),
+      entityLabel: entry.entityLabel ?? undefined,
+    };
+  },
+};
+
 export const CARTEIRA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'operacao.registrar': adicaoRegistrada,
   'aporte.registrar': adicaoRegistrada,
@@ -572,4 +668,7 @@ export const CARTEIRA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'imovel-bem.atualizar-valor': imovelBemAtualizarValor,
   'fundo.atualizar-valor': fundoAtualizarValor,
   'objetivo-classe.definir': objetivoClasseDefinir,
+  'planejado.adicionar': planejadoAdicionar,
+  'planejado.editar': planejadoEditar,
+  'planejado.remover': planejadoRemover,
 };

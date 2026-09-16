@@ -5,6 +5,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { validationError, zPercentage } from '@/utils/validation-schemas';
 import { invalidarContextoUsuario } from '@/services/assistente/contexto';
+import { recordPlanejadoEditado, recordPlanejadoRemovido } from '@/services/changeHistory';
 
 /**
  * PATCH  /api/carteira/planejados/[id] — altera o objetivo do ativo planejado.
@@ -19,15 +20,18 @@ const planejadoPatchSchema = z.object({
 });
 
 async function localizar(request: NextRequest, ctx: Ctx) {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
   const { id } = await ctx.params;
-  const planejado = await prisma.watchlist.findFirst({ where: { id, userId: targetUserId } });
+  const planejado = await prisma.watchlist.findFirst({
+    where: { id, userId: auth.targetUserId },
+    include: { asset: { select: { symbol: true, name: true, source: true } } },
+  });
   if (!planejado) throw new ApiError(404, 'Ativo planejado não encontrado');
-  return planejado;
+  return { auth, planejado };
 }
 
 export const PATCH = withErrorHandler(async (request: NextRequest, ctx: Ctx) => {
-  const planejado = await localizar(request, ctx);
+  const { auth, planejado } = await localizar(request, ctx);
   const parsed = planejadoPatchSchema.safeParse(await request.json());
   if (!parsed.success) return validationError(parsed);
   const { objetivo, observacoes } = parsed.data;
@@ -40,12 +44,14 @@ export const PATCH = withErrorHandler(async (request: NextRequest, ctx: Ctx) => 
     },
   });
   invalidarContextoUsuario(planejado.userId);
+  await recordPlanejadoEditado(request, auth, planejado, atualizado, planejado.asset);
   return NextResponse.json({ success: true, planejado: atualizado });
 });
 
 export const DELETE = withErrorHandler(async (request: NextRequest, ctx: Ctx) => {
-  const planejado = await localizar(request, ctx);
+  const { auth, planejado } = await localizar(request, ctx);
   await prisma.watchlist.delete({ where: { id: planejado.id } });
   invalidarContextoUsuario(planejado.userId);
+  await recordPlanejadoRemovido(request, auth, planejado, planejado.asset);
   return NextResponse.json({ success: true });
 });

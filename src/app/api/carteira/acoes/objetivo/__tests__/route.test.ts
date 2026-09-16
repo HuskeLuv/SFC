@@ -117,19 +117,28 @@ describe('POST /api/carteira/acoes/objetivo', () => {
       userId: 'user-1',
       objetivo: 0,
     });
-    mockPrisma.watchlist.update.mockResolvedValueOnce({ id: 'plan-1', objetivo: 20 });
+    mockPrisma.watchlist.update.mockResolvedValueOnce({
+      id: 'plan-1',
+      objetivo: 20,
+      secao: null,
+      notes: null,
+    });
 
     const response = await POST(createRequest({ ativoId: 'plan-1', objetivo: 20 }));
     expect(response.status).toBe(200);
-    expect(mockPrisma.watchlist.findFirst).toHaveBeenCalledWith({
-      where: { id: 'plan-1', userId: 'user-1' },
-    });
+    expect(mockPrisma.watchlist.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'plan-1', userId: 'user-1' } }),
+    );
     expect(mockPrisma.watchlist.update).toHaveBeenCalledWith({
       where: { id: 'plan-1' },
       data: { objetivo: 20 },
     });
-    // sem posição não há registro no histórico
-    expect(mockPrisma.userChangeLog.create).not.toHaveBeenCalled();
+    // histórico: planejado.editar (desfazível)
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'planejado.editar', entityId: 'plan-1' }),
+      }),
+    );
   });
 
   it('retorna 404 quando ativo não encontrado', async () => {

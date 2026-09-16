@@ -13,6 +13,7 @@ import {
   encontrarPlanejadoManual,
 } from '@/services/portfolio/ativosPlanejados';
 import { invalidarContextoUsuario } from '@/services/assistente/contexto';
+import { recordPlanejadoAdicionado } from '@/services/changeHistory';
 
 /**
  * POST /api/carteira/planejados — inclui um ativo PLANEJADO na aba (sem
@@ -48,7 +49,8 @@ const isTipoManual = (t: string): t is 'stock' | 'reit' | 'fundo' =>
   (TIPOS_OPERACAO_MANUAIS_PLANEJAVEIS as readonly string[]).includes(t);
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const { targetUserId } = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request);
+  const { targetUserId } = auth;
   const parsed = planejadoCreateSchema.safeParse(await request.json());
   if (!parsed.success) return validationError(parsed);
   const { tipoAtivo, secao, objetivo, observacoes } = parsed.data;
@@ -80,15 +82,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   let assetId: string;
+  let assetDoPlanejado: { symbol: string; name: string; source: string };
   if (manual && isTipoManual(tipoAtivo)) {
     const jaPlanejado = await encontrarPlanejadoManual(targetUserId, tipoAtivo, nome);
     if (jaPlanejado) throw new ApiError(409, 'Este ativo já está planejado nesta aba');
     const asset = await criarAssetPlanejadoManual(tipoAtivo, nome);
     assetId = asset.id;
+    assetDoPlanejado = asset;
   } else {
     assetId = assetIdInformado!;
     const asset = await prisma.asset.findUnique({ where: { id: assetId } });
     if (!asset) throw new ApiError(404, 'Ativo não encontrado');
+    assetDoPlanejado = asset;
     const tiposDaAba = TIPOS_ATIVO_PLANEJAVEIS[aba] as readonly string[];
     const pertence =
       tiposDaAba.includes(asset.type) &&
@@ -125,5 +130,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   });
 
   invalidarContextoUsuario(targetUserId);
+  await recordPlanejadoAdicionado(request, auth, planejado, assetDoPlanejado);
   return NextResponse.json({ success: true, planejado }, { status: 201 });
 });

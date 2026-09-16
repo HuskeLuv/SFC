@@ -3,7 +3,11 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { objetivoSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { assetEntityLabel, recordObjetivoClasseDefinido } from '@/services/changeHistory';
+import {
+  assetEntityLabel,
+  recordObjetivoClasseDefinido,
+  recordPlanejadoEditado,
+} from '@/services/changeHistory';
 
 /**
  * Handler ÚNICO das 9 rotas `POST /api/carteira/<aba>/objetivo` (eram 9 cópias
@@ -12,7 +16,7 @@ import { assetEntityLabel, recordObjetivoClasseDefinido } from '@/services/chang
  * `ativoId` é o id da POSIÇÃO (Portfolio). Desde os ativos planejados
  * (16/09/2026) também pode ser o id de um planejado (Watchlist), que a aba
  * exibe como linha zerada com `planejado: true` — nesse caso o objetivo é
- * gravado no planejado, sem registro no histórico (não existe posição).
+ * gravado no planejado (histórico: `planejado.editar`).
  */
 export function criarHandlerObjetivo(classe: string) {
   return withErrorHandler(async (request: NextRequest) => {
@@ -31,11 +35,16 @@ export function criarHandlerObjetivo(classe: string) {
     if (!portfolio) {
       const planejado = await prisma.watchlist.findFirst({
         where: { id: ativoId, userId: targetUserId },
+        include: { asset: { select: { symbol: true, name: true, source: true } } },
       });
       if (!planejado) {
         return NextResponse.json({ error: 'Ativo não encontrado' }, { status: 404 });
       }
-      await prisma.watchlist.update({ where: { id: planejado.id }, data: { objetivo } });
+      const atualizado = await prisma.watchlist.update({
+        where: { id: planejado.id },
+        data: { objetivo },
+      });
+      await recordPlanejadoEditado(request, auth, planejado, atualizado, planejado.asset);
       return NextResponse.json({ success: true, message: 'Objetivo atualizado com sucesso' });
     }
 
