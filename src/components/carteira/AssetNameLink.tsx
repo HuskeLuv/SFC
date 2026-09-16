@@ -15,8 +15,9 @@ interface AssetNameLinkProps {
  * Exibe o ativo como link para a página de detalhes, de forma SIMPLIFICADA
  * (pedido do Wellington, 16/09/2026): uma linha só, com o identificador curto —
  * o ticker (ações, FIIs, ETFs...) ou o nome sem o sufixo "- R$ valor - data"
- * dos ativos manuais. O nome completo fica no `title` (hover) e na página
- * de detalhes. Antes mostrava ticker + razão social em duas linhas.
+ * dos ativos manuais. Nunca quebra linha: nomes longos (fundos CVM) são
+ * cortados com reticências, e o nome completo fica no `title` (hover) e na
+ * página de detalhes. Antes mostrava ticker + razão social em duas linhas.
  */
 const AssetNameLink: React.FC<AssetNameLinkProps> = ({
   portfolioId,
@@ -40,7 +41,7 @@ const AssetNameLink: React.FC<AssetNameLinkProps> = ({
     <Link
       href={`/ativos/${portfolioId}`}
       title={title}
-      className={`hover:underline hover:text-brand-600 dark:hover:text-brand-400 ${className}`}
+      className={`block max-w-[20rem] truncate hover:underline hover:text-brand-600 dark:hover:text-brand-400 ${className}`}
     >
       {principal}
     </Link>

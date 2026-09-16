@@ -17,7 +17,6 @@ import { formatAssetDisplayTitle } from '@/utils/assetDisplayName';
 import {
   TABLE_STYLES,
   TABLE_HEADER_STYLE,
-  TABLE_HIGHLIGHT_HEADER_STYLE,
   TABLE_SECTION_STYLE,
 } from '@/components/ui/table/tableStyles';
 
@@ -239,7 +238,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
           </div>
         )}
       </td>
-      <td className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} text-right`}>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentageSimple(ativo.percentualCarteira)}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
@@ -522,12 +521,7 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Aporte</th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Resgate</th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
-                <th
-                  className={`${TABLE_STYLES.compact.th} text-right`}
-                  style={TABLE_HIGHLIGHT_HEADER_STYLE}
-                >
-                  % da Aba
-                </th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>
                   <span className="block">Risco por ativo</span>
                   <span className="block">(Carteira Total)</span>

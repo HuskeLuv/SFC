@@ -121,7 +121,7 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} text-right`}>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.percentualCarteira)}
       </td>
       <td
@@ -303,12 +303,7 @@ export default function PrevidenciaSegurosTable({
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th
-                  className={`${TABLE_STYLES.compact.th} text-right`}
-                  style={TABLE_HIGHLIGHT_HEADER_STYLE}
-                >
-                  % da Aba
-                </th>
+                <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
                 <th
                   className={`${TABLE_STYLES.compact.th} text-right`}
                   style={TABLE_HIGHLIGHT_HEADER_STYLE}
