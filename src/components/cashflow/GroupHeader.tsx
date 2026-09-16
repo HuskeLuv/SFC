@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { TableCell, TableRow } from '@/components/ui/table';
+import { TableRow } from '@/components/ui/table';
 import { CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent, isReceitaGroupByType } from '@/utils/formatters';
 import { CollapseButton } from './CollapseButton';
@@ -8,7 +8,8 @@ import { AddRowButton } from './AddRowButton';
 import { EditButton } from './EditButton';
 import { SaveCancelButtons } from './SaveCancelButtons';
 import { ColorOption } from './ColorPickerButton';
-import { FIXED_COLUMN_BODY_STYLES } from './fixedColumns';
+import { FixedCell, MonthCell, AnnualCell, SpacerCell, ActionsCell } from './GridCells';
+import { GRID } from './cashflowGridStyles';
 import { CANONICAL_GROUPS, canonicalName } from '@/services/cashflow/groupMatchers';
 import { TABLE_HEADER_BG } from '@/constants/brandColors';
 
@@ -31,6 +32,34 @@ interface GroupHeaderProps {
   isCommentModeActive?: boolean;
   onCommentClick?: () => void;
 }
+
+const DESPESAS_FIXAS_SUBGROUPS = [
+  'Habitação',
+  'Transporte',
+  'Saúde',
+  'Educação',
+  'Animais de Estimação',
+  'Despesas Pessoais',
+  'Lazer',
+  'Impostos',
+  'Despesas com Dependentes',
+  // Ex-"Dívidas" (linhas-espelho de financiamentos): sem esta entrada o
+  // cabeçalho caía no estilo genérico azul e parecia de outra seção.
+  'Despesas Financeiras',
+  'Dívidas',
+];
+
+// Formatação condicional do % Receita da linha "Despesas Fixas e Variáveis" —
+// faixas do ticket QA 19/08/2026: ≤80% azul · (80,90]% amarelo · (90,100]%
+// vermelho claro · >100% vermelho forte. Ajuste QA 21/08: a CÉLULA inteira
+// ganha o fundo da faixa (como na planilha) — só o número colorido ficava
+// "apagado" na linha #800000. Texto branco/preto conforme o contraste.
+const despesasPercentStyle = (pct: number): React.CSSProperties => {
+  if (pct <= 80) return { backgroundColor: '#2E7DFF', color: '#FFFFFF' };
+  if (pct <= 90) return { backgroundColor: '#FFD54D', color: '#000000' };
+  if (pct <= 100) return { backgroundColor: '#FF9B9B', color: '#000000' };
+  return { backgroundColor: '#FF0000', color: '#FFFFFF' };
+};
 
 export const GroupHeader: React.FC<GroupHeaderProps> = ({
   group,
@@ -69,28 +98,15 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   const isInvestimentosGroup = group.type === 'investimento';
   // Conta Corrente: bloco de saldo manual (editável)
   const isContaCorrenteGroup = group.type === 'saldo';
-  const isDespesasFixasSubgroup = [
-    'Habitação',
-    'Transporte',
-    'Saúde',
-    'Educação',
-    'Animais de Estimação',
-    'Despesas Pessoais',
-    'Lazer',
-    'Impostos',
-    'Despesas com Dependentes',
-    // Ex-"Dívidas" (linhas-espelho de financiamentos): sem esta entrada o
-    // cabeçalho caía no estilo genérico azul e parecia de outra seção.
-    'Despesas Financeiras',
-    'Dívidas',
-  ].includes(canonical);
+  const isDespesasFixasSubgroup = DESPESAS_FIXAS_SUBGROUPS.includes(canonical);
 
-  const getDisplayName = () => {
-    if (isInvestimentosGroup) return 'Aporte/Resgate';
-    if (isMainEntradasGroup) return 'Total de Entradas';
-    if (isMainDespesasGroup) return 'Despesas Fixas e Variáveis';
-    return group.name;
-  };
+  const displayName = isInvestimentosGroup
+    ? 'Aporte/Resgate'
+    : isMainEntradasGroup
+      ? 'Total de Entradas'
+      : isMainDespesasGroup
+        ? 'Despesas Fixas e Variáveis'
+        : group.name;
 
   // Cor sólida da planilha para grupos estruturais (mesma em light/dark, texto
   // branco); grupos genéricos usam classes com variante dark.
@@ -119,17 +135,18 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
                       : null;
   const isSolid = solidHex !== null;
 
-  const genericBgClass = (() => {
-    if (!group.parentId) return 'bg-blue-100 dark:bg-blue-900';
-    if (group.children?.length) return 'bg-green-100 dark:bg-green-900';
-    return 'bg-gray-100 dark:bg-gray-800';
-  })();
+  const genericBgClass = !group.parentId
+    ? 'bg-blue-100 dark:bg-blue-900'
+    : group.children?.length
+      ? 'bg-green-100 dark:bg-green-900'
+      : 'bg-gray-100 dark:bg-gray-800';
 
-  const genericNameColorClass = (() => {
-    if (canonical === CANONICAL_GROUPS.DESPESAS) return 'text-red-700 dark:text-red-300';
-    const isReceita = isReceitaGroupByType(group.type);
-    return isReceita ? 'text-green-700 dark:text-green-300' : 'text-blue-900 dark:text-blue-100';
-  })();
+  const genericNameColorClass =
+    canonical === CANONICAL_GROUPS.DESPESAS
+      ? 'text-red-700 dark:text-red-300'
+      : isReceitaGroupByType(group.type)
+        ? 'text-green-700 dark:text-green-300'
+        : 'text-blue-900 dark:text-blue-100';
 
   // Aporte/Resgate tem fundo claro → escrito preto (as demais sólidas são
   // escuras e mantêm texto branco).
@@ -141,37 +158,34 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
 
   const canMutateRows = !isCollapsed && !group.children?.length && !isInvestimentosGroup;
 
-  // Formatação condicional do % Receita da linha "Despesas Fixas e Variáveis" —
-  // faixas do ticket QA 19/08/2026: ≤80% azul · (80,90]% amarelo · (90,100]%
-  // vermelho claro · >100% vermelho forte. Ajuste QA 21/08: a CÉLULA inteira
-  // ganha o fundo da faixa (como na planilha) — só o número colorido ficava
-  // "apagado" na linha #800000. Texto branco/preto conforme o contraste.
-  const despesasPercentStyle = (pct: number): React.CSSProperties => {
-    if (pct <= 80) return { backgroundColor: '#2E7DFF', color: '#FFFFFF' };
-    if (pct <= 90) return { backgroundColor: '#FFD54D', color: '#000000' };
-    if (pct <= 100) return { backgroundColor: '#FF9B9B', color: '#000000' };
-    return { backgroundColor: '#FF0000', color: '#FFFFFF' };
-  };
   const percentConditionalStyle =
     isMainDespesasGroup && groupPercentage > 0 ? despesasPercentStyle(groupPercentage) : undefined;
 
+  const fixedCell = (
+    col: 0 | 1 | 2 | 3,
+    content: React.ReactNode,
+    extraClass: string,
+    extraStyle?: React.CSSProperties,
+  ) => (
+    <FixedCell
+      col={col}
+      frame="framed"
+      className={`font-bold align-middle ${extraClass} ${stickyBgClass}`}
+      // z-index acima das linhas de item (30/20/10) para a linha de grupo
+      // "passar por cima" ao rolar; crescente para cobrir as emendas.
+      style={{ ...stickyBgStyle, zIndex: 55 + col, ...extraStyle }}
+    >
+      {content}
+    </FixedCell>
+  );
+
   return (
     <TableRow
-      className={`h-6 w-full ${isSolid ? solidTextClass : genericBgClass}`}
-      style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px', ...stickyBgStyle }}
+      className={`${GRID.row} w-full ${isSolid ? solidTextClass : genericBgClass}`}
+      style={{ ...GRID.rowStyle, ...stickyBgStyle }}
     >
-      <TableCell
-        className={`px-2 font-bold text-left h-6 text-xs leading-6 whitespace-nowrap border-t border-b border-l border-gray-200 border-r-0 align-middle ${textClass} ${stickyBgClass}`}
-        style={{
-          position: 'sticky',
-          ...stickyBgStyle,
-          ...FIXED_COLUMN_BODY_STYLES[0],
-          zIndex: 55,
-          overflow: 'hidden',
-          flexShrink: 0,
-          borderRight: 'none',
-        }}
-      >
+      {fixedCell(
+        0,
         <div className={`flex items-center gap-1 ${isSolid ? 'h-6' : ''}`}>
           <CollapseButton
             isCollapsed={isCollapsed}
@@ -184,14 +198,14 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
               className={`text-xs truncate flex-1 hover:underline ${isSolid ? solidTextClass : genericNameColorClass}`}
               title="Abrir o Planejamento de Sonhos"
             >
-              {getDisplayName()} <span aria-hidden>↗</span>
+              {displayName} <span aria-hidden>↗</span>
             </Link>
           ) : (
             <span
               className={`text-xs truncate flex-1 ${isSolid ? solidTextClass : genericNameColorClass}`}
-              title={getDisplayName()}
+              title={displayName}
             >
-              {getDisplayName()}
+              {displayName}
             </span>
           )}
           {canMutateRows && !isEditing && (
@@ -209,79 +223,31 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
               onCommentClick={onCommentClick}
             />
           )}
-        </div>
-      </TableCell>
-      <TableCell
-        className={`px-2 text-xs font-bold h-6 leading-6 align-middle whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 ${textClass} ${stickyBgClass}`}
-        style={{
-          position: 'sticky',
-          ...stickyBgStyle,
-          ...FIXED_COLUMN_BODY_STYLES[1],
-          zIndex: 56,
-          overflow: 'hidden',
-          flexShrink: 0,
-          borderLeft: 'none',
-          borderRight: 'none',
-        }}
-      >
-        -
-      </TableCell>
-      <TableCell
-        className={`px-2 text-xs font-bold text-center h-6 leading-6 align-middle whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r-0 ${textClass} ${stickyBgClass}`}
-        style={{
-          position: 'sticky',
-          ...stickyBgStyle,
-          ...FIXED_COLUMN_BODY_STYLES[2],
-          zIndex: 57,
-          overflow: 'hidden',
-          flexShrink: 0,
-          borderLeft: 'none',
-          borderRight: 'none',
-        }}
-      >
-        -
-      </TableCell>
-      <TableCell
-        className={`px-2 text-xs font-bold text-right h-6 leading-6 align-middle whitespace-nowrap border-t border-b border-gray-200 border-l-0 border-r border-gray-300 ${isSolid ? solidTextClass : 'text-black dark:text-gray-300'} ${stickyBgClass}`}
-        style={{
-          position: 'sticky',
-          ...stickyBgStyle,
-          ...FIXED_COLUMN_BODY_STYLES[3],
-          zIndex: 58,
-          overflow: 'hidden',
-          flexShrink: 0,
-          borderLeft: 'none',
-          ...percentConditionalStyle,
-        }}
-      >
-        {isInvestimentosGroup || isContaCorrenteGroup
+        </div>,
+        `text-left ${textClass}`,
+      )}
+      {fixedCell(1, '-', textClass)}
+      {fixedCell(2, '-', `text-center ${textClass}`)}
+      {fixedCell(
+        3,
+        isInvestimentosGroup || isContaCorrenteGroup
           ? '-'
           : groupPercentage > 0
             ? formatPercent(groupPercentage)
-            : '-'}
-      </TableCell>
-      {groupTotals.map((value, index) => (
-        <TableCell
-          key={index}
-          className={`px-1 text-xs font-bold text-right border-t border-b border-gray-200 border-r border-gray-200 h-6 leading-6 align-middle ${
-            index === 0 ? 'border-l-0' : 'border-l border-gray-200'
-          } ${valueTextClass}`}
-          style={{ minWidth: '3rem' }}
-        >
-          {formatCurrency(value || 0)}
-        </TableCell>
-      ))}
-      {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 align-middle bg-white dark:bg-gray-900"></TableCell>
-      <TableCell
-        className={`px-2 text-xs font-bold text-right border-t border-b border-gray-200 border border-gray-200 h-6 leading-6 align-middle ${valueTextClass}`}
-        style={{ minWidth: '4rem' }}
-      >
-        {formatCurrency(groupAnnualTotal)}
-      </TableCell>
-      {showActionsColumn && (
-        <TableCell className="px-2 border border-gray-200 w-8 h-6 leading-6 align-middle"></TableCell>
+            : '-',
+        `text-right ${isSolid ? solidTextClass : 'text-black dark:text-gray-300'}`,
+        percentConditionalStyle,
       )}
+      {groupTotals.map((value, index) => (
+        <MonthCell key={index} index={index} variant="bold" className={valueTextClass}>
+          {formatCurrency(value || 0)}
+        </MonthCell>
+      ))}
+      <SpacerCell />
+      <AnnualCell variant="bold" className={valueTextClass}>
+        {formatCurrency(groupAnnualTotal)}
+      </AnnualCell>
+      {showActionsColumn && <ActionsCell />}
     </TableRow>
   );
 };

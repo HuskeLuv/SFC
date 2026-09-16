@@ -26,10 +26,6 @@ export interface GroupRenderContext {
   cancelAddingRow: (id: string) => void;
   updateNewRow: (id: string, field: keyof NewRowData, value: string | number) => void;
   handleSaveRow: (groupId: string) => void;
-  handleItemUpdate: () => Promise<void>;
-  startEditing: (itemId: string, field: string, monthIndex?: number) => void;
-  stopEditing: () => void;
-  isEditing: (itemId: string, field: string, monthIndex?: number) => boolean;
   isGroupEditing: (groupId: string) => boolean;
   handleStartGroupEdit: (group: CashflowGroup) => void;
   handleSaveGroup: (group: CashflowGroup) => void;
@@ -45,6 +41,5 @@ export interface GroupRenderContext {
     itemTotals: number[],
     itemAnnualTotal: number,
     itemPercentage: number,
-    isLastItem?: boolean,
   ) => React.ReactNode;
 }

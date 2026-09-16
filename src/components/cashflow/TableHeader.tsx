@@ -1,61 +1,41 @@
 import React from 'react';
 import { TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { MONTHS } from '@/constants/cashflow';
-import { FIXED_COLUMN_HEADER_STYLES } from './fixedColumns';
+import { FixedCell } from './GridCells';
+import { GRID } from './cashflowGridStyles';
 
 interface TableHeaderComponentProps {
   showActionsColumn?: boolean;
 }
 
-// Estilos comuns para células sticky do cabeçalho
-const stickyHeaderCellStyle = {
-  position: 'sticky' as const,
-  top: 0,
-  zIndex: 400,
-};
+const HEAD_BG = 'bg-white dark:bg-gray-900';
+const HEAD_TH = `${HEAD_BG} text-center whitespace-nowrap ${GRID.cell}`;
+const HEAD_LABEL = 'font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap';
+// Cabeçalho inteiro é sticky no topo (as 4 colunas fixas somam sticky-left via FixedCell).
+const STICKY_TOP = { position: 'sticky' as const, top: 0, zIndex: 400 };
+
+const FIXED_HEADERS: { label: string; azul?: boolean; quebra?: boolean }[] = [
+  { label: 'Itens' },
+  // "O SEU PORQUÊ" e "Nível Prioridade" em azul negrito (planilha-base
+  // Escolhi $er Rico, pedido ago/2026); a segunda quebra em 2 linhas como no
+  // Excel — a coluna tem 80px.
+  { label: 'O SEU PORQUÊ', azul: true },
+  { label: 'Nível Prioridade', azul: true, quebra: true },
+  { label: '% Receita' },
+];
 
 export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
   showActionsColumn = false,
 }) => (
-  <TableHeader
-    className="bg-white dark:bg-gray-900"
-    style={{
-      position: 'sticky',
-      top: 0,
-      zIndex: 400,
-      isolation: 'isolate',
-    }}
-  >
-    <TableRow
-      className="h-6 bg-white dark:bg-gray-900"
-      style={{
-        fontFamily: 'Calibri, sans-serif',
-        fontSize: '12px',
-      }}
-    >
-      {/* "O SEU PORQUÊ" e "Nível Prioridade" em azul negrito (planilha-base
-          Escolhi $er Rico, pedido ago/2026); a segunda quebra em 2 linhas
-          como no Excel — a coluna tem 80px. */}
-      {[
-        { label: 'Itens' },
-        { label: 'O SEU PORQUÊ', azul: true },
-        { label: 'Nível Prioridade', azul: true, quebra: true },
-        { label: '% Receita' },
-      ].map(({ label, azul, quebra }, index) => (
-        <TableCell
+  <TableHeader className={HEAD_BG} style={{ ...STICKY_TOP, isolation: 'isolate' }}>
+    <TableRow className={`${GRID.row} ${HEAD_BG}`} style={GRID.rowStyle}>
+      {FIXED_HEADERS.map(({ label, azul, quebra }, index) => (
+        <FixedCell
           key={label}
+          col={index as 0 | 1 | 2 | 3}
+          frame="framed"
           isHeader
-          className="px-2 border-t border-b border-gray-200 text-center h-6 text-xs leading-6 bg-white dark:bg-gray-900 whitespace-nowrap"
-          style={{
-            ...stickyHeaderCellStyle,
-            ...FIXED_COLUMN_HEADER_STYLES[index],
-            overflow: 'hidden',
-            flexShrink: 0,
-            borderTop: '1px solid rgb(229 231 235)',
-            borderBottom: '1px solid rgb(229 231 235)',
-            borderLeft: index === 0 ? '1px solid rgb(229 231 235)' : 'none',
-            borderRight: index === 3 ? '1px solid rgb(203 213 225)' : 'none',
-          }}
+          className={HEAD_TH}
         >
           <p
             className={`font-bold ${
@@ -66,39 +46,29 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
           >
             {label}
           </p>
-        </TableCell>
+        </FixedCell>
       ))}
       {MONTHS.map((month, index) => (
         <TableCell
           key={month}
           isHeader
           id={index === 0 ? 'first-month-cell' : undefined}
-          className={`px-1 border-t border-b border-gray-200 border-r border-gray-200 text-center h-6 text-xs leading-6 bg-white dark:bg-gray-900 whitespace-nowrap ${
-            index === 0 ? 'border-l-0' : 'border-l border-gray-200'
+          className={`px-1 border-t border-b border-gray-200 border-r border-gray-200 ${HEAD_TH} ${
+            index === 0 ? GRID.boldMonthFirst : GRID.boldMonthOther
           }`}
-          style={{
-            ...stickyHeaderCellStyle,
-            minWidth: '3rem',
-          }}
+          style={{ ...STICKY_TOP, ...GRID.monthStyle }}
         >
-          <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
-            {month}
-          </p>
+          <p className={HEAD_LABEL}>{month}</p>
         </TableCell>
       ))}
-      {/* Coluna vazia para espaçamento */}
+      {/* Coluna vazia de espaçamento: o div absoluto cobre a emenda entre Dez e Total Anual */}
       <TableCell
         isHeader
-        className="px-0 w-[10px] h-6 text-xs leading-6 bg-white dark:bg-gray-900 border-0 p-0 relative"
-        style={{
-          border: 'none',
-          padding: 0,
-          position: 'relative',
-          overflow: 'visible',
-        }}
+        className={`px-0 w-[10px] ${GRID.cell} ${HEAD_BG} border-0 p-0 relative`}
+        style={{ border: 'none', padding: 0, position: 'relative', overflow: 'visible' }}
       >
         <div
-          className="bg-white dark:bg-gray-900"
+          className={HEAD_BG}
           style={{
             position: 'absolute',
             top: '-3px',
@@ -111,28 +81,18 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
       </TableCell>
       <TableCell
         isHeader
-        className="px-2 border-t border-b border-gray-200 border border-gray-200 text-center h-6 text-xs leading-6 bg-white dark:bg-gray-900 whitespace-nowrap"
-        style={{
-          ...stickyHeaderCellStyle,
-          minWidth: '4rem',
-        }}
+        className={`px-2 border-t border-b border-gray-200 border border-gray-200 ${HEAD_TH}`}
+        style={{ ...STICKY_TOP, ...GRID.annualStyle }}
       >
-        <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
-          Total Anual
-        </p>
+        <p className={HEAD_LABEL}>Total Anual</p>
       </TableCell>
       {showActionsColumn && (
         <TableCell
           isHeader
-          className="px-2 border-t border-b border-gray-200 border border-gray-200 text-center h-6 text-xs leading-6 bg-white dark:bg-gray-900 whitespace-nowrap"
-          style={{
-            ...stickyHeaderCellStyle,
-            minWidth: '2rem',
-          }}
+          className={`px-2 border-t border-b border-gray-200 border border-gray-200 ${HEAD_TH}`}
+          style={{ ...STICKY_TOP, minWidth: '2rem' }}
         >
-          <p className="font-bold text-gray-700 text-xs dark:text-gray-400 whitespace-nowrap">
-            Ações
-          </p>
+          <p className={HEAD_LABEL}>Ações</p>
         </TableCell>
       )}
     </TableRow>

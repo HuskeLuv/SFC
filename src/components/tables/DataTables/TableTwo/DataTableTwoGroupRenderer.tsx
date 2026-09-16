@@ -79,41 +79,21 @@ function renderItems(
   group: CashflowGroup,
   ctx: GroupRenderContext,
 ) {
-  return items?.map((item, itemIndex, allItems) => {
-    const hasNewItems = Object.entries(ctx.newItems).some(
-      ([, newItem]) => newItem.groupId === group.id,
-    );
-    const isLastItem =
-      !hasNewItems && !ctx.addingRow[group.id] && itemIndex === allItems.length - 1;
-    return ctx.renderItemRowConditional(
+  return items?.map((item) =>
+    ctx.renderItemRowConditional(
       item,
       group,
       ctx.processedData.itemTotals[item.id] || Array(12).fill(0),
       ctx.processedData.itemAnnualTotals[item.id] || 0,
       ctx.processedData.itemPercentages[item.id] || 0,
-      isLastItem,
-    );
-  });
+    ),
+  );
 }
 
 function renderNewItems(group: CashflowGroup, ctx: GroupRenderContext) {
   return Object.entries(ctx.newItems)
     .filter(([, item]) => item.groupId === group.id)
-    .map(([itemId, item], itemIndex, entries) => {
-      const isLastNewItem = !ctx.addingRow[group.id] && itemIndex === entries.length - 1;
-      return (
-        <NewItemRow
-          key={itemId}
-          item={item}
-          group={group}
-          onItemUpdate={ctx.handleItemUpdate}
-          startEditing={ctx.startEditing}
-          stopEditing={ctx.stopEditing}
-          isEditing={ctx.isEditing}
-          isLastItem={isLastNewItem}
-        />
-      );
-    });
+    .map(([itemId, item]) => <NewItemRow key={itemId} item={item} />);
 }
 
 function renderAddRowForm(group: CashflowGroup, ctx: GroupRenderContext) {
