@@ -173,7 +173,22 @@ export default function DataTableTwo() {
     applyColorToCell,
     isCommentModeActive,
     setIsCommentModeActive,
+    addItemToEdit,
   } = useGroupEditMode();
+
+  // Itens do grupo + linhas criadas nesta sessão (ainda fora da árvore até o
+  // refetch): a edição/salvamento do grupo precisa enxergar as duas.
+  const itemsInGroup = useCallback(
+    (group: CashflowGroup): CashflowItem[] => {
+      const tree = getAllItemsInGroup(group);
+      const ids = new Set(tree.map((item) => item.id));
+      const extra = Object.values(newItems).filter(
+        (item) => item.groupId === group.id && !ids.has(item.id),
+      );
+      return extra.length ? [...tree, ...extra] : tree;
+    },
+    [newItems],
+  );
 
   // Modal de comentários por célula (estado + handlers extraídos p/ hook)
   const {
@@ -204,15 +219,21 @@ export default function DataTableTwo() {
       }
 
       try {
-        const newItem = await createCashflowItem(groupId, row.name, row.significado);
-        setNewItems((prev) => ({ ...prev, [newItem.id]: newItem as unknown as CashflowItem }));
+        const newItem = (await createCashflowItem(
+          groupId,
+          row.name,
+          row.significado,
+        )) as unknown as CashflowItem;
+        setNewItems((prev) => ({ ...prev, [newItem.id]: newItem }));
+        // Criada com o grupo em edição: já entra editável na sessão.
+        if (isGroupEditing(groupId)) addItemToEdit(newItem);
         cancelAddingRow(groupId);
         showAlert('success', 'Linha adicionada', 'A linha foi adicionada com sucesso.');
       } catch {
         showAlert('error', 'Erro ao adicionar', 'Erro ao criar a nova linha.');
       }
     },
-    [newRow, cancelAddingRow, showAlert],
+    [newRow, cancelAddingRow, showAlert, isGroupEditing, addItemToEdit],
   );
 
   // Reordena a linha dentro do grupo (setinhas ↑↓): troca com o vizinho e
@@ -242,11 +263,8 @@ export default function DataTableTwo() {
   );
 
   const handleStartGroupEdit = useCallback(
-    (group: CashflowGroup) => {
-      const allItems = getAllItemsInGroup(group);
-      startGroupEditing(group.id, allItems);
-    },
-    [startGroupEditing],
+    (group: CashflowGroup) => startGroupEditing(group.id, itemsInGroup(group)),
+    [startGroupEditing, itemsInGroup],
   );
 
   const handleSaveGroup = useCallback(
@@ -254,7 +272,7 @@ export default function DataTableTwo() {
       setSavingGroups((prev) => new Set(prev).add(group.id));
 
       try {
-        const allItems = getAllItemsInGroup(group);
+        const allItems = itemsInGroup(group);
         const changes = getChangesForGroup(group.id, allItems);
 
         if (changes.updates.length === 0 && changes.deletes.length === 0) {
@@ -289,6 +307,12 @@ export default function DataTableTwo() {
         const saved = await response.json().catch(() => null);
         if (saved?.groups) {
           queryClient.setQueryData(queryKeys.cashflow.year(currentYear), saved.groups);
+          // A árvore salva já traz as linhas criadas nesta sessão.
+          setNewItems((prev) =>
+            Object.fromEntries(
+              Object.entries(prev).filter(([, item]) => item.groupId !== group.id),
+            ),
+          );
           void queryClient.invalidateQueries({
             queryKey: queryKeys.cashflow.investimentos(currentYear),
           });
@@ -316,16 +340,24 @@ export default function DataTableTwo() {
         });
       }
     },
-    [getChangesForGroup, stopGroupEditing, refetch, showAlert, csrfFetch, queryClient, currentYear],
+    [
+      getChangesForGroup,
+      stopGroupEditing,
+      refetch,
+      showAlert,
+      csrfFetch,
+      queryClient,
+      currentYear,
+      itemsInGroup,
+    ],
   );
 
   const handleCancelGroupEdit = useCallback(
     (group: CashflowGroup) => {
-      const allItems = getAllItemsInGroup(group);
-      cancelEditing(group.id, allItems);
+      cancelEditing(group.id, itemsInGroup(group));
       showAlert('success', 'Edição cancelada', 'As alterações foram descartadas.');
     },
-    [cancelEditing, showAlert],
+    [cancelEditing, showAlert, itemsInGroup],
   );
 
   // Helper para renderizar ItemRow condicionalmente

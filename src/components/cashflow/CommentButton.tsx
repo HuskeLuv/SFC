@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { GRID } from './cashflowGridStyles';
 
 interface CommentButtonProps {
   onClick: () => void;
@@ -11,8 +12,9 @@ export const CommentButton: React.FC<CommentButtonProps> = ({ onClick, isComment
     <button
       onClick={onClick}
       aria-label="Adicionar comentário"
-      className={`rounded-full w-6 h-6 flex items-center justify-center border border-purple-600 bg-purple-500 text-white shadow hover:bg-purple-600 focus:outline-none transition-all ${
-        isCommentModeActive ? 'ring-2 ring-purple-300' : ''
+      aria-pressed={isCommentModeActive}
+      className={`${GRID.ghostBtn} ${GRID.ghostBtnIcon} ${
+        isCommentModeActive ? 'bg-current/25 ring-2 ring-current/50' : ''
       }`}
       title={isCommentModeActive ? 'Cancelar modo de comentário' : 'Adicionar comentário'}
     >

@@ -4,13 +4,13 @@ import { TableRow } from '@/components/ui/table';
 import { CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
 import { CollapseButton } from './CollapseButton';
-import { AddRowButton } from './AddRowButton';
 import { EditButton } from './EditButton';
 import { SaveCancelButtons } from './SaveCancelButtons';
 import { ColorOption } from './ColorPickerButton';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID, SECTION_CLASS } from './cashflowGridStyles';
 import { groupLevel } from './groupLevel';
+import { FIXED_COLUMNS_1_TO_3_WIDTH } from './fixedColumns';
 import { CANONICAL_GROUPS, canonicalName } from '@/services/cashflow/groupMatchers';
 
 interface GroupHeaderProps {
@@ -117,34 +117,51 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
               {displayName}
             </span>
           )}
-          {canMutateRows && !isEditing && (
-            <AddRowButton onClick={onAddRow} groupName={group.name} />
-          )}
+          {/* Um só botão visível fora da edição; "+ Linha" mora na barra de edição. */}
           {canMutateRows && !isEditing && onStartEdit && <EditButton onClick={onStartEdit} />}
-          {isEditing && onSave && onCancel && (
-            <SaveCancelButtons
-              onSave={onSave}
-              onCancel={onCancel}
-              saving={saving}
-              selectedColor={selectedColor ?? null}
-              onColorSelect={onColorSelect ?? undefined}
-              isCommentModeActive={isCommentModeActive}
-              onCommentClick={onCommentClick}
-            />
-          )}
         </div>
       </FixedCell>
-      <FixedCell col={1} className={sectionClass} style={{ zIndex: 56 }} />
-      <FixedCell col={2} className={sectionClass} style={{ zIndex: 57 }} />
-      <FixedCell
-        col={3}
-        className={`text-right tabular-nums ${sectionClass}`}
-        style={{ zIndex: 58, ...percentConditionalStyle }}
-      >
-        {!isInvestimentosGroup && !isContaCorrenteGroup && groupPercentage > 0
-          ? formatPercent(groupPercentage)
-          : ''}
-      </FixedCell>
+      {isEditing && onSave && onCancel ? (
+        // Em edição a barra ocupa as colunas 1-3 (vazias na linha de grupo):
+        // o nome do grupo fica inteiro e a barra tem espaço para os rótulos.
+        <FixedCell
+          col={1}
+          colSpan={3}
+          className={`${GRID.fixedDivider} ${sectionClass}`}
+          style={{
+            zIndex: 56,
+            width: FIXED_COLUMNS_1_TO_3_WIDTH,
+            minWidth: FIXED_COLUMNS_1_TO_3_WIDTH,
+            maxWidth: FIXED_COLUMNS_1_TO_3_WIDTH,
+          }}
+        >
+          <SaveCancelButtons
+            onAddRow={canMutateRows ? onAddRow : undefined}
+            groupName={group.name}
+            onSave={onSave}
+            onCancel={onCancel}
+            saving={saving}
+            selectedColor={selectedColor ?? null}
+            onColorSelect={onColorSelect ?? undefined}
+            isCommentModeActive={isCommentModeActive}
+            onCommentClick={onCommentClick}
+          />
+        </FixedCell>
+      ) : (
+        <>
+          <FixedCell col={1} className={sectionClass} style={{ zIndex: 56 }} />
+          <FixedCell col={2} className={sectionClass} style={{ zIndex: 57 }} />
+          <FixedCell
+            col={3}
+            className={`text-right tabular-nums ${sectionClass}`}
+            style={{ zIndex: 58, ...percentConditionalStyle }}
+          >
+            {!isInvestimentosGroup && !isContaCorrenteGroup && groupPercentage > 0
+              ? formatPercent(groupPercentage)
+              : ''}
+          </FixedCell>
+        </>
+      )}
       {groupTotals.map((value, index) => (
         <MonthCell key={index} index={index}>
           {formatCurrency(value || 0)}

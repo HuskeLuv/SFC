@@ -27,6 +27,8 @@ interface FixedCellProps {
   /** z-index e estilos condicionais (aplicado por último). */
   style?: React.CSSProperties;
   title?: string;
+  /** Une colunas fixas (ex.: barra de edição ocupando cols 1-3). Passe a largura somada em `style`. */
+  colSpan?: number;
   children?: React.ReactNode;
 }
 
@@ -36,6 +38,7 @@ export const FixedCell: React.FC<FixedCellProps> = ({
   className = '',
   style,
   title,
+  colSpan,
   children,
 }) => {
   const base = isHeader ? FIXED_COLUMN_HEADER_STYLES[col] : FIXED_COLUMN_BODY_STYLES[col];
@@ -51,6 +54,7 @@ export const FixedCell: React.FC<FixedCellProps> = ({
         ...style,
       }}
       title={title}
+      colSpan={colSpan}
     >
       {children}
     </TableCell>

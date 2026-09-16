@@ -19,6 +19,29 @@ export interface GroupEditState {
   deletedItemIds: Set<string>;
 }
 
+/** Estado de edição inicial de um item (valores/cores/fórmulas por mês). */
+const toEditableData = (item: CashflowItem): EditableItemData => {
+  const monthlyValues = Array(12).fill(0);
+  const monthlyColors = Array(12).fill(null) as (string | null)[];
+  const monthlyFormulas = Array(12).fill(null) as (string | null)[];
+  item.values?.forEach((value: CashflowValue) => {
+    if (value.month >= 0 && value.month < 12) {
+      monthlyValues[value.month] = value.value;
+      monthlyColors[value.month] = value.color || null;
+      monthlyFormulas[value.month] = value.formula || null;
+    }
+  });
+  return {
+    id: item.id,
+    name: item.name,
+    significado: item.significado,
+    rank: item.rank,
+    monthlyValues,
+    monthlyColors,
+    monthlyFormulas,
+  };
+};
+
 export const useGroupEditMode = () => {
   const [editingGroups, setEditingGroups] = useState<Set<string>>(new Set());
   const [editedItems, setEditedItems] = useState<Map<string, EditableItemData>>(new Map());
@@ -52,29 +75,7 @@ export const useGroupEditMode = () => {
 
     // Inicializar estado de edição com dados atuais
     const initialData = new Map<string, EditableItemData>();
-    items.forEach((item) => {
-      // Criar array de 12 valores mensais (0-11 para janeiro-dezembro)
-      const monthlyValues = Array(12).fill(0);
-      const monthlyColors = Array(12).fill(null) as (string | null)[];
-      const monthlyFormulas = Array(12).fill(null) as (string | null)[];
-      item.values?.forEach((value: CashflowValue) => {
-        if (value.month >= 0 && value.month < 12) {
-          monthlyValues[value.month] = value.value;
-          monthlyColors[value.month] = value.color || null;
-          monthlyFormulas[value.month] = value.formula || null;
-        }
-      });
-
-      initialData.set(item.id, {
-        id: item.id,
-        name: item.name,
-        significado: item.significado,
-        rank: item.rank,
-        monthlyValues,
-        monthlyColors,
-        monthlyFormulas,
-      });
-    });
+    items.forEach((item) => initialData.set(item.id, toEditableData(item)));
 
     setEditedItems((prev) => {
       const merged = new Map(prev);
@@ -172,6 +173,15 @@ export const useGroupEditMode = () => {
     [],
   );
 
+  /**
+   * Linha criada DURANTE a edição do grupo ("+ Linha" na barra de edição):
+   * entra na sessão já editável, para o cliente digitar os valores sem sair
+   * e voltar ao modo de edição.
+   */
+  const addItemToEdit = useCallback((item: CashflowItem) => {
+    setEditedItems((prev) => new Map(prev).set(item.id, toEditableData(item)));
+  }, []);
+
   const deleteItem = useCallback((itemId: string) => {
     setDeletedItemIds((prev) => new Set(prev).add(itemId));
     setEditedItems((prev) => {
@@ -198,28 +208,7 @@ export const useGroupEditMode = () => {
 
     // Restaurar dados originais
     const initialData = new Map<string, EditableItemData>();
-    originalItems.forEach((item) => {
-      const monthlyValues = Array(12).fill(0);
-      const monthlyColors = Array(12).fill(null) as (string | null)[];
-      const monthlyFormulas = Array(12).fill(null) as (string | null)[];
-      item.values?.forEach((value: CashflowValue) => {
-        if (value.month >= 0 && value.month < 12) {
-          monthlyValues[value.month] = value.value;
-          monthlyColors[value.month] = value.color || null;
-          monthlyFormulas[value.month] = value.formula || null;
-        }
-      });
-
-      initialData.set(item.id, {
-        id: item.id,
-        name: item.name,
-        significado: item.significado,
-        rank: item.rank,
-        monthlyValues,
-        monthlyColors,
-        monthlyFormulas,
-      });
-    });
+    originalItems.forEach((item) => initialData.set(item.id, toEditableData(item)));
 
     setEditedItems((prev) => {
       const merged = new Map(prev);
@@ -434,6 +423,7 @@ export const useGroupEditMode = () => {
     isEditing,
     updateItemField,
     deleteItem,
+    addItemToEdit,
     restoreItem,
     cancelEditing,
     getEditedItem,
