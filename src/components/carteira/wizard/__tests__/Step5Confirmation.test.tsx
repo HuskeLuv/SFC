@@ -5,6 +5,10 @@ import { render, screen } from '@testing-library/react';
 import Step5Confirmation from '../Step5Confirmation';
 import type { WizardFormData } from '@/types/wizard';
 
+// O campo de vínculo com planejamento (PR #27) usa React Query; não é o
+// alvo destes testes (linha Total) e sem QueryClientProvider derrubava os 5.
+vi.mock('../shared/PlanejamentoVinculoField', () => ({ default: () => null }));
+
 const baseFormData = (): WizardFormData =>
   ({
     operacao: 'novo-ativo',
