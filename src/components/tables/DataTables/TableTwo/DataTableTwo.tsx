@@ -3,7 +3,7 @@
 import { logger } from '@/lib/logger';
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import React from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import Alert from '@/components/ui/alert/Alert';
 import { Table, TableBody } from '@/components/ui/table';
@@ -28,23 +28,13 @@ import {
   InvestmentIncomeRow,
   SummaryRow,
 } from '@/components/cashflow';
-import {
-  buildSaldoContaCorrenteAnterior,
-  buildFluxoLivreByMonth,
-  computeEvolucaoSeries,
-} from '@/services/cashflow/evolucaoPatrimonioSeries';
 import { FIXED_COLUMNS_TOTAL_WIDTH } from '@/components/cashflow/fixedColumns';
-import {
-  CANONICAL_GROUPS,
-  canonicalName,
-  isCanonical,
-  findGroupByCanonicalName,
-} from '@/services/cashflow/groupMatchers';
+import { CANONICAL_GROUPS, canonicalName, isCanonical } from '@/services/cashflow/groupMatchers';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { createCashflowItem } from '@/utils/cashflowUpdate';
-import { useCellEditing } from '@/hooks/useCellEditing';
 import { useCommentModal } from '@/hooks/useCommentModal';
+import { useCashflowDerivedRows } from '@/hooks/useCashflowDerivedRows';
 import { useGroupEditMode } from '@/hooks/useGroupEditMode';
 import { getAllItemsInGroup } from '@/utils/cashflowHelpers';
 import { isReceitaGroupByType } from '@/utils/formatters';
@@ -88,191 +78,24 @@ export default function DataTableTwo() {
   const [savingGroups, setSavingGroups] = useState<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Grupo "Despesas Fixas" pelo nome canônico do template (sobrevive a rename)
-  const findDespesasFixasGroup = useMemo(
-    () => findGroupByCanonicalName(processedData.groups, CANONICAL_GROUPS.DESPESAS_FIXAS),
-    [processedData.groups],
-  );
-
-  // Calcular valores de Despesas Fixas por mês e anual
-  const despesasFixasData = useMemo(() => {
-    if (!findDespesasFixasGroup) {
-      return {
-        byMonth: Array(12).fill(0),
-        annual: 0,
-      };
-    }
-    const groupTotals = processedData.groupTotals[findDespesasFixasGroup.id] || Array(12).fill(0);
-    const annualTotal = processedData.groupAnnualTotals[findDespesasFixasGroup.id] || 0;
-    return {
-      byMonth: groupTotals,
-      annual: annualTotal,
-    };
-  }, [findDespesasFixasGroup, processedData.groupTotals, processedData.groupAnnualTotals]);
-
-  // Proventos recebidos (apenas realizados no ano atual). Mês/ano em UTC:
-  // datas de pagamento são gravadas em meia-noite UTC — getMonth() local (BRT
-  // −3h) jogaria um pagamento de dia 1º para o mês anterior.
-  const proventosByMonth = useMemo(() => {
-    const totals = Array(12).fill(0);
-    proventos.forEach((provento) => {
-      if (provento.status !== 'realizado') {
-        return;
-      }
-      const date = new Date(provento.data);
-      if (Number.isNaN(date.getTime()) || date.getUTCFullYear() !== currentYear) {
-        return;
-      }
-      totals[date.getUTCMonth()] += provento.valor;
-    });
-    return totals;
-  }, [proventos, currentYear]);
-  const proventosAnnual = useMemo(
-    () => proventosByMonth.reduce((sum, value) => sum + value, 0),
-    [proventosByMonth],
-  );
-
-  // Regra Pedro Haddad: os proventos automáticos ("Rendimentos Recebidos")
-  // NÃO somam nas entradas nem no saldo do mês — rodam de forma independente
-  // no fim da planilha. Receitas de investimentos lançadas manualmente pelo
-  // cliente continuam entrando normalmente pelos itens de Entradas.
-
-  const investimentosByMonth = useMemo(() => {
-    const findInvestimentosGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
-      for (const group of groups) {
-        if (group.type === 'investimento') {
-          return group;
-        }
-        if (group.children) {
-          const found = findInvestimentosGroup(group.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const investimentosGroup = findInvestimentosGroup(processedData.groups);
-    return investimentosGroup
-      ? processedData.groupTotals[investimentosGroup.id] || Array(12).fill(0)
-      : Array(12).fill(0);
-  }, [processedData.groups, processedData.groupTotals]);
-
-  // Bloco "Conta Corrente" (type='saldo'): o cliente informa manualmente o que
-  // ficou parado em cada banco no fim de cada mês.
-  const contaCorrenteGroup = useMemo(() => {
-    const findSaldoGroup = (groups: CashflowGroup[]): CashflowGroup | null => {
-      for (const group of groups) {
-        if (group.type === 'saldo') return group;
-        if (group.children) {
-          const found = findSaldoGroup(group.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    return findSaldoGroup(processedData.groups);
-  }, [processedData.groups]);
-
-  const contaCorrenteByMonth = useMemo(
-    () =>
-      contaCorrenteGroup
-        ? processedData.groupTotals[contaCorrenteGroup.id] || Array(12).fill(0)
-        : Array(12).fill(0),
-    [contaCorrenteGroup, processedData.groupTotals],
-  );
-
-  // Carry-over cross-year: saldo da Conta Corrente em dezembro do ano anterior
-  // entra como "Saldo Conta Corrente Mês Anterior" de janeiro.
-  const { data: saldoAnteriorData } = useQuery({
-    queryKey: queryKeys.cashflow.contaCorrenteAnterior(currentYear),
-    queryFn: async ({ signal }) => {
-      const response = await fetch(`/api/cashflow/conta-corrente-anterior?year=${currentYear}`, {
-        credentials: 'include',
-        signal,
-      });
-      if (!response.ok) throw new Error('Erro ao buscar saldo do ano anterior');
-      return response.json() as Promise<{ saldoDezembroAnterior: number }>;
-    },
-  });
-  const saldoDezembroAnterior = saldoAnteriorData?.saldoDezembroAnterior ?? 0;
-
-  // Saldo Conta Corrente Mês Anterior: jan puxa dez do ano anterior; os demais
-  // meses puxam o bloco Conta Corrente do mês anterior. Não soma nas entradas —
-  // só compõe o Fluxo de Caixa livre (regra Pedro Haddad).
-  const saldoContaCorrenteAnteriorByMonth = useMemo(
-    () => buildSaldoContaCorrenteAnterior(contaCorrenteByMonth, saldoDezembroAnterior),
-    [saldoDezembroAnterior, contaCorrenteByMonth],
-  );
-
-  // Fluxo de Caixa livre = saldo do mês + saldo conta corrente do mês anterior
-  // − aportes/resgates (fórmula da planilha, não acumulado: a sobra que ficou
-  // na conta entra no mês seguinte via Conta Corrente preenchida pelo cliente).
-  const fluxoCaixaLivreByMonth = useMemo(
-    () =>
-      buildFluxoLivreByMonth({
-        entradasByMonth: processedData.entradasByMonth,
-        despesasByMonth: processedData.despesasByMonth,
-        contaCorrenteByMonth,
-        saldoDezembroAnterior,
-        aportesByMonth: investimentosByMonth,
-      }),
-    [
-      processedData.entradasByMonth,
-      processedData.despesasByMonth,
-      contaCorrenteByMonth,
-      saldoDezembroAnterior,
-      investimentosByMonth,
-    ],
-  );
-
-  // Evolução do Patrimônio: modelo encadeado (anterior + aportes do mês +
-  // fluxo livre sem o carry da Conta Corrente), sem marcação a mercado.
-  // Meses fechados usam o valor travado pelo cron do último dia útil (snapshot).
-  const { data: evolucaoData } = useQuery({
-    queryKey: queryKeys.cashflow.evolucaoPatrimonio(currentYear),
-    queryFn: async ({ signal }) => {
-      const response = await fetch(`/api/cashflow/evolucao-patrimonio?year=${currentYear}`, {
-        credentials: 'include',
-        signal,
-      });
-      if (!response.ok) throw new Error('Erro ao buscar evolução do patrimônio');
-      return response.json() as Promise<{
-        baseAplicadaAnterior: number;
-        snapshots: { month: number; valor: number }[];
-      }>;
-    },
-  });
-
-  const evolucaoPatrimonioByMonth = useMemo(() => {
-    const snapshotByMonth: Partial<Record<number, number>> = {};
-    for (const snap of evolucaoData?.snapshots ?? []) {
-      snapshotByMonth[snap.month] = snap.valor;
-    }
-    // Série CHEIA de aportes: Aporte/Resgate (livres) + ativos vinculados a
-    // sonho + operações "dinheiro já estava investido". Os dois últimos ficam
-    // fora do fluxo livre (sonho já desce como despesa da linha-espelho; a
-    // operação marcada nunca passou pelo caixa), mas o aporte nominal vira
-    // patrimônio do mesmo jeito — sem somá-los, a posição pré-existente sumia
-    // da Evolução do ano e reaparecia na base aplicada da virada (degrau).
-    const aportesFullByMonth = investimentosByMonth.map(
-      (v: number, i: number) =>
-        v + (planejamentoPorMes?.[i] || 0) + (reinvestimentosPorMes?.[i] || 0),
-    );
-    return computeEvolucaoSeries({
-      baseAplicada: evolucaoData?.baseAplicadaAnterior ?? 0,
-      aportesByMonth: aportesFullByMonth,
-      fluxoLivreByMonth: fluxoCaixaLivreByMonth,
-      saldoAnteriorByMonth: saldoContaCorrenteAnteriorByMonth,
-      snapshotByMonth,
-    });
-  }, [
-    evolucaoData,
-    investimentosByMonth,
+  // Linhas calculadas (Saldo C/C anterior, Fluxo livre, Evolução, Rendimentos,
+  // Paz financeira): séries e regras vivem no hook — aqui só render.
+  const {
+    despesasFixasData,
+    proventosByMonth,
+    proventosAnnual,
+    contaCorrenteGroup,
+    saldoContaCorrenteAnteriorByMonth,
+    fluxoCaixaLivreByMonth,
+    fluxoCaixaLivreAnnual,
+    evolucaoPatrimonioByMonth,
+  } = useCashflowDerivedRows({
+    processedData,
+    currentYear,
+    proventos,
     planejamentoPorMes,
     reinvestimentosPorMes,
-    fluxoCaixaLivreByMonth,
-    saldoContaCorrenteAnteriorByMonth,
-  ]);
+  });
 
   // Garantir que o scroll inicial mostre janeiro (primeira coluna de mês)
   useEffect(() => {
@@ -313,9 +136,6 @@ export default function DataTableTwo() {
       clearTimeout(timeout);
     };
   }, [loading, data]);
-
-  // Shared editing state for all ItemRow components (legacy - mantido para compatibilidade)
-  const { startEditing, stopEditing, isEditing } = useCellEditing();
 
   // Novo sistema de edição por grupo
   const {
@@ -374,15 +194,6 @@ export default function DataTableTwo() {
     },
     [newRow, cancelAddingRow, showAlert],
   );
-
-  const handleItemUpdate = useCallback(async () => {
-    try {
-      await refetch();
-    } catch (error) {
-      logger.error('Erro ao atualizar item:', error);
-      showAlert('error', 'Erro ao atualizar', 'Erro ao atualizar o item.');
-    }
-  }, [refetch, showAlert]);
 
   // Reordena a linha dentro do grupo (setinhas ↑↓): troca com o vizinho e
   // manda a lista completa pro backend, que personaliza templates e grava
@@ -505,7 +316,6 @@ export default function DataTableTwo() {
       itemTotals: number[],
       itemAnnualTotal: number,
       itemPercentage: number,
-      isLastItem: boolean = false,
     ) => {
       const groupId = group.id;
       // Linhas vinculadas a um sonho (🎯) entram no modo de edição, mas só os
@@ -533,7 +343,6 @@ export default function DataTableTwo() {
             isCommentModeActive={isCommentModeActive}
             onCommentCellClick={handleCommentCellClick}
             currentYear={currentYear}
-            isLastItem={isLastItem}
             objetivoLocked={!!item.objetivoId}
           />
         );
@@ -546,12 +355,7 @@ export default function DataTableTwo() {
             itemAnnualTotal={itemAnnualTotal}
             itemPercentage={itemPercentage}
             group={group}
-            onItemUpdate={handleItemUpdate}
-            startEditing={startEditing}
-            stopEditing={stopEditing}
-            isEditing={isEditing}
             currentYear={currentYear}
-            isLastItem={isLastItem}
             onMoveItem={moveItem}
           />
         );
@@ -563,10 +367,6 @@ export default function DataTableTwo() {
       getEditedItem,
       updateItemField,
       deleteItem,
-      handleItemUpdate,
-      startEditing,
-      stopEditing,
-      isEditing,
       selectedColor,
       applyColorToCell,
       handleCommentCellClick,
@@ -592,10 +392,6 @@ export default function DataTableTwo() {
       cancelAddingRow,
       updateNewRow,
       handleSaveRow,
-      handleItemUpdate,
-      startEditing,
-      stopEditing,
-      isEditing,
       isGroupEditing,
       handleStartGroupEdit,
       handleSaveGroup,
@@ -619,10 +415,6 @@ export default function DataTableTwo() {
       cancelAddingRow,
       updateNewRow,
       handleSaveRow,
-      handleItemUpdate,
-      startEditing,
-      stopEditing,
-      isEditing,
       isGroupEditing,
       handleStartGroupEdit,
       handleSaveGroup,
@@ -817,7 +609,7 @@ export default function DataTableTwo() {
               label="Fluxo de Caixa livre"
               tooltip="Saldo do mês + Saldo Conta Corrente do mês anterior − aportes/resgates do mês. Mês com aporte grande fica negativo: o dinheiro saiu do caixa livre e virou patrimônio investido."
               cells={fluxoCaixaLivreByMonth}
-              annual={fluxoCaixaLivreByMonth.reduce((sum, val) => sum + val, 0)}
+              annual={fluxoCaixaLivreAnnual}
               variant="silverGreen"
               negativeRed
               positiveBlue

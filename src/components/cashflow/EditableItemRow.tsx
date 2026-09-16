@@ -1,12 +1,13 @@
 import React from 'react';
-import { TableCell, TableRow } from '@/components/ui/table';
+import { TableRow } from '@/components/ui/table';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
 import { CurrencyInput } from './CurrencyInput';
 import { DeleteItemButton } from './DeleteItemButton';
 import { EditableItemData } from '@/hooks/useGroupEditMode';
-import { FIXED_COLUMN_BODY_STYLES } from './fixedColumns';
 import { CommentIndicator } from './CommentIndicator';
+import { FixedCell, MonthCell, AnnualCell, SpacerCell, ActionsCell } from './GridCells';
+import { GRID } from './cashflowGridStyles';
 
 interface EditableItemRowProps {
   item: CashflowItem;
@@ -28,7 +29,6 @@ interface EditableItemRowProps {
   isCommentModeActive?: boolean;
   onCommentCellClick?: (itemId: string, monthIndex: number) => void;
   currentYear?: number;
-  isLastItem?: boolean;
   /**
    * Linha vinculada a um sonho (🎯): nome/significado/rank/exclusão são da fonte
    * (o sonho) e ficam travados, mas valores e cores SEGUEM editáveis — é assim
@@ -36,6 +36,9 @@ interface EditableItemRowProps {
    */
   objetivoLocked?: boolean;
 }
+
+const TEXT_INPUT_CLASS =
+  'w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 h-6 leading-6';
 
 export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   item,
@@ -77,20 +80,16 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
     onDeleteItem(item.id);
   };
 
-  const getPercentageColorClass = () => {
-    return 'text-black dark:text-black';
-  };
-
-  // Obter cores e fórmulas originais do item
+  // Cores, fórmulas e comentários originais por mês (índice único; evita 12
+  // finds por linha a cada render).
   const originalColors = Array(12).fill(null) as (string | null)[];
   const originalFormulas = Array(12).fill(null) as (string | null)[];
-  if (item.values) {
-    item.values.forEach((value) => {
-      if (value.month >= 0 && value.month < 12) {
-        originalColors[value.month] = value.color || null;
-        originalFormulas[value.month] = value.formula || null;
-      }
-    });
+  const commentsByMonth = Array(12).fill(null) as (string | null)[];
+  for (const value of item.values ?? []) {
+    if (value.month < 0 || value.month >= 12) continue;
+    originalColors[value.month] = value.color || null;
+    originalFormulas[value.month] = value.formula || null;
+    if (value.year === currentYear) commentsByMonth[value.month] = value.comment || null;
   }
 
   // Usar dados editados se disponíveis, senão usar dados originais
@@ -103,27 +102,8 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
     monthlyColors: originalColors,
     monthlyFormulas: originalFormulas,
   };
-
-  // Usar cores dos dados editados se disponíveis, senão usar cores originais
   const monthlyColors = editedData?.monthlyColors || originalColors;
   const monthlyFormulas = editedData?.monthlyFormulas || originalFormulas;
-
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onUpdateField(item.id, 'name', e.target.value);
-  };
-
-  const handleSignificadoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onUpdateField(item.id, 'significado', e.target.value || null);
-  };
-
-  const handleRankChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value === '' ? null : e.target.value;
-    onUpdateField(item.id, 'rank', value);
-  };
-
-  const handleMonthlyValueChange = (monthIndex: number, value: number) => {
-    onUpdateField(item.id, 'monthlyValue', value, monthIndex);
-  };
 
   // Blur de célula em modo fórmula: grava o valor calculado + a fórmula (ou
   // null, quando o usuário voltou a digitar número puro).
@@ -139,38 +119,46 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   // Calcular total anual a partir dos valores mensais editados
   const calculatedAnnualTotal = displayData.monthlyValues.reduce((sum, val) => sum + val, 0);
 
-  const getRowBackgroundColor = () => {
-    if (isEditing && !isInvestmentItem) {
-      return 'rgb(239 246 255)'; // bg-blue-50
-    }
-    return 'white';
+  const fixedBg = {
+    backgroundColor: isEditing && !isInvestmentItem ? GRID.editingBg : 'white',
   };
+  const cellModeActive = isCommentModeActive || isColorModeActive;
+  const cellModeClass = cellModeActive
+    ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors'
+    : '';
+
+  const handleCellAction = (index: number) => {
+    if (isCommentModeActive && onCommentCellClick) onCommentCellClick(item.id, index);
+    else if (isColorModeActive && onApplyColor) onApplyColor(item.id, index);
+  };
+
+  const renderComment = (index: number) =>
+    commentsByMonth[index] ? (
+      <CommentIndicator
+        comment={commentsByMonth[index]!}
+        itemName={item.name}
+        month={index}
+        year={currentYear}
+      />
+    ) : null;
 
   return (
     <TableRow
-      className={`h-6 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${isEditing ? 'bg-blue-50/30 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-900'}`}
-      style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px' }}
+      className={`${GRID.row} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${isEditing ? 'bg-blue-50/30 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-900'}`}
+      style={GRID.rowStyle}
     >
-      <TableCell
-        className="px-2 font-medium text-gray-800 dark:text-white text-xs text-left h-6 leading-6 whitespace-nowrap"
-        style={{
-          position: 'sticky',
-          backgroundColor: getRowBackgroundColor(),
-          ...FIXED_COLUMN_BODY_STYLES[0],
-          overflow: 'hidden',
-          flexShrink: 0,
-          border: 'none',
-          borderLeft: 'none',
-          borderRight: 'none',
-        }}
+      <FixedCell
+        col={0}
+        className="font-medium text-gray-800 dark:text-white text-left"
+        style={fixedBg}
       >
         {canEditStructure ? (
           <input
             type="text"
             size={1}
             value={displayData.name}
-            onChange={handleNameChange}
-            className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 h-6 leading-6"
+            onChange={(e) => onUpdateField(item.id, 'name', e.target.value)}
+            className={TEXT_INPUT_CLASS}
           />
         ) : (
           <span className="truncate block">
@@ -189,127 +177,75 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             {displayData.name || ''}
           </span>
         )}
-      </TableCell>
+      </FixedCell>
 
-      <TableCell
-        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 h-6 leading-6 whitespace-nowrap"
-        style={{
-          position: 'sticky',
-          backgroundColor: getRowBackgroundColor(),
-          ...FIXED_COLUMN_BODY_STYLES[1],
-          overflow: 'hidden',
-          flexShrink: 0,
-          border: 'none',
-          borderLeft: 'none',
-          borderRight: 'none',
-        }}
-      >
+      <FixedCell col={1} className="font-normal text-gray-800 dark:text-gray-400" style={fixedBg}>
         {canEditStructure ? (
           <input
             type="text"
             size={1}
             value={displayData.significado || ''}
-            onChange={handleSignificadoChange}
+            onChange={(e) => onUpdateField(item.id, 'significado', e.target.value || null)}
             placeholder="O seu porquê"
-            className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 h-6 leading-6"
+            className={TEXT_INPUT_CLASS}
           />
         ) : (
           <span className="truncate block">{displayData.significado || '-'}</span>
         )}
-      </TableCell>
+      </FixedCell>
 
-      <TableCell
-        className="px-2 font-normal text-gray-800 text-xs dark:text-gray-400 text-center h-6 leading-6 whitespace-nowrap"
-        style={{
-          position: 'sticky',
-          backgroundColor: getRowBackgroundColor(),
-          ...FIXED_COLUMN_BODY_STYLES[2],
-          overflow: 'hidden',
-          flexShrink: 0,
-          border: 'none',
-          borderLeft: 'none',
-          borderRight: 'none',
-        }}
+      <FixedCell
+        col={2}
+        className="font-normal text-gray-800 dark:text-gray-400 text-center"
+        style={fixedBg}
       >
         {canEditStructure ? (
           <input
             type="text"
             size={1}
             value={displayData.rank || ''}
-            onChange={handleRankChange}
+            onChange={(e) =>
+              onUpdateField(item.id, 'rank', e.target.value === '' ? null : e.target.value)
+            }
             placeholder="Nível prioridade"
-            className="w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-center h-6 leading-6"
+            className={`${TEXT_INPUT_CLASS} text-center`}
           />
         ) : (
           <span>{displayData.rank || '-'}</span>
         )}
-      </TableCell>
+      </FixedCell>
 
-      <TableCell
-        className={`px-2 font-normal text-xs text-right h-6 leading-6 whitespace-nowrap ${getPercentageColorClass()}`}
-        style={{
-          position: 'sticky',
-          backgroundColor: getRowBackgroundColor(),
-          ...FIXED_COLUMN_BODY_STYLES[3],
-          overflow: 'hidden',
-          flexShrink: 0,
-          border: 'none',
-          borderLeft: 'none',
-          borderRight: 'none',
-        }}
+      <FixedCell
+        col={3}
+        className="font-normal text-black dark:text-black text-right"
+        style={fixedBg}
       >
         {group.name === 'Investimentos'
           ? '-'
           : itemPercentage > 0
             ? formatPercent(itemPercentage)
             : '-'}
-      </TableCell>
+      </FixedCell>
 
       {canEditValues
         ? displayData.monthlyValues.map((value, index) => {
             const cellColor = monthlyColors[index] || null;
-            // Buscar comentário do valor mensal
-            const monthlyValue = item.values?.find(
-              (v) => v.month === index && v.year === currentYear,
-            );
-            const cellComment = monthlyValue?.comment || null;
-
-            const handleCellClick = () => {
-              if (isCommentModeActive && onCommentCellClick) {
-                onCommentCellClick(item.id, index);
-              } else if (isColorModeActive && onApplyColor) {
-                onApplyColor(item.id, index);
-              }
-            };
-
             return (
-              <TableCell
+              <MonthCell
                 key={index}
-                className={`px-1 font-normal text-xs h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900 ${
-                  isCommentModeActive
-                    ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors'
-                    : isColorModeActive
-                      ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors'
-                      : ''
-                }`}
+                index={index}
+                className={`font-normal ${cellModeClass}`}
                 style={{ overflow: 'visible' }}
               >
                 <div
-                  onClick={handleCellClick}
-                  className={`flex items-center justify-end gap-1 ${isCommentModeActive || isColorModeActive ? 'cursor-pointer' : ''}`}
+                  onClick={() => handleCellAction(index)}
+                  className={`flex items-center justify-end gap-1 ${cellModeActive ? 'cursor-pointer' : ''}`}
                   style={{ position: 'relative', overflow: 'visible' }}
                 >
-                  {cellComment && (
-                    <CommentIndicator
-                      comment={cellComment}
-                      itemName={item.name}
-                      month={index}
-                      year={currentYear}
-                    />
-                  )}
+                  {renderComment(index)}
                   <CurrencyInput
                     value={value}
-                    onChange={(newValue) => handleMonthlyValueChange(index, newValue)}
+                    onChange={(newValue) => onUpdateField(item.id, 'monthlyValue', newValue, index)}
                     formula={monthlyFormulas[index]}
                     onFormulaChange={(formula, newValue) =>
                       handleMonthlyFormulaChange(index, formula, newValue)
@@ -317,67 +253,48 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
                     className="text-right"
                     style={cellColor ? { color: cellColor } : undefined}
                     onClick={(e) => {
-                      if (isCommentModeActive && onCommentCellClick) {
+                      if (cellModeActive) {
                         e.stopPropagation();
-                        onCommentCellClick(item.id, index);
-                      } else if (isColorModeActive && onApplyColor) {
-                        e.stopPropagation();
-                        onApplyColor(item.id, index);
+                        handleCellAction(index);
                       }
                     }}
                   />
                 </div>
-              </TableCell>
+              </MonthCell>
             );
           })
         : itemTotals.map((value, index) => {
             const cellColor = monthlyColors[index] || null;
-            // Buscar comentário do valor mensal
-            const monthlyValue = item.values?.find(
-              (v) => v.month === index && v.year === currentYear,
-            );
-            const cellComment = monthlyValue?.comment || null;
-
             return (
-              <TableCell
+              <MonthCell
                 key={index}
-                className="px-1 font-normal text-gray-800 text-xs dark:text-gray-400 text-right h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900"
+                index={index}
+                className={GRID.dataText}
                 style={{ overflow: 'visible' }}
               >
                 <div
                   className="flex items-center justify-end gap-1"
                   style={{ position: 'relative', overflow: 'visible' }}
                 >
-                  {cellComment && (
-                    <CommentIndicator
-                      comment={cellComment}
-                      itemName={item.name}
-                      month={index}
-                      year={currentYear}
-                    />
-                  )}
+                  {renderComment(index)}
                   <span style={cellColor ? { color: cellColor } : undefined}>
                     {formatCurrency(value || 0)}
                   </span>
                 </div>
-              </TableCell>
+              </MonthCell>
             );
           })}
 
-      {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-gray-900"></TableCell>
+      <SpacerCell />
 
-      <TableCell
-        className="px-2 font-semibold text-gray-800 text-xs dark:text-white text-right h-6 leading-6 bg-[#F2F2F2] dark:bg-gray-800 border-t border-b border-l border-r border-white dark:border-gray-900"
-        style={{ minWidth: '4rem' }}
-      >
+      <AnnualCell className={GRID.annualText}>
         {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
-      </TableCell>
+      </AnnualCell>
 
       {canDelete && (
-        <TableCell className="px-2 border border-gray-200 w-8 text-center h-6 leading-6">
+        <ActionsCell>
           <DeleteItemButton onClick={handleDeleteClick} />
-        </TableCell>
+        </ActionsCell>
       )}
     </TableRow>
   );

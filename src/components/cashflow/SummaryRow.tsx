@@ -1,13 +1,13 @@
 import React from 'react';
-import { TableCell, TableRow } from '@/components/ui/table';
+import { TableRow } from '@/components/ui/table';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
-import { FIXED_COLUMN_BODY_STYLES } from './fixedColumns';
+import { FixedCell, MonthCell, AnnualCell, SpacerCell, ActionsCell, FixedCol } from './GridCells';
+import { GRID } from './cashflowGridStyles';
 
 /**
  * Linha de resumo/indicador da planilha de fluxo de caixa (Saldo do mês,
  * Evolução do Patrimônio, índices etc.): 4 colunas fixas (rótulo + traços),
- * 12 células mensais, espaçador e total anual. Única fonte do boilerplate de
- * sticky columns compartilhado por todas as linhas calculadas.
+ * 12 células mensais, espaçador e total anual.
  */
 
 export interface SummaryRowProps {
@@ -58,6 +58,13 @@ const VARIANT = {
   gold: { bg: '#CC9900', text: 'text-black' },
 } as const;
 
+const FIXED_ALIGN: Record<FixedCol, string> = {
+  0: 'text-left',
+  1: '',
+  2: 'text-center',
+  3: 'text-right',
+};
+
 const SummaryRowComponent: React.FC<SummaryRowProps> = ({
   label,
   tooltip,
@@ -81,29 +88,20 @@ const SummaryRowComponent: React.FC<SummaryRowProps> = ({
     return text;
   };
 
-  const stickyCell = (index: number, content: React.ReactNode, extraClass = '') => (
-    <TableCell
-      className={`px-2 font-bold ${text} text-xs h-6 leading-6 whitespace-nowrap border-t border-b border-gray-200 ${extraClass}`}
-      style={{
-        position: 'sticky',
-        backgroundColor: bg,
-        ...FIXED_COLUMN_BODY_STYLES[index],
-        overflow: 'hidden',
-        flexShrink: 0,
-        ...(index === 0 ? { borderRight: 'none' } : { borderLeft: 'none' }),
-        ...(index > 0 && index < 3 ? { borderRight: 'none' } : {}),
-      }}
+  const fixedCell = (col: FixedCol, content: React.ReactNode) => (
+    <FixedCell
+      col={col}
+      frame="framed"
+      className={`font-bold ${text} ${FIXED_ALIGN[col]}`}
+      style={{ backgroundColor: bg }}
     >
       {content}
-    </TableCell>
+    </FixedCell>
   );
 
   return (
-    <TableRow
-      className="h-6 w-full"
-      style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12px', backgroundColor: bg }}
-    >
-      {stickyCell(
+    <TableRow className={`${GRID.row} w-full`} style={{ ...GRID.rowStyle, backgroundColor: bg }}>
+      {fixedCell(
         0,
         tooltip ? (
           <span title={tooltip} className="cursor-help">
@@ -112,33 +110,20 @@ const SummaryRowComponent: React.FC<SummaryRowProps> = ({
         ) : (
           label
         ),
-        'text-left border-l',
       )}
-      {stickyCell(1, '-')}
-      {stickyCell(2, '-', 'text-center')}
-      {stickyCell(3, '-', 'text-right border-r border-gray-300')}
+      {fixedCell(1, '-')}
+      {fixedCell(2, '-')}
+      {fixedCell(3, '-')}
       {cells.map((value, index) => (
-        <TableCell
-          key={index}
-          className={`px-1 font-bold border-t border-b border-gray-200 border-r border-gray-200 text-xs text-right h-6 leading-6 ${
-            index === 0 ? 'border-l-0' : 'border-l border-gray-200'
-          } ${valueClass(value)}`}
-          style={{ minWidth: '3rem' }}
-        >
+        <MonthCell key={index} index={index} variant="bold" className={valueClass(value)}>
           {value === null ? '-' : formatValue(value)}
-        </TableCell>
+        </MonthCell>
       ))}
-      {/* Coluna vazia para espaçamento */}
-      <TableCell className="px-0 w-[10px] h-6 leading-6 bg-white dark:bg-gray-900"></TableCell>
-      <TableCell
-        className={`px-2 font-bold border border-gray-200 text-xs text-right h-6 leading-6 ${valueClass(annual)}`}
-        style={{ minWidth: '4rem' }}
-      >
+      <SpacerCell />
+      <AnnualCell variant="bold" className={valueClass(annual)}>
         {annual === null ? '-' : formatValue(annual)}
-      </TableCell>
-      {showActionsColumn && (
-        <TableCell className="px-2 border border-gray-200 w-8 h-6 leading-6"></TableCell>
-      )}
+      </AnnualCell>
+      {showActionsColumn && <ActionsCell />}
     </TableRow>
   );
 };
