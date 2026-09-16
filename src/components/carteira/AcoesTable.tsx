@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { formatPct } from '@/utils/format';
 import { useAcoes } from '@/hooks/useAcoes';
 import { AcaoAtivo, AcaoSecao } from '@/types/acoes';
@@ -155,9 +156,15 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       key: 'quantoFalta',
       header: 'Quanto Falta',
       align: 'right',
-      render: (a, f) => f.formatPercentage(a.quantoFalta),
+      render: (a, f) => (
+        <span className={quantoFaltaClass(a.quantoFalta)}>{f.formatPercentage(a.quantoFalta)}</span>
+      ),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalQuantoFalta),
-      renderGrandTotal: (t, f) => f.formatPercentage((t?.quantoFalta as number) || 0),
+      renderGrandTotal: (t, f) => (
+        <span className={quantoFaltaClass((t?.quantoFalta as number) || 0)}>
+          {f.formatPercentage((t?.quantoFalta as number) || 0)}
+        </span>
+      ),
     },
     {
       key: 'necessidadeAporte',

@@ -10,6 +10,7 @@ import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carte
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 import PlanejadoNameCell from '@/components/carteira/shared/PlanejadoNameCell';
+import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
@@ -192,7 +193,9 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
         )}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatPercentage(ativo.quantoFalta)}
+        <span className={quantoFaltaClass(ativo.quantoFalta)}>
+          {formatPercentage(ativo.quantoFalta)}
+        </span>
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatCurrency(ativo.necessidadeAporte)}
@@ -408,7 +411,9 @@ export default function PrevidenciaSegurosTable({
                   {formatPercentage(data?.totalGeral?.objetivo || 0)}
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatPercentage(data?.totalGeral?.quantoFalta || 0)}
+                  <span className={quantoFaltaClass(data?.totalGeral?.quantoFalta || 0)}>
+                    {formatPercentage(data?.totalGeral?.quantoFalta || 0)}
+                  </span>
                 </td>
                 <td className={`${TABLE_STYLES.compact.td} text-right`}>
                   {formatCurrency(data?.totalGeral?.necessidadeAporte || 0)}

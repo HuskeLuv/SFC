@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { useCarteiraStocks } from '@/hooks/useStocks';
 import { CarteiraStockAtivo, CarteiraStockSecao } from '@/types/carteiraStocks';
 import {
@@ -178,9 +179,15 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       key: 'quantoFalta',
       header: 'Quanto Falta',
       align: 'right',
-      render: (a, f) => f.formatPercentage(a.quantoFalta),
+      render: (a, f) => (
+        <span className={quantoFaltaClass(a.quantoFalta)}>{f.formatPercentage(a.quantoFalta)}</span>
+      ),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalQuantoFalta),
-      renderGrandTotal: (t, f) => f.formatPercentage((t?.quantoFalta as number) ?? 0),
+      renderGrandTotal: (t, f) => (
+        <span className={quantoFaltaClass((t?.quantoFalta as number) ?? 0)}>
+          {f.formatPercentage((t?.quantoFalta as number) ?? 0)}
+        </span>
+      ),
     },
     {
       key: 'necessidadeAporte',
