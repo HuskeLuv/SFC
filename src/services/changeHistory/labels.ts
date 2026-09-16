@@ -129,6 +129,13 @@ export const OBJETIVO_CLASSE_FIELD_LABELS: FieldLabelMap = {
   objetivo: { label: 'Objetivo', format: 'percent' },
 };
 
+/** Ativo PLANEJADO (sem posição) — campos com os nomes da API (notes → observacoes) */
+export const PLANEJADO_FIELD_LABELS: FieldLabelMap = {
+  objetivo: { label: 'Objetivo', format: 'percent' },
+  secao: 'Seção',
+  observacoes: 'Observações',
+};
+
 /** Posição consolidada de um Portfolio (resumo gravado na remoção do ativo) */
 export const ATIVO_POSICAO_FIELD_LABELS: FieldLabelMap = {
   quantity: { label: 'Quantidade', format: 'number' },

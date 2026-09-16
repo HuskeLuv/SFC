@@ -44,6 +44,18 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Definiu o objetivo de uma classe de ativos',
     (l) => `Definiu o objetivo da classe ${l}`,
   ),
+  'planejado.adicionar': withLabel(
+    'Planejou um ativo (sem posição)',
+    (l) => `Planejou o ativo ${l} (sem posição)`,
+  ),
+  'planejado.editar': withLabel(
+    'Editou um ativo planejado',
+    (l) => `Editou o ativo planejado ${l}`,
+  ),
+  'planejado.remover': withLabel(
+    'Removeu um ativo planejado',
+    (l) => `Removeu o ativo planejado ${l}`,
+  ),
   'renda-fixa.editar': withLabel(
     'Editou um ativo de renda fixa',
     (l) => `Editou o ativo de renda fixa ${l}`,

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mockPrisma = vi.hoisted(() => ({
+  // Histórico de alterações (recordChange importa prisma como default export).
+  userChangeLog: { create: vi.fn() },
   asset: { findUnique: vi.fn(), create: vi.fn() },
   portfolio: { findFirst: vi.fn() },
   watchlist: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
@@ -202,9 +204,9 @@ describe('PATCH/DELETE /api/carteira/planejados/[id]', () => {
   it('PATCH altera o objetivo do planejado do próprio usuário', async () => {
     const res = await PATCH(reqId('PATCH', { objetivo: 12.5 }), ctx);
     expect(res.status).toBe(200);
-    expect(mockPrisma.watchlist.findFirst).toHaveBeenCalledWith({
-      where: { id: 'plan-1', userId: 'user-1' },
-    });
+    expect(mockPrisma.watchlist.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'plan-1', userId: 'user-1' } }),
+    );
     expect(mockPrisma.watchlist.update).toHaveBeenCalledWith({
       where: { id: 'plan-1' },
       data: { objetivo: 12.5 },

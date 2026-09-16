@@ -10,6 +10,12 @@
  */
 import { NextRequest } from 'next/server';
 import { getTtlCache, deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
+import {
+  abaDoAssetPlanejado,
+  listarTodosPlanejados,
+  ROTULO_ABA,
+} from '@/services/portfolio/ativosPlanejados';
+import { simplifyAssetName } from '@/utils/assetDisplayName';
 
 export type Json = Record<string, unknown>;
 
@@ -254,7 +260,10 @@ export function compactClasse(d: CarteiraClasseLike | null | undefined): Json | 
     .map((s) => ({
       secao: s.nome ?? s.tipo,
       total: s.totalValorAtualizado !== undefined ? round(s.totalValorAtualizado) : undefined,
-      ativos: (s.ativos ?? []).map((a) => slim(a, ATIVO_KEEP)),
+      // Ativos PLANEJADOS (sem posição) vêm nas rotas das abas como linha
+      // zerada; aqui saem das posições (o modelo os lia como carteira) e
+      // entram só em `carteira.ativosPlanejadosSemPosicao`.
+      ativos: (s.ativos ?? []).filter((a) => !a.planejado).map((a) => slim(a, ATIVO_KEEP)),
     }))
     .filter((s) => s.ativos.length > 0);
   if (secoes.length === 0) return null;
@@ -270,6 +279,8 @@ export interface ContextoBruto {
   dividas: { dividas: Json[] } | null;
   saude: Json | null;
   sonhos: { objetivos: Json[] } | null;
+  /** Ativos planejados (sem posição): { aba, ativo, objetivoPercentualDaAba, secao?, observacoes? }. */
+  planejados?: Json[];
 }
 
 const MESES_LONGOS = [
@@ -315,6 +326,11 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
           .map(([k, v]) => [k, slim(v)]),
       ),
       posicoes,
+      // O usuário AINDA NÃO TEM esses ativos: só definiu um objetivo (% da aba)
+      // para planejar as próximas compras. Não somam no patrimônio.
+      ...(raw.planejados && raw.planejados.length > 0
+        ? { ativosPlanejadosSemPosicao: raw.planejados.map((p) => slim(p)) }
+        : {}),
     },
     // Retrato do mês atual: total por grupo de despesa, entradas, despesas e sobra.
     // Vem ANTES do fluxo detalhado para o modelo achar primeiro o número pronto.
@@ -428,6 +444,8 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
   classes.forEach((c, i) => {
     posicoes[c] = posicoesArr[i];
   });
+  // Direto do banco (e não das abas): cobre classe sem posição alguma.
+  const planejados = await listarTodosPlanejados(userId).catch(() => []);
 
   const contexto = montarContexto({
     ano,
@@ -438,6 +456,16 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
     dividas,
     saude,
     sonhos,
+    planejados: planejados.map((p) => {
+      const aba = abaDoAssetPlanejado(p.asset);
+      return {
+        aba: aba ? ROTULO_ABA[aba] : p.asset.type,
+        ativo: simplifyAssetName(p.asset.name) || p.asset.symbol,
+        objetivoPercentualDaAba: p.objetivo,
+        secao: p.secao ?? undefined,
+        observacoes: p.notes ?? undefined,
+      };
+    }),
   });
   const json = JSON.stringify(contexto);
   cache.set(key, json, CACHE_TTL_MS);
