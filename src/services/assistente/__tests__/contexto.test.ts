@@ -4,6 +4,10 @@ import {
   classesComPosicao,
   compactCashflow,
   compactClasse,
+  compactDivida,
+  compactHistoricoCarteira,
+  compactObjetivo,
+  compactOrcamento,
   compactProventos,
   familiaProvento,
   listarLinhasEditaveis,
@@ -318,7 +322,13 @@ describe('montarContexto', () => {
     expect(ctx.fluxoDeCaixa).toEqual([]);
     expect(ctx.linhasDoFluxo).toEqual({ Entradas: ['Salário'] });
     expect((ctx.orcamento as { categorias: unknown[] }).categorias).toEqual([
-      { nome: 'Lazer', metaMensal: 100, realAnual: { lancado: 50 } },
+      {
+        nome: 'Lazer',
+        metaMensal: 100,
+        realAnual: { lancado: 50 },
+        realMesAtual: 0,
+        restanteMesAtual: 100,
+      },
     ]);
     expect(ctx.dividas).toEqual([{ nome: 'Carro', saldo: 1 }]);
     expect(ctx.saudeFinanceira).toEqual({
@@ -411,5 +421,171 @@ describe('compactProventos (dividendos, JCP e rendimentos recebidos)', () => {
     expect(familiaProvento('Rendimento')).toBe('Rendimento');
     expect(familiaProvento('DIVIDENDO')).toBe('Dividendo');
     expect(familiaProvento(undefined)).toBe('Dividendo');
+  });
+});
+
+describe('lote 1 (16/09/2026) — campos que o slim descartava', () => {
+  it('compactDivida preserva saldo devedor, próxima parcela e prazo restante', () => {
+    const d = compactDivida({
+      id: 'd1',
+      nome: 'Financiamento apto',
+      taxaAm: 0.8,
+      resumo: {
+        saldoDevedor: 150000.456,
+        saldoCorrigido: 152000,
+        parcelasPagas: 24,
+        totalParcelas: 360,
+        prazoRestanteMeses: 336,
+        proximaParcela: { numero: 25, mes: '2026-10', parcela: 1800.4 },
+        proximaParcelaCorrigida: 1820.1,
+      },
+    });
+    expect(d).toEqual({
+      nome: 'Financiamento apto',
+      taxaAm: 0.8,
+      saldoDevedor: 152000,
+      parcelasPagas: 24,
+      totalParcelas: 360,
+      prazoRestanteMeses: 336,
+      proximaParcela: { numero: 25, mes: '2026-10', valor: 1820.1 },
+    });
+  });
+
+  it('compactObjetivo calcula progresso a partir dos aportes registrados', () => {
+    const o = compactObjetivo({
+      id: 'o1',
+      name: 'Viagem',
+      target: 10000,
+      entries: [
+        { month: '2026-02', aporte: 1000, balance: 2000 },
+        { month: '2026-01', aporte: 1000, balance: 1000 },
+      ],
+    });
+    expect(o).toEqual({
+      name: 'Viagem',
+      target: 10000,
+      progresso: {
+        aportadoTotal: 2000,
+        acumulado: 2000,
+        ultimoMes: '2026-02',
+        mesesRegistrados: 2,
+        percentualDaMeta: 20,
+      },
+    });
+    expect(compactObjetivo({ name: 'Sem aportes', target: 5 })).toEqual({
+      name: 'Sem aportes',
+      target: 5,
+    });
+  });
+
+  it('compactClasse aceita rota sem seções (reservas / imóveis) e mantém totais de rebalanceamento', () => {
+    const c = compactClasse({
+      ativos: [{ id: 'r1', nome: 'Tesouro Selic 2030', valorAtualizado: 2000, benchmark: 'SELIC' }],
+    });
+    expect(c?.secoes).toEqual([
+      {
+        secao: 'Ativos',
+        ativos: [{ nome: 'Tesouro Selic 2030', valorAtualizado: 2000, benchmark: 'SELIC' }],
+      },
+    ]);
+    const g = compactClasse({
+      secoes: [
+        {
+          nome: 'Value',
+          totalValorAtualizado: 100,
+          totalObjetivo: 30,
+          totalQuantoFalta: 5,
+          totalNecessidadeAporte: 50,
+          ativos: [{ id: 'a', ticker: 'ITSA4', quantoFalta: 5, necessidadeAporte: 50 }],
+        },
+      ],
+    });
+    expect(g?.secoes).toEqual([
+      {
+        secao: 'Value',
+        total: 100,
+        objetivoTotal: 30,
+        quantoFaltaTotal: 5,
+        necessidadeAporteTotal: 50,
+        ativos: [{ ticker: 'ITSA4', quantoFalta: 5, necessidadeAporte: 50 }],
+      },
+    ]);
+  });
+
+  it('compactHistoricoCarteira: evolução por mês e TWR por janela a partir das séries do resumo', () => {
+    const hoje = new Date('2026-09-16T12:00:00Z');
+    const t = (iso: string) => new Date(iso).getTime();
+    const r = compactHistoricoCarteira(
+      {
+        historicoPatrimonio: [
+          { data: t('2025-12-15'), saldoBruto: 100, valorAplicado: 90 },
+          { data: t('2025-12-31'), saldoBruto: 110, valorAplicado: 90 },
+          { data: t('2026-09-10'), saldoBruto: 130, valorAplicado: 100 },
+        ],
+        historicoTWR: [
+          { data: t('2025-09-01'), value: 0 },
+          { data: t('2025-12-31'), value: 10 },
+          { data: t('2026-08-31'), value: 20 },
+          { data: t('2026-09-10'), value: 21.2 },
+        ],
+        historicoMWR: [{ data: t('2026-09-10'), value: 18.5 }],
+      },
+      hoje,
+    ) as {
+      evolucaoPatrimonioPorMes: Record<string, unknown>;
+      rentabilidade: { twr: Record<string, number>; mwrDesdeOInicio: number };
+    };
+    expect(r.evolucaoPatrimonioPorMes).toEqual({
+      '2025-12': { saldoBruto: 110, valorAplicado: 90 },
+      '2026-09': { saldoBruto: 130, valorAplicado: 100 },
+    });
+    expect(r.rentabilidade.twr.desdeOInicio).toBe(21.2);
+    // no ano: (1,212 / 1,10) − 1 = 10,18%; no mês: (1,212 / 1,20) − 1 = 1%
+    expect(r.rentabilidade.twr.noAno).toBe(10.18);
+    expect(r.rentabilidade.twr.noMes).toBe(1);
+    expect(r.rentabilidade.twr.ultimos12Meses).toBe(21.2);
+    expect(r.rentabilidade.mwrDesdeOInicio).toBe(18.5);
+    expect(compactHistoricoCarteira(null, hoje)).toEqual({});
+  });
+
+  it('compactOrcamento traz meta × real do mês atual e o restante por categoria', () => {
+    const o = compactOrcamento(
+      {
+        categorias: [
+          {
+            groupId: 'g',
+            nome: 'Lazer',
+            parentNome: 'Despesas Variáveis',
+            metaMensal: 500,
+            realPorMes: { lancado: [0, 0, 0, 0, 0, 0, 0, 0, 320, 0, 0, 0], consolidado: [] },
+            realAnual: { lancado: 320, consolidado: 320 },
+          },
+        ],
+        totais: { metaMensal: 500 },
+        investimentos: {
+          tipoMeta: 'valor',
+          valorMeta: 1000,
+          metaPorMes: { lancado: [0, 0, 0, 0, 0, 0, 0, 0, 1000, 0, 0, 0], consolidado: [] },
+          realPorMes: [0, 0, 0, 0, 0, 0, 0, 0, 750, 0, 0, 0],
+        },
+      },
+      8,
+    )!;
+    expect(o.categorias).toEqual([
+      {
+        nome: 'Lazer',
+        parentNome: 'Despesas Variáveis',
+        metaMensal: 500,
+        realAnual: { lancado: 320, consolidado: 320 },
+        realMesAtual: 320,
+        restanteMesAtual: 180,
+      },
+    ]);
+    expect(o.investimentos).toEqual({
+      tipoMeta: 'valor',
+      valorMeta: 1000,
+      metaMesAtual: 1000,
+      realMesAtual: 750,
+    });
   });
 });

@@ -45,6 +45,17 @@ const ATIVO_KEEP = [
   'estrategia',
   'objetivo',
   'instituicao',
+  // Rebalanceamento por ativo (16/09/2026)
+  'quantoFalta',
+  'necessidadeAporte',
+  // Previdência (modalidade/subclasse = VGBL, PGBL...), reservas e imóveis
+  'modalidade',
+  'subclasse',
+  'carencia',
+  'cotacaoResgate',
+  'valorInicial',
+  'cidade',
+  'observacoes',
 ];
 
 /** Chave de `distribuicao` no resumo da carteira → rota de posições. */
@@ -61,6 +72,7 @@ const CLASSE_POR_DISTRIBUICAO: Record<string, string> = {
   imoveisBens: 'imoveis-bens',
   reservaEmergencia: 'reserva-emergencia',
   reservaOportunidade: 'reserva-oportunidade',
+  opcoes: 'opcoes',
 };
 
 export function round(n: number): number {
@@ -247,19 +259,37 @@ interface Secao {
   tipo?: string;
   ativos?: Json[];
   totalValorAtualizado?: number;
+  totalObjetivo?: number;
+  totalQuantoFalta?: number;
+  totalNecessidadeAporte?: number;
 }
 export interface CarteiraClasseLike {
   resumo?: Json;
   secoes?: Secao[];
+  /** Reservas e Imóveis & Bens não têm seções: a rota devolve `ativos` direto. */
+  ativos?: Json[];
   totalGeral?: Json;
 }
 
 export function compactClasse(d: CarteiraClasseLike | null | undefined): Json | null {
   if (!d) return null;
-  const secoes = (d.secoes ?? [])
+  // Reservas (emergência/oportunidade) e Imóveis & Bens vêm sem `secoes` —
+  // antes o compactador devolvia null e essas classes sumiam do contexto.
+  const secoesBrutas: Secao[] =
+    d.secoes && d.secoes.length > 0
+      ? d.secoes
+      : d.ativos && d.ativos.length > 0
+        ? [{ nome: 'Ativos', ativos: d.ativos }]
+        : [];
+  const secoes = secoesBrutas
     .map((s) => ({
       secao: s.nome ?? s.tipo,
       total: s.totalValorAtualizado !== undefined ? round(s.totalValorAtualizado) : undefined,
+      ...(s.totalObjetivo !== undefined ? { objetivoTotal: round(s.totalObjetivo) } : {}),
+      ...(s.totalQuantoFalta !== undefined ? { quantoFaltaTotal: round(s.totalQuantoFalta) } : {}),
+      ...(s.totalNecessidadeAporte !== undefined
+        ? { necessidadeAporteTotal: round(s.totalNecessidadeAporte) }
+        : {}),
       // Ativos PLANEJADOS (sem posição) vêm nas rotas das abas como linha
       // zerada; aqui saem das posições (o modelo os lia como carteira) e
       // entram só em `carteira.ativosPlanejadosSemPosicao`.
@@ -369,6 +399,155 @@ export function compactProventos(d: ProventosLike | null | undefined, hoje: Date
   };
 }
 
+// ---------------------------------------------------------------------------
+// Dívidas, objetivos, orçamento e histórico da carteira — campos que o `slim`
+// descartava por serem objetos/arrays (auditoria 16/09/2026).
+// ---------------------------------------------------------------------------
+
+/** Dívida com o resumo calculado (saldo devedor, próxima parcela...). */
+export function compactDivida(d: Json): Json {
+  const resumo = (d.resumo ?? null) as Json | null;
+  const proxima = (resumo?.proximaParcela ?? null) as Json | null;
+  return {
+    ...slim(d),
+    ...(resumo
+      ? {
+          saldoDevedor: round(Number(resumo.saldoCorrigido ?? resumo.saldoDevedor ?? 0)),
+          parcelasPagas: resumo.parcelasPagas ?? undefined,
+          totalParcelas: resumo.totalParcelas ?? undefined,
+          prazoRestanteMeses: resumo.prazoRestanteMeses ?? undefined,
+          ...(proxima
+            ? {
+                proximaParcela: {
+                  numero: proxima.numero,
+                  mes: proxima.mes,
+                  valor: round(Number(resumo.proximaParcelaCorrigida ?? proxima.parcela ?? 0)),
+                },
+              }
+            : {}),
+        }
+      : {}),
+  };
+}
+
+/** Objetivo (sonho) com progresso a partir dos aportes mensais registrados. */
+export function compactObjetivo(o: Json): Json {
+  const entries = ((o.entries ?? []) as Json[])
+    .filter((e) => typeof e.month === 'string')
+    .sort((a, b) => ((a.month as string) < (b.month as string) ? -1 : 1));
+  const base = slim(o);
+  if (entries.length === 0) return base;
+  const aportado = entries.reduce((s, e) => s + Number(e.aporte ?? 0), 0);
+  const ultimo = entries[entries.length - 1];
+  const acumulado = Number(ultimo.balance ?? 0);
+  const target = Number(o.target ?? 0);
+  return {
+    ...base,
+    progresso: {
+      aportadoTotal: round(aportado),
+      acumulado: round(acumulado),
+      ultimoMes: ultimo.month,
+      mesesRegistrados: entries.length,
+      ...(target > 0 ? { percentualDaMeta: round((acumulado / target) * 100) } : {}),
+    },
+  };
+}
+
+const MES_KEY = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+/**
+ * Evolução do patrimônio (último ponto de cada mês, 24 meses) e rentabilidade
+ * TWR/MWR por janela, a partir das séries que o /api/carteira/resumo já
+ * devolve (valores em %, acumulados desde o início).
+ */
+export function compactHistoricoCarteira(resumo: Json | null | undefined, hoje: Date = new Date()) {
+  if (!resumo) return {};
+  type Ponto = { data: number; value?: number; saldoBruto?: number; valorAplicado?: number };
+  const patrimonio = (resumo.historicoPatrimonio ?? []) as Ponto[];
+  const twr = (resumo.historicoTWR ?? []) as Ponto[];
+  const mwr = (resumo.historicoMWR ?? []) as Ponto[];
+  if (patrimonio.length === 0 && twr.length === 0) return {};
+
+  const porMes = <T extends Ponto>(serie: T[]) => {
+    const out = new Map<string, T>();
+    for (const p of serie) out.set(MES_KEY(new Date(p.data)), p); // fica o último do mês
+    return out;
+  };
+  const limite = new Date(hoje.getFullYear(), hoje.getMonth() - 23, 1).getTime();
+  const evolucao: Record<string, { saldoBruto: number; valorAplicado: number }> = {};
+  for (const [mes, p] of porMes(patrimonio)) {
+    if (p.data < limite) continue;
+    evolucao[mes] = {
+      saldoBruto: round(p.saldoBruto ?? 0),
+      valorAplicado: round(p.valorAplicado ?? 0),
+    };
+  }
+
+  // Retorno de uma janela a partir da série acumulada: (1+fim)/(1+início) − 1.
+  const janela = (serie: Ponto[], desde: Date): number | undefined => {
+    if (serie.length === 0) return undefined;
+    const fim = serie[serie.length - 1];
+    let inicio: Ponto | undefined;
+    for (const p of serie) {
+      if (p.data < desde.getTime()) inicio = p;
+      else break;
+    }
+    if (!inicio) return undefined;
+    const r = (1 + Number(fim.value ?? 0) / 100) / (1 + Number(inicio.value ?? 0) / 100) - 1;
+    return round(r * 100);
+  };
+  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const inicioAno = new Date(hoje.getFullYear(), 0, 1);
+  const ha12m = new Date(hoje.getFullYear() - 1, hoje.getMonth(), hoje.getDate());
+  const rentabilidade = {
+    observacao:
+      'TWR em %, ignora aportes/resgates (compare com CDI); MWR pondera pelos aportes. Janelas = mês, ano e 12 meses.',
+    twr: {
+      desdeOInicio: twr.length ? round(Number(twr[twr.length - 1].value ?? 0)) : undefined,
+      noMes: janela(twr, inicioMes),
+      noAno: janela(twr, inicioAno),
+      ultimos12Meses: janela(twr, ha12m),
+    },
+    mwrDesdeOInicio: mwr.length ? round(Number(mwr[mwr.length - 1].value ?? 0)) : undefined,
+  };
+  return {
+    evolucaoPatrimonioPorMes: Object.keys(evolucao).length ? evolucao : undefined,
+    rentabilidade,
+  };
+}
+
+/** Orçamento: meta × realizado do mês atual por categoria (+ restante). */
+export function compactOrcamento(orc: Json | null | undefined, mesIndex: number): Json | null {
+  if (!orc) return null;
+  const categorias = ((orc.categorias ?? []) as Json[]).map((c) => {
+    const real = ((c.realPorMes as Json | undefined)?.lancado ?? []) as number[];
+    const realMes = round(Number(real[mesIndex] ?? 0));
+    const meta = c.metaMensal != null ? round(Number(c.metaMensal)) : null;
+    return {
+      ...slim(c, ['nome', 'parentNome', 'metaMensal']),
+      realAnual: slim(c.realAnual),
+      realMesAtual: realMes,
+      ...(meta != null ? { restanteMesAtual: round(meta - realMes) } : {}),
+    };
+  });
+  const inv = (orc.investimentos ?? null) as Json | null;
+  const invMeta = ((inv?.metaPorMes as Json | undefined)?.lancado ?? []) as number[];
+  const invReal = ((inv?.realPorMes ?? []) as number[]) ?? [];
+  return {
+    observacao:
+      'metaMensal × realMesAtual por categoria (restanteMesAtual = quanto ainda pode gastar no mês).',
+    categorias,
+    totais: orc.totais,
+    investimentos: inv
+      ? {
+          ...slim(inv, ['tipoMeta', 'valorMeta']),
+          metaMesAtual: round(Number(invMeta[mesIndex] ?? 0)),
+          realMesAtual: round(Number(invReal[mesIndex] ?? 0)),
+        }
+      : {},
+  };
+}
+
 export interface ContextoBruto {
   ano: number;
   resumo: Json | null;
@@ -435,6 +614,8 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
       // Dividendos, JCP e rendimentos recebidos — o modelo não tinha isso e
       // respondia que não sabia (16/09/2026).
       proventosRecebidos: compactProventos(raw.proventos, hoje),
+      // Evolução mensal do patrimônio + TWR/MWR por janela (já vinham no resumo).
+      ...compactHistoricoCarteira(r, hoje),
     },
     // Retrato do mês atual: total por grupo de despesa, entradas, despesas e sobra.
     // Vem ANTES do fluxo detalhado para o modelo achar primeiro o número pronto.
@@ -444,21 +625,19 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
     fluxoDeCaixa: raw.cashflow ? compactCashflow(raw.cashflow.groups) : null,
     // Todas as linhas editáveis, por grupo, para propor_lancamento acertar a linha/seção.
     linhasDoFluxo: raw.cashflow ? catalogoLinhas(raw.cashflow.groups) : null,
-    orcamento: orc
+    orcamento: compactOrcamento(orc, hoje.getMonth()),
+    // Com saldo devedor, próxima parcela e prazo restante (antes só o cadastro).
+    dividas: (raw.dividas?.dividas ?? []).map((d) => compactDivida(d)),
+    saudeFinanceira: raw.saude
       ? {
-          categorias: ((orc.categorias ?? []) as Json[]).map((c) => ({
-            ...slim(c, ['nome', 'parentNome', 'metaMensal']),
-            realAnual: slim(c.realAnual),
-          })),
-          totais: orc.totais,
-          investimentos: slim(orc.investimentos, ['tipoMeta', 'valorMeta']),
+          indicadores: (raw.saude as Json).indicadores,
+          config: (raw.saude as Json).config,
+          // Setas vs. mês anterior: 'melhorou' | 'piorou' | 'estavel' | null.
+          tendencias: (raw.saude as Json).tendencias ?? undefined,
         }
       : null,
-    dividas: (raw.dividas?.dividas ?? []).map((d) => slim(d)),
-    saudeFinanceira: raw.saude
-      ? { indicadores: (raw.saude as Json).indicadores, config: (raw.saude as Json).config }
-      : null,
-    objetivos: (raw.sonhos?.objetivos ?? []).map((o) => slim(o)),
+    // Com progresso (aportes registrados e saldo acumulado).
+    objetivos: (raw.sonhos?.objetivos ?? []).map((o) => compactObjetivo(o)),
   };
 }
 
@@ -499,6 +678,7 @@ const ROTAS: Record<string, () => Promise<{ GET: RouteHandler }>> = {
   '/api/carteira/reserva-emergencia': () => import('@/app/api/carteira/reserva-emergencia/route'),
   '/api/carteira/reserva-oportunidade': () =>
     import('@/app/api/carteira/reserva-oportunidade/route'),
+  '/api/carteira/opcoes': () => import('@/app/api/carteira/opcoes/route'),
 };
 
 async function chamarRota<T = Json>(
