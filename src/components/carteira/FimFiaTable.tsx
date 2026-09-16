@@ -185,6 +185,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell

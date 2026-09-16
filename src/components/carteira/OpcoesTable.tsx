@@ -164,6 +164,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell

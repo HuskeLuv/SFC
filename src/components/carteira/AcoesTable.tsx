@@ -139,6 +139,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell

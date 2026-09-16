@@ -124,7 +124,9 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
       <td className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} text-right`}>
         {formatPercentage(ativo.percentualCarteira)}
       </td>
-      <td className={`${TABLE_STYLES.compact.td} text-right font-semibold`}>
+      <td
+        className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} text-right font-semibold`}
+      >
         {isEditingObjetivo ? (
           <div className="flex items-center space-x-1">
             <input
@@ -307,7 +309,12 @@ export default function PrevidenciaSegurosTable({
                 >
                   % da Aba
                 </th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Objetivo</th>
+                <th
+                  className={`${TABLE_STYLES.compact.th} text-right`}
+                  style={TABLE_HIGHLIGHT_HEADER_STYLE}
+                >
+                  Objetivo
+                </th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Quanto Falta</th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Nec. Aporte $</th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>

@@ -7,11 +7,7 @@ import EditableTextCell from './EditableTextCell';
 import Alert from '../ui/alert/Alert';
 import ComponentCard from '../common/ComponentCard';
 import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
-import {
-  TABLE_STYLES,
-  TABLE_HEADER_STYLE,
-  TABLE_HIGHLIGHT_HEADER_STYLE,
-} from '@/components/ui/table/tableStyles';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 // Padrão visual único de tabela (15/09/2026): wrapper arredondado, cabeçalho
 // no azul segurança da paleta, linhas sem bordas verticais, totais em
@@ -303,13 +299,7 @@ export default function AlocacaoAtivosTable({
               <TableCell isHeader colSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
                 Alocação
               </TableCell>
-              <TableCell
-                isHeader
-                rowSpan={2}
-                className={`${TABLE_STYLES.compact.th} text-center`}
-                style={TABLE_HIGHLIGHT_HEADER_STYLE}
-                title="Objetivo de alocação por classe"
-              >
+              <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
                 % TARGET
               </TableCell>
               <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
@@ -415,7 +405,7 @@ export default function AlocacaoAtivosTable({
                   {/* Célula TARGET: antes destacada com borda preta dupla (Excel);
                       no padrão único o destaque é só tipográfico. */}
                   <TableCell
-                    className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} whitespace-nowrap text-center ${
+                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center ${
                       isImoveisBens
                         ? 'text-gray-500 dark:text-gray-500'
                         : isReservaEmergencia

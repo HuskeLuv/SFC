@@ -163,6 +163,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell

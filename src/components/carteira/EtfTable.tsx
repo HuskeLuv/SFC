@@ -156,6 +156,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell

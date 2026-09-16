@@ -162,6 +162,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell

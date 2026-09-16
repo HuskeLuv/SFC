@@ -149,6 +149,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell
