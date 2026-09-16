@@ -5,6 +5,7 @@ const mockPrisma = vi.hoisted(() => ({
   // Histórico de alterações (recordChange importa prisma como default export).
   userChangeLog: { create: vi.fn() },
   portfolio: { findFirst: vi.fn(), update: vi.fn() },
+  watchlist: { findFirst: vi.fn(), update: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>
@@ -107,6 +108,28 @@ describe('POST /api/carteira/acoes/objetivo', () => {
     const data = await response.json();
     expect(response.status).toBe(400);
     expect(data.error).toContain('Dados inválidos');
+  });
+
+  it('grava o objetivo num ativo PLANEJADO (sem posição) quando o id não é de uma posição', async () => {
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    mockPrisma.watchlist.findFirst.mockResolvedValueOnce({
+      id: 'plan-1',
+      userId: 'user-1',
+      objetivo: 0,
+    });
+    mockPrisma.watchlist.update.mockResolvedValueOnce({ id: 'plan-1', objetivo: 20 });
+
+    const response = await POST(createRequest({ ativoId: 'plan-1', objetivo: 20 }));
+    expect(response.status).toBe(200);
+    expect(mockPrisma.watchlist.findFirst).toHaveBeenCalledWith({
+      where: { id: 'plan-1', userId: 'user-1' },
+    });
+    expect(mockPrisma.watchlist.update).toHaveBeenCalledWith({
+      where: { id: 'plan-1' },
+      data: { objetivo: 20 },
+    });
+    // sem posição não há registro no histórico
+    expect(mockPrisma.userChangeLog.create).not.toHaveBeenCalled();
   });
 
   it('retorna 404 quando ativo não encontrado', async () => {

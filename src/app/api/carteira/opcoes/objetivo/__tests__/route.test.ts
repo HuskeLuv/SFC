@@ -5,6 +5,7 @@ const mockPrisma = vi.hoisted(() => ({
   // Histórico de alterações (recordChange importa prisma como default export).
   userChangeLog: { create: vi.fn() },
   portfolio: { findFirst: vi.fn(), update: vi.fn() },
+  watchlist: { findFirst: vi.fn(), update: vi.fn() },
 }));
 
 const mockRequireAuthWithActing = vi.hoisted(() =>

@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  listarPlanejados,
+  linhaPlanejadaBase,
+  TIPOS_ATIVO_PLANEJAVEIS,
+} from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -68,9 +73,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Cotações live + dólar: a aba exibia valorAtualizado = totalInvested
   // (congelado no valor de compra) enquanto o resumo usava cotação — o mesmo
   // ETF valia números diferentes por tela.
-  const symbols = portfolio
-    .map((item) => item.asset?.symbol)
-    .filter((s): s is string => Boolean(s));
+  // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
+  const planejados = await listarPlanejados(
+    targetUserId,
+    TIPOS_ATIVO_PLANEJAVEIS.etf,
+    portfolio.map((p) => p.assetId),
+  );
+  const symbols = [
+    ...portfolio.map((item) => item.asset?.symbol),
+    ...planejados.map((r) => r.asset.symbol),
+  ].filter((s): s is string => Boolean(s));
   const [quotes, dolarIndicator] = await Promise.all([
     getAssetPrices(symbols, { useBrapiFallback: true }),
     getIndicator('USD-BRL', { useBrapiFallback: true }).catch(() => null),
@@ -78,7 +90,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const cotacaoDolar = dolarIndicator?.price ?? null;
 
   // Converter portfolio para formato esperado
-  const etfAtivos = portfolio
+  const etfPosicoes = portfolio
     .filter((item) => item.asset) // Filtrar apenas itens com asset
     .map((item) => {
       const regiao = (item.regiaoEtf ??
@@ -119,6 +131,26 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         dataUltimaAtualizacao: item.lastUpdate,
       };
     });
+
+  // Posições + planejados (linha zerada, `planejado: true`).
+  const etfAtivos: Array<
+    Omit<(typeof etfPosicoes)[number], 'observacoes'> & {
+      planejado?: boolean;
+      observacoes?: string;
+    }
+  > = [...etfPosicoes];
+  for (const r of planejados) {
+    etfAtivos.push({
+      ...linhaPlanejadaBase(r, quotes.get(r.asset.symbol) ?? 0),
+      regiao: (r.secao === 'estados_unidos' || r.secao === 'brasil'
+        ? r.secao
+        : r.asset.currency === 'USD'
+          ? 'estados_unidos'
+          : 'brasil') as 'brasil' | 'estados_unidos',
+      indiceRastreado: 'outros',
+      categoria: '',
+    });
+  }
 
   // Calcular totais gerais
   const totalQuantidade = etfAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
@@ -225,24 +257,28 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   };
 
   // Calcular alocação por ativo
-  const alocacaoAtivo = etfAtivos.map((ativo) => ({
-    name: ativo.ticker,
-    value: ativo.valorAtualizado,
-    color: getAtivoColor(ativo.ticker),
-  }));
+  const alocacaoAtivo = etfAtivos
+    .filter((a) => !a.planejado)
+    .map((ativo) => ({
+      name: ativo.ticker,
+      value: ativo.valorAtualizado,
+      color: getAtivoColor(ativo.ticker),
+    }));
 
   // Tabela auxiliar (dados adicionais)
-  const tabelaAuxiliar = etfAtivos.map((ativo) => ({
-    ticker: ativo.ticker,
-    nome: ativo.nome,
-    quantidade: ativo.quantidade,
-    valorAplicado: ativo.valorTotal,
-    valorAtualizado: ativo.valorAtualizado,
-    rentabilidade: ativo.rentabilidade,
-    cotacaoAtual: ativo.cotacaoAtual ?? 0,
-    necessidadeAporte: ativo.necessidadeAporte ?? 0,
-    loteAproximado: 0,
-  }));
+  const tabelaAuxiliar = etfAtivos
+    .filter((a) => !a.planejado)
+    .map((ativo) => ({
+      ticker: ativo.ticker,
+      nome: ativo.nome,
+      quantidade: ativo.quantidade,
+      valorAplicado: ativo.valorTotal,
+      valorAtualizado: ativo.valorAtualizado,
+      rentabilidade: ativo.rentabilidade,
+      cotacaoAtual: ativo.cotacaoAtual ?? 0,
+      necessidadeAporte: ativo.necessidadeAporte ?? 0,
+      loteAproximado: 0,
+    }));
 
   const data = {
     resumo,

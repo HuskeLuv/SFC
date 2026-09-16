@@ -36,7 +36,13 @@ export interface Emissor {
 }
 
 export interface WizardFormData {
-  operacao: 'compra' | 'aporte';
+  /**
+   * 'planejar' (16/09/2026): inclui o ativo na aba SEM posição, só com
+   * objetivo, para usar Quanto Falta / Necessidade de Aporte no planejamento.
+   */
+  operacao: 'compra' | 'aporte' | 'planejar';
+  /** Objetivo (%) dentro da aba — só no fluxo 'planejar'. */
+  objetivo?: number;
   // Passo 1: Tipo de Ativo
   tipoAtivo: string;
   rendaFixaTipo?: string;
@@ -211,6 +217,7 @@ export interface WizardErrors {
   opcaoCompraVenda?: string;
   dataAporte?: string;
   valorAporte?: string;
+  objetivo?: string;
 }
 
 /** Tipos de ativo aceitos pela API de operação. Impede adição de tipos desconhecidos. */
@@ -245,6 +252,18 @@ export type TipoAtivoPermitido = (typeof TIPOS_ATIVO_PERMITIDOS)[number];
 
 export const isTipoAtivoPermitido = (tipo: string): tipo is TipoAtivoPermitido =>
   (TIPOS_ATIVO_PERMITIDOS as readonly string[]).includes(tipo);
+
+/**
+ * Tipos que podem ser PLANEJADOS sem posição (fase 1: só ativos do catálogo,
+ * com ticker). Ver services/portfolio/ativosPlanejados.ts.
+ */
+export const TIPOS_ATIVO_PLANEJAVEIS = [
+  'acoes-brasil',
+  'fii',
+  'etf',
+  'moeda',
+  'criptoativo',
+] as const;
 
 export const TIPOS_ATIVO = [
   // Ordem das tabs (reserva-emergencia, reserva-oportunidade, renda-fixa, fim-fia, fiis, acoes, stocks, reit, etf, moedas-criptos, previdencia)

@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  listarPlanejados,
+  linhaPlanejadaBase,
+  TIPOS_ATIVO_PLANEJAVEIS,
+} from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
@@ -53,7 +58,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   });
 
   const itemsWithAsset = portfolio.filter((p) => p.asset != null);
-  const symbols = itemsWithAsset.map((p) => p.asset!.symbol);
+  // Ativos PLANEJADOS (sem posição) da aba — linha zerada com objetivo (16/09/2026).
+  const planejados = await listarPlanejados(
+    targetUserId,
+    TIPOS_ATIVO_PLANEJAVEIS['moedas-criptos'],
+    portfolio.map((p) => p.assetId),
+  );
+  const symbols = [
+    ...itemsWithAsset.map((p) => p.asset!.symbol),
+    ...planejados.map((r) => r.asset.symbol),
+  ];
   const [quotes, dolarIndicator] = await Promise.all([
     getAssetPrices(symbols, { useBrapiFallback: true }),
     getIndicator('USD-BRL', { useBrapiFallback: true }),
@@ -101,6 +115,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       rentabilidade,
     };
   });
+
+  for (const r of planejados) {
+    const currency = r.asset.currency ?? 'BRL';
+    ativos.push({
+      ...linhaPlanejadaBase(
+        r,
+        toBRL(quotes.get(r.asset.symbol) ?? 0, currency, r.asset.type ?? ''),
+      ),
+      tipo: mapAssetTypeToTipo(r.asset.type),
+      regiao: mapCurrencyToRegiao(currency),
+      indiceRastreado: '-',
+    });
+  }
 
   const totalQuantidade = ativos.reduce((sum, a) => sum + a.quantidade, 0);
   const totalValorAplicado = ativos.reduce((sum, a) => sum + a.valorTotal, 0);
@@ -201,17 +228,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         (a) => a.valorAtualizado,
       ),
     },
-    alocacaoAtivo: ativos.map((a) => ({
-      ticker: a.ticker,
-      percentual: 0,
-      valor: a.valorAtualizado,
-    })),
-    tabelaAuxiliar: ativos.map((a) => ({
-      ticker: a.ticker,
-      cotacaoAtual: a.cotacaoAtual,
-      necessidadeAporte: 0,
-      loteAproximado: 0,
-    })),
+    alocacaoAtivo: ativos
+      .filter((a) => !a.planejado)
+      .map((a) => ({
+        ticker: a.ticker,
+        percentual: 0,
+        valor: a.valorAtualizado,
+      })),
+    tabelaAuxiliar: ativos
+      .filter((a) => !a.planejado)
+      .map((a) => ({
+        ticker: a.ticker,
+        cotacaoAtual: a.cotacaoAtual,
+        necessidadeAporte: 0,
+        loteAproximado: 0,
+      })),
   };
 
   return NextResponse.json(data);

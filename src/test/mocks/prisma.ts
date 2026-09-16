@@ -51,6 +51,13 @@ export function createMockPrisma() {
     cashflowItem: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     cashflowValue: { findMany: vi.fn(), upsert: vi.fn() },
     fixedIncomeAsset: { findMany: vi.fn() },
+    watchlist: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
     $transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
   };
 }

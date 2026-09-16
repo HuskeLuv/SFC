@@ -7,6 +7,8 @@ const mockPrisma = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   portfolio: { findMany: vi.fn() },
   dashboardData: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
+  // Ativos planejados (sem posição): nenhum nos cenários destes testes.
+  watchlist: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 vi.mock('@/utils/auth', () => ({

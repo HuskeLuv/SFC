@@ -1,5 +1,6 @@
 import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
+import { absorverPlanejadoNaCompra } from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logDataUpdate } from '@/services/impersonationLogger';
@@ -2212,6 +2213,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           },
         });
 
+        // Ativo PLANEJADO (sem posição) virando posição: herda o objetivo e a
+        // seção definidos no planejamento e a linha planejada some (16/09/2026).
+        const planejadoAbsorvido = await absorverPlanejadoNaCompra(tx, targetUserId, asset!.id);
+        const secaoPlanejada = planejadoAbsorvido?.secao ?? null;
+
         if (portfolioExistente) {
           const novaQuantidade = portfolioExistente.quantity + quantidadeFinal;
           const novoTotalInvestido = portfolioExistente.totalInvested + valorFinal;
@@ -2228,6 +2234,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
               ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
               ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
+              ...(planejadoAbsorvido && portfolioExistente.objetivo === 0
+                ? { objetivo: planejadoAbsorvido.objetivo }
+                : {}),
               lastUpdate: new Date(),
             },
           });
@@ -2244,6 +2253,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               ...(tipoAtivo === 'stock' && estrategia ? { estrategia } : {}),
               ...(tipoAtivo === 'fii' && tipoFii ? { tipoFii } : {}),
               ...(tipoAtivo === 'etf' && regiaoEtf ? { regiaoEtf } : {}),
+              ...(planejadoAbsorvido ? { objetivo: planejadoAbsorvido.objetivo } : {}),
+              // Seção do planejamento vale quando a compra não informou uma.
+              ...((tipoAtivo === 'acao' || tipoAtivo === 'stock') && !estrategia && secaoPlanejada
+                ? { estrategia: secaoPlanejada }
+                : {}),
+              ...(tipoAtivo === 'fii' && !tipoFii && secaoPlanejada
+                ? { tipoFii: secaoPlanejada }
+                : {}),
+              ...(tipoAtivo === 'etf' && !regiaoEtf && secaoPlanejada
+                ? { regiaoEtf: secaoPlanejada }
+                : {}),
               lastUpdate: new Date(),
             },
           });
