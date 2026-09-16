@@ -235,6 +235,26 @@ describe('compactClasse / classesComPosicao', () => {
     });
   });
 
+  it('tira os ativos PLANEJADOS (sem posição) das posições da classe', () => {
+    const c = compactClasse({
+      secoes: [
+        {
+          nome: 'Growth',
+          ativos: [
+            { id: 'p1', ticker: 'VALE3', planejado: true, objetivo: 10, valorAtualizado: 0 },
+            { id: 'a1', ticker: 'ITSA4', valorAtualizado: 100 },
+          ],
+        },
+        { nome: 'Risk', ativos: [{ id: 'p2', ticker: 'PETR4', planejado: true }] },
+      ],
+    });
+    expect(c).toEqual({
+      resumo: {},
+      secoes: [{ secao: 'Growth', ativos: [{ ticker: 'ITSA4', valorAtualizado: 100 }] }],
+      totalGeral: {},
+    });
+  });
+
   it('mapeia distribuição com valor para as rotas de posição', () => {
     expect(
       classesComPosicao({
@@ -304,5 +324,38 @@ describe('montarContexto', () => {
       config: { multReserva: 3 },
     });
     expect(ctx.objetivos).toEqual([{ nome: 'Viagem' }]);
+  });
+});
+
+describe('montarContexto — ativos planejados', () => {
+  const base = {
+    ano: 2026,
+    resumo: null,
+    posicoes: {},
+    cashflow: null,
+    orcamento: null,
+    dividas: null,
+    saude: null,
+    sonhos: null,
+  };
+  it('lista os planejados numa chave própria da carteira, fora das posições', () => {
+    const ctx = montarContexto(
+      {
+        ...base,
+        planejados: [
+          { aba: 'Ações', ativo: 'VALE3', objetivoPercentualDaAba: 10, secao: 'growth' },
+        ],
+      },
+      new Date('2026-09-16T12:00:00Z'),
+    ) as { carteira: Record<string, unknown> };
+    expect(ctx.carteira.ativosPlanejadosSemPosicao).toEqual([
+      { aba: 'Ações', ativo: 'VALE3', objetivoPercentualDaAba: 10, secao: 'growth' },
+    ]);
+  });
+  it('sem planejados a chave nem aparece', () => {
+    const ctx = montarContexto(base, new Date('2026-09-16T12:00:00Z')) as {
+      carteira: Record<string, unknown>;
+    };
+    expect(ctx.carteira).not.toHaveProperty('ativosPlanejadosSemPosicao');
   });
 });

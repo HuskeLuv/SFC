@@ -12,6 +12,7 @@ import {
   criarAssetPlanejadoManual,
   encontrarPlanejadoManual,
 } from '@/services/portfolio/ativosPlanejados';
+import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 
 /**
  * POST /api/carteira/planejados — inclui um ativo PLANEJADO na aba (sem
@@ -123,5 +124,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
+  invalidarContextoUsuario(targetUserId);
   return NextResponse.json({ success: true, planejado }, { status: 201 });
 });

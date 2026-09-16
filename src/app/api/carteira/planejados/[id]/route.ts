@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { requireAuthWithActing } from '@/utils/auth';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { validationError, zPercentage } from '@/utils/validation-schemas';
+import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 
 /**
  * PATCH  /api/carteira/planejados/[id] — altera o objetivo do ativo planejado.
@@ -38,11 +39,13 @@ export const PATCH = withErrorHandler(async (request: NextRequest, ctx: Ctx) => 
       ...(observacoes !== undefined ? { notes: observacoes?.trim() || null } : {}),
     },
   });
+  invalidarContextoUsuario(planejado.userId);
   return NextResponse.json({ success: true, planejado: atualizado });
 });
 
 export const DELETE = withErrorHandler(async (request: NextRequest, ctx: Ctx) => {
   const planejado = await localizar(request, ctx);
   await prisma.watchlist.delete({ where: { id: planejado.id } });
+  invalidarContextoUsuario(planejado.userId);
   return NextResponse.json({ success: true });
 });

@@ -227,6 +227,39 @@ export async function criarAssetPlanejadoManual(
   });
 }
 
+/** Aba da carteira onde um Asset planejado aparece (null = tipo fora das abas planejáveis). */
+export function abaDoAssetPlanejado(asset: Pick<Asset, 'type' | 'currency' | 'symbol'>) {
+  if (asset.type === 'stock') {
+    return asset.currency === 'USD' ? 'stocks' : 'acoes';
+  }
+  for (const [aba, tipos] of Object.entries(TIPOS_ATIVO_PLANEJAVEIS)) {
+    if ((tipos as readonly string[]).includes(asset.type)) return aba as AbaPlanejavel;
+  }
+  return null;
+}
+
+/** Rótulo da aba para textos (assistente, histórico). */
+export const ROTULO_ABA: Record<AbaPlanejavel, string> = {
+  acoes: 'Ações',
+  fii: "FII's",
+  etf: "ETF's",
+  'moedas-criptos': 'Moedas e Criptos',
+  stocks: 'Stocks',
+  reits: "REIT's",
+  'fim-fia': 'Fundos',
+  'previdencia-seguros': 'Previdência e Seguros',
+};
+
+/** Todos os planejados do usuário (com Asset), para o contexto do assistente e afins. */
+export async function listarTodosPlanejados(userId: string): Promise<PlanejadoComAsset[]> {
+  const rows = await prisma.watchlist.findMany({
+    where: { userId },
+    include: { asset: true },
+    orderBy: { addedAt: 'asc' },
+  });
+  return rows.filter((r): r is PlanejadoComAsset => !!r.asset && !!r.assetId);
+}
+
 type TxLike = Pick<Prisma.TransactionClient, 'watchlist'>;
 
 /**
