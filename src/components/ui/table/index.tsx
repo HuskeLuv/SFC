@@ -39,6 +39,7 @@ interface TableCellProps {
   style?: React.CSSProperties; // Optional inline styles
   id?: string; // Optional id attribute
   scope?: 'col' | 'row' | 'colgroup' | 'rowgroup'; // Header scope (th only)
+  title?: string; // Native tooltip
 }
 
 // Table Component
@@ -79,7 +80,7 @@ const TableRow: React.FC<TableRowProps> = ({ children, className, style, onClick
 
 // TableCell Component
 const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(
-  ({ children, isHeader = false, className, colSpan, rowSpan, style, id, scope }, ref) => {
+  ({ children, isHeader = false, className, colSpan, rowSpan, style, id, scope, title }, ref) => {
     const CellTag = isHeader ? 'th' : 'td';
     return (
       <CellTag
@@ -90,6 +91,7 @@ const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(
         rowSpan={rowSpan}
         style={style}
         scope={isHeader ? (scope ?? 'col') : undefined}
+        title={title}
       >
         {children}
       </CellTag>

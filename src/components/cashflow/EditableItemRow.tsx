@@ -6,8 +6,8 @@ import { CurrencyInput } from './CurrencyInput';
 import { DeleteItemButton } from './DeleteItemButton';
 import { EditableItemData } from '@/hooks/useGroupEditMode';
 import { CommentIndicator } from './CommentIndicator';
-import { FixedCell, MonthCell, AnnualCell, SpacerCell, ActionsCell } from './GridCells';
-import { GRID } from './cashflowGridStyles';
+import { FixedCell, MonthCell, AnnualCell } from './GridCells';
+import { GRID, currentMonthIndex } from './cashflowGridStyles';
 
 interface EditableItemRowProps {
   item: CashflowItem;
@@ -36,9 +36,6 @@ interface EditableItemRowProps {
    */
   objetivoLocked?: boolean;
 }
-
-const TEXT_INPUT_CLASS =
-  'w-full px-2 text-xs border border-brand-500 rounded bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 h-6 leading-6';
 
 export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   item,
@@ -119,13 +116,13 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   // Calcular total anual a partir dos valores mensais editados
   const calculatedAnnualTotal = displayData.monthlyValues.reduce((sum, val) => sum + val, 0);
 
-  const fixedBg = {
-    backgroundColor: isEditing && !isInvestmentItem ? GRID.editingBg : 'white',
-  };
+  // Linha de investimento (calculada) não entra em edição: mantém o fundo normal.
+  const rowBg = isEditing && !isInvestmentItem ? GRID.editingBg : GRID.rowBg;
   const cellModeActive = isCommentModeActive || isColorModeActive;
   const cellModeClass = cellModeActive
-    ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors'
+    ? 'cursor-pointer hover:bg-[#0079F2]/[0.10] transition-colors'
     : '';
+  const currentMonth = currentMonthIndex(currentYear);
 
   const handleCellAction = (index: number) => {
     if (isCommentModeActive && onCommentCellClick) onCommentCellClick(item.id, index);
@@ -143,43 +140,46 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
     ) : null;
 
   return (
-    <TableRow
-      className={`${GRID.row} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${isEditing ? 'bg-blue-50/30 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-900'}`}
-      style={GRID.rowStyle}
-    >
-      <FixedCell
-        col={0}
-        className="font-medium text-gray-800 dark:text-white text-left"
-        style={fixedBg}
-      >
-        {canEditStructure ? (
-          <input
-            type="text"
-            size={1}
-            value={displayData.name}
-            onChange={(e) => onUpdateField(item.id, 'name', e.target.value)}
-            className={TEXT_INPUT_CLASS}
-          />
-        ) : (
-          <span className="truncate block">
-            {objetivoLocked ? (
-              <span
-                className="mr-1"
-                title={
-                  autoRealizado
-                    ? 'Sonho com ativos vinculados — o realizado vem automaticamente da carteira'
-                    : 'Linha vinculada a um sonho — edite o nome no Planejamento de Sonhos'
-                }
-              >
-                🎯
-              </span>
-            ) : null}
-            {displayData.name || ''}
-          </span>
-        )}
+    <TableRow className={`${GRID.row} ${rowBg}`}>
+      <FixedCell col={0} className={`font-medium text-gray-800 dark:text-gray-100 ${rowBg}`}>
+        {/* Nome + botão de excluir na mesma célula: sem coluna "Ações" que
+            aparecia/sumia ao entrar e sair da edição. */}
+        <div className="flex items-center gap-1 h-7">
+          {canEditStructure ? (
+            <input
+              type="text"
+              size={1}
+              value={displayData.name}
+              onChange={(e) => onUpdateField(item.id, 'name', e.target.value)}
+              aria-label="Nome do item"
+              className={`flex-1 min-w-0 ${GRID.input}`}
+            />
+          ) : (
+            <span className="truncate block flex-1 min-w-0">
+              {objetivoLocked ? (
+                <span
+                  className="mr-1"
+                  title={
+                    autoRealizado
+                      ? 'Sonho com ativos vinculados — o realizado vem automaticamente da carteira'
+                      : 'Linha vinculada a um sonho — edite o nome no Planejamento de Sonhos'
+                  }
+                >
+                  🎯
+                </span>
+              ) : null}
+              {displayData.name || ''}
+            </span>
+          )}
+          {canDelete && (
+            <span className="flex-shrink-0">
+              <DeleteItemButton onClick={handleDeleteClick} />
+            </span>
+          )}
+        </div>
       </FixedCell>
 
-      <FixedCell col={1} className="font-normal text-gray-800 dark:text-gray-400" style={fixedBg}>
+      <FixedCell col={1} className={`text-gray-500 dark:text-gray-400 ${rowBg}`}>
         {canEditStructure ? (
           <input
             type="text"
@@ -187,18 +187,15 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             value={displayData.significado || ''}
             onChange={(e) => onUpdateField(item.id, 'significado', e.target.value || null)}
             placeholder="O seu porquê"
-            className={TEXT_INPUT_CLASS}
+            aria-label="O seu porquê"
+            className={GRID.input}
           />
         ) : (
-          <span className="truncate block">{displayData.significado || '-'}</span>
+          <span className="truncate block">{displayData.significado || ''}</span>
         )}
       </FixedCell>
 
-      <FixedCell
-        col={2}
-        className="font-normal text-gray-800 dark:text-gray-400 text-center"
-        style={fixedBg}
-      >
+      <FixedCell col={2} className={`text-center text-gray-500 dark:text-gray-400 ${rowBg}`}>
         {canEditStructure ? (
           <input
             type="text"
@@ -207,24 +204,17 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             onChange={(e) =>
               onUpdateField(item.id, 'rank', e.target.value === '' ? null : e.target.value)
             }
-            placeholder="Nível prioridade"
-            className={`${TEXT_INPUT_CLASS} text-center`}
+            placeholder="Nível"
+            aria-label="Nível de prioridade"
+            className={`${GRID.input} text-center`}
           />
         ) : (
-          <span>{displayData.rank || '-'}</span>
+          <span>{displayData.rank || ''}</span>
         )}
       </FixedCell>
 
-      <FixedCell
-        col={3}
-        className="font-normal text-black dark:text-black text-right"
-        style={fixedBg}
-      >
-        {group.name === 'Investimentos'
-          ? '-'
-          : itemPercentage > 0
-            ? formatPercent(itemPercentage)
-            : '-'}
+      <FixedCell col={3} className={`text-right tabular-nums ${rowBg}`}>
+        {group.name !== 'Investimentos' && itemPercentage > 0 ? formatPercent(itemPercentage) : ''}
       </FixedCell>
 
       {canEditValues
@@ -234,7 +224,8 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
               <MonthCell
                 key={index}
                 index={index}
-                className={`font-normal ${cellModeClass}`}
+                currentMonth={currentMonth}
+                className={cellModeClass}
                 style={{ overflow: 'visible' }}
               >
                 <div
@@ -269,7 +260,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
               <MonthCell
                 key={index}
                 index={index}
-                className={GRID.dataText}
+                currentMonth={currentMonth}
                 style={{ overflow: 'visible' }}
               >
                 <div
@@ -285,17 +276,9 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             );
           })}
 
-      <SpacerCell />
-
-      <AnnualCell className={GRID.annualText}>
+      <AnnualCell className={`text-gray-800 dark:text-gray-100 ${rowBg}`}>
         {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
       </AnnualCell>
-
-      {canDelete && (
-        <ActionsCell>
-          <DeleteItemButton onClick={handleDeleteClick} />
-        </ActionsCell>
-      )}
     </TableRow>
   );
 };

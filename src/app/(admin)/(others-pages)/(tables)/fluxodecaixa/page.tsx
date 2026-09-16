@@ -3,6 +3,7 @@ import ComponentCard from '@/components/common/ComponentCard';
 import DataTableTwo from '@/components/tables/DataTables/TableTwo/DataTableTwo';
 import OrcamentoVsRealSection from '@/components/cashflow/orcamento/OrcamentoVsRealSection';
 import { useSidebar } from '@/context/SidebarContext';
+import { useCashflowYear } from '@/context/CashflowYearContext';
 import React, { useEffect, useState } from 'react';
 
 type Modo = 'planilha' | 'orcamento';
@@ -14,6 +15,7 @@ const MODOS: { value: Modo; label: string }[] = [
 
 export default function FluxoDeCaixa() {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const { year } = useCashflowYear();
   const isCollapsed = !(isExpanded || isHovered || isMobileOpen);
   const cardWidth = isCollapsed ? 'max-w-[98vw] w-full' : '';
 
@@ -60,7 +62,7 @@ export default function FluxoDeCaixa() {
       className={`${cardWidth} min-w-0 transition-all duration-300 -m-[30px] h-[calc(100vh-60px)] flex flex-col overflow-hidden`}
     >
       <ComponentCard
-        title={modo === 'planilha' ? 'Fluxo de Caixa' : 'Orçamento vs Real'}
+        title={modo === 'planilha' ? `Fluxo de Caixa · ${year}` : `Orçamento vs Real · ${year}`}
         className="flex-1 flex flex-col min-w-0 m-[30px] overflow-hidden"
       >
         <div className="flex-1 flex flex-col min-h-0 min-w-0 p-[30px] pt-5 overflow-hidden">
