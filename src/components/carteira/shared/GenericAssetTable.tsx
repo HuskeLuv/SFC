@@ -370,6 +370,13 @@ export default function GenericAssetTable<TAtivo, TSecao>({
     if (!data) return data;
     const totalGeral = getTotalGeral(data);
     const totalTabValue = (totalGeral?.valorAtualizado as number) || 0;
+    // Aba VAZIA (só planejados, sem caixa): a necessidade de aporte não tem
+    // base (0 × objetivo). Usa o valor-alvo da classe na Alocação de Ativos —
+    // que, com a aba zerada, é exatamente a necessidade da classe no card.
+    const alvoClasse = necessidadeAporteKey
+      ? ((necessidadeAporteMap as Record<string, number>)[necessidadeAporteKey] ?? 0)
+      : 0;
+    const baseAporte = totalTabValue > 0 ? totalTabValue : alvoClasse;
     const shouldCalculateRisco = totalCarteira > 0;
     const secoes = getSecoes(data);
 
@@ -392,7 +399,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
         const objetivo = (a.objetivo as number) || 0;
         const quantoFalta = objetivo - percentualCarteira;
         const necessidadeAporte =
-          totalTabValue > 0 && quantoFalta > 0 ? (quantoFalta / 100) * totalTabValue : 0;
+          baseAporte > 0 && quantoFalta > 0 ? (quantoFalta / 100) * baseAporte : 0;
 
         return {
           ...a,
@@ -462,7 +469,16 @@ export default function GenericAssetTable<TAtivo, TSecao>({
         necessidadeAporte: totalNecessidadeAporte,
       },
     };
-  }, [data, totalCarteira, cotacaoParaBRL, getTotalGeral, getSecoes, getSectionAtivos]);
+  }, [
+    data,
+    totalCarteira,
+    cotacaoParaBRL,
+    getTotalGeral,
+    getSecoes,
+    getSectionAtivos,
+    necessidadeAporteKey,
+    necessidadeAporteMap,
+  ]);
 
   const effectiveData = (dataComRiscoProp ?? dataComRiscoDefault) as Record<string, unknown> | null;
 
