@@ -12,6 +12,7 @@ import AssetNameLink from '@/components/carteira/AssetNameLink';
 import {
   TABLE_STYLES,
   TABLE_HEADER_STYLE,
+  TABLE_HIGHLIGHT_HEADER_STYLE,
   TABLE_SECTION_STYLE,
 } from '@/components/ui/table/tableStyles';
 
@@ -120,10 +121,12 @@ const PrevidenciaSegurosTableRow: React.FC<PrevidenciaSegurosTableRowProps> = ({
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className={`${TABLE_STYLES.compact.td} text-right`}>
+      <td className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} text-right`}>
         {formatPercentage(ativo.percentualCarteira)}
       </td>
-      <td className={`${TABLE_STYLES.compact.td} text-right font-semibold`}>
+      <td
+        className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} text-right font-semibold`}
+      >
         {isEditingObjetivo ? (
           <div className="flex items-center space-x-1">
             <input
@@ -300,8 +303,18 @@ export default function PrevidenciaSegurosTable({
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Objetivo</th>
+                <th
+                  className={`${TABLE_STYLES.compact.th} text-right`}
+                  style={TABLE_HIGHLIGHT_HEADER_STYLE}
+                >
+                  % da Aba
+                </th>
+                <th
+                  className={`${TABLE_STYLES.compact.th} text-right`}
+                  style={TABLE_HIGHLIGHT_HEADER_STYLE}
+                >
+                  Objetivo
+                </th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Quanto Falta</th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Nec. Aporte $</th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>

@@ -147,6 +147,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     {
       key: 'percentualCarteira',
       header: '% da Aba',
+      highlight: true,
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
@@ -155,6 +156,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell

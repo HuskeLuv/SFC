@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatAssetDisplayTitle } from '../assetDisplayName';
+import { formatAssetDisplayTitle, simplifyAssetName } from '../assetDisplayName';
 
 describe('formatAssetDisplayTitle', () => {
   it('exibe ticker e nome separados por em-dash em ativos normais', () => {
@@ -75,5 +75,46 @@ describe('formatAssetDisplayTitle', () => {
         'BTC — Bitcoin',
       );
     });
+  });
+});
+
+describe('simplifyAssetName (nomes simplificados nas abas, 16/09/2026)', () => {
+  it('remove o sufixo "- R$ valor - data" dos ativos manuais', () => {
+    expect(simplifyAssetName('CDB Teste 110% CDI - R$ 10.000 - 01/07/2025')).toBe(
+      'CDB Teste 110% CDI',
+    );
+    expect(simplifyAssetName('Tesouro Selic 2030 - R$ 2.000 - 31/05/2026')).toBe(
+      'Tesouro Selic 2030',
+    );
+    expect(simplifyAssetName('Apartamento Teste - R$ 500.000 - 31/05/2026')).toBe(
+      'Apartamento Teste',
+    );
+  });
+
+  it('remove sufixo em dólar (REIT manual) e sufixo só de data', () => {
+    expect(simplifyAssetName('Realty Income - $1,000 - 1/7/2025')).toBe('Realty Income');
+    expect(simplifyAssetName('Fundo XP Macro - US$ 500 - 01/07/2025')).toBe('Fundo XP Macro');
+    expect(simplifyAssetName('Fundo XP Macro - 01/07/2025')).toBe('Fundo XP Macro');
+  });
+
+  it('preserva a instituição da conta corrente (só o valor/data saem)', () => {
+    expect(
+      simplifyAssetName('Conta Corrente (Reserva Emergência) - Nubank - R$ 5.000 - 01/01/2026'),
+    ).toBe('Conta Corrente (Reserva Emergência) - Nubank');
+  });
+
+  it('é idempotente e não toca em nomes sem sufixo', () => {
+    expect(simplifyAssetName('PETROLEO BRASILEIRO S.A. PETROBRAS')).toBe(
+      'PETROLEO BRASILEIRO S.A. PETROBRAS',
+    );
+    expect(simplifyAssetName('Tesouro IPCA+ 2035')).toBe('Tesouro IPCA+ 2035');
+    expect(simplifyAssetName(simplifyAssetName('CDB - R$ 1.000 - 01/01/2026'))).toBe('CDB');
+  });
+
+  it('nunca devolve vazio para nome não-vazio; vazio/null viram ""', () => {
+    expect(simplifyAssetName(' - R$ 1.000 - 01/01/2026')).toBe(' - R$ 1.000 - 01/01/2026'.trim());
+    expect(simplifyAssetName('')).toBe('');
+    expect(simplifyAssetName(null)).toBe('');
+    expect(simplifyAssetName(undefined)).toBe('');
   });
 });

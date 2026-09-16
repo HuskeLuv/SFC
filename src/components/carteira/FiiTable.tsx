@@ -154,6 +154,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     {
       key: 'percentualCarteira',
       header: '% da Aba',
+      highlight: true,
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
@@ -162,6 +163,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell

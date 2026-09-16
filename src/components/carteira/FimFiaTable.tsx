@@ -163,6 +163,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     {
       key: 'percentualCarteira',
       header: '% da Aba',
+      highlight: true,
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),
@@ -184,6 +185,7 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     {
       key: 'objetivo',
       header: 'Objetivo',
+      highlight: true,
       align: 'right',
       render: (a, f) => (
         <EditableObjetivoCell

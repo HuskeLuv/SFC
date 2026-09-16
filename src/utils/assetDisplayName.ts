@@ -38,6 +38,27 @@ const stripBoundaryNoise = (s: string): string => {
 };
 
 /**
+ * Sufixo que o backend cola no nome dos ativos manuais ao criá-los
+ * (`/api/carteira/operacao`): ` - R$ 10.000 - 01/07/2025`, ` - US$ 1,000 - 1/7/2025`
+ * ou só ` - 01/07/2025`. Serve para desambiguar no banco, mas polui a tabela.
+ */
+const VALUE_DATE_SUFFIX =
+  /(?:\s*[-–—]\s*(?:R\$|US\$|U\$|\$)\s?[\d.,]+)?\s*[-–—]\s*\d{1,2}\/\d{1,2}\/\d{2,4}\s*$/;
+
+/**
+ * Nome "simplificado" para as abas da carteira (pedido do Wellington,
+ * 16/09/2026): tira o sufixo de valor/data gerado na criação e o ruído de
+ * bordas. Idempotente; nomes sem sufixo passam intactos. O nome completo
+ * continua no banco e na página de detalhes do ativo.
+ */
+export const simplifyAssetName = (name: string | null | undefined): string => {
+  const raw = (name || '').trim();
+  if (!raw) return '';
+  const semSufixo = stripBoundaryNoise(raw.replace(VALUE_DATE_SUFFIX, ''));
+  return semSufixo || raw;
+};
+
+/**
  * Retorna o título a exibir como cabeçalho/card do ativo.
  * Regras:
  *   - Se ticker é sintético, oculta-o (o usuário não criou esse identificador).

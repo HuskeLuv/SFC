@@ -11,6 +11,7 @@ import { BasicTablePlaceholderRows } from '@/components/carteira/shared';
 import {
   TABLE_STYLES,
   TABLE_HEADER_STYLE,
+  TABLE_HIGHLIGHT_HEADER_STYLE,
   TABLE_SECTION_STYLE,
 } from '@/components/ui/table/tableStyles';
 
@@ -26,6 +27,11 @@ export interface ColumnDef<TAtivo, TSecao = Record<string, unknown>> {
   align?: 'left' | 'center' | 'right';
   headerClassName?: string;
   cellClassName?: string;
+  /**
+   * Coluna em destaque (cabeçalho sólido `outside` + células de item tingidas),
+   * como a coluna do mês atual no Fluxo de Caixa. Usado no "% da Aba".
+   */
+  highlight?: boolean;
   /** Render the cell content for a single asset row */
   render: (ativo: TAtivo, formatters: Formatters) => ReactNode;
   /** Render the cell content for the section total row. Return '-' to show a dash. */
@@ -229,7 +235,9 @@ function GenericSection<TAtivo, TSecao>({
               return (
                 <td
                   key={col.key}
-                  className={`${TABLE_STYLES.compact.td} ${alignClass} ${col.cellClassName ?? ''}`}
+                  className={`${TABLE_STYLES.compact.td} ${alignClass} ${
+                    col.highlight ? TABLE_STYLES.highlightTd : ''
+                  } ${col.cellClassName ?? ''}`}
                 >
                   {col.render(ativo, formatters)}
                 </td>
@@ -501,7 +509,7 @@ export default function GenericAssetTable<TAtivo, TSecao>({
                     <th
                       key={col.key}
                       className={`${TABLE_STYLES.compact.th} ${alignClass} ${col.headerClassName ?? ''}`}
-                      style={TABLE_HEADER_STYLE}
+                      style={col.highlight ? TABLE_HIGHLIGHT_HEADER_STYLE : TABLE_HEADER_STYLE}
                     >
                       {col.header}
                     </th>
