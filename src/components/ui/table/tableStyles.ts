@@ -49,8 +49,8 @@ export const TABLE_STYLES = {
    * <td> de dado numa COLUNA EM DESTAQUE (pedido do Wellington, 16/09/2026):
    * tinta do azul `outside` bem diluída, igual à coluna do mês atual do Fluxo
    * de Caixa. O <th> correspondente leva `TABLE_HIGHLIGHT_HEADER_STYLE`
-   * (fundo sólido). Usos: "% Target" na Alocação de Ativos e "% da Aba" nas
-   * abas da carteira. Só nas linhas de item — seções e totais ficam como estão.
+   * (fundo sólido). Uso: coluna "Objetivo" das abas da carteira. Só nas
+   * linhas de item — seções e totais ficam como estão.
    */
   highlightTd: 'bg-[#0079F2]/[0.06] dark:bg-[#0079F2]/[0.16]',
   /** Variante compacta para tabelas densas (muitas colunas): mesmos tokens, menos padding. */

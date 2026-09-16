@@ -7,7 +7,11 @@ import EditableTextCell from './EditableTextCell';
 import Alert from '../ui/alert/Alert';
 import ComponentCard from '../common/ComponentCard';
 import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
-import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_HIGHLIGHT_HEADER_STYLE,
+} from '@/components/ui/table/tableStyles';
 
 // Padrão visual único de tabela (15/09/2026): wrapper arredondado, cabeçalho
 // no azul segurança da paleta, linhas sem bordas verticais, totais em
@@ -24,6 +28,8 @@ interface AlocacaoAtivo {
   percentualTarget: number;
   quantoFalta: number;
   necessidadeAporte: number;
+  /** Quanto a classe está ACIMA do target, em R$ (0 quando falta ou bate). */
+  excessoAporte: number;
   descricao: string;
 }
 
@@ -162,6 +168,7 @@ export default function AlocacaoAtivosTable({
           percentualTarget: 0,
           quantoFalta: 0,
           necessidadeAporte: 0,
+          excessoAporte: 0,
           descricao: '',
         });
       } else {
@@ -169,7 +176,11 @@ export default function AlocacaoAtivosTable({
         // Necessidade em R$ sai dos VALORES, não do % exibido (arredondado a
         // 2 casas no backend): 20,39% × total dava R$ 35 a menos que
         // 50% × total − atual (auditoria Pedro 25/08/2026, item B6).
-        const valorNecessario = Math.max(0, (config.target / 100) * totalCarteira - value.valor);
+        const valorAlvo = (config.target / 100) * totalCarteira;
+        const valorNecessario = Math.max(0, valorAlvo - value.valor);
+        // Excesso em R$ (pedido do Wellington 16/09/2026): a coluna de
+        // necessidade mostrava "-" quando a classe passava do target.
+        const valorExcedente = Math.max(0, value.valor - valorAlvo);
         totalNecessidadeAporte += valorNecessario;
 
         dados.push({
@@ -182,6 +193,7 @@ export default function AlocacaoAtivosTable({
           percentualTarget: config.target,
           quantoFalta: diferenca,
           necessidadeAporte: valorNecessario,
+          excessoAporte: valorExcedente,
           descricao: config.descricao || '',
         });
       }
@@ -299,7 +311,12 @@ export default function AlocacaoAtivosTable({
               <TableCell isHeader colSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
                 Alocação
               </TableCell>
-              <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
+              <TableCell
+                isHeader
+                rowSpan={2}
+                className={`${TABLE_STYLES.compact.th} text-center`}
+                style={TABLE_HIGHLIGHT_HEADER_STYLE}
+              >
                 % TARGET
               </TableCell>
               <TableCell isHeader rowSpan={2} className={`${TABLE_STYLES.compact.th} text-center`}>
@@ -405,7 +422,7 @@ export default function AlocacaoAtivosTable({
                   {/* Célula TARGET: antes destacada com borda preta dupla (Excel);
                       no padrão único o destaque é só tipográfico. */}
                   <TableCell
-                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center ${
+                    className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} whitespace-nowrap text-center ${
                       isImoveisBens
                         ? 'text-gray-500 dark:text-gray-500'
                         : isReservaEmergencia
@@ -451,15 +468,20 @@ export default function AlocacaoAtivosTable({
                   <TableCell
                     className={`${TABLE_STYLES.compact.td} w-36 whitespace-nowrap text-center font-mono`}
                   >
-                    <span
-                      className={
-                        ativo.necessidadeAporte > 0
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      }
-                    >
-                      {ativo.necessidadeAporte > 0 ? formatarMoeda(ativo.necessidadeAporte) : '-'}
-                    </span>
+                    {ativo.necessidadeAporte > 0 ? (
+                      <span className="text-green-600 dark:text-green-400">
+                        {formatarMoeda(ativo.necessidadeAporte)}
+                      </span>
+                    ) : ativo.excessoAporte > 0 ? (
+                      <span
+                        className="text-red-600 dark:text-red-400"
+                        title="Valor acima do target desta classe"
+                      >
+                        -{formatarMoeda(ativo.excessoAporte)}
+                      </span>
+                    ) : (
+                      '-'
+                    )}
                   </TableCell>
                   <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
                     <EditableTextCell

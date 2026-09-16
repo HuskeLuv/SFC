@@ -5,11 +5,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table'
 import ComponentCard from '../common/ComponentCard';
 import { UiTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import {
-  TABLE_STYLES,
-  TABLE_HEADER_STYLE,
-  TABLE_HIGHLIGHT_HEADER_STYLE,
-} from '@/components/ui/table/tableStyles';
+import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_EMERGENCIA_COLUMN_COUNT = 12;
@@ -104,7 +100,7 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
       <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
         {formatCurrency(ativo.valorAtualizado)}
       </TableCell>
-      <TableCell className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} text-center`}>
+      <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
         {formatPercentage(ativo.percentualCarteira)}
       </TableCell>
       <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
@@ -224,11 +220,7 @@ export default function ReservaEmergenciaTable({
                 <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
                   Valor Atual
                 </TableCell>
-                <TableCell
-                  isHeader
-                  className={`${TABLE_STYLES.compact.th} text-center`}
-                  style={TABLE_HIGHLIGHT_HEADER_STYLE}
-                >
+                <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>
                   % da Aba
                 </TableCell>
                 <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-center`}>

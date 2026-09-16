@@ -153,7 +153,6 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     {
       key: 'percentualCarteira',
       header: '% da Aba',
-      highlight: true,
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),

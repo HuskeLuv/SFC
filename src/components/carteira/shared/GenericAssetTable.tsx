@@ -29,7 +29,7 @@ export interface ColumnDef<TAtivo, TSecao = Record<string, unknown>> {
   cellClassName?: string;
   /**
    * Coluna em destaque (cabeçalho sólido `outside` + células de item tingidas),
-   * como a coluna do mês atual no Fluxo de Caixa. Usado no "% da Aba".
+   * como a coluna do mês atual no Fluxo de Caixa. Usado no "Objetivo".
    */
   highlight?: boolean;
   /** Render the cell content for a single asset row */

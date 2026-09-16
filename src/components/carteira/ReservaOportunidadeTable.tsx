@@ -12,7 +12,6 @@ import {
   StandardTableRow,
 } from '@/components/ui/table/StandardTable';
 import { TableBody } from '@/components/ui/table';
-import { TABLE_STYLES, TABLE_HIGHLIGHT_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { StandardTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
 
@@ -90,7 +89,7 @@ const ReservaOportunidadeTableRow: React.FC<ReservaOportunidadeTableRowProps> = 
       <StandardTableBodyCell align="right">
         {formatCurrency(ativo.valorAtualizado)}
       </StandardTableBodyCell>
-      <StandardTableBodyCell align="right" className={TABLE_STYLES.highlightTd}>
+      <StandardTableBodyCell align="right">
         {formatPercentage(ativo.percentualCarteira)}
       </StandardTableBodyCell>
       <StandardTableBodyCell align="right">
@@ -207,12 +206,7 @@ export default function ReservaOportunidadeTable({
               <StandardTableHeaderCell align="right">Aporte</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right">Resgate</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right">Valor Atual</StandardTableHeaderCell>
-              <StandardTableHeaderCell
-                align="right"
-                headerBgColor={TABLE_HIGHLIGHT_HEADER_STYLE.backgroundColor}
-              >
-                % da Aba
-              </StandardTableHeaderCell>
+              <StandardTableHeaderCell align="right">% da Aba</StandardTableHeaderCell>
               <StandardTableHeaderCell align="right">
                 <span className="block">Risco Por Ativo</span>
                 <span className="block">(Carteira Total)</span>
