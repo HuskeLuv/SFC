@@ -130,6 +130,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     {
       key: 'percentualCarteira',
       header: '% da Aba',
+      highlight: true,
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),

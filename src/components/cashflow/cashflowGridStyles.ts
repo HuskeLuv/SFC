@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
-import { TABLE_HEADER_BG, MYFINANCE_BRAND } from '@/constants/brandColors';
+import { TABLE_HEADER_BG } from '@/constants/brandColors';
+import { TABLE_STYLES, TABLE_HIGHLIGHT_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 
 /**
  * Fonte ÚNICA dos estilos da planilha de Fluxo de Caixa (grade tipo Excel:
@@ -18,8 +19,6 @@ import { TABLE_HEADER_BG, MYFINANCE_BRAND } from '@/constants/brandColors';
  * então a cor de texto padrão fica na <table> (herança) e as células só
  * definem cor quando ela é semântica.
  */
-
-const HEX = MYFINANCE_BRAND;
 
 export const GRID = {
   /** Classes da <table> (cor de texto por herança). */
@@ -55,9 +54,10 @@ export const GRID = {
   /**
    * Coluna do mês atual (só quando a planilha é do ano corrente): tinta do
    * azul `outside` bem diluída nas células de item; no cabeçalho, sólida.
+   * Mesmo par "coluna em destaque" das tabelas da carteira (tableStyles).
    */
-  currentMonth: 'bg-[#0079F2]/[0.06] dark:bg-[#0079F2]/[0.16]',
-  currentMonthHeader: { backgroundColor: HEX.outside } as CSSProperties,
+  currentMonth: TABLE_STYLES.highlightTd,
+  currentMonthHeader: TABLE_HIGHLIGHT_HEADER_STYLE as CSSProperties,
 
   /** Linha em edição / linha nova: derivado claríssimo do azul `outside`. */
   editingBg: 'bg-[#F2F8FE] dark:bg-[#1C2A40]',

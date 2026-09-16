@@ -155,6 +155,7 @@ export default function OpcoesTable({ totalCarteira = 0 }: OpcoesTableProps) {
     {
       key: 'percentualCarteira',
       header: '% da Aba',
+      highlight: true,
       align: 'right',
       render: (a, f) => f.formatPercentage(a.percentualCarteira),
       renderSectionTotal: (s, f) => f.formatPercentage(s.totalPercentualCarteira),

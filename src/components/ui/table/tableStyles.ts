@@ -45,6 +45,14 @@ export const TABLE_STYLES = {
   /** Linha "placeholder" (tabela vazia/poucas linhas). */
   placeholderRow:
     'border-b border-gray-100 bg-gray-50/60 dark:border-gray-800 dark:bg-white/[0.02]',
+  /**
+   * <td> de dado numa COLUNA EM DESTAQUE (pedido do Wellington, 16/09/2026):
+   * tinta do azul `outside` bem diluída, igual à coluna do mês atual do Fluxo
+   * de Caixa. O <th> correspondente leva `TABLE_HIGHLIGHT_HEADER_STYLE`
+   * (fundo sólido). Usos: "% Target" na Alocação de Ativos e "% da Aba" nas
+   * abas da carteira. Só nas linhas de item — seções e totais ficam como estão.
+   */
+  highlightTd: 'bg-[#0079F2]/[0.06] dark:bg-[#0079F2]/[0.16]',
   /** Variante compacta para tabelas densas (muitas colunas): mesmos tokens, menos padding. */
   compact: {
     th: 'px-3 py-2 font-medium whitespace-nowrap',
@@ -54,6 +62,9 @@ export const TABLE_STYLES = {
 
 /** Estilo inline do fundo do cabeçalho (azul `seguranca`). */
 export const TABLE_HEADER_STYLE = { backgroundColor: TABLE_HEADER_BG } as const;
+
+/** Estilo inline do <th> de uma coluna em destaque (azul `outside`, sólido). Par de `TABLE_STYLES.highlightTd`. */
+export const TABLE_HIGHLIGHT_HEADER_STYLE = { backgroundColor: MYFINANCE_BRAND.outside } as const;
 
 /** Estilo inline do fundo das linhas de seção (azul `tranquilidade`). */
 export const TABLE_SECTION_STYLE = { backgroundColor: MYFINANCE_BRAND.tranquilidade } as const;

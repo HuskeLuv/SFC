@@ -8,7 +8,11 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_HIGHLIGHT_HEADER_STYLE,
+} from '@/components/ui/table/tableStyles';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const IMOVEIS_BENS_COLUMN_COUNT = 11;
@@ -138,7 +142,7 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {formatPercentage(ativo.riscoPorAtivo)}
       </td>
-      <td className={`${TABLE_STYLES.compact.td} text-right`}>
+      <td className={`${TABLE_STYLES.compact.td} ${TABLE_STYLES.highlightTd} text-right`}>
         {formatPercentage(ativo.percentualCarteira)}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
@@ -262,7 +266,12 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
                   <span className="block">Risco Por Ativo</span>
                   <span className="block">(Carteira Total)</span>
                 </th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
+                <th
+                  className={`${TABLE_STYLES.compact.th} text-right`}
+                  style={TABLE_HIGHLIGHT_HEADER_STYLE}
+                >
+                  % da Aba
+                </th>
                 <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
               </tr>
             </thead>
