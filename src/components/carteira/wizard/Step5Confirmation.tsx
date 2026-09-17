@@ -1,6 +1,8 @@
 'use client';
 import React, { useEffect } from 'react';
 import PlanejamentoVinculoField from './shared/PlanejamentoVinculoField';
+import UsarCaixaField from './shared/UsarCaixaField';
+import { abaDaCompra, valorDaCompraBRL } from './shared/caixaDaOperacao';
 import {
   WizardFormData,
   TIPOS_ATIVO,
@@ -573,6 +575,14 @@ export default function Step5Confirmation({
           </div>
         </div>
       </div>
+
+      <UsarCaixaField
+        valor={valorDaCompraBRL(formData)}
+        aba={abaDaCompra(formData)}
+        checked={formData.usarCaixa}
+        onChange={(usarCaixa) => onFormDataChange({ usarCaixa })}
+        isReinvestimento={!!formData.isReinvestimento}
+      />
 
       <PlanejamentoVinculoField formData={formData} onFormDataChange={onFormDataChange} />
 

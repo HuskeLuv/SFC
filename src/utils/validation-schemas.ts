@@ -113,6 +113,9 @@ export const aporteSchema = z.object({
   // utils/planejamentoVinculo.ts
   vinculoTipo: z.enum(['sonho', 'aposentadoria']).nullable().optional(),
   vinculoObjetivoId: z.string().max(255).nullable().optional(),
+  // Descontar o valor do Caixa para Investir (reserva da aba, depois o livre).
+  // Ignorado quando isReinvestimento.
+  usarCaixa: z.boolean().optional(),
 });
 
 // ── Resgate schema ────────────────────────────────────────────────────
@@ -129,6 +132,9 @@ export const resgateSchema = z.object({
   // Resgate para troca/rolagem (o valor volta pra carteira) — não conta como
   // resgate nas linhas automáticas do Fluxo de Caixa (F1.10 generalizado).
   isReinvestimento: z.boolean().optional(),
+  // Devolver o valor resgatado ao Caixa para Investir, como livre. Ignorado
+  // quando isReinvestimento ou quando o ativo não é em reais.
+  creditarCaixa: z.boolean().optional(),
 });
 
 // ── Cashflow update (PATCH) schema ────────────────────────────────────

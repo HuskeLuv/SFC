@@ -1,6 +1,8 @@
 import React from 'react';
 import { WizardFormData } from '@/types/wizard';
 import PlanejamentoVinculoField from './shared/PlanejamentoVinculoField';
+import UsarCaixaField from './shared/UsarCaixaField';
+import { abaDoAporte } from './shared/caixaDaOperacao';
 
 interface Step5AporteConfirmationProps {
   formData: WizardFormData;
@@ -38,6 +40,13 @@ export default function Step5AporteConfirmation({
           {formData.valorAporte.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
         </p>
       </div>
+      <UsarCaixaField
+        valor={formData.valorAporte}
+        aba={abaDoAporte(formData.tipoAtivo)}
+        checked={formData.usarCaixa}
+        onChange={(usarCaixa) => onFormDataChange({ usarCaixa })}
+        isReinvestimento={!!formData.isReinvestimento}
+      />
       <PlanejamentoVinculoField formData={formData} onFormDataChange={onFormDataChange} />
 
       <p className="text-sm text-gray-500 dark:text-gray-400">

@@ -9,6 +9,13 @@ import {
   recalculatePortfolioFromTransactions,
 } from '@/services/portfolio/portfolioRecalculation';
 import { isShareBasedAssetType } from '@/lib/assetClassification';
+import {
+  creditarCaixa,
+  invalidateCaixaCaches,
+  movimentouCaixa,
+  type MovimentoCaixa,
+} from '@/services/portfolio/caixaParaInvestir';
+import { buildCaixaMovimentoSnapshot } from '@/services/changeHistory/snapshots';
 import { getTesouroDestinoByAssetId } from '@/services/portfolio/tesouroDestino';
 import { mapPortfolioToTipo } from '@/lib/portfolioTipoMapping';
 import { isDataFutura } from '@/utils/formatDate';
@@ -196,6 +203,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
+  // Caixa para Investir: o valor resgatado volta como caixa LIVRE. Não vale
+  // para reinvestimento (o dinheiro vai direto pra outro ativo) nem para
+  // ativo em moeda estrangeira (o payload não traz câmbio pra converter).
+  const moedaAtivo = portfolio.asset?.currency ?? 'BRL';
+  const creditarNoCaixa =
+    parsed.data.creditarCaixa === true && !isReinvestimento && moedaAtivo === 'BRL';
+  let movimentoCaixa: MovimentoCaixa | null = null;
+
   const isResgatePorValor = metodoResgate === 'valor';
   const novaQuantidade =
     isResgatePorValor && availableQuantity === 1
@@ -260,8 +275,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       }
     }
 
+    // Mesmo $transaction: se o resgate falhar, o caixa não fica creditado.
+    if (creditarNoCaixa) {
+      movimentoCaixa = await creditarCaixa(tx, targetUserId, totalResgate);
+    }
+
     return novaTransacao;
   });
+  if (movimentouCaixa(movimentoCaixa)) invalidateCaixaCaches(targetUserId);
 
   if (!resgateTotal && shareBased) {
     // Opção 3 / eventos corporativos: venda parcial de ativo share-based recalcula
@@ -304,10 +325,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entityId: transacao.id,
     entityLabel: assetEntityLabel(portfolio.asset),
     changes: diffFields({}, transacao, TRANSACTION_FIELD_LABELS),
+    ...(movimentouCaixa(movimentoCaixa)
+      ? { snapshot: buildCaixaMovimentoSnapshot(movimentoCaixa) }
+      : {}),
   });
 
   const result = NextResponse.json(
-    { success: true, transacao, message: 'Resgate realizado com sucesso!' },
+    {
+      success: true,
+      transacao,
+      message: 'Resgate realizado com sucesso!',
+      ...(movimentoCaixa ? { caixa: movimentoCaixa } : {}),
+    },
     { status: 201 },
   );
 

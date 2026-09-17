@@ -1,4 +1,12 @@
 import { logger } from '@/lib/logger';
+import {
+  debitarCaixa,
+  invalidateCaixaCaches,
+  movimentouCaixa,
+  resolverCaixaAba,
+  type MovimentoCaixa,
+} from '@/services/portfolio/caixaParaInvestir';
+import { buildCaixaMovimentoSnapshot } from '@/services/changeHistory/snapshots';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   absorverPlanejadoNaCompra,
@@ -113,6 +121,9 @@ const operacaoBaseSchema = z
      * não de novo aporte.
      */
     isReinvestimento: z.boolean().optional(),
+    // Descontar a compra do Caixa para Investir (reserva da aba, depois o
+    // livre). Ignorado quando isReinvestimento.
+    usarCaixa: z.boolean().optional(),
     // Vínculo do ativo com planejamento (sonho | aposentadoria) — gravado no
     // Portfolio após o registro. Ver utils/planejamentoVinculo.ts.
     ...vinculoPlanejamentoFields,
@@ -2146,6 +2157,32 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     };
   }
 
+  // Caixa para Investir (bolso total com reservas por aba, 17/09/2026):
+  // desconta a compra da reserva da aba e depois do caixa livre. Não vale para
+  // reinvestimento (dinheiro que já estava investido). Reservas, conta
+  // corrente, imóveis e personalizados não têm reserva própria → só o livre.
+  // REIT: valorFinal vem em US$ (cotação em dólar, sem conversão) — converte
+  // pela cotação informada; sem cotação não há como descontar em R$.
+  const valorCompraBRL =
+    tipoAtivo === 'reit'
+      ? typeof cotacaoMoeda === 'number' && cotacaoMoeda > 0
+        ? valorFinal * cotacaoMoeda
+        : 0
+      : valorFinal;
+  const usarCaixa = parsed.data.usarCaixa === true && !isReinvestimento && valorCompraBRL > 0;
+  const semReservaPropria =
+    isReserva ||
+    isTesouroReserva ||
+    isFundoReserva ||
+    isContaCorrente ||
+    isImovel ||
+    isPersonalizado;
+  const caixaAba =
+    usarCaixa && !semReservaPropria
+      ? await resolverCaixaAba(targetUserId, asset, { tesouroDestino })
+      : null;
+  let movimentoCaixa: MovimentoCaixa | null = null;
+
   // Transação de compra + Portfolio/FI no MESMO $transaction: falha em
   // qualquer passo desfaz tudo — o retry do usuário não acumula compras órfãs.
   // marketTradedPortfolioId: setado só no branch de ativos de bolsa (ações/FII/ETF/etc.),
@@ -2291,6 +2328,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         }
       }
 
+      // Mesmo $transaction: se a compra falhar, o caixa não fica descontado.
+      if (usarCaixa) {
+        movimentoCaixa = await debitarCaixa(tx, targetUserId, caixaAba, valorCompraBRL);
+      }
+
       return novaTransacao;
     });
   } catch (error) {
@@ -2312,6 +2354,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
     throw error;
   }
+  if (movimentouCaixa(movimentoCaixa)) invalidateCaixaCaches(targetUserId);
 
   // Ativos de bolsa (ações/FII/ETF/etc.): recalcula a posição pela source of
   // truth, que APLICA os eventos corporativos (split/bonificação/grupamento) no
@@ -2399,6 +2442,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entityId: transacao.id,
     entityLabel: assetEntityLabel(asset) ?? ativoNome ?? undefined,
     changes: diffFields({}, transacao, TRANSACTION_FIELD_LABELS),
+    ...(movimentouCaixa(movimentoCaixa)
+      ? { snapshot: buildCaixaMovimentoSnapshot(movimentoCaixa) }
+      : {}),
   });
 
   const result = NextResponse.json(
@@ -2406,6 +2452,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       success: true,
       transacao,
       message: 'Investimento adicionado com sucesso!',
+      ...(movimentoCaixa ? { caixa: movimentoCaixa } : {}),
     },
     { status: 201 },
   );

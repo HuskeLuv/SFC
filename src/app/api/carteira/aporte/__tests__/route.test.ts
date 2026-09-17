@@ -40,6 +40,19 @@ vi.mock('@/services/portfolio/portfolioRecalculation', () => ({
   recalculatePortfolioFromTransactions: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Caixa para Investir: a regra do débito/crédito tem teste próprio
+// (services/portfolio/__tests__/caixaParaInvestir.test.ts) — aqui só o contrato.
+const mockCaixa = vi.hoisted(() => ({
+  debitarCaixa: vi.fn(),
+  creditarCaixa: vi.fn(),
+  resolverCaixaAba: vi.fn(),
+  invalidateCaixaCaches: vi.fn(),
+}));
+vi.mock('@/services/portfolio/caixaParaInvestir', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/portfolio/caixaParaInvestir')>()),
+  ...mockCaixa,
+}));
+
 const createRequest = (body: object) =>
   new NextRequest('http://localhost/api/carteira/aporte', {
     method: 'POST',
@@ -333,6 +346,62 @@ describe('POST /api/carteira/aporte', () => {
       expect(response.status).toBe(400);
       expect(data.error).toContain('Comprar');
       expect(mockPrisma.stockTransaction.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Caixa para Investir', () => {
+    const body = {
+      portfolioId: 'port-1',
+      dataAporte: '2024-01-15',
+      valorAporte: 500,
+      tipoAtivo: 'renda-fixa',
+      instituicaoId: 'inst-1',
+    };
+
+    it('usarCaixa: desconta do caixa DENTRO da transação e grava o movimento no histórico', async () => {
+      const movimento = {
+        aba: 'rendaFixa',
+        valorOperacao: 500,
+        debitoReserva: 300,
+        debitoLivre: 200,
+        credito: 0,
+        deltaTotal: -500,
+      };
+      mockCaixa.resolverCaixaAba.mockResolvedValueOnce('rendaFixa');
+      mockCaixa.debitarCaixa.mockResolvedValueOnce(movimento);
+
+      const response = await POST(createRequest({ ...body, usarCaixa: true }));
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(mockCaixa.resolverCaixaAba).toHaveBeenCalledWith('user-123', mockPortfolio.asset);
+      expect(mockCaixa.debitarCaixa).toHaveBeenCalledWith(mockPrisma, 'user-123', 'rendaFixa', 500);
+      expect(mockCaixa.invalidateCaixaCaches).toHaveBeenCalledWith('user-123');
+      expect(data.caixa).toEqual(movimento);
+      expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'aporte.registrar',
+            snapshot: expect.objectContaining({ kind: 'caixa-movimento', data: movimento }),
+          }),
+        }),
+      );
+    });
+
+    it('sem usarCaixa não mexe no caixa', async () => {
+      const response = await POST(createRequest(body));
+      expect(response.status).toBe(201);
+      expect(mockCaixa.debitarCaixa).not.toHaveBeenCalled();
+      expect((await response.json()).caixa).toBeUndefined();
+    });
+
+    it('reinvestimento ignora usarCaixa (dinheiro já estava investido)', async () => {
+      const response = await POST(
+        createRequest({ ...body, usarCaixa: true, isReinvestimento: true }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockCaixa.resolverCaixaAba).not.toHaveBeenCalled();
+      expect(mockCaixa.debitarCaixa).not.toHaveBeenCalled();
     });
   });
 });

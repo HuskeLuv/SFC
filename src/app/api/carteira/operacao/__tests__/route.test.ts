@@ -54,6 +54,19 @@ vi.mock('@/services/pricing/cvmFundSync', () => ({
   runCvmFundSync: mockRunCvmFundSync,
 }));
 
+// Caixa para Investir: a regra do débito/crédito tem teste próprio
+// (services/portfolio/__tests__/caixaParaInvestir.test.ts) — aqui só o contrato.
+const mockCaixa = vi.hoisted(() => ({
+  debitarCaixa: vi.fn(),
+  creditarCaixa: vi.fn(),
+  resolverCaixaAba: vi.fn(),
+  invalidateCaixaCaches: vi.fn(),
+}));
+vi.mock('@/services/portfolio/caixaParaInvestir', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/portfolio/caixaParaInvestir')>()),
+  ...mockCaixa,
+}));
+
 const createRequest = (body: object) =>
   new NextRequest('http://localhost/api/carteira/operacao', {
     method: 'POST',
@@ -2100,6 +2113,95 @@ describe('POST /api/carteira/operacao', () => {
       expect(data.success).toBe(true);
       expect(mockPrisma.portfolio.update).toHaveBeenCalled();
       expect(mockPrisma.portfolio.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Caixa para Investir', () => {
+    const movimento = (valor: number) => ({
+      aba: 'reit',
+      valorOperacao: valor,
+      debitoReserva: valor,
+      debitoLivre: 0,
+      credito: 0,
+      deltaTotal: -valor,
+    });
+
+    it('REIT: converte o total em US$ pela cotação antes de descontar', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValueOnce({
+        id: 'asset-reit',
+        symbol: 'O',
+        name: 'Realty Income',
+        type: 'reit',
+        currency: 'USD',
+      });
+      mockCaixa.resolverCaixaAba.mockResolvedValueOnce('reit');
+      mockCaixa.debitarCaixa.mockResolvedValueOnce(movimento(5200));
+
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'reit',
+          instituicaoId: 'inst-1',
+          assetId: 'asset-reit',
+          dataCompra: '2024-01-15',
+          quantidade: 50,
+          cotacaoUnitaria: 20,
+          cotacaoMoeda: 5.2,
+          estrategiaReit: 'value',
+          usarCaixa: true,
+        }),
+      );
+
+      expect(response.status).toBe(201);
+      // 50 × US$ 20 × 5,2 = R$ 5.200
+      expect(mockCaixa.debitarCaixa).toHaveBeenCalledWith(
+        mockPrisma,
+        'user-123',
+        'reit',
+        expect.closeTo(5200, 2),
+      );
+      expect((await response.json()).caixa).toEqual(movimento(5200));
+    });
+
+    it('reserva de emergência não tem aba: usa só o caixa livre', async () => {
+      mockCaixa.debitarCaixa.mockResolvedValueOnce({ ...movimento(1000), aba: null });
+      const response = await POST(
+        createRequest({
+          tipoAtivo: 'emergency',
+          instituicaoId: 'inst-1',
+          ativo: 'CDB XP 105% CDI',
+          dataCompra: '2024-01-15',
+          valorInvestido: 1000,
+          usarCaixa: true,
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockCaixa.resolverCaixaAba).not.toHaveBeenCalled();
+      expect(mockCaixa.debitarCaixa).toHaveBeenCalledWith(mockPrisma, 'user-123', null, 1000);
+    });
+
+    it('reinvestimento e compra sem a flag não mexem no caixa', async () => {
+      const acao = {
+        id: 'asset-petr4',
+        symbol: 'PETR4',
+        name: 'Petrobras PN',
+        type: 'stock',
+      };
+      const compra = {
+        tipoAtivo: 'acao',
+        instituicaoId: 'inst-1',
+        assetId: 'asset-petr4',
+        dataCompra: '2024-01-15',
+        quantidade: 100,
+        cotacaoUnitaria: 10,
+        estrategia: 'value',
+      };
+      mockPrisma.asset.findUnique.mockResolvedValue(acao);
+
+      expect(
+        (await POST(createRequest({ ...compra, usarCaixa: true, isReinvestimento: true }))).status,
+      ).toBe(201);
+      expect((await POST(createRequest(compra))).status).toBe(201);
+      expect(mockCaixa.debitarCaixa).not.toHaveBeenCalled();
     });
   });
 });

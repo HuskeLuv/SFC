@@ -7,7 +7,12 @@
  * e a falta degrada em UndoError(409) legível.
  */
 
-import { invalidateCaixaCaches } from '@/services/portfolio/caixaParaInvestir';
+import {
+  invalidateCaixaCaches,
+  movimentouCaixa,
+  reverterMovimentoCaixa,
+  type MovimentoCaixa,
+} from '@/services/portfolio/caixaParaInvestir';
 import type { FixedIncomeIndexer, FixedIncomeLiquidity, FixedIncomeType } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import {
@@ -505,6 +510,16 @@ const adicaoRegistrada: UndoDefinition = {
 
     if (transaction.assetId) {
       await syncSonhoRealizadoBestEffort(auth.targetUserId, { assetId: transaction.assetId });
+    }
+
+    // A operação mexeu no Caixa para Investir (débito na compra/aporte ou
+    // crédito no resgate): devolve o movimento.
+    const snap = getSnapshot(entry);
+    if (snap?.kind === 'caixa-movimento') {
+      const movimento = snap.data as unknown as MovimentoCaixa;
+      if (movimentouCaixa(movimento)) {
+        await reverterMovimentoCaixa(auth.targetUserId, movimento);
+      }
     }
 
     return { changes: invertChanges(getChanges(entry)) };

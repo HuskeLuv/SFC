@@ -32,12 +32,20 @@ const { db, mockPrisma, mockDeleteCache } = vi.hoisted(() => {
 
 vi.mock('@/lib/prisma', () => ({ default: mockPrisma, prisma: mockPrisma }));
 vi.mock('@/lib/simpleTtlCache', () => ({ deleteTtlCacheKeyPrefix: mockDeleteCache }));
+const mockTesouroDestino = vi.hoisted(() => vi.fn());
+vi.mock('@/services/portfolio/tesouroDestino', () => ({
+  getTesouroDestinoByAssetId: mockTesouroDestino,
+}));
 
 import {
   CAIXA_ABA_KEYS,
   CAIXA_METRICS,
   computeCaixaResumo,
+  creditarCaixa,
+  debitarCaixa,
   loadCaixaResumo,
+  resolverCaixaAba,
+  reverterMovimentoCaixa,
   salvarCaixaAba,
   salvarCaixaTotal,
 } from '../caixaParaInvestir';
@@ -181,5 +189,104 @@ describe('salvarCaixaTotal', () => {
     seed({ caixa_para_investir_consolidado: 1000, caixa_para_investir_etf: 3000 });
     const result = await salvarCaixaTotal(USER, 2000);
     expect(result).toEqual({ ok: true, valorAnterior: 1000 });
+  });
+});
+
+describe('resolverCaixaAba', () => {
+  it('classifica pela mesma regra da carteira (categorizarAsset)', async () => {
+    expect(await resolverCaixaAba(USER, { symbol: 'PETR4', type: 'stock', currency: 'BRL' })).toBe(
+      'acoes',
+    );
+    expect(await resolverCaixaAba(USER, { symbol: 'AAPL', type: 'stock', currency: 'USD' })).toBe(
+      'stocks',
+    );
+    expect(await resolverCaixaAba(USER, { symbol: 'IVVB11', type: 'bdr', currency: 'BRL' })).toBe(
+      'acoes',
+    );
+    expect(await resolverCaixaAba(USER, { symbol: 'KNRI11', type: 'fii' })).toBe('fii');
+    expect(await resolverCaixaAba(USER, { symbol: 'X', type: 'fia' })).toBe('fimFia');
+    expect(await resolverCaixaAba(USER, { symbol: 'CDB-1', type: 'bond' })).toBe('rendaFixa');
+    expect(await resolverCaixaAba(USER, { symbol: 'PREV', type: 'insurance' })).toBe(
+      'previdenciaSeguros',
+    );
+  });
+
+  it('reservas, conta corrente e imóveis não têm aba', async () => {
+    expect(
+      await resolverCaixaAba(USER, { symbol: 'RESERVA-EMERG-1', type: 'emergency' }),
+    ).toBeNull();
+    expect(await resolverCaixaAba(USER, { symbol: 'CC', type: 'cash' })).toBeNull();
+    expect(await resolverCaixaAba(USER, { symbol: 'APTO', type: 'imovel' })).toBeNull();
+    expect(await resolverCaixaAba(USER, null)).toBeNull();
+  });
+
+  it('Tesouro comprado para reserva: destino informado ou lido das compras', async () => {
+    const tesouro = { id: 'a-1', symbol: 'TESOURO SELIC 2029', type: 'tesouro-direto' };
+    expect(
+      await resolverCaixaAba(USER, tesouro, { tesouroDestino: 'reserva-emergencia' }),
+    ).toBeNull();
+
+    mockTesouroDestino.mockResolvedValueOnce(new Map([['a-1', 'reserva-oportunidade']]));
+    expect(await resolverCaixaAba(USER, tesouro)).toBeNull();
+
+    mockTesouroDestino.mockResolvedValueOnce(new Map());
+    expect(await resolverCaixaAba(USER, tesouro)).toBe('rendaFixa');
+  });
+});
+
+describe('debitarCaixa / creditarCaixa / reverterMovimentoCaixa', () => {
+  it('débito: reserva da aba primeiro, depois o livre; total baixa junto', async () => {
+    seed({ caixa_para_investir_consolidado: 10000, caixa_para_investir_renda_fixa: 3000 });
+
+    const mov = await debitarCaixa(mockPrisma, USER, 'rendaFixa', 5000);
+
+    expect(mov).toEqual({
+      aba: 'rendaFixa',
+      valorOperacao: 5000,
+      debitoReserva: 3000,
+      debitoLivre: 2000,
+      credito: 0,
+      deltaTotal: -5000,
+    });
+    expect(valueOf('caixa_para_investir_renda_fixa')).toBe(0);
+    expect(valueOf('caixa_para_investir_consolidado')).toBe(5000);
+  });
+
+  it('débito maior que o caixa: desconta só o que existe, total não fica negativo', async () => {
+    seed({ caixa_para_investir_consolidado: 1000 });
+    const mov = await debitarCaixa(mockPrisma, USER, 'acoes', 5000);
+    expect(mov).toMatchObject({ debitoReserva: 0, debitoLivre: 1000, deltaTotal: -1000 });
+    expect(valueOf('caixa_para_investir_consolidado')).toBe(0);
+  });
+
+  it('dado legado: total zerado com reserva — deltaTotal registra só o que o total mudou', async () => {
+    seed({ caixa_para_investir_consolidado: 0, caixa_para_investir_etf: 3000 });
+    const mov = await debitarCaixa(mockPrisma, USER, 'etf', 1000);
+    expect(mov).toMatchObject({ debitoReserva: 1000, deltaTotal: 0 });
+
+    await reverterMovimentoCaixa(USER, mov);
+    // Desfazer devolve a reserva sem inventar dinheiro no total.
+    expect(valueOf('caixa_para_investir_etf')).toBe(3000);
+    expect(valueOf('caixa_para_investir_consolidado')).toBe(0);
+  });
+
+  it('desfazer um débito restaura reserva e total', async () => {
+    seed({ caixa_para_investir_consolidado: 10000, caixa_para_investir_renda_fixa: 3000 });
+    const mov = await debitarCaixa(mockPrisma, USER, 'rendaFixa', 5000);
+    await reverterMovimentoCaixa(USER, mov);
+    expect(valueOf('caixa_para_investir_renda_fixa')).toBe(3000);
+    expect(valueOf('caixa_para_investir_consolidado')).toBe(10000);
+    expect(mockDeleteCache).toHaveBeenCalledWith('carteiraResumo', `${USER}:`);
+  });
+
+  it('crédito do resgate entra no total como livre e o desfazer retira', async () => {
+    seed({ caixa_para_investir_consolidado: 2000, caixa_para_investir_fii: 500 });
+    const mov = await creditarCaixa(mockPrisma, USER, 1000);
+    expect(mov).toMatchObject({ aba: null, credito: 1000, deltaTotal: 1000 });
+    expect(valueOf('caixa_para_investir_consolidado')).toBe(3000);
+    expect(valueOf('caixa_para_investir_fii')).toBe(500);
+
+    await reverterMovimentoCaixa(USER, mov);
+    expect(valueOf('caixa_para_investir_consolidado')).toBe(2000);
   });
 });

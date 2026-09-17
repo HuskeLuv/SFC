@@ -1,9 +1,11 @@
 import React from 'react';
 import { RedeemWizardFormData } from '@/types/redeemWizard';
 import { TIPO_LABELS } from '@/lib/portfolioTipoMapping';
+import CreditarCaixaField from '@/components/carteira/wizard/shared/CreditarCaixaField';
 
 interface Step5RedeemConfirmationProps {
   formData: RedeemWizardFormData;
+  onFormDataChange?: (data: Partial<RedeemWizardFormData>) => void;
 }
 
 const formatDateDisplay = (value: string) => {
@@ -15,7 +17,10 @@ const formatDateDisplay = (value: string) => {
   return value;
 };
 
-export default function Step5RedeemConfirmation({ formData }: Step5RedeemConfirmationProps) {
+export default function Step5RedeemConfirmation({
+  formData,
+  onFormDataChange,
+}: Step5RedeemConfirmationProps) {
   const valorResgateCalculado =
     formData.metodoResgate === 'valor'
       ? formData.valorResgate
@@ -64,6 +69,15 @@ export default function Step5RedeemConfirmation({ formData }: Step5RedeemConfirm
           {valorResgateCalculado.toLocaleString('pt-BR', moeda)}
         </p>
       </div>
+      {onFormDataChange && (
+        <CreditarCaixaField
+          valor={valorResgateCalculado}
+          moeda={formData.moeda}
+          checked={formData.creditarCaixa}
+          onChange={(creditarCaixa) => onFormDataChange({ creditarCaixa })}
+          isReinvestimento={!!formData.isReinvestimento}
+        />
+      )}
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Revise os dados antes de confirmar o resgate.
       </p>
