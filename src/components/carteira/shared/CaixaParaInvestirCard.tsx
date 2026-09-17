@@ -1,6 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Input from '@/components/form/input/InputField';
 import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
+import {
+  CARD_ACTION_CLASS,
+  CARD_BASE_CLASS,
+  CARD_COLOR_CLASSES,
+  CARD_HEADER_CLASS,
+  CARD_ICON_ACTION_CLASS,
+  CARD_TITLE_CLASS,
+  CARD_VALUE_CLASS,
+  type CardColor,
+} from './cardStyles';
 import { formatBRL } from '@/utils/format';
 import { useCarteiraResumoContextOptional } from '@/context/CarteiraResumoContext';
 import type { CaixaSaveFailure, SaveCaixaFn } from '@/lib/caixaParaInvestirClient';
@@ -10,7 +20,7 @@ type CaixaParaInvestirCardProps = {
   value: number;
   formatCurrency: (value: number | null | undefined) => string;
   onSave?: SaveCaixaFn;
-  color?: 'primary' | 'success' | 'warning' | 'error';
+  color?: CardColor;
   readOnly?: boolean;
   /**
    * Modelo "bolso total com reservas por aba" (17/09/2026):
@@ -99,17 +109,61 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
     }
   };
 
-  // Paleta My Finance PARTE 2 (ticket 21/08/2026) — mesmo esquema do MetricCard.
-  const colorClasses = {
-    primary: 'bg-[#0079F2]/10 text-[#314666] dark:bg-[#0079F2]/20 dark:text-blue-100',
-    success: 'bg-[#396CAA]/15 text-[#314666] dark:bg-[#396CAA]/25 dark:text-blue-100',
-    warning: 'bg-[#EAEAEA] text-[#2D2D2D] dark:bg-white/10 dark:text-gray-100',
-    error: 'bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100',
-  };
+  const detalhes =
+    caixa &&
+    (escopo === 'total'
+      ? [
+          { rotulo: 'Nas abas', valor: caixa.reservado },
+          { rotulo: 'Livre', valor: Math.max(0, caixa.livre) },
+        ]
+      : [
+          { rotulo: 'Caixa total', valor: caixa.total },
+          { rotulo: 'Livre', valor: Math.max(0, caixa.livre) },
+        ]);
 
   return (
-    <div className={`rounded-lg p-4 ${colorClasses[color]}`}>
-      <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
+    <div className={`${CARD_BASE_CLASS} ${CARD_COLOR_CLASSES[color]}`}>
+      {/* Ações na MESMA linha do título: o card fica da altura dos MetricCards
+          vizinhos, em vez de esticar a linha inteira da grade. */}
+      <div className={CARD_HEADER_CLASS}>
+        <p className={CARD_TITLE_CLASS} title={title}>
+          {title}
+        </p>
+        {!readOnly &&
+          (isEditing ? (
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                className={`${CARD_ICON_ACTION_CLASS} bg-brand-500 text-white hover:bg-brand-600`}
+                onClick={() => void handleSaveValue()}
+                disabled={isSaving}
+                aria-label="Salvar caixa para investir"
+                title="Salvar (Enter)"
+              >
+                {isSaving ? '…' : '✓'}
+              </button>
+              <button
+                type="button"
+                className={`${CARD_ICON_ACTION_CLASS} border border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800`}
+                onClick={handleCancelEditing}
+                aria-label="Cancelar edição do caixa para investir"
+                title="Cancelar (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={CARD_ACTION_CLASS}
+              onClick={handleStartEditing}
+              aria-label="Editar caixa para investir"
+            >
+              Editar
+            </button>
+          ))}
+      </div>
+
       {isEditing ? (
         <Input
           id="caixaParaInvestir"
@@ -124,8 +178,9 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
           aria-label="Editar caixa para investir"
         />
       ) : (
-        <p className="text-xl font-semibold">{formattedValue}</p>
+        <p className={CARD_VALUE_CLASS}>{formattedValue}</p>
       )}
+
       {isEditing && failure?.totalNecessario != null && (
         <button
           type="button"
@@ -136,83 +191,30 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
           Aumentar o total para {formatBRL(failure.totalNecessario)} e salvar
         </button>
       )}
-      {!isEditing && caixa && (
+
+      {!isEditing && detalhes && (
         <dl
-          className="mt-2 space-y-0.5 text-xs opacity-80"
+          className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs opacity-80"
           title={
             escopo === 'total'
               ? 'Bolso total. Nas abas = quanto já está reservado para cada classe; Livre = o que ainda não tem destino.'
               : 'Este valor é a reserva desta aba dentro do Caixa para Investir total.'
           }
         >
-          {escopo === 'total' ? (
-            <>
-              <div className="flex justify-between gap-2">
-                <dt>Nas abas</dt>
-                <dd className="whitespace-nowrap font-medium">{formatBRL(caixa.reservado)}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Livre</dt>
-                <dd className="whitespace-nowrap font-medium">
-                  {formatBRL(Math.max(0, caixa.livre))}
-                </dd>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex justify-between gap-2">
-                <dt>Caixa total</dt>
-                <dd className="whitespace-nowrap font-medium">{formatBRL(caixa.total)}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Livre</dt>
-                <dd className="whitespace-nowrap font-medium">
-                  {formatBRL(Math.max(0, caixa.livre))}
-                </dd>
-              </div>
-            </>
-          )}
+          {detalhes.map(({ rotulo, valor }) => (
+            <div key={rotulo} className="flex items-baseline gap-1">
+              <dt>{rotulo}</dt>
+              <dd className="whitespace-nowrap font-medium">{formatBRL(valor)}</dd>
+            </div>
+          ))}
         </dl>
       )}
+
       {!isEditing && caixa && caixa.livre < 0 && (
-        <p className="mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+        <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
           As reservas das abas passam do total em {formatBRL(-caixa.livre)}. Ajuste o total ou as
           reservas.
         </p>
-      )}
-      {!readOnly && (
-        <div className="mt-3 flex items-center justify-end gap-2">
-          {isEditing ? (
-            <>
-              <button
-                type="button"
-                className="rounded-md bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-60"
-                onClick={() => void handleSaveValue()}
-                disabled={isSaving}
-                aria-label="Salvar caixa para investir"
-              >
-                {isSaving ? 'Salvando...' : 'Salvar'}
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                onClick={handleCancelEditing}
-                aria-label="Cancelar edição do caixa para investir"
-              >
-                Cancelar
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-              onClick={handleStartEditing}
-              aria-label="Editar caixa para investir"
-            >
-              Editar
-            </button>
-          )}
-        </div>
       )}
     </div>
   );
