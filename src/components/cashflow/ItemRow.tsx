@@ -1,5 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { TableRow } from '@/components/ui/table';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
@@ -14,8 +16,11 @@ interface ItemRowProps {
   itemPercentage: number;
   group: CashflowGroup;
   currentYear?: number;
-  /** Reordena a linha dentro do grupo (setinhas ↑↓ no hover). */
-  onMoveItem?: (item: CashflowItem, group: CashflowGroup, direction: 'up' | 'down') => void;
+  /**
+   * Linha reordenável por arrastar-e-soltar dentro do grupo (alça ⠿). Exige
+   * um CashflowDndProvider acima; false = sem alça (grupos calculados).
+   */
+  reorderable?: boolean;
 }
 
 const ItemRowComponent: React.FC<ItemRowProps> = ({
@@ -25,8 +30,22 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
   itemPercentage,
   group,
   currentYear = new Date().getFullYear(),
-  onMoveItem,
+  reorderable = false,
 }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: item.id,
+    data: { groupId: group.id, name: item.name },
+    disabled: !reorderable,
+  });
+
   // Índice único por mês (evita 12 finds por linha a cada render).
   const valuesByMonth: Record<number, NonNullable<CashflowItem['values']>[number]> = {};
   for (const v of item.values ?? []) {
@@ -37,36 +56,34 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
   const currentMonth = currentMonthIndex(currentYear);
 
   return (
-    <TableRow className={`group/linha ${GRID.row} ${GRID.rowBg}`}>
+    <TableRow
+      ref={setNodeRef}
+      className={`group/linha ${GRID.row} ${GRID.rowBg} ${isDragging ? 'opacity-40' : ''}`}
+      // Transform/transition do @dnd-kit: as outras linhas abrem espaço no
+      // destino enquanto a arrastada segue o mouse (fantasma no DragOverlay).
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
       <FixedCell
         col={0}
         className={`font-medium text-gray-800 dark:text-gray-100 ${GRID.rowBg}`}
         title={item.name || undefined}
       >
         <span className="cursor-default truncate block">
-          {onMoveItem ? (
-            // Setinhas de reordenação — aparecem no hover da linha; nas
-            // bordas do grupo o movimento é no-op (handler valida).
-            <span className="mr-1 inline-flex gap-0.5 align-middle opacity-0 transition-opacity group-hover/linha:opacity-100">
-              <button
-                type="button"
-                aria-label={`Mover ${item.name} para cima`}
-                title="Mover para cima"
-                onClick={() => onMoveItem(item, group, 'up')}
-                className="rounded px-0.5 text-[9px] leading-none text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-              >
-                ▲
-              </button>
-              <button
-                type="button"
-                aria-label={`Mover ${item.name} para baixo`}
-                title="Mover para baixo"
-                onClick={() => onMoveItem(item, group, 'down')}
-                className="rounded px-0.5 text-[9px] leading-none text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-              >
-                ▼
-              </button>
-            </span>
+          {reorderable ? (
+            // Alça de arrastar (pedido 16/09/2026): discreta, forte no hover
+            // ou foco. touch-none: no celular o toque longo pega a linha sem
+            // disparar a rolagem. Teclado: espaço + setas (KeyboardSensor).
+            <button
+              type="button"
+              ref={setActivatorNodeRef}
+              {...attributes}
+              {...listeners}
+              aria-label={`Arrastar ${item.name} para reordenar`}
+              title="Arraste para reordenar dentro da seção"
+              className="mr-1 inline-flex cursor-grab touch-none select-none items-center rounded px-0.5 align-middle text-[11px] leading-none text-gray-400 opacity-40 transition-opacity hover:bg-gray-200 hover:text-gray-700 focus:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#0079F2] active:cursor-grabbing group-hover/linha:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+            >
+              ⠿
+            </button>
           ) : null}
           {item.objetivoId ? (
             <Link

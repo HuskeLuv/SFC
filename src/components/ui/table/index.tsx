@@ -70,13 +70,17 @@ const TableBody: React.FC<TableBodyProps> = ({ children, className }) => {
 };
 
 // TableRow Component
-const TableRow: React.FC<TableRowProps> = ({ children, className, style, onClick }) => {
-  return (
-    <tr className={className} style={style} onClick={onClick}>
-      {children}
-    </tr>
-  );
-};
+// forwardRef: o drag-and-drop do fluxo de caixa (@dnd-kit) precisa do nó <tr>.
+const TableRow = forwardRef<HTMLTableRowElement, TableRowProps>(
+  ({ children, className, style, onClick }, ref) => {
+    return (
+      <tr ref={ref} className={className} style={style} onClick={onClick}>
+        {children}
+      </tr>
+    );
+  },
+);
+TableRow.displayName = 'TableRow';
 
 // TableCell Component
 const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(
