@@ -5,13 +5,22 @@ import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 import { formatBRL, formatPctSigned } from '@/utils/format';
+import { postCaixaParaInvestir, type CaixaSaveOptions } from '@/lib/caixaParaInvestirClient';
 
 export interface CarteiraResumo {
   saldoBruto: number;
   valorAplicado: number;
   rentabilidade: number;
   metaPatrimonio: number;
+  /** Bolso TOTAL do caixa para investir (as reservas por aba são fatias dele). */
   caixaParaInvestir: number;
+  /** Detalhe do bolso: reservado = Σ reservas das abas; livre = total − reservado. */
+  caixa?: {
+    total: number;
+    reservado: number;
+    livre: number;
+    porAba: Record<string, number>;
+  };
   /**
    * Denominadores únicos calculados no backend (dinheiro exclui imóveis).
    * dividas/patrimonioLiquido: passivo das dívidas ativas (saldo corrigido
@@ -124,7 +133,7 @@ export const useCarteira = () => {
   );
 
   const updateCaixaParaInvestir = useCallback(
-    async (novoCaixa: number) => {
+    async (novoCaixa: number, opts?: CaixaSaveOptions) => {
       if (!resumo) return false;
 
       const previousResumo = resumo;
@@ -133,18 +142,23 @@ export const useCarteira = () => {
       queryClient.setQueryData<CarteiraResumo>(queryKey, {
         ...resumo,
         caixaParaInvestir: novoCaixa,
+        caixa: resumo.caixa
+          ? { ...resumo.caixa, total: novoCaixa, livre: novoCaixa - resumo.caixa.reservado }
+          : resumo.caixa,
       });
 
       try {
-        const response = await csrfFetch('/api/carteira/resumo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
-        });
-
-        if (!response.ok) throw new Error('Erro ao atualizar caixa para investir');
-
-        return true;
+        const result = await postCaixaParaInvestir(
+          csrfFetch,
+          '/api/carteira/resumo',
+          novoCaixa,
+          opts,
+        );
+        if (result !== true) {
+          // Recusa por regra (ex.: total abaixo das reservas) — desfaz o otimista.
+          queryClient.setQueryData<CarteiraResumo>(queryKey, previousResumo);
+        }
+        return result;
       } catch (err) {
         // Rollback
         queryClient.setQueryData<CarteiraResumo>(queryKey, previousResumo);

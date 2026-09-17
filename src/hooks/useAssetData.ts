@@ -1,3 +1,4 @@
+import { postCaixaParaInvestir, type CaixaSaveOptions } from '@/lib/caixaParaInvestirClient';
 import { logger } from '@/lib/logger';
 import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -268,15 +269,10 @@ export function useAssetData<TData extends AssetDataShape>(config: UseAssetDataC
     : undefined;
 
   const updateCaixaParaInvestir = useCallback(
-    async (novoCaixa: number) => {
+    async (novoCaixa: number, opts?: CaixaSaveOptions) => {
       try {
-        const response = await csrfFetch(apiPath, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
-        });
-
-        if (!response.ok) throw new Error('Erro ao atualizar caixa para investir');
+        const result = await postCaixaParaInvestir(csrfFetch, apiPath, novoCaixa, opts);
+        if (result !== true) return result;
 
         await queryClient.invalidateQueries({ queryKey });
         invalidatePortfolioDerivedQueries(queryClient);

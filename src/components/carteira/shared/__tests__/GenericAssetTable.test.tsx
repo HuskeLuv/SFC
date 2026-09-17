@@ -44,6 +44,8 @@ vi.mock('@/context/CarteiraResumoContext', () => ({
   useCarteiraResumoContext: () => ({
     necessidadeAporteMap: contextMock.necessidadeAporteMap,
   }),
+  // Card do caixa lê total/livre do resumo; sem resumo nos testes da tabela.
+  useCarteiraResumoContextOptional: () => null,
   CarteiraResumoProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 

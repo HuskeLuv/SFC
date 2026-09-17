@@ -14,6 +14,7 @@
  *  - Idade: AposentadoriaPlano.idade (User não tem data de nascimento).
  */
 
+import { CAIXA_METRICS, computeCaixaResumo } from '@/services/portfolio/caixaParaInvestir';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
@@ -45,21 +46,6 @@ import { getSaudeConfig } from './saudeFinanceiraConfig';
 const HORIZONTE_LIQUIDEZ_MESES = 12;
 /** Mesmo horizonte em dias, pro prazo de resgate declarado dos fundos (D+N). */
 const HORIZONTE_LIQUIDEZ_DIAS = 360;
-
-/** Métricas dashboardData que representam caixa disponível (alta liquidez). */
-const CAIXA_METRICS = [
-  'caixa_para_investir_consolidado',
-  'caixa_para_investir_acoes',
-  'caixa_para_investir_fii',
-  'caixa_para_investir_etf',
-  'caixa_para_investir_reit',
-  'caixa_para_investir_stocks',
-  'caixa_para_investir_moedas_criptos',
-  'caixa_para_investir_previdencia_seguros',
-  'caixa_para_investir_opcoes',
-  'caixa_para_investir_fim_fia',
-  'caixa_para_investir_renda_fixa',
-] as const;
 
 export interface ComposicaoLinha {
   chave: string;
@@ -228,7 +214,7 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
     getMergedCashflowGroups(userId, currentYear),
     prisma.dashboardData.findMany({
       where: { userId, metric: { in: [...CAIXA_METRICS] } },
-      select: { value: true },
+      select: { metric: true, value: true },
     }),
     prisma.stockTransaction.findMany({
       where: { userId, type: 'compra', notes: { not: null } },
@@ -374,7 +360,9 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
     }
   }
 
-  const caixaParaInvestir = dashboardMetrics.reduce((sum, m) => sum + (m.value || 0), 0);
+  // Bolso total com reservas por aba: as reservas são fatias do total, então o
+  // caixa entra UMA vez (antes somava total + reservas = dinheiro em dobro).
+  const caixaParaInvestir = computeCaixaResumo(dashboardMetrics).bolso;
 
   const ativosAltaLiquidez =
     porCategoria.reservaEmergencia +

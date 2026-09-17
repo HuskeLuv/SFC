@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { handleCaixaAbaPost } from '@/app/api/carteira/_lib/caixaParaInvestirPost';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
@@ -13,7 +14,6 @@ import {
   recordChange,
   diffFields,
   assetEntityLabel,
-  recordCaixaParaInvestirAtualizado,
   RENDA_FIXA_FIELD_LABELS,
 } from '@/services/changeHistory';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
@@ -309,7 +309,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
   const rentabilidade =
     totalValorAplicado > 0
-      ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+      ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100
       : 0;
 
   return NextResponse.json({
@@ -318,7 +318,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       caixaParaInvestir: caixaParaInvestir,
       saldoInicioMes: totalValorAplicado,
       saldoAtual: valorAtualizadoComCaixa,
-      rendimento: valorAtualizadoComCaixa - totalValorAplicado,
+      rendimento: totalValorAtualizado - totalValorAplicado,
       rentabilidade,
     },
     secoes,
@@ -339,50 +339,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir, campo, valor } = body;
 
   if (caixaParaInvestir !== undefined) {
-    if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-      return NextResponse.json(
-        {
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero',
-        },
-        { status: 400 },
-      );
-    }
-
-    // Salvar ou atualizar caixa para investir de Renda Fixa
-    const existingCaixa = await prisma.dashboardData.findFirst({
-      where: {
-        userId: targetUserId,
-        metric: 'caixa_para_investir_renda_fixa',
-      },
-    });
-
-    if (existingCaixa) {
-      await prisma.dashboardData.update({
-        where: { id: existingCaixa.id },
-        data: { value: caixaParaInvestir },
-      });
-    } else {
-      await prisma.dashboardData.create({
-        data: {
-          userId: targetUserId,
-          metric: 'caixa_para_investir_renda_fixa',
-          value: caixaParaInvestir,
-        },
-      });
-    }
-
-    await recordCaixaParaInvestirAtualizado(request, auth, {
-      classe: 'Renda Fixa',
-      metric: 'caixa_para_investir_renda_fixa',
-      valorAnterior: existingCaixa?.value,
-      valor: caixaParaInvestir,
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Caixa para investir atualizado com sucesso',
-      caixaParaInvestir,
-    });
+    return handleCaixaAbaPost(request, auth, 'rendaFixa', body);
   }
 
   if (campo && valor !== undefined && ativoId) {

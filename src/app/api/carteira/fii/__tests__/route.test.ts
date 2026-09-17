@@ -6,7 +6,14 @@ const mockPrisma = vi.hoisted(() => ({
   userChangeLog: { create: vi.fn() },
   user: { findUnique: vi.fn() },
   portfolio: { findMany: vi.fn() },
-  dashboardData: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
+  dashboardData: {
+    findFirst: vi.fn(),
+    findMany: vi.fn().mockResolvedValue([]),
+    update: vi.fn(),
+    create: vi.fn(),
+  },
+  // Caixa para Investir grava dentro de transação (serviço caixaParaInvestir).
+  $transaction: vi.fn(),
   // Ativos planejados (sem posição): nenhum nos cenários destes testes.
   watchlist: { findMany: vi.fn().mockResolvedValue([]) },
 }));
@@ -18,6 +25,10 @@ vi.mock('@/utils/auth', () => ({
     actingClient: null,
   }),
 }));
+
+mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => unknown) =>
+  fn(mockPrisma),
+);
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
@@ -100,6 +111,10 @@ describe('/api/carteira/fii', () => {
 
   describe('POST', () => {
     it('updates caixa para investir', async () => {
+      // Reserva da aba precisa caber no caixa total (bolso total com reservas).
+      mockPrisma.dashboardData.findMany.mockResolvedValueOnce([
+        { metric: 'caixa_para_investir_consolidado', value: 10000 },
+      ]);
       mockPrisma.dashboardData.findFirst.mockResolvedValue(null);
       mockPrisma.dashboardData.create.mockResolvedValue({});
       const res = await POST(createPostRequest({ caixaParaInvestir: 500 }));

@@ -6,7 +6,14 @@ const mockPrisma = vi.hoisted(() => ({
   userChangeLog: { create: vi.fn() },
   user: { findUnique: vi.fn() },
   portfolio: { findMany: vi.fn() },
-  dashboardData: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
+  dashboardData: {
+    findFirst: vi.fn(),
+    findMany: vi.fn().mockResolvedValue([]),
+    update: vi.fn(),
+    create: vi.fn(),
+  },
+  // Caixa para Investir grava dentro de transação (serviço caixaParaInvestir).
+  $transaction: vi.fn(),
   // Ativos planejados (sem posição): nenhum nos cenários destes testes.
   watchlist: { findMany: vi.fn().mockResolvedValue([]) },
 }));
@@ -18,6 +25,10 @@ vi.mock('@/utils/auth', () => ({
     actingClient: null,
   }),
 }));
+
+mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => unknown) =>
+  fn(mockPrisma),
+);
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
@@ -164,6 +175,10 @@ describe('/api/carteira/acoes', () => {
 
   describe('POST', () => {
     it('updates caixa para investir', async () => {
+      // Reserva da aba precisa caber no caixa total (bolso total com reservas).
+      mockPrisma.dashboardData.findMany.mockResolvedValueOnce([
+        { metric: 'caixa_para_investir_consolidado', value: 10000 },
+      ]);
       mockPrisma.dashboardData.findFirst.mockResolvedValue(null);
       mockPrisma.dashboardData.create.mockResolvedValue({});
       const res = await POST(createPostRequest({ caixaParaInvestir: 1000 }));
@@ -171,6 +186,48 @@ describe('/api/carteira/acoes', () => {
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
       expect(mockPrisma.dashboardData.create).toHaveBeenCalled();
+    });
+
+    // Bolso total com reservas por aba (17/09/2026): a reserva da aba precisa
+    // caber no caixa total.
+    it('recusa com 409 quando a reserva não cabe no caixa total', async () => {
+      mockPrisma.dashboardData.findMany.mockResolvedValueOnce([
+        { metric: 'caixa_para_investir_consolidado', value: 5000 },
+        { metric: 'caixa_para_investir_fii', value: 2000 },
+      ]);
+      const res = await POST(createPostRequest({ caixaParaInvestir: 4000 }));
+      const data = await res.json();
+
+      expect(res.status).toBe(409);
+      expect(data.code).toBe('RESERVA_EXCEDE_TOTAL');
+      expect(data.maximoAba).toBe(3000);
+      expect(data.totalNecessario).toBe(6000);
+      expect(mockPrisma.dashboardData.create).not.toHaveBeenCalled();
+      expect(mockPrisma.dashboardData.update).not.toHaveBeenCalled();
+    });
+
+    it('com ajustarTotal grava a reserva e sobe o total junto', async () => {
+      mockPrisma.dashboardData.findMany.mockResolvedValueOnce([
+        { metric: 'caixa_para_investir_consolidado', value: 5000 },
+        { metric: 'caixa_para_investir_fii', value: 2000 },
+      ]);
+      mockPrisma.dashboardData.findFirst.mockImplementation(
+        async ({ where }: { where: { metric: string } }) =>
+          where.metric === 'caixa_para_investir_consolidado' ? { id: 'total', value: 5000 } : null,
+      );
+      const res = await POST(createPostRequest({ caixaParaInvestir: 4000, ajustarTotal: true }));
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.caixaTotal).toBe(6000);
+      expect(mockPrisma.dashboardData.create).toHaveBeenCalledWith({
+        data: { userId: 'user-1', metric: 'caixa_para_investir_acoes', value: 4000 },
+      });
+      expect(mockPrisma.dashboardData.update).toHaveBeenCalledWith({
+        where: { id: 'total' },
+        data: { value: 6000 },
+      });
+      mockPrisma.dashboardData.findFirst.mockReset();
     });
   });
 });

@@ -13,7 +13,7 @@ import type {
 } from '@/types/previdencia-seguros';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
+import { handleCaixaAbaPost } from '@/app/api/carteira/_lib/caixaParaInvestirPost';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 
 function getAtivoColor(label: string): string {
@@ -183,10 +183,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     caixaParaInvestir,
     saldoInicioMes: totalValorAplicado,
     valorAtualizado: valorAtualizadoComCaixa,
-    rendimento: valorAtualizadoComCaixa - totalValorAplicado,
+    rendimento: totalValorAtualizado - totalValorAplicado,
     rentabilidade:
       totalValorAplicado > 0
-        ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+        ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100
         : 0,
   };
 
@@ -244,55 +244,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
-  const { targetUserId } = auth;
   const body = await request.json();
   const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
 
   if (caixaParaInvestir !== undefined) {
-    if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-      return NextResponse.json(
-        {
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero',
-        },
-        { status: 400 },
-      );
-    }
-
-    // Salvar ou atualizar caixa para investir de Previdência/Seguros
-    const existingCaixa = await prisma.dashboardData.findFirst({
-      where: {
-        userId: targetUserId,
-        metric: 'caixa_para_investir_previdencia_seguros',
-      },
-    });
-
-    if (existingCaixa) {
-      await prisma.dashboardData.update({
-        where: { id: existingCaixa.id },
-        data: { value: caixaParaInvestir },
-      });
-    } else {
-      await prisma.dashboardData.create({
-        data: {
-          userId: targetUserId,
-          metric: 'caixa_para_investir_previdencia_seguros',
-          value: caixaParaInvestir,
-        },
-      });
-    }
-
-    await recordCaixaParaInvestirAtualizado(request, auth, {
-      classe: 'Previdência e Seguros',
-      metric: 'caixa_para_investir_previdencia_seguros',
-      valorAnterior: existingCaixa?.value,
-      valor: caixaParaInvestir,
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Caixa para investir atualizado com sucesso',
-      caixaParaInvestir,
-    });
+    return handleCaixaAbaPost(request, auth, 'previdenciaSeguros', body);
   }
 
   if (!ativoId) {

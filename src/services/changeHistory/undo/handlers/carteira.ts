@@ -7,6 +7,7 @@
  * e a falta degrada em UndoError(409) legível.
  */
 
+import { invalidateCaixaCaches } from '@/services/portfolio/caixaParaInvestir';
 import type { FixedIncomeIndexer, FixedIncomeLiquidity, FixedIncomeType } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import {
@@ -367,6 +368,8 @@ const dashboardMetricRestore: UndoDefinition = {
         data: { userId: targetUserId, metric, value: previousValue },
       });
     }
+    // O resumo da carteira é cacheado e embute total/reservado/livre do caixa.
+    invalidateCaixaCaches(targetUserId);
     return { changes: invertChanges(changes) };
   },
 };

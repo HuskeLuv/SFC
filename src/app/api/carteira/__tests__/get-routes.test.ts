@@ -18,6 +18,8 @@ const mockPrisma = vi.hoisted(() => ({
   marketIndicatorCache: { findUnique: vi.fn() },
   economicIndex: { findMany: vi.fn().mockResolvedValue([]) },
   tesouroDiretoPrice: { findMany: vi.fn().mockResolvedValue([]) },
+  // Ativos planejados (sem posição, PR #201) — as rotas das abas listam a watchlist.
+  watchlist: { findMany: vi.fn().mockResolvedValue([]) },
   divida: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 

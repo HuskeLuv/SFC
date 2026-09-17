@@ -234,17 +234,21 @@ describe('GET /api/carteira/resumo', () => {
         asset: { symbol: 'RESERVA-EMERG-1', type: 'emergency', currency: 'BRL', name: 'Reserva' },
       },
     ]);
-    // caixa consolidado (500) + caixa por aba de ações (1000)
+    // Bolso total 1500, dos quais 1000 reservados na aba de ações → 500 livre.
     mockPrisma.dashboardData.findMany.mockResolvedValue([
-      { metric: 'caixa_para_investir_consolidado', value: 500 },
+      { metric: 'caixa_para_investir_consolidado', value: 1500 },
       { metric: 'caixa_para_investir_acoes', value: 1000 },
     ]);
     vi.mocked(getAssetPrices).mockResolvedValue(new Map([['PETR4', 40]]));
 
     const response = await GET(createGetRequest('?includeHistorico=false'));
     const data = await response.json();
-    // dinheiro = ações (4000 + caixa aba 1000) + reserva 6000 + consolidado 500
+    // dinheiro = ações (4000 + reserva da aba 1000) + reserva de emergência 6000
+    //           + caixa LIVRE 500 — o bolso entra uma vez só.
     expect(data.totais.dinheiro).toBeCloseTo(11500);
+    expect(data.caixaParaInvestir).toBe(1500);
+    expect(data.caixa).toMatchObject({ total: 1500, reservado: 1000, livre: 500 });
+    expect(data.caixa.porAba.acoes).toBe(1000);
     expect(data.totais.dinheiroMaisBens).toBeCloseTo(511500);
     // percentuais das categorias líquidas usam `dinheiro`; imóveis usa dinheiroMaisBens
     expect(data.distribuicao.acoes.percentual).toBeCloseTo((5000 / 11500) * 100, 1);

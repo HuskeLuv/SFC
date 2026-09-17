@@ -3,7 +3,7 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { recordCaixaParaInvestirAtualizado } from '@/services/changeHistory';
+import { handleCaixaAbaPost } from '@/app/api/carteira/_lib/caixaParaInvestirPost';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -291,55 +291,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
-  const { targetUserId } = auth;
   const body = await request.json();
   const { ativoId, objetivo: _objetivo, cotacao: _cotacao, caixaParaInvestir } = body;
 
   if (caixaParaInvestir !== undefined) {
-    if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-      return NextResponse.json(
-        {
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero',
-        },
-        { status: 400 },
-      );
-    }
-
-    // Salvar ou atualizar caixa para investir de Opções
-    const existingCaixa = await prisma.dashboardData.findFirst({
-      where: {
-        userId: targetUserId,
-        metric: 'caixa_para_investir_opcoes',
-      },
-    });
-
-    if (existingCaixa) {
-      await prisma.dashboardData.update({
-        where: { id: existingCaixa.id },
-        data: { value: caixaParaInvestir },
-      });
-    } else {
-      await prisma.dashboardData.create({
-        data: {
-          userId: targetUserId,
-          metric: 'caixa_para_investir_opcoes',
-          value: caixaParaInvestir,
-        },
-      });
-    }
-
-    await recordCaixaParaInvestirAtualizado(request, auth, {
-      classe: 'Opções',
-      metric: 'caixa_para_investir_opcoes',
-      valorAnterior: existingCaixa?.value,
-      valor: caixaParaInvestir,
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Caixa para investir atualizado com sucesso',
-      caixaParaInvestir,
-    });
+    return handleCaixaAbaPost(request, auth, 'opcoes', body);
   }
 
   if (!ativoId) {
