@@ -2,7 +2,6 @@
 
 import { logger } from '@/lib/logger';
 
-import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Dropdown } from '../ui/dropdown/Dropdown';
 import { useAuth } from '@/hooks/useAuth';
@@ -309,10 +308,14 @@ const NotificationDropdown: React.FC = () => {
         ) : null}
       </button>
 
+      {/* O sino vive no rodapé da sidebar (fim da tela), então o painel abre
+          pra cima (bottom-full) e alinhado à esquerda do botão, como o
+          UserDropdown ao lado. A altura é limitada pela viewport pra não
+          cortar em telas baixas; a lista interna rola. */}
       <Dropdown
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        className="absolute -right-[240px] mt-[17px] flex h-[480px] w-[350px] flex-col rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px] lg:right-0"
+        className="!right-auto !mt-0 bottom-full left-0 mb-2 flex h-[480px] max-h-[calc(100vh-6rem)] w-[min(350px,calc(100vw-5rem))] flex-col rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px]"
       >
         <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-700">
           <div className="flex flex-col">
@@ -395,13 +398,6 @@ const NotificationDropdown: React.FC = () => {
             ))}
           </ul>
         )}
-
-        <Link
-          href="/"
-          className="mt-3 inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-        >
-          Ver todas as notificações
-        </Link>
       </Dropdown>
     </div>
   );
