@@ -69,6 +69,19 @@ describe('CaixaParaInvestirCard', () => {
     expect(screen.getByText(/As reservas das abas passam do total/)).toBeInTheDocument();
   });
 
+  it('ações ficam na linha do título (card não cresce para caber o botão)', () => {
+    render(<CaixaParaInvestirCard value={1500} formatCurrency={formatBRL} onSave={vi.fn()} />);
+    const titulo = screen.getByText('Caixa para Investir');
+    const editar = screen.getByRole('button', { name: 'Editar caixa para investir' });
+    expect(titulo.parentElement).toBe(editar.parentElement);
+
+    fireEvent.click(editar);
+    expect(
+      screen.getByRole('button', { name: 'Salvar caixa para investir' }).parentElement
+        ?.parentElement,
+    ).toBe(titulo.parentElement);
+  });
+
   it('salva e sai da edição quando onSave devolve true', async () => {
     const onSave = vi.fn().mockResolvedValue(true);
     render(<CaixaParaInvestirCard value={0} formatCurrency={formatBRL} onSave={onSave} />);
