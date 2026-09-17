@@ -1,14 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Input from '@/components/form/input/InputField';
 import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
+import { formatBRL } from '@/utils/format';
+import { useCarteiraResumoContextOptional } from '@/context/CarteiraResumoContext';
+import type { CaixaSaveFailure, SaveCaixaFn } from '@/lib/caixaParaInvestirClient';
 
 type CaixaParaInvestirCardProps = {
   title?: string;
   value: number;
   formatCurrency: (value: number | null | undefined) => string;
-  onSave?: (value: number) => Promise<boolean>;
+  onSave?: SaveCaixaFn;
   color?: 'primary' | 'success' | 'warning' | 'error';
   readOnly?: boolean;
+  /**
+   * Modelo "bolso total com reservas por aba" (17/09/2026):
+   *   - 'total' → card da Carteira Consolidada: o bolso inteiro;
+   *   - 'aba'   → card de uma aba: a RESERVA daquela classe dentro do bolso.
+   */
+  escopo?: 'total' | 'aba';
 };
 
 const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
@@ -18,7 +27,12 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
   onSave,
   color = 'success',
   readOnly = false,
+  escopo = 'aba',
 }) => {
+  // Total/reservado/livre vêm do resumo da carteira (mesma fonte pros 11 cards).
+  // Fora do provider (testes/uso isolado) o card só mostra o próprio valor.
+  const caixa = useCarteiraResumoContextOptional()?.resumo?.caixa ?? null;
+  const [failure, setFailure] = useState<CaixaSaveFailure | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -33,32 +47,44 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
   }, [formattedValue, isEditing]);
 
   const handleStartEditing = () => {
+    setFailure(null);
     setErrorMessage(null);
     setInputValue(formattedValue);
     setIsEditing(true);
   };
 
   const handleCancelEditing = () => {
+    setFailure(null);
     setErrorMessage(null);
     setInputValue(formattedValue);
     setIsEditing(false);
   };
 
-  const handleSaveValue = async () => {
+  const handleSaveValue = async (opts?: { ajustarTotal?: boolean }) => {
     const parsedValue = parseCurrencyInput(inputValue);
     if (parsedValue === null || parsedValue < 0) {
+      setFailure(null);
       setErrorMessage('Informe um valor válido.');
       return;
     }
     setIsSaving(true);
-    const success = onSave ? await onSave(parsedValue) : false;
+    // Sem opções chama só com o valor (contrato antigo de onSave).
+    const result = onSave ? await (opts ? onSave(parsedValue, opts) : onSave(parsedValue)) : false;
     setIsSaving(false);
-    if (success) {
+    if (result === true) {
       setIsEditing(false);
+      setFailure(null);
       setErrorMessage(null);
       return;
     }
-    setErrorMessage('Não foi possível salvar o valor.');
+    if (result === false) {
+      setFailure(null);
+      setErrorMessage('Não foi possível salvar o valor.');
+      return;
+    }
+    // Recusa por regra do bolso (reserva não cabe / total abaixo das reservas).
+    setFailure(result);
+    setErrorMessage(result.message);
   };
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -100,6 +126,60 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
       ) : (
         <p className="text-xl font-semibold">{formattedValue}</p>
       )}
+      {isEditing && failure?.totalNecessario != null && (
+        <button
+          type="button"
+          className="mt-2 w-full rounded-md border border-[#0079F2] px-3 py-1.5 text-xs font-semibold text-[#0079F2] transition-colors hover:bg-[#0079F2]/10 disabled:opacity-60 dark:border-[#80BCF8] dark:text-[#80BCF8]"
+          onClick={() => void handleSaveValue({ ajustarTotal: true })}
+          disabled={isSaving}
+        >
+          Aumentar o total para {formatBRL(failure.totalNecessario)} e salvar
+        </button>
+      )}
+      {!isEditing && caixa && (
+        <dl
+          className="mt-2 space-y-0.5 text-xs opacity-80"
+          title={
+            escopo === 'total'
+              ? 'Bolso total. Nas abas = quanto já está reservado para cada classe; Livre = o que ainda não tem destino.'
+              : 'Este valor é a reserva desta aba dentro do Caixa para Investir total.'
+          }
+        >
+          {escopo === 'total' ? (
+            <>
+              <div className="flex justify-between gap-2">
+                <dt>Nas abas</dt>
+                <dd className="whitespace-nowrap font-medium">{formatBRL(caixa.reservado)}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt>Livre</dt>
+                <dd className="whitespace-nowrap font-medium">
+                  {formatBRL(Math.max(0, caixa.livre))}
+                </dd>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between gap-2">
+                <dt>Caixa total</dt>
+                <dd className="whitespace-nowrap font-medium">{formatBRL(caixa.total)}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt>Livre</dt>
+                <dd className="whitespace-nowrap font-medium">
+                  {formatBRL(Math.max(0, caixa.livre))}
+                </dd>
+              </div>
+            </>
+          )}
+        </dl>
+      )}
+      {!isEditing && caixa && caixa.livre < 0 && (
+        <p className="mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+          As reservas das abas passam do total em {formatBRL(-caixa.livre)}. Ajuste o total ou as
+          reservas.
+        </p>
+      )}
       {!readOnly && (
         <div className="mt-3 flex items-center justify-end gap-2">
           {isEditing ? (
@@ -107,7 +187,7 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
               <button
                 type="button"
                 className="rounded-md bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-60"
-                onClick={handleSaveValue}
+                onClick={() => void handleSaveValue()}
                 disabled={isSaving}
                 aria-label="Salvar caixa para investir"
               >

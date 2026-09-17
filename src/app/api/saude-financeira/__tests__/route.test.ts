@@ -354,8 +354,12 @@ describe('GET /api/saude-financeira', () => {
     expect(data.indicadores.benchmarks.patrimonioIdeal.necessario).toBe(468000);
   });
 
-  it('caixa para investir soma na alta liquidez', async () => {
-    mockPrisma.dashboardData.findMany.mockResolvedValue([{ value: 5000 }, { value: 2500 }]);
+  it('caixa para investir soma na alta liquidez (bolso total, reservas não somam de novo)', async () => {
+    // Bolso 7500 com 2500 reservados em ações: o caixa entra UMA vez (7500).
+    mockPrisma.dashboardData.findMany.mockResolvedValue([
+      { metric: 'caixa_para_investir_consolidado', value: 7500 },
+      { metric: 'caixa_para_investir_acoes', value: 2500 },
+    ]);
 
     const res = await GET(req());
     const data = await res.json();

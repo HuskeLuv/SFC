@@ -1,4 +1,5 @@
 'use client';
+import type { SaveCaixaFn } from '@/lib/caixaParaInvestirClient';
 import { useAssetData } from './useAssetData';
 import { PrevidenciaSegurosData } from '@/types/previdencia-seguros';
 
@@ -10,7 +11,7 @@ interface UsePrevidenciaSegurosReturn {
   formatPercentage: (value: number) => string;
   formatNumber: (value: number) => string;
   updateObjetivo: (ativoId: string, novoObjetivo: number) => Promise<void>;
-  updateCaixaParaInvestir: (novoCaixa: number) => Promise<boolean>;
+  updateCaixaParaInvestir: SaveCaixaFn;
   refetch: () => void;
 }
 

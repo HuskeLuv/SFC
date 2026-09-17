@@ -1,5 +1,6 @@
 'use client';
 
+import { postCaixaParaInvestir, type CaixaSaveOptions } from '@/lib/caixaParaInvestirClient';
 import { logger } from '@/lib/logger';
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -57,17 +58,15 @@ export const useRendaFixa = () => {
   const formatPercentage = (value: number | undefined | null): string => formatPctSigned(value);
 
   const updateCaixaParaInvestir = useCallback(
-    async (novoCaixa: number) => {
+    async (novoCaixa: number, opts?: CaixaSaveOptions) => {
       try {
-        const response = await csrfFetch('/api/carteira/renda-fixa', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ caixaParaInvestir: novoCaixa }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Erro ao atualizar caixa para investir');
-        }
+        const result = await postCaixaParaInvestir(
+          csrfFetch,
+          '/api/carteira/renda-fixa',
+          novoCaixa,
+          opts,
+        );
+        if (result !== true) return result;
 
         await queryClient.invalidateQueries({ queryKey });
         invalidatePortfolioDerivedQueries(queryClient);

@@ -1,3 +1,4 @@
+import type { SaveCaixaFn } from '@/lib/caixaParaInvestirClient';
 import { createContext, useContext } from 'react';
 import type { CarteiraResumo } from '@/hooks/useCarteira';
 
@@ -10,7 +11,7 @@ interface CarteiraResumoContextValue {
   formatCurrency: (value: number | null | undefined) => string;
   formatPercentage: (value: number | null | undefined) => string;
   updateMeta: (novaMetaPatrimonio: number) => Promise<boolean>;
-  updateCaixaParaInvestir: (novoCaixa: number) => Promise<boolean>;
+  updateCaixaParaInvestir: SaveCaixaFn;
   refetch: () => Promise<void>;
   necessidadeAporteMap: NecessidadeAporteMap;
   isAlocacaoLoading: boolean;
@@ -38,3 +39,9 @@ export const useCarteiraResumoContext = () => {
 
   return context;
 };
+
+/**
+ * Versão tolerante: `null` fora do provider. Pra componentes compartilhados
+ * (ex.: CaixaParaInvestirCard) que também renderizam isolados em testes.
+ */
+export const useCarteiraResumoContextOptional = () => useContext(CarteiraResumoContext);

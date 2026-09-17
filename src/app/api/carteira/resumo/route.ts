@@ -19,6 +19,8 @@ import {
 } from '@/utils/cashflowFilters';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { computeCaixaResumo } from '@/services/portfolio/caixaParaInvestir';
+import { handleCaixaTotalPost } from '@/app/api/carteira/_lib/caixaParaInvestirPost';
 import {
   recordChange,
   diffFields,
@@ -323,11 +325,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // dashboardMetrics já carregado em paralelo acima
   const metaPatrimonio = dashboardMetrics.find((item) => item.metric === 'meta_patrimonio');
 
-  // Buscar caixa para investir consolidado (não é mais a soma dos outros)
-  const caixaParaInvestirConsolidado = dashboardMetrics.find(
-    (item) => item.metric === 'caixa_para_investir_consolidado',
-  );
-  const caixaParaInvestir = caixaParaInvestirConsolidado?.value || 0;
+  // Caixa para Investir — bolso total com reservas por aba (decisão 17/09/2026).
+  // `caixaParaInvestir` segue sendo o TOTAL informado; `caixa` traz o detalhe.
+  const caixa = computeCaixaResumo(dashboardMetrics);
+  const caixaParaInvestir = caixa.total;
 
   // stockTransactions já carregado em paralelo acima
 
@@ -542,55 +543,34 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // A tabela de alocação reflete apenas portfolio real + caixa para investir
   // categorizedInvestments (cashflow) pode ter valores de planejamento que não correspondem ao patrimônio real
 
-  // Buscar caixa para investir de cada tab e adicionar aos valores calculados
-  // Isso garante que os valores incluam o caixa para investir de cada tab
-  const caixaAcoes =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_acoes')?.value || 0;
-  const caixaFii =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_fii')?.value || 0;
-  const caixaEtf =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_etf')?.value || 0;
-  const caixaReit =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_reit')?.value || 0;
-  const caixaStocks =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_stocks')?.value || 0;
-  const caixaMoedasCriptos =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_moedas_criptos')?.value ||
-    0;
-  const caixaPrevidenciaSeguros =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_previdencia_seguros')
-      ?.value || 0;
-  const caixaOpcoes =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_opcoes')?.value || 0;
-  const caixaFimFia =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_fim_fia')?.value || 0;
-  const caixaRendaFixa =
-    dashboardMetrics.find((item) => item.metric === 'caixa_para_investir_renda_fixa')?.value || 0;
-
-  // Adicionar caixas aos valores das categorias (que já foram calculados acima)
-  categorias.acoes += caixaAcoes;
-  categorias.fiis += caixaFii;
-  categorias.etfs += caixaEtf;
-  categorias.reits += caixaReit;
-  categorias.stocks += caixaStocks;
-  categorias.moedasCriptos += caixaMoedasCriptos;
-  categorias.previdenciaSeguros += caixaPrevidenciaSeguros;
-  categorias.opcoes += caixaOpcoes;
-  categorias.fimFia += caixaFimFia;
-  categorias.rendaFixaFundos += caixaRendaFixa;
+  // A reserva de cada aba entra no valor da própria categoria (é dinheiro já
+  // destinado àquela classe) — mesma base que a aba exibe.
+  categorias.acoes += caixa.porAba.acoes;
+  categorias.fiis += caixa.porAba.fii;
+  categorias.etfs += caixa.porAba.etf;
+  categorias.reits += caixa.porAba.reit;
+  categorias.stocks += caixa.porAba.stocks;
+  categorias.moedasCriptos += caixa.porAba.moedasCriptos;
+  categorias.previdenciaSeguros += caixa.porAba.previdenciaSeguros;
+  categorias.opcoes += caixa.porAba.opcoes;
+  categorias.fimFia += caixa.porAba.fimFia;
+  categorias.rendaFixaFundos += caixa.porAba.rendaFixa;
 
   // Denominador ÚNICO dos percentuais (decisão de produto, jul/2026):
-  //   totais.dinheiro = Σ categorias líquidas (caixas por aba já embutidos)
-  //                     + caixa consolidado, contado UMA vez.
+  //   totais.dinheiro = Σ categorias líquidas (reservas por aba já embutidas)
+  //                     + caixa LIVRE (bolso − reservas).
+  //   As reservas são fatias do bolso total, não dinheiro a mais: somar o total
+  //   inteiro por cima contava o mesmo dinheiro duas vezes. `bolso − reservado`
+  //   nunca é negativo (bolso = max(total, reservado) — leitura defensiva).
   //   Imóveis/bens ficam FORA do denominador das categorias líquidas; o % de
   //   imoveisBens usa dinheiroMaisBens. O frontend (pizza, tabela de alocação,
-  //   necessidade de aporte) consome estes números prontos — antes cada tela
-  //   recalculava com uma base diferente (0,96% vs 15,65% pra mesma categoria).
+  //   necessidade de aporte) consome estes números prontos.
+  const caixaLivre = Math.max(0, caixa.bolso - caixa.reservado);
   const totalDinheiro =
     Object.entries(categorias).reduce(
       (sum, [key, valor]) => (key === 'imoveisBens' ? sum : sum + valor),
       0,
-    ) + (caixaParaInvestir || 0);
+    ) + caixaLivre;
   const totalDinheiroMaisBens = totalDinheiro + categorias.imoveisBens;
 
   // Passivos: saldo devedor das dívidas ativas (área de Dívidas), corrigido
@@ -648,6 +628,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     rentabilidade: Math.round(rentabilidade * 100) / 100,
     metaPatrimonio: metaPatrimonio?.value || 0,
     caixaParaInvestir: caixaParaInvestir || 0,
+    caixa: {
+      total: caixa.total,
+      reservado: caixa.reservado,
+      livre: caixa.livre,
+      porAba: caixa.porAba,
+    },
     totais: {
       dinheiro: round2(totalDinheiro),
       dinheiroMaisBens: round2(totalDinheiroMaisBens),
@@ -690,64 +676,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const { metaPatrimonio, caixaParaInvestir } = await request.json();
 
-  // Atualizar caixa para investir consolidado
+  // Atualizar o bolso total do caixa para investir (não pode ficar abaixo das reservas)
   if (caixaParaInvestir !== undefined) {
-    if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-      return NextResponse.json(
-        {
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero',
-        },
-        { status: 400 },
-      );
-    }
-
-    const existingCaixa = await prisma.dashboardData.findFirst({
-      where: {
-        userId: targetUserId,
-        metric: 'caixa_para_investir_consolidado',
-      },
-    });
-
-    if (existingCaixa) {
-      await prisma.dashboardData.update({
-        where: { id: existingCaixa.id },
-        data: { value: caixaParaInvestir },
-      });
-    } else {
-      await prisma.dashboardData.create({
-        data: {
-          userId: targetUserId,
-          metric: 'caixa_para_investir_consolidado',
-          value: caixaParaInvestir,
-        },
-      });
-    }
-
-    deleteTtlCacheKeyPrefix('carteiraResumo', `${targetUserId}:`);
-
-    await recordChange({
-      request,
-      auth,
-      section: 'carteira',
-      action: 'resumo.atualizar',
-      entity: 'resumo',
-      entityId: 'caixa_para_investir_consolidado',
-      changes: diffFields(
-        { caixaParaInvestir: existingCaixa?.value ?? null },
-        { caixaParaInvestir },
-        RESUMO_FIELD_LABELS,
-      ),
-      snapshot: buildDashboardMetricSnapshot(
-        'caixa_para_investir_consolidado',
-        existingCaixa?.value,
-      ),
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Caixa para investir atualizado com sucesso',
-      caixaParaInvestir,
-    });
+    return handleCaixaTotalPost(request, auth, caixaParaInvestir);
   }
 
   // Atualizar meta de patrimônio (código existente)

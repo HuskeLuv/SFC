@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { handleCaixaAbaPost } from '@/app/api/carteira/_lib/caixaParaInvestirPost';
 import {
   listarPlanejados,
   linhaPlanejadaFundoBase,
@@ -14,7 +15,6 @@ import {
   recordChange,
   diffFields,
   assetEntityLabel,
-  recordCaixaParaInvestirAtualizado,
   ATIVO_VALOR_FIELD_LABELS,
   RENDA_FIXA_FIELD_LABELS,
 } from '@/services/changeHistory';
@@ -339,7 +339,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const valorAtualizadoComCaixa = totalValorAtualizado + caixaParaInvestir;
   const rentabilidade =
     totalValorAplicado > 0
-      ? ((valorAtualizadoComCaixa - totalValorAplicado) / totalValorAplicado) * 100
+      ? ((totalValorAtualizado - totalValorAplicado) / totalValorAplicado) * 100
       : 0;
 
   const totalNecessidadeAporte = ativosComPercentuais.reduce(
@@ -355,7 +355,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       caixaParaInvestir: caixaParaInvestir,
       saldoInicioMes: totalValorAplicado,
       valorAtualizado: valorAtualizadoComCaixa,
-      rendimento: valorAtualizadoComCaixa - totalValorAplicado,
+      rendimento: totalValorAtualizado - totalValorAplicado,
       rentabilidade,
     },
     secoes,
@@ -494,50 +494,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   if (caixaParaInvestir !== undefined) {
-    if (typeof caixaParaInvestir !== 'number' || caixaParaInvestir < 0) {
-      return NextResponse.json(
-        {
-          error: 'Caixa para investir deve ser um valor igual ou maior que zero',
-        },
-        { status: 400 },
-      );
-    }
-
-    // Salvar ou atualizar caixa para investir de FIM/FIA
-    const existingCaixa = await prisma.dashboardData.findFirst({
-      where: {
-        userId: targetUserId,
-        metric: 'caixa_para_investir_fim_fia',
-      },
-    });
-
-    if (existingCaixa) {
-      await prisma.dashboardData.update({
-        where: { id: existingCaixa.id },
-        data: { value: caixaParaInvestir },
-      });
-    } else {
-      await prisma.dashboardData.create({
-        data: {
-          userId: targetUserId,
-          metric: 'caixa_para_investir_fim_fia',
-          value: caixaParaInvestir,
-        },
-      });
-    }
-
-    await recordCaixaParaInvestirAtualizado(request, auth, {
-      classe: 'FIM/FIA',
-      metric: 'caixa_para_investir_fim_fia',
-      valorAnterior: existingCaixa?.value,
-      valor: caixaParaInvestir,
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Caixa para investir atualizado com sucesso',
-      caixaParaInvestir,
-    });
+    return handleCaixaAbaPost(request, auth, 'fimFia', body);
   }
 
   if (!ativoId) {

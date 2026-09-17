@@ -202,6 +202,7 @@ export default function CarteiraResumo() {
                     formatCurrency={formatCurrency}
                     onSave={updateCaixaParaInvestir}
                     color="success"
+                    escopo="total"
                   />,
                   ...(totalDividas > 0
                     ? [
@@ -224,7 +225,12 @@ export default function CarteiraResumo() {
               <AlocacaoAtivosTable
                 distribuicao={resumo.distribuicao}
                 alocacaoConfig={alocacaoConfig}
-                caixaParaInvestir={resumo.caixaParaInvestir ?? 0}
+                // Só o caixa LIVRE abate a necessidade de aporte: as reservas por aba
+                // já estão dentro do valor de cada categoria.
+                caixaParaInvestir={Math.max(
+                  0,
+                  resumo.caixa?.livre ?? resumo.caixaParaInvestir ?? 0,
+                )}
                 totais={resumo.totais}
                 onNavigateToTab={setActiveTab}
               />

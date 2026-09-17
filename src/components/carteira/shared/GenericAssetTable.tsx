@@ -1,4 +1,5 @@
 'use client';
+import type { SaveCaixaFn } from '@/lib/caixaParaInvestirClient';
 import React, { useState, useMemo, ReactNode } from 'react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
@@ -104,7 +105,7 @@ export interface GenericAssetTableProps<TAtivo, TSecao> {
   necessidadeAporteKey?: string;
 
   // CaixaParaInvestir
-  onUpdateCaixaParaInvestir: (valor: number) => Promise<boolean>;
+  onUpdateCaixaParaInvestir: SaveCaixaFn;
 
   // Section config
   sectionOrder: readonly string[];

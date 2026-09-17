@@ -7,7 +7,11 @@
 import type { NextRequest } from 'next/server';
 import { recordChange, type RecordChangeParams } from './recordChange';
 import { diffFields } from './diffFields';
-import { CAIXA_INVESTIR_FIELD_LABELS, OBJETIVO_CLASSE_FIELD_LABELS } from './labels';
+import {
+  CAIXA_INVESTIR_FIELD_LABELS,
+  OBJETIVO_CLASSE_FIELD_LABELS,
+  RESUMO_FIELD_LABELS,
+} from './labels';
 import { buildDashboardMetricSnapshot } from './snapshots';
 
 type CarteiraAuth = RecordChangeParams['auth'];
@@ -59,6 +63,33 @@ export async function recordCaixaParaInvestirAtualizado(
       CAIXA_INVESTIR_FIELD_LABELS,
     ),
     snapshot: buildDashboardMetricSnapshot(params.metric, params.valorAnterior),
+  });
+}
+
+/**
+ * Bolso total do "caixa para investir" (métrica consolidada). Mesma
+ * action/entity que o POST de /api/carteira/resumo sempre gravou — o undo
+ * (`resumo.atualizar`) e o render do histórico continuam valendo.
+ */
+export async function recordCaixaTotalAtualizado(
+  request: NextRequest,
+  auth: CarteiraAuth,
+  params: { valorAnterior: number | null | undefined; valor: number },
+): Promise<void> {
+  const metric = 'caixa_para_investir_consolidado';
+  await recordChange({
+    request,
+    auth,
+    section: 'carteira',
+    action: 'resumo.atualizar',
+    entity: 'resumo',
+    entityId: metric,
+    changes: diffFields(
+      { caixaParaInvestir: params.valorAnterior ?? null },
+      { caixaParaInvestir: params.valor },
+      RESUMO_FIELD_LABELS,
+    ),
+    snapshot: buildDashboardMetricSnapshot(metric, params.valorAnterior),
   });
 }
 
