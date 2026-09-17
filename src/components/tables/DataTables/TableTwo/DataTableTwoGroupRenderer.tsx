@@ -5,6 +5,7 @@ import { CashflowGroup, CashflowItem } from '@/types/cashflow';
 import { GroupRenderContext } from './dataTableTwoTypes';
 import { SpacingRow } from '@/components/cashflow/GridCells';
 import { groupLevel } from '@/components/cashflow/groupLevel';
+import { SortableGroupItems } from '@/components/cashflow/CashflowDnd';
 
 interface GroupItemsRendererProps {
   group: CashflowGroup;
@@ -37,14 +38,21 @@ function renderItems(
   group: CashflowGroup,
   ctx: GroupRenderContext,
 ) {
-  return items?.map((item) =>
-    ctx.renderItemRowConditional(
-      item,
-      group,
-      ctx.processedData.itemTotals[item.id] || Array(12).fill(0),
-      ctx.processedData.itemAnnualTotals[item.id] || 0,
-      ctx.processedData.itemPercentages[item.id] || 0,
-    ),
+  if (!items?.length) return null;
+  // SortableContext por grupo: a linha só é solta entre irmãos (drag-and-drop,
+  // 16/09/2026). Não gera DOM, então cabe dentro do <tbody>.
+  return (
+    <SortableGroupItems groupId={group.id} itemIds={items.map((item) => item.id)}>
+      {items.map((item) =>
+        ctx.renderItemRowConditional(
+          item,
+          group,
+          ctx.processedData.itemTotals[item.id] || Array(12).fill(0),
+          ctx.processedData.itemAnnualTotals[item.id] || 0,
+          ctx.processedData.itemPercentages[item.id] || 0,
+        ),
+      )}
+    </SortableGroupItems>
   );
 }
 

@@ -48,6 +48,12 @@ import { ImportPlanilhaModal } from '@/components/cashflow/ImportPlanilhaModal';
 import { SubGroupRenderer, renderGroupHeaderProps } from './DataTableTwoGroupRenderer';
 import DataTableTwoGroupRenderer from './DataTableTwoGroupRenderer';
 import { GroupRenderContext } from './dataTableTwoTypes';
+import { CashflowDndProvider } from '@/components/cashflow/CashflowDnd';
+import {
+  findGroupInTree,
+  reorderIds,
+  reorderItemsInTree,
+} from '@/services/cashflow/reorderItemsInTree';
 
 export default function DataTableTwo() {
   const { csrfFetch } = useCsrf();
@@ -237,30 +243,37 @@ export default function DataTableTwo() {
     [newRow, cancelAddingRow, showAlert, isGroupEditing, addItemToEdit],
   );
 
-  // Reordena a linha dentro do grupo (setinhas ↑↓): troca com o vizinho e
-  // manda a lista completa pro backend, que personaliza templates e grava
-  // orderIndex por posição.
-  const moveItem = useCallback(
-    async (item: CashflowItem, group: CashflowGroup, direction: 'up' | 'down') => {
-      const ids = (group.items ?? []).map((i) => i.id);
-      const idx = ids.indexOf(item.id);
-      const alvo = direction === 'up' ? idx - 1 : idx + 1;
-      if (idx < 0 || alvo < 0 || alvo >= ids.length) return;
-      [ids[idx], ids[alvo]] = [ids[alvo], ids[idx]];
+  // Drag-and-drop (16/09/2026): ao soltar `activeId` sobre `overId` no mesmo
+  // grupo, reordena o cache na hora (a planilha não pisca) e manda a lista
+  // completa pro backend, que personaliza templates e grava orderIndex por
+  // posição. Se falhar, o refetch devolve a ordem do servidor.
+  const handleReorder = useCallback(
+    async (groupId: string, activeId: string, overId: string) => {
+      const group = findGroupInTree(data, groupId);
+      if (!group) return;
+      const ids = reorderIds(
+        (group.items ?? []).map((i) => i.id),
+        activeId,
+        overId,
+      );
+      if (!ids) return;
+      queryClient.setQueryData<CashflowGroup[]>(queryKeys.cashflow.year(currentYear), (old) =>
+        old ? reorderItemsInTree(old, groupId, ids) : old,
+      );
       try {
         const res = await csrfFetch('/api/cashflow/item/reorder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groupId: group.id, itemIds: ids }),
+          body: JSON.stringify({ groupId, itemIds: ids }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        await refetch();
       } catch (error) {
         logger.error('Erro ao reordenar linha:', error);
         showAlert('error', 'Erro ao reordenar', 'Não foi possível mover a linha.');
+        await refetch();
       }
     },
-    [csrfFetch, refetch, showAlert],
+    [data, queryClient, currentYear, csrfFetch, refetch, showAlert],
   );
 
   const handleStartGroupEdit = useCallback(
@@ -409,7 +422,9 @@ export default function DataTableTwo() {
             itemPercentage={itemPercentage}
             group={group}
             currentYear={currentYear}
-            onMoveItem={moveItem}
+            // Grupos calculados (Aporte/Resgate da carteira, Conta Corrente)
+            // não têm linhas no banco — sem alça.
+            reorderable={group.type !== 'investimento' && group.type !== 'saldo'}
           />
         );
       }
@@ -425,7 +440,6 @@ export default function DataTableTwo() {
       handleCommentCellClick,
       isCommentModeActive,
       currentYear,
-      moveItem,
     ],
   );
 
@@ -518,37 +532,86 @@ export default function DataTableTwo() {
         className={`${TABLE_STYLES.wrapper} relative isolate z-0 w-full max-w-full min-w-0 h-full overflow-y-auto custom-scrollbar cashflow-table pb-24`}
         style={{ scrollBehavior: 'auto', position: 'relative' }}
       >
-        <Table
-          className={`relative ${GRID.table}`}
-          style={GRID.tableStyle}
-          aria-label="Planilha de fluxo de caixa"
-        >
-          <TableHeaderComponent currentMonth={currentMonth} />
-          <TableBody>
-            {mainGroups.map((group, groupIndex, groups) => {
-              const isFirstDespesaGroup =
-                !isReceitaGroupByType(group.type) &&
-                groups.slice(0, groupIndex).every((g) => isReceitaGroupByType(g.type));
-              const isMainDespesasGroup =
-                isCanonical(group, CANONICAL_GROUPS.DESPESAS) && !group.parentId;
+        <CashflowDndProvider onReorder={handleReorder}>
+          <Table
+            className={`relative ${GRID.table}`}
+            style={GRID.tableStyle}
+            aria-label="Planilha de fluxo de caixa"
+          >
+            <TableHeaderComponent currentMonth={currentMonth} />
+            <TableBody>
+              {mainGroups.map((group, groupIndex, groups) => {
+                const isFirstDespesaGroup =
+                  !isReceitaGroupByType(group.type) &&
+                  groups.slice(0, groupIndex).every((g) => isReceitaGroupByType(g.type));
+                const isMainDespesasGroup =
+                  isCanonical(group, CANONICAL_GROUPS.DESPESAS) && !group.parentId;
 
-              return (
+                return (
+                  <React.Fragment key={group.id}>
+                    {isFirstDespesaGroup && (
+                      <>
+                        <SpacingRow />
+                        <SaldoContaCorrenteAnteriorRow cells={saldoContaCorrenteAnteriorByMonth} />
+                      </>
+                    )}
+                    {groupIndex > 0 && <SpacingRow />}
+                    <GroupHeader {...renderGroupHeaderProps(group, ctx)} />
+                    {isMainDespesasGroup && (
+                      <InflationPedroRow
+                        despesasByMonth={processedData.despesasByMonth}
+                        despesasAnnual={processedData.despesasTotal}
+                      />
+                    )}
+
+                    {!collapsed[group.id] && (
+                      <>
+                        {group.children?.map((subgroup) => (
+                          <SubGroupRenderer key={subgroup.id} subgroup={subgroup} ctx={ctx} />
+                        ))}
+                        <DataTableTwoGroupRenderer group={group} ctx={ctx} />
+                      </>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+
+              <SpacingRow />
+              <TotalRow
+                totalByMonth={processedData.totalByMonth}
+                totalAnnual={processedData.totalAnnual}
+              />
+              <SavingsIndexRow
+                totalByMonth={processedData.totalByMonth}
+                entradasByMonth={processedData.entradasByMonth}
+                totalAnnual={processedData.totalAnnual}
+                entradasAnnual={processedData.entradasTotal}
+              />
+
+              {/* Conta Corrente: saldo parado nos bancos, preenchido manualmente */}
+              {contaCorrenteGroup && (
+                <React.Fragment key={contaCorrenteGroup.id}>
+                  <SpacingRow />
+                  <GroupHeader {...renderGroupHeaderProps(contaCorrenteGroup, ctx)} />
+                  {!collapsed[contaCorrenteGroup.id] && (
+                    <DataTableTwoGroupRenderer group={contaCorrenteGroup} ctx={ctx} />
+                  )}
+                </React.Fragment>
+              )}
+
+              {/* Aporte/Resgate (grupo Investimentos, automático da carteira) */}
+              {investimentoGroups.map((group) => (
                 <React.Fragment key={group.id}>
-                  {isFirstDespesaGroup && (
-                    <>
-                      <SpacingRow />
-                      <SaldoContaCorrenteAnteriorRow cells={saldoContaCorrenteAnteriorByMonth} />
-                    </>
-                  )}
-                  {groupIndex > 0 && <SpacingRow />}
-                  <GroupHeader {...renderGroupHeaderProps(group, ctx)} />
-                  {isMainDespesasGroup && (
-                    <InflationPedroRow
-                      despesasByMonth={processedData.despesasByMonth}
-                      despesasAnnual={processedData.despesasTotal}
-                    />
-                  )}
-
+                  <SpacingRow />
+                  <GroupHeader
+                    group={group}
+                    isCollapsed={collapsed[group.id] || false}
+                    groupTotals={processedData.groupTotals[group.id] || Array(12).fill(0)}
+                    groupAnnualTotal={processedData.groupAnnualTotals[group.id] || 0}
+                    groupPercentage={processedData.groupPercentages[group.id] || 0}
+                    onToggleCollapse={() => toggleCollapse(group.id)}
+                    onAddRow={() => startAddingRow(group.id)}
+                  />
                   {!collapsed[group.id] && (
                     <>
                       {group.children?.map((subgroup) => (
@@ -558,85 +621,38 @@ export default function DataTableTwo() {
                     </>
                   )}
                 </React.Fragment>
-              );
-            })}
+              ))}
 
-            <SpacingRow />
-            <TotalRow
-              totalByMonth={processedData.totalByMonth}
-              totalAnnual={processedData.totalAnnual}
-            />
-            <SavingsIndexRow
-              totalByMonth={processedData.totalByMonth}
-              entradasByMonth={processedData.entradasByMonth}
-              totalAnnual={processedData.totalAnnual}
-              entradasAnnual={processedData.entradasTotal}
-            />
+              <SpacingRow />
+              <SummaryRow
+                label="Fluxo de Caixa livre"
+                tooltip="Saldo do mês + Saldo Conta Corrente do mês anterior − aportes/resgates do mês. Mês com aporte grande fica negativo: o dinheiro saiu do caixa livre e virou patrimônio investido."
+                cells={fluxoCaixaLivreByMonth}
+                annual={fluxoCaixaLivreAnnual}
+                variant="highlight"
+                negativeRed
+                positiveBlue
+              />
+              <SummaryRow
+                label="Evolução do Patrimônio"
+                cells={evolucaoPatrimonioByMonth}
+                annual={evolucaoPatrimonioByMonth[11] ?? null}
+                variant="highlight"
+                negativeRed
+              />
 
-            {/* Conta Corrente: saldo parado nos bancos, preenchido manualmente */}
-            {contaCorrenteGroup && (
-              <React.Fragment key={contaCorrenteGroup.id}>
-                <SpacingRow />
-                <GroupHeader {...renderGroupHeaderProps(contaCorrenteGroup, ctx)} />
-                {!collapsed[contaCorrenteGroup.id] && (
-                  <DataTableTwoGroupRenderer group={contaCorrenteGroup} ctx={ctx} />
-                )}
-              </React.Fragment>
-            )}
-
-            {/* Aporte/Resgate (grupo Investimentos, automático da carteira) */}
-            {investimentoGroups.map((group) => (
-              <React.Fragment key={group.id}>
-                <SpacingRow />
-                <GroupHeader
-                  group={group}
-                  isCollapsed={collapsed[group.id] || false}
-                  groupTotals={processedData.groupTotals[group.id] || Array(12).fill(0)}
-                  groupAnnualTotal={processedData.groupAnnualTotals[group.id] || 0}
-                  groupPercentage={processedData.groupPercentages[group.id] || 0}
-                  onToggleCollapse={() => toggleCollapse(group.id)}
-                  onAddRow={() => startAddingRow(group.id)}
-                />
-                {!collapsed[group.id] && (
-                  <>
-                    {group.children?.map((subgroup) => (
-                      <SubGroupRenderer key={subgroup.id} subgroup={subgroup} ctx={ctx} />
-                    ))}
-                    <DataTableTwoGroupRenderer group={group} ctx={ctx} />
-                  </>
-                )}
-              </React.Fragment>
-            ))}
-
-            <SpacingRow />
-            <SummaryRow
-              label="Fluxo de Caixa livre"
-              tooltip="Saldo do mês + Saldo Conta Corrente do mês anterior − aportes/resgates do mês. Mês com aporte grande fica negativo: o dinheiro saiu do caixa livre e virou patrimônio investido."
-              cells={fluxoCaixaLivreByMonth}
-              annual={fluxoCaixaLivreAnnual}
-              variant="highlight"
-              negativeRed
-              positiveBlue
-            />
-            <SummaryRow
-              label="Evolução do Patrimônio"
-              cells={evolucaoPatrimonioByMonth}
-              annual={evolucaoPatrimonioByMonth[11] ?? null}
-              variant="highlight"
-              negativeRed
-            />
-
-            <SpacingRow />
-            {/* Proventos automáticos da carteira — independentes, não somam nas entradas */}
-            <InvestmentIncomeRow valuesByMonth={proventosByMonth} totalAnnual={proventosAnnual} />
-            <FinancialPeaceIndexRow
-              proventosByMonth={proventosByMonth}
-              despesasFixasByMonth={despesasFixasData.byMonth}
-              proventosAnnual={proventosAnnual}
-              despesasFixasAnnual={despesasFixasData.annual}
-            />
-          </TableBody>
-        </Table>
+              <SpacingRow />
+              {/* Proventos automáticos da carteira — independentes, não somam nas entradas */}
+              <InvestmentIncomeRow valuesByMonth={proventosByMonth} totalAnnual={proventosAnnual} />
+              <FinancialPeaceIndexRow
+                proventosByMonth={proventosByMonth}
+                despesasFixasByMonth={despesasFixasData.byMonth}
+                proventosAnnual={proventosAnnual}
+                despesasFixasAnnual={despesasFixasData.annual}
+              />
+            </TableBody>
+          </Table>
+        </CashflowDndProvider>
       </div>
 
       <ImportPlanilhaModal
