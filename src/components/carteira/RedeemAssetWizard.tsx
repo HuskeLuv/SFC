@@ -293,7 +293,9 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
       case 3:
         return <Step4RedeemInfo {...stepProps} />;
       case 4:
-        return <Step5RedeemConfirmation formData={formData} />;
+        return (
+          <Step5RedeemConfirmation formData={formData} onFormDataChange={handleFormDataChange} />
+        );
       default:
         return null;
     }

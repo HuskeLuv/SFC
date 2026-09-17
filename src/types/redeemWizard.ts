@@ -25,6 +25,8 @@ export interface RedeemWizardFormData {
   /** F1.10 generalizado: valor resgatado volta pra carteira (troca/rolagem) —
    * não conta como resgate nas linhas automáticas do Fluxo de Caixa. */
   isReinvestimento?: boolean;
+  /** Devolver o valor resgatado ao Caixa para Investir, como livre. */
+  creditarCaixa?: boolean;
 }
 
 export interface RedeemWizardErrors {

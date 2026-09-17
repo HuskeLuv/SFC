@@ -15,6 +15,14 @@ import {
 } from '@/services/changeHistory';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 import { aplicarVinculoPlanejamento } from '@/utils/planejamentoVinculo';
+import {
+  debitarCaixa,
+  invalidateCaixaCaches,
+  movimentouCaixa,
+  resolverCaixaAba,
+  type MovimentoCaixa,
+} from '@/services/portfolio/caixaParaInvestir';
+import { buildCaixaMovimentoSnapshot } from '@/services/changeHistory/snapshots';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -105,6 +113,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
+  // Caixa para Investir: dinheiro que já estava investido não sai do caixa.
+  const usarCaixa = parsed.data.usarCaixa === true && !isReinvestimento;
+  const caixaAba = usarCaixa ? await resolverCaixaAba(targetUserId, portfolio.asset) : null;
+  let movimentoCaixa: MovimentoCaixa | null = null;
+
   const novoTotalInvestido = portfolio.totalInvested + valorAporte;
   const novaQuantidade = portfolio.quantity || 1;
   const novoPrecoMedio = novoTotalInvestido / novaQuantidade;
@@ -149,8 +162,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       });
     }
 
+    // Mesmo $transaction: se o aporte falhar, o caixa não fica descontado.
+    if (usarCaixa) {
+      movimentoCaixa = await debitarCaixa(tx, targetUserId, caixaAba, valorAporte);
+    }
+
     return novaTransacao;
   });
+  if (movimentouCaixa(movimentoCaixa)) invalidateCaixaCaches(targetUserId);
 
   // Item A (auditoria 2026-05-19): #02 só cobriu PATCH/DELETE de
   // historico/transacao. Aporte em data passada deixava snapshots stale entre
@@ -177,9 +196,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     entityId: transacao.id,
     entityLabel: assetEntityLabel(portfolio.asset),
     changes: diffFields({}, transacao, TRANSACTION_FIELD_LABELS),
+    ...(movimentouCaixa(movimentoCaixa)
+      ? { snapshot: buildCaixaMovimentoSnapshot(movimentoCaixa) }
+      : {}),
   });
 
-  const result = NextResponse.json({ success: true, transacao }, { status: 201 });
+  const result = NextResponse.json(
+    { success: true, transacao, ...(movimentoCaixa ? { caixa: movimentoCaixa } : {}) },
+    { status: 201 },
+  );
 
   if (actingClient) {
     await logDataUpdate(

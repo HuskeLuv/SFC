@@ -20,68 +20,38 @@ import { round2 } from '@/utils/alocacaoPercents';
  * Não interage com o Fluxo de Caixa — abastecer ou gastar o caixa não gera
  * linha de Aporte/Resgate.
  */
-export const CAIXA_CONSOLIDADO_METRIC = 'caixa_para_investir_consolidado';
-
-export const CAIXA_ABAS = {
-  acoes: { metric: 'caixa_para_investir_acoes', label: 'Ações' },
-  fii: { metric: 'caixa_para_investir_fii', label: 'FIIs' },
-  etf: { metric: 'caixa_para_investir_etf', label: 'ETFs' },
-  reit: { metric: 'caixa_para_investir_reit', label: 'REITs' },
-  stocks: { metric: 'caixa_para_investir_stocks', label: 'Stocks' },
-  moedasCriptos: { metric: 'caixa_para_investir_moedas_criptos', label: 'Moedas e Criptos' },
-  previdenciaSeguros: {
-    metric: 'caixa_para_investir_previdencia_seguros',
-    label: 'Previdência e Seguros',
-  },
-  opcoes: { metric: 'caixa_para_investir_opcoes', label: 'Opções' },
-  fimFia: { metric: 'caixa_para_investir_fim_fia', label: 'FIM/FIA' },
-  rendaFixa: { metric: 'caixa_para_investir_renda_fixa', label: 'Renda Fixa' },
-} as const;
-
-export type CaixaAbaKey = keyof typeof CAIXA_ABAS;
-
-export const CAIXA_ABA_KEYS = Object.keys(CAIXA_ABAS) as CaixaAbaKey[];
-
-export const CAIXA_METRICS: readonly string[] = [
+import {
+  CAIXA_ABAS,
   CAIXA_CONSOLIDADO_METRIC,
-  ...CAIXA_ABA_KEYS.map((key) => CAIXA_ABAS[key].metric),
-];
+  CAIXA_METRICS,
+  CATEGORIA_TO_CAIXA_ABA,
+  computeCaixaResumo,
+  planejarDebito,
+  type CaixaAbaKey,
+  type CaixaResumo,
+  type MovimentoCaixa,
+} from '@/lib/caixaParaInvestirPlano';
+import { categorizarAsset } from '@/services/portfolio/itemValuation';
+import { getTesouroDestinoByAssetId } from '@/services/portfolio/tesouroDestino';
 
-export interface CaixaResumo {
-  /** Bolso total informado pelo usuário (métrica consolidada). */
-  total: number;
-  /** Σ das reservas por aba. */
-  reservado: number;
-  /** total − reservado. Negativo só em dado inconsistente (legado/undo). */
-  livre: number;
-  /** Número que entra nos totais do patrimônio: max(total, reservado). */
-  bolso: number;
-  porAba: Record<CaixaAbaKey, number>;
-}
-
-type MetricRow = { metric: string; value: number | null };
-
-export function computeCaixaResumo(rows: readonly MetricRow[]): CaixaResumo {
-  const byMetric = new Map<string, number>();
-  for (const row of rows) byMetric.set(row.metric, row.value || 0);
-
-  const porAba = {} as Record<CaixaAbaKey, number>;
-  let reservado = 0;
-  for (const key of CAIXA_ABA_KEYS) {
-    const valor = byMetric.get(CAIXA_ABAS[key].metric) ?? 0;
-    porAba[key] = valor;
-    reservado += valor;
-  }
-  const total = byMetric.get(CAIXA_CONSOLIDADO_METRIC) ?? 0;
-
-  return {
-    total: round2(total),
-    reservado: round2(reservado),
-    livre: round2(total - reservado),
-    bolso: round2(Math.max(total, reservado)),
-    porAba,
-  };
-}
+// Definições e contas puras vivem em lib/caixaParaInvestirPlano (a tela usa as
+// mesmas); reexportadas aqui para os chamadores de servidor.
+export {
+  CAIXA_ABAS,
+  CAIXA_ABA_KEYS,
+  CAIXA_CONSOLIDADO_METRIC,
+  CAIXA_METRICS,
+  CATEGORIA_TO_CAIXA_ABA,
+  computeCaixaResumo,
+  movimentouCaixa,
+  planejarDebito,
+} from '@/lib/caixaParaInvestirPlano';
+export type {
+  CaixaAbaKey,
+  CaixaResumo,
+  MovimentoCaixa,
+  PlanoDebito,
+} from '@/lib/caixaParaInvestirPlano';
 
 type CaixaDb = Pick<typeof prisma, 'dashboardData'>;
 
@@ -214,4 +184,129 @@ export async function salvarCaixaTotal(
 /** O resumo da carteira é cacheado (TTL) e embute os números do caixa. */
 export function invalidateCaixaCaches(userId: string): void {
   deleteTtlCacheKeyPrefix('carteiraResumo', `${userId}:`);
+}
+
+// ── Movimento do caixa nas operações (aporte/compra/resgate) ─────────────────
+
+type AssetParaCaixa = {
+  id?: string | null;
+  symbol?: string | null;
+  type?: string | null;
+  currency?: string | null;
+  name?: string | null;
+} | null;
+
+/**
+ * Aba do caixa de um ativo JÁ resolvido no servidor (mesma classificação da
+ * carteira, `categorizarAsset`). `null` = sem reserva própria (reservas de
+ * emergência/oportunidade, conta corrente, imóveis e bens): a operação só usa
+ * o caixa livre. Tesouro comprado para uma reserva é reserva.
+ */
+export async function resolverCaixaAba(
+  userId: string,
+  asset: AssetParaCaixa,
+  ctx: { tesouroDestino?: string | null } = {},
+): Promise<CaixaAbaKey | null> {
+  if (!asset) return null;
+  let destino = ctx.tesouroDestino ?? null;
+  if (!destino && asset.type === 'tesouro-direto' && asset.id) {
+    destino = (await getTesouroDestinoByAssetId(userId, [asset.id])).get(asset.id) ?? null;
+  }
+  const tesouroReservaDestino =
+    destino === 'reserva-emergencia'
+      ? ('emergencia' as const)
+      : destino === 'reserva-oportunidade'
+        ? ('oportunidade' as const)
+        : undefined;
+  const categoria = categorizarAsset(
+    { symbol: asset.symbol ?? '', type: asset.type, currency: asset.currency, name: asset.name },
+    { isReserva: tesouroReservaDestino !== undefined, tesouroReservaDestino },
+  );
+  return CATEGORIA_TO_CAIXA_ABA[categoria];
+}
+
+/**
+ * Desconta um investimento de `valor` (R$) do caixa: reserva da aba primeiro,
+ * depois o livre (ver `planejarDebito`). Nunca bloqueia: se faltar caixa,
+ * desconta só o que existe. Rodar DENTRO da transação da operação.
+ */
+export async function debitarCaixa(
+  db: CaixaDb,
+  userId: string,
+  aba: CaixaAbaKey | null,
+  valor: number,
+): Promise<MovimentoCaixa> {
+  const atual = await loadCaixaResumo(userId, db);
+  const plano = planejarDebito(atual, aba, valor);
+
+  if (aba && plano.daReserva > 0) {
+    await upsertMetric(
+      db,
+      userId,
+      CAIXA_ABAS[aba].metric,
+      round2(atual.porAba[aba] - plano.daReserva),
+    );
+  }
+  const novoTotal = round2(Math.max(0, atual.total - plano.coberto));
+  if (novoTotal !== atual.total) {
+    await upsertMetric(db, userId, CAIXA_CONSOLIDADO_METRIC, novoTotal);
+  }
+
+  return {
+    aba,
+    valorOperacao: round2(Math.max(0, valor)),
+    debitoReserva: plano.daReserva,
+    debitoLivre: plano.doLivre,
+    credito: 0,
+    deltaTotal: round2(novoTotal - atual.total),
+  };
+}
+
+/** Devolve o valor de um resgate ao caixa, como livre. Rodar DENTRO da transação. */
+export async function creditarCaixa(
+  db: CaixaDb,
+  userId: string,
+  valor: number,
+): Promise<MovimentoCaixa> {
+  const credito = round2(Math.max(0, valor));
+  if (credito > 0) {
+    const atual = await loadCaixaResumo(userId, db);
+    await upsertMetric(db, userId, CAIXA_CONSOLIDADO_METRIC, round2(atual.total + credito));
+  }
+  return {
+    aba: null,
+    valorOperacao: credito,
+    debitoReserva: 0,
+    debitoLivre: 0,
+    credito,
+    deltaTotal: credito,
+  };
+}
+
+/**
+ * Desfazer da operação: devolve à reserva o que saiu dela e desfaz a mudança
+ * do total. Se o usuário mexeu no caixa depois, o resultado pode deixar as
+ * reservas acima do total — o card avisa e o total não fica negativo.
+ */
+export async function reverterMovimentoCaixa(userId: string, mov: MovimentoCaixa): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const atual = await loadCaixaResumo(userId, tx);
+    if (mov.aba && mov.debitoReserva > 0) {
+      await upsertMetric(
+        tx,
+        userId,
+        CAIXA_ABAS[mov.aba].metric,
+        round2(atual.porAba[mov.aba] + mov.debitoReserva),
+      );
+    }
+    if (mov.deltaTotal !== 0) {
+      await upsertMetric(
+        tx,
+        userId,
+        CAIXA_CONSOLIDADO_METRIC,
+        round2(Math.max(0, atual.total - mov.deltaTotal)),
+      );
+    }
+  });
+  invalidateCaixaCaches(userId);
 }

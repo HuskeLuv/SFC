@@ -23,6 +23,12 @@ vi.mock('@/services/planejamento/carteiraToSonhoRealizado', () => ({
   syncSonhoRealizadoBestEffort: mockSyncSonho,
 }));
 
+const mockReverterCaixa = vi.hoisted(() => vi.fn());
+vi.mock('@/services/portfolio/caixaParaInvestir', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/portfolio/caixaParaInvestir')>()),
+  reverterMovimentoCaixa: mockReverterCaixa,
+}));
+
 import { CARTEIRA_UNDO_HANDLERS } from '../handlers/carteira';
 import { UndoError } from '../types';
 import type { UndoContext } from '../types';
@@ -143,6 +149,52 @@ describe('operacao/aporte/resgate.registrar (delete-created composto)', () => {
     ).rejects.toThrow('A transação não existe mais');
     expect(mockPrisma.stockTransaction.findFirst).toHaveBeenCalledWith({
       where: { id: 'tx-1', userId: 'user-1' },
+    });
+  });
+
+  describe('Caixa para Investir', () => {
+    const movimento = {
+      aba: 'rendaFixa',
+      valorOperacao: 5000,
+      debitoReserva: 3000,
+      debitoLivre: 2000,
+      credito: 0,
+      deltaTotal: -5000,
+    };
+
+    beforeEach(() => {
+      mockPrisma.stockTransaction.findFirst.mockResolvedValue({
+        id: 'tx-1',
+        assetId: 'asset-1',
+        date: TX_DATE,
+      });
+      mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1' });
+    });
+
+    it('operação que mexeu no caixa: desfazer devolve o movimento', async () => {
+      const entry = makeEntry({
+        action: 'aporte.registrar',
+        snapshot: { v: 1, kind: 'caixa-movimento', data: movimento },
+      });
+      await CARTEIRA_UNDO_HANDLERS['aporte.registrar'].execute(ctx(entry));
+      expect(mockReverterCaixa).toHaveBeenCalledWith('user-1', movimento);
+    });
+
+    it('operação sem movimento de caixa (entradas antigas): não mexe no caixa', async () => {
+      await CARTEIRA_UNDO_HANDLERS['operacao.registrar'].execute(ctx(makeEntry({})));
+      await CARTEIRA_UNDO_HANDLERS['resgate.registrar'].execute(
+        ctx(
+          makeEntry({
+            action: 'resgate.registrar',
+            snapshot: {
+              v: 1,
+              kind: 'caixa-movimento',
+              data: { ...movimento, debitoReserva: 0, debitoLivre: 0, deltaTotal: 0 },
+            },
+          }),
+        ),
+      );
+      expect(mockReverterCaixa).not.toHaveBeenCalled();
     });
   });
 });

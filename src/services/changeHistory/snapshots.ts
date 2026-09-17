@@ -5,6 +5,7 @@
  * (nunca dump cego da row) e serializa Date → ISO.
  */
 
+import type { MovimentoCaixa } from '@/lib/caixaParaInvestirPlano';
 import type { ChangeSnapshot } from './types';
 
 const iso = (value: Date | string | null | undefined): string | null => {
@@ -146,5 +147,19 @@ export function buildDashboardMetricSnapshot(
     kind: 'dashboard-metric',
     data: { value: valorAnterior ?? null },
     meta: { metric },
+  };
+}
+
+/**
+ * Movimento do Caixa para Investir feito junto de um aporte/compra/resgate
+ * (fica no snapshot da própria entrada `*.registrar`). O Desfazer da operação
+ * devolve o caixa com `reverterMovimentoCaixa`. Mora no snapshot, não em
+ * `changes`, pra não mexer no diff da transação.
+ */
+export function buildCaixaMovimentoSnapshot(movimento: MovimentoCaixa): ChangeSnapshot {
+  return {
+    v: 1,
+    kind: 'caixa-movimento',
+    data: { ...movimento },
   };
 }

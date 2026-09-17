@@ -152,6 +152,9 @@ export interface WizardFormData {
    * normais de aporte/resgate no Fluxo de Caixa.
    */
   isReinvestimento?: boolean;
+  /** Descontar a operação do Caixa para Investir (reserva da aba, depois o livre).
+   * `undefined` até a confirmação aplicar o padrão. */
+  usarCaixa?: boolean;
 
   /**
    * Vínculo do ativo com um planejamento (persistido no Portfolio, herdado

@@ -50,6 +50,19 @@ vi.mock('@/services/planejamento/carteiraToSonhoRealizado', () => ({
   syncSonhoRealizadoBestEffort: mockSyncSonho,
 }));
 
+// Caixa para Investir: a regra do débito/crédito tem teste próprio
+// (services/portfolio/__tests__/caixaParaInvestir.test.ts) — aqui só o contrato.
+const mockCaixa = vi.hoisted(() => ({
+  debitarCaixa: vi.fn(),
+  creditarCaixa: vi.fn(),
+  resolverCaixaAba: vi.fn(),
+  invalidateCaixaCaches: vi.fn(),
+}));
+vi.mock('@/services/portfolio/caixaParaInvestir', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/portfolio/caixaParaInvestir')>()),
+  ...mockCaixa,
+}));
+
 const createRequest = (body: object) =>
   new NextRequest('http://localhost/api/carteira/resgate', {
     method: 'POST',
@@ -642,6 +655,68 @@ describe('POST /api/carteira/resgate', () => {
       expect(response.status).toBe(201);
       expect(mockPrisma.portfolio.delete).toHaveBeenCalledWith({ where: { id: 'port-stk' } });
       expect(mockRecalc).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Caixa para Investir', () => {
+    const body = {
+      portfolioId: 'port-1',
+      dataResgate: '2024-01-15',
+      metodoResgate: 'valor',
+      valorResgate: 1000,
+    };
+    const posicao = {
+      ...mockPortfolioValueBased,
+      quantity: 1,
+      totalInvested: 1000,
+      avgPrice: 1000,
+    };
+
+    it('creditarCaixa: devolve o valor ao caixa como livre, dentro da transação', async () => {
+      const movimento = {
+        aba: null,
+        valorOperacao: 1000,
+        debitoReserva: 0,
+        debitoLivre: 0,
+        credito: 1000,
+        deltaTotal: 1000,
+      };
+      mockPrisma.portfolio.findFirst.mockResolvedValue(posicao);
+      mockCaixa.creditarCaixa.mockResolvedValueOnce(movimento);
+
+      const response = await POST(createRequest({ ...body, creditarCaixa: true }));
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(mockCaixa.creditarCaixa).toHaveBeenCalledWith(mockPrisma, 'user-123', 1000);
+      expect(data.caixa).toEqual(movimento);
+      expect(mockPrisma.userChangeLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'resgate.registrar',
+            snapshot: expect.objectContaining({ kind: 'caixa-movimento' }),
+          }),
+        }),
+      );
+    });
+
+    it('ativo em moeda estrangeira não credita (payload sem câmbio)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue({
+        ...posicao,
+        asset: { ...posicao.asset, currency: 'USD' },
+      });
+      const response = await POST(createRequest({ ...body, creditarCaixa: true }));
+      expect(response.status).toBe(201);
+      expect(mockCaixa.creditarCaixa).not.toHaveBeenCalled();
+    });
+
+    it('reinvestimento não credita', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(posicao);
+      const response = await POST(
+        createRequest({ ...body, creditarCaixa: true, isReinvestimento: true }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockCaixa.creditarCaixa).not.toHaveBeenCalled();
     });
   });
 });
