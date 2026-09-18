@@ -15,9 +15,11 @@ beforeEach(() => {
 });
 
 describe('feriados da B3 na agenda', () => {
-  it('traz os 12 feriados do ano, em ordem e com nome', () => {
+  it('traz os feriados do ano, em ordem e com nome', () => {
     const eventos = feriadosComoEventos({ de: '2026-01-01', ate: '2026-12-31' });
-    expect(eventos).toHaveLength(12);
+    // 13 a partir de 2024: os 12 antigos + 20/11 (Consciência Negra).
+    expect(eventos).toHaveLength(13);
+    expect(eventos.map((e) => e.titulo)).toContain('Feriado · Consciência Negra');
     expect(eventos.map((e) => e.data)).toEqual([...eventos.map((e) => e.data)].sort());
     expect(eventos[0]).toMatchObject({
       data: '2026-01-01',
