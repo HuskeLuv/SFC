@@ -7,6 +7,12 @@ const mocks = vi.hoisted(() => ({
     divida: { findMany: vi.fn() },
     fixedIncomeAsset: { findMany: vi.fn() },
     portfolio: { findMany: vi.fn() },
+    // Fontes da Fase 2 (IR, planejamento, eventos corporativos): sem estes
+    // mocks elas estouram e a agenda volta com fontesComErro.
+    stockTransaction: { findMany: vi.fn() },
+    planejamentoObjetivo: { findMany: vi.fn() },
+    aposentadoriaPlano: { findUnique: vi.fn() },
+    assetCorporateAction: { findMany: vi.fn() },
   },
   requireAuthWithActing: vi.fn(),
   recordChange: vi.fn(),
@@ -66,6 +72,10 @@ describe('GET /api/calendar', () => {
     mocks.prisma.divida.findMany.mockResolvedValue([]);
     mocks.prisma.fixedIncomeAsset.findMany.mockResolvedValue([]);
     mocks.prisma.portfolio.findMany.mockResolvedValue([]);
+    mocks.prisma.stockTransaction.findMany.mockResolvedValue([]);
+    mocks.prisma.planejamentoObjetivo.findMany.mockResolvedValue([]);
+    mocks.prisma.aposentadoriaPlano.findUnique.mockResolvedValue(null);
+    mocks.prisma.assetCorporateAction.findMany.mockResolvedValue([]);
     mocks.resolveProventoEvents.mockResolvedValue({ events: [], total: 0 });
   });
 
