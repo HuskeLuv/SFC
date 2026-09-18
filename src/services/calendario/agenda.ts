@@ -13,7 +13,7 @@ import { eventosProventos } from './fontes/proventos';
 import { eventosRendaFixa } from './fontes/rendaFixa';
 import { eventosIr } from './fontes/ir';
 import { eventosPlanejamento } from './fontes/planejamento';
-import { eventosAcoesCorporativas } from './fontes/acoesCorporativas';
+import { eventosMercado } from './fontes/mercado';
 
 export const MAX_DIAS_PERIODO = 400;
 
@@ -26,9 +26,9 @@ const FONTES: Array<{ tipo: TipoEvento; carregar: Fonte }> = [
   { tipo: 'rf', carregar: eventosRendaFixa },
   { tipo: 'ir', carregar: eventosIr },
   { tipo: 'planejamento', carregar: eventosPlanejamento },
-  // Por ora "mercado" = eventos corporativos dos ativos em carteira; feriados
-  // da B3 e calendário Copom/IPCA entram na Fase 3.
-  { tipo: 'mercado', carregar: eventosAcoesCorporativas },
+  // "mercado" = feriados da B3 + eventos corporativos dos ativos em carteira.
+  // Copom/IPCA ficam de fora enquanto não houver fonte oficial (ver mercado.ts).
+  { tipo: 'mercado', carregar: eventosMercado },
 ];
 
 /** ?tipos=manual,divida → só essas fontes; ausente = todas. */
