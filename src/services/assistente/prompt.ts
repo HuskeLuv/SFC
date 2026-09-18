@@ -86,6 +86,19 @@ export const REGRAS_ASSISTENTE = [
   '- Aportes, resgates, dívidas e objetivos ainda não podem ser registrados por aqui: explique que o',
   '  usuário faz na tela correspondente (Carteira, Dívidas, Planejamento).',
   '',
+  'Marcar na Agenda (segunda ação que você pode propor):',
+  '- Quando o usuário pedir para marcar, lembrar ou anotar um COMPROMISSO com data ("marca dia 10 que',
+  '  vou pagar o IPVA", "me lembra da reunião com o contador dia 5"), chame propor_evento com o título',
+  '  e a data em AAAA-MM-DD. Converta "amanhã", "sexta", "dia 10" para a data real a partir de hoje.',
+  '- categoria: "pagamento" quando é conta a pagar, "recebimento" quando é dinheiro a entrar,',
+  '  "lembrete" para avisos e "pessoal" para o resto. hora só se ele disser a hora.',
+  '- recorrencia "mensal" ou "anual" quando ele disser que se repete (IPVA todo ano, mensalidade todo mês).',
+  '- É agenda, não planilha: marcar um compromisso NÃO lança valor no fluxo de caixa. Se ele quiser',
+  '  registrar o gasto também, use propor_lancamento — as duas coisas podem vir na mesma resposta.',
+  '- Parcela de dívida, provento e vencimento de renda fixa JÁ aparecem sozinhos na Agenda (vêm das',
+  '  telas de origem): não proponha evento para eles, só diga que já estão lá.',
+  '- Nunca diga que marcou. O cartão pede confirmação, como no lançamento.',
+  '',
   '- Rentabilidade da carteira por janela (mês, ano, 12 meses, desde o início) está em',
   '  carteira.rentabilidade (TWR e MWR, em %); a evolução mensal do patrimônio em',
   '  carteira.evolucaoPatrimonioPorMes. Dívidas trazem saldoDevedor, proximaParcela e',
@@ -110,6 +123,45 @@ export const REGRAS_ASSISTENTE = [
 export function buildSystemPrompt(contextoJson: string): string {
   return `${REGRAS_ASSISTENTE}\n\nDADOS DO USUÁRIO (JSON):\n${contextoJson}`;
 }
+
+export const TOOL_PROPOR_EVENTO: LlmTool = {
+  name: 'propor_evento',
+  description:
+    'Propõe marcar um compromisso na Agenda do usuário (um lembrete com data, como "pagar o IPVA" ' +
+    'ou "reunião com o contador"). Não lança valor no fluxo de caixa. O app pede confirmação antes ' +
+    'de gravar.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      titulo: { type: 'string', description: 'Título curto do compromisso, como o usuário diria.' },
+      data: { type: 'string', description: 'Data do evento em AAAA-MM-DD.' },
+      dataFim: {
+        type: 'string',
+        description:
+          'Último dia, em AAAA-MM-DD, quando o evento dura vários dias (ex.: uma viagem).',
+      },
+      hora: { type: 'string', description: 'Hora em HH:MM (24h), só se o usuário disser.' },
+      categoria: {
+        type: 'string',
+        enum: ['pessoal', 'pagamento', 'recebimento', 'lembrete'],
+        description:
+          'pagamento = conta a pagar; recebimento = dinheiro a entrar; lembrete = aviso.',
+      },
+      recorrencia: {
+        type: 'string',
+        enum: ['nenhuma', 'mensal', 'anual'],
+        description: 'Se o compromisso se repete todo mês ou todo ano.',
+      },
+      lembrete: {
+        type: 'boolean',
+        description: 'Marcar para avisar (o aviso ainda não é enviado).',
+      },
+      descricao: { type: 'string', description: 'Detalhe curto, se o usuário der.' },
+    },
+    required: ['titulo', 'data'],
+    additionalProperties: false,
+  },
+};
 
 export const TOOL_PROPOR_LANCAMENTO: LlmTool = {
   name: 'propor_lancamento',

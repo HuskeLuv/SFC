@@ -2,15 +2,17 @@
  * Assistente de IA — Fase 1 (MVP).
  *
  * GET  /api/assistente  → { habilitado, modelo, uso }
- * POST /api/assistente  → { resposta, propostas?, proposta?, uso }
- *   (`proposta` só quando há exatamente uma; `propostas` sempre que houver alguma)
+ * POST /api/assistente  → { resposta, propostas?, proposta?, eventos?, uso }
+ *   (`proposta` só quando há exatamente uma; `propostas` sempre que houver
+ *   alguma; `eventos` são as propostas de compromisso na Agenda)
  *
  * Toda mensagem vai para o modelo (Haiku) com o retrato compacto da conta no
- * prompt (cacheado por conversa). A única ferramenta é `propor_lancamento`
- * (um mês, ou o ano da planilha inteiro quando o gasto é recorrente); o modelo
- * chama uma vez por item quando o usuário lista vários gastos numa mensagem.
- * O servidor devolve uma PROPOSTA assinada por item e o app pede confirmação;
- * a gravação acontece em POST /api/assistente/confirmar. A IA nunca grava.
+ * prompt (cacheado por conversa). Duas ferramentas: `propor_lancamento` (um
+ * mês, ou o ano da planilha inteiro quando o gasto é recorrente; o modelo
+ * chama uma vez por item quando o usuário lista vários) e `propor_evento`
+ * (compromisso na Agenda). O servidor devolve uma PROPOSTA assinada por item
+ * e o app pede confirmação; a gravação acontece em POST
+ * /api/assistente/confirmar. A IA nunca grava.
  * Consultor agindo por cliente: só leitura (sem ferramenta).
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -25,6 +27,7 @@ import {
   MAX_OUTPUT_TOKENS,
   MAX_TROCAS_HISTORICO,
   MODELO_ASSISTENTE,
+  TOOL_PROPOR_EVENTO,
   TOOL_PROPOR_LANCAMENTO,
   buildSystemPrompt,
 } from '@/services/assistente/prompt';
@@ -39,6 +42,11 @@ import {
   montarProposta,
   type Proposta,
 } from '@/services/assistente/lancamento';
+import {
+  MAX_EVENTOS_POR_MENSAGEM,
+  montarPropostaEvento,
+  type PropostaEvento,
+} from '@/services/assistente/evento';
 
 const mensagemSchema = z.object({
   mensagem: z.string().trim().min(1).max(1000),
@@ -69,8 +77,30 @@ const lancamentoInputSchema = z.object({
   modo: z.enum(['somar', 'definir']).optional(),
 });
 
+const eventoInputSchema = z.object({
+  titulo: z.string().trim().min(1).max(255),
+  data: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/),
+  dataFim: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  hora: z.string().trim().max(5).optional(),
+  categoria: z.string().trim().max(20).optional(),
+  recorrencia: z.string().trim().max(20).optional(),
+  lembrete: z.boolean().optional(),
+  descricao: z.string().trim().max(500).optional(),
+});
+
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function dataLegivel(d: string): string {
+  return d.split('-').reverse().join('/');
 }
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
@@ -137,10 +167,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         { role: 'user' as const, content: mensagem },
       ],
       // Consultor agindo pelo cliente não propõe escrita (decisão Fase 0).
-      tools: viaConsultant ? [] : [TOOL_PROPOR_LANCAMENTO],
+      tools: viaConsultant ? [] : [TOOL_PROPOR_LANCAMENTO, TOOL_PROPOR_EVENTO],
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       reasoning: 'none',
-      cacheKey: 'assistente-v5',
+      cacheKey: 'assistente-v6',
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -165,15 +195,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const chamadas = res.toolCalls
     .filter((c) => c.name === TOOL_PROPOR_LANCAMENTO.name)
     .slice(0, MAX_LANCAMENTOS_POR_MENSAGEM);
+  const chamadasEvento = res.toolCalls
+    .filter((c) => c.name === TOOL_PROPOR_EVENTO.name)
+    .slice(0, MAX_EVENTOS_POR_MENSAGEM);
+  const usouFerramenta = chamadas.length + chamadasEvento.length > 0;
   const mensagemId = await registrarMensagem({
     ...base,
-    motor: chamadas.length > 0 ? 'ia+t' : 'ia',
-    propostaGerada: chamadas.length > 0,
+    motor: usouFerramenta ? 'ia+t' : 'ia',
+    propostaGerada: usouFerramenta,
     resposta: res,
   });
   const usoDepois = { ...uso, usadas: uso.usadas + 1, restantes: Math.max(0, uso.restantes - 1) };
 
-  if (chamadas.length === 0) {
+  if (!usouFerramenta) {
     const resposta =
       res.text ||
       (res.stopReason === 'refusal'
@@ -208,10 +242,27 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     propostas.push(paraResposta(resultado.proposta, resultado.token));
   }
 
-  const cortada = res.stopReason === 'max_tokens' || res.toolCalls.length > chamadas.length;
+  const eventos: EventoResposta[] = [];
+  for (const chamada of chamadasEvento) {
+    const input = eventoInputSchema.safeParse(chamada.input);
+    if (!input.success) {
+      falhas.push('Para marcar na agenda faltou o título ou a data.');
+      continue;
+    }
+    const resultado = montarPropostaEvento(targetUserId, mensagemId ?? '', input.data);
+    if (!resultado.ok) {
+      falhas.push(resultado.motivo);
+      continue;
+    }
+    eventos.push(paraRespostaEvento(resultado.proposta, resultado.token));
+  }
 
-  if (propostas.length === 0) {
-    const unica = chamadas.length === 1;
+  const cortada =
+    res.stopReason === 'max_tokens' ||
+    res.toolCalls.length > chamadas.length + chamadasEvento.length;
+
+  if (propostas.length === 0 && eventos.length === 0) {
+    const unica = chamadas.length + chamadasEvento.length === 1;
     const resposta = unica
       ? falhas[0].includes('faltou o valor')
         ? 'Entendi que você quer registrar algo, mas faltou o valor ou a linha. Pode dizer, por exemplo: "gastei 45,90 no mercado"?'
@@ -220,18 +271,86 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ resposta, uso: usoDepois });
   }
 
-  const resposta =
-    propostas.length === 1 && falhas.length === 0 && !cortada
-      ? descreverPropostaUnica(propostas[0])
-      : descreverLote(propostas, falhas, cortada);
+  const simples = propostas.length + eventos.length === 1 && falhas.length === 0 && !cortada;
+  let resposta: string;
+  if (simples) {
+    resposta =
+      propostas.length === 1 ? descreverPropostaUnica(propostas[0]) : descreverEvento(eventos[0]);
+  } else {
+    const partes: string[] = [];
+    if (propostas.length > 0) partes.push(descreverLote(propostas, [], false));
+    if (eventos.length > 0) {
+      partes.push(`Na agenda:\n${eventos.map((e) => `- ${resumoEvento(e)}`).join('\n')}`);
+    }
+    if (falhas.length > 0) {
+      partes.push(
+        `Não consegui ${falhas.length === 1 ? 'este' : 'estes'}:\n${falhas.map((f) => `- ${f}`).join('\n')}`,
+      );
+    }
+    if (cortada) {
+      partes.push(
+        'A lista era longa e pode ter ficado incompleta: confira os itens e mande o que faltou em outra mensagem.',
+      );
+    }
+    partes.push('Confira no cartão e confirme para gravar.');
+    resposta = partes.join('\n');
+  }
 
   return NextResponse.json({
     resposta,
     ...(propostas.length === 1 ? { proposta: propostas[0] } : {}),
     propostas,
+    ...(eventos.length > 0 ? { eventos } : {}),
     uso: usoDepois,
   });
 });
+
+/** Proposta de evento como vai para o cartão do painel. */
+interface EventoResposta {
+  token: string;
+  titulo: string;
+  data: string;
+  dataFim: string | null;
+  hora: string | null;
+  categoria: string;
+  recorrencia: string;
+  lembrete: boolean;
+  descricao: string | null;
+  expiraEm: number;
+}
+
+function paraRespostaEvento(p: PropostaEvento, token: string): EventoResposta {
+  return {
+    token,
+    titulo: p.titulo,
+    data: p.data,
+    dataFim: p.dataFim,
+    hora: p.hora,
+    categoria: p.categoria,
+    recorrencia: p.recorrencia,
+    lembrete: p.lembrete,
+    descricao: p.descricao,
+    expiraEm: p.expiraEm,
+  };
+}
+
+const RECORRENCIA_TEXTO: Record<string, string> = {
+  mensal: ', todo mês',
+  anual: ', todo ano',
+};
+
+/** '"IPVA" em 10/10/2026 às 09:00, todo ano' */
+function resumoEvento(e: EventoResposta): string {
+  const periodo = e.dataFim
+    ? `de ${dataLegivel(e.data)} a ${dataLegivel(e.dataFim)}`
+    : `em ${dataLegivel(e.data)}`;
+  const hora = e.hora ? ` às ${e.hora}` : '';
+  return `"${e.titulo}" ${periodo}${hora}${RECORRENCIA_TEXTO[e.recorrencia] ?? ''}`;
+}
+
+function descreverEvento(e: EventoResposta): string {
+  return `Vou marcar ${resumoEvento(e)} na sua agenda. Confirma?`;
+}
 
 /** Proposta como vai para o cartão do painel (token assinado + resumo legível). */
 interface PropostaResposta {
