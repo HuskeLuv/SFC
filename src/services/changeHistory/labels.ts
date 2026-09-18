@@ -156,6 +156,7 @@ export const DIVIDA_FIELD_LABELS: FieldLabelMap = {
   sistema: 'Sistema de amortização',
   indexador: 'Indexador',
   primeiroVencimento: 'Primeiro vencimento',
+  diaVencimento: { label: 'Dia do vencimento', format: 'number' },
   saldoInicial: { label: 'Saldo inicial', format: 'currency' },
   dataSaldoInicial: 'Data do saldo inicial',
   status: 'Status',

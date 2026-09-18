@@ -68,6 +68,11 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
     divida?.primeiroVencimento ?? currentYearMonth(),
   );
 
+  // ── Comum às duas modalidades ──
+  // Dia do vencimento (parcela do financiamento / fatura da rotativa). Só a
+  // Agenda usa: o cronograma e o fluxo de caixa continuam mensais.
+  const [diaVencimento, setDiaVencimento] = useState(divida?.diaVencimento?.toString() ?? '');
+
   // ── Rotativa ──
   const [saldoInicial, setSaldoInicial] = useState(divida?.saldoInicial?.toString() ?? '');
   const [dataSaldoInicial, setDataSaldoInicial] = useState(
@@ -91,10 +96,23 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
     return taxaUnidade === 'aa' ? aaToAm(decimal) : decimal;
   }, [taxaPct, taxaUnidade]);
 
+  // Vazio = não informado (a Agenda cai no dia 1 e avisa). Fora de 1..31 vira
+  // NaN e é barrado antes do POST pra não tomar 400 do zod.
+  const diaVencimentoNormalizado = useMemo(() => {
+    if (diaVencimento.trim() === '') return null;
+    const dia = Number(diaVencimento);
+    if (!Number.isInteger(dia) || dia < 1 || dia > 31) return NaN;
+    return dia;
+  }, [diaVencimento]);
+
   const handleSave = async () => {
     setError(null);
     if (!nome.trim()) {
       setError('Informe o nome da dívida.');
+      return;
+    }
+    if (Number.isNaN(diaVencimentoNormalizado)) {
+      setError('O dia do vencimento precisa ser um número de 1 a 31.');
       return;
     }
 
@@ -107,6 +125,7 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
                 instituicao: instituicao.trim() || null,
                 tipo,
                 notes: notes.trim() || null,
+                diaVencimento: diaVencimentoNormalizado,
                 principal: Number(principal),
                 taxaAm: taxaAmNormalizada ?? 0,
                 taxaUnidadeEntrada: taxaUnidade,
@@ -120,6 +139,7 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
                 instituicao: instituicao.trim() || null,
                 tipo,
                 notes: notes.trim() || null,
+                diaVencimento: diaVencimentoNormalizado,
                 saldoInicial: Number(saldoInicial),
                 dataSaldoInicial,
                 taxaAm: taxaAmNormalizada,
@@ -138,6 +158,7 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
               instituicao: instituicao.trim() || null,
               tipo,
               notes: notes.trim() || null,
+              diaVencimento: diaVencimentoNormalizado,
               principal: Number(principal),
               taxaAm: taxaAmNormalizada ?? 0,
               taxaUnidadeEntrada: taxaUnidade,
@@ -152,6 +173,7 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
               instituicao: instituicao.trim() || null,
               tipo,
               notes: notes.trim() || null,
+              diaVencimento: diaVencimentoNormalizado,
               saldoInicial: Number(saldoInicial),
               dataSaldoInicial,
               taxaAm: taxaAmNormalizada,
@@ -164,6 +186,29 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
       setError(err instanceof Error ? err.message : 'Erro ao salvar dívida.');
     }
   };
+
+  // Mesmo campo nas duas modalidades (só muda o texto de ajuda) — montado uma
+  // vez e posicionado em cada ramo do grid.
+  const campoDiaVencimento = (
+    <div>
+      <Label htmlFor="divida-dia-vencimento">Dia do vencimento (opcional)</Label>
+      <Input
+        id="divida-dia-vencimento"
+        type="number"
+        value={diaVencimento}
+        onChange={(e) => setDiaVencimento(e.target.value)}
+        min="1"
+        max="31"
+        step="1"
+        placeholder="Ex.: 10"
+      />
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        Dia do mês em que {modalidade === 'financiamento' ? 'a parcela vence' : 'a fatura vence'} —
+        usado só para posicionar o lançamento na Agenda. Em branco, a Agenda usa o dia 1 e avisa que
+        o dia não foi informado.
+      </p>
+    </div>
+  );
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -329,6 +374,7 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
                 onChange={(e) => setPrimeiroVencimento(e.target.value)}
               />
             </div>
+            {campoDiaVencimento}
           </>
         ) : (
           <>
@@ -352,6 +398,7 @@ export default function DividaForm({ divida, onCancel, onSaved }: DividaFormProp
                 onChange={(e) => setDataSaldoInicial(e.target.value)}
               />
             </div>
+            {campoDiaVencimento}
             {/* CET informativo (pedido ago/2026): ranqueia a dívida mais cara
                 na tabela; NÃO acrui no saldo (âncora = saldo + pagamentos). */}
             <div>

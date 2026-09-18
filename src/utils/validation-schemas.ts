@@ -441,12 +441,19 @@ const dividaIndexador = z.enum(['PREFIXADO', 'TR', 'IPCA', 'IGPM', 'CDI']);
 const dividaStatus = z.enum(['ativa', 'em_espera', 'pausada', 'quitada']);
 const dividaYearMonth = z.string().regex(yearMonthRegex, 'deve ser YYYY-MM');
 
+// Dia do vencimento (1..31) vale nas duas modalidades: parcela do
+// financiamento e fatura da rotativa. Opcional — null/ausente = não informado
+// (a Agenda cai no dia 1 e avisa). Dias 29..31 são limitados ao tamanho do mês
+// na hora de montar o evento, não aqui.
+const dividaDiaVencimento = z.number().int().min(1).max(31);
+
 const dividaBaseFields = {
   nome: zString(255),
   instituicao: zString(255).nullable().optional(),
   tipo: dividaTipo,
   status: dividaStatus.optional().default('ativa'),
   notes: z.string().max(2000).nullable().optional(),
+  diaVencimento: dividaDiaVencimento.nullable().optional(),
 };
 
 export const dividaCreateSchema = z.discriminatedUnion('modalidade', [
@@ -481,6 +488,7 @@ export const dividaPatchSchema = z.object({
   tipo: dividaTipo.optional(),
   status: dividaStatus.optional(),
   notes: z.string().max(2000).nullable().optional(),
+  diaVencimento: dividaDiaVencimento.nullable().optional(),
   principal: zPositiveNumber.optional(),
   // null limpa o CET informativo de rotativa; a rota rejeita null p/ financiamento.
   taxaAm: z.number().finite().min(0).max(1).nullable().optional(),

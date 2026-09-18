@@ -3,8 +3,9 @@
  * função de cronograma da tela de Dívidas, corrigida pelo índice realizado
  * em contratos TR/IPCA/CDI) e o vencimento mensal das rotativas.
  *
- * A dívida guarda só o MÊS do primeiro vencimento; até existir o campo de
- * dia (Fase 2), a parcela cai no dia 1 e o detalhe marca `diaInformado: false`.
+ * A dívida guarda o MÊS do primeiro vencimento e, opcionalmente, o DIA
+ * (`diaVencimento`, Fase 2). Sem o dia informado a parcela cai no dia 1 e o
+ * detalhe marca `diaInformado: false`.
  */
 import prisma from '@/lib/prisma';
 import type { Divida, DividaPagamento } from '@prisma/client';
@@ -140,8 +141,7 @@ function resumida(d: Divida): DividaResumida {
     instituicao: d.instituicao,
     modalidade: d.modalidade,
     indexador: d.indexador,
-    // Campo previsto para a Fase 2 (dia do vencimento); por ora não existe.
-    diaVencimento: (d as { diaVencimento?: number | null }).diaVencimento ?? null,
+    diaVencimento: d.diaVencimento,
   };
 }
 

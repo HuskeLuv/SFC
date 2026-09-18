@@ -49,6 +49,8 @@ export interface DividaDTO {
   sistema: DividaSistema | null;
   indexador: DividaIndexador;
   primeiroVencimento: string | null;
+  /** Dia do mês do vencimento (1..31); null = não informado. */
+  diaVencimento: number | null;
   saldoInicial: number | null;
   dataSaldoInicial: string | null;
   status: DividaStatus;
@@ -96,6 +98,7 @@ export type DividaRow = {
   sistema: string | null;
   indexador: string;
   primeiroVencimento: string | null;
+  diaVencimento: number | null;
   saldoInicial: DecimalLike;
   dataSaldoInicial: string | null;
   status: string;
@@ -134,6 +137,7 @@ export function serializeDivida(
     sistema: (d.sistema as DividaSistema | null) ?? null,
     indexador: d.indexador as DividaIndexador,
     primeiroVencimento: d.primeiroVencimento,
+    diaVencimento: d.diaVencimento,
     saldoInicial: decimalOrNull(d.saldoInicial),
     dataSaldoInicial: d.dataSaldoInicial,
     status: d.status as DividaStatus,
