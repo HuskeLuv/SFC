@@ -1,12 +1,13 @@
 /**
  * POST /api/assistente/confirmar — grava a(s) proposta(s) que o usuário
  * confirmou no cartão. Recebe o token assinado devolvido por POST
- * /api/assistente (`token`) ou vários de uma vez (`tokens`, o cartão com a
- * lista de lançamentos); verifica assinatura, validade (10 min) e dono de
- * cada um; consultor não confirma.
+ * /api/assistente (`token`), vários de uma vez (`tokens`, o cartão com a
+ * lista de lançamentos) ou um compromisso da Agenda (`tokenEvento`); verifica
+ * assinatura, validade (10 min) e dono de cada um; consultor não confirma.
  *
- * Um token   → { ok, resumo, itemId, celulas, ano }           (formato original)
- * Vários     → { ok, resumo, itens: [{ ok, linha, resumo | error, itemId?, celulas?, ano? }] }
+ * Um token    → { ok, resumo, itemId, celulas, ano }           (formato original)
+ * Vários      → { ok, resumo, itens: [{ ok, linha, resumo | error, itemId?, celulas?, ano? }] }
+ * tokenEvento → { ok, resumo, evento }                          (compromisso na Agenda)
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -24,11 +25,14 @@ import {
   type Proposta,
   type ResultadoAplicacao,
 } from '@/services/assistente/lancamento';
+import { aplicarPropostaEvento, verificarPropostaEvento } from '@/services/assistente/evento';
 
 const tokenSchema = z.string().min(20).max(8000);
 const confirmarSchema = z.union([
   z.object({ token: tokenSchema }),
   z.object({ tokens: z.array(tokenSchema).min(1).max(MAX_LANCAMENTOS_POR_MENSAGEM) }),
+  // Compromisso na Agenda: um por confirmação (cada cartão tem o seu botão).
+  z.object({ tokenEvento: tokenSchema }),
 ]);
 
 function brl(n: number): string {
@@ -49,11 +53,27 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw new ApiError(503, 'Assistente indisponível no momento.');
   }
   if (auth.actingClient) {
-    throw new ApiError(403, 'Consultor não pode registrar lançamentos pelo assistente.');
+    throw new ApiError(403, 'Consultor não pode registrar pelo assistente.');
   }
 
   const parsed = confirmarSchema.safeParse(await request.json());
   if (!parsed.success) return validationError(parsed);
+
+  // Evento da Agenda.
+  if ('tokenEvento' in parsed.data) {
+    const proposta = verificarPropostaEvento(parsed.data.tokenEvento, auth.targetUserId);
+    if (!proposta) {
+      throw new ApiError(400, 'Proposta inválida ou expirada. Peça de novo ao assistente.');
+    }
+    const evento = await aplicarPropostaEvento(auth, request, proposta);
+    if (proposta.mensagemId) await marcarPropostaConfirmada(proposta.mensagemId);
+    const quando = evento.data.split('-').reverse().join('/');
+    return NextResponse.json({
+      ok: true,
+      resumo: `Marquei "${evento.titulo}" na agenda em ${quando}. Dá para desfazer em Histórico.`,
+      evento,
+    });
+  }
 
   // Um token só: comportamento original.
   if ('token' in parsed.data) {

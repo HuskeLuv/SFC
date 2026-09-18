@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   verificarProposta: vi.fn(),
   aplicarProposta: vi.fn(),
   aplicarPropostas: vi.fn(),
+  verificarPropostaEvento: vi.fn(),
+  aplicarPropostaEvento: vi.fn(),
 }));
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mocks.requireAuthWithActing }));
@@ -22,6 +24,15 @@ vi.mock('@/services/assistente/lancamento', async (importOriginal) => {
     verificarProposta: mocks.verificarProposta,
     aplicarProposta: mocks.aplicarProposta,
     aplicarPropostas: mocks.aplicarPropostas,
+  };
+});
+
+vi.mock('@/services/assistente/evento', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('@/services/assistente/evento')>();
+  return {
+    ...orig,
+    verificarPropostaEvento: mocks.verificarPropostaEvento,
+    aplicarPropostaEvento: mocks.aplicarPropostaEvento,
   };
 });
 
@@ -103,6 +114,68 @@ describe('POST /api/assistente/confirmar', () => {
     const resumo = body.resumo.replace(/\u00a0/g, ' ');
     expect(resumo).toContain('R$ 2.500,00 por mês em "Aluguel", de janeiro a março/2026 (3 meses)');
     expect(body.celulas).toHaveLength(3);
+  });
+
+  describe('evento da Agenda', () => {
+    const propostaEvento = {
+      kind: 'evento',
+      id: 'e1',
+      mensagemId: 'msg-9',
+      userId: 'u1',
+      titulo: 'Pagar o IPVA',
+      descricao: null,
+      data: '2026-10-10',
+      dataFim: null,
+      hora: null,
+      categoria: 'pagamento',
+      recorrencia: 'nenhuma',
+      lembrete: false,
+      expiraEm: Date.now() + 60_000,
+    };
+
+    it('grava o evento, marca a métrica e devolve o resumo com a data legível', async () => {
+      mocks.verificarPropostaEvento.mockReturnValue(propostaEvento);
+      mocks.aplicarPropostaEvento.mockResolvedValue({
+        id: 'ev-1',
+        titulo: 'Pagar o IPVA',
+        data: '2026-10-10',
+        dataFim: null,
+        hora: null,
+        categoria: 'pagamento',
+        recorrencia: 'nenhuma',
+        lembrete: false,
+        descricao: null,
+        criadoEm: '2026-09-18T12:00:00.000Z',
+        atualizadoEm: '2026-09-18T12:00:00.000Z',
+      });
+
+      const res = await POST(post({ tokenEvento: 'a'.repeat(30) }));
+      const body = await res.json();
+      expect(res.status).toBe(200);
+      expect(body.ok).toBe(true);
+      expect(body.resumo).toContain('"Pagar o IPVA" na agenda em 10/10/2026');
+      expect(body.evento.id).toBe('ev-1');
+      expect(mocks.marcarPropostaConfirmada).toHaveBeenCalledWith('msg-9');
+      // Não passa pelo caminho de lançamento.
+      expect(mocks.aplicarProposta).not.toHaveBeenCalled();
+    });
+
+    it('token de evento inválido/expirado → 400 sem gravar', async () => {
+      mocks.verificarPropostaEvento.mockReturnValue(null);
+      const res = await POST(post({ tokenEvento: 'a'.repeat(30) }));
+      expect(res.status).toBe(400);
+      expect(mocks.aplicarPropostaEvento).not.toHaveBeenCalled();
+    });
+
+    it('consultor não marca evento (403)', async () => {
+      mocks.requireAuthWithActing.mockResolvedValue({
+        ...user,
+        actingClient: { id: 'u1', consultantId: 'c1' },
+      });
+      const res = await POST(post({ tokenEvento: 'a'.repeat(30) }));
+      expect(res.status).toBe(403);
+      expect(mocks.aplicarPropostaEvento).not.toHaveBeenCalled();
+    });
   });
 
   it('token inválido/expirado → 400, sem gravar', async () => {

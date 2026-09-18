@@ -142,7 +142,10 @@ describe('POST /api/assistente', () => {
       { role: 'assistant', content: 'olá' },
       { role: 'user', content: 'Quanto gastei este mês?' },
     ]);
-    expect(req.tools.map((t: { name: string }) => t.name)).toEqual(['propor_lancamento']);
+    expect(req.tools.map((t: { name: string }) => t.name)).toEqual([
+      'propor_lancamento',
+      'propor_evento',
+    ]);
     expect(req.reasoning).toBe('none');
     expect(mocks.registrarMensagem).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -496,6 +499,109 @@ describe('POST /api/assistente', () => {
       expect(mocks.montarProposta).toHaveBeenCalledTimes(20);
       expect(body.propostas).toHaveLength(20);
       expect(body.resposta).toContain('pode ter ficado incompleta');
+    });
+  });
+
+  describe('propor_evento (Agenda)', () => {
+    const chamadaEvento = (input: Record<string, unknown>) =>
+      llmText('', {
+        stopReason: 'tool_use',
+        toolCalls: [{ id: 'e1', name: 'propor_evento', input }],
+      });
+
+    it('vira proposta de evento assinada, com cartão e sem mexer no fluxo', async () => {
+      mocks.complete.mockResolvedValue(
+        chamadaEvento({ titulo: 'Pagar o IPVA', data: '2026-10-10', categoria: 'pagamento' }),
+      );
+      const res = await POST(post({ mensagem: 'marca dia 10 que vou pagar o IPVA' }));
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.eventos).toHaveLength(1);
+      expect(body.eventos[0]).toMatchObject({
+        titulo: 'Pagar o IPVA',
+        data: '2026-10-10',
+        categoria: 'pagamento',
+        recorrencia: 'nenhuma',
+      });
+      expect(body.eventos[0].token).toContain('.');
+      expect(body.resposta).toContain('"Pagar o IPVA" em 10/10/2026');
+      expect(body.resposta).toContain('Confirma?');
+      // Nada de lançamento no fluxo de caixa.
+      expect(body.proposta).toBeUndefined();
+      expect(body.propostas).toEqual([]);
+      expect(mocks.montarProposta).not.toHaveBeenCalled();
+      expect(mocks.registrarMensagem).toHaveBeenCalledWith(
+        expect.objectContaining({ motor: 'ia+t', propostaGerada: true }),
+      );
+    });
+
+    it('data inválida vira explicação, sem cartão', async () => {
+      mocks.complete.mockResolvedValue(chamadaEvento({ titulo: 'Reunião', data: '2035-01-01' }));
+      const res = await POST(post({ mensagem: 'marca a reunião' }));
+      const body = await res.json();
+      expect(body.eventos).toBeUndefined();
+      expect(body.resposta).toMatch(/janela/i);
+    });
+
+    it('lançamento e evento na mesma resposta convivem', async () => {
+      mocks.complete.mockResolvedValue(
+        llmText('', {
+          stopReason: 'tool_use',
+          toolCalls: [
+            {
+              id: 't1',
+              name: 'propor_lancamento',
+              input: { tipo: 'despesa', linha: 'IPVA', valor: 1200 },
+            },
+            {
+              id: 'e1',
+              name: 'propor_evento',
+              input: { titulo: 'Pagar o IPVA', data: '2026-10-10' },
+            },
+          ],
+        }),
+      );
+      mocks.montarProposta.mockResolvedValue({
+        ok: true,
+        token: 'tok.sig',
+        proposta: {
+          id: 'p1',
+          mensagemId: 'msg-1',
+          userId: 'u1',
+          itemId: 'i',
+          itemNome: 'IPVA',
+          grupoNome: 'Despesas > Transporte',
+          tipo: 'despesa',
+          valor: 1200,
+          ano: 2026,
+          descricao: null,
+          modo: 'somar',
+          celulas: [{ mes: 9, valorAtual: 0, valorNovo: 1200 }],
+          expiraEm: 1,
+        },
+      });
+      const res = await POST(post({ mensagem: 'lança o IPVA de 1200 e marca dia 10' }));
+      const body = await res.json();
+      expect(body.propostas).toHaveLength(1);
+      expect(body.eventos).toHaveLength(1);
+      expect(body.resposta).toContain('Na agenda:');
+      expect(body.resposta).toContain('Confira no cartão e confirme para gravar.');
+    });
+
+    it('respeita o teto de eventos por mensagem', async () => {
+      mocks.complete.mockResolvedValue(
+        llmText('', {
+          stopReason: 'tool_use',
+          toolCalls: Array.from({ length: 6 }, (_, i) => ({
+            id: `e${i}`,
+            name: 'propor_evento',
+            input: { titulo: `Evento ${i}`, data: '2026-10-10' },
+          })),
+        }),
+      );
+      const body = await (await POST(post({ mensagem: 'marca tudo' }))).json();
+      expect(body.eventos).toHaveLength(3);
     });
   });
 

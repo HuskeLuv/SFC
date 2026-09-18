@@ -7,7 +7,7 @@
  *   em 10 min) → app mostra o cartão → usuário confirma → servidor grava.
  * A IA nunca grava direto.
  */
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { AuthWithActingResult } from '@/utils/auth';
@@ -17,6 +17,7 @@ import { recomputeEvolucaoSnapshotsSafe } from '@/services/cashflow/evolucaoPatr
 import { checkOrcamentoAlertasSafe } from '@/services/cashflow/orcamentoAlertas';
 import { recordChange } from '@/services/changeHistory';
 import type { CashflowGroup } from '@/types/cashflow';
+import { abrirPayload, assinarPayload } from './assinatura';
 import {
   invalidarContextoUsuario,
   listarLinhasEditaveis,
@@ -318,37 +319,21 @@ export async function montarProposta(
 // Assinatura: a proposta vai e volta pelo cliente sem estado no servidor.
 // ---------------------------------------------------------------------------
 
-function segredo(): string {
-  const s = process.env.ASSISTENTE_SECRET ?? process.env.JWT_SECRET;
-  if (!s) throw new Error('ASSISTENTE_SECRET/JWT_SECRET não configurado');
-  return s;
-}
-
-function hmac(payload: string): string {
-  return createHmac('sha256', segredo()).update(payload).digest('base64url');
-}
-
 export function assinarProposta(p: Proposta): string {
-  const payload = Buffer.from(JSON.stringify(p), 'utf8').toString('base64url');
-  return `${payload}.${hmac(payload)}`;
+  return assinarPayload(p);
 }
 
-/** Devolve a proposta se a assinatura confere, não expirou e pertence ao usuário. */
+/**
+ * Devolve a proposta se a assinatura confere, não expirou e pertence ao
+ * usuário. `celulas` também separa esta proposta da de evento (agenda), que é
+ * assinada com a mesma chave.
+ */
 export function verificarProposta(token: string, userId: string): Proposta | null {
-  const [payload, sig] = token.split('.');
-  if (!payload || !sig) return null;
-  const esperado = hmac(payload);
-  const a = Buffer.from(sig);
-  const b = Buffer.from(esperado);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  try {
-    const p = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Proposta;
-    if (p.userId !== userId || p.expiraEm < Date.now()) return null;
-    if (!Array.isArray(p.celulas) || p.celulas.length === 0) return null;
-    return p;
-  } catch {
-    return null;
-  }
+  const p = abrirPayload<Proposta>(token);
+  if (!p) return null;
+  if (p.userId !== userId || p.expiraEm < Date.now()) return null;
+  if (!Array.isArray(p.celulas) || p.celulas.length === 0) return null;
+  return p;
 }
 
 // ---------------------------------------------------------------------------
