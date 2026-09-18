@@ -83,7 +83,7 @@ export function linhasDoDetalhe(e: EventoAgenda): Array<[string, string]> {
       'Valor aplicado',
       typeof d.investedAmount === 'number' ? formatBRL(d.investedAmount) : null,
     ]);
-    linhas.push(['Isento de IR', d.taxExempt ? 'Sim' : 'Não']);
+    linhas.push(['Isento de IR', d.isentoIr ? 'Sim' : 'Não']);
   }
   return linhas.filter((l): l is [string, string] => l[1] != null);
 }

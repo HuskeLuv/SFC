@@ -1801,7 +1801,8 @@ describe('POST /api/carteira/operacao', () => {
             indexer: 'CDI',
             indexerPercent: 100,
             liquidityType: 'DAILY',
-            taxExempt: true,
+            // Tesouro NUNCA é isento de IR, nem em reserva (tabela regressiva).
+            taxExempt: false,
             tesouroBondType: null,
             tesouroMaturity: null,
           }),

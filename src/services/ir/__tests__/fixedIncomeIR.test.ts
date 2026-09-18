@@ -4,6 +4,8 @@ import {
   classifyForIR,
   aliquotaTabelaRegressiva,
   aliquotaIof,
+  ehIsentoDeIr,
+  ehTesouroDireto,
 } from '../fixedIncomeIR';
 
 describe('aliquotaTabelaRegressiva', () => {
@@ -69,6 +71,34 @@ describe('classifyForIR', () => {
     // O cadastro marca TODO Tesouro como taxExempt; a regressiva tem que valer.
     expect(classifyForIR(null, true, true).category).toBe('tabela_regressiva');
     expect(classifyForIR('CDB_PRE', true, true).category).toBe('tabela_regressiva');
+  });
+});
+
+describe('ehTesouroDireto', () => {
+  it('reconhece pelo bondType', () => {
+    expect(ehTesouroDireto('SELIC', null)).toBe(true);
+  });
+  it('reconhece Tesouro comprado como reserva, que nasce sem bondType', () => {
+    // Caso real: type 'CDB_PRE', bondType null, símbolo TESOURO-TESOURO-SELIC-…
+    expect(ehTesouroDireto(null, 'TESOURO-TESOURO-SELIC-2030-1784208791494-98godo4')).toBe(true);
+  });
+  it('não confunde papel comum', () => {
+    expect(ehTesouroDireto(null, 'CDB-BANCO-X')).toBe(false);
+    expect(ehTesouroDireto(null, null)).toBe(false);
+    expect(ehTesouroDireto(null, undefined)).toBe(false);
+  });
+});
+
+describe('ehIsentoDeIr (exibição)', () => {
+  it('Tesouro marcado como isento no cadastro NÃO é exibido como isento', () => {
+    expect(ehIsentoDeIr('CDB_PRE', true, true)).toBe(false);
+  });
+  it('LCI e papel marcado como isento são exibidos como isentos', () => {
+    expect(ehIsentoDeIr('LCI_PRE', false, false)).toBe(true);
+    expect(ehIsentoDeIr('DEBENTURE_PRE', false, true)).toBe(true);
+  });
+  it('CDB comum não', () => {
+    expect(ehIsentoDeIr('CDB_PRE', false, false)).toBe(false);
   });
 });
 

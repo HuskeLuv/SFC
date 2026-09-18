@@ -3,6 +3,7 @@
  * carteira (posição com quantidade > 0). Valor mostrado = aplicado.
  */
 import prisma from '@/lib/prisma';
+import { ehIsentoDeIr, ehTesouroDireto } from '@/services/ir/fixedIncomeIR';
 import type { EventoAgenda, Periodo } from '../types';
 import { dataCivil, deDataCivil } from '../datas';
 
@@ -32,7 +33,9 @@ export interface TituloVencendo {
   annualRate: number;
   indexer: string | null;
   indexerPercent: number | null;
-  taxExempt: boolean;
+  /** Já é a REGRA de isenção (Tesouro nunca é isento), não o campo cru. */
+  isentoIr: boolean;
+  tesouro: boolean;
 }
 
 export function taxaLegivel(
@@ -67,7 +70,7 @@ export function titulosComoEventos(titulos: TituloVencendo[], periodo: Periodo):
         taxa: taxaLegivel(t),
         indexer: t.indexer,
         investedAmount: round2(t.investedAmount),
-        taxExempt: t.taxExempt,
+        isentoIr: t.isentoIr,
       },
     });
   }
@@ -85,9 +88,12 @@ export async function eventosRendaFixa(userId: string, periodo: Periodo): Promis
   // Só o que ainda está em carteira (resgatado/vencido zera a posição).
   const posicoes = await prisma.portfolio.findMany({
     where: { userId, assetId: { in: titulos.map((t) => t.assetId) }, quantity: { gt: 0 } },
-    select: { id: true, assetId: true },
+    // O símbolo entra porque Tesouro comprado como reserva não tem
+    // `tesouroBondType` — ver ehTesouroDireto.
+    select: { id: true, assetId: true, asset: { select: { symbol: true } } },
   });
   const portfolioPorAsset = new Map(posicoes.map((p) => [p.assetId, p.id]));
+  const symbolPorAsset = new Map(posicoes.map((p) => [p.assetId, p.asset?.symbol ?? null]));
   const emCarteira: TituloVencendo[] = titulos
     .filter((t) => portfolioPorAsset.has(t.assetId))
     .map((t) => ({
@@ -101,7 +107,12 @@ export async function eventosRendaFixa(userId: string, periodo: Periodo): Promis
       annualRate: t.annualRate,
       indexer: t.indexer ? String(t.indexer) : null,
       indexerPercent: t.indexerPercent,
-      taxExempt: t.taxExempt,
+      isentoIr: ehIsentoDeIr(
+        String(t.type),
+        ehTesouroDireto(t.tesouroBondType, symbolPorAsset.get(t.assetId)),
+        t.taxExempt,
+      ),
+      tesouro: ehTesouroDireto(t.tesouroBondType, symbolPorAsset.get(t.assetId)),
     }));
   return titulosComoEventos(emCarteira, periodo);
 }

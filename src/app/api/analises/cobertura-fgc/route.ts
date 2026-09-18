@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ehIsentoDeIr, ehTesouroDireto } from '@/services/ir/fixedIncomeIR';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -183,7 +184,11 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         valorInvestido: fi.investedAmount,
         vencimento: fi.maturityDate.toISOString(),
         coberto,
-        isentoIR: fi.taxExempt,
+        isentoIR: ehIsentoDeIr(
+          fi.type,
+          ehTesouroDireto(fi.tesouroBondType, item.asset?.symbol),
+          fi.taxExempt,
+        ),
       };
     } else {
       const deposit = getDepositInfo(item.asset?.symbol ?? null);

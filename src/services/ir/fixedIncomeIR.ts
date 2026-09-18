@@ -123,6 +123,30 @@ export function classifyForIR(
   return { category: 'tabela_regressiva', motivoIsencao: null };
 }
 
+/**
+ * Reconhece uma posição do Tesouro Direto. `tesouroBondType` é o sinal
+ * principal, mas o Tesouro comprado como RESERVA nasce sem ele (e com type
+ * 'CDB_PRE') — nesse caso sobra o símbolo do ativo, que o cadastro prefixa
+ * com "TESOURO-".
+ */
+export function ehTesouroDireto(
+  tesouroBondType: string | null | undefined,
+  assetSymbol?: string | null,
+): boolean {
+  if (tesouroBondType) return true;
+  return (assetSymbol ?? '').toUpperCase().startsWith('TESOURO');
+}
+
+/**
+ * "Este papel é isento de IR?" para EXIBIÇÃO — mesma regra do cálculo, num
+ * lugar só. Existe porque o cadastro gravava `taxExempt: true` em toda posição
+ * de Tesouro Direto (por outro motivo), e Tesouro segue a tabela regressiva:
+ * ler o campo cru mostrava "Isento de IR: Sim" para Tesouro, o que é falso.
+ */
+export function ehIsentoDeIr(type: string | null, isTesouro: boolean, taxExempt = false): boolean {
+  return classifyForIR(type, isTesouro, taxExempt).category === 'isento';
+}
+
 function diasEntre(start: Date, end: Date): number {
   const ms = end.getTime() - start.getTime();
   return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)));

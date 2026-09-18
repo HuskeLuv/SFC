@@ -2151,7 +2151,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         : isTesouroReserva || isManualReserva
           ? 'DAILY'
           : rendaFixaLiquidity || null,
-      taxExempt: isTesouroRendaFixa ? true : isTesouroReserva ? true : Boolean(rendaFixaTaxExempt),
+      // Tesouro Direto NUNCA é isento de IR (tabela regressiva), nem quando
+      // entra como reserva. Marcar como isento fazia a Cobertura FGC e o
+      // detalhe da Agenda anunciarem isenção que não existe.
+      taxExempt: isTesouroRendaFixa || isTesouroReserva ? false : Boolean(rendaFixaTaxExempt),
       tesouroBondType,
       tesouroMaturity,
     };
