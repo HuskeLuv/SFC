@@ -319,7 +319,8 @@ describe('agenda com fontes calculadas', () => {
 
   it('uma fonte quebrada não derruba as outras', async () => {
     mocks.prisma.divida.findMany.mockRejectedValueOnce(new Error('db'));
-    const r = await montarAgenda('u-erro', periodoSet);
+    // Só as fontes da Fase 1 — as da Fase 2 têm mock próprio em fontesFase2.test.ts.
+    const r = await montarAgenda('u-erro', periodoSet, ['manual', 'divida', 'provento', 'rf']);
     expect(r.fontesComErro).toEqual(['divida']);
   });
 });
