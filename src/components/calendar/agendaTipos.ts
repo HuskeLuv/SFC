@@ -62,7 +62,7 @@ export const TIPOS_META: TipoMeta[] = [
   {
     tipo: 'mercado',
     label: 'Mercado',
-    descricao: 'Desdobramentos, grupamentos e bonificações (feriados e Copom em breve)',
+    descricao: 'Feriados da B3, desdobramentos, grupamentos e bonificações',
     cor: MYFINANCE_BRAND.transparencia,
     corDark: '#3A5C8F', // derivado de seguranca
     ligadoPorPadrao: false,

@@ -72,6 +72,29 @@ export const feriadosB3 = (year: number): Set<number> => {
 };
 
 /**
+ * Os mesmos feriados de `feriadosB3`, com nome — para exibição (Agenda).
+ * Não é usado em cálculo: quem conta dia útil continua no Set acima, que é a
+ * fonte única. Ordenado por data.
+ */
+export const feriadosB3Nomeados = (year: number): Array<{ ts: number; nome: string }> => {
+  const easter = easterUtc(year);
+  return [
+    { ts: Date.UTC(year, 0, 1), nome: 'Confraternização Universal' },
+    { ts: easter - 48 * DAY_MS, nome: 'Carnaval' },
+    { ts: easter - 47 * DAY_MS, nome: 'Carnaval' },
+    { ts: easter - 2 * DAY_MS, nome: 'Sexta-feira Santa' },
+    { ts: Date.UTC(year, 3, 21), nome: 'Tiradentes' },
+    { ts: Date.UTC(year, 4, 1), nome: 'Dia do Trabalho' },
+    { ts: easter + 60 * DAY_MS, nome: 'Corpus Christi' },
+    { ts: Date.UTC(year, 8, 7), nome: 'Independência' },
+    { ts: Date.UTC(year, 9, 12), nome: 'Nossa Senhora Aparecida' },
+    { ts: Date.UTC(year, 10, 2), nome: 'Finados' },
+    { ts: Date.UTC(year, 10, 15), nome: 'Proclamação da República' },
+    { ts: Date.UTC(year, 11, 25), nome: 'Natal' },
+  ].sort((a, b) => a.ts - b.ts);
+};
+
+/**
  * `true` se a data é feriado nacional bancário (B3/BACEN). Aceita Date ou
  * timestamp; normaliza para UTC midnight antes de comparar.
  */

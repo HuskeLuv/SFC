@@ -87,6 +87,12 @@ describe('GET /api/calendar', () => {
     expect(body.periodo).toEqual({ de: '2026-09-01', ate: '2026-09-30' });
     expect(body.fontesComErro).toEqual([]);
     expect(body.eventos).toEqual([
+      // Setembro tem o feriado da Independência — a fonte "mercado" também entra.
+      expect.objectContaining({
+        id: 'mercado:feriado:2026-09-07',
+        tipo: 'mercado',
+        data: '2026-09-07',
+      }),
       expect.objectContaining({
         id: 'manual:evt-1:2026-09-25',
         tipo: 'manual',
