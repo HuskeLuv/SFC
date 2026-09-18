@@ -46,7 +46,7 @@ export const TIPOS_META: TipoMeta[] = [
   {
     tipo: 'ir',
     label: 'Imposto de renda',
-    descricao: 'DARF, come-cotas e declaração (em breve)',
+    descricao: 'DARF de renda variável, come-cotas e prazo da declaração',
     cor: MYFINANCE_BRAND.potencia,
     corDark: MYFINANCE_BRAND.transparencia,
     ligadoPorPadrao: true,
@@ -54,7 +54,7 @@ export const TIPOS_META: TipoMeta[] = [
   {
     tipo: 'planejamento',
     label: 'Planejamento',
-    descricao: 'Data-alvo dos objetivos (em breve)',
+    descricao: 'Data-alvo dos objetivos e aposentadoria prevista',
     cor: '#0056AC', // derivado escuro de outside
     corDark: '#4D9FF5', // derivado claro de outside
     ligadoPorPadrao: false,
@@ -62,7 +62,7 @@ export const TIPOS_META: TipoMeta[] = [
   {
     tipo: 'mercado',
     label: 'Mercado',
-    descricao: 'Feriados da B3, Copom e IPCA (em breve)',
+    descricao: 'Desdobramentos, grupamentos e bonificações (feriados e Copom em breve)',
     cor: MYFINANCE_BRAND.transparencia,
     corDark: '#3A5C8F', // derivado de seguranca
     ligadoPorPadrao: false,
@@ -78,7 +78,15 @@ export const TIPOS_META: TipoMeta[] = [
 ];
 
 /** Tipos que já têm fonte no servidor (os outros aparecem na legenda como "em breve"). */
-export const TIPOS_DISPONIVEIS: TipoEvento[] = ['manual', 'divida', 'provento', 'rf'];
+export const TIPOS_DISPONIVEIS: TipoEvento[] = [
+  'manual',
+  'divida',
+  'provento',
+  'rf',
+  'ir',
+  'planejamento',
+  'mercado',
+];
 
 export const STORAGE_KEY_TIPOS = 'agenda.tiposVisiveis';
 
