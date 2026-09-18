@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -42,9 +42,16 @@ function conteudoDoEvento(arg: EventContentArg) {
   );
 }
 
+const LARGURA_MOBILE = 768;
+
 /**
  * Grade do FullCalendar (mês, semana, lista). Carregado sob demanda pelo
  * container (next/dynamic) para não pesar o bundle inicial.
+ *
+ * No celular a grade de mês fica ilegível (5 colunas de 60px), então a visão
+ * inicial é a LISTA e a barra perde a visão de semana. `initialView` só é lida
+ * na montagem — girar o aparelho não troca a visão de propósito, para não
+ * perder o que o usuário escolheu.
  */
 export default function AgendaFullCalendar({
   eventos,
@@ -54,6 +61,11 @@ export default function AgendaFullCalendar({
   onClicarEvento,
   onNovo,
 }: Props) {
+  const mobile = useMemo(
+    () => typeof window !== 'undefined' && window.innerWidth < LARGURA_MOBILE,
+    [],
+  );
+
   const handleDatesSet = useCallback(
     (arg: DatesSetArg) => onPeriodo(periodoDaVisao(arg.view.activeStart, arg.view.activeEnd)),
     [onPeriodo],
@@ -78,12 +90,12 @@ export default function AgendaFullCalendar({
       <FullCalendar
         plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
         locale={ptBrLocale}
-        initialView="dayGridMonth"
+        initialView={mobile ? 'listMonth' : 'dayGridMonth'}
         height="auto"
         headerToolbar={{
           left: podeCriar ? 'prev,next today novoEvento' : 'prev,next today',
           center: 'title',
-          right: 'dayGridMonth,timeGridWeek,listMonth',
+          right: mobile ? 'dayGridMonth,listMonth' : 'dayGridMonth,timeGridWeek,listMonth',
         }}
         buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', list: 'Lista' }}
         customButtons={{ novoEvento: { text: '+ Novo evento', click: onNovo } }}
