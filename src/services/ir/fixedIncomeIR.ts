@@ -3,6 +3,9 @@
  *
  * Regras cobertas:
  *  - Isenção PF para LCI/LCA/CRI/CRA/LIG (qualquer prazo, qualquer indexador).
+ *  - Isenção marcada no cadastro (`taxExempt`): é o caminho da **debênture
+ *    incentivada** (Lei 12.431) e de qualquer papel isento que o tipo não
+ *    revela pelo prefixo. Tesouro Direto NUNCA é isento, mesmo com a marca.
  *  - Tabela regressiva sobre rendimento (saldoBruto - valorAplicado) para CDB,
  *    LC, LF, LFS, RDB, RDC, DPGE, debêntures não-incentivadas e Tesouro Direto:
  *      ≤180 dias: 22.5%
@@ -25,6 +28,12 @@ export interface FixedIncomeIRInput {
   type: string | null;
   /** True quando a posição vem do Tesouro Direto (independente de `type`). */
   isTesouro: boolean;
+  /**
+   * "Isento de IR" marcado no cadastro do papel. Usado para o que o prefixo do
+   * tipo não revela — debênture incentivada, principalmente. Ignorado no
+   * Tesouro Direto, que é sempre tributado.
+   */
+  taxExempt?: boolean;
   /** Data inicial da aplicação. */
   startDate: Date;
   /** Data de referência para cálculo (default = now). */
@@ -95,16 +104,22 @@ export function aliquotaIof(diasDecorridos: number): number {
 }
 
 /**
- * Classifica o ativo de renda fixa para fins de IR. Tesouro nunca é isento;
- * outros tipos seguem o prefixo do FixedIncomeType.
+ * Classifica o ativo de renda fixa para fins de IR, nesta ordem:
+ *  1. Tesouro Direto nunca é isento — nem com a marca do cadastro (o cadastro
+ *     marca todo Tesouro como isento por outro motivo; ver operacao/route.ts).
+ *  2. Prefixo do tipo (LCI/LCA/CRI/CRA/LIG) — isenção que o produto já carrega.
+ *  3. `taxExempt` marcado no cadastro — o caminho da debênture incentivada,
+ *     que tem o mesmo tipo (DEBENTURE) da comum e só o usuário sabe distinguir.
  */
 export function classifyForIR(
   type: string | null,
   isTesouro: boolean,
+  taxExempt = false,
 ): { category: FixedIncomeIRCategory; motivoIsencao: string | null } {
   if (isTesouro) return { category: 'tabela_regressiva', motivoIsencao: null };
   const isencao = isentoPrefix(type);
   if (isencao) return { category: 'isento', motivoIsencao: isencao };
+  if (taxExempt) return { category: 'isento', motivoIsencao: 'Marcado como isento no cadastro' };
   return { category: 'tabela_regressiva', motivoIsencao: null };
 }
 
@@ -117,7 +132,11 @@ export function calcularIRRendaFixa(input: FixedIncomeIRInput): FixedIncomeIRRes
   const asOfDate = input.asOfDate ?? new Date();
   const diasDecorridos = diasEntre(input.startDate, asOfDate);
   const rendimentoBruto = input.saldoBruto - input.valorAplicado;
-  const { category, motivoIsencao } = classifyForIR(input.type, input.isTesouro);
+  const { category, motivoIsencao } = classifyForIR(
+    input.type,
+    input.isTesouro,
+    input.taxExempt ?? false,
+  );
 
   if (category === 'isento' || rendimentoBruto <= 0) {
     return {

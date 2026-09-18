@@ -171,6 +171,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       const ir = calcularIRRendaFixa({
         type: fixedIncome.type,
         isTesouro,
+        // Debênture incentivada: o tipo é o mesmo da comum, só a marca do
+        // cadastro distingue.
+        taxExempt: fixedIncome.taxExempt,
         startDate: new Date(fixedIncome.startDate),
         valorAplicado: valorInicial,
         saldoBruto: valorAtualizado,
