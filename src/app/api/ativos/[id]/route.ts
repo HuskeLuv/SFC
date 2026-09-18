@@ -375,10 +375,14 @@ const buildFixedIncomeResponse = async (
   const resultado = round2(saldoBruto - valorAplicado);
   const rentabilidade = valorAplicado > 0 ? (resultado / valorAplicado) * 100 : 0;
 
-  // IR projetado se resgatar hoje (tabela regressiva ou isenção PF para LCI/LCA/CRI/CRA/LIG).
+  // IR projetado se resgatar hoje (tabela regressiva, isenção PF de LCI/LCA/CRI/CRA/LIG
+  // ou isenção marcada no cadastro — debênture incentivada).
   const ir = calcularIRRendaFixa({
     type: fi.type,
     isTesouro: Boolean(fi.tesouroBondType),
+    // Debênture incentivada: o tipo é o mesmo da comum, só a marca do cadastro
+    // distingue.
+    taxExempt: fi.taxExempt,
     startDate: fi.startDate,
     valorAplicado,
     saldoBruto,

@@ -48,6 +48,28 @@ describe('classifyForIR', () => {
     expect(classifyForIR('LCI_HIB', false).motivoIsencao).toBe('LCI');
     expect(classifyForIR('CDB_PRE', false).motivoIsencao).toBeNull();
   });
+
+  // Debênture incentivada (Lei 12.431) tem o MESMO tipo da comum: só a marca
+  // do cadastro distingue as duas.
+  it('marca de isento no cadastro isenta o que o tipo não revela', () => {
+    expect(classifyForIR('DEBENTURE_PRE', false, true)).toEqual({
+      category: 'isento',
+      motivoIsencao: 'Marcado como isento no cadastro',
+    });
+    expect(classifyForIR('DEBENTURE_PRE', false, false).category).toBe('tabela_regressiva');
+    // Sem informar a marca, o comportamento é o de antes.
+    expect(classifyForIR('DEBENTURE_PRE', false).category).toBe('tabela_regressiva');
+  });
+
+  it('prefixo do tipo ganha da marca (motivo continua o produto)', () => {
+    expect(classifyForIR('LCI_PRE', false, true).motivoIsencao).toBe('LCI');
+  });
+
+  it('Tesouro segue tributado mesmo marcado como isento', () => {
+    // O cadastro marca TODO Tesouro como taxExempt; a regressiva tem que valer.
+    expect(classifyForIR(null, true, true).category).toBe('tabela_regressiva');
+    expect(classifyForIR('CDB_PRE', true, true).category).toBe('tabela_regressiva');
+  });
 });
 
 describe('calcularIRRendaFixa', () => {
@@ -201,6 +223,37 @@ describe('calcularIRRendaFixa — IOF nos primeiros 30 dias', () => {
     expect(result.aliquota).toBe(0.225);
     expect(result.ir).toBe(7.65);
     expect(result.valorLiquido).toBe(1100 - 66 - 7.65);
+  });
+
+  it('debênture incentivada: sem IR e sem IOF, como qualquer isento', () => {
+    const r = calcularIRRendaFixa({
+      type: 'DEBENTURE_PRE',
+      isTesouro: false,
+      taxExempt: true,
+      startDate: new Date('2025-01-01'),
+      asOfDate: new Date('2025-01-11'), // 10 dias: faixa de IOF
+      valorAplicado: 10000,
+      saldoBruto: 10500,
+    });
+    expect(r.isento).toBe(true);
+    expect(r.motivoIsencao).toBe('Marcado como isento no cadastro');
+    expect(r.ir).toBe(0);
+    expect(r.iof).toBe(0);
+    expect(r.valorLiquido).toBe(10500);
+  });
+
+  it('debênture COMUM (sem a marca) continua na tabela regressiva', () => {
+    const r = calcularIRRendaFixa({
+      type: 'DEBENTURE_PRE',
+      isTesouro: false,
+      startDate: new Date('2025-01-01'),
+      asOfDate: new Date('2027-01-01'), // > 720 dias → 15%
+      valorAplicado: 10000,
+      saldoBruto: 11000,
+    });
+    expect(r.isento).toBe(false);
+    expect(r.aliquota).toBe(0.15);
+    expect(r.ir).toBe(150);
   });
 
   it('LCI nos primeiros 30 dias NÃO sofre IOF (isento)', () => {
