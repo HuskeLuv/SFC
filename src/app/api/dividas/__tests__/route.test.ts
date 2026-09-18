@@ -42,6 +42,7 @@ const financiamentoRow = (over: Record<string, unknown> = {}) => ({
   sistema: 'PRICE',
   indexador: 'PREFIXADO',
   primeiroVencimento: '2026-01',
+  diaVencimento: null,
   saldoInicial: null,
   dataSaldoInicial: null,
   status: 'ativa',
@@ -163,6 +164,73 @@ describe('POST /api/dividas', () => {
     );
     expect(res.status).toBe(400);
     expect(mockPrisma.divida.create).not.toHaveBeenCalled();
+  });
+
+  it('grava o dia do vencimento quando informado', async () => {
+    mockPrisma.divida.create.mockResolvedValue(financiamentoRow({ diaVencimento: 10 }));
+
+    const res = await POST(
+      postReq({
+        modalidade: 'financiamento',
+        nome: 'Apê',
+        tipo: 'financiamento_imobiliario',
+        principal: 100000,
+        taxaAm: 0.01,
+        prazoMeses: 120,
+        sistema: 'PRICE',
+        primeiroVencimento: '2026-01',
+        diaVencimento: 10,
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).divida.diaVencimento).toBe(10);
+    expect(mockPrisma.divida.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ diaVencimento: 10 }) }),
+    );
+  });
+
+  it('sem dia informado grava null (a Agenda cai no dia 1)', async () => {
+    mockPrisma.divida.create.mockResolvedValue(
+      financiamentoRow({
+        modalidade: 'rotativa',
+        tipo: 'cartao_credito',
+        saldoInicial: 5000,
+        dataSaldoInicial: '2026-01',
+      }),
+    );
+
+    const res = await POST(
+      postReq({
+        modalidade: 'rotativa',
+        nome: 'Cartão',
+        tipo: 'cartao_credito',
+        saldoInicial: 5000,
+        dataSaldoInicial: '2026-01',
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).divida.diaVencimento).toBeNull();
+    expect(mockPrisma.divida.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ diaVencimento: null }) }),
+    );
+  });
+
+  it('rejeita dia do vencimento fora de 1..31 (400)', async () => {
+    for (const diaVencimento of [0, 32, 10.5]) {
+      mockPrisma.divida.create.mockReset();
+      const res = await POST(
+        postReq({
+          modalidade: 'rotativa',
+          nome: 'Cartão',
+          tipo: 'cartao_credito',
+          saldoInicial: 5000,
+          dataSaldoInicial: '2026-01',
+          diaVencimento,
+        }),
+      );
+      expect(res.status).toBe(400);
+      expect(mockPrisma.divida.create).not.toHaveBeenCalled();
+    }
   });
 
   it('rejeita primeiroVencimento fora de YYYY-MM (400)', async () => {

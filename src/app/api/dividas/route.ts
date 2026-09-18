@@ -68,6 +68,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       modalidade: d.modalidade,
       status: d.status,
       notes: d.notes ?? null,
+      // Vale nas duas modalidades (parcela do financiamento / fatura da rotativa).
+      diaVencimento: d.diaVencimento ?? null,
       ...(d.modalidade === 'financiamento'
         ? {
             principal: d.principal,

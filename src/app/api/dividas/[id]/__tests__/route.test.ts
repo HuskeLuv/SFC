@@ -40,6 +40,7 @@ const financiamentoRow = (over: Record<string, unknown> = {}) => ({
   sistema: 'PRICE',
   indexador: 'PREFIXADO',
   primeiroVencimento: '2026-01',
+  diaVencimento: null,
   saldoInicial: null,
   dataSaldoInicial: null,
   status: 'ativa',
@@ -114,6 +115,33 @@ describe('PATCH /api/dividas/[id]', () => {
       'user-1',
       expect.objectContaining({ nome: 'Apartamento' }),
     );
+  });
+
+  it('edita o dia do vencimento (e null limpa)', async () => {
+    mockPrisma.divida.findFirst.mockResolvedValue(financiamentoRow());
+    mockPrisma.divida.update.mockResolvedValue(financiamentoRow({ diaVencimento: 15 }));
+
+    const res = await PATCH(patchReq({ diaVencimento: 15 }), params);
+    expect(res.status).toBe(200);
+    expect((await res.json()).divida.diaVencimento).toBe(15);
+    expect(mockPrisma.divida.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { diaVencimento: 15 } }),
+    );
+
+    mockPrisma.divida.findFirst.mockResolvedValue(financiamentoRow({ diaVencimento: 15 }));
+    mockPrisma.divida.update.mockResolvedValue(financiamentoRow());
+    const limpa = await PATCH(patchReq({ diaVencimento: null }), params);
+    expect(limpa.status).toBe(200);
+    expect(mockPrisma.divida.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { diaVencimento: null } }),
+    );
+  });
+
+  it('rejeita dia do vencimento fora de 1..31 (400)', async () => {
+    mockPrisma.divida.findFirst.mockResolvedValue(financiamentoRow());
+    const res = await PATCH(patchReq({ diaVencimento: 40 }), params);
+    expect(res.status).toBe(400);
+    expect(mockPrisma.divida.update).not.toHaveBeenCalled();
   });
 
   it('rejeita campo de cronograma em dívida rotativa (400)', async () => {

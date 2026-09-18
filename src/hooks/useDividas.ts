@@ -51,6 +51,8 @@ export type DividaCreatePayload =
       tipo: DividaTipo;
       status?: DividaStatus;
       notes?: string | null;
+      /** Dia do mês do vencimento (1..31); null/ausente = não informado. */
+      diaVencimento?: number | null;
       principal: number;
       taxaAm: number;
       taxaUnidadeEntrada?: 'am' | 'aa';
@@ -66,6 +68,8 @@ export type DividaCreatePayload =
       tipo: DividaTipo;
       status?: DividaStatus;
       notes?: string | null;
+      /** Dia do mês do vencimento da fatura (1..31); null/ausente = não informado. */
+      diaVencimento?: number | null;
       saldoInicial: number;
       dataSaldoInicial: string; // YYYY-MM
       /** CET informativo (fração a.m.) — não acrui no saldo. */

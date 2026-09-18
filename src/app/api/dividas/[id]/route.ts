@@ -117,6 +117,7 @@ export const PATCH = withErrorHandler(
     if (p.tipo !== undefined) data.tipo = p.tipo;
     if (p.status !== undefined) data.status = p.status;
     if (p.notes !== undefined) data.notes = p.notes ?? null;
+    if (p.diaVencimento !== undefined) data.diaVencimento = p.diaVencimento ?? null;
     if (p.principal !== undefined) data.principal = p.principal;
     if (p.taxaAm !== undefined) data.taxaAm = p.taxaAm;
     if (p.taxaUnidadeEntrada !== undefined) data.taxaUnidadeEntrada = p.taxaUnidadeEntrada;
@@ -205,6 +206,7 @@ export const DELETE = withErrorHandler(
           sistema: existing.sistema,
           indexador: existing.indexador,
           primeiroVencimento: existing.primeiroVencimento,
+          diaVencimento: existing.diaVencimento,
           saldoInicial:
             existing.saldoInicial == null ? null : decimalToNumber(existing.saldoInicial),
           dataSaldoInicial: existing.dataSaldoInicial,

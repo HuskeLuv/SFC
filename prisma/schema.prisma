@@ -1104,6 +1104,11 @@ model Divida {
   saldoInicial     Decimal? @db.Decimal(15, 2)
   dataSaldoInicial String? // YYYY-MM — âncora do saldo
 
+  // Dia do mês do vencimento (1..31). Vale para financiamento (parcela) e
+  // rotativa (fatura). Null = não informado → a Agenda cai no dia 1 e marca
+  // `diaInformado: false`. Não entra no cronograma (amortização é mensal).
+  diaVencimento Int?
+
   status    String   @default("ativa") // 'ativa' | 'quitada'
   notes     String?
   createdAt DateTime @default(now())

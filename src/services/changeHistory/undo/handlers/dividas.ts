@@ -81,6 +81,7 @@ const dividaExcluir: UndoDefinition = {
       sistema: string | null;
       indexador: string;
       primeiroVencimento: string | null;
+      diaVencimento?: number | null;
       saldoInicial: number | null;
       dataSaldoInicial: string | null;
       status: string;
@@ -113,6 +114,8 @@ const dividaExcluir: UndoDefinition = {
           sistema: data.sistema,
           indexador: data.indexador,
           primeiroVencimento: data.primeiroVencimento,
+          // Opcional: snapshots gravados antes da Fase 2 da Agenda não têm o campo.
+          diaVencimento: data.diaVencimento ?? null,
           saldoInicial: data.saldoInicial,
           dataSaldoInicial: data.dataSaldoInicial,
           status: data.status,
