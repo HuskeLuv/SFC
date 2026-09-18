@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import UserMetaCard from '@/components/user-profile/UserMetaCard';
 import PrivacyControls from '@/components/user-profile/PrivacyControls';
 import { TwoFactorAuthAutoLoad } from '@/components/user-profile/TwoFactorAuth';
+import AgendaPreferencias from '@/components/user-profile/AgendaPreferencias';
 
 interface User {
   id: string;
@@ -40,6 +41,9 @@ export default function ProfilePage() {
           <UserMetaCard user={user || undefined} />
         </div>
       </div>
+
+      {/* Agenda: liga/desliga os lembretes do sininho */}
+      {user && <AgendaPreferencias />}
 
       {/* LGPD Fase 2: controles de privacidade (Art. 18) */}
       {user && <PrivacyControls user={user} />}
