@@ -18,6 +18,7 @@ import {
 } from '@/hooks/useAgenda';
 import AgendaEventoModal, { FORM_VAZIO, type EventoFormValores } from './AgendaEventoModal';
 import AgendaDetalheModal from './AgendaDetalheModal';
+import AgendaPainel from './AgendaPainel';
 import {
   TIPOS_DISPONIVEIS,
   TIPOS_META,
@@ -60,7 +61,8 @@ function formDoEvento(e: EventoAgenda): EventoFormValores {
 
 /**
  * Agenda financeira (página /calendario): eventos calculados (dívidas,
- * proventos, renda fixa) + eventos do usuário, com filtros por tipo,
+ * proventos, renda fixa, IR, planejamento, mercado) + eventos do usuário, com
+ * filtros por tipo, painel lateral (resumo do período + próximos 30 dias),
  * criação/edição com histórico e detalhe com atalho para a tela de origem.
  */
 export default function Calendar() {
@@ -235,6 +237,7 @@ export default function Calendar() {
             })}
           </ul>
         </div>
+        <AgendaPainel eventos={eventos} tipos={tipos} theme={theme} onSelecionar={abrirEvento} />
         <div className="rounded-2xl border border-gray-200 bg-white p-4 text-xs text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
           {podeEscrever ? (
             <p>
