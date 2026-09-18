@@ -28,16 +28,24 @@ beforeEach(() => {
 });
 
 describe('GET /api/agenda/preferencias', () => {
-  it('sem registro no banco vale o padrão (ligado)', async () => {
+  it('sem registro no banco vale o padrão (ligado, sem feed publicado)', async () => {
     mocks.prisma.agendaPreferencia.findUnique.mockResolvedValue(null);
     const res = await GET(req());
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ lembretes: true });
+    expect(await res.json()).toEqual({ lembretes: true, icalToken: null, icalCriadoEm: null });
   });
 
-  it('devolve o que está gravado', async () => {
-    mocks.prisma.agendaPreferencia.findUnique.mockResolvedValue({ lembretes: false });
-    expect(await (await GET(req())).json()).toEqual({ lembretes: false });
+  it('devolve o que está gravado, inclusive o token do feed', async () => {
+    mocks.prisma.agendaPreferencia.findUnique.mockResolvedValue({
+      lembretes: false,
+      icalToken: 'tok-123',
+      icalCriadoEm: new Date('2026-09-18T12:00:00Z'),
+    });
+    expect(await (await GET(req())).json()).toEqual({
+      lembretes: false,
+      icalToken: 'tok-123',
+      icalCriadoEm: '2026-09-18T12:00:00.000Z',
+    });
   });
 });
 

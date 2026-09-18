@@ -37,6 +37,9 @@ function isPublicRoute(pathname: string): boolean {
     // Webhooks de terceiros (Pluggy) não têm sessão: a rota autentica por
     // header secreto + IP fixo de origem (src/app/api/webhooks/pluggy).
     pathname.startsWith('/api/webhooks/') ||
+    // Feed iCal: o Google Agenda/Apple Calendário buscam a URL sem cookie —
+    // o token da query é a credencial e a rota valida por conta própria.
+    pathname === '/api/calendar/ical' ||
     pathname === '/api/health' ||
     // Página inicial pública (landing); a própria página manda sessão válida pro app.
     pathname === '/' ||

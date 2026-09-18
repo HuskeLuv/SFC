@@ -1,8 +1,9 @@
 /**
  * Preferências da Agenda do usuário.
  *
- * GET   /api/agenda/preferencias → { lembretes }
+ * GET   /api/agenda/preferencias → { lembretes, icalToken, icalCriadoEm }
  * PATCH /api/agenda/preferencias → liga/desliga os lembretes
+ * (o token do feed iCal é gerado e revogado em ./ical)
  *
  * Sem registro no banco vale o padrão (ligado); o PATCH cria a linha na
  * primeira mudança. Consultor agindo pelo cliente só lê — preferência é do
@@ -21,9 +22,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
   const pref = await prisma.agendaPreferencia.findUnique({
     where: { userId: targetUserId },
-    select: { lembretes: true },
+    select: { lembretes: true, icalToken: true, icalCriadoEm: true },
   });
-  return NextResponse.json({ lembretes: pref?.lembretes ?? true });
+  return NextResponse.json({
+    lembretes: pref?.lembretes ?? true,
+    // O token só sai para o dono da conta, que é quem vai copiar o link.
+    icalToken: pref?.icalToken ?? null,
+    icalCriadoEm: pref?.icalCriadoEm?.toISOString() ?? null,
+  });
 });
 
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
