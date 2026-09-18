@@ -127,6 +127,23 @@ model User {
   // liberam conteúdos/seções com requiredLevel <= accessLevel. Ver
   // src/utils/accessLevel.ts.
   accessLevel                   Int                           @default(0)
+  agendaPreferencia             AgendaPreferencia?
+}
+
+/**
+ * Preferências da Agenda financeira. Linha criada sob demanda: quem nunca
+ * mexeu não tem registro e vale o padrão (lembretes ligados).
+ */
+model AgendaPreferencia {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // false = o cron não gera notificação de lembrete para este usuário.
+  lembretes Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("agenda_preferencias")
 }
 
 /**
