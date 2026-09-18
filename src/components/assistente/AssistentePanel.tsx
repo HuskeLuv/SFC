@@ -44,6 +44,20 @@ interface Proposta {
   expiraEm: number;
 }
 
+/** Proposta de compromisso na Agenda (ferramenta propor_evento). */
+interface EventoProposta {
+  token: string;
+  titulo: string;
+  data: string;
+  dataFim: string | null;
+  hora: string | null;
+  categoria: string;
+  recorrencia: string;
+  lembrete: boolean;
+  descricao: string | null;
+  expiraEm: number;
+}
+
 interface Uso {
   usadas: number;
   limite: number;
@@ -58,6 +72,11 @@ interface ItemProposta extends Proposta {
   erro?: string;
 }
 
+interface ItemEvento extends EventoProposta {
+  estado: 'pendente' | 'registrado' | 'falhou' | 'cancelado';
+  erro?: string;
+}
+
 interface Mensagem {
   id: number;
   role: 'user' | 'assistant';
@@ -65,6 +84,8 @@ interface Mensagem {
   /** Um item = cartão simples; vários = lista com confirmação em lote. */
   propostas?: ItemProposta[];
   propostaEstado?: 'pendente' | 'confirmada' | 'cancelada';
+  /** Compromissos da Agenda: cada um confirma sozinho. */
+  eventos?: ItemEvento[];
 }
 
 interface ItemConfirmado {
@@ -80,6 +101,8 @@ const SUGESTOES = [
   'Estou dentro do orçamento?',
   'Gastei 45,90 no mercado hoje',
   'Meu aluguel é 2.500 por mês',
+  'O que vence este mês?',
+  'Marca dia 10 que vou pagar o IPVA',
 ];
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -95,6 +118,7 @@ export default function AssistentePanel() {
   const [texto, setTexto] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [confirmando, setConfirmando] = useState<number | null>(null);
+  const [confirmandoEvento, setConfirmandoEvento] = useState<string | null>(null);
   const listaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const idRef = useRef(0);
@@ -149,6 +173,7 @@ export default function AssistentePanel() {
           resposta?: string;
           proposta?: Proposta;
           propostas?: Proposta[];
+          eventos?: EventoProposta[];
           uso?: Uso;
           error?: string;
         };
@@ -161,6 +186,7 @@ export default function AssistentePanel() {
           return;
         }
         const lista = data.propostas ?? (data.proposta ? [data.proposta] : []);
+        const eventos = data.eventos ?? [];
         adicionar({
           role: 'assistant',
           content: data.resposta ?? '',
@@ -169,6 +195,10 @@ export default function AssistentePanel() {
               ? lista.map((p) => ({ ...p, estado: 'pendente' as const }))
               : undefined,
           propostaEstado: lista.length > 0 ? 'pendente' : undefined,
+          eventos:
+            eventos.length > 0
+              ? eventos.map((e) => ({ ...e, estado: 'pendente' as const }))
+              : undefined,
         });
       } catch {
         adicionar({ role: 'assistant', content: 'Falha de conexão. Tente de novo.' });
@@ -238,6 +268,70 @@ export default function AssistentePanel() {
         prev.map((x) => (x.id === m.id ? { ...x, propostaEstado: 'cancelada' } : x)),
       );
       adicionar({ role: 'assistant', content: 'Certo, não registrei nada.' });
+    },
+    [adicionar],
+  );
+
+  /** Marca o compromisso na Agenda. Cada cartão de evento confirma sozinho. */
+  const confirmarEvento = useCallback(
+    async (m: Mensagem, token: string) => {
+      if (confirmandoEvento !== null) return;
+      setConfirmandoEvento(token);
+      const marcar = (estado: ItemEvento['estado'], erro?: string) =>
+        setMensagens((prev) =>
+          prev.map((x) =>
+            x.id === m.id
+              ? {
+                  ...x,
+                  eventos: x.eventos?.map((e) => (e.token === token ? { ...e, estado, erro } : e)),
+                }
+              : x,
+          ),
+        );
+      try {
+        const res = await csrfFetch('/api/assistente/confirmar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tokenEvento: token }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          resumo?: string;
+          error?: string;
+        };
+        if (!res.ok) {
+          marcar('falhou', data.error);
+          adicionar({ role: 'assistant', content: data.error ?? 'Não consegui marcar na agenda.' });
+          return;
+        }
+        marcar('registrado');
+        adicionar({ role: 'assistant', content: data.resumo ?? 'Marquei na agenda.' });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.agenda.all });
+      } catch {
+        marcar('falhou');
+        adicionar({ role: 'assistant', content: 'Falha de conexão ao marcar. Tente de novo.' });
+      } finally {
+        setConfirmandoEvento(null);
+      }
+    },
+    [adicionar, confirmandoEvento, csrfFetch, queryClient],
+  );
+
+  const descartarEvento = useCallback(
+    (m: Mensagem, token: string) => {
+      setMensagens((prev) =>
+        prev.map((x) =>
+          x.id === m.id
+            ? {
+                ...x,
+                eventos: x.eventos?.map((e) =>
+                  e.token === token ? { ...e, estado: 'cancelado' } : e,
+                ),
+              }
+            : x,
+        ),
+      );
+      adicionar({ role: 'assistant', content: 'Certo, não marquei nada.' });
     },
     [adicionar],
   );
@@ -401,6 +495,16 @@ export default function AssistentePanel() {
                       onRemover={(token) => removerItem(m, token)}
                     />
                   )}
+                  {m.eventos?.map((e) => (
+                    <CartaoEvento
+                      key={e.token}
+                      item={e}
+                      ocupado={confirmandoEvento !== null}
+                      registrando={confirmandoEvento === e.token}
+                      onConfirmar={() => confirmarEvento(m, e.token)}
+                      onCancelar={() => descartarEvento(m, e.token)}
+                    />
+                  ))}
                 </div>
               </div>
             ))}
@@ -618,6 +722,75 @@ function CartaoLote({
       )}
       {estado === 'confirmada' && <p className="mt-2 font-medium text-green-600">Registrado.</p>}
       {estado === 'cancelada' && <p className="mt-2 text-gray-500">Cancelado.</p>}
+    </div>
+  );
+}
+
+const CATEGORIA_EVENTO_TEXTO: Record<string, string> = {
+  pagamento: 'Conta a pagar',
+  recebimento: 'Dinheiro a receber',
+  lembrete: 'Lembrete',
+  pessoal: 'Compromisso',
+};
+
+const RECORRENCIA_EVENTO_TEXTO: Record<string, string> = {
+  mensal: 'Todo mês',
+  anual: 'Todo ano',
+};
+
+const dataLegivel = (d: string) => d.split('-').reverse().join('/');
+
+/** Cartão do compromisso na Agenda: confirma sozinho, um por evento proposto. */
+function CartaoEvento({
+  item,
+  ocupado,
+  registrando,
+  onConfirmar,
+  onCancelar,
+}: {
+  item: ItemEvento;
+  ocupado: boolean;
+  registrando: boolean;
+  onConfirmar: () => void;
+  onCancelar: () => void;
+}) {
+  const quando = item.dataFim
+    ? `${dataLegivel(item.data)} a ${dataLegivel(item.dataFim)}`
+    : dataLegivel(item.data);
+  return (
+    <div className="mt-2 rounded-lg border border-gray-300 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
+      <p className="font-semibold text-gray-900 dark:text-gray-100">
+        Agenda · {CATEGORIA_EVENTO_TEXTO[item.categoria] ?? 'Compromisso'}
+      </p>
+      <p className="mt-0.5 text-gray-700 dark:text-gray-200">{item.titulo}</p>
+      <p className="mt-0.5 text-gray-500 dark:text-gray-400">
+        {quando}
+        {item.hora ? ` · ${item.hora}` : ''}
+        {RECORRENCIA_EVENTO_TEXTO[item.recorrencia]
+          ? ` · ${RECORRENCIA_EVENTO_TEXTO[item.recorrencia]}`
+          : ''}
+      </p>
+      {item.descricao ? (
+        <p className="mt-0.5 text-gray-500 dark:text-gray-400">{item.descricao}</p>
+      ) : null}
+
+      {item.estado === 'pendente' ? (
+        <BotoesCartao
+          rotulo="Marcar na agenda"
+          ocupado={ocupado}
+          registrando={registrando}
+          onConfirmar={onConfirmar}
+          onCancelar={onCancelar}
+        />
+      ) : (
+        <p className="mt-2 text-gray-500 dark:text-gray-400">
+          {item.estado === 'registrado'
+            ? '✓ Marcado na agenda'
+            : item.estado === 'cancelado'
+              ? 'Não marcado'
+              : `Não consegui marcar${item.erro ? `: ${item.erro}` : ''}`}
+        </p>
+      )}
     </div>
   );
 }
