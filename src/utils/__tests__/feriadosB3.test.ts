@@ -43,10 +43,24 @@ describe('feriadosB3', () => {
     expect(set.has(utc(2020, 6, 11))).toBe(true);
   });
 
-  it('cada ano tem exatamente 12 feriados', () => {
-    [2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027].forEach((year) => {
+  it('12 feriados até 2023 e 13 a partir de 2024 (entra o 20/11)', () => {
+    [2020, 2021, 2022, 2023].forEach((year) => {
       expect(feriadosB3(year).size).toBe(12);
     });
+    [2024, 2025, 2026, 2027].forEach((year) => {
+      expect(feriadosB3(year).size).toBe(13);
+    });
+  });
+
+  // Lei 14.759/2023: 20/11 (Consciência Negra) é feriado NACIONAL desde 2024.
+  // Antes disso era municipal/estadual — incluir retroativo mudaria a contagem
+  // de dias úteis do histórico antigo de renda fixa.
+  it('20/11 é feriado a partir de 2024 e NÃO antes', () => {
+    expect(feriadosB3(2023).has(utc(2023, 11, 20))).toBe(false);
+    expect(feriadosB3(2024).has(utc(2024, 11, 20))).toBe(true);
+    expect(feriadosB3(2026).has(utc(2026, 11, 20))).toBe(true);
+    expect(isHolidayB3(utc(2026, 11, 20))).toBe(true);
+    expect(isHolidayB3(utc(2023, 11, 20))).toBe(false);
   });
 });
 

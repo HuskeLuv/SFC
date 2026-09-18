@@ -7,6 +7,7 @@
  *
  * Cobre:
  *   - 8 feriados fixos: 01/01, 21/04, 01/05, 07/09, 12/10, 02/11, 15/11, 25/12
+ *   - 20/11 (Consciência Negra) a partir de 2024 — Lei 14.759/2023
  *   - 4 móveis derivados da Páscoa (algoritmo de Gauss):
  *       Sexta-feira Santa (-2d), Carnaval segunda (-48d) + terça (-47d), Corpus Christi (+60d)
  *
@@ -60,6 +61,13 @@ export const feriadosB3 = (year: number): Set<number> => {
   days.add(Date.UTC(year, 10, 15)); // Proclamação da República
   days.add(Date.UTC(year, 11, 25)); // Natal
 
+  // 20/11 (Dia Nacional de Zumbi e da Consciência Negra) virou feriado
+  // NACIONAL pela Lei 14.759/2023, valendo a partir de 2024 — a B3 não abre.
+  // Condicional ao ano de propósito: antes de 2024 era feriado só municipal/
+  // estadual, e marcar retroativo mudaria a contagem de dias úteis do
+  // histórico antigo de quem tem posição de RF desde antes.
+  if (year >= 2024) days.add(Date.UTC(year, 10, 20)); // Consciência Negra
+
   // Móveis derivados da Páscoa
   const easter = easterUtc(year);
   days.add(easter - 2 * DAY_MS); //  Sexta-feira Santa
@@ -90,6 +98,7 @@ export const feriadosB3Nomeados = (year: number): Array<{ ts: number; nome: stri
     { ts: Date.UTC(year, 9, 12), nome: 'Nossa Senhora Aparecida' },
     { ts: Date.UTC(year, 10, 2), nome: 'Finados' },
     { ts: Date.UTC(year, 10, 15), nome: 'Proclamação da República' },
+    ...(year >= 2024 ? [{ ts: Date.UTC(year, 10, 20), nome: 'Consciência Negra' }] : []),
     { ts: Date.UTC(year, 11, 25), nome: 'Natal' },
   ].sort((a, b) => a.ts - b.ts);
 };
