@@ -140,6 +140,10 @@ model AgendaPreferencia {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   // false = o cron não gera notificação de lembrete para este usuário.
   lembretes Boolean  @default(true)
+  // Token do feed iCal (a URL é pública: o token É a credencial). Null = sem
+  // feed publicado; regerar o token invalida o link antigo na hora.
+  icalToken    String?   @unique
+  icalCriadoEm DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
