@@ -11,6 +11,8 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 
 const mockPrisma = vi.hoisted(() => ({
   portfolio: { findMany: vi.fn().mockResolvedValue([]) },
+  // O loader lê o subtipo informado no wizard nas notes da compra mais recente.
+  stockTransaction: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 
 vi.mock('@/utils/auth', () => ({
@@ -32,6 +34,7 @@ describe('GET /api/analises/ir-comecotas', () => {
       actingClient: null,
     });
     mockPrisma.portfolio.findMany.mockResolvedValue([]);
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([]);
   });
 
   it('retorna lista vazia quando não há fundos', async () => {
