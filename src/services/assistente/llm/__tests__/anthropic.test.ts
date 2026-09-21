@@ -123,6 +123,21 @@ describe('AnthropicProvider.complete', () => {
     expect(res.requestId).toBe('req_1');
   });
 
+  it('systemContext ganha o próprio ponto de cache, depois das instruções compartilhadas', async () => {
+    createMock.mockResolvedValue(okResponse());
+    await provider.complete('claude-haiku-4-5', {
+      system: 'regras iguais para todos',
+      systemContext: 'DADOS DO USUÁRIO',
+      messages: [{ role: 'user', content: 'oi' }],
+      maxOutputTokens: 300,
+    });
+    const params = createMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(params.system).toEqual([
+      { type: 'text', text: 'regras iguais para todos', cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: 'DADOS DO USUÁRIO', cache_control: { type: 'ephemeral' } },
+    ]);
+  });
+
   it('no Sonnet 5 desliga o raciocínio com reasoning=none e limita com low', async () => {
     createMock.mockResolvedValue(okResponse({ model: 'claude-sonnet-5' }));
     await provider.complete('claude-sonnet-5', {

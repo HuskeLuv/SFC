@@ -9,6 +9,7 @@ import {
   type LlmToolCall,
   type LlmUsage,
 } from './types';
+import { juntarSistema } from './types';
 
 /**
  * OpenAI — Responses API (`POST /v1/responses`) via fetch, sem SDK.
@@ -80,7 +81,7 @@ export class OpenAiProvider implements LlmProvider {
     const reasoning = request.reasoning ?? 'none';
     const body: Record<string, unknown> = {
       model,
-      instructions: request.system,
+      instructions: juntarSistema(request),
       input: toOpenAiInput(request.messages),
       max_output_tokens: request.maxOutputTokens,
       store: false,

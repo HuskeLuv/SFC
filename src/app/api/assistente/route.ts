@@ -29,7 +29,7 @@ import {
   MODELO_ASSISTENTE,
   TOOL_PROPOR_EVENTO,
   TOOL_PROPOR_LANCAMENTO,
-  buildSystemPrompt,
+  buildSystemParts,
 } from '@/services/assistente/prompt';
 import { classificarIntencao, guardarTextoDaIntencao } from '@/services/assistente/intencao';
 import { assistenteHabilitado, registrarMensagem, usoMensal } from '@/services/assistente/limite';
@@ -158,7 +158,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   let res;
   try {
     res = await complete(MODELO_ASSISTENTE, {
-      system: buildSystemPrompt(contexto),
+      ...buildSystemParts(contexto),
       messages: [
         ...historico.slice(-MAX_TROCAS_HISTORICO * 2).map((m) => ({
           role: m.role,

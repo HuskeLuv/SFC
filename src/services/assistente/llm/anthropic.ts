@@ -83,13 +83,17 @@ export class AnthropicProvider implements LlmProvider {
 
   async complete(model: string, request: LlmRequest): Promise<LlmResponse> {
     const cache = request.cacheSystem !== false;
-    const system: Anthropic.TextBlockParam[] = [
-      {
-        type: 'text',
-        text: request.system,
+    // Dois pontos de cache (21/09/2026): o 1º fecha o prefixo ferramentas +
+    // instruções, igual para todos os usuários (cache compartilhado da org);
+    // o 2º fecha os dados do usuário. Antes era um bloco só, e cada conversa
+    // nova regravava também as instruções (~4,6 mil tokens).
+    const system: Anthropic.TextBlockParam[] = [request.system, request.systemContext]
+      .filter((text): text is string => !!text)
+      .map((text) => ({
+        type: 'text' as const,
+        text,
         ...(cache ? { cache_control: { type: 'ephemeral' as const } } : {}),
-      },
-    ];
+      }));
 
     const tools: Anthropic.Tool[] | undefined = request.tools?.map((t) => ({
       name: t.name,

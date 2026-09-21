@@ -121,7 +121,19 @@ export const REGRAS_ASSISTENTE = [
 ].join('\n');
 
 export function buildSystemPrompt(contextoJson: string): string {
-  return `${REGRAS_ASSISTENTE}\n\nDADOS DO USUÁRIO (JSON):\n${contextoJson}`;
+  const { system, systemContext } = buildSystemParts(contextoJson);
+  return `${system}\n\n${systemContext}`;
+}
+
+/**
+ * Sistema em duas partes para o cache: `system` (regras, igual para todos) e
+ * `systemContext` (dados da conta). Ver `LlmRequest.systemContext`.
+ */
+export function buildSystemParts(contextoJson: string): { system: string; systemContext: string } {
+  return {
+    system: REGRAS_ASSISTENTE,
+    systemContext: `DADOS DO USUÁRIO (JSON):\n${contextoJson}`,
+  };
 }
 
 export const TOOL_PROPOR_EVENTO: LlmTool = {

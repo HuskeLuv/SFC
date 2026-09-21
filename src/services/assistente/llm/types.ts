@@ -51,6 +51,14 @@ export interface LlmTool {
 export interface LlmRequest {
   /** Prompt de sistema. Deve ser ESTÁVEL (sem data/hora, sem id) para o cache funcionar. */
   system: string;
+  /**
+   * Segunda parte do sistema, específica do usuário (dados da conta). Vem
+   * DEPOIS de `system` e ganha o próprio ponto de cache (Anthropic): assim o
+   * prefixo ferramentas + `system` é o mesmo para todos os usuários e fica
+   * quente no cache compartilhado, e cada conversa nova só grava a parte dela.
+   * Nos outros fornecedores é concatenada ao `system`.
+   */
+  systemContext?: string;
   messages: LlmMessage[];
   tools?: LlmTool[];
   /** Teto de tokens de saída. Chat: 300–500. */
@@ -109,4 +117,9 @@ export class LlmError extends Error {
     super(message);
     this.name = 'LlmError';
   }
+}
+
+/** Sistema inteiro num texto só, para fornecedores sem cache por bloco. */
+export function juntarSistema(request: Pick<LlmRequest, 'system' | 'systemContext'>): string {
+  return request.systemContext ? `${request.system}\n\n${request.systemContext}` : request.system;
 }

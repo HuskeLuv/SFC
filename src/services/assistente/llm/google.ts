@@ -9,6 +9,7 @@ import {
   type LlmToolCall,
   type LlmUsage,
 } from './types';
+import { juntarSistema } from './types';
 
 /**
  * Google Gemini — `generateContent` via fetch, sem SDK.
@@ -96,7 +97,7 @@ export class GoogleProvider implements LlmProvider {
           : { thinkingLevel: reasoning === 'low' ? 'low' : 'medium' },
     };
     const body: Record<string, unknown> = {
-      systemInstruction: { parts: [{ text: request.system }] },
+      systemInstruction: { parts: [{ text: juntarSistema(request) }] },
       contents: toGoogleContents(request.messages),
       generationConfig,
     };

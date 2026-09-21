@@ -142,4 +142,23 @@ describe('OpenAiProvider.complete', () => {
       provider.complete('gpt-5.6-luna', { system: 's', messages: [], maxOutputTokens: 5 }),
     ).rejects.toMatchObject({ provider: 'openai', retryable: true });
   });
+
+  it('concatena systemContext às instruções (sem cache por bloco)', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ model: 'gpt-5.6-luna', output: [], status: 'completed', usage: {} }),
+        { status: 200 },
+      ),
+    );
+    await provider
+      .complete('gpt-5.6-luna', {
+        system: 'regras',
+        systemContext: 'dados',
+        messages: [{ role: 'user', content: 'oi' }],
+        maxOutputTokens: 10,
+      })
+      .catch(() => undefined);
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.instructions).toBe('regras\n\ndados');
+  });
 });
