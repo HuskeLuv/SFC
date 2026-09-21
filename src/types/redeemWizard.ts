@@ -27,6 +27,8 @@ export interface RedeemWizardFormData {
   isReinvestimento?: boolean;
   /** Devolver o valor resgatado ao Caixa para Investir, como livre. */
   creditarCaixa?: boolean;
+  /** Ativo em dólar: cotação do câmbio (R$/US$) para creditar o caixa em reais. */
+  cotacaoMoeda?: number;
 }
 
 export interface RedeemWizardErrors {

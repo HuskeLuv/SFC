@@ -26,6 +26,7 @@ import {
   TRANSACTION_FIELD_LABELS,
 } from '@/services/changeHistory';
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
+import { getIndicator } from '@/services/market/marketIndicatorService';
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireAuthWithActing(request);
@@ -204,11 +205,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   });
 
   // Caixa para Investir: o valor resgatado volta como caixa LIVRE. Não vale
-  // para reinvestimento (o dinheiro vai direto pra outro ativo) nem para
-  // ativo em moeda estrangeira (o payload não traz câmbio pra converter).
+  // para reinvestimento (o dinheiro vai direto pra outro ativo). Ativo em
+  // dólar credita em reais: cotação do câmbio informada no resgate (como na
+  // compra de stock/REIT) ou, sem ela, a cotação atual do USD-BRL. Outras
+  // moedas não têm câmbio disponível e não creditam.
   const moedaAtivo = portfolio.asset?.currency ?? 'BRL';
-  const creditarNoCaixa =
-    parsed.data.creditarCaixa === true && !isReinvestimento && moedaAtivo === 'BRL';
+  const querCreditar = parsed.data.creditarCaixa === true && !isReinvestimento;
+  const cambioCaixa =
+    moedaAtivo === 'BRL'
+      ? 1
+      : querCreditar && moedaAtivo === 'USD'
+        ? (parsed.data.cotacaoMoeda ??
+          (await getIndicator('USD-BRL', { useBrapiFallback: true }).catch(() => null))?.price ??
+          null)
+        : null;
+  const creditarNoCaixa = querCreditar && cambioCaixa != null && cambioCaixa > 0;
   let movimentoCaixa: MovimentoCaixa | null = null;
 
   const isResgatePorValor = metodoResgate === 'valor';
@@ -277,7 +288,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     // Mesmo $transaction: se o resgate falhar, o caixa não fica creditado.
     if (creditarNoCaixa) {
-      movimentoCaixa = await creditarCaixa(tx, targetUserId, totalResgate);
+      movimentoCaixa = await creditarCaixa(tx, targetUserId, totalResgate * cambioCaixa!);
     }
 
     return novaTransacao;

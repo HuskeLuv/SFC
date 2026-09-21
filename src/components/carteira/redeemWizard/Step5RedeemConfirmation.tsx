@@ -76,6 +76,8 @@ export default function Step5RedeemConfirmation({
           checked={formData.creditarCaixa}
           onChange={(creditarCaixa) => onFormDataChange({ creditarCaixa })}
           isReinvestimento={!!formData.isReinvestimento}
+          cotacaoMoeda={formData.cotacaoMoeda}
+          onCotacaoMoedaChange={(cotacaoMoeda) => onFormDataChange({ cotacaoMoeda })}
         />
       )}
       <p className="text-sm text-gray-500 dark:text-gray-400">
