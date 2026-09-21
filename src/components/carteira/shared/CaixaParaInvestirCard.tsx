@@ -30,6 +30,9 @@ type CaixaParaInvestirCardProps = {
   escopo?: 'total' | 'aba';
 };
 
+/** 'YYYY-MM-DD' → 'DD/MM/YYYY' (sem Date: evita virar o dia pelo fuso). */
+const formatDataBr = (iso: string): string => iso.split('-').reverse().join('/');
+
 const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
   title = 'Caixa para Investir',
   value,
@@ -41,7 +44,14 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
 }) => {
   // Total/reservado/livre vêm do resumo da carteira (mesma fonte pros 11 cards).
   // Fora do provider (testes/uso isolado) o card só mostra o próprio valor.
-  const caixa = useCarteiraResumoContextOptional()?.resumo?.caixa ?? null;
+  const contexto = useCarteiraResumoContextOptional();
+  const caixa = contexto?.resumo?.caixa ?? null;
+  // Proventos → caixa (fase 3): só no card do bolso total, com a ação disponível.
+  const definirCaixaProventos =
+    escopo === 'total' && !readOnly ? contexto?.definirCaixaProventos : undefined;
+  const proventosDesde = caixa?.proventosDesde ?? null;
+  const [salvandoProventos, setSalvandoProventos] = useState(false);
+  const [erroProventos, setErroProventos] = useState<string | null>(null);
   const [failure, setFailure] = useState<CaixaSaveFailure | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -95,6 +105,15 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
     // Recusa por regra do bolso (reserva não cabe / total abaixo das reservas).
     setFailure(result);
     setErrorMessage(result.message);
+  };
+
+  const handleToggleProventos = async (ativo: boolean) => {
+    if (!definirCaixaProventos) return;
+    setSalvandoProventos(true);
+    setErroProventos(null);
+    const ok = await definirCaixaProventos(ativo);
+    setSalvandoProventos(false);
+    if (!ok) setErroProventos('Não foi possível alterar a opção de proventos.');
   };
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -192,6 +211,26 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
         </button>
       )}
 
+      {isEditing && definirCaixaProventos && (
+        <label className="mt-2 flex items-start gap-2 text-xs">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={!!proventosDesde}
+            disabled={salvandoProventos}
+            onChange={(e) => void handleToggleProventos(e.target.checked)}
+          />
+          <span>
+            {proventosDesde
+              ? `Proventos pagos entram aqui como caixa livre (desde ${formatDataBr(proventosDesde)})`
+              : 'Somar aqui os proventos pagos a partir de hoje'}
+            {erroProventos && (
+              <span className="block text-red-600 dark:text-red-400">{erroProventos}</span>
+            )}
+          </span>
+        </label>
+      )}
+
       {!isEditing && detalhes && (
         <dl
           className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs opacity-80"
@@ -207,6 +246,15 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
               <dd className="whitespace-nowrap font-medium">{formatBRL(valor)}</dd>
             </div>
           ))}
+          {escopo === 'total' && proventosDesde && (
+            <div
+              className="flex items-baseline"
+              title={`Proventos pagos desde ${formatDataBr(proventosDesde)} entram no caixa livre.`}
+            >
+              <dt className="sr-only">Proventos</dt>
+              <dd>+ proventos</dd>
+            </div>
+          )}
         </dl>
       )}
 

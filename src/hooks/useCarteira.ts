@@ -25,6 +25,8 @@ export interface CarteiraResumo {
     reservado: number;
     livre: number;
     porAba: Record<string, number>;
+    /** 'YYYY-MM-DD' desde quando os proventos pagos entram no caixa; null = desligado. */
+    proventosDesde?: string | null;
   };
   /**
    * Denominadores únicos calculados no backend (dinheiro exclui imóveis).
@@ -192,6 +194,25 @@ export const useCarteira = () => {
     [csrfFetch, queryClient, queryKey],
   );
 
+  const definirCaixaProventos = useCallback(
+    async (ativo: boolean): Promise<boolean> => {
+      try {
+        const response = await csrfFetch('/api/carteira/caixa/proventos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ativo }),
+        });
+        if (!response.ok) return false;
+        await queryClient.invalidateQueries({ queryKey });
+        return true;
+      } catch (err) {
+        logger.error('Erro ao alterar proventos no caixa:', err);
+        return false;
+      }
+    },
+    [csrfFetch, queryClient, queryKey],
+  );
+
   const formatCurrency = (value: number | undefined | null): string => formatBRL(value);
 
   // Único consumidor real hoje: RentabilidadeResumo (via CarteiraResumoContext),
@@ -212,6 +233,7 @@ export const useCarteira = () => {
     updateMeta,
     updateCaixaParaInvestir,
     distribuirCaixaLivre,
+    definirCaixaProventos,
     formatCurrency,
     formatPercentage,
   };

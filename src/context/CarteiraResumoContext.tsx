@@ -14,6 +14,8 @@ interface CarteiraResumoContextValue {
   updateCaixaParaInvestir: SaveCaixaFn;
   /** Move o caixa livre para as reservas das abas (botão da Alocação). */
   distribuirCaixaLivre?: DistribuirCaixaFn;
+  /** Liga (a partir de hoje) / desliga "proventos pagos entram no caixa". */
+  definirCaixaProventos?: (ativo: boolean) => Promise<boolean>;
   refetch: () => Promise<void>;
   necessidadeAporteMap: NecessidadeAporteMap;
   isAlocacaoLoading: boolean;

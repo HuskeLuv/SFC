@@ -4,6 +4,7 @@ import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProvent
 import { CORPORATE_ACTION_NOTE_MARKER } from '@/services/portfolio/corporateActions';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { requireCronSecret } from '@/utils/cronAuth';
+import { creditarProventosNoCaixa } from '@/services/portfolio/caixaProventos';
 
 /**
  * Cron diário: MATERIALIZA `PortfolioProvento` (camada de override/exibição) a
@@ -77,5 +78,20 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  return NextResponse.json({ portfoliosProcessed, totalCreated, errors });
+  // Proventos pagos → Caixa para Investir de quem ligou a opção. Depois da
+  // materialização acima (usa os PortfolioProvento recém-criados). Falha aqui
+  // não derruba o cron: o que não foi creditado fica para a próxima execução.
+  let caixaProventos: { usuarios: number; proventos: number; valor: number } | { error: string };
+  try {
+    const creditos = await creditarProventosNoCaixa({ request });
+    caixaProventos = {
+      usuarios: creditos.length,
+      proventos: creditos.reduce((s, c) => s + c.proventos, 0),
+      valor: Math.round(creditos.reduce((s, c) => s + c.valor, 0) * 100) / 100,
+    };
+  } catch (err) {
+    caixaProventos = { error: err instanceof Error ? err.message : String(err) };
+  }
+
+  return NextResponse.json({ portfoliosProcessed, totalCreated, errors, caixaProventos });
 });

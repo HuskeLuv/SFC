@@ -57,6 +57,7 @@ describe('UNDO_REGISTRY', () => {
       'provento.excluir',
       'caixa-investir.atualizar',
       'caixa-investir.distribuir',
+      'caixa-investir.proventos',
       'resumo.atualizar',
       'imovel-bem.atualizar-valor',
       'fundo.atualizar-valor',
