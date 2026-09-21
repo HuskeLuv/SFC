@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import type { NextRequest } from 'next/server';
-import type { OpenFinanceConsentimento } from '@prisma/client';
+import type { OpenFinanceConsentimento, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { getClientIp } from '@/lib/rateLimit';
@@ -23,6 +23,9 @@ import {
  *      (status `ativo`; o anterior da mesma conexão vira `substituido`);
  *   4. `revogarConsentimentosDaConexao` — o cliente desconectou (status
  *      `revogado`). O registro FICA: é a prova do que foi autorizado.
+ *   (+) `registrarEventoConsentimento` — marcos da etapa Pluggy/instituição
+ *      (banco escolhido, consentimento enviado, login…); fechar sem concluir
+ *      deixa o aceite `nao_concluido`.
  */
 
 /** Tempo para concluir o widget depois de aceitar (o connect token vale 30 min). */
@@ -83,7 +86,7 @@ export async function exigirConsentimentoPendente(
   const c = await prisma.openFinanceConsentimento.findFirst({
     where: { id: consentimentoId, userId },
   });
-  if (!c || c.status !== 'pendente') {
+  if (!c || (c.status !== 'pendente' && c.status !== 'nao_concluido')) {
     throw new ApiError(400, 'Autorização inválida. Comece a conexão de novo.');
   }
   if (Date.now() - c.aceitoEm.getTime() > VALIDADE_PENDENTE_MS) {
@@ -109,7 +112,8 @@ export async function vincularConsentimento(
       data: { status: 'substituido', revogadoEm: agora, motivoRevogacao: 'substituido' },
     }),
     prisma.openFinanceConsentimento.updateMany({
-      where: { id: consentimentoId, userId, status: 'pendente' },
+      // nao_concluido também: o "fechou" do widget pode chegar antes do registro.
+      where: { id: consentimentoId, userId, status: { in: ['pendente', 'nao_concluido'] } },
       data: {
         status: 'ativo',
         connectionId: conexao.id,
@@ -132,6 +136,68 @@ export async function revogarConsentimentosDaConexao(
   });
 }
 
+// ── Linha do tempo da etapa externa (eventos do widget Pluggy) ─────────────
+
+/** Eventos aceitos: os do widget (pluggy-connect-sdk) + abertura/fechamento/erro. */
+export const EVENTOS_WIDGET = [
+  'WIDGET_ABERTO',
+  'SELECTED_INSTITUTION',
+  'SUBMITTED_CONSENT',
+  'SUBMITTED_LOGIN',
+  'SUBMITTED_MFA',
+  'LOGIN_SUCCESS',
+  'LOGIN_MFA_SUCCESS',
+  'LOGIN_STEP_COMPLETED',
+  'ITEM_RESPONSE',
+  'CONCLUIDO',
+  'FECHADO_SEM_CONCLUIR',
+  'ERRO',
+] as const;
+export type EventoWidget = (typeof EVENTOS_WIDGET)[number];
+
+export interface EventoConsentimento {
+  evento: EventoWidget;
+  em: string;
+  instituicao?: string;
+  detalhe?: string;
+}
+
+const MAX_EVENTOS = 60;
+
+/**
+ * Anexa um marco da etapa Pluggy/instituição ao registro. Fechar sem concluir
+ * ou erro deixam o aceite `nao_concluido` (ele não vira conexão).
+ */
+export async function registrarEventoConsentimento(
+  userId: string,
+  consentimentoId: string,
+  evento: Omit<EventoConsentimento, 'em'> & { em?: string },
+): Promise<void> {
+  const c = await prisma.openFinanceConsentimento.findFirst({
+    where: { id: consentimentoId, userId },
+    select: { id: true, status: true, eventos: true },
+  });
+  if (!c) throw new ApiError(404, 'Autorização não encontrada');
+  const atuais = Array.isArray(c.eventos) ? (c.eventos as unknown as EventoConsentimento[]) : [];
+  if (atuais.length >= MAX_EVENTOS) return;
+  const novo: EventoConsentimento = {
+    evento: evento.evento,
+    em: evento.em ?? new Date().toISOString(),
+    ...(evento.instituicao ? { instituicao: evento.instituicao.slice(0, 120) } : {}),
+    ...(evento.detalhe ? { detalhe: evento.detalhe.slice(0, 300) } : {}),
+  };
+  const encerra =
+    c.status === 'pendente' &&
+    (evento.evento === 'FECHADO_SEM_CONCLUIR' || evento.evento === 'ERRO');
+  await prisma.openFinanceConsentimento.update({
+    where: { id: c.id },
+    data: {
+      eventos: [...atuais, novo] as unknown as Prisma.InputJsonValue,
+      ...(encerra ? { status: 'nao_concluido' } : {}),
+    },
+  });
+}
+
 export interface ConsentimentoDTO {
   id: string;
   status: string;
@@ -144,12 +210,13 @@ export interface ConsentimentoDTO {
   vinculadoEm: string | null;
   revogadoEm: string | null;
   motivoRevogacao: string | null;
+  eventos: EventoConsentimento[];
 }
 
 /** Aceites que viraram conexão (ativos, revogados, substituídos), mais recentes primeiro. */
 export async function listarConsentimentos(userId: string): Promise<ConsentimentoDTO[]> {
   const rows = await prisma.openFinanceConsentimento.findMany({
-    where: { userId, status: { not: 'pendente' } },
+    where: { userId, status: { in: ['ativo', 'revogado', 'substituido'] } },
     orderBy: { aceitoEm: 'desc' },
   });
   return rows.map((c) => ({
@@ -164,5 +231,6 @@ export async function listarConsentimentos(userId: string): Promise<Consentiment
     vinculadoEm: c.vinculadoEm?.toISOString() ?? null,
     revogadoEm: c.revogadoEm?.toISOString() ?? null,
     motivoRevogacao: c.motivoRevogacao,
+    eventos: Array.isArray(c.eventos) ? (c.eventos as unknown as EventoConsentimento[]) : [],
   }));
 }

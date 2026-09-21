@@ -7,6 +7,7 @@ const mockPrisma = vi.hoisted(() => ({
     findFirst: vi.fn(),
     findMany: vi.fn(),
     updateMany: vi.fn(),
+    update: vi.fn(),
   },
   bankConnection: { findFirst: vi.fn() },
   $transaction: vi.fn(async (ops: unknown[]) => Promise.all(ops)),
@@ -18,6 +19,7 @@ import {
   hashDoTexto,
   listarConsentimentos,
   registrarConsentimento,
+  registrarEventoConsentimento,
   revogarConsentimentosDaConexao,
   vincularConsentimento,
 } from '../consentimento';
@@ -118,7 +120,7 @@ describe('vincular / revogar', () => {
       data: { status: 'substituido', motivoRevogacao: 'substituido' },
     });
     expect(ativar).toMatchObject({
-      where: { id: 'c2', userId: 'u1', status: 'pendente' },
+      where: { id: 'c2', userId: 'u1', status: { in: ['pendente', 'nao_concluido'] } },
       data: {
         status: 'ativo',
         connectionId: 'conn-1',
@@ -140,8 +142,71 @@ describe('vincular / revogar', () => {
     mockPrisma.openFinanceConsentimento.findMany.mockResolvedValue([]);
     await listarConsentimentos('u1');
     expect(mockPrisma.openFinanceConsentimento.findMany).toHaveBeenCalledWith({
-      where: { userId: 'u1', status: { not: 'pendente' } },
+      where: { userId: 'u1', status: { in: ['ativo', 'revogado', 'substituido'] } },
       orderBy: { aceitoEm: 'desc' },
     });
+  });
+});
+
+describe('registrarEventoConsentimento', () => {
+  it('anexa o marco com hora e instituição', async () => {
+    mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce({
+      id: 'c1',
+      status: 'pendente',
+      eventos: [{ evento: 'WIDGET_ABERTO', em: '2026-09-21T20:00:00.000Z' }],
+    });
+    await registrarEventoConsentimento('u1', 'c1', {
+      evento: 'SELECTED_INSTITUTION',
+      em: '2026-09-21T20:00:05.000Z',
+      instituicao: 'Banco X',
+    });
+    expect(mockPrisma.openFinanceConsentimento.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: {
+        eventos: [
+          { evento: 'WIDGET_ABERTO', em: '2026-09-21T20:00:00.000Z' },
+          {
+            evento: 'SELECTED_INSTITUTION',
+            em: '2026-09-21T20:00:05.000Z',
+            instituicao: 'Banco X',
+          },
+        ],
+      },
+    });
+  });
+
+  it('fechar sem concluir deixa o aceite pendente como nao_concluido; ativo não muda', async () => {
+    mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce({
+      id: 'c1',
+      status: 'pendente',
+      eventos: [],
+    });
+    await registrarEventoConsentimento('u1', 'c1', { evento: 'FECHADO_SEM_CONCLUIR' });
+    expect(mockPrisma.openFinanceConsentimento.update.mock.calls[0][0].data.status).toBe(
+      'nao_concluido',
+    );
+    mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce({
+      id: 'c1',
+      status: 'ativo',
+      eventos: [],
+    });
+    await registrarEventoConsentimento('u1', 'c1', { evento: 'ERRO' });
+    expect(mockPrisma.openFinanceConsentimento.update.mock.calls[1][0].data).not.toHaveProperty(
+      'status',
+    );
+  });
+
+  it('404 para aceite de outro usuário; para de anexar no limite', async () => {
+    mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce(null);
+    await expect(
+      registrarEventoConsentimento('u1', 'cx', { evento: 'WIDGET_ABERTO' }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce({
+      id: 'c1',
+      status: 'pendente',
+      eventos: Array.from({ length: 60 }, () => ({ evento: 'ITEM_RESPONSE', em: 'x' })),
+    });
+    await registrarEventoConsentimento('u1', 'c1', { evento: 'ITEM_RESPONSE' });
+    expect(mockPrisma.openFinanceConsentimento.update).not.toHaveBeenCalled();
   });
 });

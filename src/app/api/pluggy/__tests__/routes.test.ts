@@ -17,6 +17,13 @@ const mockSync = vi.hoisted(() => ({
   registrarConexao: vi.fn(),
   excluirConexao: vi.fn(),
   atualizarManualmente: vi.fn(),
+  resumoImportado: vi.fn().mockResolvedValue({
+    contas: 1,
+    cartoes: 1,
+    transacoes: 42,
+    investimentos: 0,
+    emprestimos: 0,
+  }),
 }));
 vi.mock('@/services/pluggy/sync', () => mockSync);
 
@@ -163,7 +170,10 @@ describe('rotas /api/pluggy', () => {
       connection: { id: 'conn-1' },
       reaproveitada: false,
       aviso: null,
+      // Tela "Conexão realizada": o que chegou, por tipo.
+      importados: { contas: 1, cartoes: 1, transacoes: 42, investimentos: 0, emprestimos: 0 },
     });
+    expect(mockSync.resumoImportado).toHaveBeenCalledWith('conn-1');
 
     mockSync.registrarConexao.mockResolvedValue({
       conexao,

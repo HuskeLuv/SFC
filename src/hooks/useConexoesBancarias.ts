@@ -10,9 +10,14 @@ import type {
   BankTransactionDTO,
 } from '@/app/api/pluggy/_lib/serializer';
 import type { PendenteDTO, AplicarResultado } from '@/services/pluggy/caixaEntrada';
-import type { ConsentimentoDTO } from '@/services/pluggy/consentimento';
+import type {
+  ConsentimentoDTO,
+  EventoConsentimento,
+  EventoWidget,
+} from '@/services/pluggy/consentimento';
+import type { ResumoImportado } from '@/services/pluggy/sync';
 
-export type { ConsentimentoDTO };
+export type { ConsentimentoDTO, EventoConsentimento, ResumoImportado };
 
 export type { BankAccountDTO, BankConnectionDTO, BankTransactionDTO };
 
@@ -34,6 +39,7 @@ export interface RegistroResposta {
   /** true = o banco já estava conectado e a conexão existente foi atualizada. */
   reaproveitada: boolean;
   aviso: string | null;
+  importados: ResumoImportado;
 }
 
 export interface ExtratoResposta {
@@ -127,6 +133,25 @@ export function useRegistrarConsentimento() {
       return (await res.json()) as { consentimentoId: string };
     },
   });
+}
+
+/**
+ * Marco da etapa Pluggy/instituição no registro do consentimento. Fire-and-forget
+ * (keepalive): falhar aqui não pode atrapalhar a conexão.
+ */
+export function useRegistrarEventoConsentimento() {
+  const { csrfFetch } = useCsrf();
+  return (
+    consentimentoId: string,
+    evento: { evento: EventoWidget; em?: string; instituicao?: string; detalhe?: string },
+  ): void => {
+    csrfFetch(`${BASE_URL}/consentimentos/${consentimentoId}/eventos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(evento),
+      keepalive: true,
+    }).catch(() => undefined);
+  };
 }
 
 /** Token de 30 min para abrir o widget (itemId = reconectar uma conexão). Exige o aceite. */
