@@ -2,6 +2,7 @@
 import ComponentCard from '@/components/common/ComponentCard';
 import DataTableTwo from '@/components/tables/DataTables/TableTwo/DataTableTwo';
 import OrcamentoVsRealSection from '@/components/cashflow/orcamento/OrcamentoVsRealSection';
+import ConectarBancoCard from '@/components/conexoes/ConectarBancoCard';
 import { useSidebar } from '@/context/SidebarContext';
 import { useCashflowYear } from '@/context/CashflowYearContext';
 import React, { useEffect, useState } from 'react';
@@ -66,6 +67,8 @@ export default function FluxoDeCaixa() {
         className="flex-1 flex flex-col min-w-0 m-[30px] overflow-hidden"
       >
         <div className="flex-1 flex flex-col min-h-0 min-w-0 p-[30px] pt-5 overflow-hidden">
+          {/* Entrada do Open Finance (faixa compacta: a planilha ocupa a altura toda). */}
+          <ConectarBancoCard contexto="fluxo" className="mb-3" />
           <div className="mb-4">{pills}</div>
           {modo === 'planilha' ? (
             <DataTableTwo />

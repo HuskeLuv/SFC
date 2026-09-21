@@ -7,6 +7,7 @@ import { useAlocacaoConfig } from '@/hooks/useAlocacaoConfig';
 import { CarteiraResumoProvider } from '@/context/CarteiraResumoContext';
 import type { NecessidadeAporteMap } from '@/context/CarteiraResumoContext';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
+import ConectarBancoCard from '@/components/conexoes/ConectarBancoCard';
 
 // Lazy loading dos componentes de conteúdo
 const CarteiraResumo = lazy(() => import('./CarteiraResumo'));
@@ -176,6 +177,9 @@ export default function CarteiraTabs() {
   return (
     <CarteiraResumoProvider value={providerValue}>
       <div>
+        {/* Entrada do Open Finance (só sem banco conectado e com a integração ligada). */}
+        <ConectarBancoCard contexto="carteira" className="mb-4" />
+
         {/* Main Tabs Navigation */}
         <div className="mb-6">
           <div className="border-b border-gray-200 dark:border-gray-800">
