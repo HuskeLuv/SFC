@@ -1,6 +1,10 @@
 import type { Metadata } from 'next';
 import LegalArticle from '@/components/legal/LegalArticle';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
+import { pluggyHabilitado } from '@/lib/pluggyConfig';
+
+// A linha do Open Finance depende de PLUGGY_HABILITADO (lido a cada request).
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Subprocessadores — MyFinance',
@@ -18,24 +22,23 @@ interface Subprocessador {
 /**
  * Subprocessadores (LGPD #8, Art. 18, VII do checklist mai/28).
  *
- * Lista mantida em conformidade com a infraestrutura atual após migração
- * planejada pra AWS sa-east-1 ([[project_aws_deploy_plan]] Fase 1). Quando
- * migrar de fato, marcar Vercel como histórico e atualizar a tabela.
+ * Infraestrutura atual (desde 10/09/2026): um servidor AWS Lightsail em
+ * sa-east-1 com a aplicação e o PostgreSQL, e cópias de segurança no S3 da
+ * mesma região (ver infra/README.md). Antes: Vercel/Amplify + RDS.
  */
 const SUBPROCESSADORES: Subprocessador[] = [
   {
-    nome: 'Amazon Web Services (AWS Amplify)',
-    finalidade: 'Hospedagem da aplicação web e API.',
+    nome: 'Amazon Web Services (Lightsail)',
+    finalidade: 'Servidor que hospeda a aplicação web, a API e o banco de dados.',
     dados:
-      'Todo o tráfego HTTP do serviço, incluindo cookies de autenticação e payloads de requisição.',
+      'Todo o tráfego HTTP do serviço (incluindo cookies de autenticação) e o banco de dados: cadastro (nome, e-mail, hash de senha), portfólio, transações, fluxo de caixa e logs de auditoria.',
     regiao: 'São Paulo, Brasil (sa-east-1)',
     internacional: false,
   },
   {
-    nome: 'Amazon Web Services (RDS PostgreSQL)',
-    finalidade: 'Armazenamento persistente do banco de dados.',
-    dados:
-      'Cadastro de usuários (nome, e-mail, hash de senha), portfólio, transações, fluxo de caixa, logs de auditoria.',
+    nome: 'Amazon Web Services (S3)',
+    finalidade: 'Cópias de segurança diárias do banco de dados, criptografadas em repouso.',
+    dados: 'Cópia integral do banco de dados, retida por até 30 dias.',
     regiao: 'São Paulo, Brasil (sa-east-1)',
     internacional: false,
   },
@@ -99,9 +102,25 @@ const SUBPROCESSADORES: Subprocessador[] = [
   },
 ];
 
+/**
+ * Open Finance (adequação jurídica 21/09/2026): só aparece com a integração
+ * ligada. ⚠️ MINUTA em revisão jurídica — região de processamento da Pluggy a
+ * confirmar em contrato antes de ligar em produção.
+ */
+const PLUGGY: Subprocessador = {
+  nome: 'Pluggy Tecnologia Ltda.',
+  finalidade:
+    'Conectar o My Finance às instituições do Open Finance e repassar os dados bancários que você autorizar. Só atua se você conectar um banco.',
+  dados:
+    'Os dados que você autoriza na sua instituição: contas e saldos, cartões e faturas, transações (com o nome de quem recebeu ou enviou o pagamento), investimentos e empréstimos. O CPF e o login são informados nas telas da Pluggy e da instituição; o My Finance não recebe a sua senha.',
+  regiao: 'Brasil (a confirmar em contrato)',
+  internacional: false,
+};
+
 export default function Subprocessadores() {
+  const lista = pluggyHabilitado() ? [...SUBPROCESSADORES, PLUGGY] : SUBPROCESSADORES;
   return (
-    <LegalArticle title="Subprocessadores" updatedAt="28 de maio de 2026">
+    <LegalArticle title="Subprocessadores" updatedAt="21 de setembro de 2026">
       <p>
         Em conformidade com o Art. 18, VII da LGPD, listamos abaixo todos os prestadores de serviço
         (subprocessadores) que tratam dados pessoais em nosso nome para a operação do serviço.
@@ -120,7 +139,7 @@ export default function Subprocessadores() {
             </tr>
           </thead>
           <tbody>
-            {SUBPROCESSADORES.map((sp) => (
+            {lista.map((sp) => (
               <tr key={sp.nome} className={`${TABLE_STYLES.row} align-top`}>
                 <td className={`${TABLE_STYLES.td} font-medium text-gray-900 dark:text-white/90`}>
                   {sp.nome}

@@ -1,5 +1,9 @@
 import type { Metadata } from 'next';
 import LegalArticle from '@/components/legal/LegalArticle';
+import { pluggyHabilitado } from '@/lib/pluggyConfig';
+
+// Os trechos de Open Finance dependem de PLUGGY_HABILITADO (lido a cada request).
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Política de Privacidade — MyFinance',
@@ -19,8 +23,11 @@ export const metadata: Metadata = {
  * `LGPDConsentBanner` e no signup pra invalidar consentimentos antigos.
  */
 export default function PoliticaDePrivacidade() {
+  // Open Finance (adequação jurídica 21/09/2026). ⚠️ MINUTA em revisão
+  // jurídica: só aparece com a integração ligada.
+  const openFinance = pluggyHabilitado();
   return (
-    <LegalArticle title="Política de Privacidade" updatedAt="5 de julho de 2026" version="1.1">
+    <LegalArticle title="Política de Privacidade" updatedAt="21 de setembro de 2026" version="1.2">
       <h2>1. Quem somos</h2>
       <p>
         A <strong>MyFinance</strong> é uma plataforma de gestão financeira pessoal que ajuda
@@ -46,16 +53,36 @@ export default function PoliticaDePrivacidade() {
         <li>
           <strong>Consentimento:</strong> data, IP e versão da política aceita durante o cadastro.
         </li>
+        {openFinance ? (
+          <li>
+            <strong>Dados bancários do Open Finance (opcional):</strong> se você conectar um banco,
+            recebemos, em modo leitura, os dados que você autorizar na sua instituição: contas e
+            saldos, cartões e faturas, transações dos últimos 12 meses e as novas (incluindo o nome
+            de quem recebeu ou enviou o pagamento e o CNPJ do estabelecimento), investimentos e
+            empréstimos. Guardamos também o registro da sua autorização: data e hora, IP, navegador,
+            os dados autorizados e o texto que você aceitou. Não recebemos a sua senha bancária.
+          </li>
+        ) : null}
       </ul>
       <p>
         <strong>Não coletamos</strong> CPF, RG, telefone, endereço, data de nascimento ou outros
         dados pessoais sensíveis (Art. 5º, II da LGPD).
+        {openFinance
+          ? ' Ao conectar um banco, o CPF é informado diretamente nas telas da Pluggy e da sua instituição e não é armazenado pelo My Finance.'
+          : ''}
       </p>
 
       <h2>3. Finalidades do tratamento</h2>
       <ul>
         <li>Autenticação e acesso seguro à sua conta.</li>
         <li>Exibição e cálculo do seu portfólio e métricas financeiras.</li>
+        {openFinance ? (
+          <li>
+            Com o Open Finance (se você conectar um banco): consolidar contas, cartões,
+            investimentos e dívidas, sugerir lançamentos no fluxo de caixa para você revisar e
+            atualizar a carteira e as dívidas.
+          </li>
+        ) : null}
         <li>Atendimento ao suporte e correção de problemas técnicos.</li>
         <li>Cumprimento de obrigações legais e regulatórias.</li>
         <li>Defesa em processos administrativos ou judiciais.</li>
@@ -84,6 +111,13 @@ export default function PoliticaDePrivacidade() {
           <strong>Exercício regular de direitos</strong> (Art. 7º, VI): em caso de disputa.
         </li>
       </ul>
+      {openFinance ? (
+        <p>
+          Os dados bancários do Open Finance são tratados com base na execução do contrato (Art. 7º,
+          V), somada ao consentimento que você dá na sua instituição para o compartilhamento,
+          conforme a regulamentação do Open Finance do Banco Central.
+        </p>
+      ) : null}
 
       <h2>5. Compartilhamento e subprocessadores</h2>
       <p>
@@ -97,7 +131,13 @@ export default function PoliticaDePrivacidade() {
       </p>
       <p>
         Toda a infraestrutura de armazenamento de dados pessoais opera em território brasileiro (AWS
-        sa-east-1, São Paulo). Não há transferência internacional de dados pessoais.
+        sa-east-1, São Paulo). A única transferência internacional ocorre se você usar o assistente
+        de IA, que é opcional: a sua pergunta e um resumo dos seus dados financeiros são enviados à
+        Anthropic (EUA) para gerar a resposta (LGPD, art. 33, IX), como detalhado em{' '}
+        <a href="/subprocessadores" className="text-brand-500 hover:underline">
+          /subprocessadores
+        </a>
+        .
       </p>
 
       <h2>6. Retenção</h2>
@@ -112,6 +152,15 @@ export default function PoliticaDePrivacidade() {
         <li>
           <strong>Logs de auditoria:</strong> mantidos por até 12 meses para fins de segurança.
         </li>
+        {openFinance ? (
+          <li>
+            <strong>Open Finance:</strong> os dados bancários ficam enquanto a conexão existir. Ao
+            desconectar, paramos de receber dados e apagamos o extrato importado; os valores que
+            você já aplicou no fluxo de caixa, na carteira ou em dívidas continuam, como registros
+            seus. O registro da autorização (data, texto aceito e revogação) é mantido como
+            comprovante enquanto a conta existir e é eliminado junto com ela.
+          </li>
+        ) : null}
         <li>
           <strong>Histórico de alterações:</strong> o registro das edições feitas na sua conta
           (disponível na seção &quot;Histórico&quot;) é mantido por até 12 meses e eliminado
@@ -137,7 +186,11 @@ export default function PoliticaDePrivacidade() {
           estruturado disponível em sua área de perfil).
         </li>
         <li>
-          <strong>Revogar o consentimento</strong> a qualquer momento.
+          <strong>Revogar o consentimento</strong> a qualquer momento
+          {openFinance
+            ? ', inclusive desconectando um banco em Conexões bancárias (ou no app da instituição)'
+            : ''}
+          .
         </li>
         <li>
           <strong>Solicitar informação</strong> sobre o uso compartilhado de seus dados.
