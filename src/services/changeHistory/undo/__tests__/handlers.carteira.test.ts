@@ -470,6 +470,47 @@ describe('caixa-investir.distribuir', () => {
   });
 });
 
+describe('caixa-investir.proventos', () => {
+  it('tira do total o que os proventos creditaram', async () => {
+    const rows = [{ id: 'dd-total', metric: 'caixa_para_investir_consolidado', value: 1500 }];
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn(mockPrisma),
+    );
+    mockPrisma.dashboardData.findMany.mockResolvedValue(rows);
+    mockPrisma.dashboardData.findFirst.mockResolvedValue(rows[0]);
+
+    await CARTEIRA_UNDO_HANDLERS['caixa-investir.proventos'].execute({
+      request,
+      auth,
+      entry: makeEntry({
+        action: 'caixa-investir.proventos',
+        entity: 'caixa-investir',
+        entityId: 'proventos',
+        changes: [
+          { field: 'caixaParaInvestir', label: 'Caixa para investir', before: 1350, after: 1500 },
+        ] as never,
+        snapshot: {
+          v: 1,
+          kind: 'caixa-movimento',
+          data: {
+            aba: null,
+            valorOperacao: 150,
+            debitoReserva: 0,
+            debitoLivre: 0,
+            credito: 150,
+            deltaTotal: 150,
+          },
+        } as never,
+      }),
+    });
+
+    expect(mockPrisma.dashboardData.update).toHaveBeenCalledWith({
+      where: { id: 'dd-total' },
+      data: { value: 1350 },
+    });
+  });
+});
+
 describe('objetivo-classe.definir (restore-fields)', () => {
   it('restaura o objetivo anterior do Portfolio', async () => {
     mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-1', objetivo: 25 });

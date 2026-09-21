@@ -83,6 +83,9 @@ model User {
   // confirma com código válido.
   totpSecret                    String?
   totpEnabled                   Boolean                       @default(false)
+  // Caixa para Investir: proventos pagos a partir desta data entram no caixa
+  // livre (null = desligado). Não retroativo: ligar grava o dia de hoje.
+  caixaProventosDesde           DateTime?
   events                        Event[]
   dashboard                     DashboardData[]
   cashflowGroups                CashflowGroup[]
@@ -472,6 +475,10 @@ model PortfolioProvento {
   // Origem da entry: "brapi" (criada/atualizada pelo sync) ou "manual"
   // (criada/editada pelo usuário via UI). Sync atualiza só rows brapi.
   source         String    @default("manual")
+  // Caixa para Investir (fase 3, 21/09/2026): quando o provento pago entrou no
+  // caixa livre e quanto (R$, líquido de IR). Marcado uma vez só — nunca credita de novo.
+  caixaCreditadoEm    DateTime?
+  caixaCreditadoValor Float?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

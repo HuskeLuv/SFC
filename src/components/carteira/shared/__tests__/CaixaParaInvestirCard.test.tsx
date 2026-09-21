@@ -10,8 +10,13 @@ import { formatBRL } from '@/utils/format';
 /** formatBRL usa espaço não separável; o getByText normaliza o texto do DOM pra espaço comum. */
 const brl = (valor: number) => formatBRL(valor).replace(/\s/g, ' ');
 
-const renderWithCaixa = (ui: React.ReactElement, caixa: NonNullable<CarteiraResumo['caixa']>) => {
+const renderWithCaixa = (
+  ui: React.ReactElement,
+  caixa: NonNullable<CarteiraResumo['caixa']>,
+  extra: { definirCaixaProventos?: (ativo: boolean) => Promise<boolean> } = {},
+) => {
   const value = {
+    ...extra,
     resumo: { caixaParaInvestir: caixa.total, caixa } as unknown as CarteiraResumo,
     loading: false,
     error: null,
@@ -146,5 +151,62 @@ describe('CaixaParaInvestirCard', () => {
     startEditing('100');
     fireEvent.click(screen.getByRole('button', { name: 'Salvar caixa para investir' }));
     expect(await screen.findByText('Não foi possível salvar o valor.')).toBeInTheDocument();
+  });
+
+  describe('proventos → caixa', () => {
+    const caixa = { total: 1000, reservado: 0, livre: 1000, porAba: {} };
+
+    it('card total em edição oferece ligar e chama a ação', async () => {
+      const definir = vi.fn().mockResolvedValue(true);
+      renderWithCaixa(
+        <CaixaParaInvestirCard
+          value={1000}
+          formatCurrency={formatBRL}
+          escopo="total"
+          onSave={vi.fn()}
+        />,
+        { ...caixa, proventosDesde: null },
+        { definirCaixaProventos: definir },
+      );
+      expect(screen.queryByText(/proventos pagos/i)).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Editar caixa para investir' }));
+      fireEvent.click(screen.getByLabelText('Somar aqui os proventos pagos a partir de hoje'));
+      await waitFor(() => expect(definir).toHaveBeenCalledWith(true));
+    });
+
+    it('ligado: mostra desde quando e a marca "+ proventos"', () => {
+      renderWithCaixa(
+        <CaixaParaInvestirCard
+          value={1000}
+          formatCurrency={formatBRL}
+          escopo="total"
+          onSave={vi.fn()}
+        />,
+        { ...caixa, proventosDesde: '2026-09-21' },
+        { definirCaixaProventos: vi.fn() },
+      );
+      expect(screen.getByText('+ proventos')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Editar caixa para investir' }));
+      expect(
+        screen.getByLabelText(
+          /Proventos pagos entram aqui como caixa livre \(desde 21\/09\/2026\)/,
+        ),
+      ).toBeChecked();
+    });
+
+    it('card de aba não mostra a opção', () => {
+      renderWithCaixa(
+        <CaixaParaInvestirCard
+          value={0}
+          formatCurrency={formatBRL}
+          escopo="aba"
+          onSave={vi.fn()}
+        />,
+        { ...caixa, proventosDesde: null },
+        { definirCaixaProventos: vi.fn() },
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Editar caixa para investir' }));
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    });
   });
 });

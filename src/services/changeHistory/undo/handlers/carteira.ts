@@ -399,6 +399,25 @@ const caixaDistribuicaoReverter: UndoDefinition = {
   },
 };
 
+/**
+ * caixa-investir.proventos — tira do caixa o que os proventos pagos puseram
+ * (por delta). Os proventos continuam marcados como creditados: o cron não
+ * credita de novo o que o usuário desfez.
+ */
+const caixaProventosReverter: UndoDefinition = {
+  strategy: 'custom',
+  requires: { changes: true, snapshot: true },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const snap = getSnapshot(entry)!;
+    if (snap.kind !== 'caixa-movimento') {
+      throw new UndoError(400, 'Snapshot inesperado', 'UNDO_MISSING_DATA');
+    }
+    const movimento = snap.data as unknown as MovimentoCaixa;
+    if (movimentouCaixa(movimento)) await reverterMovimentoCaixa(auth.targetUserId, movimento);
+    return { changes: invertChanges(getChanges(entry)) };
+  },
+};
+
 /** Valor manual de imóvel/bem: totalInvested + avgPrice derivados do valor. */
 const imovelBemAtualizarValor: UndoDefinition = {
   strategy: 'custom',
@@ -703,6 +722,7 @@ export const CARTEIRA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'provento.excluir': proventoExcluir,
   'caixa-investir.atualizar': dashboardMetricRestore,
   'caixa-investir.distribuir': caixaDistribuicaoReverter,
+  'caixa-investir.proventos': caixaProventosReverter,
   'resumo.atualizar': dashboardMetricRestore,
   'imovel-bem.atualizar-valor': imovelBemAtualizarValor,
   'fundo.atualizar-valor': fundoAtualizarValor,

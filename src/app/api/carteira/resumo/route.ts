@@ -633,6 +633,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       reservado: caixa.reservado,
       livre: caixa.livre,
       porAba: caixa.porAba,
+      // Proventos pagos a partir desta data entram no caixa (null = desligado).
+      proventosDesde: user?.caixaProventosDesde?.toISOString().slice(0, 10) ?? null,
     },
     totais: {
       dinheiro: round2(totalDinheiro),
