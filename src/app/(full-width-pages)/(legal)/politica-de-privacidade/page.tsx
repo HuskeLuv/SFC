@@ -20,7 +20,7 @@ export const metadata: Metadata = {
  */
 export default function PoliticaDePrivacidade() {
   return (
-    <LegalArticle title="Política de Privacidade" updatedAt="5 de julho de 2026" version="1.1">
+    <LegalArticle title="Política de Privacidade" updatedAt="21 de setembro de 2026" version="1.2">
       <h2>1. Quem somos</h2>
       <p>
         A <strong>MyFinance</strong> é uma plataforma de gestão financeira pessoal que ajuda
@@ -97,7 +97,13 @@ export default function PoliticaDePrivacidade() {
       </p>
       <p>
         Toda a infraestrutura de armazenamento de dados pessoais opera em território brasileiro (AWS
-        sa-east-1, São Paulo). Não há transferência internacional de dados pessoais.
+        sa-east-1, São Paulo). A única transferência internacional ocorre se você usar o assistente
+        de IA, que é opcional: a sua pergunta e um resumo dos seus dados financeiros são enviados à
+        Anthropic (EUA) para gerar a resposta (LGPD, art. 33, IX), como detalhado em{' '}
+        <a href="/subprocessadores" className="text-brand-500 hover:underline">
+          /subprocessadores
+        </a>
+        .
       </p>
 
       <h2>6. Retenção</h2>
