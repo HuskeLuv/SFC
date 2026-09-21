@@ -1,5 +1,9 @@
 import type { Metadata } from 'next';
 import LegalArticle from '@/components/legal/LegalArticle';
+import { pluggyHabilitado } from '@/lib/pluggyConfig';
+
+// O item de Open Finance depende de PLUGGY_HABILITADO (lido a cada request).
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Termos de Uso — MyFinance',
@@ -12,6 +16,8 @@ export const metadata: Metadata = {
  * Wellington vai substituir pelo texto definitivo revisado juridicamente.
  */
 export default function TermosDeUso() {
+  // Open Finance (adequação jurídica 21/09/2026). ⚠️ MINUTA em revisão jurídica.
+  const openFinance = pluggyHabilitado();
   return (
     <LegalArticle title="Termos de Uso" updatedAt="28 de maio de 2026" version="1.0">
       <h2>1. Aceitação</h2>
@@ -39,6 +45,23 @@ export default function TermosDeUso() {
         </strong>{' '}
         Todas as decisões de investimento são de exclusiva responsabilidade do usuário.
       </p>
+      {openFinance ? (
+        <>
+          <h3>Conexão bancária (Open Finance)</h3>
+          <p>
+            Você pode, se quiser, conectar contas, cartões, investimentos e empréstimos pelo Open
+            Finance, por meio da Pluggy Tecnologia Ltda. A autorização é dada por você na sua
+            instituição e pode ser revogada a qualquer momento. O acesso é somente de leitura: o My
+            Finance nunca faz pagamentos, transferências ou qualquer movimentação.
+          </p>
+          <p>
+            A categorização das transações é uma sugestão automática; nada entra no seu fluxo de
+            caixa, na carteira ou em dívidas sem a sua revisão. As etapas de escolha do banco, login
+            e autorização acontecem no ambiente da Pluggy e da instituição, que o My Finance não
+            controla.
+          </p>
+        </>
+      ) : null}
 
       <h2>3. Cadastro e conta</h2>
       <ul>
@@ -89,6 +112,12 @@ export default function TermosDeUso() {
           Decisões de investimento tomadas com base nas informações exibidas; cotações vêm de
           terceiros e podem conter atraso ou divergências.
         </li>
+        {openFinance ? (
+          <li>
+            Dados recebidos das instituições pelo Open Finance, que podem conter atraso,
+            divergências ou indisponibilidade por parte da instituição ou da Pluggy.
+          </li>
+        ) : null}
         <li>Perdas decorrentes de instabilidade técnica ou indisponibilidade temporária.</li>
         <li>
           Conteúdo gerado pelo usuário (observações, descrições de ativos, etc.) e suas

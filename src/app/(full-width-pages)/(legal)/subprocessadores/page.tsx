@@ -1,6 +1,10 @@
 import type { Metadata } from 'next';
 import LegalArticle from '@/components/legal/LegalArticle';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
+import { pluggyHabilitado } from '@/lib/pluggyConfig';
+
+// A linha do Open Finance depende de PLUGGY_HABILITADO (lido a cada request).
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Subprocessadores — MyFinance',
@@ -98,7 +102,23 @@ const SUBPROCESSADORES: Subprocessador[] = [
   },
 ];
 
+/**
+ * Open Finance (adequação jurídica 21/09/2026): só aparece com a integração
+ * ligada. ⚠️ MINUTA em revisão jurídica — região de processamento da Pluggy a
+ * confirmar em contrato antes de ligar em produção.
+ */
+const PLUGGY: Subprocessador = {
+  nome: 'Pluggy Tecnologia Ltda.',
+  finalidade:
+    'Conectar o My Finance às instituições do Open Finance e repassar os dados bancários que você autorizar. Só atua se você conectar um banco.',
+  dados:
+    'Os dados que você autoriza na sua instituição: contas e saldos, cartões e faturas, transações (com o nome de quem recebeu ou enviou o pagamento), investimentos e empréstimos. O CPF e o login são informados nas telas da Pluggy e da instituição; o My Finance não recebe a sua senha.',
+  regiao: 'Brasil (a confirmar em contrato)',
+  internacional: false,
+};
+
 export default function Subprocessadores() {
+  const lista = pluggyHabilitado() ? [...SUBPROCESSADORES, PLUGGY] : SUBPROCESSADORES;
   return (
     <LegalArticle title="Subprocessadores" updatedAt="21 de setembro de 2026">
       <p>
@@ -119,7 +139,7 @@ export default function Subprocessadores() {
             </tr>
           </thead>
           <tbody>
-            {SUBPROCESSADORES.map((sp) => (
+            {lista.map((sp) => (
               <tr key={sp.nome} className={`${TABLE_STYLES.row} align-top`}>
                 <td className={`${TABLE_STYLES.td} font-medium text-gray-900 dark:text-white/90`}>
                   {sp.nome}
