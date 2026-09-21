@@ -5,7 +5,12 @@ import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 import { formatBRL, formatPctSigned } from '@/utils/format';
-import { postCaixaParaInvestir, type CaixaSaveOptions } from '@/lib/caixaParaInvestirClient';
+import {
+  postCaixaParaInvestir,
+  postDistribuirCaixa,
+  type CaixaSaveOptions,
+  type DistribuirCaixaFn,
+} from '@/lib/caixaParaInvestirClient';
 
 export interface CarteiraResumo {
   saldoBruto: number;
@@ -169,6 +174,24 @@ export const useCarteira = () => {
     [resumo, csrfFetch, queryClient, queryKey],
   );
 
+  const distribuirCaixaLivre = useCallback<DistribuirCaixaFn>(
+    async (porAba) => {
+      try {
+        const result = await postDistribuirCaixa(csrfFetch, porAba);
+        if (result === true) {
+          // As reservas aparecem no card de cada aba e na alocação.
+          await queryClient.invalidateQueries({ queryKey });
+          invalidatePortfolioDerivedQueries(queryClient);
+        }
+        return result;
+      } catch (err) {
+        logger.error('Erro ao distribuir caixa livre:', err);
+        return { ok: false, message: 'Não foi possível distribuir o caixa.' };
+      }
+    },
+    [csrfFetch, queryClient, queryKey],
+  );
+
   const formatCurrency = (value: number | undefined | null): string => formatBRL(value);
 
   // Único consumidor real hoje: RentabilidadeResumo (via CarteiraResumoContext),
@@ -188,6 +211,7 @@ export const useCarteira = () => {
     refetch,
     updateMeta,
     updateCaixaParaInvestir,
+    distribuirCaixaLivre,
     formatCurrency,
     formatPercentage,
   };

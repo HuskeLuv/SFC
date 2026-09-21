@@ -62,6 +62,7 @@ export default function CarteiraTabs() {
     refetch,
     updateMeta,
     updateCaixaParaInvestir,
+    distribuirCaixaLivre,
   } = useCarteira();
   const alocacaoConfig = useAlocacaoConfig();
 
@@ -114,6 +115,7 @@ export default function CarteiraTabs() {
             formatPercentage,
             updateMeta,
             updateCaixaParaInvestir,
+            distribuirCaixaLivre,
             refetch,
             necessidadeAporteMap,
             isAlocacaoLoading: alocacaoConfig.loading,
@@ -128,6 +130,7 @@ export default function CarteiraTabs() {
       formatPercentage,
       updateMeta,
       updateCaixaParaInvestir,
+      distribuirCaixaLivre,
       refetch,
       necessidadeAporteMap,
       alocacaoConfig.loading,

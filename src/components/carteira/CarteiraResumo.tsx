@@ -99,8 +99,14 @@ export default function CarteiraResumo() {
   const [activeTab, setActiveTab] = useState('consolidada');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRedeemSidebarOpen, setIsRedeemSidebarOpen] = useState(false);
-  const { resumo, formatCurrency, refetch, updateCaixaParaInvestir, invalidateAssets } =
-    useCarteiraResumoContext();
+  const {
+    resumo,
+    formatCurrency,
+    refetch,
+    updateCaixaParaInvestir,
+    distribuirCaixaLivre,
+    invalidateAssets,
+  } = useCarteiraResumoContext();
   const alocacaoConfig = useAlocacaoConfig();
   const [_isEditingMeta, _setIsEditingMeta] = useState(false);
   const [_metaInputValue, _setMetaInputValue] = useState('');
@@ -233,6 +239,7 @@ export default function CarteiraResumo() {
                 )}
                 totais={resumo.totais}
                 onNavigateToTab={setActiveTab}
+                onDistribuirCaixa={distribuirCaixaLivre}
               />
             </div>
           </TabContent>

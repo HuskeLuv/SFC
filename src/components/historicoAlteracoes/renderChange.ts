@@ -40,6 +40,7 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     'Atualizou o caixa para investir',
     (l) => `Atualizou o caixa para investir de ${l}`,
   ),
+  'caixa-investir.distribuir': withLabel('Distribuiu o caixa livre pelo alvo da alocação'),
   'objetivo-classe.definir': withLabel(
     'Definiu o objetivo de uma classe de ativos',
     (l) => `Definiu o objetivo da classe ${l}`,

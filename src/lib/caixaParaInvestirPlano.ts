@@ -163,3 +163,64 @@ export interface MovimentoCaixa {
 /** A operação moveu algum dinheiro do caixa? */
 export const movimentouCaixa = (m: MovimentoCaixa | null | undefined): m is MovimentoCaixa =>
   !!m && (m.debitoReserva > 0 || m.debitoLivre > 0 || m.credito > 0 || m.deltaTotal !== 0);
+
+// ── Distribuir o caixa livre pelo alvo da Alocação (fase 3, 21/09/2026) ──────
+
+export interface PlanoDistribuicao {
+  /** Quanto cada aba passa a reservar A MAIS (só abas com valor > 0). */
+  porAba: Partial<Record<CaixaAbaKey, number>>;
+  /** Σ porAba. */
+  distribuido: number;
+  /** Caixa livre que sobra depois da distribuição. */
+  sobra: number;
+}
+
+/**
+ * Reparte o caixa `livre` entre as abas proporcionalmente ao que falta para
+ * cada uma chegar no alvo (`necessidades`, em R$). Nenhuma aba recebe mais do
+ * que a própria necessidade: se o livre cobre tudo, cada aba recebe exatamente
+ * o que falta e o resto continua livre. Valores em centavos; o resíduo do
+ * arredondamento vai para as maiores necessidades (soma nunca passa do livre).
+ */
+export function planejarDistribuicao(
+  livre: number,
+  necessidades: Partial<Record<CaixaAbaKey, number>>,
+): PlanoDistribuicao {
+  const livreCents = Math.max(0, Math.floor(round2(livre) * 100 + 1e-6));
+  const itens = CAIXA_ABA_KEYS.map((aba) => ({
+    aba,
+    cents: Math.max(0, Math.floor(round2(necessidades[aba] ?? 0) * 100 + 1e-6)),
+  })).filter((i) => i.cents > 0);
+  const necessidadeCents = itens.reduce((s, i) => s + i.cents, 0);
+
+  const alocado = new Map<CaixaAbaKey, number>();
+  if (livreCents >= necessidadeCents) {
+    for (const i of itens) alocado.set(i.aba, i.cents);
+  } else if (necessidadeCents > 0) {
+    for (const i of itens) {
+      alocado.set(i.aba, Math.floor((i.cents * livreCents) / necessidadeCents));
+    }
+    let resto = livreCents - [...alocado.values()].reduce((s, c) => s + c, 0);
+    const porNecessidade = [...itens].sort((a, b) => b.cents - a.cents);
+    for (let k = 0; resto > 0 && porNecessidade.length > 0; k++) {
+      const i = porNecessidade[k % porNecessidade.length];
+      if ((alocado.get(i.aba) ?? 0) < i.cents) {
+        alocado.set(i.aba, (alocado.get(i.aba) ?? 0) + 1);
+        resto--;
+      }
+    }
+  }
+
+  const porAba: Partial<Record<CaixaAbaKey, number>> = {};
+  let distribuidoCents = 0;
+  for (const [aba, cents] of alocado) {
+    if (cents <= 0) continue;
+    porAba[aba] = cents / 100;
+    distribuidoCents += cents;
+  }
+  return {
+    porAba,
+    distribuido: distribuidoCents / 100,
+    sobra: Math.max(0, livreCents - distribuidoCents) / 100,
+  };
+}

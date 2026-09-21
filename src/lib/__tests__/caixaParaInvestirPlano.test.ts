@@ -4,6 +4,7 @@ import {
   CATEGORIA_TO_CAIXA_ABA,
   movimentouCaixa,
   planejarDebito,
+  planejarDistribuicao,
 } from '../caixaParaInvestirPlano';
 
 describe('planejarDebito', () => {
@@ -82,5 +83,45 @@ describe('movimentouCaixa', () => {
   it('true com débito ou crédito', () => {
     expect(movimentouCaixa({ ...base, debitoLivre: 1, deltaTotal: -1 })).toBe(true);
     expect(movimentouCaixa({ ...base, credito: 1, deltaTotal: 1 })).toBe(true);
+  });
+});
+
+describe('planejarDistribuicao', () => {
+  it('livre cobre tudo: cada aba recebe exatamente o que falta e o resto sobra', () => {
+    expect(planejarDistribuicao(10000, { acoes: 3000, fii: 1500.5 })).toEqual({
+      porAba: { acoes: 3000, fii: 1500.5 },
+      distribuido: 4500.5,
+      sobra: 5499.5,
+    });
+  });
+
+  it('livre menor que a necessidade: proporcional ao que falta, soma = livre', () => {
+    const plano = planejarDistribuicao(1000, { acoes: 3000, fii: 1000 });
+    expect(plano.porAba).toEqual({ acoes: 750, fii: 250 });
+    expect(plano.distribuido).toBe(1000);
+    expect(plano.sobra).toBe(0);
+  });
+
+  it('arredonda em centavos sem passar do livre nem da necessidade de cada aba', () => {
+    const plano = planejarDistribuicao(100, { acoes: 1, fii: 1, etf: 1, reit: 0.02 });
+    // livre > necessidade → cada uma recebe o que falta
+    expect(plano.porAba).toEqual({ acoes: 1, fii: 1, etf: 1, reit: 0.02 });
+
+    const apertado = planejarDistribuicao(0.1, { acoes: 1, fii: 1, etf: 1 });
+    const valores = Object.values(apertado.porAba) as number[];
+    expect(Math.round(valores.reduce((s, v) => s + v, 0) * 100)).toBe(10);
+    expect(apertado.sobra).toBe(0);
+    for (const v of valores) expect(v).toBeLessThanOrEqual(1);
+  });
+
+  it('sem livre ou sem necessidade não distribui nada', () => {
+    expect(planejarDistribuicao(0, { acoes: 100 })).toEqual({
+      porAba: {},
+      distribuido: 0,
+      sobra: 0,
+    });
+    expect(planejarDistribuicao(-50, { acoes: 100 }).distribuido).toBe(0);
+    expect(planejarDistribuicao(500, {})).toEqual({ porAba: {}, distribuido: 0, sobra: 500 });
+    expect(planejarDistribuicao(500, { acoes: -10, fii: 0 }).distribuido).toBe(0);
   });
 });

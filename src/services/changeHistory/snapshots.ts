@@ -5,7 +5,7 @@
  * (nunca dump cego da row) e serializa Date → ISO.
  */
 
-import type { MovimentoCaixa } from '@/lib/caixaParaInvestirPlano';
+import type { CaixaAbaKey, MovimentoCaixa } from '@/lib/caixaParaInvestirPlano';
 import type { ChangeSnapshot } from './types';
 
 const iso = (value: Date | string | null | undefined): string | null => {
@@ -161,5 +161,19 @@ export function buildCaixaMovimentoSnapshot(movimento: MovimentoCaixa): ChangeSn
     v: 1,
     kind: 'caixa-movimento',
     data: { ...movimento },
+  };
+}
+
+/**
+ * Distribuição do caixa livre entre as reservas: quanto entrou em cada aba.
+ * O Desfazer tira exatamente isso (`reverterDistribuicaoCaixa`).
+ */
+export function buildCaixaDistribuicaoSnapshot(
+  porAba: Partial<Record<CaixaAbaKey, number>>,
+): ChangeSnapshot {
+  return {
+    v: 1,
+    kind: 'caixa-distribuicao',
+    data: { porAba },
   };
 }

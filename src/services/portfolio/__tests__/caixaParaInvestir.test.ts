@@ -43,8 +43,10 @@ import {
   computeCaixaResumo,
   creditarCaixa,
   debitarCaixa,
+  distribuirCaixaLivre,
   loadCaixaResumo,
   resolverCaixaAba,
+  reverterDistribuicaoCaixa,
   reverterMovimentoCaixa,
   salvarCaixaAba,
   salvarCaixaTotal,
@@ -288,5 +290,51 @@ describe('debitarCaixa / creditarCaixa / reverterMovimentoCaixa', () => {
 
     await reverterMovimentoCaixa(USER, mov);
     expect(valueOf('caixa_para_investir_consolidado')).toBe(2000);
+  });
+});
+
+describe('distribuirCaixaLivre / reverterDistribuicaoCaixa', () => {
+  it('move o livre para as reservas sem mexer no total', async () => {
+    seed({ caixa_para_investir_consolidado: 10000, caixa_para_investir_acoes: 1000 });
+    const result = await distribuirCaixaLivre(USER, { acoes: 2000, fii: 500.25, etf: 0 });
+    expect(result).toEqual({
+      ok: true,
+      porAba: { acoes: 2000, fii: 500.25 },
+      anterior: { acoes: 1000, fii: 0 },
+    });
+    expect(valueOf('caixa_para_investir_consolidado')).toBe(10000);
+    expect(valueOf('caixa_para_investir_acoes')).toBe(3000);
+    expect(valueOf('caixa_para_investir_fii')).toBe(500.25);
+    expect(valueOf('caixa_para_investir_etf')).toBeUndefined();
+    expect(mockDeleteCache).toHaveBeenCalledWith('carteiraResumo', `${USER}:`);
+  });
+
+  it('recusa quando o plano não cabe mais no livre (caixa mudou depois da prévia)', async () => {
+    seed({ caixa_para_investir_consolidado: 5000, caixa_para_investir_acoes: 4000 });
+    const result = await distribuirCaixaLivre(USER, { fii: 1500 });
+    expect(result).toEqual({ ok: false, code: 'LIVRE_INSUFICIENTE', livre: 1000 });
+    expect(valueOf('caixa_para_investir_fii')).toBeUndefined();
+    expect(mockDeleteCache).not.toHaveBeenCalled();
+  });
+
+  it('aceita distribuir exatamente o livre', async () => {
+    seed({ caixa_para_investir_consolidado: 5000, caixa_para_investir_acoes: 4000 });
+    const result = await distribuirCaixaLivre(USER, { fii: 600, etf: 400 });
+    expect(result.ok).toBe(true);
+    expect((await loadCaixaResumo(USER)).livre).toBe(0);
+  });
+
+  it('desfazer tira por delta e preserva edições posteriores da reserva', async () => {
+    seed({ caixa_para_investir_consolidado: 10000 });
+    await distribuirCaixaLivre(USER, { acoes: 2000, fii: 1000 });
+    // usuário mexeu na reserva de ações depois (2000 → 2500)
+    db.rows.find((r) => r.metric === 'caixa_para_investir_acoes')!.value = 2500;
+    // e zerou a de FII — o desfazer não deixa negativa
+    db.rows.find((r) => r.metric === 'caixa_para_investir_fii')!.value = 0;
+
+    await reverterDistribuicaoCaixa(USER, { acoes: 2000, fii: 1000 });
+    expect(valueOf('caixa_para_investir_acoes')).toBe(500);
+    expect(valueOf('caixa_para_investir_fii')).toBe(0);
+    expect(valueOf('caixa_para_investir_consolidado')).toBe(10000);
   });
 });
