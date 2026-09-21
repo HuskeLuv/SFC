@@ -122,6 +122,7 @@ model User {
   lessonProgresses              LessonProgress[]              @relation("LessonProgressUser")
   assistenteMensagens           AssistenteMensagem[]          @relation("AssistenteMensagemUser")
   bankConnections               BankConnection[]              @relation("BankConnectionUser")
+  openFinanceConsentimentos OpenFinanceConsentimento[] @relation("OpenFinanceConsentimentoUser")
   bankAccounts                  BankAccount[]                 @relation("BankAccountUser")
   bankTransactions              BankTransaction[]             @relation("BankTransactionUser")
   bankInvestments               BankInvestment[]              @relation("BankInvestmentUser")
@@ -1314,6 +1315,43 @@ model AssistenteMensagem {
 // conexão (= item do Pluggy) → contas → transações. O fluxo de caixa é
 // alimentado por agregação destas transações (Fase 2c), nunca o contrário.
 // Regra "uma conta = um canal": conta conectada não recebe digitação manual.
+
+/// Registro do consentimento Open Finance dado DENTRO do My Finance (adequação
+/// jurídica 21/09/2026): prova de quem aceitou, quando, qual texto (versão +
+/// hash) e quais produtos. NÃO tem FK para BankConnection de propósito — o
+/// registro sobrevive à desconexão (fica "revogado"). Some só com a conta do
+/// usuário (cascade), como o resto dos dados pessoais.
+model OpenFinanceConsentimento {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation("OpenFinanceConsentimentoUser", fields: [userId], references: [id], onDelete: Cascade)
+  /// Versão do texto aceito (src/lib/openFinanceConsentimento.ts) e sha256 do conteúdo.
+  versaoTexto     String
+  hashTexto       String
+  /// Produtos pedidos ao Pluggy nesta autorização (escopo).
+  produtos        String[]
+  /// pendente → ativo (conexão criada) → revogado | substituido; pendente sem conexão = não concluído.
+  status          String    @default("pendente")
+  /// true = reconexão de uma conexão existente (renovação do consentimento).
+  reconexao       Boolean   @default(false)
+  ip              String?
+  userAgent       String?
+  aceitoEm        DateTime  @default(now())
+  /// Preenchidos quando o widget conclui e a conexão é registrada.
+  connectionId    String?
+  providerItemId  String?
+  connectorName   String?
+  vinculadoEm     DateTime?
+  revogadoEm      DateTime?
+  /// usuario | substituido | instituicao
+  motivoRevogacao String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([connectionId])
+  @@map("open_finance_consentimentos")
+}
 
 model BankConnection {
   id                 String    @id @default(uuid())

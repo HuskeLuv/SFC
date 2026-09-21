@@ -4,7 +4,11 @@ import Image from 'next/image';
 import Badge from '@/components/ui/badge/Badge';
 import Button from '@/components/ui/button/Button';
 import { formatBRL } from '@/utils/format';
-import type { BankAccountDTO, BankConnectionDTO } from '@/hooks/useConexoesBancarias';
+import type {
+  BankAccountDTO,
+  BankConnectionDTO,
+  ConsentimentoDTO,
+} from '@/hooks/useConexoesBancarias';
 import { rotuloConta, statusConexao, tempoRelativo } from './statusConexao';
 
 interface ConexaoCardProps {
@@ -15,6 +19,9 @@ interface ConexaoCardProps {
   onAtualizar: (conexao: BankConnectionDTO) => void;
   onReconectar: (conexao: BankConnectionDTO) => void;
   onExcluir: (conexao: BankConnectionDTO) => void;
+  /** Autorização Open Finance ativa desta conexão (registro do consentimento). */
+  autorizacao?: ConsentimentoDTO | null;
+  onVerAutorizacao?: (c: ConsentimentoDTO) => void;
 }
 
 function dataCurta(iso: string | null): string {
@@ -30,6 +37,8 @@ export default function ConexaoCard({
   onAtualizar,
   onReconectar,
   onExcluir,
+  autorizacao,
+  onVerAutorizacao,
 }: ConexaoCardProps) {
   const st = statusConexao(conexao);
 
@@ -74,6 +83,23 @@ export default function ConexaoCard({
                 ? ` · consentimento até ${dataCurta(conexao.consentExpiresAt)}`
                 : ''}
             </p>
+            {autorizacao ? (
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                Autorizado em {dataCurta(autorizacao.aceitoEm)}
+                {onVerAutorizacao ? (
+                  <>
+                    {' · '}
+                    <button
+                      type="button"
+                      className="text-brand-500 underline"
+                      onClick={() => onVerAutorizacao(autorizacao)}
+                    >
+                      Ver o que autorizei
+                    </button>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
             {conexao.lastSyncError ? (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">{conexao.lastSyncError}</p>
             ) : null}
@@ -107,7 +133,7 @@ export default function ConexaoCard({
             disabled={ocupada}
             className="text-red-600 hover:text-red-700 dark:text-red-400"
           >
-            Excluir
+            Desconectar
           </Button>
         </div>
       </div>

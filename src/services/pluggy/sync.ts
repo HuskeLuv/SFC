@@ -31,6 +31,7 @@ import {
   mapLoan,
   type ImportacaoResultado,
 } from './importarCarteira';
+import { revogarConsentimentosDaConexao } from './consentimento';
 
 export const JANELA_RESYNC_DIAS = 7;
 export const HISTORICO_INICIAL_MESES = 12;
@@ -579,6 +580,8 @@ export async function excluirConexao(connectionId: string, userId: string) {
     const msg = error instanceof Error ? error.message : '';
     if (!/404/.test(msg)) throw error;
   }
+  // O registro do consentimento fica (revogado): é a prova do que foi autorizado.
+  await revogarConsentimentosDaConexao(connectionId, 'usuario');
   await prisma.bankConnection.delete({ where: { id: connectionId } });
 }
 

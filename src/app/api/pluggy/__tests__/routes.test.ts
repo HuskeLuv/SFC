@@ -20,6 +20,14 @@ const mockSync = vi.hoisted(() => ({
 }));
 vi.mock('@/services/pluggy/sync', () => mockSync);
 
+const mockConsent = vi.hoisted(() => ({
+  exigirConsentimentoPendente: vi.fn(),
+  vincularConsentimento: vi.fn(),
+}));
+vi.mock('@/services/pluggy/consentimento', () => mockConsent);
+const CONSENT = '7d3c1e2a-0b1c-4d5e-8f90-123456789abc';
+
+import { ApiError } from '@/utils/apiErrorHandler';
 import { GET as listar, POST as registrar } from '../connections/route';
 import { DELETE as excluir } from '../connections/[id]/route';
 import { POST as atualizar } from '../connections/[id]/sync/route';
@@ -140,9 +148,17 @@ describe('rotas /api/pluggy', () => {
       reaproveitada: false,
       contasRepetidas: 0,
     });
-    const res = await registrar(json('/api/pluggy/connections', 'POST', { itemId: ITEM }));
+    // Sem o aceite registrado no My Finance não registra.
+    expect(
+      (await registrar(json('/api/pluggy/connections', 'POST', { itemId: ITEM }))).status,
+    ).toBe(400);
+    const res = await registrar(
+      json('/api/pluggy/connections', 'POST', { itemId: ITEM, consentimentoId: CONSENT }),
+    );
     expect(res.status).toBe(201);
+    expect(mockConsent.exigirConsentimentoPendente).toHaveBeenCalledWith('user-1', CONSENT);
     expect(mockSync.registrarConexao).toHaveBeenCalledWith('user-1', ITEM);
+    expect(mockConsent.vincularConsentimento).toHaveBeenCalledWith('user-1', CONSENT, conexao);
     expect(await res.json()).toMatchObject({
       connection: { id: 'conn-1' },
       reaproveitada: false,
@@ -154,7 +170,9 @@ describe('rotas /api/pluggy', () => {
       reaproveitada: true,
       contasRepetidas: 2,
     });
-    const re = await registrar(json('/api/pluggy/connections', 'POST', { itemId: ITEM }));
+    const re = await registrar(
+      json('/api/pluggy/connections', 'POST', { itemId: ITEM, consentimentoId: CONSENT }),
+    );
     expect(re.status).toBe(200);
     expect((await re.json()).aviso).toMatch(/já estava conectado/);
 
@@ -164,8 +182,13 @@ describe('rotas /api/pluggy', () => {
       contasRepetidas: 1,
     });
     expect(
-      (await (await registrar(json('/api/pluggy/connections', 'POST', { itemId: ITEM }))).json())
-        .aviso,
+      (
+        await (
+          await registrar(
+            json('/api/pluggy/connections', 'POST', { itemId: ITEM, consentimentoId: CONSENT }),
+          )
+        ).json()
+      ).aviso,
     ).toMatch(/1 conta já existia/);
   });
 
@@ -183,7 +206,10 @@ describe('rotas /api/pluggy', () => {
 
   it('connect-token amarra o token ao usuário e valida itemId de reconexão', async () => {
     mockClient.createConnectToken.mockResolvedValue({ accessToken: 'tok' });
-    const res = await connectToken(json('/api/pluggy/connect-token', 'POST', {}));
+    const res = await connectToken(
+      json('/api/pluggy/connect-token', 'POST', { consentimentoId: CONSENT }),
+    );
+    expect(mockConsent.exigirConsentimentoPendente).toHaveBeenCalledWith('user-1', CONSENT);
     expect(await res.json()).toEqual({
       accessToken: 'tok',
       includeSandbox: false,
@@ -203,12 +229,25 @@ describe('rotas /api/pluggy', () => {
     });
 
     mockPrisma.bankConnection.findFirst.mockResolvedValue(null);
-    const nf = await connectToken(json('/api/pluggy/connect-token', 'POST', { itemId: ITEM }));
+    const nf = await connectToken(
+      json('/api/pluggy/connect-token', 'POST', { itemId: ITEM, consentimentoId: CONSENT }),
+    );
     expect(nf.status).toBe(404);
 
     mockPrisma.bankConnection.findFirst.mockResolvedValue({ providerItemId: ITEM });
-    await connectToken(json('/api/pluggy/connect-token', 'POST', { itemId: ITEM }));
+    await connectToken(
+      json('/api/pluggy/connect-token', 'POST', { itemId: ITEM, consentimentoId: CONSENT }),
+    );
     expect(mockClient.createConnectToken).toHaveBeenLastCalledWith(ITEM, expect.any(Object));
+
+    // Sem consentimento válido, o serviço recusa e o widget não abre.
+    mockConsent.exigirConsentimentoPendente.mockRejectedValueOnce(
+      new ApiError(400, 'Autorize o compartilhamento de dados antes de conectar o banco.'),
+    );
+    mockClient.createConnectToken.mockClear();
+    const sem = await connectToken(json('/api/pluggy/connect-token', 'POST', {}));
+    expect(sem.status).toBe(400);
+    expect(mockClient.createConnectToken).not.toHaveBeenCalled();
   });
 
   it('GET transactions filtra por conta/período, exclui removidas e pagina', async () => {

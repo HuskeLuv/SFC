@@ -10,6 +10,9 @@ import type {
   BankTransactionDTO,
 } from '@/app/api/pluggy/_lib/serializer';
 import type { PendenteDTO, AplicarResultado } from '@/services/pluggy/caixaEntrada';
+import type { ConsentimentoDTO } from '@/services/pluggy/consentimento';
+
+export type { ConsentimentoDTO };
 
 export type { BankAccountDTO, BankConnectionDTO, BankTransactionDTO };
 
@@ -59,6 +62,7 @@ async function lancarErro(res: Response, fallback: string): Promise<never> {
 
 function invalidarConexoes(queryClient: ReturnType<typeof useQueryClient>): void {
   queryClient.invalidateQueries({ queryKey: queryKeys.pluggy.conexoes() });
+  queryClient.invalidateQueries({ queryKey: queryKeys.pluggy.consentimentos() });
   queryClient.invalidateQueries({ queryKey: [...queryKeys.pluggy.all, 'extrato'] });
 }
 
@@ -91,15 +95,53 @@ export function useConexoes(enabled = true) {
   });
 }
 
-/** Token de 30 min para abrir o widget (itemId = reconectar uma conexão). */
+/** Autorizações Open Finance dadas no My Finance (ativas e encerradas). */
+export function useConsentimentos(enabled = true) {
+  return useQuery<ConsentimentoDTO[], ConexaoApiError>({
+    queryKey: queryKeys.pluggy.consentimentos(),
+    enabled,
+    staleTime: 30_000,
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`${BASE_URL}/consentimentos`, { credentials: 'include', signal });
+      if (!res.ok) await lancarErro(res, 'Erro ao carregar as autorizações');
+      return ((await res.json()) as { consentimentos: ConsentimentoDTO[] }).consentimentos;
+    },
+  });
+}
+
+/** "Li e autorizo" → registra o aceite; o id libera o connect token. */
+export function useRegistrarConsentimento() {
+  const { csrfFetch } = useCsrf();
+  return useMutation<
+    { consentimentoId: string },
+    ConexaoApiError,
+    { versao: string; reconexaoDe?: string }
+  >({
+    mutationFn: async (vars) => {
+      const res = await csrfFetch(`${BASE_URL}/consentimentos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vars),
+      });
+      if (!res.ok) await lancarErro(res, 'Erro ao registrar a autorização');
+      return (await res.json()) as { consentimentoId: string };
+    },
+  });
+}
+
+/** Token de 30 min para abrir o widget (itemId = reconectar uma conexão). Exige o aceite. */
 export function useConnectToken() {
   const { csrfFetch } = useCsrf();
-  return useMutation<ConnectTokenResposta, ConexaoApiError, { itemId?: string } | void>({
+  return useMutation<
+    ConnectTokenResposta,
+    ConexaoApiError,
+    { consentimentoId: string; itemId?: string }
+  >({
     mutationFn: async (vars) => {
       const res = await csrfFetch(`${BASE_URL}/connect-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(vars ?? {}),
+        body: JSON.stringify(vars),
       });
       if (!res.ok) await lancarErro(res, 'Erro ao preparar a conexão');
       return (await res.json()) as ConnectTokenResposta;
@@ -111,12 +153,16 @@ export function useConnectToken() {
 export function useRegistrarConexao() {
   const { csrfFetch } = useCsrf();
   const queryClient = useQueryClient();
-  return useMutation<RegistroResposta, ConexaoApiError, { itemId: string }>({
-    mutationFn: async ({ itemId }) => {
+  return useMutation<
+    RegistroResposta,
+    ConexaoApiError,
+    { itemId: string; consentimentoId: string }
+  >({
+    mutationFn: async ({ itemId, consentimentoId }) => {
       const res = await csrfFetch(`${BASE_URL}/connections`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId }),
+        body: JSON.stringify({ itemId, consentimentoId }),
       });
       if (!res.ok) await lancarErro(res, 'Erro ao registrar a conexão');
       return (await res.json()) as RegistroResposta;
