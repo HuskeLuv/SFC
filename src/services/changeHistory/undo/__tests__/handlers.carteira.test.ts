@@ -9,7 +9,14 @@ const mockPrisma = vi.hoisted(() => ({
   asset: { findUnique: vi.fn() },
   planejamentoObjetivo: { findUnique: vi.fn() },
   portfolioProvento: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  dashboardData: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn(), delete: vi.fn() },
+  dashboardData: {
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    update: vi.fn(),
+    create: vi.fn(),
+    delete: vi.fn(),
+  },
+  $transaction: vi.fn(),
 }));
 
 const mockRecalc = vi.hoisted(() => vi.fn());
@@ -406,6 +413,60 @@ describe('métricas do DashboardData (caixa-investir / resumo)', () => {
         entry: entryWith(200),
       }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+describe('caixa-investir.distribuir', () => {
+  const entry = makeEntry({
+    action: 'caixa-investir.distribuir',
+    entity: 'caixa-investir',
+    entityId: 'distribuicao',
+    entityLabel: null,
+    changes: [
+      { field: 'acoes', label: 'Reserva de Ações', before: 0, after: 700 },
+      { field: 'fii', label: 'Reserva de FIIs', before: 100, after: 400 },
+    ] as never,
+    snapshot: {
+      v: 1,
+      kind: 'caixa-distribuicao',
+      data: { porAba: { acoes: 700, fii: 300 } },
+    } as never,
+  });
+
+  it('tira de cada reserva o que a distribuição pôs, sem mexer no total', async () => {
+    const rows = [
+      { id: 'dd-total', metric: 'caixa_para_investir_consolidado', value: 1000 },
+      { id: 'dd-acoes', metric: 'caixa_para_investir_acoes', value: 700 },
+      { id: 'dd-fii', metric: 'caixa_para_investir_fii', value: 400 },
+    ];
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn(mockPrisma),
+    );
+    mockPrisma.dashboardData.findMany.mockResolvedValue(rows);
+    mockPrisma.dashboardData.findFirst.mockImplementation(
+      async ({ where }: { where: { metric: string } }) =>
+        rows.find((r) => r.metric === where.metric) ?? null,
+    );
+
+    const outcome = await CARTEIRA_UNDO_HANDLERS['caixa-investir.distribuir'].execute({
+      request,
+      auth,
+      entry,
+    });
+
+    expect(mockPrisma.dashboardData.update).toHaveBeenCalledWith({
+      where: { id: 'dd-acoes' },
+      data: { value: 0 },
+    });
+    expect(mockPrisma.dashboardData.update).toHaveBeenCalledWith({
+      where: { id: 'dd-fii' },
+      data: { value: 100 },
+    });
+    expect(mockPrisma.dashboardData.update).toHaveBeenCalledTimes(2);
+    expect(outcome.changes).toEqual([
+      { field: 'acoes', label: 'Reserva de Ações', before: 700, after: 0 },
+      { field: 'fii', label: 'Reserva de FIIs', before: 400, after: 100 },
+    ]);
   });
 });
 

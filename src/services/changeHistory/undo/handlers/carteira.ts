@@ -10,7 +10,9 @@
 import {
   invalidateCaixaCaches,
   movimentouCaixa,
+  reverterDistribuicaoCaixa,
   reverterMovimentoCaixa,
+  type CaixaAbaKey,
   type MovimentoCaixa,
 } from '@/services/portfolio/caixaParaInvestir';
 import type { FixedIncomeIndexer, FixedIncomeLiquidity, FixedIncomeType } from '@prisma/client';
@@ -379,6 +381,24 @@ const dashboardMetricRestore: UndoDefinition = {
   },
 };
 
+/**
+ * caixa-investir.distribuir — devolve ao livre o que a distribuição pôs em
+ * cada reserva, por DELTA (edições posteriores da reserva são preservadas).
+ */
+const caixaDistribuicaoReverter: UndoDefinition = {
+  strategy: 'custom',
+  requires: { changes: true, snapshot: true },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const snap = getSnapshot(entry)!;
+    if (snap.kind !== 'caixa-distribuicao') {
+      throw new UndoError(400, 'Snapshot inesperado', 'UNDO_MISSING_DATA');
+    }
+    const { porAba } = snap.data as { porAba: Partial<Record<CaixaAbaKey, number>> };
+    await reverterDistribuicaoCaixa(auth.targetUserId, porAba);
+    return { changes: invertChanges(getChanges(entry)) };
+  },
+};
+
 /** Valor manual de imóvel/bem: totalInvested + avgPrice derivados do valor. */
 const imovelBemAtualizarValor: UndoDefinition = {
   strategy: 'custom',
@@ -682,6 +702,7 @@ export const CARTEIRA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'provento.editar': proventoEditar,
   'provento.excluir': proventoExcluir,
   'caixa-investir.atualizar': dashboardMetricRestore,
+  'caixa-investir.distribuir': caixaDistribuicaoReverter,
   'resumo.atualizar': dashboardMetricRestore,
   'imovel-bem.atualizar-valor': imovelBemAtualizarValor,
   'fundo.atualizar-valor': fundoAtualizarValor,

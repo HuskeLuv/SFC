@@ -9,10 +9,12 @@ import { recordChange, type RecordChangeParams } from './recordChange';
 import { diffFields } from './diffFields';
 import {
   CAIXA_INVESTIR_FIELD_LABELS,
+  CAIXA_RESERVAS_FIELD_LABELS,
   OBJETIVO_CLASSE_FIELD_LABELS,
   RESUMO_FIELD_LABELS,
 } from './labels';
-import { buildDashboardMetricSnapshot } from './snapshots';
+import { buildCaixaDistribuicaoSnapshot, buildDashboardMetricSnapshot } from './snapshots';
+import type { CaixaAbaKey } from '@/lib/caixaParaInvestirPlano';
 
 type CarteiraAuth = RecordChangeParams['auth'];
 
@@ -90,6 +92,36 @@ export async function recordCaixaTotalAtualizado(
       RESUMO_FIELD_LABELS,
     ),
     snapshot: buildDashboardMetricSnapshot(metric, params.valorAnterior),
+  });
+}
+
+/**
+ * Distribuição do caixa livre pelo alvo da Alocação: uma entrada só, com o
+ * antes/depois de cada reserva que recebeu dinheiro.
+ */
+export async function recordCaixaDistribuido(
+  request: NextRequest,
+  auth: CarteiraAuth,
+  params: {
+    anterior: Partial<Record<CaixaAbaKey, number>>;
+    porAba: Partial<Record<CaixaAbaKey, number>>;
+  },
+): Promise<void> {
+  const depois = Object.fromEntries(
+    Object.entries(params.porAba).map(([aba, valor]) => [
+      aba,
+      Math.round(((params.anterior[aba as CaixaAbaKey] ?? 0) + (valor ?? 0)) * 100) / 100,
+    ]),
+  );
+  await recordChange({
+    request,
+    auth,
+    section: 'carteira',
+    action: 'caixa-investir.distribuir',
+    entity: 'caixa-investir',
+    entityId: 'distribuicao',
+    changes: diffFields(params.anterior, depois, CAIXA_RESERVAS_FIELD_LABELS),
+    snapshot: buildCaixaDistribuicaoSnapshot(params.porAba),
   });
 }
 

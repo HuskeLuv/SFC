@@ -1,4 +1,4 @@
-import type { SaveCaixaFn } from '@/lib/caixaParaInvestirClient';
+import type { DistribuirCaixaFn, SaveCaixaFn } from '@/lib/caixaParaInvestirClient';
 import { createContext, useContext } from 'react';
 import type { CarteiraResumo } from '@/hooks/useCarteira';
 
@@ -12,6 +12,8 @@ interface CarteiraResumoContextValue {
   formatPercentage: (value: number | null | undefined) => string;
   updateMeta: (novaMetaPatrimonio: number) => Promise<boolean>;
   updateCaixaParaInvestir: SaveCaixaFn;
+  /** Move o caixa livre para as reservas das abas (botão da Alocação). */
+  distribuirCaixaLivre?: DistribuirCaixaFn;
   refetch: () => Promise<void>;
   necessidadeAporteMap: NecessidadeAporteMap;
   isAlocacaoLoading: boolean;

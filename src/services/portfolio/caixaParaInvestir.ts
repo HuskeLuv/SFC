@@ -22,6 +22,7 @@ import { round2 } from '@/utils/alocacaoPercents';
  */
 import {
   CAIXA_ABAS,
+  CAIXA_ABA_KEYS,
   CAIXA_CONSOLIDADO_METRIC,
   CAIXA_METRICS,
   CATEGORIA_TO_CAIXA_ABA,
@@ -45,12 +46,14 @@ export {
   computeCaixaResumo,
   movimentouCaixa,
   planejarDebito,
+  planejarDistribuicao,
 } from '@/lib/caixaParaInvestirPlano';
 export type {
   CaixaAbaKey,
   CaixaResumo,
   MovimentoCaixa,
   PlanoDebito,
+  PlanoDistribuicao,
 } from '@/lib/caixaParaInvestirPlano';
 
 type CaixaDb = Pick<typeof prisma, 'dashboardData'>;
@@ -305,6 +308,78 @@ export async function reverterMovimentoCaixa(userId: string, mov: MovimentoCaixa
         userId,
         CAIXA_CONSOLIDADO_METRIC,
         round2(Math.max(0, atual.total - mov.deltaTotal)),
+      );
+    }
+  });
+  invalidateCaixaCaches(userId);
+}
+
+// ── Distribuir o caixa livre entre as reservas das abas ──────────────────────
+
+export type DistribuicaoAplicada = {
+  ok: true;
+  /** Quanto entrou em cada reserva (só abas com valor > 0). */
+  porAba: Partial<Record<CaixaAbaKey, number>>;
+  /** Reserva de cada aba ANTES da distribuição (render do histórico). */
+  anterior: Partial<Record<CaixaAbaKey, number>>;
+};
+
+export type DistribuicaoErro = { ok: false; code: 'LIVRE_INSUFICIENTE'; livre: number };
+
+/**
+ * Move `valores` do caixa LIVRE para as reservas das abas (o total não muda:
+ * é só destinar dinheiro que já está no bolso). A tela calcula o plano com
+ * `planejarDistribuicao`; aqui só se garante que ele ainda cabe no livre —
+ * se o caixa mudou entre a prévia e a confirmação, recusa em vez de estourar
+ * a invariante Σ reservas ≤ total.
+ */
+export async function distribuirCaixaLivre(
+  userId: string,
+  valores: Partial<Record<CaixaAbaKey, number>>,
+): Promise<DistribuicaoAplicada | DistribuicaoErro> {
+  const result = await prisma.$transaction(async (tx) => {
+    const atual = await loadCaixaResumo(userId, tx);
+    const entradas = CAIXA_ABA_KEYS.map((aba) => [aba, round2(valores[aba] ?? 0)] as const).filter(
+      ([, valor]) => valor > 0,
+    );
+    const soma = round2(entradas.reduce((s, [, valor]) => s + valor, 0));
+    if (soma > Math.max(0, atual.livre)) {
+      return { ok: false as const, code: 'LIVRE_INSUFICIENTE' as const, livre: atual.livre };
+    }
+
+    const porAba: Partial<Record<CaixaAbaKey, number>> = {};
+    const anterior: Partial<Record<CaixaAbaKey, number>> = {};
+    for (const [aba, valor] of entradas) {
+      anterior[aba] = atual.porAba[aba];
+      porAba[aba] = valor;
+      await upsertMetric(tx, userId, CAIXA_ABAS[aba].metric, round2(atual.porAba[aba] + valor));
+    }
+    return { ok: true as const, porAba, anterior };
+  });
+
+  if (result.ok) invalidateCaixaCaches(userId);
+  return result;
+}
+
+/**
+ * Desfazer da distribuição: tira de cada reserva o que a distribuição pôs
+ * (por DELTA — se o usuário mexeu na reserva depois, o resto fica). A reserva
+ * não fica negativa. O total nunca mudou, então nada a fazer nele.
+ */
+export async function reverterDistribuicaoCaixa(
+  userId: string,
+  porAba: Partial<Record<CaixaAbaKey, number>>,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const atual = await loadCaixaResumo(userId, tx);
+    for (const aba of CAIXA_ABA_KEYS) {
+      const delta = porAba[aba] ?? 0;
+      if (delta <= 0) continue;
+      await upsertMetric(
+        tx,
+        userId,
+        CAIXA_ABAS[aba].metric,
+        round2(Math.max(0, atual.porAba[aba] - delta)),
       );
     }
   });

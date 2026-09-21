@@ -1,4 +1,5 @@
 import type { FieldLabelMap } from './types';
+import { CAIXA_ABAS, CAIXA_ABA_KEYS } from '@/lib/caixaParaInvestirPlano';
 
 /**
  * Mapas de rótulos por entidade — usados como allowlist pelo diffFields.
@@ -103,6 +104,14 @@ export const PERFIL_FIELD_LABELS: FieldLabelMap = {
 export const CAIXA_INVESTIR_FIELD_LABELS: FieldLabelMap = {
   value: { label: 'Caixa para investir', format: 'currency' },
 };
+
+/** Distribuição do caixa livre: reserva de cada aba (campo = chave da aba). */
+export const CAIXA_RESERVAS_FIELD_LABELS: FieldLabelMap = Object.fromEntries(
+  CAIXA_ABA_KEYS.map((aba) => [
+    aba,
+    { label: `Reserva de ${CAIXA_ABAS[aba].label}`, format: 'currency' as const },
+  ]),
+);
 
 /** Resumo da carteira (DashboardData: meta de patrimônio / caixa consolidado) */
 export const RESUMO_FIELD_LABELS: FieldLabelMap = {

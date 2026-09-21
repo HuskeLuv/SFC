@@ -6,6 +6,15 @@ import EditableCell from './EditableCell';
 import EditableTextCell from './EditableTextCell';
 import Alert from '../ui/alert/Alert';
 import ComponentCard from '../common/ComponentCard';
+import { Modal } from '../ui/modal';
+import {
+  CAIXA_ABAS,
+  CATEGORIA_TO_CAIXA_ABA,
+  planejarDistribuicao,
+  type CaixaAbaKey,
+} from '@/lib/caixaParaInvestirPlano';
+import type { DistribuirCaixaFn } from '@/lib/caixaParaInvestirClient';
+import type { CategoriaCarteira } from '@/services/portfolio/itemValuation';
 import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
 import {
   TABLE_STYLES,
@@ -28,6 +37,8 @@ interface AlocacaoAtivo {
   percentualTarget: number;
   quantoFalta: number;
   necessidadeAporte: number;
+  /** Necessidade antes de abater o caixa livre (base da distribuição do caixa). */
+  necessidadeSemCaixa: number;
   /** Quanto a classe está ACIMA do target, em R$ (0 quando falta ou bate). */
   excessoAporte: number;
   descricao: string;
@@ -69,6 +80,8 @@ interface AlocacaoAtivosTableProps {
   caixaParaInvestir?: number;
   totais?: { dinheiro: number; dinheiroMaisBens: number };
   onNavigateToTab?: (tabId: string) => void;
+  /** Sem ele o botão "Distribuir caixa livre" não aparece. */
+  onDistribuirCaixa?: DistribuirCaixaFn;
 }
 
 export default function AlocacaoAtivosTable({
@@ -77,6 +90,7 @@ export default function AlocacaoAtivosTable({
   caixaParaInvestir = 0,
   totais,
   onNavigateToTab,
+  onDistribuirCaixa,
 }: AlocacaoAtivosTableProps) {
   // Totais vêm PRONTOS do backend (denominador único do resumo). O fallback
   // local existe só para resposta cacheada antiga sem `totais` (TTL 60s
@@ -94,6 +108,10 @@ export default function AlocacaoAtivosTable({
   // Total Carteira para cálculos de percentuais (exclui Imóveis e Bens)
   const totalCarteira = totalDinheiro;
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('Configurações salvas com sucesso!');
+  const [distribuicaoAberta, setDistribuicaoAberta] = useState(false);
+  const [distribuindo, setDistribuindo] = useState(false);
+  const [erroDistribuicao, setErroDistribuicao] = useState<string | null>(null);
 
   const {
     configuracoes,
@@ -168,6 +186,7 @@ export default function AlocacaoAtivosTable({
           percentualTarget: 0,
           quantoFalta: 0,
           necessidadeAporte: 0,
+          necessidadeSemCaixa: 0,
           excessoAporte: 0,
           descricao: '',
         });
@@ -193,6 +212,7 @@ export default function AlocacaoAtivosTable({
           percentualTarget: config.target,
           quantoFalta: diferenca,
           necessidadeAporte: valorNecessario,
+          necessidadeSemCaixa: valorNecessario,
           excessoAporte: valorExcedente,
           descricao: config.descricao || '',
         });
@@ -216,6 +236,42 @@ export default function AlocacaoAtivosTable({
   };
 
   const dados = calcularDados();
+
+  // Distribuir o caixa LIVRE pelo alvo (fase 3 do caixa, 21/09/2026): cada
+  // aba recebe, como reserva, uma fatia proporcional ao que falta para ela
+  // chegar no target — nunca mais do que falta. Reservas de emergência e
+  // oportunidade não têm reserva no caixa (CATEGORIA_TO_CAIXA_ABA = null).
+  const necessidadesPorAba: Partial<Record<CaixaAbaKey, number>> = {};
+  const categoriaPorAba: Partial<Record<CaixaAbaKey, AlocacaoAtivo>> = {};
+  const semReservaComFalta: AlocacaoAtivo[] = [];
+  for (const ativo of dados) {
+    if (ativo.necessidadeSemCaixa <= 0) continue;
+    const aba = CATEGORIA_TO_CAIXA_ABA[ativo.categoria as CategoriaCarteira] ?? null;
+    if (aba) {
+      necessidadesPorAba[aba] = ativo.necessidadeSemCaixa;
+      categoriaPorAba[aba] = ativo;
+    } else {
+      semReservaComFalta.push(ativo);
+    }
+  }
+  const planoDistribuicao = planejarDistribuicao(caixaParaInvestir, necessidadesPorAba);
+  const podeDistribuir = !!onDistribuirCaixa && planoDistribuicao.distribuido > 0;
+
+  const handleConfirmarDistribuicao = async () => {
+    if (!onDistribuirCaixa) return;
+    setDistribuindo(true);
+    setErroDistribuicao(null);
+    const result = await onDistribuirCaixa(planoDistribuicao.porAba);
+    setDistribuindo(false);
+    if (result === true) {
+      setDistribuicaoAberta(false);
+      setSuccessMessage('Caixa livre distribuído entre as reservas das classes.');
+      setShowSuccessAlert(true);
+      setTimeout(() => setShowSuccessAlert(false), 3000);
+    } else {
+      setErroDistribuicao(result.message);
+    }
+  };
   const totalPercentualTarget = dados
     .filter((ativo) => ativo.categoria !== 'imoveisBens' && ativo.categoria !== 'reservaEmergencia')
     .reduce((sum, ativo) => sum + ativo.percentualTarget, 0);
@@ -247,6 +303,7 @@ export default function AlocacaoAtivosTable({
   const handleSaveConfigurations = async () => {
     const success = await saveChanges();
     if (success) {
+      setSuccessMessage('Configurações salvas com sucesso!');
       setShowSuccessAlert(true);
       setTimeout(() => setShowSuccessAlert(false), 3000);
     }
@@ -279,7 +336,7 @@ export default function AlocacaoAtivosTable({
       {/* Alerts */}
       {showSuccessAlert && (
         <div className="mb-4">
-          <Alert variant="success" title="Sucesso" message="Configurações salvas com sucesso!" />
+          <Alert variant="success" title="Sucesso" message={successMessage} />
         </div>
       )}
       {configError && (
@@ -540,7 +597,20 @@ export default function AlocacaoAtivosTable({
         </Table>
       </div>
 
-      <div className="flex justify-end mt-4">
+      <div className="flex flex-wrap items-center justify-end gap-2 mt-4">
+        {podeDistribuir && (
+          <button
+            type="button"
+            onClick={() => {
+              setErroDistribuicao(null);
+              setDistribuicaoAberta(true);
+            }}
+            className="px-3 py-2 border border-brand-500 text-brand-500 text-xs rounded-lg hover:bg-brand-50 dark:text-brand-400 dark:border-brand-400 dark:hover:bg-brand-500/10 transition-colors"
+            title="Reserva o caixa livre para as classes que estão abaixo do target"
+          >
+            Distribuir caixa livre ({formatarMoeda(caixaParaInvestir)})
+          </button>
+        )}
         <button
           onClick={handleSaveConfigurations}
           className="px-3 py-2 bg-brand-500 text-white text-xs rounded-lg hover:bg-brand-600 transition-colors"
@@ -548,6 +618,107 @@ export default function AlocacaoAtivosTable({
           Salvar Configurações
         </button>
       </div>
+
+      <Modal
+        isOpen={distribuicaoAberta}
+        onClose={() => !distribuindo && setDistribuicaoAberta(false)}
+        className="max-w-lg m-4"
+      >
+        <div className="p-6">
+          <h3 className="pr-10 text-lg font-semibold text-gray-900 dark:text-white">
+            Distribuir caixa livre
+          </h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Os {formatarMoeda(caixaParaInvestir)} livres viram reserva das classes abaixo do target,
+            na proporção do que falta para cada uma. O total do caixa não muda.
+          </p>
+
+          <div className={`${TABLE_STYLES.wrapper} mt-4`}>
+            <Table className={TABLE_STYLES.table}>
+              <TableHeader>
+                <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-left`}>
+                    Classe
+                  </TableCell>
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
+                    Falta p/ o target
+                  </TableCell>
+                  <TableCell isHeader className={`${TABLE_STYLES.compact.th} text-right`}>
+                    Vai reservar
+                  </TableCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(Object.keys(planoDistribuicao.porAba) as CaixaAbaKey[]).map((aba) => (
+                  <TableRow key={aba} className={TABLE_STYLES.row}>
+                    <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap`}>
+                      {categoriaPorAba[aba]?.classeAtivo ?? CAIXA_ABAS[aba].label}
+                    </TableCell>
+                    <TableCell
+                      className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono`}
+                    >
+                      {formatarMoeda(necessidadesPorAba[aba] ?? 0)}
+                    </TableCell>
+                    <TableCell
+                      className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono font-medium`}
+                    >
+                      {formatarMoeda(planoDistribuicao.porAba[aba] ?? 0)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className={TABLE_STYLES.totalRow}>
+                  <TableCell className={`${TABLE_STYLES.compact.td} whitespace-nowrap`}>
+                    Continua livre
+                  </TableCell>
+                  <TableCell className={TABLE_STYLES.compact.td} />
+                  <TableCell
+                    className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono`}
+                  >
+                    {formatarMoeda(planoDistribuicao.sobra)}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+
+          {semReservaComFalta.length > 0 && (
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+              {semReservaComFalta.map((a) => a.classeAtivo).join(' e ')}{' '}
+              {semReservaComFalta.length > 1 ? 'não têm' : 'não tem'} reserva no caixa e{' '}
+              {semReservaComFalta.length > 1 ? 'ficam' : 'fica'} de fora da distribuição.
+            </p>
+          )}
+
+          {erroDistribuicao && (
+            <div className="mt-4">
+              <Alert
+                variant="error"
+                title="Não foi possível distribuir"
+                message={erroDistribuicao}
+              />
+            </div>
+          )}
+
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setDistribuicaoAberta(false)}
+              disabled={distribuindo}
+              className="px-3 py-2 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmarDistribuicao}
+              disabled={distribuindo}
+              className="px-3 py-2 bg-brand-500 text-white text-xs rounded-lg hover:bg-brand-600 transition-colors disabled:opacity-50"
+            >
+              {distribuindo ? 'Distribuindo...' : 'Confirmar distribuição'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </ComponentCard>
   );
 }
