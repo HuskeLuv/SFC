@@ -21,7 +21,13 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { validationError } from '@/utils/validation-schemas';
 import { logSensitiveEndpointAccess } from '@/services/impersonationLogger';
-import { complete, LlmError } from '@/services/assistente/llm';
+import {
+  complete,
+  LlmError,
+  somarRespostas,
+  type LlmMessage,
+  type LlmResponse,
+} from '@/services/assistente/llm';
 import { buildContextoUsuario } from '@/services/assistente/contexto';
 import {
   MAX_OUTPUT_TOKENS,
@@ -32,6 +38,12 @@ import {
   buildSystemParts,
 } from '@/services/assistente/prompt';
 import { classificarIntencao, guardarTextoDaIntencao } from '@/services/assistente/intencao';
+import {
+  contextoRecortado,
+  resultadoConsulta,
+  secoesDaIntencao,
+  TOOL_CONSULTAR_DADOS,
+} from '@/services/assistente/secoes';
 import { assistenteHabilitado, registrarMensagem, usoMensal } from '@/services/assistente/limite';
 import {
   MAX_LANCAMENTOS_POR_MENSAGEM,
@@ -47,6 +59,9 @@ import {
   montarPropostaEvento,
   type PropostaEvento,
 } from '@/services/assistente/evento';
+
+/** Rodadas de consultar_dados por mensagem (cada uma é uma chamada a mais ao modelo). */
+const MAX_RODADAS_CONSULTA = 2;
 
 const mensagemSchema = z.object({
   mensagem: z.string().trim().min(1).max(1000),
@@ -155,23 +170,63 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     textoUsuario: guardarTextoDaIntencao(intencao) ? mensagem : null,
   };
 
-  let res;
+  // Dados da conta SOB DEMANDA (21/09/2026): núcleo + seções da intenção desta
+  // mensagem e das duas anteriores (perguntas de continuação); o resto o
+  // modelo busca com consultar_dados. Ver services/assistente/secoes.ts.
+  const contextoCompleto = JSON.parse(contexto) as Record<string, unknown>;
+  const intencoesDaConversa = [
+    intencao,
+    ...historico
+      .filter((m) => m.role === 'user')
+      .slice(-2)
+      .map((m) => classificarIntencao(m.content)),
+  ];
+  const recorte = contextoRecortado(contextoCompleto, secoesDaIntencao(intencoesDaConversa));
+  const tools = [
+    TOOL_CONSULTAR_DADOS,
+    // Consultor agindo pelo cliente não propõe escrita (decisão Fase 0).
+    ...(viaConsultant ? [] : [TOOL_PROPOR_LANCAMENTO, TOOL_PROPOR_EVENTO]),
+  ];
+  let mensagens: LlmMessage[] = [
+    ...historico.slice(-MAX_TROCAS_HISTORICO * 2).map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
+    { role: 'user' as const, content: mensagem },
+  ];
+
+  let res: LlmResponse;
   try {
-    res = await complete(MODELO_ASSISTENTE, {
-      ...buildSystemParts(contexto),
-      messages: [
-        ...historico.slice(-MAX_TROCAS_HISTORICO * 2).map((m) => ({
-          role: m.role,
-          content: m.content,
+    const respostas: LlmResponse[] = [];
+    for (let rodada = 0; ; rodada++) {
+      const r = await complete(MODELO_ASSISTENTE, {
+        ...buildSystemParts(JSON.stringify(recorte)),
+        // O recorte muda a cada pergunta: gravar no cache seria pagar à toa.
+        cacheSystemContext: false,
+        messages: mensagens,
+        tools,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        reasoning: 'none',
+        cacheKey: 'assistente-v7',
+      });
+      respostas.push(r);
+      const consultas = r.toolCalls.filter((c) => c.name === TOOL_CONSULTAR_DADOS.name);
+      if (consultas.length === 0 || rodada >= MAX_RODADAS_CONSULTA) break;
+      mensagens = [
+        ...mensagens,
+        { role: 'assistant', content: r.text, toolCalls: r.toolCalls },
+        ...r.toolCalls.map((c) => ({
+          role: 'tool' as const,
+          toolCallId: c.id,
+          name: c.name,
+          content:
+            c.name === TOOL_CONSULTAR_DADOS.name
+              ? resultadoConsulta(contextoCompleto, c.input)
+              : JSON.stringify({ aviso: 'Chame de novo depois de ler os dados.' }),
         })),
-        { role: 'user' as const, content: mensagem },
-      ],
-      // Consultor agindo pelo cliente não propõe escrita (decisão Fase 0).
-      tools: viaConsultant ? [] : [TOOL_PROPOR_LANCAMENTO, TOOL_PROPOR_EVENTO],
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-      reasoning: 'none',
-      cacheKey: 'assistente-v6',
-    });
+      ];
+    }
+    res = somarRespostas(respostas);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     await registrarMensagem({
@@ -259,7 +314,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const cortada =
     res.stopReason === 'max_tokens' ||
-    res.toolCalls.length > chamadas.length + chamadasEvento.length;
+    res.toolCalls.filter((c) => c.name !== TOOL_CONSULTAR_DADOS.name).length >
+      chamadas.length + chamadasEvento.length;
 
   if (propostas.length === 0 && eventos.length === 0) {
     const unica = chamadas.length + chamadasEvento.length === 1;
