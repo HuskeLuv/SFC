@@ -92,6 +92,15 @@ export function slim(obj: unknown, keep?: string[]): Json {
   return out;
 }
 
+/** IR do resgate hoje: alíquota em % (o round de 2 casas fazia 0,175 virar 0,18). */
+function compactIrResgate(ir: Json): Json {
+  const { aliquota, ...resto } = ir;
+  return {
+    ...slim(resto),
+    ...(typeof aliquota === 'number' ? { aliquotaPercentual: round(aliquota * 100) } : {}),
+  };
+}
+
 export interface CashGroupLike {
   id?: string;
   name: string;
@@ -254,6 +263,27 @@ export function resumirMes(groups: CashGroupLike[], mesIndex: number): Json {
   };
 }
 
+/**
+ * Entradas, despesas e sobra de cada mês do ano até o mês atual, e o
+ * acumulado. O modelo errava somando nove meses de cabeça ("quanto ganhei e
+ * gastei este ano": 1% a 7% de erro, 21/09/2026) — agora o número vem pronto.
+ */
+export function resumirAno(groups: CashGroupLike[], mesAtualIndex: number): Json {
+  const porMes: Json = {};
+  let entradas = 0;
+  let despesas = 0;
+  for (let m = 0; m <= mesAtualIndex; m++) {
+    const r = resumirMes(groups, m) as { entradas: number; despesas: number; sobra: number };
+    porMes[MESES_LONGOS[m]] = { entradas: r.entradas, despesas: r.despesas, sobra: r.sobra };
+    entradas = round(entradas + r.entradas);
+    despesas = round(despesas + r.despesas);
+  }
+  return {
+    acumuladoAteMesAtual: { entradas, despesas, sobra: round(entradas - despesas) },
+    porMes,
+  };
+}
+
 interface Secao {
   nome?: string;
   tipo?: string;
@@ -293,7 +323,15 @@ export function compactClasse(d: CarteiraClasseLike | null | undefined): Json | 
       // Ativos PLANEJADOS (sem posição) vêm nas rotas das abas como linha
       // zerada; aqui saem das posições (o modelo os lia como carteira) e
       // entram só em `carteira.ativosPlanejadosSemPosicao`.
-      ativos: (s.ativos ?? []).filter((a) => !a.planejado).map((a) => slim(a, ATIVO_KEEP)),
+      ativos: (s.ativos ?? [])
+        .filter((a) => !a.planejado)
+        .map((a) => ({
+          ...slim(a, ATIVO_KEEP),
+          // Renda fixa: IR/IOF se resgatasse HOJE (dias, alíquota da tabela
+          // regressiva, valor líquido), calculado pelo app. Sem isso o modelo
+          // chutava o prazo da aplicação (21/09/2026).
+          ...(a.ir && typeof a.ir === 'object' ? { ir: compactIrResgate(a.ir as Json) } : {}),
+        })),
     }))
     .filter((s) => s.ativos.length > 0);
   if (secoes.length === 0) return null;
@@ -722,6 +760,8 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
     // Retrato do mês atual: total por grupo de despesa, entradas, despesas e sobra.
     // Vem ANTES do fluxo detalhado para o modelo achar primeiro o número pronto.
     mesAtualResumo: raw.cashflow ? resumirMes(raw.cashflow.groups, hoje.getMonth()) : null,
+    // Janeiro até o mês atual: por mês e acumulado ("quanto ganhei/gastei este ano").
+    anoResumo: raw.cashflow ? resumirAno(raw.cashflow.groups, hoje.getMonth()) : null,
     // Só linhas com valor no ano (leitura), com o total de cada grupo por mês.
     // O catálogo completo vai em linhasDoFluxo.
     fluxoDeCaixa: raw.cashflow ? compactCashflow(raw.cashflow.groups) : null,
