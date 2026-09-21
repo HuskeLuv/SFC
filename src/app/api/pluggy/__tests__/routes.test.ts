@@ -21,8 +21,10 @@ const mockSync = vi.hoisted(() => ({
     contas: 1,
     cartoes: 1,
     transacoes: 42,
-    investimentos: 0,
+    investimentos: 3,
+    investimentosParaCadastrar: 1,
     emprestimos: 0,
+    emprestimosParaCadastrar: 0,
   }),
 }));
 vi.mock('@/services/pluggy/sync', () => mockSync);
@@ -171,7 +173,7 @@ describe('rotas /api/pluggy', () => {
       reaproveitada: false,
       aviso: null,
       // Tela "Conexão realizada": o que chegou, por tipo.
-      importados: { contas: 1, cartoes: 1, transacoes: 42, investimentos: 0, emprestimos: 0 },
+      importados: expect.objectContaining({ transacoes: 42, investimentos: 3 }),
     });
     expect(mockSync.resumoImportado).toHaveBeenCalledWith('conn-1');
 

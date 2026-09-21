@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TEXTO_CONSENTIMENTO_ATUAL } from '@/lib/openFinanceConsentimento';
 import Button from '@/components/ui/button/Button';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -166,6 +166,16 @@ export default function ConexoesBancariasRoot() {
     },
     [excluir, contaExtrato],
   );
+
+  // Vindo do card da Carteira/Fluxo (?conectar=1): abre a jornada uma vez e limpa a URL.
+  useEffect(() => {
+    if (isLoading || isError) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('conectar') !== '1') return;
+    url.searchParams.delete('conectar');
+    window.history.replaceState(null, '', url.toString());
+    abrirJornada();
+  }, [isLoading, isError, abrirJornada]);
 
   if (isLoading) return <LoadingSpinner size="lg" text="Carregando conexões..." />;
 

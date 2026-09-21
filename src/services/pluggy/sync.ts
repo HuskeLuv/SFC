@@ -585,26 +585,54 @@ export async function excluirConexao(connectionId: string, userId: string) {
   await prisma.bankConnection.delete({ where: { id: connectionId } });
 }
 
-/** O que a conexão trouxe (tela "Conexão realizada"): quantidades por tipo de dado. */
+/**
+ * O que a conexão trouxe (tela "Conexão realizada"): quantidades por tipo de
+ * dado. Investimentos e empréstimos entram sozinhos na Carteira e em Dívidas
+ * (importarCarteira.ts); o que o importador não mapeia fica "para cadastrar".
+ */
 export interface ResumoImportado {
   contas: number;
   cartoes: number;
   transacoes: number;
+  /** Já na Carteira (importados ou vinculados a uma posição que existia). */
   investimentos: number;
+  investimentosParaCadastrar: number;
+  /** Já em Dívidas. */
   emprestimos: number;
+  emprestimosParaCadastrar: number;
 }
 
+const NA_CARTEIRA = { in: ['importado', 'vinculado'] };
+
 export async function resumoImportado(connectionId: string): Promise<ResumoImportado> {
-  const [contas, cartoes, transacoes, investimentos, emprestimos] = await Promise.all([
+  const [
+    contas,
+    cartoes,
+    transacoes,
+    investimentos,
+    investimentosParaCadastrar,
+    emprestimos,
+    emprestimosParaCadastrar,
+  ] = await Promise.all([
     prisma.bankAccount.count({ where: { connectionId, type: 'BANK', ativa: true } }),
     prisma.bankAccount.count({ where: { connectionId, type: 'CREDIT', ativa: true } }),
     prisma.bankTransaction.count({
       where: { account: { connectionId }, deletedAt: null, duplicadaDe: null },
     }),
-    prisma.bankInvestment.count({ where: { connectionId } }),
-    prisma.bankLoan.count({ where: { connectionId } }),
+    prisma.bankInvestment.count({ where: { connectionId, importStatus: NA_CARTEIRA } }),
+    prisma.bankInvestment.count({ where: { connectionId, importStatus: 'sem-suporte' } }),
+    prisma.bankLoan.count({ where: { connectionId, importStatus: NA_CARTEIRA } }),
+    prisma.bankLoan.count({ where: { connectionId, importStatus: 'sem-suporte' } }),
   ]);
-  return { contas, cartoes, transacoes, investimentos, emprestimos };
+  return {
+    contas,
+    cartoes,
+    transacoes,
+    investimentos,
+    investimentosParaCadastrar,
+    emprestimos,
+    emprestimosParaCadastrar,
+  };
 }
 
 // ---------------------------------------------------------------------------
