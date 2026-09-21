@@ -16,6 +16,7 @@ import {
   familiaProvento,
   listarLinhasEditaveis,
   montarContexto,
+  resumirAno,
   resumirMes,
   slim,
 } from '../contexto';
@@ -171,6 +172,17 @@ describe('resumirMes', () => {
     });
   });
 
+  it('resumirAno: por mês até o mês atual e acumulado já somado', () => {
+    const ano = resumirAno(groups, 8) as {
+      acumuladoAteMesAtual: unknown;
+      porMes: Record<string, unknown>;
+    };
+    expect(ano.acumuladoAteMesAtual).toEqual({ entradas: 9000, despesas: 1510, sobra: 7490 });
+    expect(Object.keys(ano.porMes)).toHaveLength(9);
+    expect(ano.porMes.agosto).toEqual({ entradas: 0, despesas: 200, sobra: -200 });
+    expect(ano.porMes.setembro).toEqual({ entradas: 9000, despesas: 1310, sobra: 7690 });
+  });
+
   it('mês sem lançamentos fica zerado, sem grupos', () => {
     expect(resumirMes(groups, 0)).toEqual({
       mes: 'janeiro',
@@ -227,7 +239,15 @@ describe('compactClasse / classesComPosicao', () => {
         {
           nome: 'pos-fixada',
           totalValorAtualizado: 12784.444,
-          ativos: [{ id: 'a', nome: 'DEB', valorAtualizado: 12784.44, ir: { x: 1 }, foo: 'bar' }],
+          ativos: [
+            {
+              id: 'a',
+              nome: 'DEB',
+              valorAtualizado: 12784.44,
+              ir: { diasDecorridos: 619, aliquota: 0.175, ir: 496.15, detalhe: { x: 1 } },
+              foo: 'bar',
+            },
+          ],
         },
       ],
       totalGeral: { valorAplicado: 10000 },
@@ -238,7 +258,14 @@ describe('compactClasse / classesComPosicao', () => {
         {
           secao: 'pos-fixada',
           total: 12784.44,
-          ativos: [{ nome: 'DEB', valorAtualizado: 12784.44 }],
+          // IR do resgate hoje fica (alíquota em %, sem objetos aninhados).
+          ativos: [
+            {
+              nome: 'DEB',
+              valorAtualizado: 12784.44,
+              ir: { diasDecorridos: 619, ir: 496.15, aliquotaPercentual: 17.5 },
+            },
+          ],
         },
       ],
       totalGeral: { valorAplicado: 10000 },

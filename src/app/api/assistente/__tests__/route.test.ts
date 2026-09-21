@@ -136,13 +136,17 @@ describe('POST /api/assistente', () => {
     });
     const req = mocks.complete.mock.calls[0][1];
     expect(mocks.complete.mock.calls[0][0]).toBe('claude-haiku-4-5');
-    expect(req.system).toContain('{"ano":2026}');
+    // Dados da conta à parte das instruções, sem cache (recorte muda a cada pergunta).
+    expect(req.system).not.toContain('"ano":2026');
+    expect(req.systemContext).toContain('"ano":2026');
+    expect(req.cacheSystemContext).toBe(false);
     expect(req.messages).toEqual([
       { role: 'user', content: 'oi' },
       { role: 'assistant', content: 'olá' },
       { role: 'user', content: 'Quanto gastei este mês?' },
     ]);
     expect(req.tools.map((t: { name: string }) => t.name)).toEqual([
+      'consultar_dados',
       'propor_lancamento',
       'propor_evento',
     ]);
@@ -166,10 +170,78 @@ describe('POST /api/assistente', () => {
     });
     mocks.complete.mockResolvedValue(llmText('ok'));
     await POST(post({ mensagem: 'oi' }));
-    expect(mocks.complete.mock.calls[0][1].tools).toEqual([]);
+    // Só leitura: consulta os dados, não propõe escrita.
+    expect(mocks.complete.mock.calls[0][1].tools.map((t: { name: string }) => t.name)).toEqual([
+      'consultar_dados',
+    ]);
     expect(mocks.registrarMensagem).toHaveBeenCalledWith(
       expect.objectContaining({ viaConsultant: true, actorId: 'c1' }),
     );
+  });
+
+  describe('dados da conta sob demanda', () => {
+    const contexto = JSON.stringify({
+      hoje: '2026-09-21',
+      ano: 2026,
+      carteira: { saldoBruto: 1000, posicoes: { acoes: { totalGeral: { valor: 1000 } } } },
+      mesAtualResumo: { entradas: 10, despesas: 5 },
+      dividas: [{ nome: 'Carro', saldoDevedor: 30000 }],
+      objetivos: [{ nome: 'Viagem' }],
+    });
+    const consulta = (secoes: string[], id = 't1') =>
+      llmText('', {
+        stopReason: 'tool_use',
+        toolCalls: [{ id, name: 'consultar_dados', input: { secoes } }],
+      });
+
+    beforeEach(() => mocks.buildContextoUsuario.mockResolvedValue(contexto));
+
+    it('manda o núcleo + seções da intenção e lista o resto em secoesDisponiveis', async () => {
+      mocks.complete.mockResolvedValue(llmText('ok'));
+      await POST(post({ mensagem: 'Tenho alguma dívida?' }));
+      const ctx = JSON.parse(
+        mocks.complete.mock.calls[0][1].systemContext.replace('DADOS DO USUÁRIO (JSON):\n', ''),
+      );
+      expect(ctx.dividas).toEqual([{ nome: 'Carro', saldoDevedor: 30000 }]);
+      expect(ctx.carteira).toEqual({ saldoBruto: 1000 });
+      expect(ctx.objetivos).toBeUndefined();
+      expect(Object.keys(ctx.secoesDisponiveis)).toEqual(['posicoes', 'objetivos']);
+    });
+
+    it('consultar_dados: devolve as seções e chama o modelo de novo, somando o custo', async () => {
+      mocks.complete
+        .mockResolvedValueOnce(consulta(['objetivos']))
+        .mockResolvedValueOnce(llmText('Você tem o objetivo Viagem.'));
+      const res = await POST(post({ mensagem: 'e meus sonhos?' }));
+      expect(await res.json()).toMatchObject({ resposta: 'Você tem o objetivo Viagem.' });
+      expect(mocks.complete).toHaveBeenCalledTimes(2);
+      const segunda = mocks.complete.mock.calls[1][1];
+      expect(segunda.messages.slice(-2)).toEqual([
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [{ id: 't1', name: 'consultar_dados', input: { secoes: ['objetivos'] } }],
+        },
+        {
+          role: 'tool',
+          toolCallId: 't1',
+          name: 'consultar_dados',
+          content: JSON.stringify({ objetivos: [{ nome: 'Viagem' }] }),
+        },
+      ]);
+      const registro = mocks.registrarMensagem.mock.calls[0][0];
+      expect(registro.resposta.costBrl).toBeCloseTo(0.01);
+      expect(registro.resposta.usage.outputTokens).toBe(40);
+      expect(registro).toMatchObject({ motor: 'ia', propostaGerada: false });
+    });
+
+    it('para depois de 2 rodadas de consulta', async () => {
+      mocks.complete.mockResolvedValue(consulta(['posicoes']));
+      const res = await POST(post({ mensagem: 'e aí?' }));
+      expect(res.status).toBe(200);
+      expect(mocks.complete).toHaveBeenCalledTimes(3);
+      expect((await res.json()).resposta).toBe('Não entendi. Pode reformular a pergunta?');
+    });
   });
 
   it('chamada de ferramenta vira proposta assinada com cartão', async () => {

@@ -59,6 +59,12 @@ export interface LlmRequest {
    * Nos outros fornecedores é concatenada ao `system`.
    */
   systemContext?: string;
+  /**
+   * Cachear também `systemContext`? Padrão: true. Com dados recortados por
+   * pergunta (que mudam a cada mensagem) o cache não seria relido — false
+   * evita pagar a gravação (1,25×) à toa.
+   */
+  cacheSystemContext?: boolean;
   messages: LlmMessage[];
   tools?: LlmTool[];
   /** Teto de tokens de saída. Chat: 300–500. */
@@ -122,4 +128,27 @@ export class LlmError extends Error {
 /** Sistema inteiro num texto só, para fornecedores sem cache por bloco. */
 export function juntarSistema(request: Pick<LlmRequest, 'system' | 'systemContext'>): string {
   return request.systemContext ? `${request.system}\n\n${request.systemContext}` : request.system;
+}
+
+/**
+ * Junta as respostas de várias chamadas de uma mesma mensagem (ex.: rodada
+ * de consultar_dados): texto/ferramentas/parada da ÚLTIMA; uso, custo e
+ * latência somados.
+ */
+export function somarRespostas(respostas: LlmResponse[]): LlmResponse {
+  const ultima = respostas[respostas.length - 1];
+  const soma = (f: (r: LlmResponse) => number) => respostas.reduce((s, r) => s + f(r), 0);
+  return {
+    ...ultima,
+    usage: {
+      inputTokens: soma((r) => r.usage.inputTokens),
+      cachedInputTokens: soma((r) => r.usage.cachedInputTokens),
+      cacheWriteTokens: soma((r) => r.usage.cacheWriteTokens),
+      outputTokens: soma((r) => r.usage.outputTokens),
+      reasoningTokens: soma((r) => r.usage.reasoningTokens),
+    },
+    costUsd: soma((r) => r.costUsd),
+    costBrl: soma((r) => r.costBrl),
+    latencyMs: soma((r) => r.latencyMs),
+  };
 }

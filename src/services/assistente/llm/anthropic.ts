@@ -87,12 +87,16 @@ export class AnthropicProvider implements LlmProvider {
     // instruções, igual para todos os usuários (cache compartilhado da org);
     // o 2º fecha os dados do usuário. Antes era um bloco só, e cada conversa
     // nova regravava também as instruções (~4,6 mil tokens).
-    const system: Anthropic.TextBlockParam[] = [request.system, request.systemContext]
-      .filter((text): text is string => !!text)
-      .map((text) => ({
+    const blocos: Array<{ text: string | undefined; cachear: boolean }> = [
+      { text: request.system, cachear: cache },
+      { text: request.systemContext, cachear: cache && request.cacheSystemContext !== false },
+    ];
+    const system: Anthropic.TextBlockParam[] = blocos
+      .filter((b): b is { text: string; cachear: boolean } => !!b.text)
+      .map(({ text, cachear }) => ({
         type: 'text' as const,
         text,
-        ...(cache ? { cache_control: { type: 'ephemeral' as const } } : {}),
+        ...(cachear ? { cache_control: { type: 'ephemeral' as const } } : {}),
       }));
 
     const tools: Anthropic.Tool[] | undefined = request.tools?.map((t) => ({
