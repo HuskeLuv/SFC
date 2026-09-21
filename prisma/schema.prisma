@@ -1330,7 +1330,7 @@ model OpenFinanceConsentimento {
   hashTexto       String
   /// Produtos pedidos ao Pluggy nesta autorização (escopo).
   produtos        String[]
-  /// pendente → ativo (conexão criada) → revogado | substituido; pendente sem conexão = não concluído.
+  /// pendente → ativo (conexão criada) → revogado | substituido; nao_concluido = widget fechado/erro.
   status          String    @default("pendente")
   /// true = reconexão de uma conexão existente (renovação do consentimento).
   reconexao       Boolean   @default(false)
@@ -1345,6 +1345,10 @@ model OpenFinanceConsentimento {
   revogadoEm      DateTime?
   /// usuario | substituido | instituicao
   motivoRevogacao String?
+  /// Linha do tempo da etapa externa (eventos do widget Pluggy: banco escolhido,
+  /// consentimento enviado, login concluído, fechou sem concluir, erro). O My
+  /// Finance só vê esses marcos, nunca o conteúdo das telas da Pluggy/banco.
+  eventos         Json      @default("[]")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

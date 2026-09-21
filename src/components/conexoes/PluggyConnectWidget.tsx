@@ -21,6 +21,8 @@ export type PluggyConnectWidgetProps = Pick<
   | 'onSuccess'
   | 'onError'
   | 'onClose'
+  | 'onOpen'
+  | 'onEvent'
 >;
 
 export default function PluggyConnectWidget(props: PluggyConnectWidgetProps) {

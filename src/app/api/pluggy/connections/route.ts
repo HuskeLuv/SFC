@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { prisma } from '@/lib/prisma';
-import { registrarConexao } from '@/services/pluggy/sync';
+import { registrarConexao, resumoImportado } from '@/services/pluggy/sync';
 import {
   exigirConsentimentoPendente,
   vincularConsentimento,
@@ -46,7 +46,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ? `${r.contasRepetidas} ${r.contasRepetidas === 1 ? 'conta já existia' : 'contas já existiam'} em outra conexão e ${r.contasRepetidas === 1 ? 'ficou desativada' : 'ficaram desativadas'} para não duplicar.`
       : null;
   return NextResponse.json(
-    { connection: serializeConnection(r.conexao), reaproveitada: r.reaproveitada, aviso },
+    {
+      connection: serializeConnection(r.conexao),
+      reaproveitada: r.reaproveitada,
+      aviso,
+      // Tela "Conexão realizada": o que chegou, por tipo de dado.
+      importados: await resumoImportado(r.conexao.id),
+    },
     { status: r.reaproveitada ? 200 : 201 },
   );
 });

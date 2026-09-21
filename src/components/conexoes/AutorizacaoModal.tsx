@@ -27,6 +27,21 @@ export const ROTULO_STATUS: Record<string, string> = {
   substituido: 'Substituída por uma nova autorização',
 };
 
+const ROTULO_EVENTO: Record<string, string> = {
+  WIDGET_ABERTO: 'Abriu a janela da Pluggy',
+  SELECTED_INSTITUTION: 'Escolheu a instituição',
+  SUBMITTED_CONSENT: 'Enviou o consentimento',
+  SUBMITTED_LOGIN: 'Enviou o login à instituição',
+  SUBMITTED_MFA: 'Enviou o código de verificação',
+  LOGIN_SUCCESS: 'Login na instituição concluído',
+  LOGIN_MFA_SUCCESS: 'Verificação concluída',
+  LOGIN_STEP_COMPLETED: 'Etapa de login concluída',
+  ITEM_RESPONSE: 'Instituição respondeu',
+  CONCLUIDO: 'Conexão concluída',
+  FECHADO_SEM_CONCLUIR: 'Fechou sem concluir',
+  ERRO: 'Erro na conexão',
+};
+
 export const ROTULO_MOTIVO: Record<string, string> = {
   usuario: 'você desconectou',
   instituicao: 'encerrada pela instituição',
@@ -79,6 +94,25 @@ export default function AutorizacaoModal({
             </ul>
           </dd>
         </dl>
+        {consentimento.eventos.length > 0 ? (
+          <>
+            <h4 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">
+              Etapa na Pluggy e na instituição
+            </h4>
+            <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+              O My Finance não vê essas telas; registra só estes marcos.
+            </p>
+            <ul className="mb-5 space-y-0.5 text-sm text-gray-700 dark:text-gray-300">
+              {consentimento.eventos.map((e, i) => (
+                <li key={`${e.evento}-${i}`}>
+                  <span className="text-gray-500 dark:text-gray-400">{dataHora(e.em)}</span> ·{' '}
+                  {ROTULO_EVENTO[e.evento] ?? e.evento}
+                  {e.instituicao ? `: ${e.instituicao}` : ''}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
         <h4 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">
           Texto que você aceitou
         </h4>

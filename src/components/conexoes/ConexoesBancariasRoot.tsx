@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { TEXTO_CONSENTIMENTO_ATUAL } from '@/lib/openFinanceConsentimento';
 import Button from '@/components/ui/button/Button';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -12,11 +12,14 @@ import {
   useExcluirConexao,
   useRegistrarConexao,
   useRegistrarConsentimento,
+  useRegistrarEventoConsentimento,
   type BankAccountDTO,
   type BankConnectionDTO,
   type ConnectTokenResposta,
   type ConsentimentoDTO,
+  type RegistroResposta,
 } from '@/hooks/useConexoesBancarias';
+import ConexaoRealizadaModal from './ConexaoRealizadaModal';
 import AutorizacaoModal, { dataHora, ROTULO_MOTIVO } from './AutorizacaoModal';
 import ConectarBancoModal from './ConectarBancoModal';
 import CaixaEntrada from './CaixaEntrada';
@@ -38,6 +41,10 @@ export default function ConexoesBancariasRoot() {
   const { data: conexoes, isLoading, isError, error } = useConexoes();
   const { data: consentimentos } = useConsentimentos(!isError);
   const registrarConsentimento = useRegistrarConsentimento();
+  const registrarEvento = useRegistrarEventoConsentimento();
+  // O widget pode avisar "fechou" depois do sucesso: não marcar como não concluído.
+  const concluiuRef = useRef(false);
+  const [realizada, setRealizada] = useState<RegistroResposta | null>(null);
   const connectToken = useConnectToken();
   const registrar = useRegistrarConexao();
   const atualizar = useAtualizarConexao();
@@ -99,6 +106,7 @@ export default function ConexoesBancariasRoot() {
         consentimentoId: jornada.consentimentoId,
         ...(updateItem ? { itemId: updateItem } : {}),
       });
+      concluiuRef.current = false;
       setWidget({ token, updateItem, consentimentoId: jornada.consentimentoId });
       setJornada(null);
     } catch (e) {
@@ -108,21 +116,22 @@ export default function ConexoesBancariasRoot() {
 
   const onSuccess = useCallback(
     async ({ item }: { item: { id: string } }) => {
+      if (!widget) return;
+      concluiuRef.current = true;
+      registrarEvento(widget.consentimentoId, { evento: 'CONCLUIDO' });
       setWidget(null);
       try {
-        if (!widget) return;
         const r = await registrar.mutateAsync({
           itemId: item.id,
           consentimentoId: widget.consentimentoId,
         });
-        setAviso(
-          r.aviso ?? 'Banco conectado. As transações dos últimos 12 meses foram importadas.',
-        );
+        // Tela de retorno: "Conexão realizada. Os seguintes dados serão importados".
+        setRealizada(r);
       } catch (e) {
         setAviso(e instanceof Error ? e.message : 'A conexão foi criada, mas o registro falhou');
       }
     },
-    [registrar, widget],
+    [registrar, registrarEvento, widget],
   );
 
   const onAtualizar = useCallback(
@@ -273,6 +282,15 @@ export default function ConexoesBancariasRoot() {
         />
       ) : null}
 
+      {realizada ? (
+        <ConexaoRealizadaModal
+          conexao={realizada.connection}
+          importados={realizada.importados}
+          aviso={realizada.aviso}
+          onFechar={() => setRealizada(null)}
+        />
+      ) : null}
+
       {autorizacaoAberta ? (
         <AutorizacaoModal
           consentimento={autorizacaoAberta}
@@ -287,11 +305,31 @@ export default function ConexoesBancariasRoot() {
           products={widget.token.products as PluggyConnectWidgetProducts}
           updateItem={widget.updateItem}
           onSuccess={onSuccess}
+          onOpen={() => registrarEvento(widget.consentimentoId, { evento: 'WIDGET_ABERTO' })}
+          // Marcos da etapa Pluggy/instituição (o My Finance não vê as telas, só isto).
+          onEvent={(p) =>
+            registrarEvento(widget.consentimentoId, {
+              evento: p.event,
+              em: new Date(p.timestamp).toISOString(),
+              ...(p.event === 'SELECTED_INSTITUTION' && p.connector
+                ? { instituicao: p.connector.name }
+                : {}),
+            })
+          }
           onError={(e) => {
+            registrarEvento(widget.consentimentoId, {
+              evento: 'ERRO',
+              ...(e?.message ? { detalhe: e.message } : {}),
+            });
             setWidget(null);
             setAviso(e?.message ?? 'O banco não concluiu a conexão. Tente de novo.');
           }}
-          onClose={() => setWidget(null)}
+          onClose={() => {
+            if (!concluiuRef.current) {
+              registrarEvento(widget.consentimentoId, { evento: 'FECHADO_SEM_CONCLUIR' });
+            }
+            setWidget(null);
+          }}
         />
       ) : null}
     </div>

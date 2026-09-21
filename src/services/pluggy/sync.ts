@@ -585,6 +585,28 @@ export async function excluirConexao(connectionId: string, userId: string) {
   await prisma.bankConnection.delete({ where: { id: connectionId } });
 }
 
+/** O que a conexão trouxe (tela "Conexão realizada"): quantidades por tipo de dado. */
+export interface ResumoImportado {
+  contas: number;
+  cartoes: number;
+  transacoes: number;
+  investimentos: number;
+  emprestimos: number;
+}
+
+export async function resumoImportado(connectionId: string): Promise<ResumoImportado> {
+  const [contas, cartoes, transacoes, investimentos, emprestimos] = await Promise.all([
+    prisma.bankAccount.count({ where: { connectionId, type: 'BANK', ativa: true } }),
+    prisma.bankAccount.count({ where: { connectionId, type: 'CREDIT', ativa: true } }),
+    prisma.bankTransaction.count({
+      where: { account: { connectionId }, deletedAt: null, duplicadaDe: null },
+    }),
+    prisma.bankInvestment.count({ where: { connectionId } }),
+    prisma.bankLoan.count({ where: { connectionId } }),
+  ]);
+  return { contas, cartoes, transacoes, investimentos, emprestimos };
+}
+
 // ---------------------------------------------------------------------------
 // Fila de webhooks e reconciliação
 // ---------------------------------------------------------------------------
