@@ -105,6 +105,52 @@ describe('UsarCaixaField', () => {
     expect(texto(screen.getByText(/^Sai /))).toContain('R$ 500,00 do caixa livre');
   });
 
+  it('dólar: sugere a cotação atual e mostra a conversão para reais', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ indicators: { dolar: { price: 5.4 } } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    function HarnessUsd() {
+      const [checked, setChecked] = useState<boolean | undefined>(undefined);
+      const [cotacao, setCotacao] = useState<number | undefined>(undefined);
+      return (
+        <CreditarCaixaField
+          valor={1000}
+          moeda="USD"
+          checked={checked}
+          onChange={setChecked}
+          cotacaoMoeda={cotacao}
+          onCotacaoMoedaChange={setCotacao}
+        />
+      );
+    }
+    withCaixa(<HarnessUsd />, 2000, {});
+    expect(screen.getByLabelText('Devolver ao Caixa para Investir')).toBeChecked();
+    const detalhe = await screen.findByText(/voltam como caixa livre/);
+    expect(texto(detalhe)).toContain('US$ 1.000,00 × R$ 5,40 = R$ 5.400,00');
+    expect(texto(detalhe)).toContain('O caixa total fica em R$ 7.400,00');
+
+    fireEvent.change(screen.getByLabelText('Cotação do dólar no câmbio (R$)'), {
+      target: { value: '5,00' },
+    });
+    expect(texto(screen.getByText(/voltam como caixa livre/))).toContain('= R$ 5.000,00');
+
+    // ponto também é decimal (câmbio não tem milhar)
+    fireEvent.change(screen.getByLabelText('Cotação do dólar no câmbio (R$)'), {
+      target: { value: '5.1234' },
+    });
+    expect(texto(screen.getByText(/voltam como caixa livre/))).toContain(
+      '× R$ 5,1234 = R$ 5.123,40',
+    );
+
+    fireEvent.change(screen.getByLabelText('Cotação do dólar no câmbio (R$)'), {
+      target: { value: '' },
+    });
+    expect(screen.getByText(/Informe a cotação do dólar/)).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
   it('reinvestimento esconde o campo', () => {
     const { container } = withCaixa(
       <UsarCaixaHarness valor={1000} aba="acoes" isReinvestimento />,
@@ -137,10 +183,56 @@ describe('CreditarCaixaField', () => {
     );
   });
 
-  it('moeda estrangeira: só explica, sem opção', () => {
-    render(<Harness moeda="USD" />);
+  it('moeda estrangeira sem câmbio: só explica, sem opção', () => {
+    render(<Harness moeda="EUR" />);
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(screen.getByText(/moeda estrangeira não volta automaticamente/)).toBeInTheDocument();
+  });
+
+  it('dólar: sugere a cotação atual e mostra a conversão para reais', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ indicators: { dolar: { price: 5.4 } } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    function HarnessUsd() {
+      const [checked, setChecked] = useState<boolean | undefined>(undefined);
+      const [cotacao, setCotacao] = useState<number | undefined>(undefined);
+      return (
+        <CreditarCaixaField
+          valor={1000}
+          moeda="USD"
+          checked={checked}
+          onChange={setChecked}
+          cotacaoMoeda={cotacao}
+          onCotacaoMoedaChange={setCotacao}
+        />
+      );
+    }
+    withCaixa(<HarnessUsd />, 2000, {});
+    expect(screen.getByLabelText('Devolver ao Caixa para Investir')).toBeChecked();
+    const detalhe = await screen.findByText(/voltam como caixa livre/);
+    expect(texto(detalhe)).toContain('US$ 1.000,00 × R$ 5,40 = R$ 5.400,00');
+    expect(texto(detalhe)).toContain('O caixa total fica em R$ 7.400,00');
+
+    fireEvent.change(screen.getByLabelText('Cotação do dólar no câmbio (R$)'), {
+      target: { value: '5,00' },
+    });
+    expect(texto(screen.getByText(/voltam como caixa livre/))).toContain('= R$ 5.000,00');
+
+    // ponto também é decimal (câmbio não tem milhar)
+    fireEvent.change(screen.getByLabelText('Cotação do dólar no câmbio (R$)'), {
+      target: { value: '5.1234' },
+    });
+    expect(texto(screen.getByText(/voltam como caixa livre/))).toContain(
+      '× R$ 5,1234 = R$ 5.123,40',
+    );
+
+    fireEvent.change(screen.getByLabelText('Cotação do dólar no câmbio (R$)'), {
+      target: { value: '' },
+    });
+    expect(screen.getByText(/Informe a cotação do dólar/)).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 
   it('reinvestimento esconde o campo', () => {

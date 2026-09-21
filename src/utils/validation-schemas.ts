@@ -133,8 +133,11 @@ export const resgateSchema = z.object({
   // resgate nas linhas automáticas do Fluxo de Caixa (F1.10 generalizado).
   isReinvestimento: z.boolean().optional(),
   // Devolver o valor resgatado ao Caixa para Investir, como livre. Ignorado
-  // quando isReinvestimento ou quando o ativo não é em reais.
+  // quando isReinvestimento ou quando o ativo não é em reais nem em dólar.
   creditarCaixa: z.boolean().optional(),
+  // Ativo em dólar: cotação do câmbio (R$ por US$) para converter o crédito
+  // do caixa. Sem ela, usa a cotação atual do USD-BRL.
+  cotacaoMoeda: z.number().finite().positive().optional(),
 });
 
 // ── Cashflow update (PATCH) schema ────────────────────────────────────

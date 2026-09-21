@@ -52,6 +52,9 @@ vi.mock('@/services/planejamento/carteiraToSonhoRealizado', () => ({
 
 // Caixa para Investir: a regra do débito/crédito tem teste próprio
 // (services/portfolio/__tests__/caixaParaInvestir.test.ts) — aqui só o contrato.
+const mockGetIndicator = vi.hoisted(() => vi.fn());
+vi.mock('@/services/market/marketIndicatorService', () => ({ getIndicator: mockGetIndicator }));
+
 const mockCaixa = vi.hoisted(() => ({
   debitarCaixa: vi.fn(),
   creditarCaixa: vi.fn(),
@@ -700,14 +703,51 @@ describe('POST /api/carteira/resgate', () => {
       );
     });
 
-    it('ativo em moeda estrangeira não credita (payload sem câmbio)', async () => {
-      mockPrisma.portfolio.findFirst.mockResolvedValue({
-        ...posicao,
-        asset: { ...posicao.asset, currency: 'USD' },
-      });
+    const emMoeda = (currency: string) => ({
+      ...posicao,
+      asset: { ...posicao.asset, currency },
+    });
+
+    it('ativo em dólar credita em reais pela cotação informada no resgate', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(emMoeda('USD'));
+      const response = await POST(
+        createRequest({ ...body, creditarCaixa: true, cotacaoMoeda: 5.4 }),
+      );
+      expect(response.status).toBe(201);
+      expect(mockCaixa.creditarCaixa).toHaveBeenCalledWith(mockPrisma, 'user-123', 5400);
+      expect(mockGetIndicator).not.toHaveBeenCalled();
+    });
+
+    it('ativo em dólar sem cotação no payload usa a cotação atual do USD-BRL', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(emMoeda('USD'));
+      mockGetIndicator.mockResolvedValueOnce({ price: 5.25 });
+      const response = await POST(createRequest({ ...body, creditarCaixa: true }));
+      expect(response.status).toBe(201);
+      expect(mockGetIndicator).toHaveBeenCalledWith('USD-BRL', { useBrapiFallback: true });
+      expect(mockCaixa.creditarCaixa).toHaveBeenCalledWith(mockPrisma, 'user-123', 5250);
+    });
+
+    it('ativo em dólar sem cotação disponível não credita (resgate segue)', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(emMoeda('USD'));
+      mockGetIndicator.mockRejectedValueOnce(new Error('brapi fora'));
       const response = await POST(createRequest({ ...body, creditarCaixa: true }));
       expect(response.status).toBe(201);
       expect(mockCaixa.creditarCaixa).not.toHaveBeenCalled();
+    });
+
+    it('outra moeda estrangeira não credita', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(emMoeda('EUR'));
+      const response = await POST(createRequest({ ...body, creditarCaixa: true, cotacaoMoeda: 6 }));
+      expect(response.status).toBe(201);
+      expect(mockCaixa.creditarCaixa).not.toHaveBeenCalled();
+      expect(mockGetIndicator).not.toHaveBeenCalled();
+    });
+
+    it('sem creditarCaixa não busca cotação', async () => {
+      mockPrisma.portfolio.findFirst.mockResolvedValue(emMoeda('USD'));
+      const response = await POST(createRequest(body));
+      expect(response.status).toBe(201);
+      expect(mockGetIndicator).not.toHaveBeenCalled();
     });
 
     it('reinvestimento não credita', async () => {
