@@ -11,7 +11,8 @@ const mockPrisma = vi.hoisted(() => {
     tx,
     asset: { findFirst: vi.fn(), updateMany: vi.fn() },
     portfolio: { findFirst: vi.fn() },
-    bankInvestment: { update: vi.fn(), findMany: vi.fn() },
+    bankInvestment: { update: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    pluggyImportacaoOrigem: { findUnique: vi.fn(), upsert: vi.fn() },
     bankLoan: { update: vi.fn(), findMany: vi.fn() },
     divida: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     dividaPagamento: { createMany: vi.fn() },
@@ -31,6 +32,8 @@ vi.mock('@/lib/simpleTtlCache', () => ({ deleteTtlCacheKeyPrefix: vi.fn() }));
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 import {
+  chaveEmprestimo,
+  chaveInvestimento,
   importarEmprestimo,
   importarInvestimento,
   indexadorRendaFixa,
@@ -84,6 +87,9 @@ beforeEach(() => {
   mockPrisma.tx.portfolio.create.mockResolvedValue({ id: 'port-1' });
   mockPrisma.tx.portfolio.findFirst.mockResolvedValue(null);
   mockPrisma.tx.fixedIncomeAsset.create.mockResolvedValue({ id: 'fi-1' });
+  mockPrisma.pluggyImportacaoOrigem.findUnique.mockResolvedValue(null);
+  mockPrisma.pluggyImportacaoOrigem.upsert.mockResolvedValue({});
+  mockPrisma.bankInvestment.count.mockResolvedValue(0);
 });
 
 describe('mapeamentos', () => {
@@ -444,5 +450,152 @@ describe('importarEmprestimo', () => {
     expect(
       await importarEmprestimo({ ...loan, contractAmount: null, outstanding: null }, null),
     ).toBe('sem-suporte');
+  });
+});
+
+describe('reconexão não duplica (origem estável)', () => {
+  const cdb = {
+    ...base,
+    type: 'FIXED_INCOME',
+    subtype: 'CDB',
+    name: 'CDB Banco X',
+    code: '0001-02',
+    rate: 110,
+    rateType: 'CDI',
+  };
+  const origemCdb = {
+    id: 'o1',
+    userId: 'user-1',
+    chave: 'x',
+    tipo: 'investimento',
+    assetId: 'asset-antigo',
+    portfolioId: 'port-antigo',
+    fixedIncomeAssetId: 'fi-antigo',
+    dividaId: null,
+  };
+
+  it('a chave ignora id do Pluggy e saldo; muda com instituição e datas', () => {
+    const k = chaveInvestimento(cdb, 7);
+    expect(
+      chaveInvestimento({ ...cdb, providerInvestmentId: 'outro-id', balance: 9999 } as never, 7),
+    ).toBe(k);
+    expect(chaveInvestimento(cdb, 8)).not.toBe(k);
+    expect(chaveInvestimento({ ...cdb, dueDate: new Date('2029-01-10T00:00:00Z') }, 7)).not.toBe(k);
+    expect(chaveInvestimento({ ...cdb, name: 'cdb banco x' }, 7)).toBe(k);
+  });
+
+  it('primeira importação grava a origem', async () => {
+    expect(await importarInvestimento(cdb, 7)).toBe('importado');
+    expect(mockPrisma.pluggyImportacaoOrigem.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_chave: { userId: 'user-1', chave: chaveInvestimento(cdb, 7) } },
+        create: expect.objectContaining({
+          tipo: 'investimento',
+          assetId: 'asset-PLUGGY-RF-44FECCAF',
+          portfolioId: 'port-1',
+          fixedIncomeAssetId: 'fi-1',
+        }),
+      }),
+    );
+  });
+
+  it('reconexão: posição da origem ainda existe → vincula, sem criar nada', async () => {
+    mockPrisma.pluggyImportacaoOrigem.findUnique.mockResolvedValue(origemCdb);
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-antigo' });
+    expect(await importarInvestimento({ ...cdb, id: 'bi-novo' }, 7)).toBe('vinculado');
+    expect(mockPrisma.tx.asset.create).not.toHaveBeenCalled();
+    expect(mockPrisma.tx.stockTransaction.create).not.toHaveBeenCalled();
+    expect(mockPrisma.bankInvestment.update).toHaveBeenCalledWith({
+      where: { id: 'bi-novo' },
+      data: expect.objectContaining({
+        importStatus: 'vinculado',
+        assetId: 'asset-antigo',
+        portfolioId: 'port-antigo',
+        fixedIncomeAssetId: 'fi-antigo',
+      }),
+    });
+  });
+
+  it('usuário apagou a posição: importa de novo', async () => {
+    mockPrisma.pluggyImportacaoOrigem.findUnique.mockResolvedValue(origemCdb);
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    expect(await importarInvestimento(cdb, 7)).toBe('importado');
+    expect(mockPrisma.tx.asset.create).toHaveBeenCalled();
+  });
+
+  it('duas aplicações idênticas no mesmo banco continuam sendo duas', async () => {
+    mockPrisma.pluggyImportacaoOrigem.findUnique.mockResolvedValue(origemCdb);
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-antigo' });
+    mockPrisma.bankInvestment.count.mockResolvedValue(1); // a gêmea já está ligada nela
+    expect(await importarInvestimento(cdb, 7)).toBe('importado');
+    expect(mockPrisma.tx.asset.create).toHaveBeenCalled();
+  });
+
+  it('fundo sem catálogo também reusa a origem', async () => {
+    mockPrisma.asset.findFirst.mockResolvedValue(null);
+    mockPrisma.pluggyImportacaoOrigem.findUnique.mockResolvedValue({
+      ...origemCdb,
+      fixedIncomeAssetId: null,
+    });
+    mockPrisma.portfolio.findFirst.mockResolvedValue({ id: 'port-antigo' });
+    const st = await importarInvestimento(
+      {
+        ...base,
+        type: 'MUTUAL_FUND',
+        subtype: 'INVESTMENT_FUND',
+        name: 'Fundo Premium',
+        code: null,
+      },
+      7,
+    );
+    expect(st).toBe('vinculado');
+    expect(mockPrisma.tx.asset.create).not.toHaveBeenCalled();
+  });
+
+  it('empréstimo do mesmo contrato: vincula à dívida existente', async () => {
+    const loan = {
+      id: 'bl-9',
+      connectionId: 'conn-2',
+      userId: 'user-1',
+      providerLoanId: 'novo',
+      contractNumber: '0007',
+      productName: 'Crédito Pessoal',
+      type: 'CREDITO_PESSOAL',
+      contractAmount: 1000,
+      outstanding: 500,
+      nextInstallmentAmount: 100,
+      cet: 0.2,
+      annualRate: 0.2,
+      indexer: 'PRE_FIXADO',
+      amortization: 'PRICE',
+      periodicity: 'MONTHLY',
+      totalInstallments: 12,
+      paidInstallments: 6,
+      dueInstallments: 6,
+      pastDueInstallments: 0,
+      contractDate: new Date('2026-01-01T00:00:00Z'),
+      firstInstallmentDueDate: new Date('2026-02-01T00:00:00Z'),
+      dueDate: new Date('2027-01-01T00:00:00Z'),
+      ativo: true,
+      dividaId: null,
+      importStatus: 'pendente',
+      importError: null,
+      importedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    expect(chaveEmprestimo(loan, 7)).toBe(chaveEmprestimo({ ...loan, contractAmount: 5 }, 7));
+    mockPrisma.pluggyImportacaoOrigem.findUnique.mockResolvedValue({
+      ...origemCdb,
+      tipo: 'emprestimo',
+      dividaId: 'div-antiga',
+    });
+    mockPrisma.divida.findFirst.mockResolvedValue({ id: 'div-antiga' });
+    expect(await importarEmprestimo(loan, 'Banco', 7)).toBe('vinculado');
+    expect(mockPrisma.divida.create).not.toHaveBeenCalled();
+    expect(mockPrisma.bankLoan.update).toHaveBeenCalledWith({
+      where: { id: 'bl-9' },
+      data: expect.objectContaining({ importStatus: 'vinculado', dividaId: 'div-antiga' }),
+    });
   });
 });

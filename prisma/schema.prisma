@@ -123,6 +123,7 @@ model User {
   assistenteMensagens           AssistenteMensagem[]          @relation("AssistenteMensagemUser")
   bankConnections               BankConnection[]              @relation("BankConnectionUser")
   openFinanceConsentimentos OpenFinanceConsentimento[] @relation("OpenFinanceConsentimentoUser")
+  pluggyImportacaoOrigens   PluggyImportacaoOrigem[]   @relation("PluggyImportacaoOrigemUser")
   bankAccounts                  BankAccount[]                 @relation("BankAccountUser")
   bankTransactions              BankTransaction[]             @relation("BankTransactionUser")
   bankInvestments               BankInvestment[]              @relation("BankInvestmentUser")
@@ -1355,6 +1356,29 @@ model OpenFinanceConsentimento {
   @@index([userId])
   @@index([connectionId])
   @@map("open_finance_consentimentos")
+}
+
+/// De onde veio cada posição/dívida importada do banco (chave estável, sem os
+/// ids do Pluggy, que mudam a cada conexão). Sobrevive à desconexão: ao
+/// conectar o mesmo banco de novo, o importador VINCULA em vez de duplicar
+/// (bug achado em 21/09/2026). Some com a conta do usuário.
+model PluggyImportacaoOrigem {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation("PluggyImportacaoOrigemUser", fields: [userId], references: [id], onDelete: Cascade)
+  /// sha256 de instituição + identificação do produto (ver importarCarteira.ts).
+  chave              String
+  /// investimento | emprestimo
+  tipo               String
+  assetId            String?
+  portfolioId        String?
+  fixedIncomeAssetId String?
+  dividaId           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, chave])
+  @@map("pluggy_importacao_origens")
 }
 
 model BankConnection {

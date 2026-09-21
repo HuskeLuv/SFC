@@ -16,8 +16,14 @@
  *    manual cujo "valor atual" segue o saldo do banco;
  *  - empréstimo vira Dívida (financiamento) com espelho no fluxo de caixa;
  *  - COE, Tesouro e o que não der para mapear ficam 'sem-suporte' para o
- *    usuário cadastrar pelo wizard.
+ *    usuário cadastrar pelo wizard;
+ *  - posição sintética (renda fixa, fundo/previdência sem catálogo) e dívida
+ *    guardam uma ORIGEM estável (PluggyImportacaoOrigem): ao conectar o mesmo
+ *    banco de novo — os ids do Pluggy mudam e o espelho antigo sumiu com a
+ *    desconexão — o importador VINCULA à posição/dívida que já existe em vez
+ *    de duplicar (bug 21/09/2026).
  */
+import { createHash } from 'crypto';
 import type { Investment, Loan } from 'pluggy-sdk';
 import type { BankInvestment, BankLoan, FixedIncomeType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -196,6 +202,105 @@ export function indexadorDivida(indexer: string | null): 'PREFIXADO' | 'TR' | 'I
 const ym = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 
 // ---------------------------------------------------------------------------
+// Origem estável (não duplicar ao reconectar)
+// ---------------------------------------------------------------------------
+
+const dia = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : '');
+const norm = (v: string | null | undefined) =>
+  (v ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+const hash = (partes: Array<string | number | null | undefined>) =>
+  createHash('sha256')
+    .update(partes.map((p) => String(p ?? '')).join('|'))
+    .digest('hex')
+    .slice(0, 40);
+
+/**
+ * Identifica a MESMA aplicação vinda por outra conexão: instituição + tipo +
+ * código (ISIN/código/número) + nome + emissor + datas. Nada de id do Pluggy
+ * nem de saldo (mudam).
+ */
+export function chaveInvestimento(
+  inv: Pick<
+    BankInvestment,
+    'type' | 'subtype' | 'isin' | 'code' | 'number' | 'name' | 'issuer' | 'issueDate' | 'dueDate'
+  >,
+  connectorId: number | null | undefined,
+): string {
+  return hash([
+    'inv',
+    connectorId,
+    inv.type,
+    inv.subtype,
+    norm(inv.isin ?? inv.code ?? inv.number),
+    norm(inv.name),
+    norm(inv.issuer),
+    dia(inv.issueDate),
+    dia(inv.dueDate),
+  ]);
+}
+
+/** Contrato do empréstimo; sem número, produto + data e valor contratados. */
+export function chaveEmprestimo(
+  loan: Pick<BankLoan, 'contractNumber' | 'productName' | 'contractDate' | 'contractAmount'>,
+  connectorId: number | null | undefined,
+): string {
+  return loan.contractNumber
+    ? hash(['loan', connectorId, norm(loan.contractNumber)])
+    : hash([
+        'loan',
+        connectorId,
+        norm(loan.productName),
+        dia(loan.contractDate),
+        loan.contractAmount != null ? Number(loan.contractAmount).toFixed(2) : '',
+      ]);
+}
+
+/**
+ * Posição já importada antes com a mesma origem e que ainda existe — e que
+ * não está ligada a OUTRA aplicação desta sincronização (duas aplicações
+ * idênticas no mesmo banco continuam sendo duas).
+ */
+async function origemInvestimento(userId: string, chave: string, invId: string) {
+  const origem = await prisma.pluggyImportacaoOrigem.findUnique({
+    where: { userId_chave: { userId, chave } },
+  });
+  if (!origem?.portfolioId) return null;
+  const port = await prisma.portfolio.findFirst({
+    where: { id: origem.portfolioId, userId },
+    select: { id: true },
+  });
+  if (!port) return null;
+  const ocupada = await prisma.bankInvestment.count({
+    where: { portfolioId: port.id, ativo: true, id: { not: invId } },
+  });
+  return ocupada > 0 ? null : origem;
+}
+
+async function gravarOrigem(
+  userId: string,
+  chave: string,
+  tipo: 'investimento' | 'emprestimo',
+  alvo: { assetId?: string; portfolioId?: string; fixedIncomeAssetId?: string; dividaId?: string },
+) {
+  const data = {
+    tipo,
+    assetId: alvo.assetId ?? null,
+    portfolioId: alvo.portfolioId ?? null,
+    fixedIncomeAssetId: alvo.fixedIncomeAssetId ?? null,
+    dividaId: alvo.dividaId ?? null,
+  };
+  await prisma.pluggyImportacaoOrigem.upsert({
+    where: { userId_chave: { userId, chave } },
+    create: { userId, chave, ...data },
+    update: data,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Importação
 // ---------------------------------------------------------------------------
 
@@ -217,7 +322,10 @@ async function marcar(
 }
 
 /** Importa uma posição de investimento pendente. Devolve o status final. */
-export async function importarInvestimento(inv: BankInvestment): Promise<string> {
+export async function importarInvestimento(
+  inv: BankInvestment,
+  connectorId?: number | null,
+): Promise<string> {
   if (inv.importStatus !== 'pendente') return inv.importStatus;
   const balance = Number(inv.balance);
   const encerrada =
@@ -313,6 +421,18 @@ export async function importarInvestimento(inv: BankInvestment): Promise<string>
         maturity = new Date(start);
         maturity.setFullYear(maturity.getFullYear() + 10);
       }
+      const chave = chaveInvestimento(inv, connectorId);
+      const ja = await origemInvestimento(inv.userId, chave, inv.id);
+      if (ja) {
+        await marcar('bankInvestment', inv.id, {
+          importStatus: 'vinculado',
+          assetId: ja.assetId,
+          portfolioId: ja.portfolioId,
+          fixedIncomeAssetId: ja.fixedIncomeAssetId,
+          importedAt: agora,
+        });
+        return 'vinculado';
+      }
       const nome = inv.issuer ? `${inv.name} - ${inv.issuer}` : inv.name;
       const symbol = `PLUGGY-RF-${inv.providerInvestmentId.slice(0, 8).toUpperCase()}`;
       const r = await prisma.$transaction(async (tx) => {
@@ -360,6 +480,11 @@ export async function importarInvestimento(inv: BankInvestment): Promise<string>
         });
         return { asset, port, fi };
       });
+      await gravarOrigem(inv.userId, chave, 'investimento', {
+        assetId: r.asset.id,
+        portfolioId: r.port.id,
+        fixedIncomeAssetId: r.fi.id,
+      });
       await marcar('bankInvestment', inv.id, {
         importStatus: 'importado',
         assetId: r.asset.id,
@@ -376,6 +501,18 @@ export async function importarInvestimento(inv: BankInvestment): Promise<string>
       const catalogo =
         cnpj.length === 14 ? await prisma.asset.findFirst({ where: { cnpj } }) : null;
       const previdencia = inv.type === 'SECURITY';
+      // Sem catálogo o ativo é sintético (id do Pluggy no símbolo): reusa a origem.
+      const chave = catalogo ? null : chaveInvestimento(inv, connectorId);
+      const ja = chave ? await origemInvestimento(inv.userId, chave, inv.id) : null;
+      if (ja) {
+        await marcar('bankInvestment', inv.id, {
+          importStatus: 'vinculado',
+          assetId: ja.assetId,
+          portfolioId: ja.portfolioId,
+          importedAt: agora,
+        });
+        return 'vinculado';
+      }
       const quantidade = inv.quantity && inv.quantity > 0 ? inv.quantity : 1;
       const preco = Math.round((investido / quantidade) * 1_000_000) / 1_000_000;
       const r = await prisma.$transaction(async (tx) => {
@@ -422,6 +559,12 @@ export async function importarInvestimento(inv: BankInvestment): Promise<string>
         return { asset, port, vinculado: false };
       });
       const status = r.vinculado ? 'vinculado' : 'importado';
+      if (chave && !r.vinculado) {
+        await gravarOrigem(inv.userId, chave, 'investimento', {
+          assetId: r.asset.id,
+          portfolioId: r.port.id,
+        });
+      }
       await marcar('bankInvestment', inv.id, {
         importStatus: status,
         assetId: r.asset.id,
@@ -448,6 +591,7 @@ export async function importarInvestimento(inv: BankInvestment): Promise<string>
 export async function importarEmprestimo(
   loan: BankLoan,
   instituicao: string | null,
+  connectorId?: number | null,
 ): Promise<string> {
   if (loan.importStatus !== 'pendente') return loan.importStatus;
   const principal = Number(loan.contractAmount ?? loan.outstanding ?? 0);
@@ -459,6 +603,25 @@ export async function importarEmprestimo(
     return 'sem-suporte';
   }
   try {
+    // Mesmo contrato já importado por uma conexão anterior: vincula.
+    const chave = chaveEmprestimo(loan, connectorId);
+    const origem = await prisma.pluggyImportacaoOrigem.findUnique({
+      where: { userId_chave: { userId: loan.userId, chave } },
+    });
+    const existente = origem?.dividaId
+      ? await prisma.divida.findFirst({
+          where: { id: origem.dividaId, userId: loan.userId },
+          select: { id: true },
+        })
+      : null;
+    if (existente) {
+      await marcar('bankLoan', loan.id, {
+        importStatus: 'vinculado',
+        dividaId: existente.id,
+        importedAt: new Date(),
+      });
+      return 'vinculado';
+    }
     const primeiro =
       loan.firstInstallmentDueDate ??
       (loan.contractDate ? new Date(loan.contractDate.getTime() + 30 * 86_400_000) : new Date());
@@ -509,6 +672,7 @@ export async function importarEmprestimo(
     }
     await syncDividaRecordToCashflow(loan.userId, divida);
     deleteTtlCacheKeyPrefix('carteiraResumo', `${loan.userId}:`);
+    await gravarOrigem(loan.userId, chave, 'emprestimo', { dividaId: divida.id });
     await marcar('bankLoan', loan.id, {
       importStatus: 'importado',
       dividaId: divida.id,
@@ -541,13 +705,18 @@ export async function importarPendentes(userId: string): Promise<ImportacaoResul
   };
   const invs = await prisma.bankInvestment.findMany({
     where: { userId, importStatus: 'pendente', ativo: true },
+    include: { connection: { select: { connectorId: true } } },
   });
-  for (const inv of invs) conta(await importarInvestimento(inv));
+  for (const { connection, ...inv } of invs) {
+    conta(await importarInvestimento(inv, connection?.connectorId));
+  }
   const loans = await prisma.bankLoan.findMany({
     where: { userId, importStatus: 'pendente', ativo: true },
-    include: { connection: { select: { connectorName: true } } },
+    include: { connection: { select: { connectorName: true, connectorId: true } } },
   });
-  for (const loan of loans) conta(await importarEmprestimo(loan, loan.connection.connectorName));
+  for (const { connection, ...loan } of loans) {
+    conta(await importarEmprestimo(loan, connection.connectorName, connection.connectorId));
+  }
   return r;
 }
 
@@ -560,7 +729,8 @@ export async function atualizarImportados(userId: string): Promise<void> {
   const invs = await prisma.bankInvestment.findMany({
     where: {
       userId,
-      importStatus: 'importado',
+      // vinculado também: reconexão que reusou a posição continua seguindo o saldo.
+      importStatus: { in: ['importado', 'vinculado'] },
       assetId: { not: null },
       type: { in: ['MUTUAL_FUND', 'SECURITY'] },
     },
@@ -574,7 +744,12 @@ export async function atualizarImportados(userId: string): Promise<void> {
     });
   }
   const loans = await prisma.bankLoan.findMany({
-    where: { userId, importStatus: 'importado', dividaId: { not: null }, outstanding: { lte: 0 } },
+    where: {
+      userId,
+      importStatus: { in: ['importado', 'vinculado'] },
+      dividaId: { not: null },
+      outstanding: { lte: 0 },
+    },
     select: { dividaId: true },
   });
   for (const loan of loans) {
