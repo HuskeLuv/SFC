@@ -1,25 +1,33 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { TEXTO_CONSENTIMENTO_ATUAL } from '@/lib/openFinanceConsentimento';
 import Button from '@/components/ui/button/Button';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import {
   useAtualizarConexao,
   useConexoes,
   useConnectToken,
+  useConsentimentos,
   useExcluirConexao,
   useRegistrarConexao,
+  useRegistrarConsentimento,
   type BankAccountDTO,
   type BankConnectionDTO,
   type ConnectTokenResposta,
+  type ConsentimentoDTO,
 } from '@/hooks/useConexoesBancarias';
+import AutorizacaoModal, { dataHora, ROTULO_MOTIVO } from './AutorizacaoModal';
+import ConectarBancoModal from './ConectarBancoModal';
 import CaixaEntrada from './CaixaEntrada';
 import CarteiraImportada from './CarteiraImportada';
 import ConexaoCard from './ConexaoCard';
 import ExtratoConta from './ExtratoConta';
 import PluggyConnectWidget from './PluggyConnectWidget';
 
-type Widget = { token: ConnectTokenResposta; updateItem?: string } | null;
+type Widget = { token: ConnectTokenResposta; updateItem?: string; consentimentoId: string } | null;
+/** Jornada antes do widget: aviso → consentimento → redirecionamento. */
+type Jornada = { reconexaoDe: BankConnectionDTO | null; consentimentoId: string | null } | null;
 
 /**
  * Tela "Conexões bancárias": conectar banco pelo Pluggy Connect, ver contas
@@ -28,38 +36,85 @@ type Widget = { token: ConnectTokenResposta; updateItem?: string } | null;
  */
 export default function ConexoesBancariasRoot() {
   const { data: conexoes, isLoading, isError, error } = useConexoes();
+  const { data: consentimentos } = useConsentimentos(!isError);
+  const registrarConsentimento = useRegistrarConsentimento();
   const connectToken = useConnectToken();
   const registrar = useRegistrarConexao();
   const atualizar = useAtualizarConexao();
   const excluir = useExcluirConexao();
 
   const [widget, setWidget] = useState<Widget>(null);
+  const [jornada, setJornada] = useState<Jornada>(null);
+  const [erroJornada, setErroJornada] = useState<string | null>(null);
+  const [autorizacaoAberta, setAutorizacaoAberta] = useState<ConsentimentoDTO | null>(null);
   const [contaExtrato, setContaExtrato] = useState<BankAccountDTO | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const ocupada =
-    connectToken.isPending || registrar.isPending || atualizar.isPending || excluir.isPending;
+    connectToken.isPending ||
+    registrarConsentimento.isPending ||
+    registrar.isPending ||
+    atualizar.isPending ||
+    excluir.isPending;
 
-  const abrirWidget = useCallback(
-    async (updateItem?: string) => {
-      setAviso(null);
-      try {
-        const token = await connectToken.mutateAsync(
-          updateItem ? { itemId: updateItem } : undefined,
-        );
-        setWidget({ token, updateItem });
-      } catch (e) {
-        setAviso(e instanceof Error ? e.message : 'Não foi possível abrir a conexão');
-      }
-    },
-    [connectToken],
-  );
+  const autorizacaoAtiva = useMemo(() => {
+    const m = new Map<string, ConsentimentoDTO>();
+    for (const c of consentimentos ?? []) {
+      if (c.status === 'ativo' && c.connectionId) m.set(c.connectionId, c);
+    }
+    return m;
+  }, [consentimentos]);
+  const encerradas = (consentimentos ?? []).filter((c) => c.status !== 'ativo');
+
+  const abrirJornada = useCallback((reconexaoDe?: BankConnectionDTO) => {
+    setAviso(null);
+    setErroJornada(null);
+    setJornada({ reconexaoDe: reconexaoDe ?? null, consentimentoId: null });
+  }, []);
+
+  // Etapa 2: "Li e autorizo" + "Autorizar e continuar" → grava o aceite.
+  const onAutorizar = useCallback(async () => {
+    if (!jornada) return false;
+    setErroJornada(null);
+    try {
+      const { consentimentoId } = await registrarConsentimento.mutateAsync({
+        versao: TEXTO_CONSENTIMENTO_ATUAL.versao,
+        ...(jornada.reconexaoDe ? { reconexaoDe: jornada.reconexaoDe.id } : {}),
+      });
+      setJornada({ ...jornada, consentimentoId });
+      return true;
+    } catch (e) {
+      setErroJornada(e instanceof Error ? e.message : 'Não foi possível registrar a autorização');
+      return false;
+    }
+  }, [jornada, registrarConsentimento]);
+
+  // Etapa 3: depois do aviso de redirecionamento, abre o widget do Pluggy.
+  const onContinuar = useCallback(async () => {
+    if (!jornada?.consentimentoId) return;
+    setErroJornada(null);
+    const updateItem = jornada.reconexaoDe?.providerItemId;
+    try {
+      const token = await connectToken.mutateAsync({
+        consentimentoId: jornada.consentimentoId,
+        ...(updateItem ? { itemId: updateItem } : {}),
+      });
+      setWidget({ token, updateItem, consentimentoId: jornada.consentimentoId });
+      setJornada(null);
+    } catch (e) {
+      setErroJornada(e instanceof Error ? e.message : 'Não foi possível abrir a conexão');
+    }
+  }, [jornada, connectToken]);
 
   const onSuccess = useCallback(
     async ({ item }: { item: { id: string } }) => {
       setWidget(null);
       try {
-        const r = await registrar.mutateAsync({ itemId: item.id });
+        if (!widget) return;
+        const r = await registrar.mutateAsync({
+          itemId: item.id,
+          consentimentoId: widget.consentimentoId,
+        });
         setAviso(
           r.aviso ?? 'Banco conectado. As transações dos últimos 12 meses foram importadas.',
         );
@@ -67,7 +122,7 @@ export default function ConexoesBancariasRoot() {
         setAviso(e instanceof Error ? e.message : 'A conexão foi criada, mas o registro falhou');
       }
     },
-    [registrar],
+    [registrar, widget],
   );
 
   const onAtualizar = useCallback(
@@ -86,7 +141,10 @@ export default function ConexoesBancariasRoot() {
   const onExcluir = useCallback(
     async (c: BankConnectionDTO) => {
       const ok = window.confirm(
-        `Excluir a conexão com ${c.connectorName}? O consentimento no banco é revogado e as transações importadas são apagadas do MyFinance.`,
+        `Desconectar ${c.connectorName}?\n\n` +
+          'A autorização é revogada e o My Finance para de receber dados desse banco. ' +
+          'O extrato importado é apagado; o que você já aplicou no Fluxo de Caixa, na Carteira ' +
+          'ou em Dívidas continua. O registro desta autorização fica no seu histórico.',
       );
       if (!ok) return;
       setAviso(null);
@@ -123,12 +181,16 @@ export default function ConexoesBancariasRoot() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-sm text-gray-600 dark:text-gray-300">
           Conecte suas contas e cartões pelo Open Finance. A autorização acontece no app do seu
-          banco, sem senha aqui, e você pode revogar quando quiser. O MyFinance só lê; nunca
+          banco, sem senha aqui, e você pode desconectar quando quiser. O My Finance só lê; nunca
           movimenta dinheiro. Banco que já está na lista? Use &quot;Reconectar&quot; nele em vez de
-          conectar de novo.
+          conectar de novo. Dúvidas sobre seus dados:{' '}
+          <a href="mailto:dpo@appmyfinance.com.br" className="text-brand-500 underline">
+            dpo@appmyfinance.com.br
+          </a>
+          .
         </p>
-        <Button onClick={() => abrirWidget()} disabled={ocupada}>
-          {connectToken.isPending ? 'Preparando…' : 'Conectar banco'}
+        <Button onClick={() => abrirJornada()} disabled={ocupada}>
+          Conectar banco
         </Button>
       </div>
 
@@ -160,7 +222,9 @@ export default function ConexoesBancariasRoot() {
               ocupada={ocupada}
               onVerExtrato={setContaExtrato}
               onAtualizar={onAtualizar}
-              onReconectar={(cx) => abrirWidget(cx.providerItemId)}
+              autorizacao={autorizacaoAtiva.get(c.id) ?? null}
+              onVerAutorizacao={setAutorizacaoAberta}
+              onReconectar={(cx) => abrirJornada(cx)}
               onExcluir={onExcluir}
             />
           ))}
@@ -169,6 +233,52 @@ export default function ConexoesBancariasRoot() {
           <ExtratoConta conta={contaExtrato} onFechar={() => setContaExtrato(null)} />
         ) : null}
       </div>
+
+      {encerradas.length > 0 ? (
+        <details className="rounded-xl border border-gray-200 p-4 text-sm dark:border-gray-800">
+          <summary className="cursor-pointer font-medium text-gray-700 dark:text-gray-300">
+            Autorizações encerradas ({encerradas.length})
+          </summary>
+          <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
+            {encerradas.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="text-gray-700 dark:text-gray-300">
+                  {c.connectorName ?? 'Banco'} · autorizada em {dataHora(c.aceitoEm)} · encerrada em{' '}
+                  {dataHora(c.revogadoEm)}
+                  {c.motivoRevogacao
+                    ? ` (${ROTULO_MOTIVO[c.motivoRevogacao] ?? c.motivoRevogacao})`
+                    : ''}
+                </span>
+                <button
+                  type="button"
+                  className="text-xs text-brand-500 underline"
+                  onClick={() => setAutorizacaoAberta(c)}
+                >
+                  Ver autorização
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+
+      {jornada ? (
+        <ConectarBancoModal
+          reconexaoDe={jornada.reconexaoDe}
+          ocupada={registrarConsentimento.isPending || connectToken.isPending}
+          erro={erroJornada}
+          onAutorizar={onAutorizar}
+          onContinuar={onContinuar}
+          onFechar={() => setJornada(null)}
+        />
+      ) : null}
+
+      {autorizacaoAberta ? (
+        <AutorizacaoModal
+          consentimento={autorizacaoAberta}
+          onFechar={() => setAutorizacaoAberta(null)}
+        />
+      ) : null}
 
       {widget ? (
         <PluggyConnectWidget

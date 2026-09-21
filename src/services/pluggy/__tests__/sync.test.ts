@@ -13,6 +13,7 @@ const mockPrisma = vi.hoisted(() => ({
   bankAccount: { upsert: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   bankTransaction: { findMany: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   pluggyWebhookEvent: { findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+  openFinanceConsentimento: { updateMany: vi.fn() },
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
@@ -428,6 +429,11 @@ describe('atualizarManualmente / excluirConexao', () => {
     mockClient.deleteItem.mockRejectedValue(new Error('Response code 404 (Not Found)'));
     await excluirConexao('conn-1', 'user-1');
     expect(mockPrisma.bankConnection.delete).toHaveBeenCalledWith({ where: { id: 'conn-1' } });
+    // O registro do consentimento fica, marcado como revogado pelo usuário.
+    expect(mockPrisma.openFinanceConsentimento.updateMany).toHaveBeenCalledWith({
+      where: { connectionId: 'conn-1', status: 'ativo' },
+      data: { status: 'revogado', revogadoEm: expect.any(Date), motivoRevogacao: 'usuario' },
+    });
   });
 });
 
