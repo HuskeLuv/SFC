@@ -45,7 +45,10 @@ export default function ConexaoRealizadaModal({
   if (importados.investimentos > 0) {
     linhas.push({
       dado: plural(importados.investimentos, 'investimento', 'investimentos'),
-      onde: 'já entraram na Carteira, marcados como importados do banco',
+      onde:
+        importados.investimentos === 1
+          ? 'já entrou na Carteira, marcado como importado do banco'
+          : 'já entraram na Carteira, marcados como importados do banco',
     });
   }
   if (importados.emprestimos > 0) {
@@ -55,7 +58,7 @@ export default function ConexaoRealizadaModal({
         'empréstimo ou financiamento',
         'empréstimos e financiamentos',
       ),
-      onde: 'já entraram em Dívidas, com as parcelas no Fluxo de Caixa',
+      onde: `${importados.emprestimos === 1 ? 'já entrou' : 'já entraram'} em Dívidas, com as parcelas no Fluxo de Caixa`,
     });
   }
   const paraCadastrar = importados.investimentosParaCadastrar + importados.emprestimosParaCadastrar;

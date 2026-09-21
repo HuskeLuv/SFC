@@ -39,7 +39,7 @@ describe('ConexaoRealizadaModal', () => {
     expect(t).toContain('5 investimentos');
     expect(t).toContain('já entraram na Carteira');
     expect(t).toContain('1 empréstimo ou financiamento');
-    expect(t).toContain('já entraram em Dívidas');
+    expect(t).toContain('já entrou em Dívidas');
     expect(t).toContain('1 item que não conseguimos trazer sozinhos');
     expect(t).toContain('A autorização vale até 21/09/2027');
   });
