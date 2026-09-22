@@ -1346,6 +1346,8 @@ model OpenFinanceConsentimento {
   revogadoEm      DateTime?
   /// usuario | substituido | instituicao
   motivoRevogacao String?
+  /// IP de quem desconectou (só na revogação pelo usuário).
+  ipRevogacao     String?
   /// Linha do tempo da etapa externa (eventos do widget Pluggy: banco escolhido,
   /// consentimento enviado, login concluído, fechou sem concluir, erro). O My
   /// Finance só vê esses marcos, nunca o conteúdo das telas da Pluggy/banco.

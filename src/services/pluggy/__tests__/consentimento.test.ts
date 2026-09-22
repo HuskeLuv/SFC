@@ -138,6 +138,17 @@ describe('vincular / revogar', () => {
     });
   });
 
+  it('revogar pelo usuário grava o IP de quem desconectou (unknown não)', async () => {
+    await revogarConsentimentosDaConexao('conn-1', 'usuario', '200.1.2.3');
+    expect(mockPrisma.openFinanceConsentimento.updateMany.mock.calls[0][0].data).toMatchObject({
+      ipRevogacao: '200.1.2.3',
+    });
+    await revogarConsentimentosDaConexao('conn-1', 'usuario', 'unknown');
+    expect(mockPrisma.openFinanceConsentimento.updateMany.mock.calls[1][0].data).not.toHaveProperty(
+      'ipRevogacao',
+    );
+  });
+
   it('listar esconde aceites que não viraram conexão', async () => {
     mockPrisma.openFinanceConsentimento.findMany.mockResolvedValue([]);
     await listarConsentimentos('u1');

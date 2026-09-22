@@ -208,7 +208,7 @@ describe('rotas /api/pluggy', () => {
     mockSync.excluirConexao.mockResolvedValue(undefined);
     const del = await excluir(json('/api/pluggy/connections/conn-1', 'DELETE'), ctx('conn-1'));
     expect(del.status).toBe(200);
-    expect(mockSync.excluirConexao).toHaveBeenCalledWith('conn-1', 'user-1');
+    expect(mockSync.excluirConexao).toHaveBeenCalledWith('conn-1', 'user-1', expect.any(String));
 
     mockSync.atualizarManualmente.mockResolvedValue({ ...conexao, status: 'UPDATING' });
     const up = await atualizar(json('/api/pluggy/connections/conn-1/sync', 'POST'), ctx('conn-1'));

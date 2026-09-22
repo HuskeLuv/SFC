@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
+import { getClientIp } from '@/lib/rateLimit';
 import { excluirConexao } from '@/services/pluggy/sync';
 import { requireProprioUsuarioPluggy } from '../../_lib/auth';
 
@@ -11,7 +12,7 @@ export const DELETE = withErrorHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const user = await requireProprioUsuarioPluggy(request);
     const { id } = await context.params;
-    await excluirConexao(id, user.id);
+    await excluirConexao(id, user.id, getClientIp(request));
     return NextResponse.json({ ok: true });
   },
 );
