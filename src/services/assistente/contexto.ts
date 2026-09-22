@@ -588,7 +588,7 @@ export function compactOrcamento(orc: Json | null | undefined, mesIndex: number)
 
 // ---------------------------------------------------------------------------
 // Lote 2 (16/09/2026): agenda, aposentadoria, meta de patrimônio, alocação
-// alvo, cobertura FGC e perfil — rotas pequenas, uma chamada cada.
+// alvo, cobertura FGC — rotas pequenas, uma chamada cada.
 // ---------------------------------------------------------------------------
 
 /** Agenda dos próximos dias (parcelas, vencimentos de RF, proventos, IR, eventos manuais). */
@@ -685,7 +685,6 @@ export interface ContextoBruto {
   metaPatrimonio?: Json | null;
   alocacaoConfig?: Json | null;
   fgc?: Json | null;
-  perfil?: Json | null;
 }
 
 const MESES_LONGOS = [
@@ -718,7 +717,8 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
     hoje: hoje.toISOString().slice(0, 10),
     mesAtual: MESES_LONGOS[hoje.getMonth()],
     ano: raw.ano,
-    ...(raw.perfil?.name ? { usuario: { nome: raw.perfil.name } } : {}),
+    // Sem nome, e-mail ou outro dado de identificação: /subprocessadores promete
+    // que só vão a pergunta e um resumo financeiro à Anthropic.
     carteira: {
       saldoBruto: r.saldoBruto,
       valorAplicado: r.valorAplicado,
@@ -880,7 +880,7 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
   const hoje = new Date();
   const em60d = new Date(hoje.getTime() + 60 * 86400000);
   const isoDia = (d: Date) => d.toISOString().slice(0, 10);
-  const [agenda, aposentadoria, metaPatrimonio, alocacaoConfig, fgc, perfil] = await Promise.all([
+  const [agenda, aposentadoria, metaPatrimonio, alocacaoConfig, fgc] = await Promise.all([
     chamarRota(request, '/api/calendar', { de: isoDia(hoje), ate: isoDia(em60d) }),
     chamarRota(request, '/api/aposentadoria'),
     chamarRota(request, '/api/analises/portfolio-goal'),
@@ -888,7 +888,6 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
     classes.includes('renda-fixa')
       ? chamarRota(request, '/api/analises/cobertura-fgc')
       : Promise.resolve(null),
-    chamarRota(request, '/api/profile'),
   ]);
   const posicoes: Record<string, CarteiraClasseLike | null> = {};
   classes.forEach((c, i) => {
@@ -912,7 +911,6 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
     metaPatrimonio,
     alocacaoConfig,
     fgc,
-    perfil,
     planejados: planejados.map((p) => {
       const aba = abaDoAssetPlanejado(p.asset);
       return {

@@ -401,6 +401,16 @@ describe('montarContexto — ativos planejados', () => {
     };
     expect(ctx.carteira).not.toHaveProperty('ativosPlanejadosSemPosicao');
   });
+  it('não leva nome nem e-mail do usuário (promessa de /subprocessadores)', () => {
+    const comPerfil = {
+      ...base,
+      perfil: { name: 'Ana Souza', email: 'ana@exemplo.com' },
+    } as unknown as typeof base;
+    const texto = JSON.stringify(montarContexto(comPerfil, new Date('2026-09-16T12:00:00Z')));
+    expect(texto).not.toContain('Ana Souza');
+    expect(texto).not.toContain('ana@exemplo.com');
+    expect(texto).not.toContain('usuario');
+  });
 });
 
 describe('compactProventos (dividendos, JCP e rendimentos recebidos)', () => {
