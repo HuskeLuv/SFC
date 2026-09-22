@@ -160,6 +160,8 @@ export interface EventoConsentimento {
   em: string;
   instituicao?: string;
   detalhe?: string;
+  /** IP de quem enviou o marco (mesma regra do `ip` do aceite). Não vai para a tela. */
+  ip?: string;
 }
 
 const MAX_EVENTOS = 60;
@@ -185,6 +187,7 @@ export async function registrarEventoConsentimento(
     em: evento.em ?? new Date().toISOString(),
     ...(evento.instituicao ? { instituicao: evento.instituicao.slice(0, 120) } : {}),
     ...(evento.detalhe ? { detalhe: evento.detalhe.slice(0, 300) } : {}),
+    ...(evento.ip && evento.ip !== 'unknown' ? { ip: evento.ip.slice(0, 64) } : {}),
   };
   const encerra =
     c.status === 'pendente' &&
@@ -231,6 +234,9 @@ export async function listarConsentimentos(userId: string): Promise<Consentiment
     vinculadoEm: c.vinculadoEm?.toISOString() ?? null,
     revogadoEm: c.revogadoEm?.toISOString() ?? null,
     motivoRevogacao: c.motivoRevogacao,
-    eventos: Array.isArray(c.eventos) ? (c.eventos as unknown as EventoConsentimento[]) : [],
+    // O IP fica só no registro (prova), como o do aceite — a tela não o recebe.
+    eventos: Array.isArray(c.eventos)
+      ? (c.eventos as unknown as EventoConsentimento[]).map(({ ip: _ip, ...e }) => e)
+      : [],
   }));
 }

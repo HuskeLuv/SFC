@@ -159,6 +159,7 @@ describe('registrarEventoConsentimento', () => {
       evento: 'SELECTED_INSTITUTION',
       em: '2026-09-21T20:00:05.000Z',
       instituicao: 'Banco X',
+      ip: '200.1.2.3',
     });
     expect(mockPrisma.openFinanceConsentimento.update).toHaveBeenCalledWith({
       where: { id: 'c1' },
@@ -169,10 +170,41 @@ describe('registrarEventoConsentimento', () => {
             evento: 'SELECTED_INSTITUTION',
             em: '2026-09-21T20:00:05.000Z',
             instituicao: 'Banco X',
+            ip: '200.1.2.3',
           },
         ],
       },
     });
+  });
+
+  it('IP desconhecido não é gravado; a listagem não devolve o IP', async () => {
+    mockPrisma.openFinanceConsentimento.findFirst.mockResolvedValueOnce({
+      id: 'c1',
+      status: 'pendente',
+      eventos: [],
+    });
+    await registrarEventoConsentimento('u1', 'c1', { evento: 'WIDGET_ABERTO', ip: 'unknown' });
+    expect(
+      mockPrisma.openFinanceConsentimento.update.mock.calls[0][0].data.eventos[0],
+    ).not.toHaveProperty('ip');
+    mockPrisma.openFinanceConsentimento.findMany.mockResolvedValueOnce([
+      {
+        id: 'c1',
+        status: 'ativo',
+        versaoTexto: 'v1',
+        produtos: [],
+        reconexao: false,
+        aceitoEm: new Date('2026-09-21T20:00:00.000Z'),
+        connectionId: null,
+        connectorName: null,
+        vinculadoEm: null,
+        revogadoEm: null,
+        motivoRevogacao: null,
+        eventos: [{ evento: 'WIDGET_ABERTO', em: 'x', ip: '200.1.2.3' }],
+      },
+    ]);
+    const [dto] = await listarConsentimentos('u1');
+    expect(dto.eventos).toEqual([{ evento: 'WIDGET_ABERTO', em: 'x' }]);
   });
 
   it('fechar sem concluir deixa o aceite pendente como nao_concluido; ativo não muda', async () => {
