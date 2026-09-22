@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
+import { getClientIp } from '@/lib/rateLimit';
 import { EVENTOS_WIDGET, registrarEventoConsentimento } from '@/services/pluggy/consentimento';
 import { requireProprioUsuarioPluggy } from '../../../_lib/auth';
 
 /**
  * POST /api/pluggy/consentimentos/[id]/eventos — marco da etapa Pluggy/instituição
- * (eventos do widget). Só o nome do evento, a hora e a instituição escolhida.
+ * (eventos do widget). Só o nome do evento, a hora, a instituição escolhida e o IP.
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export const POST = withErrorHandler(
     const { id } = await context.params;
     const parsed = bodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) throw new ApiError(400, 'Evento inválido');
-    await registrarEventoConsentimento(user.id, id, parsed.data);
+    await registrarEventoConsentimento(user.id, id, { ...parsed.data, ip: getClientIp(request) });
     return NextResponse.json({ ok: true });
   },
 );

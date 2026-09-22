@@ -15,7 +15,7 @@ import { POST } from '../route';
 const req = (body: unknown) =>
   new NextRequest('http://localhost/api/pluggy/consentimentos/c1/eventos', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': '200.1.2.3, 10.0.0.1' },
     body: JSON.stringify(body),
   });
 const ctx = { params: Promise.resolve({ id: 'c1' }) };
@@ -29,12 +29,13 @@ describe('POST /api/pluggy/consentimentos/[id]/eventos', () => {
     mockAuth.mockResolvedValue({ payload: { id: 'u1' }, targetUserId: 'u1', actingClient: null });
   });
 
-  it('registra evento conhecido do próprio usuário', async () => {
+  it('registra evento conhecido do próprio usuário, com o IP de quem enviou', async () => {
     const res = await POST(req({ evento: 'SELECTED_INSTITUTION', instituicao: 'Banco X' }), ctx);
     expect(res.status).toBe(200);
     expect(mockEvento).toHaveBeenCalledWith('u1', 'c1', {
       evento: 'SELECTED_INSTITUTION',
       instituicao: 'Banco X',
+      ip: '200.1.2.3',
     });
   });
 
