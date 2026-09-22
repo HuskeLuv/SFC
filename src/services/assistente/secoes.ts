@@ -3,7 +3,7 @@
  * inteiro do usuário (4–10 mil tokens) em toda conversa, gravado no cache —
  * caro para o uso previsto, de várias conversas curtas. Agora vai:
  *
- *   - um NÚCLEO pequeno (data, nome, totais e distribuição da carteira,
+ *   - um NÚCLEO pequeno (data, totais e distribuição da carteira,
  *     retrato do mês) + a lista das seções que existem na conta;
  *   - as seções que a INTENÇÃO da pergunta pede (e das últimas mensagens,
  *     para perguntas de continuação);
@@ -156,7 +156,6 @@ export function contextoRecortado(ctx: Json, secoes: readonly Secao[]): Json {
     hoje: ctx.hoje,
     mesAtual: ctx.mesAtual,
     ano: ctx.ano,
-    ...(ctx.usuario ? { usuario: ctx.usuario } : {}),
     carteira: Object.fromEntries(
       CAMPOS_NUCLEO_CARTEIRA.filter((k) => carteira[k] !== undefined).map((k) => [k, carteira[k]]),
     ),

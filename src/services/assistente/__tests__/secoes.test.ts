@@ -11,7 +11,6 @@ const ctx = {
   hoje: '2026-09-21',
   mesAtual: 'setembro',
   ano: 2026,
-  usuario: { nome: 'Ana' },
   carteira: {
     saldoBruto: 1000,
     distribuicao: { acoes: { valor: 1000 } },
@@ -54,7 +53,6 @@ describe('contextoRecortado', () => {
       hoje: '2026-09-21',
       mesAtual: 'setembro',
       ano: 2026,
-      usuario: { nome: 'Ana' },
       carteira: {
         saldoBruto: 1000,
         distribuicao: { acoes: { valor: 1000 } },
