@@ -22,7 +22,7 @@ import {
  *   3. `vincularConsentimento` — o widget concluiu e a conexão foi registrada
  *      (status `ativo`; o anterior da mesma conexão vira `substituido`);
  *   4. `revogarConsentimentosDaConexao` — o cliente desconectou (status
- *      `revogado`). O registro FICA: é a prova do que foi autorizado.
+ *      `revogado`, com o IP de quem desconectou). O registro FICA: é a prova do que foi autorizado.
  *   (+) `registrarEventoConsentimento` — marcos da etapa Pluggy/instituição
  *      (banco escolhido, consentimento enviado, login…); fechar sem concluir
  *      deixa o aceite `nao_concluido`.
@@ -129,10 +129,16 @@ export async function vincularConsentimento(
 export async function revogarConsentimentosDaConexao(
   connectionId: string,
   motivo: 'usuario' | 'instituicao',
+  ip?: string,
 ): Promise<void> {
   await prisma.openFinanceConsentimento.updateMany({
     where: { connectionId, status: 'ativo' },
-    data: { status: 'revogado', revogadoEm: new Date(), motivoRevogacao: motivo },
+    data: {
+      status: 'revogado',
+      revogadoEm: new Date(),
+      motivoRevogacao: motivo,
+      ...(ip && ip !== 'unknown' ? { ipRevogacao: ip.slice(0, 64) } : {}),
+    },
   });
 }
 

@@ -571,7 +571,7 @@ export async function atualizarManualmente(connectionId: string, userId: string)
 }
 
 /** Exclui no Pluggy (LGPD: apaga o consentimento lá) e no ledger (cascade). */
-export async function excluirConexao(connectionId: string, userId: string) {
+export async function excluirConexao(connectionId: string, userId: string, ip?: string) {
   const conexao = await prisma.bankConnection.findFirst({ where: { id: connectionId, userId } });
   if (!conexao) throw new ApiError(404, 'Conexão não encontrada');
   try {
@@ -581,7 +581,7 @@ export async function excluirConexao(connectionId: string, userId: string) {
     if (!/404/.test(msg)) throw error;
   }
   // O registro do consentimento fica (revogado): é a prova do que foi autorizado.
-  await revogarConsentimentosDaConexao(connectionId, 'usuario');
+  await revogarConsentimentosDaConexao(connectionId, 'usuario', ip);
   await prisma.bankConnection.delete({ where: { id: connectionId } });
 }
 

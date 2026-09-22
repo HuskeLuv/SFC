@@ -427,12 +427,17 @@ describe('atualizarManualmente / excluirConexao', () => {
       providerItemId: 'item-1',
     });
     mockClient.deleteItem.mockRejectedValue(new Error('Response code 404 (Not Found)'));
-    await excluirConexao('conn-1', 'user-1');
+    await excluirConexao('conn-1', 'user-1', '200.1.2.3');
     expect(mockPrisma.bankConnection.delete).toHaveBeenCalledWith({ where: { id: 'conn-1' } });
     // O registro do consentimento fica, marcado como revogado pelo usuário.
     expect(mockPrisma.openFinanceConsentimento.updateMany).toHaveBeenCalledWith({
       where: { connectionId: 'conn-1', status: 'ativo' },
-      data: { status: 'revogado', revogadoEm: expect.any(Date), motivoRevogacao: 'usuario' },
+      data: {
+        status: 'revogado',
+        revogadoEm: expect.any(Date),
+        motivoRevogacao: 'usuario',
+        ipRevogacao: '200.1.2.3',
+      },
     });
   });
 });
