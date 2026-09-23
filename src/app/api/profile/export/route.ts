@@ -35,6 +35,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     alocacaoConfigs,
     portfolioGoal,
     changeHistory,
+    communityProfile,
+    communityPosts,
+    communityComments,
+    communityLikes,
+    communityReports,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -54,6 +59,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     prisma.alocacaoConfig.findMany({ where: { userId } }),
     prisma.portfolioGoal.findFirst({ where: { userId } }),
     prisma.userChangeLog.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+    prisma.communityProfile.findUnique({ where: { userId } }),
+    prisma.communityPost.findMany({ where: { authorId: userId } }),
+    prisma.communityComment.findMany({ where: { authorId: userId } }),
+    prisma.communityLike.findMany({ where: { userId } }),
+    prisma.communityReport.findMany({ where: { reporterId: userId } }),
   ]);
 
   if (!user) {
@@ -83,6 +93,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     planejamento: planejamentoObjetivos,
     notifications,
     changeHistory,
+    comunidade: {
+      perfil: communityProfile,
+      posts: communityPosts,
+      comentarios: communityComments,
+      curtidas: communityLikes,
+      denuncias: communityReports,
+    },
   };
 
   const json = JSON.stringify(payload_, null, 2);
