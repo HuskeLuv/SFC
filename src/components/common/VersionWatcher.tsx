@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { logger } from '@/lib/logger';
+import { clearAppCaches, prepareReloadForNewVersion } from '@/lib/pwa/swClient';
 
 /**
  * Detecta deploy novo com a aba aberta (ticket 20/08/2026: tester não via a
@@ -16,11 +17,20 @@ import { logger } from '@/lib/logger';
  *    ChunkLoadError de navegar com chunks antigos que o deploy removeu.
  * 3. ChunkLoadError mesmo assim (ex.: chunk lazy na mesma página) → reload
  *    com guarda de sessão para nunca entrar em loop.
+ *
+ * PWA: ao ficar stale, pede ao service worker que busque o sw.js novo; antes de
+ * cada reload, apaga os estáticos antigos e ativa o worker em espera
+ * (prepareReloadForNewVersion), para a versão nova não pegar chunk velho do cache.
  */
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const CHUNK_RELOAD_GUARD_KEY = 'myfinance:chunk-reload-at';
 const CHUNK_RELOAD_MIN_GAP_MS = 60 * 1000;
+
+/** Reload para a versão nova depois de limpar os estáticos antigos do service worker. */
+const reloadToNewVersion = () => {
+  void prepareReloadForNewVersion().finally(() => window.location.reload());
+};
 
 const isChunkLoadMessage = (message: string): boolean =>
   /ChunkLoadError|Loading chunk .+ failed|Failed to fetch dynamically imported module/i.test(
@@ -48,6 +58,10 @@ export default function VersionWatcher() {
         } else if (buildId !== initialBuildRef.current) {
           staleRef.current = true;
           setStale(true);
+          void navigator.serviceWorker
+            ?.getRegistration()
+            .then((registration) => registration?.update())
+            .catch(() => {});
         }
       } catch {
         // rede indisponível: tenta de novo no próximo gatilho
@@ -70,7 +84,7 @@ export default function VersionWatcher() {
       if (Date.now() - last < CHUNK_RELOAD_MIN_GAP_MS) return;
       sessionStorage.setItem(CHUNK_RELOAD_GUARD_KEY, String(Date.now()));
       logger.error('[VersionWatcher] ChunkLoadError — recarregando para a versão nova');
-      window.location.reload();
+      void clearAppCaches().finally(() => window.location.reload());
     };
     window.addEventListener('error', onError);
 
@@ -88,21 +102,21 @@ export default function VersionWatcher() {
   useEffect(() => {
     if (pathname !== lastPathnameRef.current) {
       lastPathnameRef.current = pathname;
-      if (staleRef.current) window.location.reload();
+      if (staleRef.current) reloadToNewVersion();
     }
   }, [pathname]);
 
   if (!stale) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-[9999] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 print:hidden">
+    <div className="fixed bottom-[calc(var(--mf-bottom-nav-h,0px)+1rem)] left-1/2 z-[9999] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 print:hidden">
       <div className="flex items-center justify-between gap-3 rounded-xl border border-brand-300 bg-white p-3 shadow-theme-lg dark:border-brand-800 dark:bg-gray-900">
         <p className="text-sm text-gray-700 dark:text-gray-200">
           Uma nova versão do My Finance está disponível.
         </p>
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={reloadToNewVersion}
           className="shrink-0 rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-600"
         >
           Atualizar
