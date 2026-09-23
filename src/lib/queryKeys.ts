@@ -102,4 +102,15 @@ export const queryKeys = {
     cripto: () => [...queryKeys.ir.all, 'cripto'] as const,
     comecotas: () => [...queryKeys.ir.all, 'comecotas'] as const,
   },
+  comunidade: {
+    all: ['comunidade'] as const,
+    config: () => [...queryKeys.comunidade.all, 'config'] as const,
+    me: () => [...queryKeys.comunidade.all, 'me'] as const,
+    feeds: () => [...queryKeys.comunidade.all, 'feed'] as const,
+    feed: (categoria: string | null, autor: string | null) =>
+      [...queryKeys.comunidade.feeds(), categoria ?? 'todas', autor ?? 'todos'] as const,
+    post: (id: string) => [...queryKeys.comunidade.all, 'post', id] as const,
+    denuncias: () => [...queryKeys.comunidade.all, 'denuncias'] as const,
+    equipe: () => [...queryKeys.comunidade.all, 'equipe'] as const,
+  },
 } as const;
