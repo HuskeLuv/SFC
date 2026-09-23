@@ -3,6 +3,7 @@
 import { logger } from '@/lib/logger';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Dropdown } from '../ui/dropdown/Dropdown';
 import { useAuth } from '@/hooks/useAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -37,6 +38,12 @@ const formatDateTime = (isoDate: string) => {
     hour: '2-digit',
     minute: '2-digit',
   });
+};
+
+/** Link interno opcional da notificação (ex.: comunidade → post comentado). */
+const hrefDaNotificacao = (n: NotificationItem): string | null => {
+  const href = n.metadata?.href;
+  return typeof href === 'string' && href.startsWith('/') && !href.startsWith('//') ? href : null;
 };
 
 const getInviteStatusLabel = (status: InviteStatus) => {
@@ -371,9 +378,19 @@ const NotificationDropdown: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex flex-col gap-1">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                      {notification.title}
-                    </p>
+                    {hrefDaNotificacao(notification) ? (
+                      <Link
+                        href={hrefDaNotificacao(notification)!}
+                        onClick={() => setIsOpen(false)}
+                        className="text-sm font-semibold text-gray-800 hover:text-brand-500 hover:underline dark:text-white/90"
+                      >
+                        {notification.title}
+                      </Link>
+                    ) : (
+                      <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
+                        {notification.title}
+                      </p>
+                    )}
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {notification.message}
                     </p>
