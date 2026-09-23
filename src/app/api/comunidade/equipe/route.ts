@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   exigirComunidadeHabilitada();
-  requireAdmin(request);
+  await requireAdmin(request);
   const perfis = await prisma.communityProfile.findMany({
     where: { cargo: 'equipe' },
     include: { user: { select: { name: true, email: true } } },
@@ -38,7 +38,7 @@ const cargoSchema = z.object({
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   exigirComunidadeHabilitada();
-  requireAdmin(request);
+  await requireAdmin(request);
   const parsed = cargoSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw new ApiError(400, 'Dados inválidos');
 

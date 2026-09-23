@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { requireAuth } from '@/utils/auth';
+import { requireSession } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { canAccess } from '@/utils/accessLevel';
 import { COMUNIDADE_REQUIRED_LEVEL, COMUNIDADE_TERMO_VERSAO } from '@/constants/comunidade';
@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   exigirComunidadeHabilitada();
-  const payload = requireAuth(request);
+  const payload = await requireSession(request);
   const user = await prisma.user.findUnique({
     where: { id: payload.id },
     select: {

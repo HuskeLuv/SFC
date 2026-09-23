@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  requireAdmin(request);
+  await requireAdmin(request);
 
   const base = {
     habilitado: pluggyHabilitado(),

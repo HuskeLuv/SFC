@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { requireAuth } from '@/utils/auth';
+import { requireSession } from '@/utils/auth';
 import { notificationsPatchSchema } from '@/utils/validation-schemas';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
@@ -56,7 +56,7 @@ const mapNotification = (notification: Awaited<ReturnType<typeof fetchNotificati
 export const GET = withErrorHandler(async (request: NextRequest) => {
   let payload;
   try {
-    payload = requireAuth(request);
+    payload = await requireSession(request);
   } catch {
     return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   }
@@ -70,7 +70,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 export const PATCH = withErrorHandler(async (request: NextRequest) => {
   let payload;
   try {
-    payload = requireAuth(request);
+    payload = await requireSession(request);
   } catch {
     return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   }
