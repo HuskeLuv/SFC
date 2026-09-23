@@ -21,8 +21,10 @@ import {
   VideoIcon,
   LockIcon,
   PlugInIcon,
+  GroupIcon,
 } from '../icons/index';
 import { usePluggyConfig } from '@/hooks/useConexoesBancarias';
+import { useComunidadeConfig } from '@/hooks/useComunidade';
 import SidebarFooter from './SidebarFooter';
 import CashflowYearSelect from './CashflowYearSelect';
 
@@ -101,6 +103,8 @@ const AppSidebar: React.FC = () => {
   const { user, actingClient } = useAuth();
   // Conexões bancárias (Pluggy): item só aparece com a integração ligada no servidor.
   const pluggyHabilitado = usePluggyConfig().data?.habilitado === true;
+  // Comunidade (23/09/2026): atrás de COMUNIDADE_HABILITADA até liberar em prod.
+  const comunidadeHabilitada = useComunidadeConfig().data?.habilitada === true;
 
   const dashboardPath =
     user?.role === 'consultant' && !actingClient ? '/dashboard/consultor' : '/carteira';
@@ -134,6 +138,10 @@ const AppSidebar: React.FC = () => {
           : [...items, entrada];
     }
 
+    if (comunidadeHabilitada) {
+      items = [...items, { icon: <GroupIcon />, name: 'Comunidade', path: '/comunidade' }];
+    }
+
     // Painel administrativo (11/09/2026): só role admin vê o item.
     if (user?.role === 'admin') {
       items = [...items, { icon: <LockIcon />, name: 'Administração', path: '/admin' }];
@@ -158,7 +166,7 @@ const AppSidebar: React.FC = () => {
     }
 
     return items;
-  }, [dashboardPath, actingClient, user?.role, pluggyHabilitado]);
+  }, [dashboardPath, actingClient, user?.role, pluggyHabilitado, comunidadeHabilitada]);
 
   const renderMenuItems = (navItems: NavItem[], menuType: 'main' | 'support' | 'others') => (
     <ul className="flex flex-col gap-4">
