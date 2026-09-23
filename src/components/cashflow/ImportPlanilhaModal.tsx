@@ -184,6 +184,7 @@ export const ImportPlanilhaModal: React.FC<ImportPlanilhaModalProps> = ({
 
   return createPortal(
     <div
+      data-mf-overlay
       className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40"
       onClick={(e) => {
         if (e.target === e.currentTarget && !loading) onClose();

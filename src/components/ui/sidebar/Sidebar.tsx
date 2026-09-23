@@ -1,6 +1,7 @@
 'use client';
 import React, { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { lockBodyScroll } from '@/lib/ui/scrollLock';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -39,20 +40,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
     };
 
+    let releaseScroll: (() => void) | undefined;
     if (isOpen) {
       if (closeOnEscape) {
         document.addEventListener('keydown', handleEscape);
       }
       // No modo drawer (noBackdrop), o app continua navegável — não
-      // bloqueia scroll do body. Em modal tradicional sim.
+      // bloqueia scroll do body. Em modal tradicional sim (trava compartilhada
+      // com o Modal: um fechar não destrava o outro).
       if (!noBackdrop) {
-        document.body.style.overflow = 'hidden';
+        releaseScroll = lockBodyScroll();
       }
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
+      releaseScroll?.();
     };
   }, [isOpen, onClose, closeOnEscape, noBackdrop]);
 
@@ -73,13 +76,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
 
           {/* Sidebar */}
+          {/* role/aria-modal: abaixo de lg a casca mobile (barra de abas/cabeçalho) some enquanto o
+              drawer estiver aberto — regra :has([aria-modal]) de globals.css. */}
           <motion.div
             ref={sidebarRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 z-[500] flex flex-col ${
+            className={`fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 z-[500] flex flex-col max-lg:h-dvh max-lg:pt-[env(safe-area-inset-top)] max-lg:pb-[env(safe-area-inset-bottom)] ${
               noBackdrop ? 'border-l border-gray-200 dark:border-gray-800 shadow-xl' : 'shadow-2xl'
             } ${className}`}
           >
