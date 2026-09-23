@@ -68,3 +68,36 @@ export const TABLE_HIGHLIGHT_HEADER_STYLE = { backgroundColor: MYFINANCE_BRAND.o
 
 /** Estilo inline do fundo das linhas de seção (azul `tranquilidade`). */
 export const TABLE_SECTION_STYLE = { backgroundColor: MYFINANCE_BRAND.tranquilidade } as const;
+
+/**
+ * Tabela → cartões abaixo de lg (PWA fase 0). NÃO altera `TABLE_STYLES`: é o par mobile usado
+ * pelo `ResponsiveTable` (e, nas fases 1 a 3, pelas tabelas migradas). Cores só da paleta
+ * My Finance + cinzas; negativos no vermelho semântico do "Quanto falta".
+ */
+export const TABLE_MOBILE_STYLES = {
+  /** <ul> que empilha os cartões. */
+  list: 'flex flex-col gap-3',
+  /** Cartão de uma linha. */
+  card: 'rounded-2xl border border-gray-200 bg-white px-4 py-3.5 dark:border-gray-800 dark:bg-white/[0.03]',
+  /** Acrescentar quando a linha é clicável (alvo de toque ≥ 72px). */
+  cardClickable: 'min-h-[72px] cursor-pointer active:bg-gray-100 dark:active:bg-white/[0.05]',
+  /** Linha de cima: coluna `primary` à esquerda, `value` à direita. */
+  cardHeader: 'flex items-start justify-between gap-3',
+  cardTitle: 'text-sm font-semibold text-gray-800 dark:text-white/90',
+  cardSubtitle: 'text-xs text-gray-500 dark:text-gray-400',
+  /** Grade de até 3 colunas `field`. */
+  cardGrid: 'mt-2 grid grid-cols-3 gap-2',
+  dt: 'text-[11px] font-medium uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400',
+  dd: 'text-sm font-medium tabular-nums text-gray-700 dark:text-gray-200',
+  valuePrimary: 'text-sm font-semibold tabular-nums text-right text-gray-800 dark:text-white/90',
+  positive: 'text-mf-patrimonio dark:text-mf-tranquilidade',
+  negative: 'text-[#D92D20] dark:text-[#F97066]',
+  /** Faixa de grupo (par da `sectionRow`, azul `tranquilidade`). */
+  groupBand:
+    'flex items-center justify-between rounded-lg bg-mf-tranquilidade px-3 py-2 text-sm font-semibold text-white',
+  /** Cartão de total (par da `totalRow`). */
+  totalCard:
+    'rounded-2xl bg-gray-50 px-4 py-3.5 font-medium text-gray-800 dark:bg-white/[0.02] dark:text-gray-100',
+  chip: 'inline-flex min-h-9 items-center rounded-full border border-gray-200 px-3 text-sm dark:border-gray-700',
+  chipActive: 'border-mf-seguranca bg-mf-seguranca text-white',
+} as const;
