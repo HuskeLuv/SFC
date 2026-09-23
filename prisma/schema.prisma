@@ -120,10 +120,16 @@ model User {
   saudeFinanceiraSnapshots      SaudeFinanceiraSnapshot[]     @relation("SaudeFinanceiraSnapshotUser")
   seguroApolices                SeguroApolice[]               @relation("SeguroApoliceUser")
   lessonProgresses              LessonProgress[]              @relation("LessonProgressUser")
+  // Comunidade (23/09/2026)
+  communityProfile              CommunityProfile?
+  communityPosts                CommunityPost[]               @relation("CommunityPostAuthor")
+  communityComments             CommunityComment[]            @relation("CommunityCommentAuthor")
+  communityLikes                CommunityLike[]
+  communityReports              CommunityReport[]             @relation("CommunityReportReporter")
   assistenteMensagens           AssistenteMensagem[]          @relation("AssistenteMensagemUser")
   bankConnections               BankConnection[]              @relation("BankConnectionUser")
-  openFinanceConsentimentos OpenFinanceConsentimento[] @relation("OpenFinanceConsentimentoUser")
-  pluggyImportacaoOrigens   PluggyImportacaoOrigem[]   @relation("PluggyImportacaoOrigemUser")
+  openFinanceConsentimentos     OpenFinanceConsentimento[]    @relation("OpenFinanceConsentimentoUser")
+  pluggyImportacaoOrigens       PluggyImportacaoOrigem[]      @relation("PluggyImportacaoOrigemUser")
   bankAccounts                  BankAccount[]                 @relation("BankAccountUser")
   bankTransactions              BankTransaction[]             @relation("BankTransactionUser")
   bankInvestments               BankInvestment[]              @relation("BankInvestmentUser")
@@ -140,17 +146,17 @@ model User {
  * mexeu não tem registro e vale o padrão (lembretes ligados).
  */
 model AgendaPreferencia {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   // false = o cron não gera notificação de lembrete para este usuário.
-  lembretes Boolean  @default(true)
+  lembretes    Boolean   @default(true)
   // Token do feed iCal (a URL é pública: o token É a credencial). Null = sem
   // feed publicado; regerar o token invalida o link antigo na hora.
   icalToken    String?   @unique
   icalCriadoEm DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@map("agenda_preferencias")
 }
@@ -460,29 +466,29 @@ model Portfolio {
 
 // Proventos registrados pelo usuário por posição na carteira (edição na tela de ativo)
 model PortfolioProvento {
-  id             String    @id @default(uuid())
-  portfolioId    String
-  portfolio      Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tipo           String
-  dataCom        DateTime
-  dataPagamento  DateTime
-  precificarPor  String    @default("valor")
-  valorTotal     Float
-  quantidadeBase Float
-  impostoRenda   Float?
+  id                  String    @id @default(uuid())
+  portfolioId         String
+  portfolio           Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo                String
+  dataCom             DateTime
+  dataPagamento       DateTime
+  precificarPor       String    @default("valor")
+  valorTotal          Float
+  quantidadeBase      Float
+  impostoRenda        Float?
   // Soft delete: usuário deletou explicitamente. Sync respeita — não recria.
-  dismissed      Boolean   @default(false)
+  dismissed           Boolean   @default(false)
   // Origem da entry: "brapi" (criada/atualizada pelo sync) ou "manual"
   // (criada/editada pelo usuário via UI). Sync atualiza só rows brapi.
-  source         String    @default("manual")
+  source              String    @default("manual")
   // Caixa para Investir (fase 3, 21/09/2026): quando o provento pago entrou no
   // caixa livre e quanto (R$, líquido de IR). Marcado uma vez só — nunca credita de novo.
   caixaCreditadoEm    DateTime?
   caixaCreditadoValor Float?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([portfolioId])
   @@index([userId])
@@ -1406,10 +1412,14 @@ model BankConnection {
   errorMessage       String?
   consentExpiresAt   DateTime?
   providerUpdatedAt  DateTime?
-  /** Último sync NOSSO bem-sucedido (contas + transações gravadas). */
+  /**
+   * Último sync NOSSO bem-sucedido (contas + transações gravadas).
+   */
   lastSyncAt         DateTime?
   lastSyncError      String?
-  /** Última atualização manual (PATCH /items) — cooldown, ver services/pluggy/sync.ts. */
+  /**
+   * Última atualização manual (PATCH /items) — cooldown, ver services/pluggy/sync.ts.
+   */
   lastManualUpdateAt DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -1433,7 +1443,9 @@ model BankAccount {
   type              String // BANK | CREDIT
   subtype           String? // CHECKING_ACCOUNT | SAVINGS_ACCOUNT | CREDIT_CARD
   name              String
-  /** Número mascarado como o provedor devolve (nunca agência/conta completos de terceiros). */
+  /**
+   * Número mascarado como o provedor devolve (nunca agência/conta completos de terceiros).
+   */
   number            String?
   currencyCode      String         @default("BRL")
   balance           Decimal        @default(0) @db.Decimal(15, 2)
@@ -1444,7 +1456,9 @@ model BankAccount {
   creditBrand       String?
   creditDueDate     DateTime?
   creditClosingDate DateTime?
-  /** false = usuário escolheu não usar esta conta no MyFinance (continua sincronizando o item). */
+  /**
+   * false = usuário escolheu não usar esta conta no MyFinance (continua sincronizando o item).
+   */
   ativa             Boolean        @default(true)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -1457,59 +1471,71 @@ model BankAccount {
 }
 
 model BankTransaction {
-  id                String      @id @default(uuid())
-  accountId         String
-  account           BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  userId            String
-  user              User        @relation("BankTransactionUser", fields: [userId], references: [id], onDelete: Cascade)
-  /** Id no Pluggy. Pode mudar quando data/descrição/valor mudam — por isso o dedupHash. */
-  providerTxId      String      @unique
-  /** sha256(conta local | data | valor | descrição): reconhece id trocado dentro da mesma conta. */
-  dedupHash         String
+  id                 String        @id @default(uuid())
+  accountId          String
+  account            BankAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User          @relation("BankTransactionUser", fields: [userId], references: [id], onDelete: Cascade)
+  /**
+   * Id no Pluggy. Pode mudar quando data/descrição/valor mudam — por isso o dedupHash.
+   */
+  providerTxId       String        @unique
+  /**
+   * sha256(conta local | data | valor | descrição): reconhece id trocado dentro da mesma conta.
+   */
+  dedupHash          String
   /**
    * sha256(usuário | banco | nº da conta | data | valor | descrição): reconhece a
    * MESMA transação chegando por outra conexão (banco conectado duas vezes).
    * Null só em linhas anteriores à migration; preenchido no próximo sync.
    */
-  globalHash        String?
-  /** Id da transação original quando esta é cópia por outra conexão; fica fora da Caixa de entrada e das células. */
-  duplicadaDe       String?
-  date              DateTime
-  description       String
-  descriptionRaw    String?
+  globalHash         String?
+  /**
+   * Id da transação original quando esta é cópia por outra conexão; fica fora da Caixa de entrada e das células.
+   */
+  duplicadaDe        String?
+  date               DateTime
+  description        String
+  descriptionRaw     String?
   /**
    * Valor com o sinal do provedor: conta → negativo = saída; cartão →
    * positivo = compra (aumenta a fatura), negativo = pagamento/estorno.
    * `type` (DEBIT/CREDIT) é a fonte da verdade do sentido.
    */
-  amount            Decimal     @db.Decimal(15, 2)
-  type              String // DEBIT | CREDIT
-  status            String      @default("POSTED") // POSTED | PENDING
-  currencyCode      String      @default("BRL")
-  providerCategory  String?
+  amount             Decimal       @db.Decimal(15, 2)
+  type               String // DEBIT | CREDIT
+  status             String        @default("POSTED") // POSTED | PENDING
+  currencyCode       String        @default("BRL")
+  providerCategory   String?
   providerCategoryId String?
-  merchantName      String?
-  merchantCnpj      String?
-  paymentMethod     String? // PIX | TED | DOC | BOLETO …
-  /** Nome da contraparte (pagador em crédito, recebedor em débito). Sem documento (LGPD). */
-  counterpartName   String?
-  installmentNumber Int?
-  installmentTotal  Int?
-  billId            String?
-  /** Usuário marcou para não considerar (transferência entre contas próprias, etc.). */
-  ignorada          Boolean     @default(false)
+  merchantName       String?
+  merchantCnpj       String?
+  paymentMethod      String? // PIX | TED | DOC | BOLETO …
+  /**
+   * Nome da contraparte (pagador em crédito, recebedor em débito). Sem documento (LGPD).
+   */
+  counterpartName    String?
+  installmentNumber  Int?
+  installmentTotal   Int?
+  billId             String?
+  /**
+   * Usuário marcou para não considerar (transferência entre contas próprias, etc.).
+   */
+  ignorada           Boolean       @default(false)
   /**
    * Linha do fluxo de caixa em que a transação foi aplicada (Caixa de entrada,
    * Fase 2c). null = pendente. A célula (item, ano, mês) passa a ser a soma
    * das transações aplicadas — "uma conta = um canal".
    */
-  cashflowItemId    String?
-  cashflowItem      CashflowItem? @relation("BankTransactionCashflowItem", fields: [cashflowItemId], references: [id], onDelete: SetNull)
-  appliedAt         DateTime?
-  /** Removida no provedor (evento transactions/deleted ou sumiu na reconciliação da janela). */
-  deletedAt         DateTime?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  cashflowItemId     String?
+  cashflowItem       CashflowItem? @relation("BankTransactionCashflowItem", fields: [cashflowItemId], references: [id], onDelete: SetNull)
+  appliedAt          DateTime?
+  /**
+   * Removida no provedor (evento transactions/deleted ou sumiu na reconciliação da janela).
+   */
+  deletedAt          DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   @@index([userId, date])
   @@index([accountId, date])
@@ -1573,12 +1599,16 @@ model BankInvestment {
   issuer               String?
   status               String? // ACTIVE | TOTAL_WITHDRAWAL…
   providerDate         DateTime?
-  /** false = sumiu do provedor na última sincronização. */
+  /**
+   * false = sumiu do provedor na última sincronização.
+   */
   ativo                Boolean        @default(true)
   assetId              String?
   portfolioId          String?
   fixedIncomeAssetId   String?
-  /** pendente | importado | vinculado | ignorado | sem-suporte | erro */
+  /**
+   * pendente | importado | vinculado | ignorado | sem-suporte | erro
+   */
   importStatus         String         @default("pendente")
   importError          String?
   importedAt           DateTime?
@@ -1591,42 +1621,156 @@ model BankInvestment {
   @@map("bank_investments")
 }
 
-/** Espelho de uma operação de crédito (empréstimo/financiamento) do provedor. */
+/**
+ * Espelho de uma operação de crédito (empréstimo/financiamento) do provedor.
+ */
 model BankLoan {
-  id                     String         @id @default(uuid())
-  connectionId           String
-  connection             BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  userId                 String
-  user                   User           @relation("BankLoanUser", fields: [userId], references: [id], onDelete: Cascade)
-  providerLoanId         String         @unique
-  contractNumber         String?
-  productName            String
-  type                   String?
-  contractAmount         Decimal?       @db.Decimal(15, 2)
-  outstanding            Decimal?       @db.Decimal(15, 2)
-  nextInstallmentAmount  Decimal?       @db.Decimal(15, 2)
-  cet                    Float?
-  annualRate             Float?
-  indexer                String?
-  amortization           String? // SAC | PRICE | SAM
-  periodicity            String?
-  totalInstallments      Int?
-  paidInstallments       Int?
-  dueInstallments        Int?
-  pastDueInstallments    Int?
-  contractDate           DateTime?
+  id                      String         @id @default(uuid())
+  connectionId            String
+  connection              BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  userId                  String
+  user                    User           @relation("BankLoanUser", fields: [userId], references: [id], onDelete: Cascade)
+  providerLoanId          String         @unique
+  contractNumber          String?
+  productName             String
+  type                    String?
+  contractAmount          Decimal?       @db.Decimal(15, 2)
+  outstanding             Decimal?       @db.Decimal(15, 2)
+  nextInstallmentAmount   Decimal?       @db.Decimal(15, 2)
+  cet                     Float?
+  annualRate              Float?
+  indexer                 String?
+  amortization            String? // SAC | PRICE | SAM
+  periodicity             String?
+  totalInstallments       Int?
+  paidInstallments        Int?
+  dueInstallments         Int?
+  pastDueInstallments     Int?
+  contractDate            DateTime?
   firstInstallmentDueDate DateTime?
-  dueDate                DateTime?
-  ativo                  Boolean        @default(true)
-  dividaId               String?
-  /** pendente | importado | vinculado | ignorado | sem-suporte | erro */
-  importStatus           String         @default("pendente")
-  importError            String?
-  importedAt             DateTime?
-  createdAt              DateTime       @default(now())
-  updatedAt              DateTime       @updatedAt
+  dueDate                 DateTime?
+  ativo                   Boolean        @default(true)
+  dividaId                String?
+  /**
+   * pendente | importado | vinculado | ignorado | sem-suporte | erro
+   */
+  importStatus            String         @default("pendente")
+  importError             String?
+  importedAt              DateTime?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
 
   @@index([userId])
   @@index([connectionId])
   @@map("bank_loans")
+}
+
+// ============================================================
+// Comunidade (pedido do Pedro, 23/09/2026) — feed de posts de texto, curtidas,
+// comentários e moderação posterior pela equipe. Conteúdo removido é soft
+// delete (excluidoEm = pelo autor; ocultoEm = pela moderação) para a fila de
+// denúncias e o registro exigido pelo Marco Civil.
+// ============================================================
+
+enum CommunityCargo {
+  membro
+  // Equipe My Finance: selo no perfil + modera + fixa posts
+  equipe
+}
+
+model CommunityProfile {
+  userId         String         @id
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio            String?        @db.VarChar(280)
+  cargo          CommunityCargo @default(membro)
+  termoVersao    String
+  termoAceitoEm  DateTime
+  suspensoAte    DateTime?
+  suspensoMotivo String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@map("community_profiles")
+}
+
+model CommunityPost {
+  id           String             @id @default(uuid())
+  authorId     String
+  author       User               @relation("CommunityPostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  categoria    String
+  conteudo     String
+  fixadoEm     DateTime?
+  editadoEm    DateTime?
+  excluidoEm   DateTime?
+  ocultoEm     DateTime?
+  ocultoPorId  String?
+  ocultoMotivo String?
+  ipAddress    String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  comments     CommunityComment[]
+  likes        CommunityLike[]
+  reports      CommunityReport[]
+
+  @@index([createdAt])
+  @@index([categoria, createdAt])
+  @@index([authorId, createdAt])
+  @@map("community_posts")
+}
+
+model CommunityComment {
+  id           String            @id @default(uuid())
+  postId       String
+  post         CommunityPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User              @relation("CommunityCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  conteudo     String
+  editadoEm    DateTime?
+  excluidoEm   DateTime?
+  ocultoEm     DateTime?
+  ocultoPorId  String?
+  ocultoMotivo String?
+  ipAddress    String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  reports      CommunityReport[]
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt])
+  @@map("community_comments")
+}
+
+model CommunityLike {
+  postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@id([postId, userId])
+  @@index([userId])
+  @@map("community_likes")
+}
+
+model CommunityReport {
+  id             String            @id @default(uuid())
+  reporterId     String
+  reporter       User              @relation("CommunityReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  postId         String?
+  post           CommunityPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId      String?
+  comment        CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  motivo         String
+  detalhe        String?
+  // aberta | resolvida | descartada
+  status         String            @default("aberta")
+  resolvidoPorId String?
+  resolvidoEm    DateTime?
+  createdAt      DateTime          @default(now())
+
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
+  @@index([postId])
+  @@index([commentId])
+  @@map("community_reports")
 }
