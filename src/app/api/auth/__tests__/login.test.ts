@@ -34,6 +34,7 @@ describe('POST /api/auth/login', () => {
     name: 'Test User',
     password: 'hashed-password',
     role: 'user',
+    sessionVersion: 0,
   };
 
   beforeEach(() => {
@@ -60,31 +61,54 @@ describe('POST /api/auth/login', () => {
     expect(setCookie).toContain('token=mock-token');
   });
 
-  it('retorna 200 com rememberMe true', async () => {
+  it('com rememberMe: claims sv/rm/at, JWT de 30 dias e cookie com Max-Age de 30 dias', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, sessionVersion: 4 });
+    const before = Math.floor(Date.now() / 1000);
     const response = await POST(
       createRequest({ email: 'test@test.com', password: 'password123', rememberMe: true }),
     );
 
     expect(response.status).toBe(200);
-    expect(mockJwt.sign).toHaveBeenCalledWith(
-      { id: 'user-1', role: 'user' },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' },
-    );
+    const [claims, , options] = mockJwt.sign.mock.calls[0];
+    expect(claims).toMatchObject({ id: 'user-1', role: 'user', sv: 4, rm: true });
+    expect(claims.at).toBeGreaterThanOrEqual(before);
+    expect(options).toEqual({ expiresIn: 30 * 86400 });
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=2592000');
   });
 
-  it('retorna 200 com rememberMe false (expiresIn 1d)', async () => {
+  it('sem rememberMe: cookie de sessão (sem Max-Age nem Expires) e JWT de 12h', async () => {
     const response = await POST(
       createRequest({ email: 'test@test.com', password: 'password123', rememberMe: false }),
     );
 
     expect(response.status).toBe(200);
-    expect(mockJwt.sign).toHaveBeenCalledWith(
-      { id: 'user-1', role: 'user' },
-      process.env.JWT_SECRET,
-      { expiresIn: '1d' },
-    );
+    const [claims, , options] = mockJwt.sign.mock.calls[0];
+    expect(claims).toMatchObject({ id: 'user-1', role: 'user', sv: 0, rm: false });
+    expect(options).toEqual({ expiresIn: 12 * 3600 });
+    const setCookie = response.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('token=mock-token');
+    expect(setCookie).not.toMatch(/Max-Age/i);
+    expect(setCookie).not.toMatch(/Expires/i);
+    expect(setCookie).toMatch(/HttpOnly/i);
   });
+
+  it('rememberMe ausente conta como desmarcado (cookie de sessão)', async () => {
+    const response = await POST(createRequest({ email: 'test@test.com', password: 'password123' }));
+    expect(mockJwt.sign.mock.calls[0][0]).toMatchObject({ rm: false });
+    expect(response.headers.get('set-cookie')).not.toMatch(/Max-Age/i);
+  });
+
+  it.each(['admin', 'consultant'])(
+    '%s com rememberMe: 1 dia (JWT e cookie), sem os 30 dias',
+    async (role) => {
+      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, role });
+      const response = await POST(
+        createRequest({ email: 'test@test.com', password: 'password123', rememberMe: true }),
+      );
+      expect(mockJwt.sign.mock.calls[0][2]).toEqual({ expiresIn: 86400 });
+      expect(response.headers.get('set-cookie')).toContain('Max-Age=86400');
+    },
+  );
 
   describe('Validacao Zod', () => {
     it('retorna 400 quando email esta ausente', async () => {
