@@ -3,6 +3,7 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { lockBodyScroll } from '@/lib/ui/scrollLock';
+import { MOBILE_MEDIA_QUERY } from '@/lib/ui/mobile';
 
 export interface BottomSheetProps {
   isOpen: boolean;
@@ -26,6 +27,8 @@ const FOCUSABLE =
  * Painel que sobe de baixo (PWA fase 0), só abaixo de lg. Portal no body, `aria-modal` (o que
  * também esconde a casca mobile pelo contrato do globals.css), Esc e toque no fundo fecham,
  * foco preso no painel e devolvido ao gatilho ao fechar. Sem arrastar para fechar nesta fase.
+ * Fecha sozinho quando a janela passa a lg (tablet girado, janela redimensionada): o painel some
+ * pelo `lg:hidden`, mas a trava de rolagem continuaria prendendo a página do desktop.
  */
 export default function BottomSheet({
   isOpen,
@@ -78,8 +81,16 @@ export default function BottomSheet({
     };
     document.addEventListener('keydown', onKeyDown);
 
+    const mobileQuery =
+      typeof window.matchMedia === 'function' ? window.matchMedia(MOBILE_MEDIA_QUERY) : null;
+    const onBreakpoint = () => {
+      if (mobileQuery && !mobileQuery.matches) onCloseRef.current();
+    };
+    mobileQuery?.addEventListener('change', onBreakpoint);
+
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      mobileQuery?.removeEventListener('change', onBreakpoint);
       release();
       if (trigger && typeof trigger.focus === 'function' && document.contains(trigger)) {
         trigger.focus();
