@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
     style.textContent =
       '.tsqd-parent-container, .tsqd-open-btn-container { display: none !important; }';
     document.addEventListener('DOMContentLoaded', () => document.head.appendChild(style));
-    // Aviso de cookies já aceito (ele fica por cima da barra até a fatia A reposicioná-lo).
+    // Aviso de cookies já aceito (ele fica acima da barra, mas cobriria parte do conteúdo).
     try {
       localStorage.setItem(
         'lgpd-cookie-consent',
@@ -114,10 +114,11 @@ test('Lançar → Novo investimento abre o wizard na Carteira e limpa ?acao', as
     timeout: 30000,
   });
   expect(new URL(page.url()).search).toBe('');
-  // Com o wizard aberto a barra some: depende do aria-modal no drawer ui/sidebar/Sidebar,
-  // que é marcado na fatia C (antes do merge dela, só este passo falha).
+  // Com o wizard aberto a barra some (aria-modal no drawer ui/sidebar/Sidebar).
   await expect(tabbar(page)).toBeHidden();
-  const avancar = page.getByRole('button', { name: /Avançar|Salvar/ }).first();
+  // O botão de avançar é procurado dentro do drawer: a Carteira tem outros "Salvar ..." por trás.
+  const wizard = page.getByRole('dialog', { name: 'Adicionar Ativo à Carteira' });
+  const avancar = wizard.getByRole('button', { name: /Avançar|Confirmar|Planejar/ }).first();
   await expect(avancar).toBeInViewport();
 });
 
