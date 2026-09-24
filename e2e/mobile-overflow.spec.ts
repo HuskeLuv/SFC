@@ -18,17 +18,16 @@ import { waitForContent } from './helpers/waitForContent';
  * Cada uma roda com `test.fail` — quando o conserto chegar, o "passou inesperadamente" obriga a
  * tirar a rota da lista. Qualquer rota fora da lista que transborde derruba a suíte.
  */
-const KNOWN_OVERFLOW: Record<string, string> = {
-  '/carteira': 'fase 1 — 474px: linha de botões do cabeçalho (Adicionar/Resgatar) (set/2026)',
-  '/calendario': 'fase 3 — FullCalendar 448px: .fc-header-toolbar da visão lista (set/2026)',
-  '/historico-alteracoes':
-    'fase 3 — 794px: valor anterior riscado (span.line-through) sem quebra de linha (set/2026)',
-};
+// Vazia desde a fase 0 (set/2026): /carteira, /calendario e /historico-alteracoes foram
+// consertadas porque o transbordo tirava a barra de abas da tela.
+const KNOWN_OVERFLOW: Record<string, string> = {};
 
 interface Measure {
   sw: number;
   cw: number;
   bw: number;
+  /** scrollWidth do contêiner do conteúdo da casca, que corta o transbordo abaixo de lg. */
+  ct: number;
 }
 
 const measure = (page: Page): Promise<Measure> =>
@@ -36,6 +35,7 @@ const measure = (page: Page): Promise<Measure> =>
     sw: document.documentElement.scrollWidth,
     cw: document.documentElement.clientWidth,
     bw: document.body.scrollWidth,
+    ct: document.querySelector('[data-mf-content]')?.scrollWidth ?? 0,
   }));
 
 /**
@@ -47,6 +47,8 @@ const findOffenders = (page: Page, W: number) =>
     const overflows = (el: Element) => el.getBoundingClientRect().right > limit + 1;
     const clippedByAncestor = (el: Element) => {
       for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        // o corte de segurança da casca não conta: o que ele esconde ainda é transbordo
+        if (p.hasAttribute('data-mf-content')) continue;
         const ox = getComputedStyle(p).overflowX;
         if (ox !== 'visible') return true;
       }
@@ -81,12 +83,12 @@ const findOffenders = (page: Page, W: number) =>
   }, W);
 
 const overflowsViewport = (m: Measure, page: Page) =>
-  Math.max(m.sw, m.bw) > page.viewportSize()!.width;
+  Math.max(m.sw, m.bw, m.ct) > page.viewportSize()!.width;
 
 async function expectNoHorizontalOverflow(page: Page, route: string) {
   const W = page.viewportSize()!.width; // 390 — largura FIXA, nunca innerWidth
   const m = await measure(page);
-  const widest = Math.max(m.sw, m.bw);
+  const widest = Math.max(m.sw, m.bw, m.ct);
 
   if (widest > W || m.cw > W) {
     const offenders = await findOffenders(page, W);

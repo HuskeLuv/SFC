@@ -40,7 +40,41 @@ async function waitForShell(page: Page) {
   await expect(tabbar(page)).toBeVisible();
 }
 
-for (const route of ['/carteira', '/fluxodecaixa', '/planejamento-financeiro', '/dividas']) {
+/**
+ * A caixa do elemento dentro da área VISÍVEL (visualViewport). Com isMobile, um transbordo estica
+ * a viewport de layout e um `fixed` se posiciona por ela — fora da tela, mas "visível" para o
+ * Playwright, que mede em coordenadas de layout.
+ */
+async function expectInsideVisualViewport(page: Page, selector: string) {
+  const box = await page
+    .locator(selector)
+    .first()
+    .evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const vv = window.visualViewport!;
+      return {
+        top: r.top,
+        bottom: r.bottom,
+        left: r.left,
+        right: r.right,
+        vw: vv.width,
+        vh: vv.height,
+      };
+    });
+  expect(box.top, `${selector} acima da tela`).toBeGreaterThanOrEqual(-1);
+  expect(box.left, `${selector} à esquerda da tela`).toBeGreaterThanOrEqual(-1);
+  expect(box.bottom, `${selector} abaixo da tela`).toBeLessThanOrEqual(box.vh + 1);
+  expect(box.right, `${selector} à direita da tela`).toBeLessThanOrEqual(box.vw + 1);
+}
+
+for (const route of [
+  '/carteira',
+  '/fluxodecaixa',
+  '/planejamento-financeiro',
+  '/dividas',
+  '/calendario',
+  '/historico-alteracoes',
+]) {
   test(`casca em ${route}: header e barra visíveis, título descoberto, fim alcançável`, async ({
     page,
   }) => {
@@ -60,6 +94,10 @@ for (const route of ['/carteira', '/fluxodecaixa', '/planejamento-financeiro', '
       return !(hit && (hit === el || el.contains(hit)));
     });
     expect(covered).toBe(false);
+
+    // Com o conteúdo carregado, a barra de abas está na área visível (não só no layout).
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await expectInsideVisualViewport(page, '[data-mf-tabbar]');
 
     // O fim do conteúdo, depois de rolar, fica acima da barra de abas.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
@@ -120,6 +158,26 @@ test('Lançar → Novo investimento abre o wizard na Carteira e limpa ?acao', as
   const wizard = page.getByRole('dialog', { name: 'Adicionar Ativo à Carteira' });
   const avancar = wizard.getByRole('button', { name: /Avançar|Confirmar|Planejar/ }).first();
   await expect(avancar).toBeInViewport();
+});
+
+test('Agenda: o sheet de Novo evento cabe na tela (X e rodapé)', async ({ page }) => {
+  await page.goto('/calendario');
+  await waitForShell(page);
+  const novo = page.getByRole('button', { name: /Novo evento/ }).first();
+  await expect(novo).toBeVisible({ timeout: 60000 });
+  await novo.click();
+  const dialog = page.getByRole('dialog').last();
+  await expect(dialog).toBeVisible();
+  const fechar = dialog.getByRole('button', { name: 'Fechar' }).first();
+  await expect(fechar).toBeVisible();
+  const box = await fechar.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { right: r.right, top: r.top, vw: window.visualViewport!.width };
+  });
+  expect(box.right).toBeLessThanOrEqual(box.vw + 1);
+  expect(box.top).toBeGreaterThanOrEqual(0);
+  await fechar.click();
+  await expect(dialog).toBeHidden();
 });
 
 test('o sino abre para baixo, dentro da tela', async ({ page }) => {

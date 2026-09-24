@@ -52,7 +52,15 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
           {pathname?.startsWith('/carteira') && (
             <InstallAppCard variant="banner" className="mx-4 mt-3 lg:hidden" />
           )}
-          <div className={`p-4 md:p-6 ${contentWidthClass} print:max-w-none print:p-0`}>
+          {/* Abaixo de lg o conteúdo que ainda transborda é cortado aqui (overflow-x: clip, que
+              não cria contêiner de rolagem nem quebra sticky): no Chrome mobile um transbordo
+              estica a viewport de layout e a barra de abas (fixed) sai da tela. O teste
+              mobile-overflow mede este contêiner (data-mf-content) para o corte não esconder
+              regressão. */}
+          <div
+            data-mf-content
+            className={`p-4 md:p-6 ${contentWidthClass} max-lg:overflow-x-clip print:max-w-none print:p-0`}
+          >
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>
         </div>

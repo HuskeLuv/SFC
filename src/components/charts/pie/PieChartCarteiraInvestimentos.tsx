@@ -219,7 +219,8 @@ export default function PieChartCarteiraInvestimentos({
           breakpoint: 480,
           options: {
             chart: {
-              width: 280,
+              // 100% (e não 280px fixos): a 320px o card tem menos de 280 e a pizza esticava a página
+              width: '100%',
             },
             legend: {
               show: false,

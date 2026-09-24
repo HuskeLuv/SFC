@@ -35,12 +35,12 @@ function MetaRow({ titulo, descricao, benchmark, indisponivel }: MetaRowProps) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <div>
+        <div className="max-lg:min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-white/90">{titulo}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">{descricao}</p>
         </div>
         {necessario != null ? (
-          <p className="shrink-0 text-right text-xs text-gray-500 dark:text-gray-400">
+          <p className="shrink-0 text-right text-xs text-gray-500 max-lg:shrink dark:text-gray-400">
             <span
               className={`block text-sm font-semibold ${
                 completo ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white/90'

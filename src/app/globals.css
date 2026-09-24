@@ -541,6 +541,23 @@
 .agenda-calendar .fc .fc-more-link {
   @apply text-xs text-brand-500;
 }
+/* PWA fase 0: abaixo de lg a barra do calendário (◀ ▶ Hoje + Novo evento) quebra linha em vez
+   de esticar a página (448px a 390) e empurrar a barra de abas/sheets para fora da tela. */
+@media (width < 64rem) {
+  .agenda-calendar .fc .fc-toolbar.fc-header-toolbar {
+    @apply px-4;
+  }
+  .agenda-calendar .fc-header-toolbar .fc-toolbar-chunk {
+    @apply flex max-w-full flex-wrap items-center justify-center gap-2;
+  }
+  .agenda-calendar .fc-header-toolbar .fc-toolbar-chunk > .fc-button {
+    @apply ml-0;
+  }
+  /* Na lista o nome do evento quebra linha (o `truncate` travava a largura mínima da tabela). */
+  .agenda-calendar .fc-list-event-title .truncate {
+    @apply whitespace-normal;
+  }
+}
 
 .fc-direction-ltr .fc-timegrid-slot-label-frame {
   @apply px-3 py-1.5 text-left text-sm font-medium text-gray-500 dark:text-gray-400;

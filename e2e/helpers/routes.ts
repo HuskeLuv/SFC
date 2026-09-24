@@ -92,8 +92,7 @@ export const READY_SELECTOR: Record<string, string> = {
   // FullCalendar é carregado sob demanda e os eventos chegam depois; o transbordo só aparece com
   // os eventos na tela (nomes longos). Abaixo de 768px a visão inicial é a LISTA
   // (AgendaFullCalendar) — é ela que um celular vê. O usuário demo tem parcelas de dívida todo mês.
-  // Se não houver evento (ou o mount abrir a visão de mês), a espera estoura e o teste falha:
-  // coerente com a /calendario estar em KNOWN_OVERFLOW até a fase 3.
+  // Se não houver evento (ou o mount abrir a visão de mês), a espera estoura e o teste falha.
   '/calendario': '.fc-list-event',
   // A planilha não tem título <h1>/<h2>: espera a primeira linha da tabela.
   '/fluxodecaixa': 'table tbody tr',

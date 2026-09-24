@@ -158,7 +158,7 @@ export default function CarteiraResumo() {
   return (
     <div>
       {/* Header com botão de adicionar investimento */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between max-lg:flex-wrap max-lg:gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             Carteira de Investimentos
@@ -167,7 +167,7 @@ export default function CarteiraResumo() {
             Gerencie e acompanhe seus investimentos por categoria
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-lg:flex-wrap">
           <button
             onClick={() => setIsSidebarOpen(true)}
             className="flex items-center space-x-2 rounded-lg bg-brand-500 px-4 py-2 text-white transition-colors hover:bg-brand-600"

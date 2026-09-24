@@ -63,7 +63,7 @@ export default function PaginationWithButton({
   };
 
   return (
-    <div className="flex items-center justify-center gap-4 xl:justify-start">
+    <div className="flex items-center justify-center gap-4 max-lg:flex-wrap xl:justify-start">
       <button
         onClick={() => handlePageChange(currentPage - 1)}
         disabled={currentPage === 1}
