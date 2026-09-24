@@ -160,6 +160,21 @@ test('Lançar → Novo investimento abre o wizard na Carteira e limpa ?acao', as
   await expect(avancar).toBeInViewport();
 });
 
+test('Lançar → Novo investimento com a Carteira ainda carregando abre o wizard', async ({
+  page,
+}) => {
+  await page.goto('/carteira');
+  await waitForShell(page);
+  // Sem esperar a página: o atalho fica pendente até o CarteiraResumo montar.
+  await page.getByRole('button', { name: 'Lançar' }).click();
+  const sheet = page.getByRole('dialog', { name: 'O que você quer lançar?' });
+  await sheet.getByRole('link', { name: /Novo investimento/ }).click();
+  await expect(page.getByRole('heading', { name: 'Adicionar Ativo à Carteira' })).toBeVisible({
+    timeout: 60000,
+  });
+  expect(new URL(page.url()).search).toBe('');
+});
+
 test('Agenda: o sheet de Novo evento cabe na tela (X e rodapé)', async ({ page }) => {
   await page.goto('/calendario');
   await waitForShell(page);

@@ -7,7 +7,7 @@ import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import type { NavItem } from '@/layout/navigation';
 import {
   QUICK_LAUNCH_ACTIONS,
-  QUICK_LAUNCH_EVENT,
+  requestQuickLaunch,
   type QuickLaunchAction,
   type QuickLaunchId,
 } from './quickLaunch';
@@ -116,12 +116,11 @@ export default function LaunchSheet({
                 onClick={(event) => {
                   onClose();
                   // Já na Carteira o Link não remontaria a página (e deixaria o ?acao na URL):
-                  // cancela a navegação e avisa por evento.
+                  // cancela a navegação e pede o atalho (evento + pendente, que a Carteira
+                  // ainda carregando consome ao montar).
                   if (pathname === targetPath) {
                     event.preventDefault();
-                    window.dispatchEvent(
-                      new CustomEvent(QUICK_LAUNCH_EVENT, { detail: action.id }),
-                    );
+                    requestQuickLaunch(action.id);
                   }
                 }}
                 className="flex min-h-14 items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 active:bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03] dark:active:bg-white/5"

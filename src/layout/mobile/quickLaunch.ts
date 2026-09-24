@@ -53,3 +53,26 @@ export const QUICK_LAUNCH_ACAO: Partial<Record<QuickLaunchId, string>> = {
   'novo-ativo': 'novo',
   resgate: 'resgate',
 };
+
+/**
+ * Atalho pedido já na rota de destino, guardado até alguém consumir. Na Carteira ainda
+ * carregando o listener de QUICK_LAUNCH_EVENT não existe (o CarteiraResumo não montou) e o
+ * evento se perderia — o CarteiraResumo lê o pendente ao montar. Expira para um toque antigo
+ * não abrir o wizard numa visita futura.
+ */
+const PENDING_TTL_MS = 60_000;
+let pendingQuickLaunch: { id: QuickLaunchId; at: number } | null = null;
+
+/** Registra o atalho como pendente e avisa quem já estiver ouvindo. */
+export function requestQuickLaunch(id: QuickLaunchId): void {
+  pendingQuickLaunch = { id, at: Date.now() };
+  window.dispatchEvent(new CustomEvent(QUICK_LAUNCH_EVENT, { detail: id }));
+}
+
+/** Devolve (e limpa) o atalho pendente, se ainda não expirou. */
+export function takePendingQuickLaunch(): QuickLaunchId | null {
+  const pending = pendingQuickLaunch;
+  pendingQuickLaunch = null;
+  if (!pending || Date.now() - pending.at > PENDING_TTL_MS) return null;
+  return pending.id;
+}

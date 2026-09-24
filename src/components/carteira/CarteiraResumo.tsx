@@ -26,7 +26,7 @@ import { DownloadIcon, PlusIcon } from '@/icons';
 import { useReservaEmergencia } from '@/hooks/useReservaEmergencia';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import { useAlocacaoConfig } from '@/hooks/useAlocacaoConfig';
-import { QUICK_LAUNCH_EVENT } from '@/layout/mobile/quickLaunch';
+import { QUICK_LAUNCH_EVENT, takePendingQuickLaunch } from '@/layout/mobile/quickLaunch';
 
 interface TabButtonProps {
   id: string;
@@ -117,17 +117,21 @@ export default function CarteiraResumo() {
 
   // Atalhos do "+ Lançar" da casca mobile (PWA fase 0): /carteira?acao=novo|resgate abre o
   // wizard e limpa o parâmetro (Voltar/refresh não reabrem). Já na Carteira, o atalho chega
-  // pelo evento QUICK_LAUNCH_EVENT (o Link não remonta a página).
+  // pelo evento QUICK_LAUNCH_EVENT (o Link não remonta a página); tocado enquanto a Carteira
+  // ainda carregava, fica pendente e é consumido aqui ao montar.
   useEffect(() => {
     const acao = new URLSearchParams(window.location.search).get('acao');
+    const pending = takePendingQuickLaunch();
     if (acao === 'novo' || acao === 'resgate') {
       if (acao === 'novo') setIsSidebarOpen(true);
       else setIsRedeemSidebarOpen(true);
       window.history.replaceState(null, '', window.location.pathname);
-    }
+    } else if (pending === 'novo-ativo') setIsSidebarOpen(true);
+    else if (pending === 'resgate') setIsRedeemSidebarOpen(true);
 
     const onQuickLaunch = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
+      takePendingQuickLaunch(); // tratado aqui: não reabrir numa montagem futura
       if (id === 'novo-ativo') setIsSidebarOpen(true);
       else if (id === 'resgate') setIsRedeemSidebarOpen(true);
     };
