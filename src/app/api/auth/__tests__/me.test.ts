@@ -144,9 +144,9 @@ describe('GET /api/auth/me — renovação deslizante', () => {
     });
   });
 
-  it('com "Manter conectado" e token com mais de 12h: reemite 30 dias preservando at e sv', async () => {
+  it('com "Manter conectado" e token com mais de 1 dia: reemite 30 dias preservando at e sv', async () => {
     const at = now() - 5 * DAY;
-    authAs({ sv: 3, rm: true, at, iat: now() - 13 * HOUR, exp: now() + 29 * DAY });
+    authAs({ sv: 3, rm: true, at, iat: now() - 25 * HOUR, exp: now() + 29 * DAY });
 
     const response = await GET(createRequest());
     expect(response.status).toBe(200);
@@ -157,7 +157,7 @@ describe('GET /api/auth/me — renovação deslizante', () => {
     expect(Number(out!.claims.exp) - Number(out!.claims.iat)).toBe(30 * DAY);
   });
 
-  it('token com menos de 12h: não renova', async () => {
+  it('token com menos de 1 dia: não renova', async () => {
     authAs({ sv: 0, rm: true, at: now() - HOUR, iat: now() - HOUR, exp: now() + 29 * DAY });
     const response = await GET(createRequest());
     expect(response.headers.get('set-cookie')).toBeNull();

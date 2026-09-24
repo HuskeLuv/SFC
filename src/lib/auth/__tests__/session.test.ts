@@ -43,7 +43,7 @@ describe('constantes', () => {
     expect(TTL_SESSION_S).toBe(12 * HOUR);
     expect(TTL_PRIVILEGED_S).toBe(DAY);
     expect(ABSOLUTE_MAX_S).toBe(90 * DAY);
-    expect(RENEW_AFTER_S).toBe(12 * HOUR);
+    expect(RENEW_AFTER_S).toBe(DAY);
   });
 });
 
@@ -150,9 +150,9 @@ describe('normalizeClaims', () => {
 });
 
 describe('shouldRenew', () => {
-  it('falso antes de 12h, verdadeiro depois', () => {
-    expect(shouldRenew(claims({ at: NOW - DAY }), NOW - 11 * HOUR, NOW)).toBe(false);
-    expect(shouldRenew(claims({ at: NOW - DAY }), NOW - 12 * HOUR, NOW)).toBe(true);
+  it('falso antes de 1 dia, verdadeiro depois (no máximo 1×/dia)', () => {
+    expect(shouldRenew(claims({ at: NOW - 2 * DAY }), NOW - 23 * HOUR, NOW)).toBe(false);
+    expect(shouldRenew(claims({ at: NOW - 2 * DAY }), NOW - DAY, NOW)).toBe(true);
   });
 
   it('falso com rm=false', () => {

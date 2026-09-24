@@ -3,7 +3,7 @@
  *
  * Regras (decisão do Wellington, 23/09/2026):
  * - "Manter conectado" (rm=true): JWT e cookie de 30 dias, renovados em
- *   GET /api/auth/me depois de 12h de uso (no máx. 1×/12h), com TETO de 90
+ *   GET /api/auth/me depois de 1 dia de uso (no máx. 1×/dia), com TETO de 90
  *   dias desde o login (`at`). O teto também limita o `exp`: nenhum token
  *   passa de `at + 90 dias`.
  * - Sem "Manter conectado": cookie de SESSÃO (sem Max-Age nem Expires, sai ao
@@ -31,8 +31,8 @@ export const TTL_SESSION_S = 12 * 3600;
 export const TTL_PRIVILEGED_S = 86400;
 /** Teto absoluto desde o login para quem renova (usuário comum). */
 export const ABSOLUTE_MAX_S = 90 * 86400;
-/** Idade mínima do token (desde o `iat`) para renovar. */
-export const RENEW_AFTER_S = 12 * 3600;
+/** Idade mínima do token (desde o `iat`) para renovar: no máximo 1×/dia (decisão 23/09). */
+export const RENEW_AFTER_S = 86400;
 
 export type SessionRole = 'user' | 'consultant' | 'admin';
 
