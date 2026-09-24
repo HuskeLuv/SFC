@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
-import { findGroupInTree, moveIndex, reorderIds, reorderItemsInTree } from '../reorderItemsInTree';
+import {
+  findGroupInTree,
+  insertId,
+  moveIndex,
+  moveItemInTree,
+  reorderIds,
+  reorderItemsInTree,
+} from '../reorderItemsInTree';
 
 const item = (id: string, groupId: string, orderIndex: number): CashflowItem => ({
   id,
@@ -91,5 +98,58 @@ describe('reorderItemsInTree', () => {
   it('grupo inexistente devolve a mesma árvore', () => {
     const original = tree();
     expect(reorderItemsInTree(original, 'nada', ['a'])).toBe(original);
+  });
+});
+
+describe('insertId', () => {
+  it('insere antes ou depois da linha alvo', () => {
+    expect(insertId(['a', 'b', 'c'], 'x', 'b', false)).toEqual(['a', 'x', 'b', 'c']);
+    expect(insertId(['a', 'b', 'c'], 'x', 'c', true)).toEqual(['a', 'b', 'c', 'x']);
+  });
+
+  it('sem alvo (cabeçalho do grupo) vai pro fim; alvo desconhecido também', () => {
+    expect(insertId(['a', 'b'], 'x', null, false)).toEqual(['a', 'b', 'x']);
+    expect(insertId(['a', 'b'], 'x', 'zz', false)).toEqual(['a', 'b', 'x']);
+    expect(insertId([], 'x', null, false)).toEqual(['x']);
+  });
+});
+
+describe('moveItemInTree', () => {
+  const tree = () => [
+    group('receitas', [item('salario', 'receitas', 1)]),
+    group(
+      'despesas',
+      [],
+      [
+        group('hab', [item('aluguel', 'hab', 1), item('internet', 'hab', 2)]),
+        group('lazer', [item('cinema', 'lazer', 1)]),
+      ],
+    ),
+  ];
+
+  it('tira a linha da origem e põe no destino, na ordem pedida', () => {
+    const next = moveItemInTree(tree(), 'internet', 'lazer', ['internet', 'cinema']);
+    const hab = findGroupInTree(next, 'hab')!;
+    const lazer = findGroupInTree(next, 'lazer')!;
+    expect(hab.items!.map((i) => i.id)).toEqual(['aluguel']);
+    expect(lazer.items!.map((i) => [i.id, i.groupId, i.orderIndex])).toEqual([
+      ['internet', 'lazer', 1],
+      ['cinema', 'lazer', 2],
+    ]);
+  });
+
+  it('atravessa seções de nível 1 (despesa → receita)', () => {
+    const next = moveItemInTree(tree(), 'cinema', 'receitas', ['salario', 'cinema']);
+    expect(findGroupInTree(next, 'receitas')!.items!.map((i) => i.id)).toEqual([
+      'salario',
+      'cinema',
+    ]);
+    expect(findGroupInTree(next, 'lazer')!.items).toEqual([]);
+  });
+
+  it('não mexe em nada quando item ou destino não existem', () => {
+    const original = tree();
+    expect(moveItemInTree(original, 'nada', 'lazer', ['nada'])).toBe(original);
+    expect(moveItemInTree(original, 'cinema', 'nada', ['cinema'])).toBe(original);
   });
 });

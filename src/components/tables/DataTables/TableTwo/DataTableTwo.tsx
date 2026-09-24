@@ -51,6 +51,8 @@ import { GroupRenderContext } from './dataTableTwoTypes';
 import { CashflowDndProvider } from '@/components/cashflow/CashflowDnd';
 import {
   findGroupInTree,
+  insertId,
+  moveItemInTree,
   reorderIds,
   reorderItemsInTree,
 } from '@/services/cashflow/reorderItemsInTree';
@@ -270,6 +272,52 @@ export default function DataTableTwo() {
       } catch (error) {
         logger.error('Erro ao reordenar linha:', error);
         showAlert('error', 'Erro ao reordenar', 'Não foi possível mover a linha.');
+        await refetch();
+      }
+    },
+    [data, queryClient, currentYear, csrfFetch, refetch, showAlert],
+  );
+
+  // Drag-and-drop entre seções (pedido do Pedro 24/09/2026): solta numa linha
+  // ou no cabeçalho de outro grupo. Move no cache na hora e manda a lista do
+  // destino pro backend; depois refetch, porque personalizar template troca
+  // ids (linha e grupo). Orçamento vs Real soma por grupo → invalida.
+  const handleMove = useCallback(
+    async (activeId: string, toGroupId: string, overId: string | null, after: boolean) => {
+      const destino = findGroupInTree(data, toGroupId);
+      if (!destino) return;
+      const ids = insertId(
+        (destino.items ?? []).map((i) => i.id),
+        activeId,
+        overId,
+        after,
+      );
+      queryClient.setQueryData<CashflowGroup[]>(queryKeys.cashflow.year(currentYear), (old) =>
+        old ? moveItemInTree(old, activeId, toGroupId, ids) : old,
+      );
+      try {
+        const res = await csrfFetch('/api/cashflow/item/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId: activeId, toGroupId, itemIds: ids }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error || `HTTP ${res.status}`);
+        }
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.cashflow.orcamento(currentYear),
+        });
+      } catch (error) {
+        logger.error('Erro ao mover linha:', error);
+        showAlert(
+          'error',
+          'Erro ao mover',
+          error instanceof Error && !error.message.startsWith('HTTP')
+            ? error.message
+            : 'Não foi possível mover a linha.',
+        );
+      } finally {
         await refetch();
       }
     },
@@ -532,7 +580,7 @@ export default function DataTableTwo() {
         className={`${TABLE_STYLES.wrapper} relative isolate z-0 w-full max-w-full min-w-0 h-full overflow-y-auto custom-scrollbar cashflow-table pb-24`}
         style={{ scrollBehavior: 'auto', position: 'relative' }}
       >
-        <CashflowDndProvider onReorder={handleReorder}>
+        <CashflowDndProvider onReorder={handleReorder} onMove={handleMove}>
           <Table
             className={`relative ${GRID.table}`}
             style={GRID.tableStyle}
