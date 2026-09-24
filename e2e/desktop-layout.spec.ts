@@ -70,8 +70,9 @@ test.describe('Desktop inalterado (≥ lg)', () => {
         const aside = page.locator('aside').first();
         await expect(aside).toBeVisible();
 
-        // Casca mobile ausente ou oculta.
-        for (const sel of ['[data-mf-tabbar]', '[data-mf-mobile-header]', '[data-mf-fab]']) {
+        // Casca mobile ausente ou oculta. [data-mf-fab] fica de fora: marca botões flutuantes que já
+        // existiam no desktop (ex.: assistente) e só somem abaixo de lg com overlay/teclado.
+        for (const sel of ['[data-mf-tabbar]', '[data-mf-mobile-header]']) {
           const loc = page.locator(sel);
           const count = await loc.count();
           for (let i = 0; i < count; i++) await expect(loc.nth(i)).toBeHidden();
