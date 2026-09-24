@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AlocacaoAtivosTable from './AlocacaoAtivosTable';
 import ReservaEmergenciaTable from './ReservaEmergenciaTable';
 import RendaFixaTable from './RendaFixaTable';
@@ -26,6 +26,7 @@ import { DownloadIcon, PlusIcon } from '@/icons';
 import { useReservaEmergencia } from '@/hooks/useReservaEmergencia';
 import { useCarteiraResumoContext } from '@/context/CarteiraResumoContext';
 import { useAlocacaoConfig } from '@/hooks/useAlocacaoConfig';
+import { QUICK_LAUNCH_EVENT } from '@/layout/mobile/quickLaunch';
 
 interface TabButtonProps {
   id: string;
@@ -113,6 +114,26 @@ export default function CarteiraResumo() {
   const [_isSavingMeta, _setIsSavingMeta] = useState(false);
   const [_metaErrorMessage, _setMetaErrorMessage] = useState<string | null>(null);
   const { data: reservaEmergenciaData, refetch: refetchReservaEmergencia } = useReservaEmergencia();
+
+  // Atalhos do "+ Lançar" da casca mobile (PWA fase 0): /carteira?acao=novo|resgate abre o
+  // wizard e limpa o parâmetro (Voltar/refresh não reabrem). Já na Carteira, o atalho chega
+  // pelo evento QUICK_LAUNCH_EVENT (o Link não remonta a página).
+  useEffect(() => {
+    const acao = new URLSearchParams(window.location.search).get('acao');
+    if (acao === 'novo' || acao === 'resgate') {
+      if (acao === 'novo') setIsSidebarOpen(true);
+      else setIsRedeemSidebarOpen(true);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
+    const onQuickLaunch = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      if (id === 'novo-ativo') setIsSidebarOpen(true);
+      else if (id === 'resgate') setIsRedeemSidebarOpen(true);
+    };
+    window.addEventListener(QUICK_LAUNCH_EVENT, onQuickLaunch);
+    return () => window.removeEventListener(QUICK_LAUNCH_EVENT, onQuickLaunch);
+  }, []);
 
   // Denominador ÚNICO de "Carteira Total" (decisão jul/2026): usar
   // `resumo.totais.dinheiro` do backend — patrimônio líquido investível
