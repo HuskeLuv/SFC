@@ -17,7 +17,7 @@ import { queryKeys } from '@/lib/queryKeys';
  */
 const CURRENT_YEAR = new Date().getFullYear();
 
-export default function CashflowYearSelect() {
+export default function CashflowYearSelect({ compact = false }: { compact?: boolean } = {}) {
   const { year, setYear } = useCashflowYear();
   const router = useRouter();
   const pathname = usePathname();
@@ -48,6 +48,45 @@ export default function CashflowYearSelect() {
     }
   };
 
+  const options = years.map((y) => (
+    <option key={y} value={y}>
+      {y}
+    </option>
+  ));
+
+  // Versão compacta do cabeçalho mobile (PWA fase 0): <select> nativo de 36px visíveis dentro
+  // de um alvo de 44px, fonte de 16px (sem zoom no iOS). A versão da sidebar não muda.
+  if (compact) {
+    return (
+      <label className="relative inline-flex min-h-11 shrink-0 items-center">
+        <select
+          value={year}
+          onChange={handleChange}
+          aria-label="Ano da planilha de fluxo de caixa"
+          className="h-9 appearance-none rounded-xl border border-gray-200 bg-white pr-8 pl-3 text-base font-medium text-gray-800 tabular-nums focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mf-outside dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+        >
+          {options}
+        </select>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+          className="pointer-events-none absolute right-2.5 text-gray-500 dark:text-gray-400"
+        >
+          <path
+            d="M6 9l6 6 6-6"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </label>
+    );
+  }
+
   return (
     <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
       <span className="shrink-0">Ano</span>
@@ -57,11 +96,7 @@ export default function CashflowYearSelect() {
         aria-label="Ano da planilha de fluxo de caixa"
         className="w-full rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:border-brand-400 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
       >
-        {years.map((y) => (
-          <option key={y} value={y}>
-            {y}
-          </option>
-        ))}
+        {options}
       </select>
     </label>
   );

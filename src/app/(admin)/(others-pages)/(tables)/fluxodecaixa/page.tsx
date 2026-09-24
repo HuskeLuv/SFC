@@ -60,7 +60,7 @@ export default function FluxoDeCaixa() {
 
   return (
     <div
-      className={`${cardWidth} min-w-0 transition-all duration-300 -m-[30px] h-[calc(100vh-60px)] flex flex-col overflow-hidden`}
+      className={`${cardWidth} min-w-0 transition-all duration-300 -m-[30px] h-[calc(100vh-60px)] max-lg:h-[calc(100dvh-var(--mf-header-h,0px)-var(--mf-bottom-nav-h,0px)-2rem)] flex flex-col overflow-hidden`}
     >
       <ComponentCard
         title={modo === 'planilha' ? `Fluxo de Caixa · ${year}` : `Orçamento vs Real · ${year}`}
