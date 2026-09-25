@@ -2,6 +2,8 @@
 import React, { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { lockBodyScroll } from '@/lib/ui/scrollLock';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -19,6 +21,14 @@ interface SidebarProps {
    * conferir um número numa tabela etc. sem perder o estado do wizard).
    */
   noBackdrop?: boolean;
+  /**
+   * PWA fase 1, SÓ CELULAR (lg:hidden): rodapé fixo (ações do wizard). Fica fora da área que rola,
+   * com a área segura de baixo, e acima do teclado (a altura do painel acompanha o visualViewport).
+   * O desktop continua com os botões dentro do conteúdo.
+   */
+  footer?: React.ReactNode;
+  /** PWA fase 1, SÓ CELULAR (lg:hidden): conteúdo sob o título (ex.: progresso do wizard). */
+  headerExtra?: React.ReactNode;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -30,8 +40,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   closeOnBackdropClick = false,
   closeOnEscape = true,
   noBackdrop = false,
+  footer,
+  headerExtra,
 }) => {
   const sidebarRef = useRef<HTMLDivElement>(null);
+  // Celular: com o teclado aberto (iOS não encolhe a janela) o painel ocupa só a área visível, e o
+  // rodapé fica acima do teclado. No desktop nada muda (hook desligado, sem style).
+  const isBelowLg = useIsBelowLg();
+  const keyboard = useKeyboardInset(isOpen && isBelowLg);
+  const keyboardStyle: React.CSSProperties | undefined =
+    isBelowLg && keyboard.height !== null
+      ? { height: keyboard.height, top: keyboard.offsetTop }
+      : undefined;
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -87,16 +107,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 z-[500] flex flex-col max-lg:h-dvh max-lg:pt-[env(safe-area-inset-top)] max-lg:pb-[env(safe-area-inset-bottom)] ${
+            style={keyboardStyle}
+            className={`fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 z-[500] flex flex-col max-lg:h-dvh max-lg:pt-[env(safe-area-inset-top)] ${
+              footer ? '' : 'max-lg:pb-[env(safe-area-inset-bottom)] '
+            }${
               noBackdrop ? 'border-l border-gray-200 dark:border-gray-800 shadow-xl' : 'shadow-2xl'
             } ${className}`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 max-lg:min-h-14 max-lg:px-4 max-lg:py-2">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white max-lg:min-w-0 max-lg:truncate max-lg:text-lg">
+                {title}
+              </h2>
               <button
                 onClick={onClose}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white max-lg:h-11 max-lg:w-11 max-lg:shrink-0"
                 aria-label="Fechar sidebar"
               >
                 <svg
@@ -116,8 +141,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
+            {headerExtra ? <div className="shrink-0 lg:hidden">{headerExtra}</div> : null}
+
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">{children}</div>
+            <div className="flex-1 overflow-y-auto p-6 max-lg:p-4">{children}</div>
+
+            {footer ? (
+              <div
+                data-mf-wizard-footer=""
+                className="shrink-0 border-t border-gray-200 bg-white px-4 pt-2.5 lg:hidden pb-[max(0.625rem,env(safe-area-inset-bottom))] dark:border-gray-700 dark:bg-gray-900"
+              >
+                {footer}
+              </div>
+            ) : null}
           </motion.div>
         </>
       )}

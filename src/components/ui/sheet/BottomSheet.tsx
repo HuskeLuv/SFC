@@ -4,6 +4,8 @@ import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { lockBodyScroll } from '@/lib/ui/scrollLock';
 import { MOBILE_MEDIA_QUERY } from '@/lib/ui/mobile';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 
 export interface BottomSheetProps {
   isOpen: boolean;
@@ -29,6 +31,10 @@ const FOCUSABLE =
  * foco preso no painel e devolvido ao gatilho ao fechar. Sem arrastar para fechar nesta fase.
  * Fecha sozinho quando a janela passa a lg (tablet girado, janela redimensionada): o painel some
  * pelo `lg:hidden`, mas a trava de rolagem continuaria prendendo a página do desktop.
+ *
+ * Teclado (PWA fase 1): o Safari do iOS não encolhe a janela com o teclado, e o painel fixo em
+ * `bottom-0` ficaria embaixo dele. Com o teclado aberto o painel sobe `inset` px e a altura máxima
+ * passa a ser a da área visível (`useKeyboardInset`, via visualViewport).
  */
 export default function BottomSheet({
   isOpen,
@@ -43,6 +49,12 @@ export default function BottomSheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const onCloseRef = useRef(onClose);
+  const isBelowLg = useIsBelowLg();
+  const keyboard = useKeyboardInset(isOpen && isBelowLg);
+  const keyboardStyle: React.CSSProperties | undefined =
+    keyboard.inset > 0 && keyboard.height !== null
+      ? { bottom: keyboard.inset, maxHeight: `calc(${keyboard.height}px - 1rem)` }
+      : undefined;
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
@@ -115,6 +127,7 @@ export default function BottomSheet({
         aria-labelledby={title ? titleId : undefined}
         aria-label={title ? undefined : ariaLabel}
         tabIndex={-1}
+        style={keyboardStyle}
         className={`fixed inset-x-0 bottom-0 z-[99991] flex max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] animate-[mf-sheet-in_260ms_cubic-bezier(.2,.8,.2,1)] flex-col rounded-t-3xl bg-white outline-none dark:bg-gray-900 lg:hidden ${className}`}
       >
         <div className="flex h-7 shrink-0 items-center justify-center" aria-hidden="true">
