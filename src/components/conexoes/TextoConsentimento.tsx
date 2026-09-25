@@ -30,7 +30,7 @@ export default function TextoConsentimento({ texto }: { texto: Texto }) {
           Empresas parceiras
         </Link>
         {' · '}
-        <a href="mailto:dpo@appmyfinance.com.br" className="text-brand-500 underline">
+        <a href="mailto:privacidade@appmyfinance.com.br" className="text-brand-500 underline">
           Encarregado (DPO)
         </a>
         {' · versão '}
