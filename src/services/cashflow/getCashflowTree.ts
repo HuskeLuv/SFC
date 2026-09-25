@@ -124,6 +124,11 @@ export function mergeTemplatesWithCustomizations(
   };
   indexUser(customizations, '');
 
+  // Linha movida para outra seção (drag-and-drop livre, 24/09/2026): o override
+  // de um item-template mora num grupo que não é o do template nem o override
+  // desse grupo. Ela some da posição do template e aparece no grupo real.
+  const movedItemIds = findMovedItemIds(templates, customizations, userByTemplateId);
+
   const findOverrideGroup = (template: CashflowGroup, pathKey: string) => {
     const byId = userByTemplateId.get(template.id);
     if (byId) return byId;
@@ -152,6 +157,7 @@ export function mergeTemplatesWithCustomizations(
     for (const tplItem of template.items ?? []) {
       const userItem = findOverrideItem(tplItem, override);
       if (userItem?.hidden) continue;
+      if (userItem && movedItemIds.has(userItem.id)) continue;
       if (userItem) {
         consumedItemIds.add(userItem.id);
         mergedItems.push({
@@ -177,7 +183,7 @@ export function mergeTemplatesWithCustomizations(
       for (const userItem of override.items ?? []) {
         if (consumedItemIds.has(userItem.id)) continue;
         if (userItem.hidden) continue;
-        if (userItem.templateId) continue;
+        if (userItem.templateId && !movedItemIds.has(userItem.id)) continue;
         consumedItemIds.add(userItem.id);
         mergedItems.push({ ...userItem, isTemplate: false });
       }
@@ -247,6 +253,48 @@ export function mergeTemplatesWithCustomizations(
 
   result.sort((a, b) => a.orderIndex - b.orderIndex);
   return result;
+}
+
+/**
+ * Overrides de item-template que o usuário moveu para outro grupo: o groupId
+ * não é o grupo do template nem o override desse grupo. Override cujo
+ * template sumiu não conta (continua fora da árvore, como antes).
+ */
+interface MovableTreeNode {
+  id: string;
+  items?: { id: string; templateId?: string | null }[];
+  children?: MovableTreeNode[];
+}
+
+export function findMovedItemIds(
+  templates: MovableTreeNode[],
+  customizations: MovableTreeNode[],
+  userGroupByTemplateId: Map<string, { id: string }>,
+): Set<string> {
+  const templateGroupOfItem = new Map<string, string>();
+  const walkTemplates = (groups: MovableTreeNode[]) => {
+    for (const g of groups) {
+      for (const it of g.items ?? []) templateGroupOfItem.set(it.id, g.id);
+      walkTemplates(g.children ?? []);
+    }
+  };
+  walkTemplates(templates);
+
+  const moved = new Set<string>();
+  const walkUser = (groups: MovableTreeNode[]) => {
+    for (const g of groups) {
+      for (const it of g.items ?? []) {
+        if (!it.templateId) continue;
+        const home = templateGroupOfItem.get(it.templateId);
+        if (!home) continue;
+        const homeOverride = userGroupByTemplateId.get(home)?.id;
+        if (g.id !== home && g.id !== homeOverride) moved.add(it.id);
+      }
+      walkUser(g.children ?? []);
+    }
+  };
+  walkUser(customizations);
+  return moved;
 }
 
 function markTemplate(group: CashflowGroup): CashflowGroup {

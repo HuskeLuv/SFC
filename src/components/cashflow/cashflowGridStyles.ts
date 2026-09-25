@@ -62,6 +62,14 @@ export const GRID = {
   /** Linha em edição / linha nova: derivado claríssimo do azul `outside`. */
   editingBg: 'bg-[#F2F8FE] dark:bg-[#1C2A40]',
 
+  /**
+   * Arrastando uma linha para OUTRA seção: traço azul `outside` onde ela vai
+   * entrar (em cima/embaixo da linha alvo; embaixo do cabeçalho = fim do
+   * grupo). Nas células, porque sombra no <tr> não aparece com colunas sticky.
+   */
+  dropLineBefore: '[&>td]:shadow-[inset_0_2px_0_0_#0079F2]',
+  dropLineAfter: '[&>td]:shadow-[inset_0_-2px_0_0_#0079F2]',
+
   /** <thead>: fundo `seguranca`, texto branco em caixa alta. */
   head: 'text-[11px] uppercase tracking-wide text-white font-medium',
   headStyle: { backgroundColor: TABLE_HEADER_BG } as CSSProperties,

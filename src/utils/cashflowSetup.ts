@@ -1,5 +1,6 @@
 import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
+import { findMovedItemIds } from '@/services/cashflow/getCashflowTree';
 
 // Buscar estrutura do cashflow do usuário aplicando override layer.
 // Lê templates (userId=null) + linhas do usuário (userId=X) e funde:
@@ -121,6 +122,8 @@ function mergeStructure(templates: MergeableGroup[], userRows: MergeableGroup[])
     }
   };
   indexUser(userRows, '');
+  // Mesma regra do getCashflowTree: linha movida de seção aparece no grupo real.
+  const movedItemIds = findMovedItemIds(templates, userRows, userByTemplateId);
 
   const mergeGroup = (template: MergeableGroup, parentKey: string): MergeableGroup | null => {
     const pathKey = `${parentKey}|${template.name}`;
@@ -165,6 +168,7 @@ function mergeStructure(templates: MergeableGroup[], userRows: MergeableGroup[])
     for (const tplItem of template.items ?? []) {
       const userItem = matchUserItem(tplItem);
       if (userItem?.hidden) continue;
+      if (userItem && movedItemIds.has(userItem.id)) continue;
       if (userItem) {
         consumedUserItemIds.add(userItem.id);
         mergedItems.push({
@@ -190,7 +194,8 @@ function mergeStructure(templates: MergeableGroup[], userRows: MergeableGroup[])
       for (const userItem of override.items ?? []) {
         if (consumedUserItemIds.has(userItem.id)) continue;
         if (userItem.hidden) continue;
-        if (userItem.templateId) continue; // já era override; se chegou aqui é porque template sumiu
+        // Override fora do grupo do template = linha movida; senão o template sumiu.
+        if (userItem.templateId && !movedItemIds.has(userItem.id)) continue;
         consumedUserItemIds.add(userItem.id);
         mergedItems.push({ ...userItem, isTemplate: false } as MergeableItem & {
           isTemplate: boolean;
