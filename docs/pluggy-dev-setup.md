@@ -1,8 +1,8 @@
-# Pluggy no ambiente de dev — receita de preparação (set/2026)
+# Pluggy — receita de dev e de produção (set/2026)
 
-> Estado em 14/09/2026: o esqueleto está no código (branch `feat/pluggy-prep`), **desligado por
-> padrão**. Nada de modelo de dados ainda: isso é a Fase 2 de `docs/analise-pluggy-set2026.md`.
-> Este arquivo é o passo a passo para o dev-server receber a integração.
+> **Estado em 25/09/2026: LIGADO EM PRODUÇÃO** (contratação feita, textos legais aprovados; ver
+> [Produção](#produção-ligado-em-25092026)). Em dev continua desligado por padrão e usa a aplicação
+> de desenvolvimento/sandbox. As seções por fase abaixo registram como a integração foi montada.
 
 ## O que já existe no código
 
@@ -71,7 +71,58 @@ Limitações: sem entradas no Histórico/desfazer para as importações (follow-
 
 Migration `20260914220000_bank_transaction_dedup` (`globalHash`, `duplicadaDe`). Linhas antigas sem `globalHash` são preenchidas no próximo sync.
 
-## Passo a passo
+## Produção (ligado em 25/09/2026)
+
+Pré-requisitos cumpridos: contrato com o Pluggy, Termos de Uso e Aviso de Privacidade dos
+advogados publicados (PR #246), textos das telas aprovados (termo v3), migrations já aplicadas
+pelo deploy e crons já no servidor (`/etc/cron.d/myfinance`: `/api/cron/pluggy-sync` a cada 5 min
+e `?diario=1` às 08:30).
+
+1. **Aplicação de produção no dashboard** — separada da de desenvolvimento. Em _Connect_
+   personalizar nome **My Finance**, logo e cores (`#0079F2` = 0,121,242; secundária `#314666` =
+   49,70,102). Sem isso o widget mostra "Aplicação demo. Proibido o uso comercial".
+2. **Variáveis no servidor** — `ssh -i ~/.ssh/myfinance-lightsail ubuntu@56.125.206.95`,
+   `sudo nano /etc/myfinance/app.env`, no formato das demais linhas (sem aspas):
+   ```
+   PLUGGY_HABILITADO=true
+   PLUGGY_CLIENT_ID=<produção>
+   PLUGGY_CLIENT_SECRET=<produção>
+   PLUGGY_WEBHOOK_SECRET=<openssl rand -hex 32>
+   ```
+   **Sem** `PLUGGY_INCLUI_SANDBOX`. Depois `sudo systemctl restart myfinance`. A flag é global: o card
+   "Conectar banco" aparece para todos os usuários (menos consultor agindo por cliente).
+3. **Conferir** — `https://appmyfinance.com.br/api/pluggy/status` logado como admin
+   (`habilitado:true`, `credenciaisOk:true`, `incluiSandbox:false`); a CSP de qualquer página passa a
+   incluir `connect.pluggy.ai`; `POST /api/webhooks/pluggy` sem o header responde 401.
+4. **Webhook** — pela API (o dashboard não aceita header customizado), rodando **no servidor** para
+   o segredo não sair de lá:
+   ```bash
+   set -a; . <(sudo grep '^PLUGGY_' /etc/myfinance/app.env); set +a
+   KEY=$(curl -s https://api.pluggy.ai/auth -H 'content-type: application/json' \
+     -d "{\"clientId\":\"$PLUGGY_CLIENT_ID\",\"clientSecret\":\"$PLUGGY_CLIENT_SECRET\"}" | jq -r .apiKey)
+   curl -s https://api.pluggy.ai/webhooks -H "X-API-KEY: $KEY" -H 'content-type: application/json' \
+     -d "{\"event\":\"all\",\"url\":\"https://appmyfinance.com.br/api/webhooks/pluggy\",\"headers\":{\"X-Webhook-Secret\":\"$PLUGGY_WEBHOOK_SECRET\"}}"
+   curl -s https://api.pluggy.ai/webhooks -H "X-API-KEY: $KEY"   # conferir: 1 webhook, event=all
+   ```
+   Cadastrado em 25/09/2026: id `5ea13539-c86b-41e3-98bf-15764643fcf7`. Trocou o
+   `PLUGGY_WEBHOOK_SECRET`? Atualizar o header do webhook (`PATCH /webhooks/{id}`) — senão tudo vira 401.
+   O Caddy sobrescreve `X-Forwarded-For`, então a trava de IP (`52.67.145.81`) vê a origem real.
+5. **Primeira conexão** — conectar uma conta própria e conferir no banco de prod (leitura):
+   `open_finance_consentimentos` (status `ativo`, versão atual, marcos com IP), `bank_connections`
+   (`UPDATED`/`SUCCESS`), `bank_accounts`/`bank_transactions` e `pluggy_webhook_events` (`done`).
+   Validado em 25/09/2026 com o C6 Bank: 118 transações = exatamente o que o Pluggy tinha.
+
+Gotchas vistos na ativação:
+
+- Para comparar com o Pluggy, use `GET /v2/transactions?accountId=…&dateFrom=AAAA-MM-DD` (cursor em
+  `next`); o `/transactions` antigo responde **410 deprecated**, e o v2 recusa `from`/`to`/`pageSize`.
+- O histórico vem até onde a instituição compartilha (no C6, a última movimentação disponível era
+  de dois meses antes) — não é falha do sync.
+- `item/deleted` de uma conexão já desconectada fica `pending` e é ignorado sozinho após as
+  tentativas; não precisa limpar.
+- `consentExpiresAt` pode vir `null` do Pluggy mesmo em conexão Open Finance.
+
+## Passo a passo (dev)
 
 1. **Conta e aplicação no dashboard** — https://dashboard.pluggy.ai → criar a organização → _Applications_ →
    criar uma aplicação **de desenvolvimento** (o dashboard separa dev/prod, inclusive webhooks, desde
@@ -85,8 +136,8 @@ Migration `20260914220000_bank_transaction_dedup` (`globalHash`, `duplicadaDe`).
    PLUGGY_WEBHOOK_SECRET="$(openssl rand -hex 32)"
    PLUGGY_INCLUI_SANDBOX="true"
    ```
-   Nunca `NEXT_PUBLIC_`. Nunca exportar no shell. Em produção vão para `/etc/myfinance/app.env` na
-   Lightsail (mesmo caminho do `ANTHROPIC_API_KEY`) + restart — **não agora**.
+   Nunca `NEXT_PUBLIC_`. Nunca exportar no shell. No `.env` local vão **só** as credenciais da
+   aplicação de desenvolvimento — as de produção ficam apenas no servidor (ver [Produção](#produção-ligado-em-25092026)).
 3. **Conferir**: `npm run dev`, logar como `admin@appmyfinance.com.br` e abrir
    `http://localhost:3000/api/pluggy/status`. Esperado:
    `{"habilitado":true,"incluiSandbox":true,"webhookSecretConfigurado":true,"credenciaisOk":true,"conectores":N}`.
@@ -127,9 +178,10 @@ Migration `20260914220000_bank_transaction_dedup` (`globalHash`, `duplicadaDe`).
   mês por CPF+instituição) são consumidos por item.
 - O webhook responde e sai; processamento fica para um cron por minuto (Fase 2), como os demais
   crons em `/etc/cron.d/myfinance`.
-- Ao excluir conta/usuário, `deleteItem` no Pluggy (LGPD). Adicionar o Pluggy em `/subprocessadores`
-  antes de qualquer conexão real de cliente.
-- Nada de produção até o parecer jurídico (parceria art. 36, consultor × repasse) — decisão de 02/09.
+- Ao excluir conta/usuário, `deleteItem` no Pluggy (LGPD). O Pluggy aparece em `/subprocessadores`
+  com a flag ligada.
+- Mudou texto da jornada (`src/lib/openFinanceConsentimento.ts`)? **Versão nova**, nunca editar uma
+  publicada: o aceite grava versão + hash (inclusive o selo `provisorio`).
 
 ## Referências
 
