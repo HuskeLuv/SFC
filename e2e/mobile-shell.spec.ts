@@ -84,9 +84,19 @@ for (const route of [
     await waitForShell(page);
     await expect(page.getByRole('button', { name: 'Abrir menu', exact: true })).toHaveCount(0);
 
-    // O primeiro título da página não fica coberto por nada da casca.
-    const heading = page.locator('h1:visible, h2:visible, h3:visible').first();
-    await expect(heading).toBeVisible({ timeout: 30000 });
+    // O primeiro título da página não fica coberto por nada da casca. "Primeiro" = o primeiro
+    // h1–h3 com caixa de verdade: um `.sr-only` (1×1px, recortado) é "visível" para o Playwright,
+    // mas o elementFromPoint no centro dele acerta outro elemento.
+    const headings = page.locator('h1:visible, h2:visible, h3:visible');
+    await expect(headings.first()).toBeVisible({ timeout: 30000 });
+    const firstReal = await headings.evaluateAll((els) =>
+      els.findIndex((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 2 && r.height > 2;
+      }),
+    );
+    expect(firstReal, 'nenhum título com caixa maior que 2px').toBeGreaterThanOrEqual(0);
+    const heading = headings.nth(firstReal);
     const covered = await heading.evaluate((el) => {
       const r = el.getBoundingClientRect();
       const hit = document.elementFromPoint(
