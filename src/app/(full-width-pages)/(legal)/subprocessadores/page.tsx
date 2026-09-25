@@ -108,7 +108,7 @@ const SUBPROCESSADORES: Subprocessador[] = [
  * confirmar em contrato antes de ligar em produção.
  */
 const PLUGGY: Subprocessador = {
-  nome: 'Pluggy Tecnologia Ltda.',
+  nome: 'Pluggy Brasil Instituição de Pagamento Ltda.',
   finalidade:
     'Conectar o My Finance às instituições do Open Finance e repassar os dados bancários que você autorizar. Só atua se você conectar um banco.',
   dados:
@@ -180,8 +180,8 @@ export default function Subprocessadores() {
       <h2>Contato</h2>
       <p>
         Para esclarecimentos sobre os subprocessadores, escreva ao Encarregado em{' '}
-        <a href="mailto:dpo@appmyfinance.com.br" className="text-brand-500 hover:underline">
-          dpo@appmyfinance.com.br
+        <a href="mailto:privacidade@appmyfinance.com.br" className="text-brand-500 hover:underline">
+          privacidade@appmyfinance.com.br
         </a>
         .
       </p>

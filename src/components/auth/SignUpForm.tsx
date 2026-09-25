@@ -59,7 +59,7 @@ export default function SignUpForm({
     // consentimento (timestamp/IP/versão) será persistido no backend na
     // Fase 2 (modelo UserConsent). Hoje só validamos a checkbox.
     if (!isChecked) {
-      setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade.');
+      setError('Você precisa aceitar os Termos de Uso e o Aviso de Privacidade.');
       setLoading(false);
       return;
     }
@@ -75,8 +75,8 @@ export default function SignUpForm({
           password,
           // LGPD Fase 2: persiste o aceite com versão dos documentos.
           acceptedTerms: true,
-          termsVersion: '1.0',
-          privacyVersion: '1.1',
+          termsVersion: '2.0',
+          privacyVersion: '2.0',
         }),
       });
       if (!res.ok) {
@@ -332,14 +332,14 @@ export default function SignUpForm({
                     >
                       Termos de Uso
                     </Link>{' '}
-                    e nossa{' '}
+                    e o{' '}
                     <Link
                       href="/politica-de-privacidade"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-brand-500 hover:underline dark:text-brand-400"
                     >
-                      Política de Privacidade
+                      Aviso de Privacidade
                     </Link>
                     .
                   </p>

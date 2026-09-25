@@ -5,7 +5,7 @@ import React from 'react';
 import LegalFooter from '@/components/legal/LegalFooter';
 
 /**
- * Layout das páginas legais (Política de Privacidade, Termos de Uso,
+ * Layout das páginas legais (Aviso de Privacidade, Termos de Uso,
  * Subprocessadores). Acessível sem login — usuário precisa ler antes de
  * aceitar/cadastrar.
  *
