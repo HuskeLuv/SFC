@@ -9,7 +9,8 @@
  * versão em VERSOES, para o registro antigo continuar mostrando o que a pessoa
  * aceitou.
  *
- * ⚠️ v1 é PROVISÓRIA: redação técnica aguardando revisão jurídica.
+ * v1 e v2 foram publicadas como PROVISÓRIAS (selo na tela); a v3 é o mesmo
+ * texto da v2, aprovado pelos advogados em 25/09/2026, sem o selo.
  */
 
 /** Produtos pedidos ao Pluggy no connect token (= escopo do consentimento). */
@@ -124,9 +125,51 @@ const V1: TextoConsentimento = {
   },
 };
 
+/**
+ * v2 (25/09/2026): alinha o termo aos Termos de Uso e ao Aviso de Privacidade
+ * dos advogados — razão social da Pluggy e canal do Encarregado. O resto é o v1.
+ */
+const V2: TextoConsentimento = {
+  ...V1,
+  versao: 'v2-2026-09-25',
+  consentimento: {
+    ...V1.consentimento,
+    secoes: V1.consentimento.secoes.map((s) => {
+      if (s.titulo === 'Quem participa') {
+        return {
+          ...s,
+          itens: [
+            'My Finance: recebe e trata os dados para as finalidades abaixo.',
+            'Pluggy Brasil Instituição de Pagamento Ltda.: conecta o My Finance ao Open Finance e repassa os dados que você autorizar.',
+            'Sua instituição financeira: é onde você autoriza e de onde os dados são enviados.',
+          ],
+        };
+      }
+      if (s.titulo === 'Seus direitos') {
+        return {
+          ...s,
+          texto:
+            'Para acessar, corrigir ou apagar seus dados, escreva ao nosso Encarregado (DPO) em ' +
+            'privacidade@appmyfinance.com.br. Detalhes no Aviso de Privacidade.',
+        };
+      }
+      return s;
+    }),
+  },
+};
+
+/**
+ * v3 (25/09/2026): textos das telas aprovados pelos advogados. Mesmo conteúdo da
+ * v2 sem o selo "provisório" (que faz parte do texto aceito e do hash; por isso
+ * versão nova, e não edição da v2).
+ */
+const V3: TextoConsentimento = { ...V2, versao: 'v3-2026-09-25', provisorio: false };
+
 /** Todas as versões já publicadas (o registro de consentimento aponta para uma delas). */
 export const VERSOES_CONSENTIMENTO: Record<string, TextoConsentimento> = {
   [V1.versao]: V1,
+  [V2.versao]: V2,
+  [V3.versao]: V3,
 };
 
-export const TEXTO_CONSENTIMENTO_ATUAL: TextoConsentimento = V1;
+export const TEXTO_CONSENTIMENTO_ATUAL: TextoConsentimento = V3;

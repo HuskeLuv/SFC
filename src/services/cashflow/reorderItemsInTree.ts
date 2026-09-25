@@ -2,8 +2,9 @@ import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
 
 /**
  * Helpers puros do drag-and-drop de linhas do fluxo de caixa (set/2026).
- * A linha só anda dentro do próprio grupo/subgrupo; o backend
- * (`/api/cashflow/item/reorder`) recebe a lista completa de ids na nova ordem.
+ * Dentro do grupo o backend (`/api/cashflow/item/reorder`) recebe a lista
+ * completa de ids na nova ordem; entre grupos (`/api/cashflow/item/move`,
+ * 24/09/2026) recebe a lista do destino já com a linha movida.
  */
 
 /** Busca um grupo (em qualquer nível) pelo id. */
@@ -77,4 +78,69 @@ export function reorderItemsInTree(
   };
 
   return walk(groups);
+}
+
+/**
+ * Lista de ids do destino com `itemId` inserido antes/depois de `overId`;
+ * sem `overId` (soltou no cabeçalho do grupo) vai pro fim.
+ */
+export function insertId(
+  ids: string[],
+  itemId: string,
+  overId: string | null,
+  after: boolean,
+): string[] {
+  const next = ids.filter((id) => id !== itemId);
+  const at = overId ? next.indexOf(overId) : -1;
+  if (at < 0) return [...next, itemId];
+  next.splice(after ? at + 1 : at, 0, itemId);
+  return next;
+}
+
+/**
+ * Cópia da árvore com `itemId` tirado do grupo atual e posto em `toGroupId`
+ * na ordem `orderedIds` (groupId e orderIndex atualizados). Sem o item ou o
+ * destino na árvore, devolve a árvore como veio.
+ */
+export function moveItemInTree(
+  groups: CashflowGroup[],
+  itemId: string,
+  toGroupId: string,
+  orderedIds: string[],
+): CashflowGroup[] {
+  let moving: CashflowItem | null = null;
+  const findItem = (list: CashflowGroup[]) => {
+    for (const g of list) {
+      const hit = (g.items ?? []).find((i) => i.id === itemId);
+      if (hit) {
+        moving = hit;
+        return;
+      }
+      findItem(g.children ?? []);
+      if (moving) return;
+    }
+  };
+  findItem(groups);
+  if (!moving || !findGroupInTree(groups, toGroupId)) return groups;
+  const moved: CashflowItem = { ...(moving as CashflowItem), groupId: toGroupId };
+
+  const walk = (list: CashflowGroup[]): CashflowGroup[] => {
+    let changed = false;
+    const next = list.map((group) => {
+      const hasItem = (group.items ?? []).some((i) => i.id === itemId);
+      let items = group.items;
+      if (group.id === toGroupId) {
+        items = [...(group.items ?? []).filter((i) => i.id !== itemId), moved];
+      } else if (hasItem) {
+        items = (group.items ?? []).filter((i) => i.id !== itemId);
+      }
+      const children = group.children?.length ? walk(group.children) : group.children;
+      if (items === group.items && children === group.children) return group;
+      changed = true;
+      return { ...group, items, children };
+    });
+    return changed ? next : list;
+  };
+
+  return reorderItemsInTree(walk(groups), toGroupId, orderedIds);
 }

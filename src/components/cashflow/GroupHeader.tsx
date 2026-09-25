@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { useDroppable } from '@dnd-kit/core';
 import { TableRow } from '@/components/ui/table';
 import { CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
@@ -12,6 +13,7 @@ import { GRID, SECTION_CLASS } from './cashflowGridStyles';
 import { groupLevel } from './groupLevel';
 import { FIXED_COLUMNS_1_TO_3_WIDTH } from './fixedColumns';
 import { CANONICAL_GROUPS, canonicalName } from '@/services/cashflow/groupMatchers';
+import { groupDropId, useDropHint } from './CashflowDnd';
 
 interface GroupHeaderProps {
   group: CashflowGroup;
@@ -86,11 +88,34 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
 
   const canMutateRows = !isCollapsed && !group.children?.length && !isInvestimentosGroup;
 
+  // Alvo do drag-and-drop entre seções: soltar no cabeçalho põe a linha no
+  // fim do grupo (serve para grupo vazio ou recolhido). Só grupos-folha de
+  // lançamento manual, como o "+ Linha".
+  const acceptsDrop =
+    !isEditing &&
+    !isInvestimentosGroup &&
+    !isContaCorrenteGroup &&
+    !group.children?.length &&
+    (group.type === 'entrada' || group.type === 'despesa');
+  const { setNodeRef } = useDroppable({
+    id: groupDropId(group.id),
+    data: {
+      groupId: group.id,
+      groupName: group.name,
+      name: group.name,
+      kind: 'grupo',
+      acceptsDrop,
+    },
+    disabled: !acceptsDrop,
+  });
+  const hint = useDropHint();
+  const dropLine = hint?.overId === groupDropId(group.id) ? GRID.dropLineAfter : '';
+
   const percentConditionalStyle =
     isMainDespesasGroup && groupPercentage > 0 ? despesasPercentStyle(groupPercentage) : undefined;
 
   return (
-    <TableRow className={`${GRID.row} font-semibold ${sectionClass}`}>
+    <TableRow ref={setNodeRef} className={`${GRID.row} font-semibold ${sectionClass} ${dropLine}`}>
       <FixedCell
         col={0}
         className={sectionClass}

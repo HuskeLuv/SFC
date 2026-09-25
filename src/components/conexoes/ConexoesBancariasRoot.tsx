@@ -203,8 +203,8 @@ export default function ConexoesBancariasRoot() {
           banco, sem senha aqui, e você pode desconectar quando quiser. O My Finance só lê; nunca
           movimenta dinheiro. Banco que já está na lista? Use &quot;Reconectar&quot; nele em vez de
           conectar de novo. Dúvidas sobre seus dados:{' '}
-          <a href="mailto:dpo@appmyfinance.com.br" className="text-brand-500 underline">
-            dpo@appmyfinance.com.br
+          <a href="mailto:privacidade@appmyfinance.com.br" className="text-brand-500 underline">
+            privacidade@appmyfinance.com.br
           </a>
           .
         </p>

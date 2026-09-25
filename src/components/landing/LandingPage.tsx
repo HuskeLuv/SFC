@@ -505,7 +505,7 @@ export default function LandingPage() {
                   <a href="/termos-de-uso">Termos de uso</a>
                 </li>
                 <li>
-                  <a href="/politica-de-privacidade">Política de privacidade</a>
+                  <a href="/politica-de-privacidade">Aviso de privacidade</a>
                 </li>
                 <li>
                   <a href="mailto:contato@appmyfinance.com.br">Contato</a>

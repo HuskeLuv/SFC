@@ -77,7 +77,7 @@ Test infrastructure in `src/test/`: `setup.ts` (jest-dom matchers), `wrappers.ts
 - `DATABASE_URL` — PostgreSQL connection string
 - `JWT_SECRET` — JWT signing key
 - `BRAPI_API_KEY` — BRAPI market data API key
-- Optional: `PLUGGY_HABILITADO`, `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET`, `PLUGGY_WEBHOOK_SECRET`, `PLUGGY_INCLUI_SANDBOX` — Pluggy (Open Finance) integration, off by default; see `docs/pluggy-dev-setup.md`. Config in `src/lib/pluggyConfig.ts` (edge-safe) and SDK client in `src/lib/pluggy.ts` (Node only).
+- Optional: `PLUGGY_HABILITADO`, `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET`, `PLUGGY_WEBHOOK_SECRET`, `PLUGGY_INCLUI_SANDBOX` — Pluggy (Open Finance) integration: off by default in dev, **on in production since 2026-09-25**; see `docs/pluggy-dev-setup.md` (dev + production recipe). Config in `src/lib/pluggyConfig.ts` (edge-safe) and SDK client in `src/lib/pluggy.ts` (Node only).
 - Optional: `COMUNIDADE_HABILITADA` — Comunidade (posts/curtidas/comentários, `/comunidade`), off by default (dev-only until the terms are reviewed). Flag in `src/lib/comunidadeConfig.ts`.
 
 ---

@@ -4,8 +4,8 @@ import Link from 'next/link';
  * Rodapé das páginas legais e auth. Cruza os links de Política, Termos e
  * Subprocessadores + expõe o contato do DPO/Encarregado (Art. 41 LGPD).
  *
- * TODO (LGPD #7): substituir o email do DPO pelo definitivo depois que a
- * empresa indicar formalmente o Encarregado.
+ * Canal do Encarregado e Portal (DPOnote) conforme o Aviso de Privacidade
+ * dos advogados (25/09/2026).
  */
 export default function LegalFooter() {
   return (
@@ -16,7 +16,7 @@ export default function LegalFooter() {
             href="/politica-de-privacidade"
             className="hover:text-brand-500 dark:hover:text-brand-400"
           >
-            Política de Privacidade
+            Aviso de Privacidade
           </Link>
           <Link href="/termos-de-uso" className="hover:text-brand-500 dark:hover:text-brand-400">
             Termos de Uso
@@ -29,10 +29,19 @@ export default function LegalFooter() {
           <p>
             <strong>Encarregado de Proteção de Dados (DPO):</strong>{' '}
             <a
-              href="mailto:dpo@appmyfinance.com.br"
+              href="mailto:privacidade@appmyfinance.com.br"
               className="text-brand-500 hover:underline dark:text-brand-400"
             >
-              dpo@appmyfinance.com.br
+              privacidade@appmyfinance.com.br
+            </a>
+            {' · '}
+            <a
+              href="https://dponote.com.br/dponote/requisicao-do-titular-de-dados/333"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-500 hover:underline dark:text-brand-400"
+            >
+              Portal de Requisição do Titular de Dados
             </a>
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">

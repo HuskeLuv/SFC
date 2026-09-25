@@ -12,7 +12,7 @@ const STORAGE_VERSION = '1';
  * Hoje o sistema usa apenas cookies estritamente necessários (autenticação
  * JWT httpOnly + token CSRF double-submit), que dispensam consentimento
  * formal. Ainda assim a Resolução ANPD exige aviso informativo claro,
- * com link pra Política de Privacidade.
+ * com link pro Aviso de Privacidade.
  *
  * Quando adicionarmos cookies analíticos/marketing no futuro, esse banner
  * vira opt-in granular por categoria — por ora é informativo + "Entendi".
@@ -62,12 +62,12 @@ export default function CookieConsentBanner() {
       <p className="text-sm text-gray-700 dark:text-gray-300">
         Usamos apenas cookies <strong>estritamente necessários</strong> ao funcionamento da
         plataforma (autenticação e segurança). Não há cookies de marketing ou rastreamento. Saiba
-        mais na nossa{' '}
+        mais no nosso{' '}
         <Link
           href="/politica-de-privacidade"
           className="text-brand-500 hover:underline dark:text-brand-400"
         >
-          Política de Privacidade
+          Aviso de Privacidade
         </Link>
         .
       </p>

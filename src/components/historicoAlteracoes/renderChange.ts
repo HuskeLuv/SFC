@@ -100,6 +100,10 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
   'item.criar': withLabel('Criou um item no fluxo de caixa', (l) => `Criou o item ${l}`),
   'item.editar': withLabel('Editou um item do fluxo de caixa', (l) => `Editou o item ${l}`),
   'item.excluir': withLabel('Excluiu um item do fluxo de caixa', (l) => `Excluiu o item ${l}`),
+  'item.mover': withLabel(
+    'Moveu uma linha do fluxo de caixa para outra seção',
+    (l) => `Moveu a linha ${l} para outra seção`,
+  ),
   'valores.editar-lote': withLabel(
     'Editou valores do fluxo de caixa em lote',
     (l) => `Editou ${l} do fluxo de caixa`,

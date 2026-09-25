@@ -164,4 +164,99 @@ describe('mergeTemplatesWithCustomizations', () => {
     expect(merged.items.map((i) => i.name)).toEqual(['Internet', 'Aluguel', 'Condomínio']);
     expect(merged.items[0].id).toBe('user-c');
   });
+
+  describe('linha movida para outra seção (drag-and-drop livre)', () => {
+    // Template: Habitação (Aluguel, Internet) e Lazer (Cinema). O usuário
+    // arrastou Internet para Lazer: o override dela mora no override de Lazer.
+    const templates = () => [
+      group({
+        id: 'tpl-hab',
+        name: 'Habitação',
+        orderIndex: 1,
+        items: [
+          item({ id: 'tpl-aluguel', groupId: 'tpl-hab', name: 'Aluguel', orderIndex: 1 }),
+          item({ id: 'tpl-internet', groupId: 'tpl-hab', name: 'Internet', orderIndex: 2 }),
+        ],
+      }),
+      group({
+        id: 'tpl-lazer',
+        name: 'Lazer',
+        orderIndex: 2,
+        items: [item({ id: 'tpl-cinema', groupId: 'tpl-lazer', name: 'Cinema', orderIndex: 1 })],
+      }),
+    ];
+    const internetMovida = (groupId: string) =>
+      item({
+        id: 'user-internet',
+        userId: 'user-1',
+        groupId,
+        templateId: 'tpl-internet',
+        name: 'Internet',
+        orderIndex: 2,
+        values: [
+          { id: 'v1', itemId: 'user-internet', userId: 'user-1', year: 2026, month: 0, value: 99 },
+        ],
+      } as Partial<CashflowItem>);
+
+    it('some do grupo do template e aparece no grupo de destino, com os valores', () => {
+      const lazerOverride = group({
+        id: 'user-lazer',
+        userId: 'user-1',
+        templateId: 'tpl-lazer',
+        name: 'Lazer',
+        orderIndex: 2,
+        items: [
+          item({
+            id: 'user-cinema',
+            userId: 'user-1',
+            groupId: 'user-lazer',
+            templateId: 'tpl-cinema',
+            name: 'Cinema',
+            orderIndex: 1,
+          }),
+          internetMovida('user-lazer'),
+        ],
+      });
+
+      const [hab, lazer] = mergeTemplatesWithCustomizations(templates(), [lazerOverride]);
+
+      expect(hab.items.map((i) => i.name)).toEqual(['Aluguel']);
+      expect(lazer.items.map((i) => i.id)).toEqual(['user-cinema', 'user-internet']);
+      expect(lazer.items[1].groupId).toBe('user-lazer');
+      expect(lazer.items[1].values?.[0]?.value).toBe(99);
+    });
+
+    it('funciona para grupo criado pelo usuário (sem template)', () => {
+      const custom = group({
+        id: 'user-custom',
+        userId: 'user-1',
+        templateId: null,
+        name: 'Minha seção',
+        orderIndex: 3,
+        items: [internetMovida('user-custom')],
+      });
+
+      const merged = mergeTemplatesWithCustomizations(templates(), [custom]);
+
+      expect(merged[0].items.map((i) => i.name)).toEqual(['Aluguel']);
+      expect(merged[2].id).toBe('user-custom');
+      expect(merged[2].items.map((i) => i.id)).toEqual(['user-internet']);
+    });
+
+    it('override no próprio grupo (override do grupo do template) continua no lugar', () => {
+      const habOverride = group({
+        id: 'user-hab',
+        userId: 'user-1',
+        templateId: 'tpl-hab',
+        name: 'Habitação',
+        orderIndex: 1,
+        items: [internetMovida('user-hab')],
+      });
+
+      const [hab, lazer] = mergeTemplatesWithCustomizations(templates(), [habOverride]);
+
+      expect(hab.items.map((i) => i.id)).toEqual(['tpl-aluguel', 'user-internet']);
+      expect(lazer.items.map((i) => i.name)).toEqual(['Cinema']);
+    });
+  });
 });
