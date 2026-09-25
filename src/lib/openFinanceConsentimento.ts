@@ -9,8 +9,8 @@
  * versão em VERSOES, para o registro antigo continuar mostrando o que a pessoa
  * aceitou.
  *
- * ⚠️ v1/v2 são PROVISÓRIAS: as telas ainda não passaram pela revisão jurídica
- * (os advogados revisaram Termos e Aviso de Privacidade em 25/09/2026).
+ * v1 e v2 foram publicadas como PROVISÓRIAS (selo na tela); a v3 é o mesmo
+ * texto da v2, aprovado pelos advogados em 25/09/2026, sem o selo.
  */
 
 /** Produtos pedidos ao Pluggy no connect token (= escopo do consentimento). */
@@ -158,10 +158,18 @@ const V2: TextoConsentimento = {
   },
 };
 
+/**
+ * v3 (25/09/2026): textos das telas aprovados pelos advogados. Mesmo conteúdo da
+ * v2 sem o selo "provisório" (que faz parte do texto aceito e do hash; por isso
+ * versão nova, e não edição da v2).
+ */
+const V3: TextoConsentimento = { ...V2, versao: 'v3-2026-09-25', provisorio: false };
+
 /** Todas as versões já publicadas (o registro de consentimento aponta para uma delas). */
 export const VERSOES_CONSENTIMENTO: Record<string, TextoConsentimento> = {
   [V1.versao]: V1,
   [V2.versao]: V2,
+  [V3.versao]: V3,
 };
 
-export const TEXTO_CONSENTIMENTO_ATUAL: TextoConsentimento = V2;
+export const TEXTO_CONSENTIMENTO_ATUAL: TextoConsentimento = V3;
