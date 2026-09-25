@@ -93,7 +93,8 @@ export const READY_SELECTOR: Record<string, string> = {
   // os eventos na tela (nomes longos). Abaixo de 768px a visão inicial é a LISTA
   // (AgendaFullCalendar) — é ela que um celular vê. O usuário demo tem parcelas de dívida todo mês.
   // Se não houver evento (ou o mount abrir a visão de mês), a espera estoura e o teste falha.
-  '/calendario': '.fc-list-event',
+  // Lista vazia também é conteúdo (o usuário do seed no CI não tem eventos).
+  '/calendario': '.fc-list-event, .fc-list-empty',
   // A planilha não tem título <h1>/<h2>: espera a primeira linha da tabela.
   '/fluxodecaixa': 'table tbody tr',
   '/signin': 'form',

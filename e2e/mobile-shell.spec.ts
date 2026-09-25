@@ -78,6 +78,8 @@ for (const route of [
   test(`casca em ${route}: header e barra visíveis, título descoberto, fim alcançável`, async ({
     page,
   }) => {
+    // A /carteira sozinha pode levar ~30s até o título no CI (build de produção em runner frio).
+    test.setTimeout(90_000);
     await page.goto(route);
     await waitForShell(page);
     await expect(page.getByRole('button', { name: 'Abrir menu', exact: true })).toHaveCount(0);
@@ -96,7 +98,8 @@ for (const route of [
     expect(covered).toBe(false);
 
     // Com o conteúdo carregado, a barra de abas está na área visível (não só no layout).
-    await page.waitForLoadState('networkidle').catch(() => {});
+    // Limite próprio: páginas com polling nunca ficam ociosas e a espera comia o timeout do teste.
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
     await expectInsideVisualViewport(page, '[data-mf-tabbar]');
 
     // O fim do conteúdo, depois de rolar, fica acima da barra de abas.

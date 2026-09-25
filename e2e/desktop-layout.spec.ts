@@ -128,6 +128,10 @@ test.describe('Desktop inalterado (≥ lg)', () => {
 
   for (const route of ROUTES) {
     test(`screenshot ${route} @ 1280x800`, async ({ page }) => {
+      // As baselines saem do dev local (banco de dev, dados do usuário demo). No CI o banco vem do
+      // seed e o conteúdo é outro, então a comparação só vale localmente; no CI ficam as checagens
+      // estruturais acima (sidebar, coluna, transbordo).
+      test.skip(!!process.env.CI, 'screenshot comparado só no ambiente que gerou as baselines');
       await page.setViewportSize({ width: 1280, height: 800 });
       await gotoDesktop(page, route);
       await expect(page).toHaveScreenshot(`${route.slice(1)}-1280.png`, {

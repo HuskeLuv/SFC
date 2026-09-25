@@ -115,6 +115,12 @@ test.describe('Mobile 390px: sem transbordo horizontal (autenticado)', () => {
 
   for (const route of FLAGGED_ROUTES) {
     test(`${route} (atrás de flag)`, async ({ page }) => {
+      // A /comunidade responde 200 com a flag desligada (página client); a flag vem da API.
+      if (route === '/comunidade') {
+        const cfg = await page.request.get('/api/comunidade/config');
+        const habilitada = cfg.ok() && ((await cfg.json()) as { habilitada?: boolean }).habilitada;
+        test.skip(!habilitada, 'flag desligada: COMUNIDADE_HABILITADA');
+      }
       const res = await page.goto(route, { waitUntil: 'domcontentloaded' });
       const landed = new URL(page.url()).pathname;
       test.skip(
