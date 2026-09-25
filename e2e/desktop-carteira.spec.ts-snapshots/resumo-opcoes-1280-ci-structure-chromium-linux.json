@@ -1,0 +1,108 @@
+{
+ "tabs": [
+  {
+   "name": "Resumo",
+   "className": "bg-gray-900 dark:bg-gray-800 dark:text-gray-100 duration-200 ease-in-out font-semibold inline-flex items-center px-6 py-3 rounded-t-xl shadow-md text-sm text-white transition-all whitespace-nowrap"
+  },
+  {
+   "name": "Análise",
+   "className": "bg-transparent dark:hover:bg-gray-800/50 dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-semibold hover:bg-gray-50 hover:text-gray-900 inline-flex items-center px-6 py-3 rounded-t-xl text-gray-600 text-sm transition-all whitespace-nowrap"
+  },
+  {
+   "name": "Carteira Consolidada",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Reserva Emergência",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Reserva Oportunidade",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Renda Fixa",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Fundos",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "FII's",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Ações",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Stocks",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "REIT's",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "ETF's",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Moedas, Criptomoedas & outros",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Previdência e Seguros",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Opções",
+   "className": "border-b-2 border-brand-500 dark:border-brand-400 dark:text-brand-400 duration-200 ease-in-out font-medium inline-flex items-center px-3 py-3 text-brand-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "Imóveis & Bens",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  }
+ ],
+ "tables": [
+  {
+   "ths": [
+    "Nome do Ativo",
+    "Compra/Venda",
+    "Vencimento",
+    "Quantidade",
+    "Preço Aquisição",
+    "Valor Total",
+    "Cotação em Tempo Real",
+    "Valor Atualizado",
+    "Risco Por Ativo(Carteira Total)",
+    "% da Aba",
+    "Objetivo",
+    "Quanto Falta",
+    "Nec. Aporte $",
+    "Rentabilidade"
+   ],
+   "colCount": 14,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-3 py-2 text-center whitespace-nowrap",
+    "font-medium px-3 py-2 text-left whitespace-nowrap",
+    "font-medium px-3 py-2 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "bg-gray-50 border-b border-gray-200 dark:bg-white/[0.02] dark:border-gray-800 dark:text-gray-100 font-medium text-gray-800",
+    "border-b border-gray-200 cursor-pointer dark:border-gray-800 font-semibold text-sm text-white"
+   ],
+   "tdClasses": [
+    "dark:text-white px-3 py-2 text-center text-white text-xs",
+    "dark:text-white px-3 py-2 text-left text-white text-xs",
+    "dark:text-white px-3 py-2 text-right text-white text-xs",
+    "font-semibold px-3 py-2 text-center text-xs",
+    "font-semibold px-3 py-2 text-left text-xs",
+    "font-semibold px-3 py-2 text-right text-xs"
+   ]
+  }
+ ],
+ "mobileArtifactsVisible": 0
+}
