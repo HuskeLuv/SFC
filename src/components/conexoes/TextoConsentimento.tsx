@@ -23,7 +23,7 @@ export default function TextoConsentimento({ texto }: { texto: Texto }) {
       ))}
       <p className="text-xs text-gray-500 dark:text-gray-400">
         <Link href="/politica-de-privacidade" target="_blank" className="text-brand-500 underline">
-          Política de Privacidade
+          Aviso de Privacidade
         </Link>
         {' · '}
         <Link href="/subprocessadores" target="_blank" className="text-brand-500 underline">

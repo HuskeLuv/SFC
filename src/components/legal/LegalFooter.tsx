@@ -16,7 +16,7 @@ export default function LegalFooter() {
             href="/politica-de-privacidade"
             className="hover:text-brand-500 dark:hover:text-brand-400"
           >
-            Política de Privacidade
+            Aviso de Privacidade
           </Link>
           <Link href="/termos-de-uso" className="hover:text-brand-500 dark:hover:text-brand-400">
             Termos de Uso
