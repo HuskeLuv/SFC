@@ -25,6 +25,8 @@ export default function LegalArticle({ title, updatedAt, version, children }: Le
         // Parágrafos e listas
         '[&_p]:my-3 [&_p]:leading-relaxed',
         '[&_ul]:my-3 [&_ul]:ml-6 [&_ul]:list-disc [&_ul]:space-y-1',
+        // Lista dentro de célula de tabela alinha com o texto das outras colunas
+        '[&_td_ul]:mt-0 [&_td_ul]:mb-0',
         '[&_li]:leading-relaxed',
         '[&_strong]:font-semibold [&_strong]:text-gray-900 dark:[&_strong]:text-white',
         // Links
