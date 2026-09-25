@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { ResponsiveTable, type ResponsiveColumn } from '../ResponsiveTable';
+import { ResponsiveCardList, ResponsiveTable, type ResponsiveColumn } from '../ResponsiveTable';
 import { TABLE_MOBILE_STYLES, TABLE_STYLES } from '../tableStyles';
 
 interface Row {
@@ -285,5 +285,109 @@ describe('ResponsiveTable — strategy js', () => {
     expect(screen.queryByRole('list')).toBeNull();
     const table = screen.getByRole('table');
     expect(table.parentElement?.parentElement).not.toHaveClass('hidden');
+  });
+});
+
+describe('ResponsiveCardList (fase 1)', () => {
+  const LINK_COLUMNS: ResponsiveColumn<Row>[] = [
+    {
+      id: 'ticker',
+      header: 'Ativo',
+      // no desktop a célula tem link; no cabeçalho do cartão expansível entra só o texto
+      cell: (r) => <a href={`/ativos/${r.ticker}`}>{r.ticker}</a>,
+      mobileCell: (r) => r.ticker,
+      mobile: 'primary',
+    },
+    { id: 'valor', header: 'Valor', cell: (r) => `R$ ${r.valor}`, mobile: 'value' },
+    { id: 'qtd', header: 'Qtd', cell: (r) => `q${r.qtd}`, mobile: 'field' },
+    { id: 'preco', header: 'Preço', cell: (r) => `p${r.preco}`, mobile: 'detail' },
+    { id: 'obs', header: 'Obs', cell: (r) => r.obs, mobile: 'detail' },
+  ];
+
+  const renderList = (props: Partial<Parameters<typeof ResponsiveCardList<Row>>[0]> = {}) =>
+    render(
+      <ResponsiveCardList<Row>
+        columns={LINK_COLUMNS}
+        rows={ROWS}
+        getRowKey={(r) => r.ticker}
+        ariaLabel="Ativos"
+        {...props}
+      />,
+    );
+
+  it('sem expandable: detail vira linha dt/dd e todo cartão é li[data-mf-card]', () => {
+    renderList();
+    const list = screen.getByRole('list', { name: 'Ativos' });
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    items.forEach((li) => expect(li).toHaveAttribute('data-mf-card'));
+    expect(within(items[0]).getByText('p35')).toBeInTheDocument();
+    expect(within(items[0]).getByText('obs-1')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).toBeNull();
+    // sem expandable, a célula é a de sempre (com link)
+    expect(within(items[0]).getByRole('link', { name: 'BBSE3' })).toBeInTheDocument();
+  });
+
+  it('expandable: cabeçalho é botão com aria-expanded e o corpo só monta aberto', () => {
+    renderList({ expandable: true });
+    const toggles = screen.getAllByRole('button');
+    expect(toggles).toHaveLength(3);
+    const first = toggles[0];
+    expect(first).toHaveAttribute('data-mf-card-toggle');
+    expect(first).toHaveAttribute('aria-expanded', 'false');
+    // cabeçalho usa mobileCell: nenhum link dentro do botão
+    expect(within(first).queryByRole('link')).toBeNull();
+    expect(within(first).getByText('BBSE3')).toBeInTheDocument();
+    expect(within(first).getByText('q10')).toBeInTheDocument();
+    expect(document.querySelector('[data-mf-card-body]')).toBeNull();
+    expect(screen.queryByText('p35')).toBeNull();
+
+    fireEvent.click(first);
+    expect(first).toHaveAttribute('aria-expanded', 'true');
+    const bodyId = first.getAttribute('aria-controls')!;
+    const body = document.getElementById(bodyId)!;
+    expect(body).toHaveAttribute('data-mf-card-body');
+    expect(within(body).getByText('p35')).toBeInTheDocument();
+    expect(within(body).getByText('obs-1')).toBeInTheDocument();
+    expect(body.querySelector('dl')).toHaveClass(...TABLE_MOBILE_STYLES.cardDetailGrid.split(' '));
+
+    fireEvent.click(first);
+    expect(first).toHaveAttribute('aria-expanded', 'false');
+    expect(document.getElementById(bodyId)).toBeNull();
+  });
+
+  it('defaultExpanded, renderCardBody e renderCardFooter', () => {
+    renderList({
+      expandable: true,
+      defaultExpanded: (r) => r.ticker === 'XPML11',
+      renderCardBody: (r) => <p>corpo-{r.ticker}</p>,
+      renderCardFooter: (r) => <a href={`/ativos/${r.ticker}`}>Ver {r.ticker}</a>,
+    });
+    expect(screen.getByText('corpo-XPML11')).toBeInTheDocument();
+    expect(screen.queryByText('corpo-BBSE3')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Ver XPML11' })).toBeInTheDocument();
+    // o corpo próprio substitui a grade de detail
+    expect(screen.queryByText('p100')).toBeNull();
+  });
+
+  it('getRowAttributes e cardClassName', () => {
+    renderList({
+      expandable: true,
+      getRowAttributes: (r) => ({
+        'data-planejado': r.ticker === 'ITSA4' ? 'true' : undefined,
+      }),
+      cardClassName: (r) => (r.ticker === 'ITSA4' ? 'border-dashed' : undefined),
+    });
+    const items = within(screen.getByRole('list')).getAllByRole('listitem');
+    expect(items[2]).toHaveAttribute('data-planejado', 'true');
+    expect(items[0]).not.toHaveAttribute('data-planejado');
+    expect(items[2].firstElementChild).toHaveClass('border-dashed');
+    expect(items[0].firstElementChild).not.toHaveClass('border-dashed');
+  });
+
+  it('className vai no <ul>; expandable usa o espaçamento de 8px', () => {
+    renderList({ expandable: true, className: 'mt-4' });
+    const list = screen.getByRole('list');
+    expect(list).toHaveClass('mt-4', ...TABLE_MOBILE_STYLES.cardList.split(' '));
   });
 });
