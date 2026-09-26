@@ -2,13 +2,21 @@
 
 import { logger } from '@/lib/logger';
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useImoveisBens } from '@/hooks/useImoveisBens';
 import { ImovelBemAtivo } from '@/types/imoveis-bens';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import { BasicTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
-import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import {
+  TABLE_STYLES,
+  TABLE_HEADER_STYLE,
+  TABLE_MOBILE_STYLES,
+} from '@/components/ui/table/tableStyles';
+import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
+import { MobileEditSheet } from '@/components/ui/sheet/MobileEditSheet';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const IMOVEIS_BENS_COLUMN_COUNT = 11;
@@ -148,6 +156,165 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
   );
 };
 
+// ---------------------------------------------------------------------------
+// Celular (PWA fase 1): cartões expansíveis + valor atualizado por sheet
+// ---------------------------------------------------------------------------
+
+interface ImoveisBensMobileListProps {
+  ativos: ImovelBemAtivo[];
+  totalGeral: { valorAplicado: number; valorAtualizado: number; rentabilidade: number };
+  formatCurrency: (value: number, currency?: 'BRL' | 'USD') => string;
+  formatPercentage: (value: number) => string;
+  formatNumber: (value: number) => string;
+  /** O MESMO handler do desktop (lança em falha). */
+  onUpdateValorAtualizado: (ativoId: string, novoValor: number) => Promise<void>;
+}
+
+function ImovelDetail({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>{label}</dt>
+      <dd className={`${TABLE_MOBILE_STYLES.cardDetailValue} break-words`}>{children}</dd>
+    </div>
+  );
+}
+
+export function ImoveisBensMobileList({
+  ativos,
+  totalGeral,
+  formatCurrency,
+  formatPercentage,
+  formatNumber,
+  onUpdateValorAtualizado,
+}: ImoveisBensMobileListProps) {
+  const [editing, setEditing] = useState<ImovelBemAtivo | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const columns: ResponsiveColumn<ImovelBemAtivo>[] = [
+    {
+      id: 'nome',
+      header: 'Nome do Ativo',
+      mobile: 'primary',
+      cell: (a) => a.nome,
+      mobileCell: (a) => <span className="block truncate">{a.nome}</span>,
+    },
+    {
+      id: 'cidade',
+      header: 'Cidade',
+      mobile: 'subtitle',
+      cell: (a) => a.cidade || '—',
+    },
+    {
+      id: 'valor',
+      header: 'Valor Atualizado',
+      mobile: 'value',
+      cell: (a) => formatCurrency(a.valorAtualizado),
+      mobileCell: (a) => (
+        <>
+          <span className="block">{formatCurrency(a.valorAtualizado)}</span>
+          <span
+            className={`block text-xs font-medium ${
+              a.rentabilidade < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive
+            }`}
+          >
+            {formatPercentage(a.rentabilidade)}
+          </span>
+        </>
+      ),
+    },
+  ];
+
+  const renderBody = (a: ImovelBemAtivo) => (
+    <div className="space-y-3">
+      <dl className={TABLE_MOBILE_STYLES.cardDetailGrid}>
+        <ImovelDetail label="Mandato">{a.mandato || '—'}</ImovelDetail>
+        <ImovelDetail label="Quantidade">{formatNumber(a.quantidade)}</ImovelDetail>
+        <ImovelDetail label="Aquisição">{formatCurrency(a.precoAquisicao)}</ImovelDetail>
+        <ImovelDetail label="Melhorias">{formatCurrency(a.melhorias)}</ImovelDetail>
+        <ImovelDetail label="Valor total">{formatCurrency(a.valorTotal)}</ImovelDetail>
+        <ImovelDetail label="% da aba">{formatPercentage(a.percentualCarteira)}</ImovelDetail>
+        <ImovelDetail label="Risco cart.">{formatPercentage(a.riscoPorAtivo)}</ImovelDetail>
+      </dl>
+      {a.observacoes && (
+        <p className="text-sm text-gray-700 dark:text-gray-300 break-words">{a.observacoes}</p>
+      )}
+      <div className="flex items-center justify-between gap-3 border-t border-gray-100 py-1.5 dark:border-gray-800">
+        <div className="min-w-0">
+          <div className={TABLE_MOBILE_STYLES.cardDetailLabel}>Valor atualizado</div>
+          <div className="text-sm font-medium tabular-nums text-gray-800 dark:text-gray-100">
+            {formatCurrency(a.valorAtualizado)}
+          </div>
+        </div>
+        <button
+          type="button"
+          data-mf-edit="valorAtualizado"
+          className={TABLE_MOBILE_STYLES.editButton}
+          aria-label={`Editar valor atualizado de ${a.nome}`}
+          onClick={() => {
+            setEditing(a);
+            setEditOpen(true);
+          }}
+        >
+          Editar
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3" data-mf-imoveis-mobile="">
+      <ResponsiveCardList<ImovelBemAtivo>
+        columns={columns}
+        rows={ativos}
+        getRowKey={(a) => a.id}
+        ariaLabel="Imóveis & Bens"
+        expandable
+        emptyState="Nenhum imóvel ou bem cadastrado."
+        renderCardBody={renderBody}
+        renderCardFooter={(a) => (
+          <Link href={`/ativos/${a.id}`} className={TABLE_MOBILE_STYLES.editButton}>
+            Ver detalhes do ativo
+          </Link>
+        )}
+      />
+
+      <section aria-label="Total geral de Imóveis & Bens" className={TABLE_MOBILE_STYLES.totalCard}>
+        <div className={TABLE_MOBILE_STYLES.cardHeader}>
+          <span className="font-semibold">Total geral</span>
+          <span className="font-semibold tabular-nums">
+            {formatCurrency(totalGeral.valorAtualizado)}
+          </span>
+        </div>
+        <dl className={`${TABLE_MOBILE_STYLES.cardDetailGrid} mt-2`}>
+          <ImovelDetail label="Valor total">
+            {formatCurrency(totalGeral.valorAplicado)}
+          </ImovelDetail>
+          <ImovelDetail label="Rentabilidade">
+            {formatPercentage(totalGeral.rentabilidade)}
+          </ImovelDetail>
+        </dl>
+      </section>
+
+      <MobileEditSheet
+        isOpen={editOpen}
+        onClose={() => setEditOpen(false)}
+        title="Editar valor atualizado"
+        subject={editing?.nome}
+        label="Valor atualizado"
+        kind="currency"
+        initialValue={editing?.valorAtualizado ?? null}
+        min={0}
+        minExclusive
+        savedMessage={() => 'Valor atualizado salvo'}
+        onSubmit={async (v) => {
+          if (!editing || typeof v !== 'number') return false;
+          await onUpdateValorAtualizado(editing.id, v);
+        }}
+      />
+    </div>
+  );
+}
+
 interface ImoveisBensTableProps {
   totalCarteira?: number;
 }
@@ -162,6 +329,7 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
     formatNumber,
     updateValorAtualizado,
   } = useImoveisBens();
+  const isBelowLg = useIsBelowLg();
 
   // Calcular risco e percentual da aba. `totalCarteira` aqui é o
   // dinheiroMaisBens (carteira líquida + imóveis/bens) passado por
@@ -244,74 +412,89 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
         />
       </div>
 
-      {/* Tabela principal */}
-      <ComponentCard title="Imóveis & Bens - Detalhamento">
-        <div className={TABLE_STYLES.wrapper}>
-          <table className={TABLE_STYLES.table}>
-            <thead>
-              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                <th className={`${TABLE_STYLES.compact.th} text-left`}>Nome do Ativo</th>
-                <th className={`${TABLE_STYLES.compact.th} text-center`}>Cidade</th>
-                <th className={`${TABLE_STYLES.compact.th} text-center`}>Mandato</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Quantidade</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Preço Aquisição</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Melhorias</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Total</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>
-                  <span className="block">Risco Por Ativo</span>
-                  <span className="block">(Carteira Total)</span>
-                </th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
-                <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Linha de totalização */}
-              <tr className={TABLE_STYLES.totalRow}>
-                <td className={TABLE_STYLES.compact.td}>TOTAL GERAL</td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatPercentage(dataComRisco?.totalGeral?.percentualCarteira || 0)}
-                </td>
-                <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                  {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
-                </td>
-              </tr>
+      {isBelowLg ? (
+        <ImoveisBensMobileList
+          ativos={dataComRisco?.ativos ?? []}
+          totalGeral={{
+            valorAplicado: dataComRisco?.totalGeral?.valorAplicado || 0,
+            valorAtualizado: dataComRisco?.totalGeral?.valorAtualizado || 0,
+            rentabilidade: dataComRisco?.totalGeral?.rentabilidade || 0,
+          }}
+          formatCurrency={formatCurrency}
+          formatPercentage={formatPercentage}
+          formatNumber={formatNumber}
+          onUpdateValorAtualizado={handleUpdateValorAtualizado}
+        />
+      ) : (
+        /* Tabela principal */
+        <ComponentCard title="Imóveis & Bens - Detalhamento">
+          <div className={TABLE_STYLES.wrapper}>
+            <table className={TABLE_STYLES.table}>
+              <thead>
+                <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                  <th className={`${TABLE_STYLES.compact.th} text-left`}>Nome do Ativo</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-center`}>Cidade</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-center`}>Mandato</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Quantidade</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Preço Aquisição</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Melhorias</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Total</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Valor Atualizado</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>
+                    <span className="block">Risco Por Ativo</span>
+                    <span className="block">(Carteira Total)</span>
+                  </th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>% da Aba</th>
+                  <th className={`${TABLE_STYLES.compact.th} text-right`}>Rentabilidade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Linha de totalização */}
+                <tr className={TABLE_STYLES.totalRow}>
+                  <td className={TABLE_STYLES.compact.td}>TOTAL GERAL</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatPercentage(dataComRisco?.totalGeral?.percentualCarteira || 0)}
+                  </td>
+                  <td className={`${TABLE_STYLES.compact.td} text-right`}>
+                    {formatPercentage(dataComRisco?.totalGeral?.rentabilidade || 0)}
+                  </td>
+                </tr>
 
-              {dataComRisco?.ativos?.map((ativo) => (
-                <ImoveisBensTableRow
-                  key={ativo.id}
-                  ativo={ativo}
-                  formatCurrency={formatCurrency}
-                  formatPercentage={formatPercentage}
-                  formatNumber={formatNumber}
-                  onUpdateValorAtualizado={handleUpdateValorAtualizado}
+                {dataComRisco?.ativos?.map((ativo) => (
+                  <ImoveisBensTableRow
+                    key={ativo.id}
+                    ativo={ativo}
+                    formatCurrency={formatCurrency}
+                    formatPercentage={formatPercentage}
+                    formatNumber={formatNumber}
+                    onUpdateValorAtualizado={handleUpdateValorAtualizado}
+                  />
+                )) || []}
+                <BasicTablePlaceholderRows
+                  count={Math.max(0, MIN_PLACEHOLDER_ROWS - (dataComRisco?.ativos?.length || 0))}
+                  colSpan={IMOVEIS_BENS_COLUMN_COUNT}
                 />
-              )) || []}
-              <BasicTablePlaceholderRows
-                count={Math.max(0, MIN_PLACEHOLDER_ROWS - (dataComRisco?.ativos?.length || 0))}
-                colSpan={IMOVEIS_BENS_COLUMN_COUNT}
-              />
-            </tbody>
-          </table>
-        </div>
-      </ComponentCard>
+              </tbody>
+            </table>
+          </div>
+        </ComponentCard>
+      )}
     </div>
   );
 }

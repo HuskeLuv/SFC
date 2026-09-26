@@ -14,6 +14,10 @@ import {
 import { TableBody } from '@/components/ui/table';
 import { StandardTablePlaceholderRows, metricColorBySign } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import Link from 'next/link';
+import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
+import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 const MIN_PLACEHOLDER_ROWS = 4;
 const RESERVA_OPORTUNIDADE_COLUMN_COUNT = 13;
@@ -103,6 +107,153 @@ const ReservaOportunidadeTableRow: React.FC<ReservaOportunidadeTableRowProps> = 
   );
 };
 
+// ---------------------------------------------------------------------------
+// Celular (PWA fase 1): cartões expansíveis, sem edição
+// ---------------------------------------------------------------------------
+
+type ReservaOportunidadeMobileAtivo = ReservaOportunidadeTableRowProps['ativo'];
+
+function ReservaOportunidadeDetail({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>{label}</dt>
+      <dd className={`${TABLE_MOBILE_STYLES.cardDetailValue} break-words`}>{children}</dd>
+    </div>
+  );
+}
+
+function ReservaOportunidadeMobileList({
+  ativos,
+  total,
+  formatCurrency,
+  formatPercentage,
+}: {
+  ativos: ReservaOportunidadeMobileAtivo[];
+  total: {
+    valorInicial: number;
+    aporte: number;
+    resgate: number;
+    valorAtualizado: number;
+    rentabilidade: number;
+  };
+  formatCurrency: (value: number) => string;
+  formatPercentage: (value: number) => string;
+}) {
+  const formatDate = (d: Date) => d.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  const columns: ResponsiveColumn<ReservaOportunidadeMobileAtivo>[] = [
+    {
+      id: 'nome',
+      header: 'Nome dos Ativos',
+      mobile: 'primary',
+      cell: (a) => a.nome,
+      mobileCell: (a) => <span className="block truncate">{a.nome}</span>,
+    },
+    { id: 'benchmark', header: 'Benchmark', mobile: 'subtitle', cell: (a) => a.benchmark },
+    {
+      id: 'valor',
+      header: 'Valor Atual',
+      mobile: 'value',
+      cell: (a) => formatCurrency(a.valorAtualizado),
+      mobileCell: (a) => (
+        <>
+          <span className="block">{formatCurrency(a.valorAtualizado)}</span>
+          <span
+            className={`block text-xs font-medium ${
+              a.rentabilidade < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive
+            }`}
+          >
+            {formatPercentage(a.rentabilidade)}
+          </span>
+        </>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-3" data-mf-reserva-mobile="">
+      <ResponsiveCardList<ReservaOportunidadeMobileAtivo>
+        columns={columns}
+        rows={ativos}
+        getRowKey={(a) => a.id}
+        ariaLabel="Reserva de Oportunidade"
+        expandable
+        emptyState="Nenhum ativo nesta reserva."
+        renderCardBody={(a) => (
+          <div className="space-y-3">
+            <dl className={TABLE_MOBILE_STYLES.cardDetailGrid}>
+              <ReservaOportunidadeDetail label="Cot. resgate">
+                {a.cotizacaoResgate}
+              </ReservaOportunidadeDetail>
+              <ReservaOportunidadeDetail label="Liq. resgate">
+                {a.liquidacaoResgate}
+              </ReservaOportunidadeDetail>
+              <ReservaOportunidadeDetail label="Vencimento">
+                {formatDate(a.vencimento)}
+              </ReservaOportunidadeDetail>
+              <ReservaOportunidadeDetail label="Valor inicial">
+                {formatCurrency(a.valorInicial)}
+              </ReservaOportunidadeDetail>
+              <ReservaOportunidadeDetail label="Aportes">
+                {formatCurrency(a.aporte)}
+              </ReservaOportunidadeDetail>
+              <ReservaOportunidadeDetail label="Resgates">
+                {formatCurrency(a.resgate)}
+              </ReservaOportunidadeDetail>
+              <ReservaOportunidadeDetail label="% da aba">
+                {formatPercentage(a.percentualCarteira)}
+              </ReservaOportunidadeDetail>
+              <ReservaOportunidadeDetail label="Risco cart.">
+                {formatPercentage(a.riscoAtivo)}
+              </ReservaOportunidadeDetail>
+            </dl>
+            {a.observacoes && (
+              <p className="text-sm break-words text-gray-700 dark:text-gray-300">
+                {a.observacoes}
+              </p>
+            )}
+          </div>
+        )}
+        renderCardFooter={(a) => (
+          <Link href={`/ativos/${a.id}`} className={TABLE_MOBILE_STYLES.editButton}>
+            Ver detalhes do ativo
+          </Link>
+        )}
+      />
+      <section
+        aria-label="Total geral de Reserva de Oportunidade"
+        className={TABLE_MOBILE_STYLES.totalCard}
+      >
+        <div className={TABLE_MOBILE_STYLES.cardHeader}>
+          <span className="font-semibold">Total geral</span>
+          <span className="font-semibold tabular-nums">
+            {formatCurrency(total.valorAtualizado)}
+          </span>
+        </div>
+        <dl className={`${TABLE_MOBILE_STYLES.cardDetailGrid} mt-2`}>
+          <ReservaOportunidadeDetail label="Valor inicial">
+            {formatCurrency(total.valorInicial)}
+          </ReservaOportunidadeDetail>
+          <ReservaOportunidadeDetail label="Aportes">
+            {formatCurrency(total.aporte)}
+          </ReservaOportunidadeDetail>
+          <ReservaOportunidadeDetail label="Resgates">
+            {formatCurrency(total.resgate)}
+          </ReservaOportunidadeDetail>
+          <ReservaOportunidadeDetail label="Rentabilidade">
+            {formatPercentage(total.rentabilidade)}
+          </ReservaOportunidadeDetail>
+        </dl>
+      </section>
+    </div>
+  );
+}
+
 interface ReservaOportunidadeTableProps {
   totalCarteira?: number;
 }
@@ -111,6 +262,7 @@ export default function ReservaOportunidadeTable({
   totalCarteira = 0,
 }: ReservaOportunidadeTableProps) {
   const { data, loading, error } = useReservaOportunidade();
+  const isBelowLg = useIsBelowLg();
 
   // Calcular risco (carteira total) e percentual da carteira da aba
   const ativosComRisco = useMemo(() => {
@@ -192,88 +344,97 @@ export default function ReservaOportunidadeTable({
         />
       </div>
 
-      {/* Tabela principal */}
-      <ComponentCard title="Reserva de Oportunidade - Detalhamento">
-        <StandardTable>
-          <StandardTableHeader sticky>
-            <StandardTableHeaderRow>
-              <StandardTableHeaderCell align="left">Nome dos Ativos</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center">Cot. Resgate</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center">Liq. Resgate</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center">Vencimento</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center">Benchmark</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">Valor Inicial</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">Aporte</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">Resgate</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">Valor Atual</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">% da Aba</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">
-                <span className="block">Risco Por Ativo</span>
-                <span className="block">(Carteira Total)</span>
-              </StandardTableHeaderCell>
-              <StandardTableHeaderCell align="right">Rentab.</StandardTableHeaderCell>
-              <StandardTableHeaderCell align="center">Observações</StandardTableHeaderCell>
-            </StandardTableHeaderRow>
-          </StandardTableHeader>
-          <TableBody>
-            {/* Linha de totalização */}
-            <StandardTableRow isTotal>
-              <StandardTableBodyCell align="left" isTotal>
-                TOTAL GERAL
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal>
-                -
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal>
-                -
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal>
-                -
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal>
-                -
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal>
-                {formatCurrency(totais.valorInicial)}
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal>
-                {formatCurrency(totais.aporte)}
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal>
-                {formatCurrency(totais.resgate)}
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal>
-                {formatCurrency(totais.valorAtualizado)}
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal>
-                100.00%
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal>
-                -
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="right" isTotal>
-                {formatPercentage(rentabilidadeTotal)}
-              </StandardTableBodyCell>
-              <StandardTableBodyCell align="center" isTotal>
-                -
-              </StandardTableBodyCell>
-            </StandardTableRow>
+      {isBelowLg ? (
+        <ReservaOportunidadeMobileList
+          ativos={ativosComRisco}
+          total={{ ...totais, rentabilidade: rentabilidadeTotal }}
+          formatCurrency={formatCurrency}
+          formatPercentage={formatPercentage}
+        />
+      ) : (
+        /* Tabela principal */
+        <ComponentCard title="Reserva de Oportunidade - Detalhamento">
+          <StandardTable>
+            <StandardTableHeader sticky>
+              <StandardTableHeaderRow>
+                <StandardTableHeaderCell align="left">Nome dos Ativos</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="center">Cot. Resgate</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="center">Liq. Resgate</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="center">Vencimento</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="center">Benchmark</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">Valor Inicial</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">Aporte</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">Resgate</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">Valor Atual</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">% da Aba</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">
+                  <span className="block">Risco Por Ativo</span>
+                  <span className="block">(Carteira Total)</span>
+                </StandardTableHeaderCell>
+                <StandardTableHeaderCell align="right">Rentab.</StandardTableHeaderCell>
+                <StandardTableHeaderCell align="center">Observações</StandardTableHeaderCell>
+              </StandardTableHeaderRow>
+            </StandardTableHeader>
+            <TableBody>
+              {/* Linha de totalização */}
+              <StandardTableRow isTotal>
+                <StandardTableBodyCell align="left" isTotal>
+                  TOTAL GERAL
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>
+                  -
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>
+                  -
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>
+                  -
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>
+                  -
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  {formatCurrency(totais.valorInicial)}
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  {formatCurrency(totais.aporte)}
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  {formatCurrency(totais.resgate)}
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  {formatCurrency(totais.valorAtualizado)}
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  100.00%
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>
+                  -
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="right" isTotal>
+                  {formatPercentage(rentabilidadeTotal)}
+                </StandardTableBodyCell>
+                <StandardTableBodyCell align="center" isTotal>
+                  -
+                </StandardTableBodyCell>
+              </StandardTableRow>
 
-            {ativosComRisco.map((ativo) => (
-              <ReservaOportunidadeTableRow
-                key={ativo.id}
-                ativo={ativo}
-                formatCurrency={formatCurrency}
-                formatPercentage={formatPercentage}
+              {ativosComRisco.map((ativo) => (
+                <ReservaOportunidadeTableRow
+                  key={ativo.id}
+                  ativo={ativo}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                />
+              ))}
+              <StandardTablePlaceholderRows
+                count={Math.max(0, MIN_PLACEHOLDER_ROWS - ativosComRisco.length)}
+                colSpan={RESERVA_OPORTUNIDADE_COLUMN_COUNT}
               />
-            ))}
-            <StandardTablePlaceholderRows
-              count={Math.max(0, MIN_PLACEHOLDER_ROWS - ativosComRisco.length)}
-              colSpan={RESERVA_OPORTUNIDADE_COLUMN_COUNT}
-            />
-          </TableBody>
-        </StandardTable>
-      </ComponentCard>
+            </TableBody>
+          </StandardTable>
+        </ComponentCard>
+      )}
     </div>
   );
 }
