@@ -56,6 +56,7 @@ export default function Step4ReservaFields({
       </div>
       <div>
         <DatePicker
+          nativeOnMobile
           id="vencimento"
           label="Vencimento *"
           placeholder="Selecione a data"

@@ -238,7 +238,7 @@ export default function Step4FundoDebenturePrevidenciaFields({
         </div>
       )}
       {formData.tipoAtivo === 'debenture' && formData.tipoDebenture === 'hibrida' && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="rendaFixaIndexer">Indexador</Label>
             <Select
@@ -274,6 +274,7 @@ export default function Step4FundoDebenturePrevidenciaFields({
               Mesmo padrão do Step4RendaFixaFields. */}
           <div>
             <DatePicker
+              nativeOnMobile
               id="dataVencimento"
               label="Data de Vencimento"
               placeholder="Opcional — em branco, consideramos 10 anos"
