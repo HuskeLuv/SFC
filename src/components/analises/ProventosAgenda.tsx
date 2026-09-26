@@ -188,6 +188,9 @@ export default function ProventosAgenda() {
                 if (date instanceof Date) {
                   setStartDate(date.toISOString().split('T')[0]);
                 }
+              } else if (isBelowLg) {
+                // Celular: "Limpar" no seletor nativo esvazia o campo — o filtro acompanha.
+                setStartDate('');
               }
             }}
           />
@@ -207,6 +210,9 @@ export default function ProventosAgenda() {
                 if (date instanceof Date) {
                   setEndDate(date.toISOString().split('T')[0]);
                 }
+              } else if (isBelowLg) {
+                // Celular: "Limpar" no seletor nativo esvazia o campo — o filtro acompanha.
+                setEndDate('');
               }
             }}
           />
