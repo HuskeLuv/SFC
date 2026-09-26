@@ -1,0 +1,72 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "dom.seg.ter.qua.qui.sex.sáb.",
+    "dom.",
+    "seg.",
+    "ter.",
+    "qua.",
+    "qui.",
+    "sex.",
+    "sáb."
+   ],
+   "colCount": 7,
+   "theadClass": "",
+   "thClasses": [
+    "",
+    "fc-col-header-cell fc-day fc-day-fri",
+    "fc-col-header-cell fc-day fc-day-mon",
+    "fc-col-header-cell fc-day fc-day-sat",
+    "fc-col-header-cell fc-day fc-day-sun",
+    "fc-col-header-cell fc-day fc-day-thu",
+    "fc-col-header-cell fc-day fc-day-tue",
+    "fc-col-header-cell fc-day fc-day-wed"
+   ],
+   "trClasses": [],
+   "tdClasses": []
+  },
+  {
+   "ths": [
+    "dom.",
+    "seg.",
+    "ter.",
+    "qua.",
+    "qui.",
+    "sex.",
+    "sáb."
+   ],
+   "colCount": 7,
+   "theadClass": "",
+   "thClasses": [
+    "fc-col-header-cell fc-day fc-day-fri",
+    "fc-col-header-cell fc-day fc-day-mon",
+    "fc-col-header-cell fc-day fc-day-sat",
+    "fc-col-header-cell fc-day fc-day-sun",
+    "fc-col-header-cell fc-day fc-day-thu",
+    "fc-col-header-cell fc-day fc-day-tue",
+    "fc-col-header-cell fc-day fc-day-wed"
+   ],
+   "trClasses": [],
+   "tdClasses": []
+  }
+ ],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "a|||dark:text-gray-400 gap-1.5 inline-flex items-center text-gray-500 text-sm",
+  "a|||text-brand-500 underline",
+  "button|||dark:hover:bg-white/[0.04] flex gap-2 hover:bg-gray-50 items-start px-1 py-1 rounded-lg text-left w-full",
+  "button|||fc-button fc-button-active fc-button-primary fc-dayGridMonth-button",
+  "button|||fc-button fc-button-primary fc-listMonth-button",
+  "button|||fc-button fc-button-primary fc-next-button",
+  "button|||fc-button fc-button-primary fc-novoEvento-button",
+  "button|||fc-button fc-button-primary fc-prev-button",
+  "button|||fc-button fc-button-primary fc-timeGridWeek-button",
+  "button|||fc-button fc-button-primary fc-today-button",
+  "h2|||dark:text-white/90 font-semibold text-gray-800 text-xl",
+  "h2|||fc-toolbar-title",
+  "h3|||dark:text-white/90 font-semibold mb-3 text-gray-800 text-sm",
+  "input|||border-gray-300 h-4 mt-0.5 rounded w-4"
+ ]
+}

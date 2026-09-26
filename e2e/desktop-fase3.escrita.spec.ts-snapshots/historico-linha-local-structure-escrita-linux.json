@@ -1,0 +1,13 @@
+{
+ "tr": "border-b border-gray-100 dark:border-gray-800 dark:hover:bg-white/[0.03] hover:bg-gray-50 last:border-b-0 transition-colors",
+ "tds": [
+  "dark:text-gray-400 px-4 py-2.5 text-gray-500 text-left text-sm whitespace-nowrap",
+  "px-4 py-2.5 text-left text-sm",
+  "px-4 py-2.5 text-left text-sm",
+  "px-4 py-2.5 text-right text-sm"
+ ],
+ "controls": [
+  "button|dark:hover:text-warning-300 dark:text-warning-400 disabled:opacity-50 hover:text-warning-700 text-warning-600 text-xs",
+  "button|dark:hover:text-brand-400 hover:text-brand-600 text-brand-500 text-xs"
+ ]
+}

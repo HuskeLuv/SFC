@@ -1,0 +1,81 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "Ativo",
+    "Valor Atual",
+    "% da Carteira"
+   ],
+   "colCount": 3,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "bg-gray-50 border-b border-gray-200 dark:bg-white/[0.02] dark:border-gray-800 dark:text-gray-100 font-medium font-semibold text-gray-800",
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0",
+    "border-b border-gray-200 dark:border-gray-800 font-semibold text-sm text-white"
+   ],
+   "tdClasses": [
+    "font-semibold px-4 py-2.5 text-right text-sm",
+    "font-semibold px-4 py-2.5 text-sm",
+    "pl-8 px-4 py-2.5 text-sm",
+    "px-4 py-2.5 text-right text-sm",
+    "px-4 py-2.5 text-right text-sm text-white",
+    "px-4 py-2.5 text-sm text-white"
+   ]
+  },
+  {
+   "ths": [
+    "Data",
+    "Operação",
+    "Ativo",
+    "Valor"
+   ],
+   "colCount": 4,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+   ],
+   "tdClasses": [
+    "dark:text-white font-medium px-4 py-2.5 text-gray-900 text-right text-sm",
+    "px-4 py-2.5 text-sm"
+   ]
+  },
+  {
+   "ths": [
+    "Categoria",
+    "Orçamento"
+   ],
+   "colCount": 2,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+   ],
+   "tdClasses": [
+    "dark:text-white font-medium px-4 py-2.5 text-gray-900 text-right text-sm",
+    "px-4 py-2.5 text-sm"
+   ]
+  }
+ ],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "button|||bg-brand-500 disabled:bg-brand-300 font-medium gap-2 hover:bg-brand-600 inline-flex items-center justify-center print-hidden px-4 py-3 rounded-lg shadow-theme-xs text-sm text-white transition",
+  "button|||bg-brand-500 font-medium px-3 py-1 rounded-md text-white text-xs transition-colors",
+  "button|||bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 font-medium hover:bg-gray-200 px-3 py-1 rounded-md text-gray-600 text-xs transition-colors",
+  "h1|||dark:text-white font-bold jsx-5355db7883af20a6 text-2xl text-gray-900",
+  "h2|||dark:text-white font-semibold jsx-5355db7883af20a6 text-gray-900 text-xl",
+  "h3|||dark:text-white/90 font-medium text-base text-gray-800",
+  "select|||appearance-none bg-transparent border border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:text-white/90 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 h-11 jsx-5355db7883af20a6 pr-10 px-4 py-2.5 rounded-lg shadow-theme-xs text-gray-800 text-sm w-full"
+ ]
+}

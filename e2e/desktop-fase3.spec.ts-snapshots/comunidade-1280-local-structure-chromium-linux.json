@@ -1,0 +1,53 @@
+{
+ "tabs": [
+  {
+   "name": "Todas",
+   "className": "border px-3 py-1.5 rounded-full shrink-0 text-sm text-white transition"
+  },
+  {
+   "name": "Geral",
+   "className": "bg-white border border-gray-200 dark:bg-white/[0.03] dark:border-gray-800 dark:text-gray-400 hover:bg-gray-50 px-3 py-1.5 rounded-full shrink-0 text-gray-600 text-sm transition"
+  },
+  {
+   "name": "Saindo das dívidas",
+   "className": "bg-white border border-gray-200 dark:bg-white/[0.03] dark:border-gray-800 dark:text-gray-400 hover:bg-gray-50 px-3 py-1.5 rounded-full shrink-0 text-gray-600 text-sm transition"
+  },
+  {
+   "name": "Orçamento e fluxo de caixa",
+   "className": "bg-white border border-gray-200 dark:bg-white/[0.03] dark:border-gray-800 dark:text-gray-400 hover:bg-gray-50 px-3 py-1.5 rounded-full shrink-0 text-gray-600 text-sm transition"
+  },
+  {
+   "name": "Investimentos",
+   "className": "bg-white border border-gray-200 dark:bg-white/[0.03] dark:border-gray-800 dark:text-gray-400 hover:bg-gray-50 px-3 py-1.5 rounded-full shrink-0 text-gray-600 text-sm transition"
+  },
+  {
+   "name": "Conquistas",
+   "className": "bg-white border border-gray-200 dark:bg-white/[0.03] dark:border-gray-800 dark:text-gray-400 hover:bg-gray-50 px-3 py-1.5 rounded-full shrink-0 text-gray-600 text-sm transition"
+  },
+  {
+   "name": "Dúvidas",
+   "className": "bg-white border border-gray-200 dark:bg-white/[0.03] dark:border-gray-800 dark:text-gray-400 hover:bg-gray-50 px-3 py-1.5 rounded-full shrink-0 text-gray-600 text-sm transition"
+  },
+  {
+   "name": "Serviços de consultores",
+   "className": "bg-white border border-gray-200 dark:bg-white/[0.03] dark:border-gray-800 dark:text-gray-400 hover:bg-gray-50 px-3 py-1.5 rounded-full shrink-0 text-gray-600 text-sm transition"
+  },
+  {
+   "name": "Avisos da equipe",
+   "className": "bg-white border border-gray-200 dark:bg-white/[0.03] dark:border-gray-800 dark:text-gray-400 hover:bg-gray-50 px-3 py-1.5 rounded-full shrink-0 text-gray-600 text-sm transition"
+  }
+ ],
+ "tables": [],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "a|||bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-white/[0.03] dark:text-gray-300 disabled:opacity-50 font-medium gap-2 hover:bg-gray-50 inline-flex items-center justify-center px-4 py-2 rounded-lg text-gray-700 text-sm transition",
+  "a|||dark:hover:bg-white/5 dark:text-gray-400 hover:bg-gray-100 ml-auto px-3 py-1.5 rounded-lg text-gray-500 text-xs transition",
+  "button|||bg-white border border-gray-200 dark:bg-white/[0.03] dark:border-gray-800 dark:text-gray-400 hover:bg-gray-50 px-3 py-1.5 rounded-full shrink-0 text-gray-600 text-sm transition",
+  "button|||border px-3 py-1.5 rounded-full shrink-0 text-sm text-white transition",
+  "button|||dark:hover:bg-white/5 dark:hover:text-gray-300 hover:bg-gray-100 hover:text-gray-600 p-1.5 rounded-lg text-gray-400 transition",
+  "button|||dark:hover:bg-white/5 dark:text-gray-400 gap-1.5 hover:bg-gray-100 inline-flex items-center px-3 py-1.5 rounded-lg text-gray-600 text-sm transition",
+  "button|||dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60 gap-1.5 hover:bg-gray-100 inline-flex items-center px-3 py-1.5 rounded-lg text-sm transition",
+  "h1|||dark:text-white/90 font-bold text-2xl text-gray-800",
+  "textarea|||bg-transparent border border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:placeholder:text-white/30 dark:text-white/90 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 placeholder:text-gray-400 px-3 py-2 resize-y rounded-lg text-gray-800 text-sm w-full"
+ ]
+}

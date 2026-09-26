@@ -1,0 +1,68 @@
+{
+ "tabs": [
+  {
+   "name": "Todos (1)",
+   "className": "border-b-2 border-brand-500 dark:text-brand-400 font-medium px-4 py-2 text-brand-600 text-sm transition"
+  },
+  {
+   "name": "Curto Prazo (0)",
+   "className": "border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:border-gray-300 hover:text-gray-700 px-4 py-2 text-gray-500 text-sm transition"
+  },
+  {
+   "name": "Médio Prazo (1)",
+   "className": "border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:border-gray-300 hover:text-gray-700 px-4 py-2 text-gray-500 text-sm transition"
+  },
+  {
+   "name": "Longo Prazo (0)",
+   "className": "border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:border-gray-300 hover:text-gray-700 px-4 py-2 text-gray-500 text-sm transition"
+  }
+ ],
+ "tables": [
+  {
+   "ths": [
+    "Objetivo",
+    "Categoria",
+    "Meta",
+    "Atual",
+    "Aporte/mês",
+    "Prazo",
+    "Progresso",
+    "Status"
+   ],
+   "colCount": 8,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-center whitespace-nowrap",
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [
+    "bg-gray-50 border-b border-gray-200 dark:bg-white/[0.02] dark:border-gray-800 dark:text-gray-100 font-medium font-semibold text-gray-800",
+    "border-b border-gray-100 cursor-pointer dark:border-gray-800 dark:hover:bg-white/[0.03] hover:bg-gray-50 last:border-b-0 transition-colors"
+   ],
+   "tdClasses": [
+    "dark:text-white/90 font-medium px-4 py-2.5 text-gray-900 text-sm",
+    "dark:text-white/90 font-semibold px-4 py-2.5 text-gray-900 text-right text-sm",
+    "font-semibold px-4 py-2.5 text-right text-sm",
+    "font-semibold px-4 py-2.5 text-sm",
+    "px-4 py-2.5 text-center text-sm",
+    "px-4 py-2.5 text-right text-sm",
+    "px-4 py-2.5 text-sm"
+   ]
+  }
+ ],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "button|||bg-brand-500 disabled:bg-brand-300 font-medium gap-2 hover:bg-brand-600 inline-flex items-center justify-center px-4 py-3 rounded-lg shadow-theme-xs text-sm text-white transition",
+  "button|||bg-brand-500 font-medium px-2 py-0.5 text-[11px] text-white transition",
+  "button|||bg-brand-500 font-medium px-2.5 py-1 rounded-md text-white text-xs transition",
+  "button|||bg-white dark:bg-gray-900 dark:text-brand-400 font-medium px-4 py-1.5 rounded-md shadow-theme-xs text-brand-600 text-sm transition",
+  "button|||border-b-2 border-brand-500 dark:text-brand-400 font-medium px-4 py-2 text-brand-600 text-sm transition",
+  "button|||border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:border-gray-300 hover:text-gray-700 px-4 py-2 text-gray-500 text-sm transition",
+  "button|||dark:hover:bg-gray-800 dark:text-gray-400 font-medium hover:bg-gray-50 px-2 py-0.5 text-[11px] text-gray-500 transition",
+  "button|||dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:text-gray-700 px-2.5 py-1 rounded-md text-gray-500 text-xs transition",
+  "button|||dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:text-gray-700 px-4 py-1.5 rounded-md text-gray-500 text-sm transition",
+  "h2|||dark:text-white/90 font-semibold text-gray-900 text-lg",
+  "h3|||dark:text-white/90 font-semibold text-gray-900 text-sm"
+ ]
+}

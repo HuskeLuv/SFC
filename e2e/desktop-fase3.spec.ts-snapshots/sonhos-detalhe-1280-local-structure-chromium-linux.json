@@ -1,0 +1,45 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "Mês",
+    "Aporte Real",
+    "Aporte Planejado",
+    "Δ Aporte",
+    "Saldo Real",
+    "Saldo Planejado",
+    "Δ Saldo",
+    "Progresso",
+    ""
+   ],
+   "colCount": 9,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-3 py-2 text-left whitespace-nowrap",
+    "font-medium px-3 py-2 text-right whitespace-nowrap",
+    "font-medium px-3 py-2 whitespace-nowrap"
+   ],
+   "trClasses": [
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+   ],
+   "tdClasses": [
+    "dark:text-white/90 font-medium px-3 py-2 text-gray-900 text-xs",
+    "dark:text-white/90 font-semibold px-3 py-2 text-gray-900 text-right text-xs",
+    "font-medium px-3 py-2 text-right text-xs",
+    "px-3 py-2 text-right text-xs"
+   ]
+  }
+ ],
+ "mobileArtifactsVisible": 0,
+ "controls": [
+  "button|||bg-brand-500 disabled:bg-brand-300 font-medium gap-2 hover:bg-brand-600 inline-flex items-center justify-center px-4 py-3 rounded-lg shadow-theme-xs text-sm text-white transition",
+  "button|||bg-white dark:bg-gray-800 dark:hover:bg-white/[0.03] dark:hover:text-gray-300 dark:ring-gray-700 dark:text-gray-400 font-medium gap-2 hover:bg-gray-50 inline-flex items-center justify-center px-4 py-3 ring-1 ring-gray-300 ring-inset rounded-lg text-gray-700 text-sm transition",
+  "button|||bg-white dark:bg-gray-900 dark:text-brand-400 font-medium px-4 py-1.5 rounded-md shadow-theme-xs text-brand-600 text-sm transition",
+  "button|||dark:hover:text-gray-200 dark:text-gray-400 font-medium hover:text-gray-700 px-4 py-1.5 rounded-md text-gray-500 text-sm transition",
+  "button|||dark:text-gray-400 hover:text-brand-500 text-gray-500 text-xs",
+  "button|||disabled:opacity-50 font-medium hover:bg-red-100 px-2 py-1 rounded-md text-xs",
+  "h2|||break-words dark:text-white/90 font-semibold text-gray-900 text-xl",
+  "h3|||dark:text-white/90 font-medium text-base text-gray-800"
+ ]
+}

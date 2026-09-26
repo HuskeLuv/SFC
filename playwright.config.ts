@@ -28,7 +28,7 @@ export default defineConfig({
         storageState: 'e2e/.auth/user.json',
       },
       dependencies: ['setup'],
-      testIgnore: [/auth\.setup\.ts/, /mobile-.*\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /mobile-.*\.spec\.ts/, /\.escrita\.spec\.ts/],
     },
     {
       // PWA fase 0: iPhone-like 390x844 (layout viewport estica com isMobile — ver
@@ -44,6 +44,20 @@ export default defineConfig({
       },
       dependencies: ['setup'],
       testMatch: /mobile-.*\.spec\.ts/,
+      testIgnore: /\.escrita\.spec\.ts/,
+    },
+    {
+      // PWA fase 3: testes que GRAVAM no banco (`*.escrita.spec.ts`). Rodam por último, depois de
+      // chromium e mobile, para não mexer no que os guardas de só leitura retratam. Cada arquivo
+      // pula sem E2E_ALLOW_WRITES=1 (o CI liga: banco efêmero) e só afirma sobre o que criou.
+      // Desktop 1280 por padrão; os de celular declaram o próprio test.use (390x844, isMobile).
+      name: 'escrita',
+      use: {
+        browserName: 'chromium',
+        storageState: 'e2e/.auth/user.json',
+      },
+      dependencies: ['chromium', 'mobile'],
+      testMatch: /\.escrita\.spec\.ts/,
     },
   ],
   webServer: {

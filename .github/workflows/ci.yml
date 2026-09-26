@@ -90,4 +90,8 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Run E2E (inclui smoke de rotas)
+        # PWA fase 3: o projeto `escrita` (*.escrita.spec.ts) só grava com isto ligado — o banco
+        # deste job é efêmero. Localmente fica desligado (banco de dev compartilhado).
+        env:
+          E2E_ALLOW_WRITES: '1'
         run: npx playwright test
