@@ -4,7 +4,7 @@ import { fluxoMobileReadyOrSkip, gotoFluxo, monthLabel } from './helpers/fluxo';
 /**
  * PWA fase 2, fatia D: "Ano inteiro" do Fluxo no celular (projeto `mobile`, SÓ LEITURA).
  *
- * Aberto pela visão do mês (fatia A: "Mais ações" → "Ano inteiro"). Enquanto a visão do mês não
+ * Aberto pela visão do mês (fatia A: "Mais ações" → "Ver ano inteiro"). Enquanto a visão do mês não
  * existir no branch, `fluxoMobileReadyOrSkip` pula o teste (worktree da fatia D); no integrador e
  * no CI ele roda de verdade.
  *
@@ -40,9 +40,10 @@ const DIALOG = 'Fluxo de caixa — ano inteiro';
 
 async function abrirAnoInteiro(page: Page) {
   await page.getByRole('button', { name: 'Mais ações' }).first().click();
+  // Item da visão do mês (fatia A): "Ver ano inteiro · Grade com os 12 meses".
   await page
-    .getByRole('button', { name: /^Ano inteiro/ })
-    .first()
+    .getByRole('dialog', { name: 'Mais ações' })
+    .getByRole('button', { name: /^Ver ano inteiro/ })
     .click();
   const dialog = page.getByRole('dialog', { name: DIALOG });
   await expect(dialog).toBeVisible();
