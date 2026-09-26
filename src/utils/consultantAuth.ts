@@ -21,7 +21,7 @@ export type AuthenticatedConsultant = {
 export const authenticateConsultant = async (
   request: NextRequest,
 ): Promise<AuthenticatedConsultant> => {
-  const payload = requireRole(request, 'consultant');
+  const payload = await requireRole(request, 'consultant');
 
   const consultant = await prisma.consultant.findFirst({
     where: { userId: payload.id },

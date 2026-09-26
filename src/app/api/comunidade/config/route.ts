@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { requireAuth } from '@/utils/auth';
+import { requireSession } from '@/utils/auth';
 import { comunidadeHabilitada } from '@/lib/comunidadeConfig';
 
 /**
@@ -10,7 +10,7 @@ import { comunidadeHabilitada } from '@/lib/comunidadeConfig';
 export const dynamic = 'force-dynamic';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  requireAuth(request);
+  await requireSession(request);
   return NextResponse.json(
     { habilitada: comunidadeHabilitada() },
     { headers: { 'Cache-Control': 'no-store' } },

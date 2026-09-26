@@ -39,6 +39,8 @@ export interface RecordChangeParams {
  * Registra uma alteração no histórico visível ao usuário (user_change_logs).
  *
  * - Best-effort: NUNCA lança — falha de log não pode quebrar a mutação.
+ * - Devolve o id da entrada criada (o Desfazer do lançamento rápido usa); `undefined` quando
+ *   não grava (edição no-op) ou quando o registro falha.
  * - Chamar somente APÓS a mutação ter sucesso, fora de qualquer $transaction.
  * - Dados sensíveis: nunca passar senha/hash/segredo TOTP em `changes`;
  *   troca de senha registra apenas a ação ('senha.alterar'), sem valores.
@@ -54,13 +56,13 @@ export async function recordChange({
   changes,
   snapshot,
   revertsId,
-}: RecordChangeParams): Promise<void> {
+}: RecordChangeParams): Promise<string | undefined> {
   try {
-    if (changes && changes.length === 0) return;
+    if (changes && changes.length === 0) return undefined;
 
     const ip = getClientIp(request);
 
-    await prisma.userChangeLog.create({
+    const created = await prisma.userChangeLog.create({
       data: {
         userId: auth.targetUserId,
         actorId: auth.payload.id,
@@ -77,7 +79,9 @@ export async function recordChange({
         userAgent: request.headers.get('user-agent'),
       },
     });
+    return created?.id;
   } catch (error) {
     logger.error('[ChangeHistory] Erro ao registrar alteração:', error);
+    return undefined;
   }
 }

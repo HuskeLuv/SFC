@@ -35,8 +35,16 @@ describe('GET /api/admin/overview', () => {
     expect(res.status).toBe(401);
   });
 
+  it('responde 401 com sessão revogada (sessionVersion divergente)', async () => {
+    mockRequireAdmin.mockRejectedValueOnce(new ApiError(401, 'Sessão expirada'));
+    const res = await GET(request());
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Sessão expirada' });
+    expect(mockGetAdminOverview).not.toHaveBeenCalled();
+  });
+
   it('devolve a visão consolidada para admin, sem cache', async () => {
-    mockRequireAdmin.mockReturnValue({ id: 'admin-1', role: 'admin' });
+    mockRequireAdmin.mockResolvedValue({ id: 'admin-1', role: 'admin' });
     mockGetAdminOverview.mockResolvedValue({
       geradoEm: '2026-09-11T12:00:00.000Z',
       usuarios: { total: 3 },

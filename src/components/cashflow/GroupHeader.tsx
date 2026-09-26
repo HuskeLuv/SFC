@@ -14,6 +14,7 @@ import { groupLevel } from './groupLevel';
 import { FIXED_COLUMNS_1_TO_3_WIDTH } from './fixedColumns';
 import { CANONICAL_GROUPS, canonicalName } from '@/services/cashflow/groupMatchers';
 import { groupDropId, useDropHint } from './CashflowDnd';
+import { DESPESAS_PERCENT_STYLE, groupDisplayName } from '@/lib/cashflow/itemCapabilities';
 
 interface GroupHeaderProps {
   group: CashflowGroup;
@@ -33,17 +34,6 @@ interface GroupHeaderProps {
   isCommentModeActive?: boolean;
   onCommentClick?: () => void;
 }
-
-// Formatação condicional do % Receita da linha "Despesas Fixas e Variáveis" —
-// faixas do ticket QA 19/08/2026: ≤80% azul · (80,90]% amarelo · (90,100]%
-// vermelho claro · >100% vermelho forte. Ajuste QA 21/08: a CÉLULA inteira
-// ganha o fundo da faixa (como na planilha). Semântico — fica fora da paleta.
-const despesasPercentStyle = (pct: number): React.CSSProperties => {
-  if (pct <= 80) return { backgroundColor: '#2E7DFF', color: '#FFFFFF' };
-  if (pct <= 90) return { backgroundColor: '#FFD54D', color: '#000000' };
-  if (pct <= 100) return { backgroundColor: '#FF9B9B', color: '#000000' };
-  return { backgroundColor: '#FF0000', color: '#FFFFFF' };
-};
 
 export const GroupHeader: React.FC<GroupHeaderProps> = ({
   group,
@@ -66,7 +56,6 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   // Identificação pelo nome CANÔNICO do template (sobrevive a renomeações) e
   // pelo type quando estrutural (investimento/saldo).
   const canonical = canonicalName(group);
-  const isMainEntradasGroup = canonical === CANONICAL_GROUPS.ENTRADAS && !group.parentId;
   const isMainDespesasGroup = canonical === CANONICAL_GROUPS.DESPESAS && !group.parentId;
   const isPlanejamentoFinanceiro = canonical === 'Planejamento Financeiro';
   // Aporte/Resgate: itens são calculados da carteira (read-only, sem add/edit)
@@ -74,13 +63,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   // Conta Corrente: bloco de saldo manual (editável)
   const isContaCorrenteGroup = group.type === 'saldo';
 
-  const displayName = isInvestimentosGroup
-    ? 'Aporte/Resgate'
-    : isMainEntradasGroup
-      ? 'Total de Entradas'
-      : isMainDespesasGroup
-        ? 'Despesas Fixas e Variáveis'
-        : group.name;
+  const displayName = groupDisplayName(group);
 
   const sectionClass = isInvestimentosGroup
     ? SECTION_CLASS.aporte
@@ -112,7 +95,9 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   const dropLine = hint?.overId === groupDropId(group.id) ? GRID.dropLineAfter : '';
 
   const percentConditionalStyle =
-    isMainDespesasGroup && groupPercentage > 0 ? despesasPercentStyle(groupPercentage) : undefined;
+    isMainDespesasGroup && groupPercentage > 0
+      ? DESPESAS_PERCENT_STYLE(groupPercentage)
+      : undefined;
 
   return (
     <TableRow ref={setNodeRef} className={`${GRID.row} font-semibold ${sectionClass} ${dropLine}`}>

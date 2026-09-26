@@ -145,4 +145,30 @@ describe('recordChange', () => {
       }),
     ).resolves.toBeUndefined();
   });
+
+  it('devolve o id da entrada criada (Desfazer do lançamento rápido)', async () => {
+    mockPrisma.userChangeLog.create.mockResolvedValueOnce({ id: 'log-123' });
+
+    await expect(
+      recordChange({
+        request: makeRequest(),
+        auth: mockAuthAsUser(),
+        section: 'fluxo-caixa',
+        action: 'valor.editar',
+        changes: [{ field: 'monthlyValue', label: 'setembro/2026', before: 10, after: 20 }],
+      }),
+    ).resolves.toBe('log-123');
+  });
+
+  it('devolve undefined quando não grava (changes vazio)', async () => {
+    await expect(
+      recordChange({
+        request: makeRequest(),
+        auth: mockAuthAsUser(),
+        section: 'fluxo-caixa',
+        action: 'valor.editar',
+        changes: [],
+      }),
+    ).resolves.toBeUndefined();
+  });
 });

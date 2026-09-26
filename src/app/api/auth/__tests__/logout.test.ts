@@ -21,4 +21,9 @@ describe('POST /api/auth/logout', () => {
     expect(setCookie).toContain('token=');
     expect(setCookie).toContain('Max-Age=0');
   });
+
+  it('manda Clear-Site-Data só do cache (não apaga tema nem service worker)', async () => {
+    const response = await POST(createRequest());
+    expect(response.headers.get('clear-site-data')).toBe('"cache"');
+  });
 });

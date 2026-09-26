@@ -25,3 +25,19 @@ export type {
 export { default as EditableObjetivoCell } from './EditableObjetivoCell';
 export { default as EditableValorCell } from './EditableValorCell';
 export { default as EditableTextCell } from './EditableTextCell';
+export {
+  default as AssetCardSections,
+  AssetTabMobileSummary,
+  ResumoAportesCards,
+  UsdTotalMobile,
+  QuantoFaltaPill,
+  MobileEditTrigger,
+  useAssetCardContext,
+} from './AssetCardSections';
+export type { AssetCardSectionsProps, AssetSortKey } from './AssetCardSections';
+export {
+  COLUNAS_VISIVEIS_PLANEJADO,
+  DEFAULT_MOBILE_ROLE_BY_KEY,
+  resolveAssetMobileRole,
+} from './mobileColumnRoles';
+export type { AssetMobileRole } from './mobileColumnRoles';

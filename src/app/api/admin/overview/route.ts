@@ -10,7 +10,7 @@ import { getAdminOverview } from '@/services/admin/overview';
 export const dynamic = 'force-dynamic';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  requireAdmin(request);
+  await requireAdmin(request);
   const overview = await getAdminOverview();
   return NextResponse.json(overview, { headers: { 'Cache-Control': 'no-store' } });
 });

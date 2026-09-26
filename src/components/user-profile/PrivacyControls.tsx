@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { logger } from '@/lib/logger';
 import { useCsrf } from '@/hooks/useCsrf';
+import SairTodosDispositivos from '@/components/user-profile/SairTodosDispositivos';
 
 /**
  * Controles de privacidade do usuário (LGPD Fase 2, Art. 18):
@@ -212,6 +213,9 @@ export default function PrivacyControls({
           </div>
         </form>
       </section>
+
+      {/* Sair de todos os dispositivos (revoga as sessões via sessionVersion) */}
+      <SairTodosDispositivos />
 
       {/* Baixar dados */}
       <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">

@@ -124,6 +124,7 @@ export default function Step4TesouroRendaFixaFields({
       )}
       <div>
         <DatePicker
+          nativeOnMobile
           id="dataVencimento"
           label="Data de Vencimento *"
           placeholder="Selecione a data"

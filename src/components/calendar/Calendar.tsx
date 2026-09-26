@@ -157,7 +157,7 @@ export default function Calendar() {
   const fontesComErro = agenda.data?.fontesComErro ?? [];
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
       <div className="relative rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
         {agenda.isError && (
           <div

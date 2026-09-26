@@ -242,6 +242,7 @@ export default function Step3SearchWithManualFallback({
           loading={loading}
           error={!!errors.ativo}
           hint={errors.ativo}
+          autoCapitalize="characters"
         />
       </div>
 

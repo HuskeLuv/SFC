@@ -6,9 +6,12 @@ import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { formatBRL, formatYearMonth } from './irFormatters';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
+import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
+import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 export default function IRCripto() {
   const { data, isLoading, error } = useIRCripto();
+  const isBelowLg = useIsBelowLg();
 
   if (isLoading) return <LoadingSpinner text="Carregando apuração de cripto..." />;
   if (error)
@@ -65,66 +68,112 @@ export default function IRCripto() {
         />
       </div>
 
-      <div className={TABLE_STYLES.wrapper}>
-        <table className={TABLE_STYLES.table}>
-          <thead>
-            <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-              <Th>Mês</Th>
-              <Th align="right">Vendas</Th>
-              <Th align="right">Lucro/Prejuízo</Th>
-              <Th align="center">Status</Th>
-              <Th align="right">IR a recolher</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.meses.map((m) => (
-              <tr key={m.yearMonth} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
-                <td
-                  className={`${TABLE_STYLES.td} whitespace-nowrap font-medium text-gray-900 dark:text-white`}
+      {isBelowLg ? (
+        <ResponsiveCardList<(typeof data.meses)[number]>
+          ariaLabel="Apuração mensal de cripto"
+          rows={data.meses}
+          getRowKey={(m) => m.yearMonth}
+          columns={[
+            {
+              id: 'mes',
+              header: 'Mês',
+              mobile: 'primary',
+              cell: (m) => formatYearMonth(m.yearMonth),
+            },
+            {
+              id: 'status',
+              header: 'Status',
+              mobile: 'subtitle',
+              cell: (m) => (m.isento ? 'Isento' : m.irDevido > 0 ? 'DARF' : 'Sem IR'),
+            },
+            {
+              id: 'ir',
+              header: 'IR a recolher',
+              mobile: 'value',
+              cell: (m) => (m.irDevido > 0 ? formatBRL(m.irDevido) : '—'),
+            },
+            {
+              id: 'vendas',
+              header: 'Vendas',
+              mobile: 'field',
+              cell: (m) => formatBRL(m.vendasTotal),
+            },
+            {
+              id: 'lucro',
+              header: 'Lucro/Prej.',
+              mobile: 'field',
+              cell: (m) => (
+                <span
+                  className={m.lucroBruto < 0 ? 'text-[#D92D20] dark:text-[#F97066]' : undefined}
                 >
-                  {formatYearMonth(m.yearMonth)}
-                </td>
-                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
-                  {formatBRL(m.vendasTotal)}
-                </td>
-                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium`}>
-                  <span
-                    className={
-                      m.lucroBruto > 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : m.lucroBruto < 0
-                          ? 'text-red-600 dark:text-red-400'
-                          : ''
-                    }
-                  >
-                    {formatBRL(m.lucroBruto)}
-                  </span>
-                </td>
-                <td className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}>
-                  {m.isento ? (
-                    <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                      Isento
-                    </span>
-                  ) : m.irDevido > 0 ? (
-                    <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                      DARF
-                    </span>
-                  ) : (
-                    <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                      —
-                    </span>
-                  )}
-                </td>
-                <td
-                  className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
-                >
-                  {m.irDevido > 0 ? formatBRL(m.irDevido) : '—'}
-                </td>
+                  {formatBRL(m.lucroBruto)}
+                </span>
+              ),
+            },
+          ]}
+        />
+      ) : (
+        <div className={TABLE_STYLES.wrapper}>
+          <table className={TABLE_STYLES.table}>
+            <thead>
+              <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                <Th>Mês</Th>
+                <Th align="right">Vendas</Th>
+                <Th align="right">Lucro/Prejuízo</Th>
+                <Th align="center">Status</Th>
+                <Th align="right">IR a recolher</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {data.meses.map((m) => (
+                <tr key={m.yearMonth} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                  <td
+                    className={`${TABLE_STYLES.td} whitespace-nowrap font-medium text-gray-900 dark:text-white`}
+                  >
+                    {formatYearMonth(m.yearMonth)}
+                  </td>
+                  <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
+                    {formatBRL(m.vendasTotal)}
+                  </td>
+                  <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium`}>
+                    <span
+                      className={
+                        m.lucroBruto > 0
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : m.lucroBruto < 0
+                            ? 'text-red-600 dark:text-red-400'
+                            : ''
+                      }
+                    >
+                      {formatBRL(m.lucroBruto)}
+                    </span>
+                  </td>
+                  <td className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}>
+                    {m.isento ? (
+                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                        Isento
+                      </span>
+                    ) : m.irDevido > 0 ? (
+                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        DARF
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                        —
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
+                  >
+                    {m.irDevido > 0 ? formatBRL(m.irDevido) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

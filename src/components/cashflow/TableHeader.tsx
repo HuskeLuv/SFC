@@ -7,7 +7,27 @@ import { GRID } from './cashflowGridStyles';
 interface TableHeaderComponentProps {
   /** Índice do mês atual (−1 quando a planilha não é do ano corrente). */
   currentMonth?: number;
+  /**
+   * Grade do ano no celular (PWA fase 2): cada mês do cabeçalho vira um botão que abre aquele mês
+   * na visão do mês. Sem a prop, o cabeçalho é o de sempre.
+   */
+  onPickMonth?: (month: number) => void;
 }
+
+const MONTH_FULL_NAMES = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
 
 // Cabeçalho inteiro é sticky no topo (as colunas fixas somam sticky-left/right).
 const STICKY_TOP = { position: 'sticky' as const, top: 0, zIndex: 400 };
@@ -22,6 +42,7 @@ const FIXED_HEADERS: { label: string; align: string; quebra?: boolean }[] = [
 
 export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
   currentMonth = -1,
+  onPickMonth,
 }) => (
   <TableHeader style={{ ...STICKY_TOP, isolation: 'isolate' }}>
     <TableRow className={`${GRID.row} ${GRID.head}`} style={GRID.headStyle}>
@@ -52,8 +73,22 @@ export const TableHeaderComponent: React.FC<TableHeaderComponentProps> = ({
             ...(index === currentMonth ? GRID.currentMonthHeader : {}),
           }}
           title={index === currentMonth ? 'Mês atual' : undefined}
+          data-cf-month={index}
+          data-cf-current={onPickMonth && index === currentMonth ? '' : undefined}
         >
-          {month}
+          {onPickMonth ? (
+            <button
+              type="button"
+              data-cf-pick-month={index}
+              aria-label={`Ver ${MONTH_FULL_NAMES[index]} no detalhe`}
+              aria-current={index === currentMonth ? 'date' : undefined}
+              onClick={() => onPickMonth(index)}
+            >
+              {month}
+            </button>
+          ) : (
+            month
+          )}
         </TableCell>
       ))}
       <AnnualCell isHeader className={`${GRID.head} border-b-0`} style={GRID.headStyle}>

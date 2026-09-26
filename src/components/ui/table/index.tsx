@@ -40,6 +40,8 @@ interface TableCellProps {
   id?: string; // Optional id attribute
   scope?: 'col' | 'row' | 'colgroup' | 'rowgroup'; // Header scope (th only)
   title?: string; // Native tooltip
+  // data-* attributes (ex.: marcação de coluna da planilha do fluxo para o CSS mobile)
+  [dataAttribute: `data-${string}`]: string | number | undefined;
 }
 
 // Table Component
@@ -84,10 +86,14 @@ TableRow.displayName = 'TableRow';
 
 // TableCell Component
 const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(
-  ({ children, isHeader = false, className, colSpan, rowSpan, style, id, scope, title }, ref) => {
+  (
+    { children, isHeader = false, className, colSpan, rowSpan, style, id, scope, title, ...data },
+    ref,
+  ) => {
     const CellTag = isHeader ? 'th' : 'td';
     return (
       <CellTag
+        {...data}
         ref={ref}
         id={id}
         className={` ${className}`}
@@ -106,3 +112,14 @@ const TableCell = forwardRef<HTMLTableCellElement, TableCellProps>(
 TableCell.displayName = 'TableCell';
 
 export { Table, TableHeader, TableBody, TableRow, TableCell };
+
+// PWA (fases 0 e 1): tabela ↔ cartões abaixo de lg.
+export {
+  ResponsiveTable,
+  ResponsiveCardList,
+  type ResponsiveColumn,
+  type ResponsiveMobileRole,
+  type ResponsiveCardListProps,
+  type ResponsiveTableProps,
+} from './ResponsiveTable';
+export { CardSectionBand, type CardSectionBandProps } from './CardSectionBand';

@@ -1,0 +1,28 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "Tipo",
+    "Data com",
+    "Data pagamento",
+    "Precificar por",
+    "Valor total",
+    "Qtde base",
+    "IR (R$)",
+    ""
+   ],
+   "colCount": 8,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium px-4 py-3 text-center whitespace-nowrap",
+    "font-medium px-4 py-3 text-left whitespace-nowrap",
+    "font-medium px-4 py-3 text-right w-28 whitespace-nowrap",
+    "font-medium px-4 py-3 text-right whitespace-nowrap"
+   ],
+   "trClasses": [],
+   "tdClasses": []
+  }
+ ],
+ "mobileArtifactsVisible": 0
+}

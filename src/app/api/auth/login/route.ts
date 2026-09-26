@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { verifySync } from 'otplib';
 import { loginSchema, validationError } from '@/utils/validation-schemas';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { getClientIp } from '@/lib/rateLimit';
 import { logger } from '@/lib/logger';
+import { issueSession, nowSeconds } from '@/lib/auth/session';
 
 type LoginFailReason = 'user_not_found' | 'bad_password' | 'totp_required' | 'totp_invalid';
 
@@ -82,25 +82,20 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  // Se rememberMe for true, token expira em 7 dias (1 semana), senão em 1 dia
-  const expiresIn = rememberMe ? '7d' : '1d';
-  const maxAge = rememberMe ? 60 * 60 * 24 * 7 : 60 * 60 * 24; // 7 dias ou 1 dia
-
-  // LGPD ATENÇÃO: email saiu dos claims do JWT pra reduzir PII no payload
+  // Sessão (PWA fase 0): com "Manter conectado", 30 dias renováveis até o teto
+  // de 90 (admin/consultor: 1 dia); sem, cookie de sessão + JWT de 12h.
+  // LGPD ATENÇÃO: email fora dos claims do JWT pra reduzir PII no payload
   // base64-decodificável. Endpoints que precisam de e-mail buscam pelo `id`.
-  const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET!, {
-    expiresIn,
-  });
   await recordLoginEvent(req, email, true, user.id, null);
   const response = NextResponse.json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
   });
-  response.cookies.set('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge,
-    path: '/',
+  issueSession(response, {
+    id: user.id,
+    role: user.role,
+    sv: user.sessionVersion,
+    rm: rememberMe === true,
+    at: nowSeconds(),
   });
   return response;
 });

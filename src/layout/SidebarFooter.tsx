@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
-import { logger } from '@/lib/logger';
+import React from 'react';
 import { ThemeToggleButton } from '@/components/common/ThemeToggleButton';
 import NotificationDropdown from '@/components/header/NotificationDropdown';
 import UserDropdown from '@/components/header/UserDropdown';
 import { useAuth } from '@/hooks/useAuth';
-import { useCsrf } from '@/hooks/useCsrf';
+import { useExitActing } from '@/hooks/useExitActing';
 import { useSidebar } from '@/context/SidebarContext';
-import { useRouter } from 'next/navigation';
 
 /**
  * Footer fixo da sidebar (#1 do checklist mai/28) — substitui a topbar
@@ -20,33 +18,10 @@ import { useRouter } from 'next/navigation';
  */
 export default function SidebarFooter() {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
-  const { actingClient, checkAuth, user } = useAuth();
-  const { csrfFetch } = useCsrf();
-  const router = useRouter();
-  const [leavingActing, setLeavingActing] = useState(false);
+  const { actingClient } = useAuth();
+  const { exitActing: handleExitActing, leaving: leavingActing } = useExitActing();
 
   const showLabels = isExpanded || isHovered || isMobileOpen;
-
-  const handleExitActing = async () => {
-    if (!actingClient || leavingActing) return;
-    try {
-      setLeavingActing(true);
-      const response = await csrfFetch('/api/consultant/acting', { method: 'DELETE' });
-      if (!response.ok && response.status !== 204) {
-        throw new Error('Falha ao encerrar visão do cliente');
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      await checkAuth();
-      router.refresh();
-      if (user?.role === 'consultant') {
-        router.push('/dashboard/consultor');
-      }
-    } catch (error) {
-      logger.error('Erro ao sair da visão do cliente:', error);
-    } finally {
-      setLeavingActing(false);
-    }
-  };
 
   return (
     <div className="mt-auto border-t border-gray-200 pt-3 dark:border-gray-800">

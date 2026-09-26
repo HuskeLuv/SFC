@@ -8,6 +8,7 @@ import { EditableItemData } from '@/hooks/useGroupEditMode';
 import { CommentIndicator } from './CommentIndicator';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID, currentMonthIndex } from './cashflowGridStyles';
+import { isInvestment } from '@/lib/cashflow/itemCapabilities';
 
 interface EditableItemRowProps {
   item: CashflowItem;
@@ -54,7 +55,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   currentYear = new Date().getFullYear(),
   objetivoLocked = false,
 }) => {
-  const isInvestmentItem = group.type === 'investimento' || item.id.startsWith('investimento-');
+  const isInvestmentItem = isInvestment(group, item);
   // Sonho com ativos da carteira vinculados: realizado é 100% derivado das
   // transações — valores/cores ficam somente-leitura (o batch-update rejeita).
   const autoRealizado = !!item.objetivoAutoRealizado;

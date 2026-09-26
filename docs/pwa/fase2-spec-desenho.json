@@ -1,0 +1,631 @@
+{
+  "arquitetura": {
+    "resumo": "Esta é a versão final da especificação da fase 2 (Fluxo de caixa no celular). Ela incorpora a revisão crítica e segue o protótipo do designer (pwa-fase2/prototipo.html).\n\nOnde o protótipo não se sustenta no código, a divergência não foi decidida aqui: foi para perguntas_para_wellington, com recomendação. Há um padrão provisório marcado \"(P#)\" para as fatias não travarem enquanto o dono não responde.\n\nREGRA DE OURO\n- Tudo muda só abaixo de lg (1024px).\n- No desktop, o DOM e as classes ficam iguais. Só entram tokens max-lg:, data-attributes e props opcionais cujo padrão reproduz o comportamento de hoje.\n- Elemento novo só aparece no ramo mobile (useIsBelowLg; o fallback do servidor é false).\n\nFATOS DO CÓDIGO QUE DEFINEM O DESENHO (conferidos na revisão)\n1. Só existe Desfazer para o que o histórico já sabe desfazer:\n   - 'valor.editar' e 'valores.editar-recorrente' (lançamento do assistente, que o lançamento rápido reaproveita);\n   - 'comentario.editar'.\n   - O batch-update grava 'valores.editar-lote' sem entityId e sem o valor anterior, e o registry proíbe desfazer isso (undo/registry.ts:7).\n   - 'item.mover' não tem handler.\n   - O reorder chama recordChange com changes: [], que sai cedo: o reorder NEM entra no histórico.\n   - Excluir uma linha de sonho apaga o PlanejamentoObjetivo.\n   - Por isso o 'Desfazer' do protótipo nos sheets de valor, renomear, mover e excluir NÃO entra na fase 2 (pergunta 1).\n2. O batch-update responde 200 { success: true } mesmo quando um item é recusado:\n   - results[i].success=false para dívida e sonho com ativos;\n   - fórmula inválida é ignorada em silêncio.\n   - O mobile precisa ler results.\n3. O desktop edita o grupo em lote (useGroupEditMode → PUT batch-update). As mutações moram no DataTableTwo e no useCommentModal. A fatia 0 extrai essas mutações sem mudar comportamento.\n4. O BottomSheet registra Esc e Tab no document, por instância: sheets empilhados fecham juntos. A fatia 0 cria uma pilha de camadas, e a B troca de painel dentro do MESMO sheet em vez de empilhar (como o protótipo faz no 'Excluir no próprio sheet').\n5. O ComponentCard com 'flex flex-col' põe overflow-hidden fixo no corpo, e o sticky morre. A página tem altura fixa em max-lg. O mobile-shell.spec exige hoje que a /fluxodecaixa NÃO role. A fatia 0 ajusta o spec e o ComponentCard (prop opcional); a A troca a altura.\n6. O ImportPlanilhaModal não trata Esc nem tem role=dialog. A baseline fecha o modal pelo botão.\n7. O formulaParser não aceita '−' (U+2212). A tecla mostra '−' e insere '-'.\n8. O seed só tem o ano corrente e o anterior; hoje é 26/09/2026. Os e2e fixam ?mes=6 e usam 'Mês anterior'.\n9. O orçamento desktop marca OK com consumo ≤ 80. O alerta (rankDoConsumo) marca 'atenção' com ≥ 80%, 'atingido' em 100% e 'estourado' acima de 100%. O mobile usa os níveis do alerta. Alinhar também o desktop é a pergunta 9.\n10. O CashflowYearProvider fica no AdminLayoutClient (global), então o lançamento rápido pode ler o ano em qualquer tela.\n\nFATIAS\n- 0 (tech lead, mergeia ANTES): baseline desktop no commit 1, depois extrações, contratos, stubs, primitivos (BottomSheet em pilha, toast com ação, MonthStepper completo do protótipo, ComponentCard.bodyClassName), ajustes de e2e existentes e helpers.\n- Em paralelo depois da 0:\n  - A: visão do mês + página + Mais ações;\n  - B: sheets de edição;\n  - C: lançamento rápido (servidor + + Lançar);\n  - D: ano inteiro + orçamento mobile + importação mobile.\n- Nenhum arquivo é tocado por duas fatias paralelas. A 0 e a D tocam DataTableTwo e GridCells em sequência (0 → D), nunca ao mesmo tempo.\n- Os e2e que cruzam fatias (edição = A+B, ano inteiro = A+D) são arquivos da B e da D. Ficam com test.skip enquanto o [data-mf-fluxo-ready] não existir e só rodam de verdade no integrador e no CI.",
+    "fatias": [
+      {
+        "id": "0",
+        "titulo": "Contratos, extrações sem mudança de comportamento, primitivos e guardas (tech lead; mergeia ANTES)",
+        "objetivo": "Entregar o que duas ou mais fatias consomem:\n- modelo de leitura;\n- mutações extraídas;\n- regras de permissão;\n- fórmulas dos índices;\n- MonthStepper do protótipo;\n- BottomSheet com pilha de camadas;\n- toast com ação;\n- ComponentCard.bodyClassName;\n- barramento de eventos do fluxo;\n- stubs de contrato;\n- helpers de e2e.\nTambém gravar a baseline de desktop ANTES de refatorar e ajustar os e2e existentes que a fase 2 quebraria.",
+        "arquivos_novos": [
+          "/home/huske/dev/front/e2e/desktop-fluxo.spec.ts",
+          "/home/huske/dev/front/e2e/desktop-fluxo.spec.ts-snapshots/* (*.local.structure.json, *.ci.structure.json, screenshots locais)",
+          "/home/huske/dev/front/e2e/helpers/fluxo.ts",
+          "/home/huske/dev/front/src/hooks/useCashflowView.ts",
+          "/home/huske/dev/front/src/hooks/useCashflowMutations.ts",
+          "/home/huske/dev/front/src/hooks/__tests__/useCashflowMutations.test.ts",
+          "/home/huske/dev/front/src/services/cashflow/derivedIndices.ts",
+          "/home/huske/dev/front/src/services/cashflow/__tests__/derivedIndices.test.ts",
+          "/home/huske/dev/front/src/lib/cashflow/itemCapabilities.ts",
+          "/home/huske/dev/front/src/lib/cashflow/__tests__/itemCapabilities.test.ts",
+          "/home/huske/dev/front/src/lib/cashflow/monthParam.ts",
+          "/home/huske/dev/front/src/lib/cashflow/cashflowEvents.ts",
+          "/home/huske/dev/front/src/lib/cashflow/cellColor.ts",
+          "/home/huske/dev/front/src/lib/cashflow/__tests__/cellColor.test.ts",
+          "/home/huske/dev/front/src/components/cashflow/mobile/MonthStepper.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/__tests__/MonthStepper.test.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/CashflowEditSheets.tsx (STUB com o contrato final; a B substitui)",
+          "/home/huske/dev/front/src/components/cashflow/mobile/CashflowYearGridSheet.tsx (STUB com o contrato final; a D substitui)",
+          "/home/huske/dev/front/src/components/ui/sheet/layerStack.ts",
+          "/home/huske/dev/front/src/components/ui/sheet/__tests__/layerStack.test.tsx"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/components/tables/DataTables/TableTwo/DataTableTwo.tsx",
+          "/home/huske/dev/front/src/hooks/useCommentModal.ts",
+          "/home/huske/dev/front/src/components/cashflow/SavingsIndexRow.tsx",
+          "/home/huske/dev/front/src/components/cashflow/FinancialPeaceIndexRow.tsx",
+          "/home/huske/dev/front/src/components/cashflow/InflationPedroRow.tsx",
+          "/home/huske/dev/front/src/components/cashflow/GroupHeader.tsx",
+          "/home/huske/dev/front/src/components/cashflow/EditableItemRow.tsx",
+          "/home/huske/dev/front/src/components/cashflow/ItemRow.tsx",
+          "/home/huske/dev/front/src/components/ui/sheet/BottomSheet.tsx",
+          "/home/huske/dev/front/src/components/ui/sheet/MobileSaveToast.tsx",
+          "/home/huske/dev/front/src/components/ui/sheet/__tests__/MobileSaveToast.test.tsx",
+          "/home/huske/dev/front/src/components/common/ComponentCard.tsx",
+          "/home/huske/dev/front/e2e/mobile-shell.spec.ts",
+          "/home/huske/dev/front/e2e/helpers/routes.ts",
+          "/home/huske/dev/front/e2e/helpers/desktopStructure.ts",
+          "/home/huske/dev/front/docs/pwa/README.md"
+        ],
+        "detalhes": "ORDEM DOS COMMITS\n- Commit 1: só a baseline (desktop-fluxo.spec e snapshots) sobre o código atual.\n- Commit 2: ajustes de e2e existentes.\n- Commits 3+: extrações e primitivos. O desktop-fluxo.spec continua verde em todos.\n\n1) e2e/desktop-fluxo.spec.ts (projeto chromium). Mesmo desenho do desktop-carteira.spec:\n- collectStructure + toMatchSnapshot(`${slug}.${ENV}.structure.json`);\n- mobileArtifactsVisible === 0;\n- screenshot fullPage só local, mascarando 'tbody td:not(:first-child)', 'canvas', 'svg.apexcharts-svg', '.apexcharts-canvas', '.tabular-nums', 'nextjs-portal' e as células da coluna do mês atual.\nCenários:\n- planilha @1280 e @1024;\n- 'Recolher tudo' e depois 'Expandir tudo';\n- modo edição do primeiro grupo-folha: Editar, retrato, Cancelar (NUNCA Salvar);\n- modal 'Importar planilha' aberto e fechado PELO BOTÃO de fechar/Cancelar do modal (ele não trata Esc);\n- ?modo=orcamento @1280 e @1024 nas visões Mês, Acumulado do ano e Consolidado.\nAs baselines CI são geradas com o banco recém-semeado, como no ci.yml.\n\n2) e2e/mobile-shell.spec.ts (a 0 é DONA deste arquivo; A e C não o tocam):\n- teste '/fluxodecaixa: sem rolagem do documento e com o ano no cabeçalho': fica só o assert do combobox do ano. O assert scrollHeight ≤ innerHeight+1 sai, porque a visão do mês rola de propósito; a garantia equivalente passa a ser 'cabe sem corte' no mobile-overflow (A);\n- assert do selo 'Em breve' em 'Despesa ou receita': passa a ser tolerante. Exige a ação 'Despesa ou receita' visível no LaunchSheet (botão OU item desabilitado) e não exige mais o selo. A C cobre o comportamento novo no próprio spec.\n\n3) e2e/helpers/routes.ts: READY_SELECTOR['/fluxodecaixa'] = 'table tbody tr, [data-mf-fluxo-ready]'.\n   e2e/helpers/desktopStructure.ts: MOBILE_ARTIFACTS_SELECTOR recebe ', [data-mf-fluxo-mobile], [data-mf-year-grid]'.\n\n4) e2e/helpers/fluxo.ts:\n- gotoFluxo(page, { modo?: 'planilha' | 'orcamento'; mes?: number (1..12) }). SEMPRE passa ?mes (padrão 7 = julho, mês fixo e com dados no seed), para o teste não depender do mês corrente;\n- waitFluxoMobileReady(page);\n- monthLabel(page), que lê [data-mf-month-label];\n- rowByName(page, nome), que lê [data-mf-fluxo-row] com o nome e antes clica 'Mostrar N linhas sem valor' do grupo, se existir;\n- fluxoMobileReadyOrSkip(test, page): test.skip enquanto [data-mf-fluxo-mobile] não existir. Os specs das fatias B e D ficam verdes nos worktrees.\n\n5) src/hooks/useCashflowView.ts. `useCashflowView(year)` compõe useCashflowData(year), useProventos(startISO, endISO) (as mesmas datas do DataTableTwo), useProcessedData(data), useCashflowDerivedRows({...}) e useCollapsibleState(). Retorna { data, loading, error, refetch, processedData, derived, collapsible }. O DataTableTwo passa a usá-lo, com a mesma árvore de hooks.\n\n6) src/hooks/useCashflowMutations.ts. `useCashflowMutations(year)` (useCsrf, useQueryClient, useCashflowData(year).refetch):\n\n- `saveItemChanges({ groupId, updates?, deletes? }): Promise<SaveResult>`, com `SaveResult = { ok: true; results } | { ok: false; error: string; results? }`.\n  - Faz exatamente a rede atual do handleSaveGroup:\n    - PUT /api/cashflow/batch-update { groupId, year, updates, deletes };\n    - se saved.groups vier, setQueryData(queryKeys.cashflow.year(year)); senão, refetch;\n    - depois invalida investimentos(year), orcamento(year), planejamento.all e ['planejamento-sonhos'].\n  - NOVO (só informativo): se algum results[i].success === false, devolve { ok: false, error: results[i].error ?? 'Não foi possível salvar esta linha.', results }.\n  - O DataTableTwo continua tratando HTTP 2xx como sucesso, sem mudar comportamento: olha só `res.httpOk`, exposto no retorno.\n  - Para fórmula inválida ignorada pelo servidor, o mobile valida no cliente antes (fatia B).\n\n- `createItem(groupId, name, significado?, opts?: { refetch?: boolean })`.\n- `reorderItem(groupId, activeId, overId): Promise<boolean>`: corpo do handleReorder, com otimista, POST /item/reorder e refetch na falha.\n- `moveItem(activeId, toGroupId, overId: string | null, after: boolean): Promise<{ ok: true } | { ok: false; error }>`: corpo do handleMove.\n- `fetchCellComment(itemId, month)` e `saveCellComment(itemId, month, comment | null)`: do useCommentModal, com o mesmo timeout e os mesmos erros.\n\nO DataTableTwo e o useCommentModal mantêm os mesmos showAlert, savingGroups, stopGroupEditing e setNewItems.\n\n7) src/services/cashflow/derivedIndices.ts (puro): savingsIndex, peaceIndex, inflacaoPessoalPorMes, inflacaoPessoalAnual. O código é movido dos três componentes de linha e o render fica idêntico.\n\n8) src/lib/cashflow/itemCapabilities.ts. A regra fica ÚNICA e alinhada ao servidor.\n\n`getItemCapabilities(item, group)` → { editValues, editStructure, canDelete, deleteNeedsObjetivoConfirm, canMove, canComment, canColor, readOnlyReason? }. Onde 'inv' = group.type === 'investimento' || id.startsWith('investimento-'):\n- editValues = !inv && !item.objetivoAutoRealizado;\n- editStructure = !inv && !item.objetivoId && !item.dividaId;\n- canDelete = !inv && !item.dividaId;\n- deleteNeedsObjetivoConfirm = !!item.objetivoId;\n- canMove = tipo do grupo ∉ {investimento, saldo} && !objetivoId && !dividaId;\n- canComment = !inv;\n- canColor = editValues;\n- readOnlyReason: 'investimento' | 'auto-realizado' | 'divida' | 'sonho'. O texto usa READONLY_REASON_TEXT, exportado: 'Calculado automaticamente da carteira' / 'O realizado deste sonho vem dos ativos vinculados' / 'Gerida em Dívidas' / 'Editável no Planejamento de Sonhos'.\n\nOs componentes do desktop importam a regra, mas o canDelete de dívida NÃO muda no desktop: EditableItemRow continua `isEditing && !isInvestmentItem`, porque o servidor já recusa (P7). Esses componentes usam só isInvestment, groupDisplayName e DESPESAS_PERCENT_STYLE.\n\nTambém exporta:\n- getGroupCapabilities(group) → { addRow, acceptsMovedRow };\n- groupDisplayName;\n- DESPESAS_PERCENT_STYLE.\n\n9) src/lib/cashflow/monthParam.ts: readMesParam() (?mes=1..12 → 0..11) e writeMesParam(m | null) via history.replaceState.\n\n10) src/lib/cashflow/cellColor.ts:\n- normalizeCellColor(c): hex ou token → CashflowColorValue | null, aceitando 'red'/'green'/hex em qualquer caixa;\n- cellColorLabel(c): rótulo da legenda.\nUsado pelo ponto de situação (A) e pelo seletor (B), que grava sempre o cssColor hex, como o desktop.\n\n11) src/lib/cashflow/cashflowEvents.ts. Barramento no window, sem estado global de React:\n- emitCashflowFlash({ itemId, year, month });\n- onCashflowFlash(cb) → unsubscribe;\n- evento 'mf:cashflow-flash'.\nA C emite depois de lançar; a A ouve, muda para o mês, expande o grupo, rola até a linha e pisca 1,6s.\n\n12) BottomSheet + layerStack.ts:\n- pilha em módulo pushLayer(id) / popLayer(id) / isTopLayer(id), com o hook useTopLayer(isOpen) → { isTop };\n- o onKeyDown do BottomSheet só age (Esc/Tab) se isTop;\n- lockBodyScroll continua contando referências;\n- sem sheets empilhados, o comportamento é idêntico;\n- exporta useTopLayer para overlays próprios (CashflowYearGridSheet da D, ImportPlanilhaModal da D).\nTeste: dois sheets abertos, Esc fecha só o de cima.\n\n13) MobileSaveToast: prop opcional `action?: { label: string; onClick(): void }`.\n- Com action: <div role=status> com a mensagem e um <button> min-h-11 separado, com a cor da ação 'text-mf-tranquilidade dark:text-mf-seguranca' (sobre bg-mf-potencia / dark:bg-mf-escolha: 4,78:1 e 7,94:1). durationMs padrão 6000.\n- Sem action: DOM idêntico ao atual.\n\n14) ComponentCard: prop opcional `bodyClassName?: string`, concatenada ao className do corpo e do div interno. Com undefined, as classes são as mesmas.\n\n15) MonthStepper.tsx (implementação completa do protótipo, cenário b):\n- props:\n```ts\n{\n  year: number;\n  month: number;\n  onChange(m: number): void;\n  onYearChange?(y: number): void;\n  monthStatus?: 'atual' | 'fechado' | 'previsto';\n  monthSummaries?: Array<{ saldo: number | null }>;\n  trailing?: ReactNode;\n  className?: string;\n}\n```\n- grade 44 | 1fr | 44 | auto;\n- nome do mês em 17/600 com data-mf-month-label e aria-live=polite, e linha de estado em 12px ('● Mês atual' / 'Mês fechado' / 'Previsto');\n- setas de 44px com aria-label 'Mês anterior' / 'Próximo mês'. A virada Dez↔Jan chama onYearChange; sem onYearChange, fica desabilitada;\n- tocar no nome abre um BottomSheet 'Escolher mês' com 12 alvos de 44px e o saldo de cada mês (monthSummaries). Os meses 'previsto' levam o rótulo 'Previsto';\n- useMonthSwipe(ref, { onPrev, onNext }): pointer events, |dx| > 56 e |dx| > 1,5·|dy|, touch-action: pan-y;\n- animação de slide de 24px/200ms, desligada com prefers-reduced-motion;\n- texto em mf-patrimonio / mf-tranquilidade; #0079F2 só no anel de foco.\n\n16) STUB CashflowEditSheets.tsx:\n```ts\nexport type CashflowEditTarget =\n  | { kind: 'cell'; itemId: string; groupId: string; month: number; view?: 'valor' | 'comentario' | 'linha' | 'mover' | 'excluir' }\n  | { kind: 'group'; groupId: string; month: number }\n  | { kind: 'add-item'; groupId: string; month: number };\nexport interface CashflowEditSheetsProps {\n  year: number;\n  groups: CashflowGroup[];\n  itemTotals: Record<string, number[]>;\n  target: CashflowEditTarget | null;\n  onTargetChange(t: CashflowEditTarget | null): void;\n  onSaved(message: string, opts?: { itemId?: string; month?: number }): void;\n  onStartReorder(groupId: string): void;\n}\n```\nO stub retorna null. Passa ids, não objetos: o sheet re-resolve contra `groups` a cada render, e se o id sumiu, fecha.\n\n17) STUB CashflowYearGridSheet.tsx: props { isOpen; onClose(); year; month; onPickMonth(m); onPickCell?(itemId, groupId, m) }. Retorna null. onPickCell só é usado se o dono escolher a grade editável (pergunta 3).",
+        "testes": "Vitest:\n- novos: useCashflowMutations (corpo de cada request, setQueryData, invalidações, refetch na falha, results com success:false → ok:false); derivedIndices; itemCapabilities (tabela: comum, sonho, sonho auto, dívida, investimento, saldo); cellColor; MonthStepper (setas, virada de ano, sheet, swipe); layerStack; MobileSaveToast com e sem action (snapshot do DOM sem action idêntico);\n- existentes verdes SEM update: EditableItemRow.test, ItemRow.test, SummaryRow.test, useCashflow.test, useCashflowDerivedRows.test, BottomSheet/MobileEditSheet tests.\n\nPlaywright:\n- desktop-fluxo.spec verde contra a baseline do commit 1;\n- desktop-layout.spec verde;\n- projeto mobile inteiro verde, incluindo o mobile-shell ajustado.",
+        "criterios_aceite": [
+          "Baseline commitada antes de qualquer refactor; o spec verde depois.",
+          "DataTableTwo sem fetch/csrfFetch direto; mesmos alerts, invalidações e ordem.",
+          "Nenhuma classe de desktop alterada; o diff dos componentes de desktop se limita a imports e extrações.",
+          "Stubs com exatamente os tipos acima; A, B, C e D compilam sozinhas em cima da 0.",
+          "type-check, lint e vitest verdes."
+        ]
+      },
+      {
+        "id": "A",
+        "titulo": "Visão do mês: página, lista agrupada, resumo, linhas calculadas, Mais ações e estados",
+        "objetivo": "Abaixo de lg, a /fluxodecaixa mostra UM mês por vez, como no protótipo (cenários a, b e j):\n- barra do mês sticky;\n- cartão 'Saldo de {mês}';\n- lista agrupada na ordem da grade, com faixas de 3 níveis recolhíveis e subtotal;\n- linhas calculadas legíveis;\n- ponto de situação na cor do usuário;\n- tocar na linha abre o sheet (contrato B);\n- as ações da toolbar ficam no ⋯.",
+        "arquivos_novos": [
+          "/home/huske/dev/front/src/lib/cashflow/monthViewModel.ts",
+          "/home/huske/dev/front/src/lib/cashflow/__tests__/monthViewModel.test.ts",
+          "/home/huske/dev/front/src/components/cashflow/mobile/CashflowMonthView.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/MonthSummaryCard.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/MonthGroupSection.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/MonthGroupBand.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/MonthItemRow.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/MonthDerivedRow.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/DerivedInfoSheet.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/MonthToolbarSheet.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/MonthViewStates.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/__tests__/CashflowMonthView.test.tsx",
+          "/home/huske/dev/front/e2e/mobile-fluxo.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/app/(admin)/(others-pages)/(tables)/fluxodecaixa/page.tsx",
+          "/home/huske/dev/front/e2e/mobile-overflow.spec.ts"
+        ],
+        "detalhes": "1) page.tsx (só no modo planilha; o orçamento é da D):\n- `const isMobile = useIsBelowLg()`; `isMobile ? <CashflowMonthView /> : <DataTableTwo />`.\n- Wrapper externo: TROCAR o token `max-lg:h-[calc(100dvh-...)]` por `max-lg:h-auto` e acrescentar `max-lg:overflow-visible`. Não somar: são duas utilidades de altura em conflito. O token de desktop `h-[calc(100vh-60px)]` fica intacto.\n- Os mesmos tokens valem no div `m-[30px]` e no div `p-[30px]` internos, com `max-lg:overflow-visible` e `max-lg:min-h-0`.\n- ComponentCard: `bodyClassName=\"max-lg:overflow-visible\"` (prop da 0). Assim nenhum ancestral tem overflow hidden e o sticky funciona.\n- O wrapper do orçamento (`flex-1 min-h-0 overflow-y-auto pr-1`) NÃO muda nesta fatia.\n- Pílulas Planilha/Orçamento: só max-lg:. O container ganha max-lg:flex max-lg:w-full max-lg:rounded-xl max-lg:h-[50px]; os botões, max-lg:flex-1 max-lg:min-h-11. As pílulas ROLAM com a página: só a barra do mês é sticky (crítica dos 320px).\n- O h1 do ComponentCard continua visível e compacto (fase 1). O ⋯ do protótipo fica na barra do mês (trailing).\n\n2) monthViewModel.ts (puro). `buildMonthBlocks({ processedData, derived, month, year })` → Block[] na ORDEM do DataTableTwo:\n- Total de Entradas;\n- Saldo C/C mês anterior;\n- Despesas Fixas e Variáveis (% da receita + Inflação Pedro);\n- Saldo do mês;\n- Índice de Poupança;\n- Conta Corrente;\n- Aporte/Resgate (somente leitura);\n- Fluxo de caixa livre;\n- Evolução do patrimônio;\n- Rendimentos;\n- Paz financeira.\nGrupos recursivos: { kind: 'group', groupId, label: groupDisplayName, level 1|2|3, monthSubtotal, annual, percent?, items[], children[] }. Item: { itemId, name, monthValue, annual, colorKey: normalizeCellColor(values[m].color), hasComment, hasFormula, badges, caps: getItemCapabilities }. Derivada: { kind: 'derived', key, label, value, format: 'currency' | 'percent', emphasis: boolean, helpKey }.\nTambém exporta:\n- monthSummaries(processedData, year): saldo por mês para o MonthStepper, com previsto = mês > atual no ano corrente;\n- monthStatus(year, m);\n- defaultMonth(year): atual / 11 / 0;\n- allGroupIds.\nTodo número vem de processedData, derived ou derivedIndices.\n\n3) CashflowMonthView.tsx:\n- raiz `<section data-mf-fluxo-mobile data-mf-fluxo-ready={pronto || undefined}>`;\n- lê useCashflowView(year), useCashflowYear e useCashflowMutations(year), este só para o modo reordenar;\n- month = readMesParam() ?? defaultMonth(year); writeMesParam na troca; reseta ao trocar o ano;\n- barra sticky `sticky top-[var(--mf-header-h)] z-20`: `<MonthStepper onYearChange={setYear} monthSummaries monthStatus trailing={<>botão 'Ano' (ícone de grade, 44px, só ícone abaixo de 360px) → abre a grade; botão ⋯ 'Mais ações' 44px</>} />`;\n- MonthSummaryCard: raio 16, p-4; 'Saldo de {mês}' em 28/600 tabular, azul (mf-patrimonio / mf-tranquilidade) se positivo e #D92D20/#F97066 se negativo; barra de 8px despesas/entradas; Entradas, Despesas, Índice de poupança e Saldo C/C anterior. Abaixo de 360px, compacta: 22px e duas colunas;\n- lista com useMonthSwipe;\n- estados (MonthViewStates): skeleton no formato da lista (aria-busy, brilho de 1,3s, reduced-motion); erro com role=alert e 'Tentar de novo' (refetch); mês vazio, com o aviso 'Nada lançado em {mês}' e um botão que abre o + Lançar (dispara o mesmo sheet da C via evento 'mf:open-lancamento', emitido por cashflowEvents; se a C ainda não estiver presente, o botão fica oculto); planilha em branco (Lançar / Importar);\n- monta no fim:\n  - `<CashflowEditSheets year groups=data itemTotals target onTargetChange onSaved={(msg, o) => { setToast(msg); flash(o) }} onStartReorder={setReorderGroupId} />`;\n  - `<CashflowYearGridSheet isOpen year month onClose onPickMonth={m => { setMonth(m); close() }} />`;\n  - `<ImportPlanilhaModal isOpen onClose year />`;\n  - `<MobileSaveToast message={toast} onDismiss />`, SEM action (sem Desfazer nos sheets, P1);\n- onCashflowFlash: se o ano bate, setMonth, expande os ancestrais, scrollIntoView e pisca tint #0079F2 por 1,6s (reduced-motion: sem animação).\n\n4) MonthGroupBand / MonthGroupSection (protótipo, cenário a):\n- nível 1: faixa sólida, mín. 48px, raio 14, 15/600; claro bg #396CAA com texto branco, escuro bg #314666 com texto #EAEAEA;\n- nível 2: CardSectionBand da fase 1 (sem `count`);\n- nível 3: cabeçalho de cartão de 48px, 12,5px em caixa alta;\n- cada faixa: botão de recolher (chevron girando em 180ms), subtotal do mês e ⋯ 'Ações do grupo' (44px) → onTargetChange({ kind: 'group', groupId, month }). Recolher usa collapsible.toggleCollapse, com o mesmo localStorage do desktop;\n- no Despesas raiz, a pílula '% da receita' com ponto #0079F2 até 80%, âmbar de 80 a 90% e vermelho acima de 90%, e o número em texto;\n- linhas zeradas no mês: atrás de 'Mostrar N linhas sem valor' por grupo (P2);\n- modo reordenar (reorderGroupId === id): cada linha mostra ↑ e ↓ (44px, desabilitados nas pontas), que chamam reorderItem(groupId, id, vizinho), e uma barra fixa 'Concluir' embaixo, acima da barra de abas.\n\n5) MonthItemRow (React.memo):\n- `<button data-mf-fluxo-row data-item-id>`, mín. 52px → onTargetChange({ kind: 'cell', itemId, groupId, month });\n- à esquerda, nome em 14,5/500 (2 linhas no máximo), selos 🎯/dívida e ícones de comentário e de fórmula (aria-label);\n- à direita, valor em 15/600 tabular com cor NEUTRA (gray-800 / white/90; negativo no vermelho semântico) e, antes dele, o PONTO de situação de 9px com anel de 1px na cor exata da legenda. aria-label = cellColorLabel. A cor do texto do valor não é tocada;\n- '—' para 0;\n- segunda linha opcional 'ano R$ X' em 11,5px muted (toggle).\nLinhas de investimento também são botões: abrem o sheet da célula em modo leitura (B).\n\n6) MonthDerivedRow: mín. 52px, fundo #F2F4F7 (escuro #26262A) e ícone de calculadora. As linhas-chave (Saldo do mês, Fluxo livre, Evolução) em tint tranquilidade 22% (escuro #1C2A40). Valor em moeda ou %, '–' para null. Tocar abre o DerivedInfoSheet (BottomSheet só leitura) com a explicação da conta, reaproveitando os textos dos tooltips do desktop (SummaryRow, índices).\n\n7) MonthToolbarSheet (BottomSheet 'Mais ações'):\n- Ano inteiro;\n- Expandir tudo (setCollapsedAll({}));\n- Recolher tudo;\n- Mostrar total do ano (switch, localStorage 'cashflow:mobile:anual');\n- Importar planilha.\nA CashflowToolbar não monta no mobile, porque o DataTableTwo não monta.",
+        "testes": "Vitest:\n- monthViewModel.test: ordem dos blocos, valores do mês 3, índices, monthSummaries/previsto, defaultMonth;\n- CashflowMonthView.test (jsdom; useCashflowView, CashflowEditSheets e CashflowYearGridSheet mockados): trocar mês muda valores; tocar na linha → { kind: 'cell' }; ponto com o aria-label da legenda e valor sem style color; recolher persiste; o flash muda o mês.\n\ne2e/mobile-fluxo.spec.ts (projeto mobile, SÓ LEITURA, seguro no CI):\n(a) gotoFluxo({ mes: 7 }) → ready; o rótulo contém 'Julho';\n(b) 'Mês anterior' → 'Junho' e ?mes=6. Não usa 'Próximo mês', que em dezembro vira para um ano sem seed;\n(c) rowByName('Supermercado') visível;\n(d) rolar 800px → a barra do mês continua visível e com top ≈ --mf-header-h (sticky ok);\n(e) expectFitsWithoutClip a 390 e a 320;\n(f) Mais ações → Recolher tudo esconde as linhas; Expandir tudo volta.\n\nmobile-overflow.spec: /fluxodecaixa (planilha) com expectFitsWithoutClip. O ?modo=orcamento NÃO entra aqui: fica no spec da D.",
+        "criterios_aceite": [
+          "Sem rolagem horizontal a 390, 360 e 320; a barra do mês gruda ao rolar.",
+          "Ordem e valores iguais aos da coluna do mês no desktop (conferência em 3 meses, incluindo índices e Evolução).",
+          "Cor do usuário só no ponto; valores AA no claro e no escuro.",
+          "Estado recolhido compartilhado com o desktop (P10).",
+          "Alvos ≥ 44px; desktop-fluxo.spec e desktop-layout.spec verdes."
+        ]
+      },
+      {
+        "id": "B",
+        "titulo": "Sheets de edição: célula (valor, fórmula, situação, comentário, gráfico do ano), linha (renomear/porquê/nível, mover, excluir), grupo e adicionar linha",
+        "objetivo": "Implementar o CashflowEditSheets do protótipo (cenários c, d e e) com UM BottomSheet que troca de painel internamente, sem empilhar. Cada ação chama a MESMA mutação do desktop via useCashflowMutations e respeita getItemCapabilities.",
+        "arquivos_novos": [
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/CellSheet.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/CellValuePanel.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/FormulaKeyBar.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/SituacaoPicker.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/YearMiniChart.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/CommentPanel.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/ItemDetailsPanel.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/MovePanel.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/DeletePanel.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/GroupSheet.tsx",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/AddItemSheet.tsx",
+          "/home/huske/dev/front/src/lib/cashflow/moveTargets.ts",
+          "/home/huske/dev/front/src/lib/cashflow/__tests__/moveTargets.test.ts",
+          "/home/huske/dev/front/src/components/cashflow/mobile/edit/__tests__/CashflowEditSheets.test.tsx",
+          "/home/huske/dev/front/e2e/mobile-fluxo-edicao.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/components/cashflow/mobile/CashflowEditSheets.tsx (substitui o stub; props idênticas)"
+        ],
+        "detalhes": "Resolução: findItemById/findGroupInTree em `groups` a cada render; se o id sumiu, onTargetChange(null).\n\nContrato de falha, igual ao do MobileEditSheet:\n- SaveResult ok:false ou exceção → o sheet fica aberto com o valor digitado e role=alert; o botão volta a 'Salvar' (cenário e);\n- durante o salvamento: spinner + 'Salvando…' e botão desabilitado.\n\nOnde se usa MobileEditSheet, passar showSavedToast={false}: o aviso é só o onSaved.\n\n1) CellSheet ({ kind: 'cell', view? }), um BottomSheet com título = nome da linha e subject = '{Mês}/{ano} · {grupo}'.\n\nPainel 'valor' (padrão):\n- CellValuePanel: campo de 64px, 26/600, raio 14, foco com borda #0079F2 e anel de 3px; prefixo 'R$', que vira 'ƒx' (IBM Plex Mono) quando o texto começa com '='; inputMode='decimal', enterKeyHint='done';\n- FormulaKeyBar acima do teclado (7 teclas de 44px, gap 6): '= + − × ÷ ( )'. A tecla '−' INSERE o hífen ASCII '-', e × e ÷ inserem os próprios caracteres (o parser aceita). A tecla '=' só entra na posição 0;\n- valor inicial = values[m].formula ?? formatDecimalInput(valor);\n- parse: isFormula → evaluateFormula (@/utils/formulaParser), com prévia '= R$ 150,00' ou o erro (aria-invalid, Salvar travado). Isso evita o descarte silencioso do servidor. Senão, parseDecimalInput;\n- SituacaoPicker (se caps.canColor): radiogroup em 2 colunas de 44px, 'Sem cor' + 5 da CASHFLOW_COLOR_LEGEND (ponto + rótulo), comparando via normalizeCellColor e gravando o cssColor;\n- YearMiniChart: 12 barras em divs/SVG simples (sem Apex) com itemTotals[itemId], o mês atual destacado com borda #0079F2, aria-label com o resumo;\n- ações de 52px (ícone de 36px): 'Comentário' → view 'comentario'; 'Renomear e porquê' → 'linha' (se caps.editStructure; senão, a linha mostra o READONLY_REASON_TEXT); 'Mover' → 'mover' (se canMove); 'Excluir linha' → 'excluir' (se canDelete; em vermelho #D92D20/#F97066);\n- Salvar monta UM update pela regra do getChangesForGroup: values [{ month, value, formula? (null se virou número puro), color? }] → saveItemChanges({ groupId, updates: [{ itemId, values }] }). Nada mudou = fecha sem request. Sucesso → onSaved('Valor salvo', { itemId, month }).\n\nModo leitura (!caps.editValues): valor grande, motivo, YearMiniChart e comentário só leitura; sem Salvar. Vale para Aporte/Resgate, sonho auto-realizado e dívida (a dívida edita valores? o servidor recusa só o delete, então valores seguem editValues).\n\nPainel 'comentario': textarea (máx. 2000, allowEmpty) com fetchCellComment → saveCellComment(itemId, month, texto || null) → onSaved('Comentário salvo'). 'Voltar' retorna ao painel valor.\n\nPainel 'linha' (ItemDetailsPanel): nome (obrigatório, máx. 255), 'O seu porquê' (textarea, allowEmpty → null) e 'Nível de prioridade' (rank) → um único saveItemChanges updates [{ itemId, name?, significado?, rank? }].\n\nPainel 'mover':\n- 'Mover para cima' / 'Mover para baixo' → reorderItem(groupId, itemId, vizinho), desabilitados nas pontas. O painel fica aberto para toques repetidos;\n- 'Mover para outra seção': busca + listMoveTargets(groups, currentGroupId), agrupada pela trilha 'Despesas › Transporte' (regra do acceptsDrop: folhas entrada/despesa, sem children, não investimento/saldo) → moveItem(itemId, destId, null, true), para o fim do destino;\n- sucesso → onSaved('Linha movida').\n\nPainel 'excluir' (confirmação no próprio sheet): texto 'Excluir {nome}? Os valores do ano somem. Não dá para desfazer.' Para sonho, o texto do window.confirm do EditableItemRow + 'o sonho também será apagado do Planejamento'. Botão destrutivo vermelho semântico → saveItemChanges({ groupId, deletes: [itemId] }) → onSaved('Linha excluída') e fecha.\n\n2) GroupSheet ({ kind: 'group' }):\n- cabeçalho com o subtotal do mês e do ano e o % da receita no Despesas raiz (DESPESAS_PERCENT_STYLE);\n- ações: 'Adicionar linha' (se addRow) → { kind: 'add-item' }; 'Reordenar linhas' → onStartReorder(groupId) + fecha; 'Recolher' / 'Expandir'; 'Abrir Planejamento de Sonhos' no grupo Planejamento Financeiro (Link, como o GroupHeader).\nNão há renomear grupo: o desktop também não tem.\n\n3) AddItemSheet: nome (validateNewRow) + porquê → createItem(groupId, name, significado, { refetch: true }) → onSaved('Linha adicionada'). Quando o item aparece em groups, abre { kind: 'cell' } no mês.\n\n4) Sem Desfazer nos avisos (P1). O aviso 'Salvo' dura 4s. O comentário é desfazível pelo Histórico, mas o aviso não oferece o atalho nesta fase.",
+        "testes": "Vitest, com CashflowEditSheets.test (useCashflowMutations mockado):\n- valor simples → values [{ month, value }];\n- '=100+50' → 150 + formula;\n- a tecla '−' gera '=100-50' válido;\n- número sobre fórmula → formula null;\n- só a situação → color hex;\n- situação antiga 'red' vem marcada como 'Pago';\n- ok:false (inclusive success:false em results) → o sheet fica aberto com a mensagem;\n- investimento em modo leitura;\n- dívida: excluir e renomear ocultos;\n- sonho: excluir com o texto do Planejamento;\n- mover para cima → reorderItem com o vizinho; outra seção → moveItem(id, dest, null, true);\n- Esc fecha só o painel ou o sheet de cima.\n\nmoveTargets.test.\n\ne2e/mobile-fluxo-edicao.spec.ts:\n- test.describe.configure({ mode: 'serial' }); fluxoMobileReadyOrSkip;\n- gotoFluxo({ mes: 7 }); tocar em 'Internet' e ler X; digitar '=X+1' pela FormulaKeyBar → a prévia mostra X+1 → Salvar → a linha mostra X+1 → reabrir → digitar X → Salvar → mostra X (restauração em try/finally);\n- abrir 'Mover' em Internet e conferir 'Mover para cima' SEM executar;\n- abrir um item de Aporte/Resgate, se existir, e conferir que não há Salvar.\nSó 'Internet' de julho é gravada; nenhum outro spec lê essa célula (convenção documentada no helpers/fluxo.ts).",
+        "criterios_aceite": [
+          "Toda edição passa por useCashflowMutations: nenhum fetch novo, nenhuma regra de fórmula nova, nenhuma personalização no cliente.",
+          "Histórico igual ao do desktop: batch-update → 'valores.editar-lote'; comentário → 'comentario.editar'; criar → 'item.criar'; mover → 'item.mover'. O reordenar não gera entrada (comportamento atual da rota).",
+          "Linhas calculadas, sonho auto-realizado e dívida respeitam as capacidades; nenhum 'Salvo' falso quando o servidor recusa.",
+          "Sem sheets empilhados; o teclado não cobre o campo; alvos ≥ 44px; dark mode."
+        ]
+      },
+      {
+        "id": "C",
+        "titulo": "Lançamento rápido real no '+ Lançar' (rota compartilhada com o assistente)",
+        "objetivo": "'Despesa ou receita' deixa de ser 'Em breve' e abre em qualquer tela (protótipo, cenário h): tipo, valor, linha (sugestões + busca sem acento), mês (trilho de chips), 'Definir em todo mês até…', descrição, prévia antes → depois, Lançar, aviso de 6s com Desfazer e flash da linha. A gravação é o aplicarProposta extraído, sem token.",
+        "arquivos_novos": [
+          "/home/huske/dev/front/src/services/cashflow/linhasEditaveis.ts",
+          "/home/huske/dev/front/src/services/cashflow/lancamentoFluxo.ts",
+          "/home/huske/dev/front/src/services/cashflow/__tests__/lancamentoFluxo.test.ts",
+          "/home/huske/dev/front/src/lib/cashflow/lancamentoRapidoSchema.ts",
+          "/home/huske/dev/front/src/app/api/cashflow/lancamento-rapido/route.ts",
+          "/home/huske/dev/front/src/app/api/cashflow/lancamento-rapido/__tests__/route.test.ts",
+          "/home/huske/dev/front/src/hooks/useLancamentoRapido.ts",
+          "/home/huske/dev/front/src/lib/cashflow/lancamentoRecentes.ts",
+          "/home/huske/dev/front/src/lib/cashflow/__tests__/lancamentoRecentes.test.ts",
+          "/home/huske/dev/front/src/layout/mobile/LancamentoRapidoSheet.tsx",
+          "/home/huske/dev/front/src/layout/mobile/__tests__/LancamentoRapidoSheet.test.tsx",
+          "/home/huske/dev/front/e2e/mobile-fluxo-lancamento.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/services/assistente/lancamento.ts",
+          "/home/huske/dev/front/src/services/assistente/contexto.ts",
+          "/home/huske/dev/front/src/services/changeHistory/recordChange.ts",
+          "/home/huske/dev/front/src/services/changeHistory/__tests__/recordChange.test.ts",
+          "/home/huske/dev/front/src/layout/mobile/quickLaunch.ts",
+          "/home/huske/dev/front/src/layout/mobile/LaunchSheet.tsx",
+          "/home/huske/dev/front/src/layout/mobile/MobileTabBar.tsx"
+        ],
+        "detalhes": "SERVIDOR\n\n1) recordChange → Promise<string | undefined> (id do userChangeLog criado). Skip e erro devolvem undefined, e continua best-effort. Novo caso no teste.\n\n2) linhasEditaveis.ts: listarLinhasEditaveis + LinhaEditavel movidos de assistente/contexto.ts (que importa next/server); contexto.ts re-exporta.\n\n3) lancamentoFluxo.ts (server-only), código MOVIDO de assistente/lancamento.ts:\n- LancamentoResolvido;\n- celulasDoLancamento;\n- resolverLancamentoPorItem(userId, input): getMergedCashflowGroups + exige a linha em listarLinhasEditaveis; se não estiver, { ok: false, motivo: 'Linha não encontrada ou não editável.' };\n- aplicarLancamento(auth, request, l, { origem: 'assistente' | 'lancamento-rapido'; carimbar: 'sempre' | 'com-descricao'; posProcessar? }) → ResultadoAplicacao & { changeLogId?: string }. O assistente passa carimbar:'sempre' e origem 'assistente': texto '(assistente)' idêntico. O lançamento rápido passa 'com-descricao' (P5) e o sufixo '(lançamento rápido)'; snapshot.meta.origem = origem;\n- posProcessarLancamento.\n\n4) assistente/lancamento.ts: Proposta = LancamentoResolvido & { id, mensagemId, expiraEm }. aplicarProposta delega (origem 'assistente', carimbar 'sempre'). Todos os exports ficam. O lancamento.test.ts e o /api/assistente/confirmar ficam SEM edição.\n\n5) lancamentoRapidoSchema.ts (zod, isomórfico, .strict()):\n```\n{\n  itemId: zString(255);\n  valor: positive finite max 1e10;\n  ano: 2000–2100;\n  mes: 0–11;\n  recorrente: default false;\n  mesFim?: 0–11;\n  descricao?: max 200;\n  confirmar: default false;\n  aceitaReducao: default false;\n}\n```\n- refine: mesFim só com recorrente e ≥ mes;\n- SEM campo `modo` no cliente: único = somar, recorrente = definir, regra fixa do assistente;\n- exporta os tipos de resposta.\n\n6) route.ts (POST, withErrorHandler):\n- requireAuthWithActing + logSensitiveEndpointAccess; consultor personificando permitido (P6), com viaConsultant no histórico;\n- safeParse → validationError;\n- resolver → 422 { error };\n- a prévia marca `diminui: valorNovo < valorAtual` por célula e `temFormula` quando a célula tinha fórmula;\n- confirmar=false → 200 { ok, previa }, SEM escrita;\n- confirmar=true e alguma célula diminui e !aceitaReducao → 409 { error: 'Alguns meses vão diminuir. Confirme para continuar.', previa };\n- senão, aplicarLancamento → 200 { ok, previa, resultado: { itemId (após personalização), grupoNome, celulas }, changeLogId: string | null }.\nCSRF: middleware em POST + csrfFetch. Sem token: o servidor recalcula tudo e relê cada célula na transação.\n\nCLIENTE\n\n7) useLancamentoRapido(): preview(input) e confirmar(input). No sucesso, invalida queryKeys.cashflow.all. O Desfazer usa useUndoAlteracao().mutateAsync(changeLogId).\n\n8) lancamentoRecentes.ts: chave 'cashflow:lancamento:recentes:{userId}', até 5 { itemId, nome, trilha }.\n- Grava resultado.itemId + trilha, devolvidos pela rota (já personalizados).\n- Na leitura, resolve contra listarLinhasEditaveis(dados atuais): primeiro por itemId, depois pelo par nome+trilha; se não achar, descarta.\n\n9) quickLaunch.ts: `kind: 'link' | 'sheet'`; 'fluxo' vira { kind: 'sheet' } sem phase.\n   LaunchSheet.tsx: prop onOpenCashflowLaunch(); a ação 'sheet' vira <button> com o visual do Link (min-h-14) → onClose() e depois o callback. Sai o texto 'Por enquanto...'.\n\n10) MobileTabBar.tsx:\n- estado lancamentoOpen;\n- monta <LancamentoRapidoSheet> e um MobileSaveToast com action;\n- abre depois do fechamento do LaunchSheet (requestAnimationFrame);\n- também ouve 'mf:open-lancamento' (cashflowEvents), usado pelo estado vazio da A.\n\n11) LancamentoRapidoSheet.tsx: BottomSheet alto (altura total − safe-top − 12px; com teclado, desconta via useKeyboardInset), título 'Lançar despesa ou receita'. Painéis no MESMO sheet.\n\n(a) Formulário:\n- segmentado Despesa | Receita (44px);\n- Valor: MobileNumberField currency, autoFocus;\n- 'Linha do fluxo': sugestões (Recentes) + botão de busca;\n- Mês: trilho de chips Jan–Dez do ano do CashflowYearContext, com o mês de hoje por padrão quando o ano é o corrente;\n- switch 'Definir este valor em todo mês até' + seletor 'Até' (mesFim, padrão dezembro), com texto de ajuda 'Substitui o valor de cada mês; não soma';\n- descrição opcional ('vai para o comentário da célula');\n- botão 'Revisar'.\n\n(b) Busca: input que normaliza acentos (NFD sem diacríticos) sobre listarLinhasEditaveis(useCashflowData(ano).data), filtrada pelo tipo e agrupada pela trilha.\n\n(c) Prévia (confirmar:false):\n- 'Supermercado · Despesas › Alimentação';\n- 'Setembro/2026: R$ 1.020,00 → R$ 1.065,90'. No recorrente, lista de meses em que as células que diminuem aparecem em vermelho (#D92D20/#F97066) com seta ↓;\n- aviso 'A fórmula desta célula será substituída' quando houver;\n- se houver redução, checkbox obrigatório 'Entendi que {N} meses vão diminuir' → aceitaReducao;\n- botão 'Lançar R$ X', desabilitado enquanto pendente.\n\n(d) Sucesso:\n- fecha e grava o recente;\n- emitCashflowFlash({ itemId, year, month }): se a visão do mês estiver montada, pisca; o sheet NÃO navega (P11);\n- toast 'Lançado: R$ 45,90 em Supermercado (setembro)' com action 'Desfazer'. Desfazer ok → 'Lançamento desfeito'; 409 (LIFO) → a mensagem do servidor.",
+        "testes": "Vitest:\n- route.test (vi.hoisted, mock de prisma, requireAuthWithActing, getMergedCashflowGroups):\n  - 400 no zod (extra, mesFim sem recorrente, `modo` enviado);\n  - 422 para sonho, dívida, investimento ou fora da árvore;\n  - prévia sem escrita;\n  - 409 com redução sem aceitaReducao;\n  - confirmar → recordChange com 'valor.editar' ou 'valores.editar-recorrente' e changeLogId;\n  - consultor personificando OK;\n  - sem descrição → sem carimbo.\n- lancamentoFluxo.test: carimbo '(lançamento rápido)' só com descrição; 'definir' não mexe em célula igual.\n- assistente/__tests__/lancamento.test.ts e contexto.test.ts SEM mudança e verdes.\n- recordChange.test: novo caso.\n- lancamentoRecentes.test: id novo, fallback por nome+trilha, descarte.\n- LancamentoRapidoSheet.test: validação, filtro por tipo, busca sem acento, payload da prévia, checkbox de redução, Desfazer com changeLogId.\n\ne2e/mobile-fluxo-lancamento.spec.ts (CI, SEM gravar, P8): + Lançar → 'Despesa ou receita' abre o sheet (sem 'Em breve') → valor 45,90 → buscar 'supermercado' → Revisar → a prévia mostra 'Supermercado' e 'R$ 45,90' → Voltar → fechar. A prévia chama a rota real no build de produção. Gravar e desfazer fica no route.test e no QA manual.",
+        "criterios_aceite": [
+          "Assistente inalterado (textos, carimbo, histórico); os testes dele ficam verdes sem edição.",
+          "Rota com zod strict, CSRF, requireAuthWithActing e sem IDOR.",
+          "UMA entrada desfazível por lançamento; o Desfazer do aviso funciona e fluxo e orçamento se atualizam.",
+          "O recorrente nunca reduz um mês sem confirmação explícita.",
+          "Recentes resistem à personalização (id novo).",
+          "Sem 'Em breve'; o teclado não cobre o Lançar; alvos ≥ 44px."
+        ]
+      },
+      {
+        "id": "D",
+        "titulo": "'Ano inteiro' em tela cheia, Orçamento no celular e Importar planilha no celular",
+        "objetivo": "(1) Implementar o CashflowYearGridSheet (protótipo, cenário f), reaproveitando o DataTableTwo em modo leitura: coluna de itens de 128px, meses de 84px, sem Total fixo. (2) Orçamento vs Real a 320px (cenário g). (3) Importar planilha em tela cheia com 3 passos (cenário i).",
+        "arquivos_novos": [
+          "/home/huske/dev/front/src/lib/cashflow/orcamentoNivel.ts",
+          "/home/huske/dev/front/src/lib/cashflow/__tests__/orcamentoNivel.test.ts",
+          "/home/huske/dev/front/src/components/cashflow/orcamento/OrcamentoMobileView.tsx",
+          "/home/huske/dev/front/src/components/cashflow/orcamento/OrcamentoMobileList.tsx",
+          "/home/huske/dev/front/src/components/cashflow/orcamento/OrcamentoResumoMobile.tsx",
+          "/home/huske/dev/front/src/components/cashflow/orcamento/__tests__/OrcamentoMobileList.test.tsx",
+          "/home/huske/dev/front/e2e/mobile-fluxo-orcamento.spec.ts",
+          "/home/huske/dev/front/e2e/mobile-fluxo-ano.spec.ts"
+        ],
+        "arquivos_alterados": [
+          "/home/huske/dev/front/src/components/cashflow/mobile/CashflowYearGridSheet.tsx (substitui o stub; props idênticas)",
+          "/home/huske/dev/front/src/components/tables/DataTables/TableTwo/DataTableTwo.tsx",
+          "/home/huske/dev/front/src/components/tables/DataTables/TableTwo/DataTableTwoGroupRenderer.tsx",
+          "/home/huske/dev/front/src/components/tables/DataTables/TableTwo/dataTableTwoTypes.ts",
+          "/home/huske/dev/front/src/components/cashflow/CashflowDnd.tsx",
+          "/home/huske/dev/front/src/components/cashflow/TableHeader.tsx",
+          "/home/huske/dev/front/src/components/cashflow/GridCells.tsx",
+          "/home/huske/dev/front/src/app/globals.css",
+          "/home/huske/dev/front/src/components/cashflow/ImportPlanilhaModal.tsx",
+          "/home/huske/dev/front/src/services/cashflow/orcamentoAlertas.ts",
+          "/home/huske/dev/front/src/components/cashflow/orcamento/OrcamentoVsRealSection.tsx",
+          "/home/huske/dev/front/src/components/cashflow/orcamento/OrcamentoChart.tsx",
+          "/home/huske/dev/front/src/components/cashflow/orcamento/OrcamentoMensalChart.tsx"
+        ],
+        "detalhes": "ANO INTEIRO (P3: só leitura; tocar no mês volta à visão do mês)\n\n1) DataTableTwo: props opcionais `presentation?: 'default' | 'mobile-year'`, `initialMonth?` e `onPickMonth?`. Com 'default', o DOM é idêntico. Em 'mobile-year':\n- sem CashflowToolbar;\n- CashflowDndProvider disabled;\n- ctx.readOnly;\n- sem ImportPlanilhaModal e CommentModal;\n- scroll inicial = 128 + m × 84 − 16.\n2) dataTableTwoTypes: readOnly no GroupRenderContext. O GroupRenderer omite onStartEdit, onSave e onCancel quando readOnly.\n3) CashflowDnd: `disabled?` (sem sensores e sem overlay).\n4) TableHeader: com onPickMonth, o conteúdo da th de mês vira <button aria-label='Ver {Mês} no detalhe'>. Sem a prop, o DOM é o de hoje.\n5) GridCells: data-cf-fixed={col} no FixedCell, data-cf-month={index} no MonthCell e data-cf-annual no AnnualCell. Só atributos.\n6) globals.css, só em @media (width < 64rem), prefixado por [data-mf-year-grid]:\n- [data-cf-fixed='1'|'2'|'3'] { display: none };\n- [data-cf-fixed='0'] { width / min-width / max-width: 8rem !important; border-right: 1px solid (a mesma cor do GRID.fixedDivider, claro e escuro) };\n- [data-cf-month] { width / min-width / max-width: 5.25rem !important; height: 40px };\n- [data-cf-annual] { display: none } (o total anual já está na visão do mês);\n- thead th { height: 36px };\n- a th do mês atual mantém o fundo #314666 (TABLE_HEADER_BG) com box-shadow inset 0 -3px 0 #0079F2 (não textual), e as células da coluna ficam com o tint #0079F2 8% (escuro 16%);\n- `.cashflow-table { overscroll-behavior-x: contain }`, SEM scroll-snap.\nA 390: fixo = 128px (33%) e cabem cerca de 3 meses; a 844×390, cerca de 8.\n7) CashflowYearGridSheet: portal `fixed inset-0 z-[99990] flex flex-col bg-white dark:bg-gray-900`, role=dialog, aria-modal, aria-label='Fluxo de caixa — ano inteiro', data-mf-overlay e data-mf-year-grid.\n- useTopLayer (0): Esc só fecha se isTop.\n- Barra de 48px + safe-area: 'Fechar' (44px), título '{ano} · ano inteiro', setas ‹ › que rolam 3 meses e a dica 'Gire o celular para ver mais meses' (só em retrato, via media orientation).\n- Corpo: o contêiner de rolagem com tabindex=0 e aria-label='Planilha do ano'.\n\nORÇAMENTO\n\n8) orcamentoNivel.ts (isomórfico): rankDoConsumo MOVIDO de orcamentoAlertas.ts, que passa a re-exportar (sem mudança de comportamento).\n`nivelOrcamento(real, meta, isInvestimentos)` → { pct, status: 'sem-meta' | 'dentro' | 'atencao' | 'atingido' | 'estourou', texto }, com os mesmos limiares do alerta (<80 dentro, ≥80 atenção, =100 atingido, >100 estourou). Investimentos com lógica invertida: ≥100 'Meta de aporte atingida'.\nTextos: 'Dentro da meta' / 'Atenção: {pct}% usado' / 'Meta atingida' / 'Estourou {R$ X}'. O selo 'No limite' do protótipo NÃO é usado (ambíguo).\nA OrcamentoTable de desktop NÃO muda (P9).\n9) OrcamentoVsRealSection: `isMobile = useIsBelowLg()`; o ramo desktop fica INTACTO; o ramo mobile renderiza <OrcamentoMobileView> com os MESMOS dados calculados (janela, linhas, investimentos, totais, handleSaveMeta):\n- MonthStepper (readMesParam/writeMesParam, compartilhado com a planilha);\n- segmentado Mês | Acumulado do ano e Lançado | Consolidado (P12: o nome fica 'Consolidado'), com MOBILE_SEGMENTED_* de 44px;\n- OrcamentoResumoMobile: 'Sobram R$ …' + medidor de 10px (escala até 120%, marcas de 2px em 80% e 100%) + avisos do mês;\n- OrcamentoMobileList: cartões [data-mf-card] com nome e pai, 'R$ real de R$ meta', barra de 8px com marcas e selo (ponto + TEXTO AA: #B45309/#D97706 na atenção e #D92D20/#F97066 no estouro); 'Editar meta' abre MobileEditSheet currency (allowEmpty = remover). Em Investimentos, antes um select 'R$ por mês' / '% da renda'. Investimentos antes do Total, e o Total no fim;\n- gráficos: rosca 'Para onde foi o dinheiro' e barras horizontais 'Orçado × real'.\n10) OrcamentoChart / OrcamentoMensalChart: `responsive: [{ breakpoint: 1023, options }]` (padrão da fase 1). Rosca com height 300 e legenda embaixo. Mensal na visão mês: horizontal, altura 36 × n + 80, orçado #CCCCCC (escuro #4A4F5A), real #396CAA/#6E9DC4 ou vermelho no estouro, rótulos curtos ('R$ 1,2 mil'). No acumulado: rótulos 'J F M…' e legenda embaixo. No desktop, options idênticas.\n\nIMPORTAR\n\n11) ImportPlanilhaModal, só max-lg: e atributos:\n- overlay max-lg:items-stretch max-lg:p-0;\n- painel max-lg:h-[100dvh] max-lg:max-h-none max-lg:max-w-none max-lg:rounded-none max-lg:m-0, com pt/pb de safe-area;\n- cabeçalho com 'Passo N de 3';\n- contadores max-lg:grid-cols-3, e max-[359px]:grid-cols-2;\n- botões max-lg:min-h-11;\n- tabelas de prévia com max-lg:overflow-x-auto e data-mf-scroll-x;\n- input accept='.xlsx';\n- role='dialog', aria-modal e Esc via useTopLayer. São atributos e comportamento, não classes: o desktop-fluxo.spec compara estrutura e classes, então a baseline não muda. Se mudar, regravar CONSCIENTEMENTE com nota no PR.",
+        "testes": "Vitest:\n- orcamentoNivel.test: faixas, 80% exato = atenção, 100% = atingido, investimentos invertido; rankDoConsumo idêntico ao antigo;\n- OrcamentoMobileList.test: textos por faixa, editar meta chama onSaveMeta, % em Investimentos;\n- ImportPlanilhaModal.test e o orcamentoAlertas test existentes verdes.\n\ne2e (projeto mobile, só leitura):\n- mobile-fluxo-orcamento.spec: gotoFluxo({ modo: 'orcamento', mes: 7 }) a 390 e 320 → expectFitsWithoutClip; 'Mês anterior' troca o mês; cartões [data-mf-card] visíveis; svg de cada gráfico ≤ viewport.\n- mobile-fluxo-ano.spec (fluxoMobileReadyOrSkip):\n  - Mais ações → Ano inteiro → dialog;\n  - a 390, a largura medida de th[data-cf-fixed='0'] ≤ 0,35 × 390, nenhum [data-cf-annual] visível e o contêiner com scrollWidth > clientWidth, mas o documento sem transbordo;\n  - th do mês atual com o fundo #314666 (computed style);\n  - o botão 'Ver Março no detalhe' fecha e o rótulo mostra Março;\n  - a 844×390, ≥ 6 cabeçalhos de mês no viewport;\n  - Esc fecha.\n\nDesktop: desktop-fluxo.spec (planilha, edição de grupo, importar, orçamento) verde, sem regravar.",
+        "criterios_aceite": [
+          "Com presentation padrão, DataTableTwo, TableHeader, GridCells (exceto data-attrs) e CashflowDnd produzem o mesmo DOM e as mesmas classes.",
+          "Ano inteiro: colunas fixas ≤ 35% a 390; rolagem horizontal só dentro da grade; somente leitura; voltar ao mês funciona; mês atual sem texto sobre #0079F2.",
+          "Orçamento a 320 sem corte; níveis iguais aos alertas e legíveis por TEXTO; meta editável por sheet.",
+          "Importar planilha utilizável a 390 em tela cheia."
+        ]
+      }
+    ],
+    "componentes_compartilhados": [
+      {
+        "nome": "useCashflowView",
+        "caminho": "/home/huske/dev/front/src/hooks/useCashflowView.ts",
+        "api": "useCashflowView(year) → { data, loading, error, refetch, processedData, derived, collapsible }",
+        "uso": "DataTableTwo (desktop) e CashflowMonthView (A)."
+      },
+      {
+        "nome": "useCashflowMutations",
+        "caminho": "/home/huske/dev/front/src/hooks/useCashflowMutations.ts",
+        "api": "saveItemChanges({ groupId, updates?, deletes? }) → { ok: true, results } | { ok: false, error, results? } (+ httpOk); createItem; reorderItem → boolean; moveItem → { ok } | { ok: false, error }; fetchCellComment; saveCellComment",
+        "uso": "DataTableTwo, useCommentModal, sheets (B) e modo reordenar (A)."
+      },
+      {
+        "nome": "itemCapabilities",
+        "caminho": "/home/huske/dev/front/src/lib/cashflow/itemCapabilities.ts",
+        "api": "getItemCapabilities(item, group) (com dividaId), READONLY_REASON_TEXT, getGroupCapabilities, groupDisplayName, DESPESAS_PERCENT_STYLE",
+        "uso": "A, B e componentes do desktop (só helpers visuais)."
+      },
+      {
+        "nome": "derivedIndices",
+        "caminho": "/home/huske/dev/front/src/services/cashflow/derivedIndices.ts",
+        "api": "savingsIndex, peaceIndex, inflacaoPessoalPorMes, inflacaoPessoalAnual",
+        "uso": "Linhas de índice do desktop e monthViewModel (A)."
+      },
+      {
+        "nome": "MonthStepper / useMonthSwipe",
+        "caminho": "/home/huske/dev/front/src/components/cashflow/mobile/MonthStepper.tsx",
+        "api": "<MonthStepper year month onChange onYearChange? monthStatus? monthSummaries? trailing? />; useMonthSwipe(ref, { onPrev, onNext }); rótulo com data-mf-month-label",
+        "uso": "Visão do mês (A) e Orçamento mobile (D). O lançamento rápido (C) usa um trilho de chips próprio, como no protótipo."
+      },
+      {
+        "nome": "monthParam",
+        "caminho": "/home/huske/dev/front/src/lib/cashflow/monthParam.ts",
+        "api": "readMesParam(); writeMesParam(m | null)",
+        "uso": "A e D (mesmo mês entre Planilha e Orçamento) e e2e."
+      },
+      {
+        "nome": "cashflowEvents",
+        "caminho": "/home/huske/dev/front/src/lib/cashflow/cashflowEvents.ts",
+        "api": "emitCashflowFlash({ itemId, year, month }), onCashflowFlash(cb); emitOpenLancamento(), onOpenLancamento(cb)",
+        "uso": "C emite o flash e ouve o open; A ouve o flash e emite o open no estado vazio."
+      },
+      {
+        "nome": "cellColor",
+        "caminho": "/home/huske/dev/front/src/lib/cashflow/cellColor.ts",
+        "api": "normalizeCellColor(c) → CashflowColorValue | null (hex ou token); cellColorLabel(c)",
+        "uso": "Ponto de situação (A) e SituacaoPicker (B)."
+      },
+      {
+        "nome": "BottomSheet com pilha de camadas",
+        "caminho": "/home/huske/dev/front/src/components/ui/sheet/BottomSheet.tsx + layerStack.ts",
+        "api": "Mesmas props; Esc/Tab só no topo; useTopLayer(isOpen) → { isTop }",
+        "uso": "Todos os sheets e overlays próprios (grade do ano e importação)."
+      },
+      {
+        "nome": "MobileSaveToast (com action)",
+        "caminho": "/home/huske/dev/front/src/components/ui/sheet/MobileSaveToast.tsx",
+        "api": "{ message, durationMs?, onDismiss, action?: { label, onClick } }; ação em text-mf-tranquilidade dark:text-mf-seguranca; 6s com action",
+        "uso": "'Salvo' (A/B, sem action) e 'Lançado · Desfazer' (C)."
+      },
+      {
+        "nome": "ComponentCard.bodyClassName",
+        "caminho": "/home/huske/dev/front/src/components/common/ComponentCard.tsx",
+        "api": "bodyClassName?: string, concatenada ao corpo e ao div interno",
+        "uso": "A (max-lg:overflow-visible para o sticky)."
+      },
+      {
+        "nome": "CashflowEditSheets (contrato)",
+        "caminho": "/home/huske/dev/front/src/components/cashflow/mobile/CashflowEditSheets.tsx",
+        "api": "{ year, groups, itemTotals, target, onTargetChange, onSaved(msg, { itemId?, month? }), onStartReorder(groupId) }; target = cell (com view?) | group | add-item, sempre com ids",
+        "uso": "A monta; B implementa."
+      },
+      {
+        "nome": "CashflowYearGridSheet (contrato)",
+        "caminho": "/home/huske/dev/front/src/components/cashflow/mobile/CashflowYearGridSheet.tsx",
+        "api": "{ isOpen, onClose, year, month, onPickMonth(m), onPickCell?(itemId, groupId, m) }",
+        "uso": "A monta; D implementa."
+      },
+      {
+        "nome": "orcamentoNivel",
+        "caminho": "/home/huske/dev/front/src/lib/cashflow/orcamentoNivel.ts",
+        "api": "rankDoConsumo (movido; orcamentoAlertas re-exporta); nivelOrcamento(real, meta, isInvestimentos)",
+        "uso": "Orçamento mobile (D) e alertas do servidor."
+      },
+      {
+        "nome": "lancamentoFluxo / lancamentoRapidoSchema / linhasEditaveis",
+        "caminho": "/home/huske/dev/front/src/services/cashflow/lancamentoFluxo.ts; /home/huske/dev/front/src/lib/cashflow/lancamentoRapidoSchema.ts; /home/huske/dev/front/src/services/cashflow/linhasEditaveis.ts",
+        "api": "resolverLancamentoPorItem, celulasDoLancamento, aplicarLancamento(auth, req, l, { origem, carimbar }), posProcessarLancamento; schema strict; listarLinhasEditaveis (isomórfico)",
+        "uso": "Rota lancamento-rapido e assistente (C)."
+      },
+      {
+        "nome": "Primitivos das fases 0/1 (sem mudança)",
+        "caminho": "/home/huske/dev/front/src/components/ui/sheet/{MobileEditSheet,MobileNumberField}.tsx, /home/huske/dev/front/src/components/ui/table/CardSectionBand.tsx, TABLE_MOBILE_STYLES, /home/huske/dev/front/src/components/ui/tabs/ResponsiveTabNav.tsx (MOBILE_SEGMENTED_*), /home/huske/dev/front/src/hooks/useKeyboardInset.ts, /home/huske/dev/front/src/lib/ui/numberInput.ts, /home/huske/dev/front/src/hooks/useUndoAlteracao.ts, /home/huske/dev/front/src/utils/formulaParser.ts",
+        "api": "Contratos existentes. MobileEditSheet é usado com showSavedToast={false} quando quem chama mostra o aviso.",
+        "uso": "A–D."
+      },
+      {
+        "nome": "Helpers de e2e",
+        "caminho": "/home/huske/dev/front/e2e/helpers/fluxo.ts; routes.ts; desktopStructure.ts",
+        "api": "gotoFluxo({ modo?, mes? = 7 }), waitFluxoMobileReady, monthLabel, rowByName (expande 'Mostrar N'), fluxoMobileReadyOrSkip",
+        "uso": "Todos os specs da fase."
+      }
+    ],
+    "lancamento_rapido": "Rota: POST /api/cashflow/lancamento-rapido (src/app/api/cashflow/lancamento-rapido/route.ts), com withErrorHandler.\n\nAuth e CSRF\n- requireAuthWithActing + logSensitiveEndpointAccess.\n- CSRF: middleware em POST e csrfFetch no cliente.\n- Consultor personificando é permitido (P6), marcado viaConsultant no histórico. O /api/assistente/confirmar continua bloqueando consultor.\n\nValidação: zod .strict() em src/lib/cashflow/lancamentoRapidoSchema.ts.\n- Campos: itemId, valor (> 0 e ≤ 1e10), ano (2000–2100), mes (0–11), recorrente, mesFim (só com recorrente, ≥ mes), descricao (≤ 200), confirmar e aceitaReducao.\n- NÃO aceita `modo`. A regra é a do assistente: lançamento único SOMA; recorrente DEFINE de mes até mesFim (padrão dezembro), sem tocar em meses anteriores.\n\nResolução\n- getMergedCashflowGroups(targetUserId, ano) + listarLinhasEditaveis (movido para src/services/cashflow/linhasEditaveis.ts).\n- A linha precisa estar na árvore do targetUserId, ser entrada ou despesa, visível, sem sonho, sem dívida e não investimento. Isso cobre IDOR e linhas automáticas.\n- Se não passar: 422 'Linha não encontrada ou não editável.'\n\nRespostas\n- confirmar=false → { ok, previa: { itemNome, trilha, tipo, celulas: [{ mes, valorAtual, valorNovo, diminui, temFormula }] } }, SEM escrita.\n- confirmar=true com alguma célula diminuindo e sem aceitaReducao → 409 com a prévia.\n- Senão → aplicarLancamento → { ok, previa, resultado: { itemId (já personalizado), grupoNome, celulas }, changeLogId }.\n\nGravação: é o corpo atual do aplicarProposta, MOVIDO para src/services/cashflow/lancamentoFluxo.ts.\n- ensurePersonalizedItem (clone-on-write).\n- $transaction que relê cada célula e grava valor com formula null.\n- Carimbo no comentário, controlado pelo parâmetro `carimbar`: 'sempre' no assistente (idêntico a hoje); 'com-descricao' no lançamento rápido (P5), com o sufixo '(lançamento rápido)'.\n- UMA entrada no histórico: 'valor.editar' (snapshot cashflow-valor) ou 'valores.editar-recorrente'. As duas já são desfazíveis.\n- posProcessar: evolução, alertas do orçamento, contexto.\n- recordChange passa a devolver o id (Promise<string | undefined>, compatível), que vira changeLogId.\n\nAssistente sem quebra\n- assistente/lancamento.ts mantém todos os exports. Proposta = LancamentoResolvido & { id, mensagemId, expiraEm }.\n- aplicarProposta delega com origem 'assistente' e carimbar 'sempre'.\n- contexto.ts re-exporta listarLinhasEditaveis.\n- lancamento.test.ts, contexto.test.ts e a rota confirmar ficam SEM edição e verdes.\n\nFront\n- LaunchSheet: 'Despesa ou receita' vira um botão e abre o LancamentoRapidoSheet (montado no MobileTabBar, em qualquer tela).\n- Fluxo do sheet: tipo, valor, linha (Recentes + busca sem acento), mês (chips), 'Definir este valor em todo mês até…', descrição, Revisar, prévia antes → depois (reduções em vermelho, checkbox obrigatório), 'Lançar R$ X' (desabilitado enquanto pendente).\n- No sucesso: invalida queryKeys.cashflow.all, grava o recente com o itemId devolvido e a trilha, emite o flash da linha e mostra o toast de 6s com Desfazer (useUndoAlteracao(changeLogId), que já invalida o fluxo). Um 409 LIFO mostra a mensagem do servidor.\n\nLimitação documentada: o desfazer restaura o valor, mas não a fórmula nem o carimbo. Por isso a prévia avisa sobre fórmula, e o carimbo só entra quando há descrição.",
+    "plano_qa": "QA DESKTOP (1280×800, 1024×768 e 1440×900; build de produção; comparar com a base feat/pwa-fase0)\n\ne2e/desktop-fluxo.spec.ts (NOVO, CI):\n- compara a estrutura (abas, th, colunas, classes normalizadas) com a baseline gravada ANTES do refactor (commit 1 da fatia 0);\n- screenshot fullPage local, com máscara de valores e da coluna do mês atual;\n- cenários:\n  - planilha @1280 e @1024;\n  - Recolher e Expandir tudo;\n  - grupo em modo edição cancelado;\n  - Importar aberto e fechado pelo botão;\n  - Orçamento em Mês, Acumulado e Consolidado.\n\nOutros testes:\n- desktop-layout.spec continua verde;\n- mobileArtifactsVisible = 0, incluindo [data-mf-fluxo-mobile], [data-mf-year-grid] e [data-mf-card].\n\nManual no desktop:\n- arrastar linha dentro e entre seções;\n- fórmula '=100+50';\n- modo comentário e modo cor;\n- Salvar grupo (alerta 'Alterações salvas', orçamento atualizado);\n- adicionar linha;\n- excluir sonho (confirm);\n- tentar excluir dívida (o comportamento atual fica igual);\n- importar (prévia);\n- seletor de ano;\n- meta inline do orçamento, com as cores da tabela iguais às de hoje (incluindo exatamente 80%);\n- histórico: as mesmas entradas de antes para salvar, mover e comentar;\n- assistente: lançar pelo chat e ver o carimbo '(assistente)' idêntico.\n\nRevisão de diff: arquivos de desktop só podem ACRESCENTAR tokens max-lg:, data-attributes, props opcionais com padrão igual ao atual, ou extrações (imports). A troca de max-lg:h-[calc…] por max-lg:h-auto na page.tsx afeta só abaixo de lg.\n\nQA MOBILE (build de produção, DevTools a 390×844, 360×800, 320×640 e paisagem 844×390; claro e escuro; cliente e consultor personificando)\n\nVisão do mês:\n- setas, swipe e sheet de meses com os saldos;\n- Dez→Jan troca o ano;\n- ?mes= sobrevive ao reload e é compartilhado com o Orçamento;\n- barra do mês grudada ao rolar;\n- valores iguais à coluna do desktop (3 meses, com Saldo C/C anterior, Inflação Pedro, Poupança, Fluxo livre, Evolução e Paz);\n- ponto de situação com o nome certo, incluindo células antigas 'red'/'green';\n- 'Mostrar N linhas sem valor';\n- estados vazio, carregando e erro.\n\nEdição:\n- valor e fórmula pela barra de teclas, incluindo '−';\n- fórmula inválida trava o Salvar;\n- situação, comentário, renomear/porquê/nível, mover para cima/baixo, para outra seção e o modo 'Reordenar linhas' do grupo;\n- excluir (e sonho);\n- adicionar linha;\n- dívida: sem excluir nem renomear;\n- Aporte/Resgate só leitura;\n- falha mantém o sheet aberto;\n- Esc fecha só o sheet do topo;\n- o teclado não cobre o campo.\n\nAno inteiro:\n- coluna Itens ≤ 35% da largura;\n- sem Total fixo;\n- mês atual com barra #0079F2 embaixo e sem texto sobre #0079F2;\n- rola de lado sem arrastar a página;\n- tocar no mês volta;\n- em paisagem, cerca de 8 meses.\n\nOrçamento a 320:\n- selos 'Dentro da meta', 'Atenção', 'Meta atingida', 'Estourou', coerentes com o sino de alertas;\n- editar meta (e Investimentos em %);\n- gráficos sem corte.\n\n+ Lançar:\n- abre em qualquer tela;\n- a prévia confere;\n- um recorrente que reduz exige a confirmação;\n- lançar, ver a linha piscar no Fluxo e Desfazer;\n- desfazer depois de outra edição dá o erro LIFO;\n- o Recente continua funcionando depois do primeiro lançamento numa linha de template.\n\nTambém: importar planilha a 390; alvos ≥ 44px; contraste AA (incluindo a ação do aviso); #0079F2 só em elemento não textual.\n\nE2E NO CI (projeto mobile, banco do seed, build de produção; todos fixam ?mes=7 ou usam 'Mês anterior')\n- Só leitura:\n  - mobile-fluxo.spec (A);\n  - mobile-fluxo-lancamento.spec, até a prévia, sem gravar (C);\n  - mobile-fluxo-orcamento.spec (D);\n  - mobile-fluxo-ano.spec (D);\n  - mobile-overflow.spec com a /fluxodecaixa (A);\n  - mobile-shell.spec ajustado (0).\n- Grava: mobile-fluxo-edicao.spec (B), em modo serial, só na célula Internet/julho, X→X+1→X com restauração no finally. Nenhum outro spec lê essa célula.\n\nREVISOR DE CÓDIGO (skill code-review)\n- Nenhum fetch novo fora de useCashflowMutations e useLancamentoRapido.\n- Nenhuma regra duplicada: formulaParser, derivedIndices, itemCapabilities, orcamentoNivel e useCashflowView são a fonte única.\n- saveItemChanges não mudou o comportamento do desktop.\n- Sheets re-resolvem ids depois da personalização.\n- Stubs substituídos com as MESMAS props.\n- memo nas linhas.\n- aplicarProposta idêntico e testes do assistente sem edição.\n- layerStack sem vazamento (pop no unmount).\n\nSEGURANÇA (skill security-review)\n- Rota lancamento-rapido:\n  - zod strict e limites;\n  - CSRF;\n  - requireAuthWithActing com o targetUserId em todas as consultas;\n  - linha validada contra a árvore do usuário (sem IDOR, sem template oculto);\n  - prévia sem escrita;\n  - 409 de redução;\n  - personificação registrada;\n  - comentário truncado em 2000.\n- recordChange best-effort.\n- Undo pela rota existente (dono, LIFO).\n- Sem dangerouslySetInnerHTML.\n- Recentes em localStorage só com id, nome e trilha, com chave por usuário.",
+    "riscos": [
+      "REJEITADO em parte (crítica do Desfazer em tudo): o protótipo pede Desfazer depois de salvar valor, renomear, mover e excluir, mas o histórico não suporta isso: lote sem before, sem handler de item.mover, reorder nem registrado, e excluir sonho apaga o objetivo. Fica fora da fase 2 (P1). Se o dono quiser, é trabalho de backend novo: snapshot por célula no batch-update, handlers de mover e restauração de exclusão.",
+      "REJEITADO (sugestão de colocar a guarda de desktop dentro do desktop-layout.spec, como o designer propôs): a guarda vai num arquivo NOVO, desktop-fluxo.spec, para não criar arquivo em comum com outras guardas e para gravar a baseline no commit 1 da fatia 0. A cobertura é a mesma.",
+      "REJEITADO (critério do e2e da crítica, só alterar o tokenizer do formulaParser para aceitar '−'): isso mudaria o servidor e o desktop. A tecla insere '-' ASCII. Colar '−' de fora continua dando erro de fórmula, que aparece na prévia.",
+      "Refactor do DataTableTwo na fatia 0 pode mudar ordem de alertas ou invalidações. Mitigação: baseline antes, testes dos corpos de request, QA manual de DnD, salvar e comentário.",
+      "useIsBelowLg: no celular o primeiro render é o do desktop, até a hidratação; montar as duas árvores via CSS seria pesado (grade de cerca de 200×17 células + dnd-kit). O desktop não muda.",
+      "Personalização (clone-on-write) troca ids: sheets e Recentes re-resolvem; o reorder de template não faz refetch no sucesso (comportamento atual).",
+      "saveItemChanges passa a ler results; o desktop continua ignorando recusas parciais, como hoje (P7).",
+      "Estado recolhido compartilhado entre celular e computador (P10).",
+      "A remoção do assert 'documento não rola' no mobile-shell.spec muda uma garantia da fase 0: a /fluxodecaixa passa a rolar de propósito. A cobertura de 'cabe sem corte' vai para o mobile-overflow.",
+      "O e2e de edição grava no banco compartilhado. Serial, uma célula exclusiva e restauração em finally; a entrada 'valores.editar-lote' e o recompute de snapshots ficam como resíduo até o próximo re-seed do CI. Rodando localmente, o histórico acumula.",
+      "O desfazer do lançamento não restaura a fórmula nem o carimbo (limitação do handler valor.editar). Mitigado com o aviso de fórmula e o carimbo só com descrição.",
+      "Não há idempotência no servidor para toque duplo; a mitigação é o botão desabilitado enquanto pendente.",
+      "Os e2e de B e D dependem da A e usam skip nos worktrees; só são validados de verdade no integrador. O integrador precisa conferir que NÃO ficaram em skip no CI (o [data-mf-fluxo-mobile] tem que existir).",
+      "A 320px o topo ainda ocupa espaço (cabeçalho da casca, h1, barra do mês e abas). Só a barra do mês é sticky e o resumo compacta abaixo de 360; validar visualmente.",
+      "Teclado decimal do iOS e barra de teclas: testar em iPhone real na fase 5.",
+      "Performance com cerca de 200 linhas em aparelho fraco: memo e linhas zeradas recolhidas.",
+      "Mover rankDoConsumo para lib isomórfica toca um serviço do servidor (re-export); coberto pelos testes existentes do orcamentoAlertas.",
+      "Níveis do orçamento: o mobile passa a usar os limiares do alerta, e o desktop mantém ≤ 80 como OK até decisão (P9). Com consumo exatamente em 80%, a tabela desktop fica verde enquanto o cartão mobile diz 'Atenção'."
+    ],
+    "perguntas_para_wellington": [
+      "P1 (divergência designer × arquiteto). Desfazer depois de salvar valor, renomear, mover ou excluir pelo celular: o protótipo mostra, mas o histórico atual NÃO sabe desfazer essas ações (o salvamento em lote é bloqueado de propósito; mover e reordenar não têm desfazer; excluir sonho apaga o objetivo). Recomendação: na fase 2, aviso 'Salvo' sem Desfazer (igual ao computador); Desfazer só no lançamento rápido. Desfazer em tudo vira um projeto de backend separado. O protótipo precisa ser ajustado.",
+      "P2. Linhas sem valor no mês (o modelo tem cerca de 200): mostrar todas ou esconder? Recomendação: em cada grupo, só as preenchidas + 'Mostrar N linhas sem valor'.",
+      "P3 (divergência). 'Ano inteiro': o designer faz cada valor da grade abrir o sheet de edição (cerca de 2.400 botões); o arquiteto faz só leitura, e tocar no nome do mês volta para a visão daquele mês, onde tudo é editável. Recomendação: só leitura com salto para o mês (mais leve e reaproveita a planilha atual). O contrato já deixa espaço para ligar o toque na célula depois.",
+      "P4 (divergência de tamanho). Grade do ano: sem a coluna Total fixa no celular (o total já aparece na visão do mês) e Itens com 128px, ficando perto de 33% da tela a 390. Recomendação: sim; com Total fixo sobra menos de 2 meses visíveis em pé.",
+      "P5. Descrição do lançamento rápido: carimbar o comentário da célula ('Gasto de R$ 45,90 — pão (lançamento rápido)') só quando houver descrição? Recomendação: sim; o assistente continua carimbando sempre, como hoje. O desfazer não apaga o carimbo.",
+      "P6. Consultor personificando pode usar o lançamento rápido? Recomendação: sim, como já edita a planilha; fica registrado 'via consultor'.",
+      "P7. Linha de dívida: o servidor recusa excluir, mas o computador mostra o botão Excluir e a recusa passa em silêncio. Recomendação: no celular, esconder Excluir/Renomear de dívida com 'Gerida em Dívidas'; no computador, corrigir depois, fora da fase 2, porque muda o desktop.",
+      "P8 (divergência). E2E do lançamento no CI: o designer grava R$ 1,23 e desfaz; o arquiteto vai só até a prévia. Recomendação: só até a prévia (a prévia já chama a rota real); gravar e desfazer fica no teste da rota e no QA manual, porque o desfazer deixa o carimbo e pode disparar alerta de orçamento.",
+      "P9 (divergência de rótulo e limite). Orçamento: o selo OK do protótipo se chama 'No limite', que soa como 'no teto', e a tabela do computador trata 80% como OK enquanto o sino avisa 'atenção' em 80%. Recomendação: no celular, 'Dentro da meta' (< 80%), 'Atenção' (80–99%), 'Meta atingida' (100%) e 'Estourou' (> 100%), iguais aos alertas. Alinhar também a cor da tabela do computador em 80% exato? Sugiro sim, numa mudança pequena e separada.",
+      "P10. Recolher/expandir grupos: compartilhar a preferência entre celular e computador (mesma chave de hoje)? Recomendação: compartilhar.",
+      "P11 (divergência). Depois de lançar pelo + Lançar em outra tela, o protótipo mostra 'a linha aberta e piscando no Fluxo'. Levar a pessoa para o Fluxo ou ficar onde está? Recomendação: ficar na tela atual com o aviso e o Desfazer; se ela já estiver no Fluxo, a visão pula para o mês, abre o grupo e pisca a linha.",
+      "P12 (divergência de nome). Orçamento no celular: o protótipo chama 'Só pago/recebido' o que no computador é 'Consolidado'. Recomendação: manter 'Consolidado' nos dois (ou renomear nos dois numa mudança própria).",
+      "P13. 'Repetir todo mês' SUBSTITUI o valor de cada mês (regra do assistente) e pode apagar um valor maior. Recomendação: renomear para 'Definir este valor em todo mês até…', mostrar em vermelho os meses que diminuem e exigir confirmação quando algum mês diminuir.",
+      "P14. Mês inicial: mês atual (dezembro em ano passado, janeiro em ano futuro), guardado na URL (?mes=) e compartilhado com o Orçamento; o lançamento rápido abre no mês de hoje. Recomendação: sim.",
+      "P15. Segunda informação da linha: só o valor do mês por padrão, com 'Mostrar total do ano' no ⋯ (o protótipo mostra 'ano R$ …' ligado por padrão). Recomendação: ligado por padrão, como no protótipo, podendo desligar."
+    ]
+  },
+  "design": {
+    "resumo": "Atualizei o protótipo da fase 2 no mesmo arquivo, alinhado ao arquiteto em quase tudo.\n\n- **Desfazer.** No aviso, o Desfazer ficou só no lançamento rápido, porque só ele grava valor.editar / valores.editar-recorrente, que já têm desfazer. Editar valor, renomear, mover, reordenar, adicionar e excluir mostram só \"Salvo\", sem ação. A confirmação de Excluir agora avisa que a exclusão não tem Desfazer.\n- **Grade do ano.** Ficou só leitura, na versão do arquiteto. Tocar no nome do mês no cabeçalho (botão de 84×44) leva à visão do mês. O mês atual é marcado com uma barra de 4px #0079F2 embaixo do nome, e o fundo continua #314666 com texto branco (antes era fundo #0079F2 com texto, o que reprovava). O Total do ano é a última coluna e não fica fixo, então a parte fixa são só os 128px de Itens (33% de 390). Coloquei snap e scroll-padding de 128px.\n- **Topo fixo.** Só a barra do mês fica fixa ao rolar; o segmento Planilha | Orçamento rola junto. Abaixo de 360px o cartão de resumo fica compacto: padding 12 e sem a barra despesas/entradas.\n- **Fórmula.** A tecla \"−\" insere o hífen ASCII, e o parser do protótipo deixou de aceitar U+2212, como o formulaParser real.\n- **Orçamento.** Selos \"Dentro da meta\" (<80%), \"Atenção\" (80–100%) e \"Estourou\" (>100%), com o mesmo corte de 80% do orcamentoAlertas. O rótulo volta a ser \"Consolidado\", como no desktop.\n- **Lançamento rápido, recorrente.** O switch agora se chama \"Definir este valor em todo mês\" e diz que troca o valor. Na prévia, os meses que diminuem aparecem em vermelho com \"diminui R$ X\", e o Lançar exige uma confirmação marcada (checkbox nativo; o erro fica em aria-describedby e o foco vai para ele). Cenário novo h5: digitou 42,00 no lugar de 420,00.\n- **Comentário no lançamento.** O carimbo só é gravado quando há descrição (parâmetro carimbar; o assistente continua carimbando sempre). A prévia avisa quando a fórmula da célula vai virar valor fixo.\n- **Recentes do lançamento.** Guardam o itemId que a rota devolve, mais a trilha do grupo.\n- **Falha que responde 200.** Quando o batch-update devolve 200 com results[i].success=false, o sheet trata como falha e mostra o motivo.\n- **Linhas de Dívidas.** Não mostram Renomear nem Excluir; o motivo é \"Gerida em Dívidas\".\n- **Sheets.** Não se empilham: cada ação troca o conteúdo do sheet e oferece Voltar.\n- **Testes.** O e2e do lançamento vai só até a prévia. Para trocar de mês, o teste usa \"Mês anterior\" ou ?mes=6. Os specs que gravam rodam em modo serial com workers:1, e o teste confere que a barra do mês continua visível depois de rolar 800px. A guarda desktop-fluxo fecha o modal de importar pelo botão.\n\nRodei todos os 23 cenários uma vez no Chromium, sem erro de JavaScript. Vi os cenários a, f e h5 a 320px e corrigi dois textos que estouravam ou quebravam no meio do valor: \"diminui R$ X\" na prévia e o \"Saldo C/C anterior\" no resumo. Depois dessas correções não abri o protótipo de novo, e não publiquei como artifact.",
+    "prototipo_path": "/tmp/claude-1000/-home-huske-dev-front/1e033ac6-991e-468f-92d5-d21605cc0a38/scratchpad/pwa-fase2/prototipo.html",
+    "telas": [
+      {
+        "nome": "(a) Visão do mês",
+        "descricao": "h1 'Fluxo de Caixa · 2026' com ⋯. O segmento Planilha | Orçamento fica no topo e rola com a página; a barra do mês é a única parte fixa. Depois vem o cartão com o saldo do mês e as seções agrupadas na ordem da grade, com subtotais e linhas calculadas.",
+        "decisoes": [
+          "CRÍTICA ACEITA (topo come 45% a 320px): só a barra do mês fica fixa, o segmento rola junto e, abaixo de 360px, o resumo fica compacto (padding 12, sem barra)",
+          "Para o sticky funcionar, nenhum ancestral pode ter overflow:hidden abaixo de lg (ComponentCard e wrappers da página, com a altura trocada e não somada). Ficou registrado nas notas.",
+          "'Saldo C/C do mês anterior' com white-space:nowrap no valor",
+          "A cor de situação continua como PONTO, com o valor em texto neutro. Isso diverge do arquiteto (spec A item 5 pinta o texto) e está nas perguntas; o crítico concordou com o ponto"
+        ]
+      },
+      {
+        "nome": "(b) Trocar de mês",
+        "descricao": "Setas de 44px, deslizar a lista ou abrir o sheet com os 12 meses.",
+        "decisoes": [
+          "Sem mudança de desenho; o e2e usa 'Mês anterior' ou ?mes=6 para não cair em janeiro de um ano sem seed"
+        ]
+      },
+      {
+        "nome": "(c) Editar valor da célula + fórmula",
+        "descricao": "Sheet com o valor (teclado decimal), a barra '= + − × ÷ ( )', a situação, o comentário e o gráfico do ano. Salvar mostra o aviso 'Salvo', sem ação.",
+        "decisoes": [
+          "CRÍTICA ACEITA: não há Desfazer depois de salvar (valores.editar-lote não guarda o valor anterior e está fora do UNDO_REGISTRY)",
+          "CRÍTICA ACEITA: a tecla '−' mostra U+2212 mas insere o '-' ASCII; o parser do protótipo não aceita mais '−', igual ao formulaParser",
+          "A gravação só conta como feita se results[i].success do batch-update for true"
+        ]
+      },
+      {
+        "nome": "(d) Ações da linha e do grupo",
+        "descricao": "No sheet da célula: Renomear e porquê, Mover e Excluir. No ⋯ do grupo: Adicionar linha, Reordenar e Recolher. Todas as ações terminam com o aviso sem Desfazer.",
+        "decisoes": [
+          "CRÍTICA ACEITA: a confirmação de Excluir diz que a exclusão não tem Desfazer; a de linha de sonho avisa que o objetivo do Planejamento também sai",
+          "Linhas de Dívidas: sem Renomear e sem Excluir, com o motivo 'Gerida em Dívidas' (canDelete/editStructure = ... && !dividaId)",
+          "CRÍTICA ACEITA (sheets aninhados): cada ação troca o conteúdo do sheet e oferece Voltar; nunca há dois sheets abertos ao mesmo tempo",
+          "Reordenar: o texto registra que o item/reorder não entra no histórico hoje (changes: [])"
+        ]
+      },
+      {
+        "nome": "(e) Falha ao salvar",
+        "descricao": "O sheet fica aberto com o valor digitado e a mensagem em role=alert.",
+        "decisoes": [
+          "CRÍTICA ACEITA: HTTP 200 com results[i].success=false também conta como falha, com o motivo do servidor no alerta"
+        ]
+      },
+      {
+        "nome": "(f) Ano inteiro",
+        "descricao": "Grade de 12 meses em tela cheia, só leitura. A coluna Itens (128px) fica fixa; o Total do ano é a última coluna e não fica fixo. O cabeçalho de 44px é #314666; cada mês é um botão que abre aquele mês na visão do mês, e o mês atual tem uma barra inferior de 4px #0079F2.",
+        "decisoes": [
+          "CRÍTICA ACEITA: o mês atual não usa mais fundo #0079F2 com texto; fica só a barra não textual e o peso 700",
+          "CRÍTICA ACEITA (divergência com o arquiteto): segue a versão dele, só leitura (DataTableTwo readOnly) com salto para o mês; nada de sheet por cima da grade nem de ~2.400 botões",
+          "CRÍTICA ACEITA: as colunas fixas somam só 128px (33% de 390); o Total não fica fixo",
+          "CRÍTICA ACEITA: scroll-snap-align:start nos meses com scroll-padding-left:128px, e borda direita na coluna de itens"
+        ]
+      },
+      {
+        "nome": "(g) Orçamento vs Real",
+        "descricao": "Segmentos Mês | Acumulado e Lançado | Consolidado, resumo com medidor, avisos e categorias com os selos 'Dentro da meta', 'Atenção' e 'Estourou', rosca e barras horizontais.",
+        "decisoes": [
+          "CRÍTICA ACEITA: 'No limite' virou 'Dentro da meta', e o corte do OK passou a ser <80, igual ao orcamentoAlertas (80% exatos já dão Atenção)",
+          "CRÍTICA ACEITA: o rótulo volta a ser 'Consolidado', como no desktop",
+          "A troca do wrapper do orçamento e o expectFitsWithoutClip de ?modo=orcamento ficam na fatia D (questão da divisão em fatias, não do desenho)"
+        ]
+      },
+      {
+        "nome": "(h) + Lançar → Despesa ou receita",
+        "descricao": "Tipo, valor, linha (sugestões + busca), mês, 'Definir este valor em todo mês', descrição e prévia. Os meses que diminuem aparecem em vermelho e pedem confirmação. Depois de lançar, o aviso 'Lançado: …' traz Desfazer.",
+        "decisoes": [
+          "CRÍTICA ACEITA: o switch diz o efeito ('Definir este valor em todo mês … troca o valor de cada mês'); a prévia marca 'diminui R$ X' e o Lançar exige a confirmação (cenário h5)",
+          "CRÍTICA ACEITA: carimbo no comentário só com descrição (aplicarLancamento com carimbar; o assistente segue em true e fica igual); a prévia avisa quando a fórmula vira valor fixo",
+          "CRÍTICA ACEITA: os Recentes guardam o itemId devolvido pela rota e a trilha do grupo",
+          "É o único aviso com Desfazer na fase 2: historicoId + useUndoAlteracao, com o 409 LIFO mostrando a mensagem do servidor",
+          "Invalidação: queryKeys.cashflow.all (como o arquiteto)"
+        ]
+      },
+      {
+        "nome": "(i) Importar planilha",
+        "descricao": "Pelo ⋯: tela cheia em 3 passos.",
+        "decisoes": [
+          "A baseline de desktop fecha o modal pelo botão; Esc e aria-modal ficam para a fatia D"
+        ]
+      },
+      {
+        "nome": "(j) Vazio / carregando / erro",
+        "descricao": "Mês vazio, planilha em branco, skeleton e ErrorState.",
+        "decisoes": ["Sem mudança"]
+      },
+      {
+        "nome": "(k) Desktop inalterado",
+        "descricao": "Miniatura da planilha atual.",
+        "decisoes": [
+          "A guarda desktop-fluxo.spec é gravada antes de qualquer refatoração e roda no CI"
+        ]
+      }
+    ],
+    "especificacao_visual": "Mesma base da v1: casca da fase 0, tokens da fase 1, fonte Outfit e gutter de 16px. Abaixo, só o que mudou.\n\nTOPO\n- Segmento Planilha | Orçamento: rola com a página (bloco .segwrap, padding 4/8).\n- Barra do mês: única parte sticky (top: var(--mf-header-h)), com borda inferior quando gruda.\n- Abaixo de 360px, o resumo fica com padding 12 e número de 24px, sem a barra despesas/entradas.\n- O valor do \"Saldo C/C anterior\" não quebra linha.\n\nAVISO\n- Sem ação: \"Salvo\" por 4s.\n- Com Desfazer: só no lançamento rápido, por 6s, com botão de 44px.\n- Claro: fundo #2D2D2D e ação #6E9DC4 (4,8:1).\n- Escuro: fundo #EAEAEA e ação #314666 (7,9:1).\n\nGRADE DO ANO (só leitura)\n- Coluna de itens: 128px, sticky, com borda direita.\n- Meses: 84px com scroll-snap-align:start; o contêiner tem scroll-snap-type x proximity e scroll-padding-left 128px.\n- Linhas: 40px (não são alvos de toque).\n- Cabeçalho: 44px, #314666 com texto branco 11px em caixa alta. Cada mês é um botão de 84×44 com foco em contorno branco inset.\n- Mês atual: box-shadow inset 0 -4px 0 #0079F2, peso 700 e aria-current=date. A coluna ganha tint #0079F2 8% (16% no escuro).\n- Total do ano: última coluna, sem sticky.\n\nORÇAMENTO\n- Selos: \"Dentro da meta\" (azul, <80%), \"Atenção\" (âmbar #B45309/#D97706, 80–100%) e \"Estourou\" (#D92D20/#F97066, >100%).\n- Segmentos \"Lançado | Consolidado\".\n\nLANÇAMENTO RÁPIDO\n- Linha da prévia que diminui: valor em var(--neg), com \"diminui R$ X\" em 12px/500 na linha de baixo, alinhado à direita.\n- Confirmação: .ack com mínimo de 44px, padding 10/12, raio 12, fundo neg-tint, checkbox de 22px com accent #396CAA (#6E9DC4 no escuro). O erro fica embaixo, em err-t.\n- Switch: \"Definir este valor em todo mês\", com legenda \"De out até dez · troca o valor de cada mês\".\n\nESTADOS NOVOS\n- Recusado pelo servidor (200 com success=false): igual à falha.\n- Linha de Dívidas: ações de estrutura escondidas, com o motivo.\n\nDARK MODE E ANIMAÇÕES\nSem mudança além do que está acima. prefers-reduced-motion continua desligando slide, pisca, skeleton e sheets.",
+    "acessibilidade": [
+      "Alvos ≥ 44px em tudo que se toca. A grade do ano é só leitura: as células de 40px não são alvos, e os botões de mês do cabeçalho têm 84×44.",
+      "Grade do ano: <table> com th scope. O contêiner rolável tem tabindex=0 e aria-label. Cada mês do cabeçalho é um botão 'Abrir setembro na visão do mês'; o atual tem aria-current=date e a marca visual não depende só de cor (barra + peso 700). O foco volta ao nome do mês na visão do mês.",
+      "Sheets não se empilham: cada ação troca o conteúdo e tem Voltar de 44px. Assim só um diálogo escuta Esc e prende o Tab. Isso resolve o conflito do BottomSheet com vários listeners de keydown.",
+      "Confirmação de meses que diminuem: checkbox nativo com rótulo completo ('3 meses vão diminuir. Confirmo que quero trocar o valor de out, nov, dez por R$ 42,00'). O erro fica em aria-describedby e o foco vai para o checkbox ao tentar lançar sem marcar. A prévia está numa região aria-live e diz 'diminui R$ X' em texto, não só em vermelho.",
+      "Teclas de fórmula com nome ('Menos' etc.). A tecla '−' insere '-', então o valor é aceito pelo parser real.",
+      "Aviso em role=status aria-live=polite. Só o do lançamento rápido tem o botão Desfazer (44px, 6s); os demais duram 4s, sem ação.",
+      "Contraste do aviso: #6E9DC4 sobre #2D2D2D 4,8:1 e #314666 sobre #EAEAEA 7,9:1. A combinação da spec do arquiteto (patrimônio sobre potência 2,6:1, tranquilidade sobre escolha 2,4:1) reprova.",
+      "Cabeçalho da grade do ano: branco sobre #314666 (~10:1). #0079F2 não é mais fundo de texto.",
+      "Selos do orçamento sempre com palavra: Dentro da meta, Atenção, Estourou.",
+      "Mantidos da v1: faixas com aria-expanded e o subtotal no nome, linhas com nome acessível completo, troca de mês em aria-live, role=dialog + aria-modal nos sheets, radiogroup/switch/listbox, prefers-reduced-motion."
+    ],
+    "perguntas_para_wellington": [
+      "Desfazer no aviso só no lançamento rápido, como o arquiteto decidiu? Editar valor, renomear, mover e excluir mostrariam só 'Salvo'. A v1 prometia Desfazer em tudo, mas isso não dá para fazer hoje: o batch-update não guarda o valor anterior, mover não tem desfazer e reordenar nem entra no histórico. Recomendo só no lançamento rápido nesta fase. Desfazer em tudo vira um projeto de backend separado.",
+      "Lançamento rápido: lançar em um mês SOMA ao valor; 'Definir este valor em todo mês' TROCA o valor do mês escolhido até dezembro. Os meses que diminuem aparecem em vermelho e o lançamento só sai com uma confirmação marcada. Pode ser assim? Recomendo que sim: evita apagar R$ 1.020 de mercado de cada mês quando alguém digita R$ 45,90.",
+      "Comentário da célula no lançamento rápido: gravar o registro do lançamento só quando houver descrição? O assistente continuaria gravando sempre. Recomendo que sim: sem descrição o registro não acrescenta nada ao Histórico, e o desfazer não apaga o comentário.",
+      "'Ano inteiro' só para consulta, com toque no nome do mês levando à visão do mês para editar (versão do arquiteto)? Recomendo que sim: evita cerca de 2.400 botões na grade e um sheet por cima de outro. Com isso, o Total do ano deixa de ficar fixo e a coluna fixa fica só com os nomes dos itens (33% da tela).",
+      "Cor da situação da célula (Pago, Recebido…) no celular como um PONTO ao lado do valor, com o valor em texto normal? DIVERGE do arquiteto, que pinta o próprio valor. Recomendo o ponto: preto fica ilegível no modo escuro e #FF0000 como texto reprova contraste. O desktop continua como está.",
+      "Só a barra do mês fica fixa ao rolar, e o segmento Planilha | Orçamento rola junto com a página? Recomendo que sim: a 320px, deixar os dois fixos come quase metade da tela.",
+      "Cor do botão Desfazer no aviso: tranquilidade sobre fundo escuro no tema claro e segurança sobre fundo claro no escuro? DIVERGE do arquiteto, que pede patrimônio/tranquilidade. Recomendo a do protótipo: a do arquiteto reprova contraste (2,6:1 e 2,4:1).",
+      "Orçamento no celular com selos 'Dentro da meta' (azul, abaixo de 80%), 'Atenção' (âmbar, de 80% a 100%) e 'Estourou' (vermelho)? O limite muda de 'até 80%' para 'abaixo de 80%', para bater com os alertas do sino. Recomendo que sim, e alinhar no desktop as cores e o limite num PR separado (verde não está na paleta).",
+      "Teste automático do lançamento rápido só até a prévia, sem gravar (versão do arquiteto)? Recomendo que sim, e cobrir a gravação e o desfazer nos testes da rota. Gravar no teste deixa registro no comentário e pode disparar alerta de orçamento.",
+      "Linhas de Dívidas no fluxo sem Renomear e sem Excluir no celular, com o aviso 'Gerida em Dívidas'? Recomendo que sim: o servidor já recusa essas mudanças, e hoje o usuário veria 'Salvo' sem nada ter mudado.",
+      "Fórmula estilo Excel com uma barra de teclas '= + − × ÷ ( )' acima do teclado numérico? A tecla '−' grava o hífen comum. Recomendo que sim.",
+      "Mostrar o total do ano embaixo do valor de cada linha, com opção de esconder no ⋯? Recomendo mostrar por padrão.",
+      "Prévia no próprio formulário e lançamento com um toque, sem tela de confirmação separada? Só aparece a confirmação quando algum mês vai diminuir. Recomendo que sim.",
+      "'Despesa ou receita' abre em qualquer tela? Recomendo que sim.",
+      "No celular, trocar o arrastar por 'Mover' (cima/baixo/outra seção) e por 'Reordenar linhas' com setas? Recomendo os dois.",
+      "'Orçado × real' em barras horizontais no celular? Recomendo que sim.",
+      "Importar planilha no celular (tela cheia, 3 passos, dentro do ⋯)? Recomendo manter.",
+      "No histórico, origem '(lançamento rápido)' em vez de '(assistente)'? Recomendo que sim.",
+      "Tocar numa linha calculada abre um sheet que explica a conta? Recomendo que sim."
+    ]
+  },
+  "revisao": {
+    "problemas": [
+      {
+        "alvo": "ambos",
+        "gravidade": "alta",
+        "descricao": "O designer promete Desfazer depois de salvar valor, renomear, mover e excluir, dizendo que 'o histórico já desfaz, só falta devolver o id'. Isso é falso. O batch-update grava 'valores.editar-lote' sem entityId e sem os valores anteriores, e essa ação está proibida de propósito no UNDO_REGISTRY. 'item.mover' também não tem handler. O reorder chama recordChange com changes: [], que retorna cedo, ou seja, nem entra no histórico. Excluir linha de sonho apaga o PlanejamentoObjetivo de forma irreversível. O protótipo mostra Desfazer nesses fluxos (cenários c, d, d2 e o aviso 'Excluir … e Desfazer no aviso'). O arquiteto decidiu o contrário ('Sem Desfazer nos sheets'). As duas propostas se contradizem, e a versão do protótipo não dá para implementar sem novas rotas e handlers.",
+        "evidencia": "src/services/changeHistory/undo/registry.ts:7 (\"NUNCA registrar ... 'valores.editar-lote' ... bulk sem before\"); src/services/changeHistory/undo/handlers/fluxoCaixa.ts:552-562 (sem item.mover/itens.reordenar); src/app/api/cashflow/batch-update/route.ts:341-349 (recordChange sem entityId/snapshot); src/app/api/cashflow/item/reorder/route.ts:84-92 (changes: [] → recordChange.ts:61 'if (changes && changes.length === 0) return'); prototipo.html:1093, 1941-1956, 2047",
+        "sugestao": "Alinhar o protótipo à decisão do arquiteto: aviso 'Salvo' sem ação nos sheets e Desfazer só no lançamento rápido (valor.editar / valores.editar-recorrente) e no comentário. Se o dono quiser Desfazer em tudo, isso vira trabalho novo de backend: snapshot antes/depois no batch-update por célula e handlers para item.mover e exclusão. Tirar isso da fase 2."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "A fatia A vai quebrar um e2e que já existe e não está na sua lista de arquivos. O mobile-shell.spec verifica que a /fluxodecaixa NÃO rola o documento (scrollHeight ≤ innerHeight+1). A fatia A torna a página rolável de propósito (max-lg:h-auto/overflow-visible). Só a fatia C mexe no mobile-shell.spec, então A fica vermelha sozinha, ou A e C editam o mesmo arquivo, o que contraria a regra de 'fatias sem arquivos em comum'.",
+        "evidencia": "e2e/mobile-shell.spec.ts:229-241 ('/fluxodecaixa: sem rolagem do documento...' expect(scrollHeight).toBeLessThanOrEqual(innerHeight + 1)); spec fatia A 'arquivos_alterados' não inclui mobile-shell.spec; fatia C altera e2e/mobile-shell.spec.ts",
+        "sugestao": "Colocar a troca desse assert na fatia 0 (marcar como test.fixme ou mover o teste de 'sem rolagem' para mobile-fluxo.spec) ou atribuir o arquivo inteiro a uma só fatia."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "O topo sticky da visão do mês (MonthStepper com top: var(--mf-header-h)) não vai grudar. O ComponentCard coloca overflow-hidden fixo no corpo quando o className contém 'flex flex-col', e a página também tem overflow-hidden no ComponentCard e no div interno. Um ancestral com overflow hidden vira o contêiner de rolagem do sticky. A spec só manda acrescentar max-lg:h-auto/overflow-visible no wrapper externo. Além disso, esse wrapper já tem max-lg:h-[calc(100dvh-...)], então somar max-lg:h-auto cria duas utilidades de altura em conflito: quem vence depende da ordem no CSS gerado.",
+        "evidencia": "src/components/common/ComponentCard.tsx:27 ('flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden'); src/app/(admin)/(others-pages)/(tables)/fluxodecaixa/page.tsx: wrapper '... max-lg:h-[calc(100dvh-var(--mf-header-h,0px)-...)] flex flex-col overflow-hidden', ComponentCard className '... overflow-hidden', div interno '... overflow-hidden'",
+        "sugestao": "Na fatia A, trocar (não somar) a altura do wrapper por max-lg:h-auto. Aplicar max-lg:overflow-visible no className do ComponentCard e no div interno. Para o corpo do ComponentCard (hardcoded), aceitar uma prop opcional ou não usar a variante 'flex flex-col' no ramo mobile. Incluir no e2e um assert de que o MonthStepper continua visível depois de rolar 800px."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "O 'Ano inteiro' da fatia D contradiz o próprio critério de aceite. Com Itens a 9.5rem (152px) e Total Anual sticky à direita a 6rem (96px), as colunas fixas ocupam 248px de 390, ou 64%. O critério diz 'não cobrem mais de 45% da largura a 390'. No retrato sobram 142px, cerca de 1,5 coluna de mês de 96px. A grade do designer usa 128px sem Total fixo, então as duas propostas também divergem.",
+        "evidencia": "Spec D item 6 (globals.css: data-cf-fixed='0' 9.5rem; data-cf-annual 6rem) × criterios_aceite D ('colunas fixas não cobrem mais de 45% da largura a 390'); src/components/cashflow/fixedColumns.ts:71 ANNUAL_COLUMN_BODY_STYLE right:0 (sticky); prototipo.html grade 'coluna de itens 128px, mês 84px'",
+        "sugestao": "Abaixo de lg, esconder o Total Anual na grade (ou tirar o sticky dele) e reduzir Itens para cerca de 8rem, ficando perto de 33%. Validar no mobile-fluxo-ano.spec com a medida de largura, não só com 'scrollWidth > clientWidth'."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "alta",
+        "descricao": "O desktop-fluxo.spec do commit 1 (baseline) fecha o modal 'Importar planilha' com Escape. O ImportPlanilhaModal não trata Escape nem tem role=dialog/aria-modal, então o cenário falha já na baseline gravada sobre o código atual. O mesmo modal é montado pela visão do mês (A) sem Esc nem trava de rolagem.",
+        "evidencia": "src/components/cashflow/ImportPlanilhaModal.tsx (grep 'Escape|keydown|aria-modal' vazio; linha 187-188: div data-mf-overlay fixed z-[10000] sem role); spec fatia 0 item 1 ('modal Importar planilha aberto e depois fechado com Escape')",
+        "sugestao": "Na baseline, fechar pelo botão Cancelar/fechar. Se quiser Esc e aria-modal, colocar isso na fatia D (que já edita o modal), com a baseline de desktop regravada de forma consciente."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "saveItemChanges só devolve { ok: false } quando o HTTP falha. O batch-update responde 200 com success: true mesmo quando o item foi recusado (em results[i].success=false): exclusão de linha de dívida, valores de sonho com ativos vinculados, fórmula inválida (a célula é ignorada em silêncio). Além disso, getItemCapabilities põe canDelete = !investimento, o que libera excluir linha de DÍVIDA, e editStructure não barra dividaId, embora o servidor ignore nome/porquê/nível dessas linhas. No celular, o usuário vê 'Salvo' e nada mudou. O contrato '{ok:false} mantém o sheet aberto' nunca dispara nesses casos.",
+        "evidencia": "src/app/api/cashflow/batch-update/route.ts:158-165 (dívida → success:false), 201-208 (sonho auto), 245-252 (fórmula inválida → continue), 362-367 (sempre success:true); src/components/cashflow/EditableItemRow.tsx:66 (canDelete = isEditing && !isInvestmentItem); spec fatia 0 item 8",
+        "sugestao": "Em saveItemChanges, ler results e devolver { ok: false, error: results.find(r => !r.success).error } quando o item-alvo falhar (o desktop continua ignorando, sem mudar comportamento). Em itemCapabilities: canDelete = !investimento && !dividaId e editStructure = ... && !dividaId, com o motivo 'Gerida em Dívidas'."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Os sheets aninhados não funcionam com o BottomSheet atual. Cada instância registra um keydown no document e chama onClose no Esc. stopPropagation não impede outros listeners no mesmo alvo, então Esc fecha todos os sheets empilhados, e as duas armadilhas de foco disputam o Tab. A B abre MobileEditSheet (comentário, renomear) e MoveTargetSheet/ConfirmDeleteSheet a partir de outro sheet aberto. O designer abre o sheet da célula POR CIMA da grade do ano, que também fecha no Esc. Além disso, o MobileEditSheet mostra o próprio toast 'Salvo', e a B ainda chama onSaved: dois avisos.",
+        "evidencia": "src/components/ui/sheet/BottomSheet.tsx:77-82 (document.addEventListener('keydown') + event.stopPropagation(); onCloseRef.current()); src/components/ui/sheet/MobileEditSheet.tsx:232,399 (toast interno, showSavedToast padrão true); spec B itens 1-3; prototipo cenário f 'Toque num valor para editar'",
+        "sugestao": "Na fatia 0: no BottomSheet, só o sheet do topo responde ao Esc e ao Tab (pilha em módulo, ou stopImmediatePropagation com listener em capture no mais recente). Ou definir que cada ação troca o sheet em vez de empilhar. Na B, usar showSavedToast={false} quando chamar onSaved."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "A tecla '−' da barra de fórmula (U+2212) não é aceita pelo parser real. O formulaParser aceita '+', '-', '*', '/', '×' e '÷', mas não '−'. O protótipo converte '−' com um replace próprio e esconde o erro. Na implementação, '=100−50' dá 'Caractere inválido: \"−\"' e o Salvar fica travado.",
+        "evidencia": "src/utils/formulaParser.ts (tokenizer: ops '+','-','*','/', '×' e '÷' 'por tolerância'; sem '−'); prototipo.html:1540 (.replace(/−/g,'-')) e 1562 (tecla '−')",
+        "sugestao": "A tecla mostra '−' mas insere o hífen ASCII '-'. Ou acrescentar '−' ao tokenizer, o que muda o servidor também: avaliar."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "Contraste do aviso com ação (fatia 0). O arquiteto define o botão de ação em mf-patrimonio (claro) / tranquilidade (escuro), mas o fundo atual do MobileSaveToast é bg-mf-potencia (claro) / bg-mf-escolha (escuro). O contraste fica em #396CAA sobre #2D2D2D = 2,56:1 e #6E9DC4 sobre #EAEAEA = 2,40:1, reprovado no AA. O protótipo usa a combinação invertida, que passa (#6E9DC4/#2D2D2D 4,78 e #314666/#EAEAEA 7,94).",
+        "evidencia": "src/components/ui/sheet/MobileSaveToast.tsx:44 ('bg-mf-potencia ... dark:bg-mf-escolha'); spec fatia 0 item 13 ('texto mf-patrimonio/tranquilidade'); prototipo.html:427-429",
+        "sugestao": "Ação do aviso em mf-tranquilidade no claro (sobre potência) e mf-seguranca no escuro (sobre escolha), como no protótipo."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "O cabeçalho do mês atual na grade do ano tem fundo #0079F2 com texto branco. Isso viola a regra '#0079F2 só em elemento NÃO textual' e reprova no AA (branco sobre #0079F2 = 4,19:1, texto de cerca de 12px).",
+        "evidencia": "prototipo.html:689 (table.yg thead th.cur{background:#0079F2}), 1122 ('mês atual #0079F2 com texto branco'); screenshot revisao-f-320.png (célula 'SET')",
+        "sugestao": "Manter #314666 no cabeçalho e marcar o mês atual com uma barra ou borda inferior #0079F2 (não textual), mais o tint na coluna."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "No MonthItemRow, a cor escolhida pelo usuário é aplicada como cor do TEXTO do valor. Com a legenda (#000000 'Pagar/Receber', #0000FF 'Lançamento Futuro', #FF0000), o texto fica ilegível no dark mode (preto sobre #1F1F22 ≈ 1,1:1) e reprova no AA no claro (#FF0000 sobre branco = 4,0:1). O designer resolveu isso com um ponto na cor exata e o valor neutro. As duas propostas divergem e a do arquiteto quebra a regra de contraste.",
+        "evidencia": "src/utils/cashflowColorLegend.ts:19-25; spec A item 5 ('valor ... com style color = cor da célula'); src/components/cashflow/ItemRow.tsx:167 (desktop já faz isso)",
+        "sugestao": "Adotar o ponto do designer no mobile (com o nome da situação no aria-label) e manter o desktop como está. Cuidar das células antigas com token ('red'/'green'): isConsolidadoColor aceita os dois formatos, e o seletor de cor precisa normalizar."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "'Repetir todo mês' no lançamento rápido SUBSTITUI o valor (modo definir), mas vive num formulário de 'lançar despesa'. Quem lança R$ 45,90 em Supermercado com repetição apaga R$ 1.020 de cada mês até dezembro. Além disso, o desfazer não devolve a fórmula nem apaga o carimbo do comentário. A pergunta 5 do arquiteto recomenda carimbar só com descrição, mas a mesma spec manda mover o corpo de aplicarProposta 'idêntico', e hoje o carimbo é SEMPRE gravado ('Gasto de R$ X (assistente)'). Mudar isso altera o assistente, contra o critério 'assistente inalterado'.",
+        "evidencia": "src/services/assistente/lancamento.ts:390-391 (carimbo sem condição), 407-413 (update com formula: null e comment); handlers/fluxoCaixa.ts:96-99 (undo só restaura value); spec C item 3 e pergunta 5",
+        "sugestao": "Nomear o switch pelo efeito ('Definir este valor em todo mês até dezembro'), mostrar na prévia as células que DIMINUEM em vermelho e exigir confirmação quando alguma diminuir. Decidir o carimbo por parâmetro de aplicarLancamento (carimbar: boolean), com o assistente em true."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "A fatia A inclui a verificação expectFitsWithoutClip em /fluxodecaixa?modo=orcamento no mobile-overflow e também troca o wrapper do orçamento para max-lg:overflow-visible. Com isso, a OrcamentoTable de desktop (overflow-x-auto com várias colunas) passa a medir fora do corte. O teste depende da fatia D, que é quem torna o orçamento responsivo, e fica vermelho na A isolada.",
+        "evidencia": "spec A 'mobile-overflow.spec: na /fluxodecaixa e na /fluxodecaixa?modo=orcamento, somar expectFitsWithoutClip'; spec A item 1 'Wrapper do orçamento: max-lg:overflow-visible max-lg:pr-0'; src/components/cashflow/orcamento/OrcamentoTable.tsx:215",
+        "sugestao": "Mover para a D o assert do ?modo=orcamento e a troca do wrapper do orçamento. Ou deixar o wrapper como está na A."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Os e2e mobile dependem da data e rodam em paralelo com gravação. (1) Em dezembro, 'Próximo mês' vira para janeiro do ano seguinte, e o seed só tem o ano corrente e o anterior. Como as linhas zeradas ficam atrás de 'Mostrar N linhas sem valor', rowByName('Supermercado') não acha a linha. (2) Os arquivos rodam em workers paralelos (fullyParallel:false só serializa dentro do arquivo). O mobile-fluxo-edicao grava Internet X→X+1 com o mesmo usuário demo que os outros specs leem. Pior: o batch-update dispara recompute de snapshots e checkOrcamentoAlertas, e restaurar X não remove a entrada 'valores.editar-lote' do histórico.",
+        "evidencia": "playwright.config.ts (fullyParallel:false, sem workers:1); prisma/seed.ts:132-160 (só currentYear e previousYear); spec A e2e (b); spec B e2e (X→X+1→X)",
+        "sugestao": "No teste de mês, usar 'Mês anterior' ou forçar ?mes=6. Colocar os specs que gravam em test.describe.configure({ mode: 'serial' }) e num projeto com workers:1, ou usar um item exclusivo criado no seed para o e2e."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "media",
+        "descricao": "Os 'Recentes' do lançamento rápido guardam itemId, mas o primeiro lançamento numa linha de template personaliza (ensurePersonalizedItem), e o id muda. Da próxima vez, o recente aponta para um id que resolverLancamentoPorItem não acha mais em listarLinhasEditaveis, e a rota devolve 422 'Linha não encontrada'. Além disso, 'Outros' aparece em 14 grupos, então o recente precisa guardar a trilha do grupo. (Não aparece no e2e porque o usuário demo tem as linhas clonadas.)",
+        "evidencia": "src/services/assistente/lancamento.ts:387 (ensurePersonalizedItem troca itemId); resposta prevista 'resultado: { itemId, ... }'; spec C item 11(b) 'localStorage ... até 5' com 'ids e nomes de linha'",
+        "sugestao": "Gravar em Recentes o resultado.itemId devolvido pela rota, com a trilha grupoNome. Se um recente não estiver em listarLinhasEditaveis(dados atuais), resolver pelo par nome+trilha ou descartá-lo."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "Os rótulos e limites do orçamento induzem ao erro. O selo do estado OK se chama 'No limite', que em pt-BR quer dizer 'no teto'. E o texto 'os mesmos limites dos alertas' não confere: a tabela usa consumo ≤ 80 como OK, enquanto o alerta dispara em ≥ 80% ('atencao'). Com exatamente 80%, o cartão diz 'No limite' (OK) e o sino avisa 'fique de olho'. O mobile também troca 'Consolidado' por 'Só pago/recebido', enquanto o desktop continua 'Consolidado'.",
+        "evidencia": "prototipo.html:1408 (p <= 80 ? 'No limite'), 1977; src/components/cashflow/orcamento/OrcamentoTable.tsx:160 (consumo <= 80 → success); src/services/cashflow/orcamentoAlertas.ts:10,71 (≥ 80% → atenção)",
+        "sugestao": "Usar 'Dentro da meta' / 'Atenção' / 'Estourou' e, em consumoInfo, usar < 80 para o OK, alinhado ao orcamentoAlertas. Manter o mesmo nome da visão ('Consolidado') ou renomear nos dois lugares."
+      },
+      {
+        "alvo": "design",
+        "gravidade": "media",
+        "descricao": "A 320×640, o que fica fixo no topo come a tela. O cabeçalho da casca, o h1 com ⋯, o segmento Planilha|Orçamento e a barra do mês, mais a barra de abas embaixo, somam cerca de 45% da altura. No cenário (a), a primeira faixa de grupo só aparece por volta de y=520, e no Orçamento o primeiro aviso fica colado na barra de abas.",
+        "evidencia": "screenshots revisao-a-320.png e revisao-g-320.png (Visão do mês e Orçamento a 320px)",
+        "sugestao": "Deixar sticky só a barra do mês. O segmento Planilha|Orçamento rola junto, ou vira ícones na barra do mês. Abaixo de 360px, compactar o cartão de resumo."
+      },
+      {
+        "alvo": "ambos",
+        "gravidade": "media",
+        "descricao": "As duas propostas divergem no comportamento da grade do ano e no e2e do lançamento. Na grade, o designer faz 'tocar numa célula abre o sheet' com cada célula como botão (cerca de 2.400 botões), e o arquiteto faz só leitura com o botão no cabeçalho do mês, reaproveitando o DataTableTwo com readOnly. No e2e, o designer grava R$ 1,23 e desfaz no CI, e o arquiteto vai só até a prévia. Gravar e desfazer deixa o carimbo no comentário e pode gerar notificação de orçamento; localmente (sem re-seed) o resíduo se acumula.",
+        "evidencia": "prototipo.html:1131 e cenário f; spec D item 4 e 7; spec C testes 'NÃO grava'",
+        "sugestao": "Levar as duas escolhas ao Wellington antes de dividir as fatias. Recomendo a versão do arquiteto nas duas (grade só leitura com salto para o mês; e2e até a prévia), e o protótipo precisa ser ajustado."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "O critério de histórico da fatia B diz que o reordenar gera 'itens.reordenar', mas essa entrada nunca é gravada (changes: [] faz o recordChange sair cedo). O 'Reordenar linhas' com setas do designer vira N POSTs sem nenhum registro. Isso não é regressão, mas a spec afirma algo falso e a QA vai procurar uma entrada que não existe.",
+        "evidencia": "src/app/api/cashflow/item/reorder/route.ts:84-92; src/services/changeHistory/recordChange.ts:61",
+        "sugestao": "Corrigir o texto do critério ou mudar a rota para changes: undefined, o que muda o desktop e precisa de decisão."
+      },
+      {
+        "alvo": "arquitetura",
+        "gravidade": "baixa",
+        "descricao": "Na grade do ano (D), esconder as colunas fixas 1 a 3 com display:none também remove o GRID.fixedDivider (borda da coluna 3), então some a divisória entre Itens e os meses. E scroll-snap-type: x proximity sem nenhum scroll-snap-align nos filhos não tem efeito.",
+        "evidencia": "src/components/cashflow/GridCells.tsx:48 (fixedDivider só em col === 3); spec D item 6",
+        "sugestao": "Colocar a borda direita em [data-cf-fixed='0'] no CSS mobile e scroll-snap-align: start nas células de mês, ou tirar o snap."
+      }
+    ],
+    "pontos_fortes": [
+      "A leitura do código pelo arquiteto confere: handleSaveGroup, handleReorder e handleMove estão dentro do DataTableTwo; batch-update grava 'valores.editar-lote' e não é desfazível; aplicarProposta já personaliza, grava numa transação e registra 'valor.editar'/'valores.editar-recorrente', ambos com handler de desfazer; recordChange devolve void hoje.",
+      "Gravar a baseline de desktop (commit 1) ANTES de extrair código para hooks, e aceitar no diff das fatias A–D só tokens max-lg:, data-attributes e props opcionais, é uma boa guarda contra regressão no computador. O collectStructure já descarta max-lg:.",
+      "Validar a linha do lançamento contra listarLinhasEditaveis(getMergedCashflowGroups(targetUserId)) fecha o IDOR e bloqueia sonho, dívida, investimento e linhas ocultas de uma vez. Recalcular tudo no servidor na confirmação dispensa o token assinado sem abrir brecha.",
+      "O contrato dos sheets usa ids e resolve de novo contra `groups` a cada render. Isso trata a troca de ids da personalização (clone-on-write).",
+      "A barra de teclas de fórmula do designer (pointerdown.preventDefault, teclado decimal mantido) é melhor para o iOS que trocar inputMode com o campo em foco: o Safari não troca o teclado sem perder e recuperar o foco.",
+      "O ponto de cor com o valor neutro (designer) resolve o contraste das cores da legenda do usuário sem desrespeitar a escolha dele.",
+      "Os e2e de só leitura e o de lançamento até a prévia (arquiteto) são seguros para o CI com o banco do seed. O usuário demo tem as linhas clonadas, então os ids não mudam nos testes."
+    ]
+  }
+}

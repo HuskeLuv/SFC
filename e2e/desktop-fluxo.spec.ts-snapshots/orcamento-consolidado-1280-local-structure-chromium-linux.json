@@ -1,0 +1,37 @@
+{
+ "tabs": [],
+ "tables": [
+  {
+   "ths": [
+    "Categoria",
+    "Orçamento",
+    "Real",
+    "Diferença",
+    "Consumo"
+   ],
+   "colCount": 5,
+   "theadClass": "",
+   "thClasses": [
+    "font-medium pl-4 pr-4 py-3",
+    "font-medium pr-4 py-3 text-right",
+    "font-medium py-3"
+   ],
+   "trClasses": [
+    "bg-gray-50 border-b border-gray-200 dark:bg-white/[0.02] dark:border-gray-800 font-medium",
+    "border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+   ],
+   "tdClasses": [
+    "dark:text-gray-100 pr-4 py-2.5 text-gray-800 text-right text-sm",
+    "dark:text-gray-100 pr-4 py-2.5 text-gray-800 text-sm",
+    "dark:text-gray-200 pr-4 py-2.5 text-gray-700 text-right text-sm",
+    "dark:text-gray-500 font-medium pr-4 py-2.5 text-gray-400 text-right text-sm",
+    "dark:text-success-500 font-medium pr-4 py-2.5 text-right text-sm text-success-600",
+    "dark:text-success-500 pr-4 py-2.5 text-right text-sm text-success-600",
+    "pr-4 py-2.5",
+    "pr-4 py-2.5 text-right",
+    "py-2.5"
+   ]
+  }
+ ],
+ "mobileArtifactsVisible": 0
+}

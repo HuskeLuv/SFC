@@ -16,10 +16,12 @@ export const DECIMAL_INPUT_PROPS = {
   type: 'text' as const,
   inputMode: 'decimal' as const,
   pattern: '[0-9]*[.,]?[0-9]*',
+  enterKeyHint: 'next' as const,
 };
 
 export const INTEGER_INPUT_PROPS = {
   type: 'text' as const,
   inputMode: 'numeric' as const,
   pattern: '[0-9]*',
+  enterKeyHint: 'next' as const,
 };

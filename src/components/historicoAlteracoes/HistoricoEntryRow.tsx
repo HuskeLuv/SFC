@@ -18,7 +18,10 @@ const ChangesList: React.FC<{ entry: HistoricoAlteracaoEntry }> = ({ entry }) =>
   return (
     <ul className="space-y-1">
       {entry.changes.map((change) => (
-        <li key={change.field} className="text-xs text-gray-600 dark:text-gray-300">
+        <li
+          key={change.field}
+          className="text-xs text-gray-600 max-lg:[overflow-wrap:anywhere] dark:text-gray-300"
+        >
           <span className="font-medium">{change.label}:</span>{' '}
           <span className="line-through text-gray-400 dark:text-gray-500">
             {formatChangeValue(change.before, change.format)}

@@ -4,8 +4,8 @@
  * Cobre o achado #5: erro do backend precisa aparecer na UI (era só logado).
  */
 import React, { useEffect } from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { RedeemWizardFormData } from '@/types/redeemWizard';
 
 const mockCsrfFetch = vi.hoisted(() => vi.fn());
@@ -93,5 +93,57 @@ describe('Regressão (achado #5) — erro do backend aparece no wizard', () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+function mockViewport(belowLg: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      matches: belowLg,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
+describe('PWA fase 1 — rodapé e progresso no celular', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('abaixo de lg: rodapé fixo no Sidebar, progresso de 5 etapas e sem a navegação inline', () => {
+    mockViewport(true);
+    const onClose = vi.fn();
+    render(<RedeemAssetWizard isOpen onClose={onClose} onSuccess={vi.fn()} />, { wrapper });
+    const footer = document.querySelector('[data-mf-wizard-footer]') as HTMLElement;
+    expect(footer).not.toBeNull();
+    expect(screen.queryByText(/Passo 1 de 5/)).toBeNull();
+    const bar = screen.getByRole('progressbar');
+    expect(bar).toHaveAttribute('aria-valuemax', '5');
+    expect(document.querySelector('[data-mf-step="asset-type"]')).not.toBeNull();
+
+    // Um único Avançar (o do rodapé) e, na 1ª etapa, Cancelar = mesmo handleCancel.
+    expect(screen.getAllByRole('button', { name: 'Avançar' })).toHaveLength(1);
+    fireEvent.click(within(footer).getByRole('button', { name: 'Avançar' }));
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
+    expect(document.querySelector('[data-mf-step="institution"]')).not.toBeNull();
+    fireEvent.click(within(footer).getByRole('button', { name: 'Voltar' }));
+    fireEvent.click(within(footer).getByRole('button', { name: 'Cancelar' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('a partir de lg: navegação inline de sempre, sem rodapé nem progresso novo', () => {
+    mockViewport(false);
+    render(<RedeemAssetWizard isOpen onClose={vi.fn()} onSuccess={vi.fn()} />, { wrapper });
+    expect(document.querySelector('[data-mf-wizard-footer]')).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.getByText(/Passo 1 de 5/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
   });
 });

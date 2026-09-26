@@ -15,12 +15,14 @@ export default function ProventosKpiCard({
   subValue,
 }: ProventosKpiCardProps) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03] max-lg:p-4">
       <div className="flex items-center gap-2">
         <span className="h-4 w-1 rounded-full bg-brand-500" aria-hidden />
         <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
       </div>
-      <p className="mt-3 text-2xl font-bold text-gray-900 dark:text-white">{bigValue}</p>
+      <p className="mt-3 text-2xl font-bold text-gray-900 dark:text-white max-lg:mt-2 max-lg:text-xl max-lg:break-words">
+        {bigValue}
+      </p>
       <div className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
         <p className="text-xs text-gray-500 dark:text-gray-400">{subLabel}</p>
         <p className="mt-1 text-sm font-semibold text-brand-500">{subValue}</p>

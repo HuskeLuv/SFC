@@ -1,5 +1,6 @@
 import React from 'react';
 import { SummaryRow } from './SummaryRow';
+import { inflacaoPessoalAnual, inflacaoPessoalPorMes } from '@/services/cashflow/derivedIndices';
 
 interface InflationPedroRowProps {
   despesasByMonth: number[];
@@ -7,20 +8,9 @@ interface InflationPedroRowProps {
 }
 
 export const InflationPedroRow: React.FC<InflationPedroRowProps> = ({ despesasByMonth }) => {
-  // Inflação pessoal = ((despesas mês atual / despesas mês anterior) - 1) * 100.
-  // Janeiro é sempre 0%; mês anterior zerado não permite cálculo.
-  const monthlyInflations = despesasByMonth.map((despesasAtual, index) => {
-    if (index === 0) return 0;
-    const despesasAnterior = despesasByMonth[index - 1];
-    if (despesasAnterior === 0) return null;
-    return (despesasAtual / despesasAnterior - 1) * 100;
-  });
-
-  const validInflations = monthlyInflations.filter((inf): inf is number => inf !== null);
-  const annualInflation =
-    validInflations.length > 0
-      ? validInflations.reduce((sum, inf) => sum + inf, 0) / validInflations.length
-      : null;
+  // Inflação pessoal mês a mês e média do ano (conta em services/cashflow/derivedIndices).
+  const monthlyInflations = inflacaoPessoalPorMes(despesasByMonth);
+  const annualInflation = inflacaoPessoalAnual(monthlyInflations);
 
   return (
     <SummaryRow

@@ -43,6 +43,7 @@ describe('POST /api/auth/register', () => {
     name: 'New User',
     role: 'user',
     password: 'hashed-password',
+    sessionVersion: 0,
   };
 
   beforeEach(() => {
@@ -67,6 +68,12 @@ describe('POST /api/auth/register', () => {
 
     const setCookie = response.headers.get('set-cookie');
     expect(setCookie).toContain('token=mock-token');
+    // Cadastro entra com "Manter conectado": 30 dias, claims sv/rm/at
+    expect(setCookie).toContain('Max-Age=2592000');
+    const [claims, , options] = mockJwt.sign.mock.calls[0];
+    expect(claims).toMatchObject({ id: 'user-new', role: 'user', sv: 0, rm: true });
+    expect(typeof claims.at).toBe('number');
+    expect(options).toEqual({ expiresIn: 30 * 86400 });
 
     // ATENÇÃO Sprint A: BCRYPT_ROUNDS subiu pra 12
     expect(mockBcrypt.hash).toHaveBeenCalledWith('Password123!', 12);

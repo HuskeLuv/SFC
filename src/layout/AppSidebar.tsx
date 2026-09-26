@@ -1,97 +1,13 @@
 'use client';
-import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '../context/SidebarContext';
-import { useAuth } from '@/hooks/useAuth';
-import {
-  CalenderIcon,
-  ChevronDownIcon,
-  CreditCardIcon,
-  DollarLineIcon,
-  GridIcon,
-  HorizontaLDots,
-  PencilIcon,
-  PieChartIcon,
-  TableIcon,
-  TimeIcon,
-  UserCircleIcon,
-  DocsIcon,
-  VideoIcon,
-  LockIcon,
-  PlugInIcon,
-  GroupIcon,
-} from '../icons/index';
-import { usePluggyConfig } from '@/hooks/useConexoesBancarias';
-import { useComunidadeConfig } from '@/hooks/useComunidade';
+import { ChevronDownIcon, HorizontaLDots } from '../icons/index';
 import SidebarFooter from './SidebarFooter';
 import CashflowYearSelect from './CashflowYearSelect';
-
-type NavItem = {
-  name: string;
-  icon: React.ReactNode;
-  path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
-};
-
-const MAIN_NAV_ITEMS: NavItem[] = [
-  {
-    icon: <GridIcon />,
-    name: 'Dashboard',
-    path: '/carteira',
-  },
-  {
-    icon: <DollarLineIcon />,
-    name: 'Carteira',
-    path: '/carteira',
-  },
-  {
-    name: 'Fluxo de Caixa',
-    icon: <TableIcon />,
-    path: '/fluxodecaixa',
-  },
-  {
-    name: 'Planejamento',
-    icon: <PencilIcon />,
-    path: '/planejamento-financeiro',
-  },
-  {
-    name: 'Saúde Financeira',
-    icon: <PieChartIcon />,
-    path: '/saude-financeira',
-  },
-  {
-    name: 'Dívidas',
-    icon: <CreditCardIcon />,
-    path: '/dividas',
-  },
-  {
-    icon: <CalenderIcon />,
-    name: 'Agenda',
-    path: '/calendario',
-  },
-  {
-    icon: <UserCircleIcon />,
-    name: 'Perfil',
-    path: '/profile',
-  },
-  {
-    icon: <TimeIcon />,
-    name: 'Histórico',
-    path: '/historico-alteracoes',
-  },
-  {
-    icon: <DocsIcon />,
-    name: 'Relatórios',
-    path: '/relatorios',
-  },
-  {
-    icon: <VideoIcon />,
-    name: 'Educação',
-    path: '/educacao',
-  },
-];
+import { useMainNavItems, type NavItem } from './navigation';
 
 const othersItems: NavItem[] = [];
 
@@ -100,73 +16,9 @@ const supportItems: NavItem[] = [];
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
-  const { user, actingClient } = useAuth();
-  // Conexões bancárias (Pluggy): item só aparece com a integração ligada no servidor.
-  const pluggyHabilitado = usePluggyConfig().data?.habilitado === true;
-  // Comunidade (23/09/2026): atrás de COMUNIDADE_HABILITADA até liberar em prod.
-  const comunidadeHabilitada = useComunidadeConfig().data?.habilitada === true;
-
-  const dashboardPath =
-    user?.role === 'consultant' && !actingClient ? '/dashboard/consultor' : '/carteira';
-
-  const mainNavItems = useMemo(() => {
-    let items = MAIN_NAV_ITEMS.map((item) =>
-      item.name === 'Dashboard'
-        ? {
-            ...item,
-            path: dashboardPath,
-          }
-        : item,
-    );
-
-    if (user?.role !== 'consultant') {
-      items = items.filter((item) => item.name !== 'Dashboard');
-    }
-
-    // Integração bancária (14/09/2026): entra logo após Dívidas; fora da lista
-    // do consultor personificado de propósito (extrato só do próprio cliente).
-    if (pluggyHabilitado) {
-      const idx = items.findIndex((item) => item.name === 'Dívidas');
-      const entrada = {
-        icon: <PlugInIcon />,
-        name: 'Conexões bancárias',
-        path: '/conexoes-bancarias',
-      };
-      items =
-        idx >= 0
-          ? [...items.slice(0, idx + 1), entrada, ...items.slice(idx + 1)]
-          : [...items, entrada];
-    }
-
-    if (comunidadeHabilitada) {
-      items = [...items, { icon: <GroupIcon />, name: 'Comunidade', path: '/comunidade' }];
-    }
-
-    // Painel administrativo (11/09/2026): só role admin vê o item.
-    if (user?.role === 'admin') {
-      items = [...items, { icon: <LockIcon />, name: 'Administração', path: '/admin' }];
-    }
-
-    // Se estiver personificado, mostrar apenas: Dashboard, Fluxo de Caixa, Carteira e Relatórios
-    if (actingClient) {
-      const allowedItems = [
-        'Dashboard',
-        'Fluxo de Caixa',
-        'Carteira',
-        'Relatórios',
-        'Planejamento',
-        // Dívidas são parte central do trabalho do consultor no cliente
-        'Dívidas',
-        // Diagnóstico de saúde financeira é o caso de uso original do consultor
-        'Saúde Financeira',
-        // Consultor vê o histórico do cliente (inclui a própria trilha "via consultor")
-        'Histórico',
-      ];
-      items = items.filter((item) => allowedItems.includes(item.name));
-    }
-
-    return items;
-  }, [dashboardPath, actingClient, user?.role, pluggyHabilitado, comunidadeHabilitada]);
+  // Lista compartilhada com a casca mobile (src/layout/navigation.tsx): mesmos filtros de
+  // perfil, personificação e flags (Pluggy, Comunidade, Administração).
+  const mainNavItems = useMainNavItems();
 
   const renderMenuItems = (navItems: NavItem[], menuType: 'main' | 'support' | 'others') => (
     <ul className="flex flex-col gap-4">
@@ -354,7 +206,7 @@ const AppSidebar: React.FC = () => {
       className={`fixed flex flex-col top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-full transition-all duration-300 ease-in-out z-50 border-r border-gray-200 pb-4
         ${isExpanded || isMobileOpen ? 'w-[200px]' : isHovered ? 'w-[200px]' : 'w-[90px]'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0`}
+        lg:translate-x-0 max-lg:hidden`}
       onMouseEnter={() => !isExpanded && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

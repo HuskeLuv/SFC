@@ -37,13 +37,12 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
     updateCaixaParaInvestir,
   } = useFimFia();
 
-  const handleUpdateObjetivo = async (ativoId: string, novoObjetivo: number) => {
-    await updateObjetivo(ativoId, novoObjetivo);
-  };
+  // Devolve o resultado (false = falha) para o sheet do celular manter o erro aberto.
+  const handleUpdateObjetivo = (ativoId: string, novoObjetivo: number) =>
+    updateObjetivo(ativoId, novoObjetivo);
 
-  const handleUpdateValorAtualizado = async (ativoId: string, novoValor: number) => {
-    await updateValorAtualizado(ativoId, novoValor);
-  };
+  const handleUpdateValorAtualizado = (ativoId: string, novoValor: number) =>
+    updateValorAtualizado(ativoId, novoValor);
 
   // Aba sem ativos: o TOTAL GERAL de % da Carteira mostra "—" em vez de 100%.
   const temAtivos = (data?.secoes ?? []).some((s) => s.ativos.length > 0);
@@ -71,13 +70,14 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       key: 'cotizacaoResgate',
       header: 'Cot. Resgate',
       align: 'center',
+      mobile: 'edit',
       render: (a) => (
         <EditableTextCell
           ativoId={a.id}
           value={a.cotizacaoResgate}
           placeholder="D+0"
           title="Prazo de cotização do resgate (ex.: D+0, D+30). Clique para editar."
-          onSubmit={(id, v) => void updateCampo(id, 'cotizacaoResgate', v)}
+          onSubmit={(id, v) => updateCampo(id, 'cotizacaoResgate', v)}
         />
       ),
       renderSectionTotal: () => '-',
@@ -87,13 +87,14 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       key: 'liquidacaoResgate',
       header: 'Liq. Resgate',
       align: 'center',
+      mobile: 'edit',
       render: (a) => (
         <EditableTextCell
           ativoId={a.id}
           value={a.liquidacaoResgate}
           placeholder="D+1"
           title="Prazo de liquidação do resgate (ex.: Imediata, D+1). Clique para editar."
-          onSubmit={(id, v) => void updateCampo(id, 'liquidacaoResgate', v)}
+          onSubmit={(id, v) => updateCampo(id, 'liquidacaoResgate', v)}
         />
       ),
       renderSectionTotal: () => '-',
@@ -143,6 +144,9 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       key: 'valorAtualizado',
       header: 'Valor Atualizado',
       align: 'right',
+      // Celular: o texto no cabeçalho do cartão e a célula (com Editar) no cartão aberto.
+      mobileRender: (a, f) => f.formatCurrency(a.valorAtualizado),
+      mobileEdit: true,
       render: (a, f) =>
         a.isAutoUpdated ? (
           <span title="Sincronizado automaticamente (cota CVM)">
@@ -284,6 +288,10 @@ export default function FimFiaTable({ totalCarteira = 0 }: FimFiaTableProps) {
       formatPercentage={formatPercentage}
       formatNumber={formatNumber}
       totalCarteira={totalCarteira}
+      mobileTitleFromName
+      mobileSubtitle={(a) =>
+        [a.categoriaNivel1, a.subcategoriaNivel2].filter((v) => v && v.trim()).join(' • ')
+      }
     />
   );
 }

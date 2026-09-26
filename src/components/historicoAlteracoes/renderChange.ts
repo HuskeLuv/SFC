@@ -180,6 +180,7 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
   'senha.alterar': withLabel('Alterou a senha'),
   '2fa.ativar': withLabel('Ativou a autenticação em duas etapas'),
   '2fa.desativar': withLabel('Desativou a autenticação em duas etapas'),
+  'sessoes.encerrar': withLabel('Saiu de todos os dispositivos'),
 };
 
 const UNDO_SUFFIX = '.desfazer';
